@@ -3,6 +3,234 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq`, `curl`, `awk`, and `sort` at load time.** The four `command -v` checks run as
+  pre-computed context, so `check` reads their results instead of making four Bash calls. The FAIL
+  rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
+## [0.49.0] - 2026-09-26
+
+### Added
+
+- **The audit engine labels consent receipts.** An undocumented top-level key recorded in
+  `skills/audit/reference/consent-receipts.json` (keyed by `plugin@marketplace` owner, or
+  `claude-code` for keys the CLI writes; first entry `skipWorkflowUsageWarning`, user scope) is an
+  `ok` row under check `A/consent-receipt`, claim `consent-receipt:<key>`, when the file's scope is
+  one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
+  `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
+  stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
+  name, which also withholds any other owner's label for the key). A key is never labeled when the
+  same file also holds a carriage-return variant of it. A missing or invalid record file, including
+  one whose record fields hold a control character or that lists a key under two owners, is one
+  `not-inspectable` row. An existing
+  `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
+  labeled; the row it retired is no longer a finding.
+
+### Changed
+
+- **The audit engine no longer asks for an explicit `true` or `false` on catalog plugins.** The
+  `drift-new` finding (`new-upstream:<name>@<marketplace>`) is gone. For each marketplace whose
+  catalog has plugins with no `enabledPlugins` entry in any readable scope, the engine emits one
+  `ok` inventory row under check `E/drift-new` (claim `drift-new:<marketplace>`) with the count and
+  an example key.
+- **A disabled plugin is a finding only when an enabled plugin depends on it.** The `info` finding
+  on every `false` key (`disabled-plugin:<key>`) is gone. Every `false` key in the user, project and
+  local files is now an `ok` inventory row with the same claim, noting when a `true` at a higher
+  scope shadows it. A `false` that is the merged value (local over project over user) and that an
+  enabled plugin declares as a direct dependency in its `.claude-plugin/plugin.json` is a `warning`
+  finding, `dependency-disabled:<key>`, on the file holding the `false`, naming the dependents.
+  String (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) dependency forms
+  are read; a bare name resolves to the dependent's marketplace. The manifest is optional, so an
+  install path without `plugin.json` declares no dependencies. An enabled plugin whose install path
+  did not resolve, whose `plugin.json` is not valid JSON, or whose `dependencies` is not an array is
+  a `not-inspectable` row, `dependencies-unread:<key>`.
+  Managed-scope `enabledPlugins` is not merged, and version constraints are not checked. Basis: the
+  plugins/install page (disabling a plugin another enabled plugin needs is refused) and the
+  plugins/dependencies page (a dependent is disabled at the next plugin load), both pinned in
+  `reference/doc-citations.tsv`.
+- **Suppression records keyed to the removed findings no longer match anything.** Records for
+  `disabled-plugin:*` and `new-upstream:*` findings can be deleted from `.claude/audit-pass.md`;
+  those rows are inventory now and carry no finding id. The new finding id to suppress, if wanted,
+  is `dependency-disabled:*`.
+- **`fix-plugin-drift.sh --yes` never adds a key.** NEW upstream plugins print as a
+  `NEW (report only)` list, and the AUTO-ADD plan section is gone.
+- **`fix-plugin-drift.sh` holds an orphan-`false` removal that would expose a `true`.** When the
+  user settings file (or, for an audited `settings.local.json`, its sibling `settings.json`) holds
+  `true` for the key, the removal moves to MANUAL REVIEW, on a dry run too. A lower-precedence file
+  that cannot be read, is not valid JSON, or whose `enabledPlugins` is not an object sends every
+  removal to manual review. A plan with a pending removal says that other developers' user scopes
+  and managed settings were not checked.
+- **`check-plugin-drift.sh` exits 1 only when it finds an orphan.** A run that finds
+  only NEW plugins exits 0, and the summary names `fix-plugin-drift.sh` only when an orphan exists.
+  The orphan-`false` label reads `(false, removal candidate)`.
+- **The drift check reports what it did not diff.** Every `check-plugin-drift.sh` run prints a
+  `Not diffed:` line with the count and the keys whose marketplace the audited file does not
+  declare, including when it declares none. The engine reports the same gap for the project and
+  local files as an `E/drift` `skip` row, `drift-coverage:<file>`; a key whose marketplace no scope
+  registers stays under `unknown-marketplace`.
+- **The fix backup has a new name.** `fix-plugin-drift.sh --yes` writes
+  `<settings>.bak.<UTC stamp>.<random>`, with the random part from `mktemp -u`, in place of
+  `<settings>.<UTC stamp>.bak`. Two applies in the same second each get a backup instead of the
+  second being refused. An ignore rule for `.claude/*.bak` needs to become `.claude/*.bak.*`.
+- **`check-doc-citations.sh` accepts a nested page slug** such as `plugins/install`, creating the
+  fetch subdirectory the page lands in.
+
+### Fixed
+
+- **A plugin or marketplace key holding a carriage return is audited and fixed exactly.** Both
+  drift scripts carry keys as JSON from the settings file and the catalog to the findings and on to
+  the edit, with no `jq -R` line input and no `tr -d '\r'` on a key. A marketplace key ending in a
+  carriage return used to be stripped before the lookup and skipped; `fix-plugin-drift.sh` now
+  removes the carriage-return key and leaves a same-named key without it untouched. The engine's
+  category E rows compare keys in jq as well.
+- **No existing path is written through at the backup name.** The apply is refused when anything
+  already exists at the generated name, and the copy is written on one exclusive open (bash
+  noclobber, which opens a missing name with `O_CREAT|O_EXCL`) under `umask 077`, so a file or
+  symlink planted after that check makes the open fail instead of being followed. No byte is
+  written until the open descriptor is a regular file that is the one at the name. The apply is
+  refused unless the backup is a regular non-symlink file equal to the snapshot, and the refusal on
+  a concurrent change removes the backup only when it is still a regular file.
+- **`check-doc-citations.sh` refuses a manifest slug that could leave its page directory.** Every
+  slug must be lower-case segments joined by `/` (`^[a-z0-9_-]+(/[a-z0-9_-]+)*$`); a `..`
+  segment, a leading `/` or any other shape exits 2 naming the row, before any page is read.
+- **The drift test suites pass on Git Bash with a Windows-form `TMPDIR`.**
+  `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
+  when available and export `TMPDIR` under their own guarded temp directory, and both suites point
+  `HOME` and `CLAUDE_CONFIG_DIR` at a fixture user directory.
+- **Only an orphan whose value is exactly `false` is removed.** `check-plugin-drift.sh` records an
+  orphan's value as the settings file holds it instead of folding it to a boolean, so a `null`,
+  string, number or object value no longer reads as `false`. `fix-plugin-drift.sh` holds `true` and
+  every other value for manual review, including a planned removal whose key has since changed to
+  one, and the engine reports such an orphan as a warning, never as removable.
+- **A `source.repo` that is not `owner/name` is never fetched.** `check-plugin-drift.sh` reports a
+  repo outside GitHub's name characters, or with a `.` or `..` part, as SKIP with the reason
+  `invalid source.repo`, and fetches with `curl --globoff` so the URL is never read as a pattern.
+  Messages print control characters in a marketplace key, settings path or backup path as `?`.
+
+## [0.48.2] - 2026-09-25
+
+### Fixed
+
+- **`fix-plugin-drift.sh` no longer reports "No drift detected" when no marketplace was audited.**
+  Findings whose blocks were all skipped, an `--input` of `[]`, and empty findings from the internal
+  check all print "No marketplace was audited, so there is nothing to report." Any block that is
+  not `ok` is listed under `SKIPPED <n> marketplaces not audited:` with its key and reason (or
+  "no reason given"), above the verdict or the plan, so a partly skipped run says what it did not
+  compare. Every displayed entry prints control characters as `?`, so a name or reason from
+  upstream JSON cannot send escape sequences to the terminal; the edit still uses the raw keys. Only
+  the line-ending carriage return a native-Windows jq appends is stripped from each key, so a
+  carriage return inside a plugin name stays part of the key the edit writes or removes.
+- **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not exactly one
+  array of objects (a top-level object, a string, a zero-byte file, `[1]`, or a second document
+  after the first) exit 2, and so does any plan list jq fails to extract, naming the list, where a
+  failure used to render a truncated plan and exit 0.
+- **`fix-plugin-drift.sh` filters additions and removals against the settings file before
+  rendering the plan.** Manual-review orphans and renames are not filtered. An addition whose key
+  already exists (as `false` or `true`) and a removal whose key is absent are
+  dropped; a removal whose key is now `true` moves to MANUAL REVIEW. The count prints as
+  `FILTERED <n> plan entries no longer match the settings file`. A plan that filters away prints
+  "Nothing to apply" on a dry run and on `--yes`, with no backup and no edit, where a no-op
+  `--input` used to rewrite a compactly formatted file and report "Applied". A dry run whose plan
+  holds only manual-review or rename items also prints "Nothing to apply (no pending removal or
+  addition)." instead of asking for `--yes`, and that line replaces the apply-only "(manual review
+  items only)" wording. A settings file with no `enabledPlugins` filters as an empty map. When a removal or
+  addition is pending, a settings file whose `enabledPlugins` is not an object, or that is not
+  valid JSON, exits 2, on a dry run too.
+- **`fix-plugin-drift.sh --yes` refuses a settings file that changed under it.** The filter, the
+  edit, the line-ending measurement and the backup all come from one snapshot of the settings file
+  taken at plan time. After the backup is written and just before the replace, the live file is
+  compared with that snapshot, and a difference exits 2 with the other writer's bytes left in place
+  and the backup this run just wrote removed. The window between that compare and the replace is
+  documented, not closed. Anything already at the backup path (a file, a symlink including a
+  dangling one, a FIFO or a device node) is refused before the backup is opened, because bash
+  noclobber refuses only an existing regular file; the removal on a refused apply deletes only a
+  regular file at the backup path, never a link. The stage-equals-current refusal now
+  compares the stage against the snapshot and is defensive only, since the filter leaves no entry
+  that would not change the file.
+- **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
+  `Marketplaces declared in the audited file: <n>`, including 0, and an `extraKnownMarketplaces`
+  that cannot be read or is not an object (an array used to be audited as marketplaces named by
+  its indices) exits 2.
+- **Two in-place corrections to the released 0.46.12 entry.** Its "Four changes close it" sentence
+  now counts five and names the stage-equals-current refusal it left out, and its claim that a
+  read-only settings file "comes back read-only" is qualified to platforms that honor mode bits,
+  matching the `fix-plugin-drift.sh` header.
+
+## [0.48.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.48.0] - 2026-09-23
+
+### Added
+
+- **The audit engine reads its upstream sources every run.** It fetches the docs index
+  (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
+  links there, and reads each page verbatim. The document's new `docs` object lists the index and
+  every page with its URL or path, byte count, and state (`read`, `unread` with a reason, or
+  `unparsed`), and `--table` prints it.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched. Fetches are
+  HTTPS only, redirects included (at most 5), and a page whose redirect lands outside the docs
+  origin is `unread` with reason `redirected-off-origin`.
+- **The engine records the Claude Code version.** It runs `claude --version` and carries the
+  result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
+  makes them `skip`.
+- **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
+  project, local, and user settings is looked up on `settings-reference`: by its own heading, or,
+  for a `permissions.*` key, by its name in the `permissions` **Type** bullet. A key found neither
+  way is one finding, claim `undocumented-key:<key>`, whose severity says what the installed
+  `claude` binary showed: `info` when the binary carries the name standalone (bounded by
+  characters that cannot continue an identifier), `warning` when it does not, and `info` when the
+  binary could not be searched (missing, or a shim lacking two known key names) or the name is
+  shorter than four characters or not identifier-shaped. A hit shows the name is in the CLI, not
+  that the CLI reads the key. Keys reach their claim exactly as written, with no tab-separated
+  escaping. A key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` and empty key names are exempt.
+- **A `settings-reference` page that does not parse fails closed.** A page that downloaded but has
+  no heading for `permissions` or `enabledPlugins` (a soft 404, a reshaped page) is recorded with
+  state `unparsed`, not `read`, and every key, value, and version row resting on it is
+  `not-inspectable` rather than a run of undocumented-key findings.
+
+### Changed
+
+- **The `effortLevel` rule is now "value not in the documented set".** The accepted values, and
+  the `disableDeepLinkRegistration` value, come from the key's **Type** bullet on the fetched
+  `settings-reference` instead of a list in the engine, so any undocumented value is flagged, not
+  only `max` and `ultracode`. A value is matched as one whole string, so a multi-line value is
+  never accepted on the strength of one documented line. Claims `effortLevel:<value>` and `disableDeepLinkRegistration:<value>`
+  keep their identity. The matching `audit-checklist.md` rows now point at the Type bullet.
+- **`enforceAvailableModels-without-list` is gated on the version the key requires.** On a Claude
+  Code older than the first "Requires Claude Code" version in the key's section, the row is `ok`
+  with the reason.
+- **Env-var documentation rows are `not-inspectable`, not `skip`, when `env-vars` was not read.**
+  The claim `env-page-not-fetched:<key>` is unchanged.
+- **Default runs use the network.** An offline run reports the unfetched pages `unread` and every
+  row resting on them `not-inspectable`.
+
+### Fixed
+
+- **An env key containing `.` is matched literally on the env-vars page.** The check grepped the
+  key as a regex, so `A.B` matched a documented `AXB`.
+
+## [0.47.1] - 2026-09-23
+
+### Fixed
+
+- **The audit engine no longer reports an env value containing a backslash as a
+  `path-separators` finding.** Its rationale, "forward slashes work on every platform", had no
+  upstream basis: the [env-vars page](https://code.claude.com/docs/en/env-vars) documents
+  `CLAUDE_CODE_GIT_BASH_PATH` as Windows-only and ignores it only when the path is missing or the
+  file is not named `bash.exe`, `sh.exe`, `bash`, or `sh`, and the official examples in
+  [setup](https://code.claude.com/docs/en/setup) and
+  [troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install) use backslashes.
+  The matching `audit-checklist.md` row, the `validation-categories.md` bullet, and the SKILL.md
+  mention are removed.
+
 ## [0.47.0] - 2026-09-23
 
 ### Added
@@ -173,10 +401,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
   during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
   run, after which `cp -p` recreated the stage from the original and the normalization input was
-  gone. Four changes close it: both normalization arms are checked and fatal; the signal traps
+  gone. Five changes close it: both normalization arms are checked and fatal; the signal traps
   clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
   after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
-  file is applied and comes back read-only; and the settings file is read back after the replace
+  file is applied and comes back read-only on platforms that honor mode bits; the
+  stage-equals-current refusal compares the stage against the current file and stops before the backup when the two
+  match; and the settings file is read back after the replace
   and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
   say-so. The remaining command substitutions in the apply path (the clock for the backup name,
   the line-ending measurement, the plugin-list encoding) are checked too.

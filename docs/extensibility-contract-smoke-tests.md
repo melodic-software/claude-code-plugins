@@ -108,9 +108,9 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   (repeatable, schema-validated, "stored via the same path as the interactive `/plugin configure`
   flow"). Against an already-installed plugin the command short-circuits and prints
   `already installed`, the observation recorded here on 2.1.207, but it **still writes the value**:
-  the short-circuit is about the install, not the config write. **Re-verified on Claude Code 2.1.240**
-  (a non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
-  restored); a `sensitive` option and `project`/`local` scope were not covered. `claude plugin` has no
+  the short-circuit is about the install, not the config write. The current verified-version record,
+  including `project`/`local` scope, lives in the
+  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record). `claude plugin` has no
   `configure` subcommand (verified against `claude plugin --help` on 2.1.207; `/plugin configure` is an
   interactive slash command only), so headless reconfiguration is another `--config` install, not
   uninstall then reinstall.

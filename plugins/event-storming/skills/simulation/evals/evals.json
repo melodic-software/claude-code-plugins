@@ -102,6 +102,18 @@
         "Cross-references the arrow-voting winner (refund disputes) to recommend which BC to explore next",
         "Does not contradict the board-URL scenario (eval 3): a live Miro board reached by URL still requires Miro to read, but a directly-supplied export does not"
       ]
+    },
+    {
+      "id": 9,
+      "name": "user-scope-miro-prefix-counts-as-available",
+      "prompt": "The miro plugin's own server is disabled for this project. Miro is instead connected as a user-scope MCP server named miro, so its tools are callable as mcp__miro__miro_list_boards and mcp__miro__miro_create_board; no mcp__plugin_miro_miro__* tool exists. --simulate online-grocery-delivery",
+      "expected_output": "The availability gate matches the Miro-specific tool names under the user-scope mcp__miro__ prefix as well as the plugin prefix, so Miro counts as available and the run takes the live-board path rather than the structured-markdown degradation.",
+      "files": [],
+      "expectations": [
+        "Output treats Miro as available because mcp__miro__miro_list_boards and mcp__miro__miro_create_board are callable",
+        "Output does not tell the user the miro plugin is not enabled or offer structured-markdown mode as a fallback for missing Miro",
+        "Output does not require the mcp__plugin_miro_miro__ prefix specifically"
+      ]
     }
   ]
 }

@@ -3,6 +3,42 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- index-drift.sh: `file_dir` is initialized before `hook::dirname_to` writes it, so ShellCheck sees the assignment (SC2154). No behavior change.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.15.4] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.15.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/index-drift.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
+
+## [0.15.2] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
 ## [0.15.1] - 2026-09-21
 
 ### Changed

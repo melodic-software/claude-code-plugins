@@ -1154,8 +1154,7 @@ def main() -> int:
         # '@me' could not be resolved to a gh login; fail closed by keeping
         # only the explicit non-'@me' logins -- an unresolved self identity
         # is simply not recognized as self, so a comment under it is judged a
-        # third-party human same as before this flag existed, never silently
-        # trusted as self on a guessed identity.
+        # third-party human, never silently trusted as self on a guessed identity.
         self_logins = normalize_self_logins(
             token
             for token in (args.self_logins or "").split(",")

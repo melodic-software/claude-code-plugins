@@ -7,13 +7,23 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 - [ ] Step 1: Survey before you ask. Read existing context, the topic's contract and memory slices, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only). If intent already crisp from survey, route to direct synthesis (skip Q&A loop)
 - [ ] Step 2: Drive the frontier-rounds loop. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` synthesizes without Q&A); order rounds by blast radius; restate decided/open after each round
+- [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`). Once the frontier is empty, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`)
 - [ ] Step 3: Recognize the stop condition. The open-question register grades clean (`check-open-questions.sh` exits 0; skipped only when the run asked no question at all and so wrote no register), the frontier is empty (every unknown the task depends on resolved or captured as a named assumption) AND user has confirmed the restated shared understanding (`me`/`auto`; `lock` is exempt, since invoking it IS the confirmation)
 - [ ] Step 4: Persist the contract. Engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in, so a handoff at any round boundary loses nothing)
 - [ ] Step 5: Hand off. Engineering: recommend the next skill (exploration/research for engineering-internal; chain after `/planning:prd` for product-driven); general: deliver the summary and stop, no pipeline handoff. Both: recommend model / effort / advisor per the live-doc-sourced session-config guidance (never a pinned model name). Engineering configures the **downstream execution session** it hands off to; general/terminal configures the **current/next session**, applied now (nothing downstream exists), first surfaced early, post-survey, so it could shape the rounds themselves; here refresh it and, if raised only now, offer to re-evaluate the result under the raised config
 
+## Constraint ledger
+
+One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously. Rules: `context/loop.md` "Constraint ledger". Replace the example rows with this run's constraints.
+
+- C1 | confirmed | V1 ships without SSO | user, round 1
+- C2 | inherited | no new runtime dependencies | prior Brief
+
 ## Open-question register
 
-**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked`. `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
+**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
+
+Each `Commits you to:` part of a recommendation is a row of its own with `(part of Q<N>)` in the question field, numbered right after its headline when asked with it, and at the next free id when registered after later ids exist. Resolution rules: `context/loop.md` "Commitment rows"; late numbering: "Commitment rows written after later ids exist". On the page surface, the parts are the question's `commits` entries instead (see `context/loop.md` "Commitment parts on the page").
 
 Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions; keep every live row unfenced.
 

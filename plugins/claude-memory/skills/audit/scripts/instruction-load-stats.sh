@@ -1,46 +1,11 @@
 #!/usr/bin/env bash
 # instruction-load-stats.sh — how much instruction content actually loads at launch.
-#
-# The C1 line budget is stated per CLAUDE.md file, but what Claude Code loads is
-# the file WITH its `@path` imports expanded: "imported files still load and enter
-# the context window at launch" (memory doc). A one-line CLAUDE.md that imports a
-# 500-line AGENTS.md is a 500-line file for the budget's purpose, so a raw `wc -l`
-# on the root file measures the wrong thing. This script measures the expanded
-# content, using the same import parser the nested-AGENTS.md check uses
-# (lib/imports.sh), so the two never disagree about what an import is.
-#
-# What is counted is the content that loads: block-level HTML comments are
-# stripped (the doc says they are removed before injection; comments inside a
-# fenced code block are kept, since a fence is code). Lines are non-blank lines
-# after that strip; bytes are of the LF-normalized stripped content; tokens are
-# bytes / 4, which is an ESTIMATE and is labeled as one wherever it is printed.
-# A measured figure is the `context-budget` plugin's job when it is installed.
-#
-# The always-loaded set for --tokens and --breakdown is every root memory file
-# that exists (CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md; or AGENTS.md and
-# .claude/AGENTS.md, when none of those three is there to displace them) plus every
-# `.claude/rules/**/*.md` without `paths:` frontmatter, and the same two shapes
-# in the user scope (${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and its
-# rules/), which load in every session of every project. Each root has its
-# imports expanded. A file reached from two roots is counted once. A project
-# import that resolves outside the repository is listed as `external` and never
-# expanded: the loader gates those behind an approval dialog whose answer this
-# script cannot see. A user-scope import is expanded within the config dir.
-#
-# OUTPUT CONTRACT: --lines, --bytes, and --tokens print exactly one integer and
-# always exit 0 (a missing file reports 0), because the pre-compute lines that
-# call them inject stdout verbatim into the skill body. --breakdown prints TSV.
-# A bad mode exits 2.
-#
-# Usage:
-#   instruction-load-stats.sh --lines [--file <path>]   expanded loaded lines of one root file
-#   instruction-load-stats.sh --bytes [--file <path>]   expanded loaded bytes of one root file
-#   instruction-load-stats.sh --tokens                  estimated tokens of the always-loaded set
-#   instruction-load-stats.sh --breakdown               TSV: status, lines, bytes, path; then TOTAL
-#   instruction-load-stats.sh --help
-#
-# --file defaults to CLAUDE.md, then .claude/CLAUDE.md, whichever exists first,
-# then the first natively read AGENTS.md when neither is there.
+# Counts each root WITH its `@path` imports expanded, via the same lib/imports.sh
+# parser the nested-AGENTS.md check uses, since imported files load at launch.
+# A project import outside the repository is listed as `external`, never expanded:
+# the loader gates it behind an approval dialog this script cannot see.
+# --lines, --bytes, and --tokens print one integer and exit 0 (missing file: 0),
+# because pre-compute lines inject stdout verbatim. A bad mode exits 2.
 
 set -uo pipefail
 
@@ -103,15 +68,13 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 [[ -n "$repo_root" ]] || repo_root="$PWD"
 cd "$repo_root" || exit 2
 PROJECT_ROOT="$(il_realpath "$repo_root")"
-# The external-import boundary for the walk in progress: the repository for
-# project-scope roots, the config dir for user-scope ones (a user file's imports
-# load without the approval dialog, so they are expanded).
+# External-import boundary of the walk in progress: the repository, or the config
+# dir for user-scope roots, whose imports load without the approval dialog.
 IL_ROOT="$PROJECT_ROOT"
 export IL_ROOT
 
-# Loaded content of one file: LF-normalized, block-level HTML comments removed
-# outside fenced code. A comment ends at the first `-->` after its own opener; an
-# opener that never closes is content, so it is flushed at EOF rather than eaten.
+# A comment ends at the first `-->` after its own opener; an opener that never
+# closes is content, so it is flushed at EOF rather than eaten.
 loaded_content() {
   tr -d '\r' <"$1" | LC_ALL=C awk '
     function uncomment(s,   p, q, out) {
@@ -142,23 +105,16 @@ loaded_content() {
 count_lines() { loaded_content "$1" | grep -c '[^[:space:]]'; }
 count_bytes() { loaded_content "$1" | wc -c; }
 
-# The always-loaded roots of one scope: the scope's CLAUDE.md files that exist,
-# then its unscoped rules. One `<scope>\t<path>` per line. The project scope is
-# the repository; the user scope is ${CLAUDE_CONFIG_DIR:-$HOME/.claude}, whose
-# CLAUDE.md and rules load in every session of every project (memory doc, "User
-# instructions" and "User-level rules"), so an estimate of the always-loaded set
-# that omitted them would be systematically low wherever that layer is non-empty.
-# A file both scopes reach (a repository rooted at `~`) is counted once, by
-# physical path, in the walk below.
+# One `<scope>\t<path>` per always-loaded root. The user scope loads in every
+# session of every project; a file both scopes reach is counted once, below.
 scope_roots() {
   local scope="$1" base="$2" f
   if [[ "$scope" == "project" ]]; then
     for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
       [[ -f "$f" ]] && printf '%s\t%s\n' "$scope" "$f"
     done
-    # The AGENTS.md files only where they are what the session loads. Under a shim one
-    # is already reached as the CLAUDE.md's import, so adding it here would double its
-    # bytes; where a CLAUDE.md displaces it without importing it, it never loads.
+    # Only natively loaded AGENTS.md files: a shim already reaches one as an import,
+    # and a displacing CLAUDE.md that does not import it means it never loads.
     while IFS= read -r agents_file; do
       [[ -n "$agents_file" ]] && printf '%s\t%s\n' "$scope" "$agents_file"
     done < <(agents_md_native_files)
@@ -179,7 +135,6 @@ always_loaded_roots() {
   scope_roots user "$user_dir"
 }
 
-# A rule loads unconditionally unless its frontmatter declares `paths:`.
 is_unscoped_rule() {
   ! rule_frontmatter_declares "$1" paths
 }
@@ -190,7 +145,6 @@ relpath() {
   printf '%s' "$p"
 }
 
-# --- single-file modes -------------------------------------------------------
 if [[ "$mode" == "--lines" || "$mode" == "--bytes" ]]; then
   target="$file_arg"
   if [[ -z "$target" ]]; then
@@ -220,7 +174,6 @@ if [[ "$mode" == "--lines" || "$mode" == "--bytes" ]]; then
   exit 0
 fi
 
-# --- whole-set modes ---------------------------------------------------------
 declare -A counted=()
 rows=()
 lines_total=0

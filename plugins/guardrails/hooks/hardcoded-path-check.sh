@@ -164,12 +164,17 @@ hpc_path_allowlisted() {
 # branch, hard-denying every path under it. Empty is the lib's documented seam to
 # skip the branch. Native Windows exposes home as %USERPROFILE%, not $HOME, so
 # fall back to it; a missing home leaves the branch active (fail toward
-# detection, never a false negative).
+# detection, never a false negative). A caller that already asked git for
+# <root>'s toplevel passes the answer as $2, so git runs once, not twice.
 hpc_resolve_scan_root() {
   local root="$1" toplevel tl_norm home_norm
   SCAN_ROOT=""
   [[ -n "$root" ]] || return 0
-  toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  if (($# > 1)); then
+    toplevel=$2
+  else
+    toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  fi
   [[ -n "$toplevel" ]] || return 0
   tl_norm=""
   hook::normalize_path_to tl_norm "$toplevel"
@@ -215,14 +220,14 @@ hpc_mcp_lane() {
 
   hpc_resolve_scan_root "${CLAUDE_PROJECT_DIR:-}"
 
-  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+  if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
     count="${HOOK_JQ_FIELDS[0]}"
     [[ "$count" =~ ^[0-9]+$ ]] || return 0
   fi
 
   for ((i = 0; i < count; i++)); do
-    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    if [[ "$TOOL" == *__push_files ]]; then
       # One jq process per file, on a lane that fires only on a GitHub MCP write
       # — never on the Write/Edit path this guard runs on for authored content.
       hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
@@ -281,7 +286,10 @@ Write | Edit | NotebookEdit) IS_MCP=0 ;;
 # repo, path, message and branch, and NO content. There is nothing for a content
 # guard to scan, and a delete cannot introduce a hardcoded path. Naming it here
 # would claim coverage that consists of skipping every call.
-mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
+mcp__github__push_files | mcp__github__create_or_update_file | \
+  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
 
@@ -315,7 +323,15 @@ NORM_FILE="${FILE//\\//}"
 # errors outside a work tree — leaving only the global kill switch. A bare
 # repo also skips (no working tree means no tracked portable artifacts to
 # protect at this path).
-[[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
+#
+# One git process answers both questions this lane asks of the project dir:
+# line 1 is the work-tree test, line 2 the toplevel hpc_resolve_scan_root needs.
+# Where --show-toplevel fails, git has already printed line 1, so the toplevel
+# is empty, as a separate call's would be.
+_hpc_git="$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null)"
+[[ "${_hpc_git%%$'\n'*}" == "true" ]] || exit 0
+_hpc_toplevel=""
+[[ "$_hpc_git" == *$'\n'* ]] && _hpc_toplevel=${_hpc_git#*$'\n'}
 _scope_file=""
 hook::normalize_path_to _scope_file "$FILE"
 _scope_project=""
@@ -356,7 +372,7 @@ PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 # SCAN_ROOT gates hpp::scan_text's repo-path branch; which checkouts earn that
 # branch, and why, is hpc_resolve_scan_root above. PROJECT_ROOT itself is left
 # alone: telemetry below still anchors the repo-relative path on it.
-hpc_resolve_scan_root "$PROJECT_ROOT"
+hpc_resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,

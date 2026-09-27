@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform wrapper so plugin-gate (plugins/**/*.test.sh) runs the
-# check-snippets negative-control suite. The Python floor is parsed from
-# digest_fences.py rather than restated here.
+# check-snippets negative-control suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

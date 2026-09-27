@@ -3,6 +3,35 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.29] - 2026-09-27
+
+### Fixed
+
+- `decompose` routes `prototype` investigation tickets to `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel) instead of the bare `/prototype` plugin token (#4119).
+
+## [0.40.28] - 2026-09-26
+
+### Changed
+
+- `work`'s fix worker turns auto-merge off (`gh pr merge <N> --disable-auto`) immediately before and
+  again right after a fix or rebase pushes to an open PR that has it armed, so the new head cannot
+  merge before the AI reviews re-run. It never re-arms; that stays with the merge lane.
+
+## [0.40.27] - 2026-09-26
+
+### Changed
+
+- Filing rule: a small or medium finding is fixed in the current PR as its own commit, even when unrelated to the task. Only a structural finding (needs its own planning pass) or an urgent, real problem that cannot land in the PR is filed as an issue. Applies to `/work-items:work`'s post-green review pass, the shared self-observation filing contract, and the tracker seam's "Default = fix, not file" rule.
+- `/work-items:attend-queue` points the operator to the loop-lane convention's "Operator steering through GitHub state" section for skipping an issue, holding a PR, and pausing or stopping a lane.
+- A finding blocked on research the lane is not positioned to do is also filed, alongside structural and urgent-real findings.
+
+## [0.40.26] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.40.25] - 2026-09-23
 
 ### Changed

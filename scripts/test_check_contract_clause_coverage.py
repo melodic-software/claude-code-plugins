@@ -21,7 +21,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# FIXTURE ISOLATION (#2840). This suite builds its fixture with `git init`
+# FIXTURE ISOLATION. This suite builds its fixture with `git init`
 # under `cwd=`, with no path argument at all — so an exported ABSOLUTE GIT_DIR
 # does not merely misdirect the identity write, it makes `git init` initialize
 # the CALLER's gitdir and every later `git add -A` stage into the caller's

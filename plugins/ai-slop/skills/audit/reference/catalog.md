@@ -118,10 +118,11 @@ Mined from the pin's Caveats section (byte-identical on the live head; extractio
 
 Stated once here and inherited by every rule; the design follows Wikipedia's MOS "principle of
 minimal change" for quoted material (quotations are not the repo's own prose to restyle) and the
-detector implements it mechanically. Each rule carries a class:
+detector implements it mechanically. No rule scans fenced code, inline code spans, or
+ignore-marked lines, whatever its class. Each rule carries a class:
 
 - **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
-  blockquote lines, double-quoted spans, and inline code spans are removed from its input.
+  blockquote lines and double-quoted spans are removed from its input.
   Quote-exempt candidates are counted as declined, never silently dropped.
   This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
   guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
@@ -131,9 +132,10 @@ detector implements it mechanically. Each rule carries a class:
   It scans quoted material too; MOS makes the same split by permitting typographic
   normalization inside quotations while forbidding wording edits.
 
-Known limitation: the double-quoted-span exemption is per-line. A quotation wrapped across a
-line break escapes it; the closures are rewrapping the quote onto one line, the blockquote
-form, or the fenced marker.
+Known limitation: the double-quoted-span exemption covers straight `"` only, and a span open at
+a blank line or at the start of a new block (heading, list item, table row) closes there. A
+quotation that crosses one of those boundaries escapes the exemption; the closures are the
+blockquote form or the fenced marker.
 
 The class assignments live in the detector's rule registry. The exemption moves candidates from
 findings to declines and never changes a rule's crosswalk tier.
@@ -209,8 +211,8 @@ then-current 1,361-file tracked-markdown corpus:
 - Rubric-cue base rates recorded for the two new metaphor cues, since the rubric layer is
   where this pass's real cost lands and the detector delta cannot measure it:
   `load-bearing` 527 occurrences across 273 files, `seam(s)` 1,429 across 328 files (36% of
-  the corpus in union). The cue entries' literal-sense boundaries and the fix-pass posture
-  (never per-audit re-reporting of saturation-level house usage) are the control.
+  the corpus in union). The cue entries' literal-sense boundaries and the saturation rule
+  defined in `rule-abstract-metaphor-jargon` are the control.
 
 ## Content
 
@@ -420,6 +422,9 @@ then-current 1,361-file tracked-markdown corpus:
 - applicability: general-prose
 - v1: script
 - Emoji used as bullets, section markers, or visual separators in prose.
+- A leading `U+26A0` (warning sign) opening a caveat line is in scope. It is an emoji used as a
+  section marker, and the fix is a text label such as "Caveat:". The rubric never counts it as
+  a human counter-sign; "Signs of human writing" carries the same ruling for rubric agents.
 
 ### rule-unusual-tables: Unusual use of tables
 
@@ -732,6 +737,10 @@ wikipedia-specific, recorded-only:
 Counter-signs: evidence AGAINST AI authorship. Catalogued for the rubric's calibration, never
 emitted as findings.
 
+A leading `U+26A0` (warning sign) opening a caveat line is NOT a counter-sign. It is an emoji
+used as a section marker, which the detector reports under `rule-emoji-formatting` (the fix is
+a text label such as "Caveat:"), so it never lowers a rubric verdict.
+
 ### rule-pre-llm-text: Age of text relative to ChatGPT launch
 
 - detectability: mechanical
@@ -927,9 +936,19 @@ either layer, and those rows say so.
 - detectability: judgment
 - applicability: general-prose
 - v1: rubric
-- A colon splicing two clauses where neither a list nor an example follows, letting the first
-  clause lean on the second instead of standing alone. Colons before lists and examples are
-  fine; the connector use needs a reader to distinguish, so no script core ships.
+- A colon splicing two clauses for rhythm. The rule's one test: report when the text after
+  the colon neither lists items nor gives an example of the clause before it, AND the pair
+  reads as one sentence spliced for rhythm in explanatory prose. Whether the first clause
+  could stand alone is not this rule's test. Colons before lists and examples are fine; the
+  connector use needs a reader to distinguish, so no script core ships.
+- Reported, from a skill body's explanatory paragraph: "This step matters more than it looks:
+  a skipped list leaves the rubric nothing to read." Nothing is listed or exemplified, and the
+  colon stages a reveal where "because" or a full stop would serve.
+- Declined, from a CLAUDE.md rule list: "Never push from a worktree you did not create:
+  another session may own it." A terse `rule: reason` line in a list of operative rules is out
+  of scope in any file, whether CLAUDE.md, AGENTS.md, a `.claude/rules/` file, a skill step, or
+  a "Rules" list inside ordinary docs. There the colon is the usual way to pair a rule with its
+  reason, and reporting it would flood every instruction file.
 
 ### rule-abstract-metaphor-jargon: Abstract metaphor nouns
 
@@ -949,9 +968,36 @@ either layer, and those rows say so.
   load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
   architecture prose are all terms of art, not tells. The tell is the reflexive metaphor where
   a plainer word served ("this comment is load-bearing" for "this comment matters"). These cues
-  carry no config lever (the rubric layer reads no config): the boundary text here is the
-  suppression surface, and saturation-level house usage of either word is a fix-pass decision
-  for that repo, never something to re-report at every audit.
+  carry no config lever, because the rubric layer reads no config. The boundary text here and
+  the saturation rule below are the only way to suppress a finding.
+- **Seam examples.** Declined as a term of art: "introduce a seam at the constructor so the
+  test can substitute the clock", a Feathers seam in testing prose. Reported: "the seam
+  between the billing service and the account service", a system boundary described by
+  metaphor, where "boundary" is the plainer word.
+- **Saturation.** Counted per audit scope, over the prose the rubric reads. Excluded: YAML
+  frontmatter (closed by a `---` or `...` line), fenced and indented code, code spans,
+  straight and curly double-quoted spans (also when wrapped across lines), blockquotes, HTML
+  comment interiors (a comment opener escaped with a backslash opens nothing), raw HTML tags on one line
+  (the text between tags counts), link and image destinations (the link text counts),
+  reference definitions (also as a list item's first content), and autolinks. Known gaps: a
+  cue split across a line break is not counted; a few rare CommonMark shapes (indented code
+  right after a fence or paragraph line, an unclosed comment block inside a list item, a
+  definition continued on the next line, destinations with nested parens, a raw HTML tag
+  split across lines) are counted as prose; and an inline comment's `-->` is sought past a
+  block start up to the next blank line. The usage
+  text of `rubric-fanout.sh` states the exact rules. A cue is saturated
+  when it appears in at least 10 files AND in at least 10% of the readable files in scope.
+  `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch
+  directory; a batch reads the verdict there and never judges saturation from its own batch.
+  Saturated hits are not reported per finding. The batch records one
+  `declined: rule-abstract-metaphor-jargon <cue> reason=saturated` line instead, and cleanup
+  is a fix-pass decision for that repo. A hit dropped by the per-file or per-batch finding cap
+  is recorded with `reason=cap`. Unsaturated hits are judged per instance: a reflexive
+  metaphor is reported, and a term-of-art use is declined with
+  `declined: rule-abstract-metaphor-jargon <cue> reason=boundary`. Counts cover only
+  "load-bearing" and "seam" because only they carry this saturation clause. Other cues are
+  not counted, since counting them would add suppression this entry never grants. An audit with no `cues.txt` (a single file, no fan-out) treats both cues as
+  unsaturated.
 
 ### rule-mechanism-free-claims: Feeling-words instead of mechanism
 

@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/ops",
+  "title": "Interview surface ops file",
+  "description": "Input to `round.py apply --file`: every op runs against one loaded questions.json and the result is written once, or nothing is written when any op is refused. `affects` is a list of question ids, the string `none`, or ids joined by commas.",
+  "type": "object",
+  "required": ["ops"],
+  "additionalProperties": false,
+  "properties": {
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/reply"},
+          {"$ref": "#/$defs/revise"},
+          {"$ref": "#/$defs/add"},
+          {"$ref": "#/$defs/add-round"},
+          {"$ref": "#/$defs/group"},
+          {"$ref": "#/$defs/meta"},
+          {"$ref": "#/$defs/note-reply"},
+          {"$ref": "#/$defs/handle"},
+          {"$ref": "#/$defs/archive"},
+          {"$ref": "#/$defs/record-terminal"},
+          {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/wait"},
+          {"$ref": "#/$defs/activity"},
+          {"$ref": "#/$defs/confirm-commitments"},
+          {"$ref": "#/$defs/restate"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "affects": {"type": ["array", "string"], "items": {"type": "string"}},
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "required": ["key", "text"],
+            "additionalProperties": false,
+            "properties": {"key": {"type": "string"}, "text": {"type": "string"}}
+          }
+        ]
+      }
+    },
+    "reply": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["reply"]},
+        "id": {"type": "string"},
+        "text": {"type": "string"},
+        "seq": {"type": "integer"},
+        "kind": {"enum": ["reply", "rephrase", "note"]},
+        "rec": {"type": "string"},
+        "why": {"type": "string"},
+        "affects": {"$ref": "#/$defs/affects"},
+        "handled": {"type": "integer"},
+        "force": {"type": "boolean"}
+      }
+    },
+    "revise": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["revise"]},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "short": {"type": "string"},
+        "facts": {"type": "string"},
+        "basis": {"type": "string"},
+        "rec": {"type": "string"},
+        "why": {"type": "string"},
+        "text": {"type": "string"},
+        "alternatives": {"$ref": "#/$defs/alternatives"},
+        "seq": {"type": "integer"},
+        "affects": {"$ref": "#/$defs/affects"},
+        "force": {"type": "boolean"}
+      }
+    },
+    "add": {
+      "type": "object",
+      "required": ["op", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add"]},
+        "question": {"type": "object"}
+      }
+    },
+    "add-round": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add-round"]},
+        "round": {"type": "integer"},
+        "meta": {"$ref": "#/$defs/metaSet"},
+        "groups": {"type": "array", "items": {"type": "object"}},
+        "questions": {"type": "array", "items": {"type": "object"}},
+        "visuals": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["group"]},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "dependsOn": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "metaSet": {
+      "description": "questions.json meta keys an op may set; each merges over the current value, and every other meta key stays as it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "eyebrow": {"type": "string"},
+        "stages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "next": {"type": "string"}
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["op", "set"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["meta"]},
+        "set": {"$ref": "#/$defs/metaSet"}
+      }
+    },
+    "note-reply": {
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["note-reply"]},
+        "seq": {"type": "integer"},
+        "text": {"type": "string"}
+      }
+    },
+    "handle": {
+      "type": "object",
+      "required": ["op", "seqs"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["handle"]},
+        "seqs": {"type": "array", "minItems": 1, "items": {"type": "integer"}}
+      }
+    },
+    "archive": {
+      "type": "object",
+      "required": ["op", "ids", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["archive"]},
+        "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "why": {"type": "string"}
+      }
+    },
+    "record-terminal": {
+      "type": "object",
+      "required": ["op", "id", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["record-terminal"]},
+        "id": {"type": "string"},
+        "decision": {"enum": ["accept", "alt", "own", "defer"]},
+        "alt": {"type": "string"},
+        "text": {"type": "string"}
+      }
+    },
+    "set-status": {
+      "description": "Set the page's status line to `text`, or remove it with `clear`; exactly one of the two.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["set-status"]},
+        "text": {"type": "string"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "wait": {
+      "description": "Hold question `id` on `waitsOn`, or end the hold with `clear`; exactly one of the two. `by` names who the hold waits on: `claude` (the default, pending research) or `user` (needs the user's answer; also stamps `setAsideAt`, `setAsideSeq` and `setAsideRev`, so a decision recorded before it no longer counts). `by` is refused with `clear`.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["wait"]},
+        "id": {"type": "string"},
+        "waitsOn": {"type": "string"},
+        "by": {"enum": ["claude", "user"]},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "activity": {
+      "description": "Append one entry to the page's activity feed, for work the page cannot see.",
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["activity"]},
+        "text": {"type": "string"},
+        "ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "confirm-commitments": {
+      "description": "Record that the user confirmed commitments of question `id` outside the page, such as in the terminal. `indices` are commitment indices (all when absent); `reason` says how they were confirmed. An index already confirmed keeps its first record.",
+      "type": "object",
+      "required": ["op", "id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["confirm-commitments"]},
+        "id": {"type": "string"},
+        "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
+        "reason": {"type": "string"}
+      }
+    },
+    "restate": {
+      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Replaces the previous restatement and increments `restatement.rev`.",
+      "type": "object",
+      "required": ["op", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["restate"]},
+        "sections": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions#/$defs/sections"}
+      }
+    }
+  }
+}

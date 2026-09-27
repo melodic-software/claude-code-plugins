@@ -3,6 +3,91 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.66] - 2026-09-27
+
+### Changed
+
+- README: the hook budget no longer publishes 26.0 spawn-equivalents (0.6.35) as the current figure. It adds the 2026-09-19 audit's 18.7 on 0.6.55 for the Windows host and a 2026-09-27 same-method Linux comparison showing 0.6.62 about 30 percent below 0.6.35.
+
+## [0.6.65] - 2026-09-27
+
+- **`setup` probes `jq` and `typos` at load time.** The two `command -v` checks run as pre-computed
+  context, so `check` reads the result instead of making two Bash calls. The FAIL rules are
+  unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
+## [0.6.64] - 2026-09-27
+
+- README: documents that a gitignored path is still scanned, because the hook names the file explicitly and `--force-exclude` covers only typos' own excludes; `[files] extend-exclude` is the lever.
+- README: documents the write paths the `Write|Edit|NotebookEdit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README: documents the write-mode timeout tail. The second typos pass rewrites the file before the hook discloses it, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
+
+## [0.6.63] - 2026-09-27
+
+### Changed
+
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+
+## [0.6.62] - 2026-09-25
+
+### Changed
+
+- typos-format.sh: in report-only mode the finding classifier is built with bash builtins instead of a jq process when every line of typos' output is a finding in its own field order with printable-ASCII text and no quote or backslash, and the output is at most 16 KB. Byte-identical to the jq program's output; anything else, write mode, and every Windows bash still run jq.
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+- typos-format.sh: the finding classifier returns its counts and arrays through `tostring`, so every field it returns is a string and `hook::jq_fields` reads them with the builtin parser instead of a second jq process. Same values.
+
+## [0.6.61] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.6.60] - 2026-09-24
+
+### Fixed
+
+- `hooks/typos-format.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.6.59] - 2026-09-24
+
+### Changed
+
+- The opt-in hook row runs `exec bash` on `hooks/typos-format.sh` instead of executing the script,
+  so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
+  Hook behavior is unchanged (#4442).
+
+## [0.6.58] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
+## [0.6.57] - 2026-09-23
+
+### Changed
+
+- The `hooks/hooks.json` row reads `typos_format_enabled` in the shell Claude Code runs it
+  in and execs `hooks/typos-format.sh` only when the switch is on, so a disabled hook no
+  longer starts the script's `env` and bash. The option is spelled brace-free
+  (`$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED`), so the shell reads it from the
+  environment at run time and the value is never spliced into the command text, and the
+  row pins `"shell": "bash"` because the hooks reference says the shell "Defaults to
+  `bash`, or to `powershell` on Windows when Git Bash isn't installed"
+  (https://code.claude.com/docs/en/hooks, the `shell` field, verified 2026-09-23). The
+  row runs `set +u` first, so an inherited nounset (`SHELLOPTS`, `BASH_ENV`) cannot turn
+  an unset option into a failed row. Measured on a Windows Git Bash host, 15 interleaved
+  trials with the switch off: 96.1 ms for the old row, 23.7 ms for the new one, against a
+  24.0 ms `bash -c :` floor (medians). The script keeps its own switch for direct invocation, and
+  the scan-everything behavior (#3411) is unchanged.
+
 ## [0.6.56] - 2026-09-21
 
 ### Changed

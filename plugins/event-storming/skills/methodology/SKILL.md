@@ -39,14 +39,18 @@ When invoked with no arguments, help the user figure out what they need. Don't d
 ### Step 1: Check for existing boards
 
 **Miro availability gate:** this step needs the first-party `miro` plugin, a separately enabled
-plugin that bundles a local-stdio MCP server. Because the server is plugin-bundled, its tools are
-namespaced `mcp__plugin_miro_miro__<tool>`; a bare `miro_*` name does not resolve. Probe the
-prefixed form (`mcp__plugin_miro_miro__miro_list_boards`) and, if it is not callable, skip board
-discovery entirely and go straight to Step 2. Do not error. Reference-only guidance (every
-`--<format>` action) works with no Miro at all. Every `miro_*` tool named below denotes that
-plugin's tool under the `mcp__plugin_miro_miro__` prefix.
+plugin that bundles a local-stdio MCP server. Its tools resolve under one of two prefixes: the
+plugin-provided `mcp__plugin_miro_<server>__` (normally `mcp__plugin_miro_miro__`), or
+`mcp__<server>__` when the same server is configured directly at user or project scope (normally
+`mcp__miro__`). A bare `miro_*` name does not resolve. Look for a callable tool whose name ends in
+`__miro_list_boards` under either prefix; match that Miro-specific tool name, not a server that
+merely happens to be called `miro`. If none is callable, skip board discovery entirely and go
+straight to Step 2. Do not error. Reference-only guidance (every `--<format>` action) works with no
+Miro at all. Every `miro_*` tool named below denotes that tool under whichever prefix the gate
+found. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP tool
+names", as of 2026-09-23; recheck when that page changes its tool-name format.
 
-When Miro IS available, query it for recent boards: `mcp__plugin_miro_miro__miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
+When Miro IS available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
 
 If recent boards exist, present them:
 > "I found these EventStorming boards:

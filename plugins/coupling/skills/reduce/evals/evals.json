@@ -36,6 +36,19 @@
         "Does not introduce an event or mediator mechanism for one-to-one flows",
         "Grounds any applied reduction in verified evidence of change transmission, citing the remediation catalog's counterweights"
       ]
+    },
+    {
+      "id": 4,
+      "name": "change-mode-classifies-without-editing",
+      "prompt": "/coupling:reduce change 'D:\\data\\ccproxy' 'E:\\data\\ccproxy'\n\nWe moved the data volume. The old path is in the README, a provisioning script default, the CHANGELOG, an approved PLAN.md, and a test fixture.",
+      "expected_output": "Runs the bundled value-sites inventory for every spelling of the old path, classifies the README and script default as setup sites with a proposed reference form, leaves the CHANGELOG as a record, proposes a correction for PLAN.md instead of editing it, flags the fixture for a person, and makes no edits because apply was not given.",
+      "files": [],
+      "expectations": [
+        "Uses the value-sites script for the inventory rather than an ad-hoc grep",
+        "Assigns setup, record, contract, and fixture classes and states what happens to each",
+        "Proposes a reference form for each setup site instead of only swapping the literal",
+        "Edits no file, creates no branch, and says that change apply is the edit path"
+      ]
     }
   ]
 }

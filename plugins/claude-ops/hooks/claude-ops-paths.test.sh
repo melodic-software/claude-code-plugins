@@ -241,50 +241,24 @@ if [[ -s "$SU_LOG" ]]; then
     "$(head -1 "$SU_LOG" | jq 'has("expansion_type")')"
   assert_eq "skill-usage route: expansion_type recorded when present" "slash_command" \
     "$(tail -1 "$SU_LOG" | jq -r '.expansion_type')"
-  # Outside a work tree the two git fields are absent rather than empty or
-  # null: a reader tells "not in a repository" from "no SHA resolved" only if
-  # the key never appears, and branch keeps the "unknown" it carried before.
-  assert_eq "skill-usage route: no sha outside a repository" "false" \
-    "$(head -1 "$SU_LOG" | jq 'has("sha")')"
-  assert_eq "skill-usage route: no pr outside a repository" "false" \
-    "$(head -1 "$SU_LOG" | jq 'has("pr")')"
   assert_eq "skill-usage route: branch stays unknown outside a repository" "unknown" \
     "$(head -1 "$SU_LOG" | jq -r '.branch')"
 else
   bad "skill-usage route wrote nothing at $SU_LOG"
 fi
 
-# --- The row's git fields: sha always, pr only when the branch carries one ---
-# Both come from one `git rev-parse HEAD --abbrev-ref HEAD` spawn (SHA on line
-# 1, branch on line 2) plus one `git config` read, so the fixture asserts the
-# values a downstream evidence reader joins a row to a commit by.
 SU_REPO="$TEST_TMPDIR/su-repo"
 mkdir -p "$SU_REPO"
 if git -C "$SU_REPO" init -q 2>/dev/null &&
   git -C "$SU_REPO" -c user.email=test@example.invalid -c user.name=test \
     commit -q --allow-empty -m seed 2>/dev/null; then
   SU_REPO_LOG="$SU_REPO/.claude/observability/skill-usage.jsonl"
-  SU_REPO_HEAD="$(git -C "$SU_REPO" rev-parse HEAD)"
   SU_REPO_BRANCH="$(git -C "$SU_REPO" rev-parse --abbrev-ref HEAD)"
   export CLAUDE_PROJECT_DIR="$SU_REPO"
   claude_ops::record_skill_use PostToolUse skill-usage-audit \
     '{"session_id":"s2"}' one tool '' >/dev/null
-  SU_REPO_SHA="$(jq -r '.sha // empty' "$SU_REPO_LOG" 2>/dev/null | head -1)"
-  if [[ "$SU_REPO_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-    ok "skill-usage route: sha is 40 lowercase hex"
-  else
-    bad "skill-usage route: sha is 40 lowercase hex (got '$SU_REPO_SHA')"
-  fi
-  assert_eq "skill-usage route: sha equals HEAD" "$SU_REPO_HEAD" "$SU_REPO_SHA"
   assert_eq "skill-usage route: branch is the checked-out branch" "$SU_REPO_BRANCH" \
     "$(head -1 "$SU_REPO_LOG" | jq -r '.branch')"
-  assert_eq "skill-usage route: no pr when the config key is unset" "false" \
-    "$(head -1 "$SU_REPO_LOG" | jq 'has("pr")')"
-  git -C "$SU_REPO" config "branch.${SU_REPO_BRANCH}.pr-number" 4242
-  claude_ops::record_skill_use PostToolUse skill-usage-audit \
-    '{"session_id":"s2"}' two tool '' >/dev/null
-  assert_eq "skill-usage route: pr carries the configured number" "4242" \
-    "$(tail -1 "$SU_REPO_LOG" | jq -r '.pr')"
   unset CLAUDE_PROJECT_DIR
 fi
 

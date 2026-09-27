@@ -7,6 +7,9 @@ Detects and removes AI-writing tells ("slop") in checked-in markdown prose.
 - `/ai-slop:audit [target]` reports AI-writing tells in the target (default: the whole repo's
   tracked markdown). Read-only. `fix` as an explicit argument applies rewrites behind a
   semantic-diff guard.
+- `/ai-slop:audit user-scope [memory]` audits the user-level Claude Code markdown
+  (`CLAUDE.md`, rules, skills, commands, agents, output styles) under `CLAUDE_CONFIG_DIR`,
+  else `~/.claude`; `memory` adds auto memory and agent memory.
 - `/ai-slop:setup` configures the consumer repo: exemption paths, word-list tuning, thresholds.
 
 Plugin commands are namespaced, so a bare `/ai-slop` is not a command; the audit is
@@ -127,5 +130,6 @@ gate stayed quiet on all 61 files containing it) and ships in the default list.
 
 The metaphor word-cues this layer added to the judgment rubric ("load-bearing", "seam") have
 no config lever. The rubric reads no config, and its findings reach the human report only.
-The catalog entry's literal-sense boundary is the suppression surface; saturation-level house
-usage of either word is a fix-pass decision for that repo, not a per-audit re-report.
+The catalog entry's literal-sense boundary and its definition of saturation (in
+`rule-abstract-metaphor-jargon`) are the only way to suppress a finding; a saturated cue is a fix-pass
+decision for that repo, not a per-audit re-report.

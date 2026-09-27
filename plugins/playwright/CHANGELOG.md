@@ -3,6 +3,21 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `playwright-cli` at load time.** The `command -v playwright-cli` check runs as
+  pre-computed context, so `check` reads the result instead of making a Bash call. The FAIL rules
+  are unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
+## [0.7.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.7.0] - 2026-09-23
 
 ### Changed

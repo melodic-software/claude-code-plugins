@@ -3,6 +3,35 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.16] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+
+## [0.6.15] - 2026-09-23
+
+### Changed
+
+- **The Structured Thinking corrective prompt asks for output order, not for no planning.** On
+  models whose thinking is always on, "do not plan" cannot be followed; the prompt now asks
+  personas to decide no categories up front and leave the whole unsorted, while related events may
+  still cluster as correction #4 asks; ordering and categorizing stay with Enforce Timeline.
+- **Facilitator re-prompts re-send the specific violated correction with its reason**, instead of
+  escalating to "stronger corrections", which over-applies on current models.
+
+## [0.6.14] - 2026-09-23
+
+### Fixed
+
+- **The Miro availability gates in `methodology` and `simulation` detect a directly configured
+  Miro server.** They match the Miro-specific tool names (`…__miro_list_boards`,
+  `…__miro_create_board`) under either the plugin-provided `mcp__plugin_miro_<server>__` prefix or
+  a user- or project-scope `mcp__<server>__` prefix, so the miro README's opt-in `vault-exec`
+  override no longer reads as Miro absent
+  ([#4380](https://github.com/melodic-software/claude-code-plugins/issues/4380)). One eval per
+  skill covers the user-scope prefix.
+
 ## [0.6.13] - 2026-09-23
 
 ### Changed

@@ -254,6 +254,76 @@
         "`/architecture:record-decision` is NOT invoked and is not presented as something this session can call",
         "The run does not stall or report itself blocked on a missing plugin: absence degrades to the hand-written path"
       ]
+    },
+    {
+      "id": 19,
+      "name": "page-surface-starts-page-before-first-round",
+      "prompt": "/planning:interview me about the retry policy for our outbound webhook sender. The planning plugin's `surface` option is configured as `page`, and Python, curl and bash are all available on this machine.",
+      "expected_output": "Because the configured surface is `page`, the first action on the question surface is starting the page with `round.sh ... ensure-running` (carrying `--emoji-markers`), before any question is asked. The first round is then written to the page with `add-round` and the watcher is armed. No round is printed inline in the terminal before the page starts; the terminal only carries the page URL and short status lines.",
+      "files": [],
+      "expectations": [
+        "The first question-surface action is a `round.sh ... ensure-running` call that passes `--emoji-markers`, made before any round question is shown",
+        "The first round is written to the page with `round.sh ... add-round`, not rendered as a numbered prose round in the terminal",
+        "No round question with a recommendation is printed inline in the terminal before `ensure-running` runs",
+        "The configured value `page` is read as the active setting, not as a description of the available options, so the run does not fall back to the terminal surface"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "mechanism-tripwire-asks-now-or-at-planning",
+      "prompt": "/planning:interview me I want nightly exports of course progress to the analytics team. My guess is a GitHub Actions cron job that pushes a CSV to their S3 bucket with a scoped token.",
+      "expected_output": "The first round that names a mechanism (a CI runner, a storage target, a token scope) also carries one registered question: settle mechanism-level decisions now, or at planning. Until the user answers it, no recommendation fixes a mechanism. When the user answers \"at planning\", every still-open mechanism row, commitment rows included, becomes `deferred` with an arbiter tag in the Brief's `### Deferred questions`. When the user answers \"now\", the choice is written at once as a `confirmed` constraint and the Brief's Constraints records that this topic overrides \"does not plan implementation\".",
+      "files": [],
+      "expectations": [
+        "The now-or-at-planning question is asked in the same round as the first mechanism-naming question and has its own `open` register row at ask-time",
+        "No recommendation in that round fixes a mechanism (runner, storage target, token scope) while the tripwire question is unanswered",
+        "On \"at planning\", each still-open mechanism row, commitment rows included, becomes `deferred` and appears in the Brief's `### Deferred questions` led by its `Q<N>` id",
+        "On \"now\", a `confirmed` row is written to the constraint ledger and the Brief's Constraints records the override of \"does not plan implementation\"",
+        "The user's own mechanism guess is treated as a candidate to ask about, not recorded as a decided answer"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "assumption-sweep-before-confirmation-gate",
+      "prompt": "/planning:interview me Add a retention policy for uploaded course videos. [after three rounds the frontier is empty: Q2 was answered \"yes?\", the accepted Q4 recommendation also assumes deletion runs in the primary region, and Q6 (keep drafts forever) contradicts the confirmed constraint C1 (no stored data older than two years)]",
+      "expected_output": "Once the frontier is empty, and before the Step 3 register gate and the confirmation restate, the skill dispatches a fresh-context (non-fork) sub-agent that inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and composed artifacts. Items come back as `S<N>` lines with id, category, class, source, dependencies, blocking, and hidden-default fields. The skill, not the sub-agent, turns the region assumption and the Q6/C1 contradiction into register rows at the next contiguous `Q<N>`, asks them, and returns to Step 2; Q2's `hedged:` row is listed for the confirmation restate. The contract is not confirmed or locked while any row the sweep added is `open`.",
+      "files": [],
+      "expectations": [
+        "The sweep runs after the frontier is empty and before the Step 3 register gate and confirmation gate",
+        "The sweep is dispatched to a fresh-context (non-fork) sub-agent with the recommendations' rationale withheld",
+        "Each sweep item carries an id, category, class, source location, dependencies, a blocking flag, and a hidden-default flag",
+        "The unlisted primary-region assumption and the Q6 versus C1 contradiction each become a register row at the next contiguous `Q<N>` (no gap, no `S<N>` id in the register) and are asked",
+        "Q2's `hedged:` row is listed for explicit confirmation in the Step 3 restate",
+        "The run returns to Step 2 while a sweep-added row is `open` and does not lock the contract over it"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "evidence-labeled-by-currency",
+      "prompt": "/planning:interview me Tune the review-queue SLA. Six months of merged-PR metrics show a median review time of 3 days. Last week we switched to required pairing on every PR.",
+      "expected_output": "The survey finds a process change (the user's statement that pairing became required last week) dated after the evidence window, so each finding is labeled `past`, `current`, or `intended` before a recommendation rests on it. The six-month median is `past`. No SLA recommendation rests on that past-only evidence alone: the skill states that current review times under pairing are unknown and asks, or grounds the recommendation in current or intended evidence.",
+      "files": [],
+      "expectations": [
+        "The user's pairing change is recognized as a process change dated after the evidence window",
+        "Each finding a recommendation rests on is labeled `past`, `current`, or `intended`",
+        "The six-month median is labeled `past`",
+        "No SLA recommendation rests on the past-only median alone",
+        "The unknown currency of review times under pairing is stated or asked, not assumed"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "inherited-constraint-asked-not-assumed",
+      "prompt": "/planning:interview me Build the v2 exports endpoint. Start from the exports topic's Brief, which we locked last month as a starting point; it says \"no new runtime dependencies\". This topic's research output recommends adding a streaming CSV library.",
+      "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the contract relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names the constraint ids it was checked against.",
+      "files": [],
+      "expectations": [
+        "The prior Brief's \"no new runtime dependencies\" is recorded as an `inherited` constraint row, not `confirmed`",
+        "The inherited constraint is asked as a register row at ask-time rather than treated as binding",
+        "The research output's library is presented as a candidate re-derived against the constraint ledger, not as the recommendation",
+        "The conflict between the candidate and the inherited constraint is surfaced to the user",
+        "Every recommendation carries a `Checked against:` line naming constraint ids or `none`"
+      ]
     }
   ]
 }

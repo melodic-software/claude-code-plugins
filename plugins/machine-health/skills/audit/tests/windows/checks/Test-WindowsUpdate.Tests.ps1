@@ -51,9 +51,8 @@ Describe 'Test-WindowsUpdate -- PFRO value-array regression' -Tag 'check' {
     It 'does NOT flag reboot pending when PendingFileRenameOperations exists but value is empty' {
         Mock Get-HotFix { @() }
         Mock Test-Path { $false }
-        # The key scenario: the registry property exists (so $null -ne $pfro),
-        # but its value-array is empty. A presence-only test flags this as
-        # reboot_pending=true on most healthy machines.
+        # The key scenario: the property exists but its value array is empty; a presence-only
+        # test flags reboot_pending=true on most healthy machines.
         Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
             [pscustomobject]@{ PendingFileRenameOperations = @() }
         }
@@ -134,9 +133,8 @@ Describe 'Test-WindowsUpdate -- CBS and WU reboot signals' -Tag 'check' {
 
 Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
     BeforeAll {
-        # Get-WUList ships with the PSWindowsUpdate module, absent in CI/dev.
-        # Define a stub so Mock can attach; the check resolves it from this
-        # (parent) scope when invoked via `& $ScriptPath`.
+        # Stub Get-WUList (PSWindowsUpdate is absent in CI/dev) so Mock can attach; the check
+        # resolves it from this parent scope under `& $ScriptPath`.
         function Get-WUList { }
     }
 

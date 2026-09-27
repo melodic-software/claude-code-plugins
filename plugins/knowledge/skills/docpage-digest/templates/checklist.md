@@ -20,8 +20,9 @@ collision check reads them to tell a resume from a slug collision.
 ## Phases
 
 - [ ] Phase 1: Fetch the unaltered original, snapshotted as `source.<ext>`, immutable: `source.md`
-      for a markdown or rendered-text channel, or `source.pdf` **plus** its `source.txt`
-      extraction for a PDF original (both are originals; name the extraction tooling above)
+      for a markdown or rendered-text channel (plus the raw `source.html` where the profile
+      requires it, to recover chart, diagram, alt, and caption text), or `source.pdf` **plus**
+      its `source.txt` extraction for a PDF original (both are originals; name the extraction tooling above)
 - [ ] Phase 2: Inventory, with `SOURCES.md` written (headings, themes, digest map, status rows)
 - [ ] Phase 3: Digest fan-out, one agent per digest unit → `digests/NN-slug.md` (fixed
       structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)

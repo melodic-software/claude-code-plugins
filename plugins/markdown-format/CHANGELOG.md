@@ -3,6 +3,66 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.67] - 2026-09-27
+
+- **`setup` probes `jq` at load time.** The `command -v jq` check runs as pre-computed context, so
+  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
+  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
+  still probes live.
+
+## [0.11.66] - 2026-09-27
+
+- README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
+- README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README and markdown-format.sh: document the timeout tail. `--fix` rewrites in place before the hook reports, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
+- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
+
+## [0.11.65] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.11.64] - 2026-09-24
+
+### Changed
+
+- hooks.json: the two PostToolUse rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/markdown-format.sh` instead of `bash ...`, so a `sh -c` wrapper replaces itself with bash instead of forking it: one process fewer per call where Claude Code runs the row through `sh` (Linux, macOS). Under a bash wrapper nothing changes.
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+- markdown-format.sh: `cygpath` is looked up only on a Windows bash (`OSTYPE` msys, cygwin or win32) when the missing-markdownlint notice compares `PATH` entries with `HOME`, and the trust gate tests for a drive-letter data path before looking it up. Elsewhere the lookup always missed and probed every `PATH` directory, once per `PATH` entry. Windows behavior is unchanged.
+
+## [0.11.63] - 2026-09-24
+
+### Fixed
+
+- `hooks/markdown-format.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.11.62] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/markdown-format.sh` through `bash`, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
+
+## [0.11.61] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
 ## [0.11.60] - 2026-09-21
 
 ### Changed

@@ -47,6 +47,7 @@ if [[ -n "${HTML_ASSETS_MANIFEST:-}" ]]; then
   done <"$HTML_ASSETS_MANIFEST" || exit 2
 else
   assets=(
+    plugins/playbooks/reference/repo-sweep-plan-page.html
     plugins/visualization/reference/html-chrome.html
     plugins/visualization/reference/html-loop-closure.html
   )

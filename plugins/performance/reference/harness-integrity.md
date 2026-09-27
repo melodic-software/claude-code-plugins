@@ -36,7 +36,8 @@ Failures 1, 3, and 4 in the table above share one root cause: the harness change
 that mattered to the subject.
 
 Check it by running the harness twice against an **unchanged** subject. If the two runs disagree
-beyond the host's characterized noise, the harness is a variable, not an instrument.
+beyond the host's characterized noise, the harness is a variable, not an instrument. A rig that
+drives time in fixed ticks checks itself the same way: N ticks in must yield exactly N units out.
 
 ### 2. A probe must assert its own precondition
 
@@ -69,6 +70,11 @@ reports a clean, confident, wrong verdict.
 
 Assert that the patch changed something before running the arm. A patch that silently applied
 nothing is arm 3's failure mode.
+
+For a check that may be flaky (a race, a timing-dependent defect), one run per arm proves nothing.
+Repeat each arm N times, with N chosen per check and recorded in the report, and require N/N in
+both: the negative arm fails on every run and the positive arm passes on every run. An arm that
+fails 9 of 10 runs is flaky, not failing.
 
 ### 4. Restore from saved bytes, not from version control
 
@@ -122,6 +128,7 @@ Before reporting any number:
 - [ ] Two runs against an unchanged subject agree within the host's characterized noise.
 - [ ] Every precondition the probe depends on is asserted, and fails rather than degrading.
 - [ ] Any discrimination check asserts that its two arms **differ**.
+- [ ] A check that may be flaky ran each arm N times, N is recorded, and both arms were N/N.
 - [ ] The code under test was committed before the check ran.
 - [ ] Restores came from saved bytes, and the restore was verified.
 - [ ] Every path handed to a shell is in that shell's own path form.

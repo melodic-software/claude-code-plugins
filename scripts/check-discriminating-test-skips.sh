@@ -29,9 +29,7 @@ errors=0
 
 mapfile -t test_files < <(find plugins .claude/hooks -type f -name '*.test.sh' 2>/dev/null | sort)
 
-# One awk over every test file. The previous loop paid an awk exec (and a
-# command-substitution subshell) per *.test.sh (~312 on this tree). FNR is
-# per-file so line numbers stay the file:line contract; FNR==1 closes a
+# FNR is per-file so line numbers stay the file:line contract; FNR==1 closes a
 # block left open at the previous file's EOF (mawk has no ENDFILE).
 if ((${#test_files[@]} > 0)); then
   out=$(awk '

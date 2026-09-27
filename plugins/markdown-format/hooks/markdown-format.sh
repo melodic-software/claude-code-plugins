@@ -3,10 +3,13 @@
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
 # hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc) — Edit() is the
 # permission-rule form that covers Write as well; a Write(path) rule is never
-# matched (https://docs.claude.com/en/docs/claude-code/permissions, fetched
-# 2026-08-21). The in-script extension check stays: the if filter is one rule
-# per handler and fails open on an unparsable payload, so a non-Markdown path
-# can still reach this script.
+# matched (https://code.claude.com/docs/en/permissions, fetched 2026-09-27).
+# The in-script extension check stays because the hooks reference calls the if
+# filter best-effort. Its one documented fail-open is Bash-specific ("When
+# Claude Code can't determine which commands the Bash input runs, it runs your
+# hook regardless of the pattern", https://code.claude.com/docs/en/hooks,
+# fetched 2026-09-27) and names no file-tool equivalent, so the check guards an
+# undocumented miss and a direct invocation rather than a known one.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -230,8 +233,7 @@ opt_in_decided_without_jq() {
 # hook has nothing to do on.
 #
 # hooks.json already gates launch with if: Edit(*.md)/Edit(*.mdc); the glob
-# list here remains because that filter is one rule per handler and fails open
-# on an unparsable payload.
+# list here remains because that filter is best-effort (see the header).
 #
 # --repo-root because hook::repo_root_to's hint fallback is the wrong ceiling
 # for a config-discovery walk; see resolve_repo_root_to above.
@@ -474,13 +476,20 @@ resolve_repo_markdownlint() {
 }
 
 # Strip a trailing slash; on Git Bash, fold a drive-letter spelling to POSIX
-# so $HOME and PATH entries compare as the same directory.
+# so $HOME and PATH entries compare as the same directory. cygpath is looked up
+# only on a Windows bash: elsewhere a miss probes every PATH directory, once
+# per PATH entry here.
 normalize_path_entry() {
   local p="${1%/}" n
-  if command -v cygpath >/dev/null 2>&1; then
-    n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
-    p="${n%/}"
-  fi
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    if command -v cygpath >/dev/null 2>&1; then
+      n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
+      p="${n%/}"
+    fi
+    ;;
+  *) ;;
+  esac
   printf '%s' "$p"
 }
 
@@ -1050,7 +1059,7 @@ resolve_trust_dir() {
   [[ -n "$state_base" ]] || return 1
   ((RISK_UNVERIFIABLE == 0)) || return 1
   ((RISK_UNPINNABLE == 0)) || return 1
-  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
+  if [[ "$state_base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
     state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
   fi
   MODULE_FILES=()
@@ -1148,6 +1157,10 @@ case "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS:-}" in
 *) MAX_FINDINGS="${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS}" ;;
 esac
 
+# --fix rewrites the file in place before anything below discloses it. Claude
+# Code cancels a hook at its hooks.json `timeout` and discards its output, so a
+# cancel landing after the write and before hook::finish leaves a rewrite no
+# channel reports. README "Timeout tail" records the window.
 FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1)
 LINT_RC=$?
 # Parameter expansion, not `basename`, for the reason given at the source line

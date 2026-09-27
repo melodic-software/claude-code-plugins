@@ -54,11 +54,7 @@ is.
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class, the
    label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
    gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
-   tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The merge
-   gate's `skillEvidence` record partitions nothing for the opposite reason: it is advisory, so a
-   gap in it neither holds a merge nor removes a PR from the eligible set; it reaches the lane as
-   the `skill_evidence_gap` worker reason, which dispatches a worker to run
-   `/source-control:pull-request ready`. The one
+   tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
    ordered exception: when THIS invocation carries `--strip-do-not-merge`, the strip executes
    between the snapshot and this partition, the label is removed from the flag's target PRs and
    recorded in the cycle report, so a stripped PR partitions on its work-class like any other; the
@@ -108,7 +104,9 @@ is.
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
      invocation brief carrying the partitioned head SHA as the merge gate's required
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
-     authorization"); every other non-report-only PR is invoked at `safe` (fixes and reports;
+     authorization"), and the brief tells it to pass the merge gate's `--auto`, which arms
+     auto-merge only once both AI review checks passed on that head and no thread is open
+     (same file, "Merge-lane auto-merge"); every other non-report-only PR is invoked at `safe` (fixes and reports;
      never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
      `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent

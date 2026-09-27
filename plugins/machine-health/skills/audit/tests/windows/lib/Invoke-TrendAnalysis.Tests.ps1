@@ -113,11 +113,8 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
     }
 
     It 'ignores metrics from runs in which the check did not succeed' {
-        # A check that fails or completes only partially still persists whatever it
-        # measured into top_metrics, but is absent from that run's checks_ran. That
-        # figure is a lower bound: baselining against it makes the next COMPLETE run
-        # look like growth and upgrades a WARN to CRIT on recovered ground alone.
-        # Newest entry here is the failed one, so an unfiltered baseline picks it.
+        # A failed or partial run's top_metrics is a lower bound absent from checks_ran; a
+        # baseline on it (the newest entry here) would upgrade a WARN to CRIT on nothing.
         $history = @(
             New-HistoryEntry `
                 -TopMetrics @{ 'claude-temp-root.total_gb' = 7.9 } `
@@ -206,10 +203,8 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
     }
 
     It 'uses the most recent (last) history entry as baseline, not the oldest (regression)' {
-        # Read-HistoryJsonl returns Get-Content -Tail output (oldest -> newest).
-        # With 2+ entries, the baseline must come from the LAST element, not [0].
-        # Here: oldest=20, newest=85; current=87. Correct delta = +2 (no upgrade).
-        # If code incorrectly uses [0], delta would be +67 (triggers CRIT upgrade).
+        # The baseline must be the LAST (newest) entry: oldest=20, newest=85, current=87 gives
+        # +2 (no upgrade); using [0] would give +67 and a CRIT upgrade.
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `

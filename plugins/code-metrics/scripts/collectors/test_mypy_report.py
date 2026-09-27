@@ -144,7 +144,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = rows_of(result)
             self.assertEqual(len(rows), 2)
-            # The lane row leads: the lane's figure is the first row.
             lane_row, file_row = rows
             values = {
                 "any_expressions": 0,
@@ -438,7 +437,6 @@ class MypyReportCollectTests(unittest.TestCase):
                 "named from __init__.py packages rather than their paths",
             )
             argv = argv_log.read_text(encoding="utf-8").splitlines()
-            # Two runs: the flag on the first only, the report asked for twice.
             self.assertEqual(argv.count("--explicit-package-bases"), 1)
             self.assertEqual(argv.count("--any-exprs-report"), 2)
             self.assertLess(

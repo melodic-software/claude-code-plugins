@@ -36,10 +36,6 @@ const args = parseCliArgs({
 });
 const log = createLogger(resolveLogLevel(args));
 
-/**
- * Select a representative sample of lessons from each module.
- * Picks: first lesson, last lesson, and one from the middle.
- */
 function selectSample(modules) {
   const sampled = [];
   for (const mod of modules) {
@@ -56,7 +52,6 @@ function selectSample(modules) {
   return sampled;
 }
 
-// Fixed-width label + title columns shared by every per-lesson log line below.
 function lessonLogPrefix(label, title) {
   return `  ${label.padEnd(7)}${title.substring(0, 46).padEnd(48)}`;
 }

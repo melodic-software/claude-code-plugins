@@ -3,6 +3,45 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.7] - 2026-09-27
+
+### Changed
+
+- `audit-enforceability`'s crosswalk maps the renamed producer: the rule-id rows and the family
+  row use `attribution/audit/` in place of `provenance/audit/`, and the owner column and
+  verification record name the `attribution:audit` detector, matching the ids the renamed plugin
+  now emits.
+
+## [0.30.6] - 2026-09-27
+
+### Fixed
+
+- The `code-reviewer` agent defers an assertion whose two sides are the same expression to `testing:audit`'s `cant-fail-scan.sh` only when that scan's output for the change set is in its context and reports the assertion. Otherwise it reports the finding itself and says the scan did not run, so a repo without the `testing` plugin, or a review where the audit was not invoked, still gets the finding. Fanout's dedup stage merges the duplicate when both report it.
+
+## [0.30.5] - 2026-09-27
+
+### Changed
+
+- `code-reviewer` agent: the description drops the "proactively, immediately after writing or modifying source files" trigger and names when not to delegate (every edit, typo-sized tweaks, linter-caught issues, security and architecture concerns). A new "Turn budget" section has the agent review the highest-risk files first and end with a `Coverage:` line naming files it did not reach before `maxTurns` ran out.
+
+## [0.30.4] - 2026-09-26
+
+### Changed
+
+- `/review:quality-gate` architecture follow-up: a small or medium pattern issue is fixed in the current change as its own commit, even when unrelated to the task; only a structural one is filed.
+
+## [0.30.3] - 2026-09-25
+
+### Changed
+
+- `/review:quality-gate` scopes the review-fix round: a fix changes exactly the lines its finding names, and any other edit needs its own finding first. The `pr` mode's "Fix valid findings" step points at the same rule.
+
+## [0.30.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.30.1]
 
 ### Changed

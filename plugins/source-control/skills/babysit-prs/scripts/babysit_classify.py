@@ -98,7 +98,7 @@ REQUIRED_FIX_RE = re.compile(
 # path"), whereas the uppercase tokens are the reviewer's structured severity
 # labels. SUGGESTION is intentionally excluded here -- like a 🟡 nit it is a
 # non-blocking marker -- so an approval carrying only suggestions/nits stays
-# non-blocking, consistent with the issue's "CRITICAL/IMPORTANT vs nits" split.
+# non-blocking.
 BLOCKING_SEVERITY_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT)\b")
 REVIEW_SKIP_RE = re.compile(
     r"\bbugbot\b[^\n.]{0,80}?\b(?:skipped|did(?:n't| not) run|"

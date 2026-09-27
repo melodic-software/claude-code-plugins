@@ -1,5 +1,5 @@
 /**
- * Transcript-strategy seam (T5): the adapter declares a per-source default
+ * Transcript-strategy seam: the adapter declares a per-source default
  * (`transcriptStrategy`), the pipeline may override it explicitly, and the
  * resolution below picks what actually runs per media entry given what exists —
  * a selected caption, a media file, and the optional local ASR capability.

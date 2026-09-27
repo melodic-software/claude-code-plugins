@@ -186,9 +186,7 @@ assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
 
 # --- path normalization ---------------------------------------------------------
 # The record is written by Claude Code in native form; a case- or
-# separator-variant of the same directory must still match. An early probe of
-# this behavior read as a null purely because two spellings of one path were
-# compared raw.
+# separator-variant of the same directory must still match.
 if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; then
   variant="$(printf '%s' "$WT_NATIVE" | tr '/' "\134" | tr '[:lower:]' '[:upper:]')"
   seed_state "$(jq -n --arg v "$variant" '[{id:"a@m",scope:"project",projectPath:$v}]')"

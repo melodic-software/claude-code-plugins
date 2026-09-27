@@ -42,9 +42,7 @@ repo=""
 # the caller just gets "" and carries on. And "" is not inert: `git -C ""`
 # operates on the CALLER's repository, so the very next `add -A` + `commit`
 # stages and commits whatever the developer happened to be working on, authored
-# as `test <t@t.test>`. That is not hypothetical -- it happened during #2837's
-# development when mktemp transiently failed under load, and the resulting
-# commit cannot be pushed here because it fails required_signatures.
+# as `test <t@t.test>`.
 #
 # So a failure yields a path that does not exist. Every git call against it then
 # fails loudly and the assertions go red, which is the correct fail-closed
@@ -117,11 +115,10 @@ filler() {
 # not exist makes the subshell exit 1 -- which is BYTE-IDENTICAL to the detector
 # firing. Every `expect_rc=1` case (the false-positive-resistance ones, the
 # cases that must FIRE) would then report `ok` while testing nothing, which is
-# the fail-open the whole suite exists to prevent. mktemp really did fail
-# transiently during #2837's development, so this is a measured mode, not a
-# hypothetical one. RC=99 is outside the detector's contract (0/1/2), so no
-# assertion can mistake it for an expected status, and the case is also counted
-# as a failure here so the reason is named rather than inferred.
+# the fail-open the whole suite exists to prevent. RC=99 is outside the
+# detector's contract (0/1/2), so no assertion can mistake it for an expected
+# status, and the case is also counted as a failure here so the reason is named
+# rather than inferred.
 RC=0
 OUT=""
 run_canary() {
@@ -153,7 +150,7 @@ t_fires_on_silent_revert() {
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'SILENT REVERT SUSPECTED'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$out"; then
     ok "fires when a merge drops a block a recent commit had added"
   else
     fail "expected a finding (rc=1), got rc=$RC: $out"
@@ -173,10 +170,10 @@ t_finding_is_actionable() {
   out="$OUT"
 
   local missing=""
-  printf '%s' "$out" | grep -q "$culprit" || missing="$missing adding-commit"
-  printf '%s' "$out" | grep -q "$remover" || missing="$missing removing-commit"
-  printf '%s' "$out" | grep -q 'feature.txt' || missing="$missing file-name"
-  printf '%s' "$out" | grep -q 'the alpha guard rejects' || missing="$missing removed-content"
+  grep -q "$culprit" <<<"$out" || missing="$missing adding-commit"
+  grep -q "$remover" <<<"$out" || missing="$missing removing-commit"
+  grep -q 'feature.txt' <<<"$out" || missing="$missing file-name"
+  grep -q 'the alpha guard rejects' <<<"$out" || missing="$missing removed-content"
   if [[ -z "$missing" ]]; then
     ok "finding names the content, the remover, the adder, and the file"
   else
@@ -259,8 +256,8 @@ t_rename_is_not_a_removal() {
 
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
 # what the replay's recorded expectations assert on, so a developer's ambient
-# settings deciding them means a red build on a clean tree -- which is exactly
-# what #2843's first CI run hit, from `diff.algorithm = histogram`.
+# settings deciding them means a red build on a clean tree, for example under
+# `diff.algorithm = histogram`.
 #
 # This case is the anchor for the claim attribute_file's pin table makes, and
 # it is deliberately the SAME claim: identical counts regardless of the
@@ -483,9 +480,9 @@ t_minus_diff_lock_file_is_attributed() {
   if [[ "$RC" -eq 1 ]] &&
     grep -qx "${lock_culprit} 320" "$sink" &&
     grep -qx "${txt_culprit} 25" "$sink" &&
-    printf '%s' "$OUT" | grep -q 'foo.lock' &&
-    printf '%s' "$OUT" | grep -q 'plain.txt' &&
-    ! printf '%s' "$OUT" | grep -q 'img.png'; then
+    grep -q 'foo.lock' <<<"$OUT" &&
+    grep -q 'plain.txt' <<<"$OUT" &&
+    ! grep -q 'img.png' <<<"$OUT"; then
     ok "a -diff lock file is attributed and a binary png churn is not (#2883)"
   else
     fail "lock/png/txt mix: want rc=1 with ${lock_culprit}=320 and ${txt_culprit}=25, no png; rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
@@ -929,7 +926,7 @@ t_show_signature_pin_is_load_bearing() {
   ' "$repo/raw-commit" >"$repo/raw-commit-signed"
   grafted="$(git_test_config "$repo" hash-object -t commit -w --stdin <"$repo/raw-commit-signed")"
   git_test_config "$repo" update-ref HEAD "$grafted"
-  if ! git_test_config "$repo" cat-file commit HEAD 2>/dev/null | grep -q '^gpgsig'; then
+  if ! grep -q '^gpgsig' < <(git_test_config "$repo" cat-file commit HEAD 2>/dev/null); then
     fail "the fixture commit carries no signature header, so log.showSignature would print nothing and this case would pass with or without the pin (not a pass)"
     return 0
   fi
@@ -946,7 +943,7 @@ t_show_signature_pin_is_load_bearing() {
     CANARY_SCRIPT=scripts/no-signature-pin.sh run_canary "$repo" --commit HEAD
   stripped_rc="$RC"
 
-  if [[ "$intact_rc" -eq 0 ]] && printf '%s' "$intact_out" | grep -q '^declared ' &&
+  if [[ "$intact_rc" -eq 0 ]] && grep -q '^declared ' <<<"$intact_out" &&
     [[ "$stripped_rc" -eq 1 ]]; then
     ok "the --no-show-signature pin is load-bearing: stripped it reads a signed revert's subject as gpg output and fires, pinned it reads the declaration"
   else
@@ -1034,7 +1031,7 @@ t_acknowledged_commit_is_cleared() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_ACK=scripts/ack.txt \
     run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'reviewed and cleared'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'reviewed and cleared' <<<"$out"; then
     ok "a reviewed commit recorded in the acknowledgment file is cleared"
   else
     fail "expected the acknowledged commit to clear, rc=$RC: $out"
@@ -1077,7 +1074,7 @@ t_ack_last_row_without_newline_is_honored() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_ACK=scripts/ack.txt \
     run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'reviewed and cleared'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'reviewed and cleared' <<<"$out"; then
     ok "an acknowledgment file whose last row has no trailing newline still clears"
   else
     fail "expected the unterminated last ack row to clear, rc=$RC: $out"
@@ -1123,7 +1120,7 @@ t_range_mode_scans_every_commit() {
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   SILENT_REVERT_THRESHOLD=20 run_canary "$repo" "$base..HEAD"
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'SILENT REVERT SUSPECTED'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'SILENT REVERT SUSPECTED' <<<"$out"; then
     ok "range mode scans every commit in the push"
   else
     fail "expected range mode to find the revert, rc=$RC: $out"
@@ -1144,8 +1141,8 @@ t_declared_note_ends_its_line() {
   filler "$repo" 1
   SILENT_REVERT_THRESHOLD=20 run_canary "$repo" "$base..HEAD"
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s\n' "$out" | grep -q '^declared ' &&
-    printf '%s\n' "$out" | grep -q '^ok '; then
+  if [[ "$RC" -eq 0 ]] && grep -q '^declared ' <<<"$out" &&
+    grep -q '^ok ' <<<"$out"; then
     ok "the declared note ends its line, so the next commit's verdict is not glued to it"
   else
     fail "expected a standalone 'ok' line after the declared note, rc=$RC: $out"
@@ -1163,7 +1160,7 @@ t_whole_file_deletion_is_attributed() {
   git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
   SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'guard.txt'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'guard.txt' <<<"$out"; then
     ok "a wholly deleted file is attributed like any other removal"
   else
     fail "expected the deleted file to be attributed, rc=$RC: $out"
@@ -1204,7 +1201,7 @@ t_root_commit_is_handled() {
   mk_repo repo
   run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'root commit'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'root commit' <<<"$out"; then
     ok "a root commit is reported as having no parent, not crashed on"
   else
     fail "expected the root commit to be handled, rc=$RC: $out"
@@ -1220,7 +1217,7 @@ t_empty_range_is_clean() {
   head="$(git -C "$repo" rev-parse HEAD)"
   run_canary "$repo" "$head..$head"
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'no commits in range'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'no commits in range' <<<"$out"; then
     ok "an empty range is clean and says so"
   else
     fail "expected an empty range to be clean, rc=$RC: $out"
@@ -1290,7 +1287,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'attribution(s) reproduced exactly'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'attribution(s) reproduced exactly' <<<"$out"; then
     ok "replay passes when the recorded culprit and line count both reproduce"
   else
     fail "replay should have passed on a correct attribution, rc=$RC: $out"
@@ -1301,7 +1298,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'fires, but NOT as recorded' <<<"$out"; then
     ok "replay fails when the finding is attributed to a different culprit"
   else
     fail "a wrong recorded culprit must fail the replay, rc=$RC: $out"
@@ -1312,7 +1309,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'fires, but NOT as recorded' <<<"$out"; then
     ok "replay fails when the recorded line count no longer reproduces"
   else
     fail "a wrong recorded line count must fail the replay, rc=$RC: $out"
@@ -1325,7 +1322,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'fires, but NOT as recorded'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'fires, but NOT as recorded' <<<"$out"; then
     ok "replay fails when one of two recorded attributions stops reproducing"
   else
     fail "a missing recorded attribution must fail the replay, rc=$RC: $out"
@@ -1376,7 +1373,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'should stay clean and fired'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'should stay clean and fired' <<<"$out"; then
     ok "a firing commit labeled clean still fails on status, attribution or not"
   else
     fail "expected rc=1 for a firing commit on a clean row, got rc=$RC: $out"
@@ -1388,7 +1385,7 @@ t_replay_asserts_the_recorded_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'fires as recorded'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'fires as recorded' <<<"$out"; then
     ok "a fires row with no attribution field still replays on exit status alone"
   else
     fail "an attribution-less row must still work, rc=$RC: $out"
@@ -1413,7 +1410,7 @@ t_replay_asserts_clean_row_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'largest sub-threshold attribution reproduced exactly'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'largest sub-threshold attribution reproduced exactly' <<<"$out"; then
     ok "replay passes when a clean row's largest sub-threshold attribution reproduces"
   else
     fail "clean-row attribution should have passed, rc=$RC: $out"
@@ -1424,7 +1421,7 @@ t_replay_asserts_clean_row_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'stays clean, but NOT as recorded' <<<"$out"; then
     ok "replay fails when a clean row's recorded line count no longer reproduces"
   else
     fail "a wrong clean-row count must fail the replay, rc=$RC: $out"
@@ -1435,7 +1432,7 @@ t_replay_asserts_clean_row_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'stays clean, but NOT as recorded'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'stays clean, but NOT as recorded' <<<"$out"; then
     ok "replay fails when a clean row's figure is attributed to a different culprit"
   else
     fail "a wrong clean-row culprit must fail the replay, rc=$RC: $out"
@@ -1448,7 +1445,7 @@ t_replay_asserts_clean_row_attribution() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'stays clean as recorded'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'stays clean as recorded' <<<"$out"; then
     ok "a clean row with no attribution field still replays on exit status alone"
   else
     fail "an attribution-less clean row must still work, rc=$RC: $out"
@@ -1509,7 +1506,7 @@ EOF
   CANARY_INJECT_BLAME_FAIL=1 PATH="$shimdir:$PATH" \
     SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git blame failed attributing'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'git blame failed attributing' <<<"$out"; then
     ok "a failed blame is exit 2, not a quiet zero-attribution pass"
   else
     fail "expected rc=2 on injected blame failure, rc=$RC: $out"
@@ -1518,7 +1515,7 @@ EOF
   CANARY_INJECT_DIFF_FAIL=1 PATH="$shimdir:$PATH" \
     SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff failed attributing'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'git diff failed attributing' <<<"$out"; then
     ok "a failed content diff is exit 2, not a quiet zero-attribution pass"
   else
     fail "expected rc=2 on injected diff failure, rc=$RC: $out"
@@ -1529,7 +1526,7 @@ EOF
   CANARY_INJECT_ENUM_FAIL=1 PATH="$shimdir:$PATH" \
     SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'git diff --name-only failed enumerating'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'git diff --name-only failed enumerating' <<<"$out"; then
     ok "a failed file-enumeration diff is exit 2, not a quiet ok"
   else
     fail "expected rc=2 on injected enumeration failure, rc=$RC: $out"
@@ -1543,7 +1540,7 @@ EOF
     SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'could not run'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'could not run' <<<"$out"; then
     ok "a failed blame during replay is exit 2, not a row FAIL or a pass"
   else
     fail "expected rc=2 on injected blame failure in replay, rc=$RC: $out"
@@ -1554,7 +1551,7 @@ EOF
   CANARY_INJECT_GIT_WARN=1 PATH="$shimdir:$PATH" \
     SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && ! printf '%s' "$out" | grep -q 'injected git noise'; then
+  if [[ "$RC" -eq 1 ]] && ! grep -q 'injected git noise' <<<"$out"; then
     ok "successful attribution still discards git stderr"
   else
     fail "git stderr leaked on success, or the finding disappeared, rc=$RC: $out"
@@ -1577,7 +1574,7 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+  if [[ "$RC" -eq 2 ]] && ! grep -q 'reproduces every recorded incident' <<<"$out"; then
     ok "an empty incident file is exit 2, not a green replay"
   else
     fail "expected rc=2 on an empty incident file, rc=$RC: $out"
@@ -1587,7 +1584,7 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'reproduces every recorded incident'; then
+  if [[ "$RC" -eq 2 ]] && ! grep -q 'reproduces every recorded incident' <<<"$out"; then
     ok "a comments-only incident file is exit 2, not a green replay"
   else
     fail "expected rc=2 on a comments-only incident file, rc=$RC: $out"
@@ -1600,7 +1597,7 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   # Write both files with printf directly. A `$(printf '...\n')` assignment
   # would strip the trailing newline (command substitution does), so both
   # files would be the no-newline case and this pin would not be testing
-  # what it claims (#3081 review).
+  # what it claims.
   local line1 line2
   line1="fires $sha [$culprit=40] row 1 correct"
   line2="fires $sha [$culprit=1] row 2 wrong count"
@@ -1623,8 +1620,8 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   local rc_nonl="$RC" out_nonl="$OUT"
 
   if [[ "$rc_nl" -eq 1 && "$rc_nonl" -eq 1 ]] &&
-    printf '%s' "$out_nl" | grep -q 'fires, but NOT as recorded' &&
-    printf '%s' "$out_nonl" | grep -q 'fires, but NOT as recorded'; then
+    grep -q 'fires, but NOT as recorded' <<<"$out_nl" &&
+    grep -q 'fires, but NOT as recorded' <<<"$out_nonl"; then
     ok "a two-row file without a trailing newline reaches the same FAIL as with one"
   else
     fail "newline and no-newline two-row files must both FAIL on the wrong last row; nl rc=$rc_nl nonl rc=$rc_nonl nl=$out_nl nonl=$out_nonl"
@@ -1637,7 +1634,7 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'attribution(s) reproduced exactly'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'attribution(s) reproduced exactly' <<<"$out"; then
     ok "a one-row file with no trailing newline still verifies that row"
   else
     fail "the last unterminated row must be processed, rc=$RC: $out"
@@ -1686,7 +1683,7 @@ t_restoration_reports_present_and_absent_markers() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'present: RESTORED_MARKER_SENTINEL' <<<"$out"; then
     ok "a restored marker resolves and the assertion exits 0"
   else
     fail "a restored marker should have passed, rc=$RC: $out"
@@ -1699,7 +1696,7 @@ t_restoration_reports_present_and_absent_markers() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE' <<<"$out"; then
     ok "an absent marker fails the restoration assertion and names the content"
   else
     fail "an absent marker must fail the assertion, rc=$RC: $out"
@@ -1719,8 +1716,8 @@ t_restoration_reports_present_and_absent_markers() {
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
   if [[ "$RC" -eq 1 ]] &&
-    printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL' &&
-    printf '%s' "$out" | grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE'; then
+    grep -q 'present: RESTORED_MARKER_SENTINEL' <<<"$out" &&
+    grep -q 'NOT RESTORED: NEVER_PRESENT_ANYWHERE' <<<"$out"; then
     ok "a partial re-land (one marker back, one still absent) fails the assertion"
   else
     fail "a partially re-landed incident must still fail, rc=$RC: $out"
@@ -1735,7 +1732,7 @@ t_restoration_reports_present_and_absent_markers() {
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
   if [[ "$RC" -eq 0 ]] &&
-    printf '%s' "$out" | grep -q 'deliberately not restored: superseded by the shared guard'; then
+    grep -q 'deliberately not restored: superseded by the shared guard' <<<"$out"; then
     ok "a dispositioned absent marker passes and prints its recorded reason"
   else
     fail "a dispositioned absent marker should have passed, rc=$RC: $out"
@@ -1751,7 +1748,7 @@ t_restoration_reports_present_and_absent_markers() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'NOT RESTORED: SCOPED_ONLY_ELSEWHERE'; then
+  if [[ "$RC" -eq 1 ]] && grep -q 'NOT RESTORED: SCOPED_ONLY_ELSEWHERE' <<<"$out"; then
     ok "a marker present only OUTSIDE its bound path still fails (path-scoped)"
   else
     fail "a marker matched outside its bound path is a false green, rc=$RC: $out"
@@ -1765,7 +1762,7 @@ t_restoration_reports_present_and_absent_markers() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration "$sha"
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -qF "resolved at $sha"; then
+  if [[ "$RC" -eq 0 ]] && grep -qF "resolved at $sha" <<<"$out"; then
     ok "the assertion resolves markers at an explicitly supplied rev"
   else
     fail "an explicit rev should have resolved, rc=$RC: $out"
@@ -1796,7 +1793,7 @@ t_restoration_refuses_a_malformed_corpus() {
   printf 'fires %s a real drop with nothing recorded\n' "$sha" >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'carries no marker'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'carries no marker' <<<"$out"; then
     ok "a fires row carrying no marker exits 2 rather than passing vacuously"
   else
     fail "a marker-less fires row must exit 2, rc=$RC: $out"
@@ -1810,7 +1807,7 @@ t_restoration_refuses_a_malformed_corpus() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "names no recorded 'fires' incident"; then
+  if [[ "$RC" -eq 2 ]] && grep -q "names no recorded 'fires' incident" <<<"$out"; then
     ok "a marker naming no fires row exits 2"
   else
     fail "an orphan marker row must exit 2, rc=$RC: $out"
@@ -1849,7 +1846,7 @@ BAD_ROWS
   printf '# only comments here\n' >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "no 'fires' row"; then
+  if [[ "$RC" -eq 2 ]] && grep -q "no 'fires' row" <<<"$out"; then
     ok "a corpus with no fires row exits 2 rather than passing while covering nothing"
   else
     fail "an empty corpus must exit 2, rc=$RC: $out"
@@ -1872,7 +1869,7 @@ BAD_ROWS
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'unreachable'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'unreachable' <<<"$out"; then
     ok "a fires row naming an unreachable commit exits 2 even with a resolving marker"
   else
     fail "an unreachable incident commit must exit 2, rc=$RC: $out"
@@ -1898,7 +1895,7 @@ BAD_ROWS
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
   if [[ "$RC" -eq 0 ]] &&
-    printf '%s' "$out" | grep -q 'present: expectations: \["x"\] and \] alone'; then
+    grep -q 'present: expectations: \["x"\] and \] alone' <<<"$out"; then
     ok "a dispositioned row whose MARKER text contains ']' is well-formed"
   else
     fail "a bracketed marker on a dispositioned row must resolve, rc=$RC: $out"
@@ -1975,7 +1972,7 @@ BAD_ROWS
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'unknown row kind'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'unknown row kind' <<<"$out"; then
     ok "an unknown row kind exits 2"
   else
     fail "expected rc=2 on an unknown row kind, got rc=$RC: $out"
@@ -2036,7 +2033,7 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'bind a marker to exactly one file'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'bind a marker to exactly one file' <<<"$out"; then
     ok "a marker path naming a directory exits 2 and names the fix"
   else
     fail "a directory marker path must exit 2, rc=$RC: $out"
@@ -2081,7 +2078,7 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     # test and die with rc=2 -- a bare `RC -ne 0` passes either way and pins
     # nothing. Requiring the symlink wording is what makes this a regression
     # test for the symlink guard rather than for dangling paths in general.
-    if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink'; then
+    if [[ "$RC" -eq 2 ]] && grep -q 'is a symlink' <<<"$out"; then
       ok "a tracked symlink cannot satisfy a marker in working-tree mode"
     else
       fail "a symlinked marker path must be refused as a symlink, rc=$RC: $out"
@@ -2116,7 +2113,7 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
   SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-restoration "$link_rev"
   out="$OUT"
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'is a symlink at'; then
+  if [[ "$RC" -eq 2 ]] && grep -q 'is a symlink at' <<<"$out"; then
     ok "a tracked symlink cannot satisfy a marker in explicit-rev mode"
   else
     fail "a symlinked marker path at a rev must exit 2, rc=$RC: $out"
@@ -2186,7 +2183,7 @@ t_restoration_and_replay_share_the_corpus() {
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'fires as recorded'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'fires as recorded' <<<"$out"; then
     ok "the replay steps over marker rows instead of reading a path as a sha"
   else
     fail "marker rows must not disturb --verify-known-incidents, rc=$RC: $out"
@@ -2202,7 +2199,7 @@ t_restoration_and_replay_share_the_corpus() {
   } >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
-  if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'present: RESTORED_MARKER_SENTINEL'; then
+  if [[ "$RC" -eq 0 ]] && grep -q 'present: RESTORED_MARKER_SENTINEL' <<<"$out"; then
     ok "a fires row carrying a bracketed attribution field still resolves its markers"
   else
     fail "the restoration parser must ignore a fires row's extra fields, rc=$RC: $out"
@@ -2225,8 +2222,8 @@ t_shipped_data_files_are_wellformed() {
   # Anything non-blank, non-comment must match the row grammar. `marker` rows
   # (#2855) are part of that grammar: they carry the incident sha in the same
   # second field, then a path, then free-text marker content.
-  grep -vE '^[[:space:]]*(#|$)' "$inc" |
-    grep -qvE '^(fires|clean|marker)[[:space:]]+[0-9a-f]{40}[[:space:]]' && bad=1
+  grep -qvE '^(fires|clean|marker)[[:space:]]+[0-9a-f]{40}[[:space:]]' \
+    < <(grep -vE '^[[:space:]]*(#|$)' "$inc") && bad=1
   if [[ "$bad" -eq 0 ]]; then
     ok "silent-revert-incidents.txt is well-formed with $n pinned rows"
   else
@@ -2241,8 +2238,8 @@ t_shipped_data_files_are_wellformed() {
   fires_rows="$(grep -cE '^fires[[:space:]]' "$inc")"
   bad=0
   [[ "$fires_rows" -ge 1 ]] || bad=1
-  grep -E '^fires[[:space:]]' "$inc" |
-    grep -qvE '^fires[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' &&
+  grep -qvE '^fires[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' \
+    < <(grep -E '^fires[[:space:]]' "$inc") &&
     bad=1
   if [[ "$bad" -eq 0 ]]; then
     ok "every shipped fires row carries a well-formed attribution field ($fires_rows rows)"
@@ -2258,8 +2255,8 @@ t_shipped_data_files_are_wellformed() {
   clean_rows="$(grep -cE '^clean[[:space:]]' "$inc")"
   bad=0
   [[ "$clean_rows" -ge 1 ]] || bad=1
-  grep -E '^clean[[:space:]]' "$inc" |
-    grep -qvE '^clean[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' &&
+  grep -qvE '^clean[[:space:]]+[0-9a-f]{40}[[:space:]]+\[[0-9a-f]{40}=[0-9]+(,[0-9a-f]{40}=[0-9]+)*\][[:space:]]' \
+    < <(grep -E '^clean[[:space:]]' "$inc") &&
     bad=1
   if [[ "$bad" -eq 0 ]]; then
     ok "every shipped clean row carries a well-formed attribution field ($clean_rows rows)"
@@ -2279,7 +2276,7 @@ t_shipped_data_files_are_wellformed() {
   marker_shas="$(awk '$1 == "marker" { print $2 }' "$inc" | sort -u)"
   while read -r row_sha; do
     [[ -n "$row_sha" ]] || continue
-    printf '%s\n' "$marker_shas" | grep -qxF "$row_sha" || bad=1
+    grep -qxF "$row_sha" <<<"$marker_shas" || bad=1
   done < <(awk '$1 == "fires" { print $2 }' "$inc")
   if [[ "$bad" -eq 0 ]]; then
     ok "every shipped fires row carries at least one restoration marker"
@@ -2292,7 +2289,7 @@ t_shipped_data_files_are_wellformed() {
   bad=0
   while read -r row_sha; do
     [[ -n "$row_sha" ]] || continue
-    awk '$1 == "fires" { print $2 }' "$inc" | grep -qxF "$row_sha" || bad=1
+    grep -qxF "$row_sha" < <(awk '$1 == "fires" { print $2 }' "$inc") || bad=1
   done < <(printf '%s\n' "$marker_shas")
   if [[ "$bad" -eq 0 ]]; then
     ok "every shipped marker row names a recorded fires incident"
@@ -2302,8 +2299,8 @@ t_shipped_data_files_are_wellformed() {
 
   bad=0
   if [[ -f "$ack" ]]; then
-    grep -vE '^[[:space:]]*(#|$)' "$ack" |
-      grep -qvE '^[0-9a-f]{40}[[:space:]]+[^[:space:]]' && bad=1
+    grep -qvE '^[0-9a-f]{40}[[:space:]]+[^[:space:]]' \
+      < <(grep -vE '^[[:space:]]*(#|$)' "$ack") && bad=1
     if [[ "$bad" -eq 0 ]]; then
       ok "silent-revert-acknowledged.txt rows are full shas with a recorded reason"
     else

@@ -3,6 +3,28 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-27
+
+### Fixed
+
+- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked (#4119).
+
+## [0.11.2] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.11.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.11.0] - 2026-09-23
 
 ### Changed

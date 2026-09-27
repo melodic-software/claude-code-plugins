@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import pathlib
 import sys
-import tempfile
 import unittest
 from typing import Any
 from unittest import mock
@@ -26,6 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
 import babysit_merge as merge
+import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
 STALE = "b" * 40
@@ -641,7 +642,7 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         match = merge.find_distinct_bot_approval(
             reviews, LANE, HEAD, frozenset({APPROVER})
         )
-        self.assertIsNotNone(match)
+        assert match is not None
         self.assertEqual(match["commit"]["oid"], HEAD)
 
     def test_approver_matched_by_configured_login_without_bot_suffix(self) -> None:
@@ -1009,8 +1010,8 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertFalse(result["requiredSignatures"]["checked"])
 
     def test_generic_merge_state_line_names_signatures(self) -> None:
-        # The honesty fix: even the coarse mergeStateStatus enumeration may not
-        # misdirect by omission.
+        # Even the coarse mergeStateStatus enumeration may not misdirect by
+        # omission.
         result = self._evaluate(
             rules=self.SIGNED_RULES,
             commits=[self._commit(HEAD, True, "valid")],
@@ -1159,278 +1160,227 @@ class UnreadableThreadResolutionHoldsTheGate(GraphQLRestrictionHarness):
         )
 
 
-TERMINAL_SKILL = "verification:confirm"
-ANCESTOR = "c" * 40
+def _check(name: str, conclusion: str | None) -> dict[str, Any]:
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "status": "COMPLETED" if conclusion else "IN_PROGRESS",
+        "conclusion": conclusion or "",
+    }
 
 
-def _evidence_body(rows: list[tuple[str, str]], *, blocks: int = 1) -> str:
-    """A PR body whose Verification section carries the fenced evidence block."""
-    lines = ["## Verification", "", "Prose a human reads, and an HTML comment:", ""]
-    lines.append("<!-- ```skill-evidence")
-    lines.append(f"{TERMINAL_SKILL} {'9' * 40} 2026-09-13T09:00:00Z")
-    lines.append("``` -->")
-    for _ in range(blocks):
-        lines.append("```skill-evidence")
-        lines += [f"{skill} {sha} 2026-09-13T10:00:00Z" for skill, sha in rows]
-        lines.append("```")
-        lines.append("")
-    return "\n".join(lines)
+class AutoMergeArming(unittest.TestCase):
+    """`--auto` arms auto-merge only when running checks are the sole hold and
+    both AI review lanes have finished on the live head."""
 
+    CI_RULES = [
+        {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "ci-status"}]},
+        }
+    ]
 
-class SkillEvidenceHarness(unittest.TestCase):
-    """Run `evaluate` with no tier, a stubbed body, and a stubbed ancestry seam.
-
-    The terminal skill is pinned rather than read from whatever checkout the
-    suite runs in, so these cases assert the rule, not this repository's map.
-    """
-
-    def _evaluate(
-        self,
-        body: str,
-        *,
-        ancestry: dict[str, str | None] | None = None,
-        head: str = HEAD,
-    ) -> dict[str, Any]:
-        compare_calls: list[tuple[str, str, str]] = []
+    def _evaluate(self, rollup: list[dict[str, Any]], **pr: Any) -> dict[str, Any]:
+        view = _pr(statusCheckRollup=rollup, reviewDecision="", **pr)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
-                return _pr(body=body, headRefOid=head)
-            if args[0] == "api":  # branch rules
-                return RULES
+                return view
+            if args[0] == "api":
+                return self.CI_RULES
             raise AssertionError(f"unexpected gh_json call: {args}")
-
-        def fetch_commit_ancestry(repo: str, base: str, head_sha: str) -> str | None:
-            compare_calls.append((repo, base, head_sha))
-            return (ancestry or {}).get(base)
 
         with (
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
-            mock.patch.object(
-                merge, "fetch_pull_request_reviews", return_value=CLEAN_APPROVAL
-            ),
-            mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
-            mock.patch.object(
-                merge, "fetch_pull_request_review_comments", return_value=[]
-            ),
+        ):
+            return merge.evaluate(
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset({LANE}),
+                False,
+                False,
+            )
+
+    def test_only_ci_running_with_ai_lanes_done_is_auto_ready(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("claude-review-status", "SUCCESS"),
+                _check("claude-security-review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_running_ai_lane_holds(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("claude-review-status", None),
+                _check("claude-security-review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"])
+
+    def test_missing_or_skipped_ai_lane_holds(self) -> None:
+        result = self._evaluate(
+            [_check("ci-status", None), _check("claude-review-status", "SKIPPED")],
+            mergeStateStatus="BLOCKED",
+        )
+        holds = result["autoMerge"]["blockers"]
+        self.assertEqual(len(holds), 2, holds)
+
+    def test_gate_arms_on_ai_checks_not_on_advisory_checks(self) -> None:
+        def rollup(review: str | None) -> list[dict[str, Any]]:
+            return [
+                _check("ci-status", "SUCCESS"),
+                _check("test-windows", None),  # advisory, still running
+                _check("review / claude-review-status", review),
+                _check("security-review / claude-security-review-status", "SUCCESS"),
+            ]
+
+        # An AI review check still running holds.
+        pending_ai = self._evaluate(rollup(None), mergeStateStatus="UNSTABLE")
+        self.assertFalse(pending_ai["autoMerge"]["ready"], pending_ai["autoMerge"])
+        # Both AI checks green: a running advisory check does not hold.
+        green = self._evaluate(rollup("SUCCESS"), mergeStateStatus="UNSTABLE")
+        self.assertTrue(green["autoMerge"]["ready"], green["autoMerge"])
+        # The head moved since those checks passed: the pin no longer matches.
+        moved = self._evaluate(
+            rollup("SUCCESS"), mergeStateStatus="UNSTABLE", headRefOid=STALE
+        )
+        self.assertFalse(moved["autoMerge"]["ready"], moved["autoMerge"])
+
+    def test_unresolved_thread_holds(self) -> None:
+        rollup = [
+            _check("ci-status", None),
+            _check("claude-review-status", "SUCCESS"),
+            _check("claude-security-review-status", "SUCCESS"),
+        ]
+        view = _pr(
+            statusCheckRollup=rollup, reviewDecision="", mergeStateStatus="BLOCKED"
+        )
+        with (
             mock.patch.object(
                 merge,
-                "read_terminal_skills",
-                return_value=(
-                    frozenset({TERMINAL_SKILL}),
-                    "/fixture/source-control.md",
+                "gh_json",
+                side_effect=lambda a: (
+                    view if a[:2] == ["pr", "view"] else self.CI_RULES
                 ),
             ),
             mock.patch.object(
-                merge, "fetch_commit_ancestry", side_effect=fetch_commit_ancestry
+                merge, "unresolved_threads", return_value=[{"author": "reviewer"}]
             ),
         ):
             result = merge.evaluate(
                 "owner/repo",
                 PR_NUMBER,
-                head,
+                HEAD,
                 {"owner"},
-                frozenset(),
+                frozenset({LANE}),
                 False,
                 False,
-                None,
             )
-        result["_compare_calls"] = compare_calls
-        return result
+        self.assertFalse(result["autoMerge"]["ready"])
 
-    def assertNoEvidenceBlocker(self, result: dict[str, Any]) -> None:
-        """The record is advisory in every tier: it never reaches `blockers`."""
-        self.assertEqual([b for b in result["blockers"] if "evidence" in b.lower()], [])
+    def _main(
+        self, auto_ready: bool, *extra: str, ready: bool = False
+    ) -> tuple[int, list[list[str]]]:
+        result = {
+            "ready": ready,
+            "blockers": ["pending checks: ci-status"],
+            "headRefOid": HEAD,
+            "autoMerge": {"ready": auto_ready, "blockers": []},
+        }
+        calls: list[list[str]] = []
 
+        def capture(cmd: list[str]) -> Any:
+            calls.append(cmd)
+            return mock.Mock(returncode=0, stdout="", stderr="")
 
-class SkillEvidenceRecordReadsTheBlock(SkillEvidenceHarness):
-    def test_a_clean_block_reports_no_gap(self) -> None:
-        result = self._evaluate(
-            _evidence_body([(TERMINAL_SKILL, HEAD), ("simplify", ANCESTOR)]),
-            ancestry={ANCESTOR: "ahead"},
-        )
-        record = result["skillEvidence"]
+        argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner", *extra]
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", return_value=result),
+            mock.patch.object(merge, "allowed_method", return_value="squash"),
+            mock.patch.object(merge, "gh_capture", side_effect=capture),
+            contextlib.redirect_stdout(io.StringIO()) as out,
+        ):
+            code = merge.main()
+        self.output = json.loads(out.getvalue()) if out.getvalue() else {}
+        return code, calls
 
-        self.assertTrue(record["present"])
-        self.assertTrue(record["parsed"])
-        self.assertTrue(record["terminalFresh"])
-        self.assertFalse(record["gap"])
-        self.assertEqual(
-            [(row["skill"], row["fresh"]) for row in record["rows"]],
-            [("simplify", True), (TERMINAL_SKILL, True)],
-        )
-        # One compare per non-terminal row, and none for the terminal row,
-        # which is a string comparison against the head.
-        self.assertEqual(result["_compare_calls"], [("owner/repo", ANCESTOR, HEAD)])
-        self.assertTrue(result["ready"], result["blockers"])
-        self.assertNoEvidenceBlocker(result)
+    def test_auto_arms_squash_pinned_to_head(self) -> None:
+        code, calls = self._main(True, "--merge", "--expected-head", HEAD, "--auto")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.output["action"], "auto-merge")
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self.output["autoMergeEnabled"])
+        [cmd] = calls
+        self.assertIn("--auto", cmd)
+        self.assertIn("--squash", cmd)
+        self.assertEqual(cmd[cmd.index("--match-head-commit") + 1], HEAD)
 
-    def test_a_missing_block_is_a_gap_and_costs_no_call(self) -> None:
-        result = self._evaluate("## Verification\n\nNothing machine-readable here.\n")
-        record = result["skillEvidence"]
+    def test_without_auto_flag_nothing_is_armed(self) -> None:
+        code, calls = self._main(True, "--merge", "--expected-head", HEAD)
+        self.assertEqual((code, calls), (10, []))
 
-        self.assertFalse(record["present"])
-        self.assertFalse(record["parsed"])
-        self.assertFalse(record["terminalFresh"])
-        self.assertTrue(record["gap"])
-        self.assertEqual(record["rows"], [])
-        self.assertEqual(result["_compare_calls"], [])
-        # Advisory: the PR is still merge-ready with no block at all.
-        self.assertTrue(result["ready"], result["blockers"])
-        self.assertNoEvidenceBlocker(result)
+    def test_auto_not_ready_arms_nothing(self) -> None:
+        code, calls = self._main(False, "--merge", "--expected-head", HEAD, "--auto")
+        self.assertEqual((code, calls), (10, []))
 
-    def test_a_stale_terminal_row_is_a_gap(self) -> None:
-        # The terminal skill seals the set at HEAD exactly; an ancestor is not
-        # good enough for it, however fresh every other row is.
-        result = self._evaluate(
-            _evidence_body([(TERMINAL_SKILL, ANCESTOR), ("simplify", ANCESTOR)]),
-            ancestry={ANCESTOR: "ahead"},
-        )
-        record = result["skillEvidence"]
+    def test_auto_holds_a_ready_merge_until_ai_lanes_finish(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(False, *args, ready=True)
+        self.assertEqual((code, calls), (10, []))
 
-        self.assertTrue(record["present"])
-        self.assertTrue(record["terminalPresent"])
-        self.assertFalse(record["terminalFresh"])
-        self.assertTrue(record["gap"])
-        terminal = next(r for r in record["rows"] if r["terminal"])
-        self.assertFalse(terminal["fresh"])
-        self.assertTrue(result["ready"], result["blockers"])
+    def test_auto_merges_a_ready_pr_synchronously(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(True, *args, ready=True)
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertNotIn("--auto", calls[0])
 
-    def test_a_non_terminal_row_on_the_head_history_is_fresh(self) -> None:
-        for status in ("identical", "ahead"):
-            with self.subTest(status=status):
-                result = self._evaluate(
-                    _evidence_body(
-                        [(TERMINAL_SKILL, HEAD), ("ai-slop:audit", ANCESTOR)]
-                    ),
-                    ancestry={ANCESTOR: status},
-                )
-                record = result["skillEvidence"]
-                row = next(r for r in record["rows"] if not r["terminal"])
-                self.assertTrue(row["fresh"])
-                self.assertFalse(record["gap"])
-
-    def test_a_non_terminal_row_off_the_head_history_is_a_gap(self) -> None:
-        # A rebased-away or amended commit: the branch no longer contains it.
-        for status in ("behind", "diverged"):
-            with self.subTest(status=status):
-                result = self._evaluate(
-                    _evidence_body([(TERMINAL_SKILL, HEAD), ("simplify", STALE)]),
-                    ancestry={STALE: status},
-                )
-                record = result["skillEvidence"]
-                row = next(r for r in record["rows"] if not r["terminal"])
-                self.assertFalse(row["fresh"])
-                self.assertTrue(record["gap"])
-                self.assertTrue(result["ready"], result["blockers"])
-
-    def test_an_unreadable_comparison_is_unproven_never_a_gap(self) -> None:
-        result = self._evaluate(
-            _evidence_body([(TERMINAL_SKILL, HEAD), ("simplify", ANCESTOR)]),
-            ancestry={ANCESTOR: None},
-        )
-        record = result["skillEvidence"]
-        row = next(r for r in record["rows"] if not r["terminal"])
-
-        self.assertIsNone(row["fresh"])
-        self.assertFalse(record["gap"])
-        self.assertTrue(any("unproven" in note for note in record["notes"]))
-
-    def test_an_unparsable_block_is_reported_never_fatal(self) -> None:
-        body = "\n".join(
-            [
-                "## Verification",
-                "",
-                "```skill-evidence",
-                "this is not a row",
-                "verification:confirm not-a-sha 2026-09-13T10:00:00Z",
-                "```",
-                "",
-            ]
-        )
-        result = self._evaluate(body)
-        record = result["skillEvidence"]
-
-        self.assertTrue(record["present"])
-        self.assertFalse(record["parsed"])
-        self.assertEqual(record["rows"], [])
-        self.assertTrue(record["gap"])
-        self.assertTrue(result["ready"], result["blockers"])
-        self.assertNoEvidenceBlocker(result)
-
-    def test_a_second_block_is_noted_and_only_the_first_is_read(self) -> None:
-        result = self._evaluate(
-            _evidence_body([(TERMINAL_SKILL, HEAD)], blocks=2),
-        )
-        record = result["skillEvidence"]
-
-        self.assertEqual(record["blocks"], 2)
-        self.assertFalse(record["gap"])
-        self.assertTrue(any("first is read" in note for note in record["notes"]))
-
-    def test_the_latest_row_per_skill_wins(self) -> None:
-        result = self._evaluate(
-            _evidence_body([(TERMINAL_SKILL, STALE), (TERMINAL_SKILL, HEAD)]),
-        )
-        record = result["skillEvidence"]
-
-        self.assertEqual([row["sha"] for row in record["rows"]], [HEAD])
-        self.assertTrue(record["terminalFresh"])
+    def test_auto_without_merge_and_pin_is_refused(self) -> None:
+        self.assertEqual(self._main(True, "--auto")[0], 2)
+        self.assertEqual(self._main(True, "--merge", "--auto")[0], 2)
 
 
-class SkillEvidenceBodyIsRequested(GraphQLRestrictionHarness):
-    """The record cannot be read from a bundle that never asked for the body."""
+class RefreshDisarmsAutoMerge(unittest.TestCase):
+    """A branch refresh disables an armed auto-merge first, and fails closed."""
 
-    def test_the_gate_requests_the_body_field(self) -> None:
-        _, requested = self._evaluate(threads=[])
-        self.assertIn("body", requested)
+    def _disarm(self, armed: bool, disable_error: bool = False) -> list[list[str]]:
+        calls: list[list[str]] = []
 
+        def run_gh(cmd: list[str]) -> str:
+            calls.append(cmd)
+            if disable_error:
+                raise RuntimeError("gh failed")
+            return ""
 
-class TerminalSkillComesFromTheMap(unittest.TestCase):
-    """`## pr_skill_evidence` marks the terminal skill with a trailing `!`."""
+        pull = {"auto_merge": {"merge_method": "squash"} if armed else None}
+        with (
+            mock.patch.object(refresh, "gh_json", return_value=pull),
+            mock.patch.object(refresh, "run_gh", side_effect=run_gh),
+        ):
+            refresh.disarm_auto_merge("owner/repo", PR_NUMBER)
+        return calls
 
-    def _map(self, body: str) -> pathlib.Path:
-        root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
-        (root / ".claude").mkdir()
-        (root / ".claude" / "source-control.md").write_text(body, encoding="utf-8")
-        return root
+    def test_armed_pr_is_disarmed(self) -> None:
+        [cmd] = self._disarm(armed=True)
+        self.assertIn("--disable-auto", cmd)
 
-    def test_the_marked_skill_is_read_through_its_backticks(self) -> None:
-        root = self._map(
-            "# config\n\n"
-            "## pr_skill_evidence\n\n"
-            "- code | `**/*.py` | verification:confirm! simplify\n"
-            "- markdown | `**/*.md` | ai-slop:audit\n\n"
-            "## other_key\n\n"
-            "- not | a | map!\n"
-        )
-        terminal, source = merge.read_terminal_skills(root)
+    def test_unarmed_pr_makes_no_call(self) -> None:
+        self.assertEqual(self._disarm(armed=False), [])
 
-        self.assertEqual(terminal, frozenset({"verification:confirm"}))
-        self.assertIn("source-control.md", str(source))
-
-    def test_an_any_of_terminal_token_keeps_both_alternatives(self) -> None:
-        root = self._map(
-            "## pr_skill_evidence\n\n- code | `**/*.py` | a:one,b:two! simplify\n"
-        )
-        terminal, _ = merge.read_terminal_skills(root)
-
-        self.assertEqual(terminal, frozenset({"a:one", "b:two"}))
-
-    def test_no_map_falls_back_to_the_documented_default(self) -> None:
-        root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
-        terminal, source = merge.read_terminal_skills(root)
-
-        self.assertEqual(terminal, merge.DEFAULT_TERMINAL_SKILLS)
-        self.assertIsNone(source)
-
-    def test_a_map_with_no_marked_skill_falls_back_too(self) -> None:
-        root = self._map("## pr_skill_evidence\n\n- code | `**/*.py` | simplify\n")
-        terminal, source = merge.read_terminal_skills(root)
-
-        self.assertEqual(terminal, merge.DEFAULT_TERMINAL_SKILLS)
-        self.assertIsNotNone(source)
+    def test_disarm_failure_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self._disarm(armed=True, disable_error=True)
 
 
 if __name__ == "__main__":

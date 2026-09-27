@@ -43,7 +43,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 
 ### The 10 LLM-vs-Book Tensions
 
-**Every agent prompt MUST include corrective instructions for the tensions relevant to that phase.** The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with stronger corrections.
+**Every agent prompt MUST include corrective instructions for the tensions relevant to that phase.** The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with the specific correction the output violated, quoting the offending stickies and restating the reason.
 
 #### 1. Completeness Bias → Partial, Siloed Views
 
@@ -99,7 +99,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 **LLM default:** Plan the output. Think about the full scope before writing. Produce organized, categorized results.
 **Book requires:** "The structure must emerge from the team's hard work", not from upfront planning. Chaotic Exploration is organic: people write what comes to mind, influenced by what they see on the wall. The facilitator provides structure AFTER chaos, not before.
 
-**Corrective prompt:** "Do NOT plan your events before writing them. Start writing the FIRST event that comes to mind for your role, then the next, then the next. Let each event trigger the next association. If you find yourself organizing events into categories before placing them, STOP. That's Enforce Timeline behavior and it doesn't happen yet."
+**Corrective prompt:** "Place events in the order they occur to you, starting with the first one your role would name, and let each event suggest the next. Related events may cluster as they come, but decide no categories up front and leave the whole unsorted: ordering and categorizing are Enforce Timeline work, which comes later."
 
 #### 9. Helpful Gap-Filling → Genuine Blind Spots
 
@@ -140,7 +140,7 @@ Every agent prompt already includes persona identity, domain context, color/form
 - You know 30% of this domain. Write ONLY from your expertise. Leave gaps.
 - Each event: 2-5 words, past tense, verb phrase. Not sentences.
 - When you read others' events: find what's WRONG first. Challenge 2-3 events.
-- Do NOT plan your output. Write events as they come to mind.
+- Place events in the order they occur to you. Decide no categories up front.
 - Use YOUR role's vocabulary. Different words for the same moment = valuable signal.
 - Your output volume matches your role: [Expert: 12-15 | Newbie: 4-6 | Specialist: 8-10]
 ```

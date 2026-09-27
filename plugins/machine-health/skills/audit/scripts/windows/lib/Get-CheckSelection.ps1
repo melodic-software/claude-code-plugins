@@ -37,9 +37,8 @@ function Get-CheckSelection {
         [datetime] $Now
     )
 
-    # A monthly check runs on a weekly run only when at least this many days have
-    # passed since it last ran. Biased just under 28 so ordinary weekly-run jitter
-    # fires it on the 4th weekly run (~28d) rather than slipping to the 5th.
+    # Just under 28 so weekly-run jitter still fires a monthly check on the 4th
+    # weekly run (~28d) rather than slipping to the 5th.
     $monthlyMinIntervalDays = 27
 
     $nowOffset = [DateTimeOffset]$Now
@@ -49,7 +48,6 @@ function Get-CheckSelection {
     foreach ($c in $Checks) {
         $cadence = ($c.PSObject.Properties['cadence'] -and $c.cadence) ? "$($c.cadence)" : 'weekly'
 
-        # on-demand / first-run run everything; weekly-cadence always runs.
         if ($RunMode -ne 'weekly' -or $cadence -ne 'monthly') {
             $due.Add($c)
             continue

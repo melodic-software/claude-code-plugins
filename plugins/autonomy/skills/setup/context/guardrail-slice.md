@@ -25,7 +25,8 @@ depends on the binding until that human-landed change exists.
    an `L2` whole-process OS-sandbox wrap or default-deny-egress container, an `L3` kernel-separated
    VM/microVM or hosted ephemeral executor. Detection is per surface, a substrate present on one
    surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
-   different dispatch surface.
+   different dispatch surface. For a surface whose host is Windows (native, WSL2, or a VM launched
+   from it), read [`windows-surfaces.md`](windows-surfaces.md) first.
 2. **Detect-diff-reconcile against existing guardrail surfaces**, never greenfield-assume, never
    silently overwrite. Before proposing any binding value, read the org's existing guardrail
    surfaces. Sandbox/runner configurations, branch protections, review workflows and scanner
@@ -36,7 +37,8 @@ depends on the binding until that human-landed change exists.
    pre-existing surface is authoritative input to reconcile against, not a blank field to fill.
 3. **Live-validate before recording**, the empirical probe per substrate class (recipe in
    [`templates/isolation-probe.md`](../templates/isolation-probe.md)). A candidate `L2`/`L3`
-   substrate is validated by running, inside the boundary, three probes that must all fail:
+   substrate is validated by running, inside the boundary, three probes that must all fail (four
+   on a WSL2 surface, below):
    - a **denied-egress smoke test**, a network fetch must fail against two well-known external
      hosts under different operators and against every destination the level binding ratifies as
      component-reachable (a boundary that lets egress through is not an `L2` boundary, and a probe
@@ -47,6 +49,14 @@ depends on the binding until that human-landed change exists.
    - a **workspace host-write containment check**. Randomized canaries written inside must all be
      absent on the host after teardown (a boundary the host later executes writes from is not an
      `L2` boundary).
+
+   A WSL2 surface also runs the interop launch check from
+   [`windows-surfaces.md`](windows-surfaces.md), a launch of a present Windows executable that must
+   succeed outside and fail inside, recorded in the transcript as the fourth checker assertion,
+   `interop_launch_denied`. Every `L2`/`L3` level binding states `host_interop`: `"wsl2"` makes
+   that assertion required, `"none"` is the human claim that no host interop applies, and an entry
+   without it stays unproven. Without the assertion a `"wsl2"` level stays unproven, and a `"none"`
+   level whose capture reached a Windows drive mount (`/mnt/<letter>/`) stays unproven too.
 
    The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
    operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a
@@ -61,16 +71,19 @@ depends on the binding until that human-landed change exists.
    credentials live, bind per the deployment's secret-binding classification (a machine/userConfig
    binding), never inlined into the committed binding document.
 
-   The binding for that level on that surface lands only when the probe transcript proves all
-   three failures: denied egress, absent host credentials, and contained workspace host-writes;
+   The binding for that level on that surface lands only when the probe transcript proves every
+   failure: denied egress, absent host credentials, contained workspace host-writes, and on a WSL2
+   surface a denied interop launch;
    the transcript's reference is recorded in the level binding's `probe_evidence`
    field (schema-required, a binding without probe evidence is invalid per
    [`scripts/check-security-binding.mjs`](../scripts/check-security-binding.mjs)). A binding never
    lands ahead of the probe that proves its boundary.
 4. **Bind level → substrate per surface**. Record each validated substrate under its surface in
    `isolation_bindings` (surface id → level token → substrate instance + the human-ratified
-   `substrate_class` and `component_reachable_hosts` + `probe_evidence` + the non-forgeable
-   `runtime_markers` the dispatch seam attests against), plus the merge policy,
+   `substrate_class`, `host_interop`, and `component_reachable_hosts` + `probe_evidence` + the
+   non-forgeable `runtime_markers` the dispatch seam attests against, plus the optional
+   `base_egress_allowlist`, an informational record of the base allowlist that is never merged into
+   `component_reachable_hosts` and never read as proof of denial), plus the merge policy,
    verification-blocking knobs, each class's `verification_topology`, escalation routes, and
    admission rules and caps. All on the
    prepared security-binding change, validated by

@@ -2,8 +2,7 @@
 # Contract tests for save_point.py — delegates to the pytest suite under tests/.
 #
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
-# repo test-runner convention for optional toolchains (the retro skill's
-# parse-transcript.test.sh is the precedent this mirrors).
+# repo test-runner convention for optional toolchains.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

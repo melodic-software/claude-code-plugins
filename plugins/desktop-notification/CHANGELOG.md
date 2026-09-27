@@ -3,6 +3,54 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.50] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq` and the OS family at load time.** `command -v jq` and `uname -s` run as
+  pre-computed context, so `check` reads two rows instead of making two Bash calls. The per-OS
+  `os_toast` probe stays a body call because it depends on the OS row. `uname -s` is pre-approved
+  in `allowed-tools`, since a load-time command that is not allowed aborts the skill outside auto
+  mode. The FAIL rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
+## [0.6.49] - 2026-09-27
+
+### Changed
+
+- `desktop_notification_os_toast_enabled` names its platforms: macOS (osascript) or Linux (requires notify-send), and no effect on Windows, where the terminal channels carry the alert. The generated README options table says the same.
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+
+## [0.6.48] - 2026-09-24
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.6.47] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/desktop-notification.sh` through `bash` with `"shell": "bash"`, the
+  #4421 shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang)
+  before bash. Hook behavior is unchanged (#4442).
+- `desktop-notification.sh` reads its `desktop_notification_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
+## [0.6.46] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
 ## [0.6.45] - 2026-09-21
 
 ### Changed

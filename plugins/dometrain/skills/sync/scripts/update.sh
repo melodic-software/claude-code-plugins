@@ -26,13 +26,8 @@ BASELINE="$SNAPSHOT_DIR/SKILL.md"
 
 UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md"
 
-# The vendored baseline carries an attribution HTML comment (plus its surrounding blank
-# lines) after the frontmatter that upstream does not have — added deliberately (MIT
-# attribution requirement) and placed there rather than before the frontmatter, because a
-# leading comment breaks YAML-frontmatter recognition in markdownlint and would corrupt the
-# verbatim snapshot on every format pass. Strip it before diffing so a copy that is otherwise
-# byte-identical to upstream reports zero drift, not a permanent 2-line false positive.
-# {N;d} (not the GNU-only `,+1d` range extension) so this parses on BSD sed (macOS default) too.
+# Upstream lacks the vendored attribution comment; drop it and its next line so an identical
+# copy reports no drift. {N;d} rather than GNU-only `,+1d` keeps this working on BSD sed.
 strip_attribution() {
   sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/{N;d}' "$1"
 }

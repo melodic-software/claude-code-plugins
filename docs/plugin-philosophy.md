@@ -4,10 +4,12 @@
 
 - [Design boundary](#design-boundary)
 - [Naming](#naming)
+- [Skills are processes](#skills-are-processes)
 - [Native-first](#native-first)
 - [Component stances](#component-stances)
 - [Two-lane convention posture](#two-lane-convention-posture)
 - [Configuration ownership and scope](#configuration-ownership-and-scope)
+- [One owner per value](#one-owner-per-value)
 - [Setup is explicit and repeatable](#setup-is-explicit-and-repeatable)
 - [Prerequisites and failure behavior](#prerequisites-and-failure-behavior)
 - [Convention registry](#convention-registry)
@@ -215,6 +217,23 @@ across plugins is unambiguous to *invoke* and to *read*: its prefix distinguishe
 columns. Never rename to buy display uniqueness; spend the effort on the description's first clause
 carrying the distinguishing object, since that column is what a reader actually scans.
 
+## Skills are processes
+
+A skill is a process: what to do, in what order, and when to stop. It is named for its verb
+([naming](#naming)). The artifacts it writes and the external tools it drives sit behind
+ports and adapters: the skill body names the step (render the frames, encode the film), and an
+adapter does the work. Every port has a native default adapter, one the plugin ships, so the skill
+works with nothing else installed; any other adapter is optional collaboration, presence-gated per
+the [design boundary](#design-boundary).
+
+An interface, a contract several adapters implement, exists only where two adapters exist or are
+named. Until then the port is one function with one home and one signature, which is enough to add
+the interface later without a rewrite.
+
+Worked example: in `animation`, render is the one port with an interface (`render.py --backend`,
+`native` by default, the adapter recorded in `render.json`), because HyperFrames and Remotion are
+named second adapters. Decode and encode each have one home and one signature, and no interface.
+
 ## Native-first
 
 Prefer a built-in native mechanism over any custom extensibility point: `userConfig`, a native
@@ -356,12 +375,10 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
 - `sensitive: true` for secrets, noting that on platforms without a supported keychain the value
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
-- `claude plugin install --config` documented in the plugin's setup skill for headless use. Note
-  in that same documentation that re-running it against an already-installed plugin prints
-  `already installed` **and still writes the value**: the short-circuit is about the install, not the
-  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
-  scope: a non-default value written to an installed plugin, then restored). A `sensitive` option
-  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
+- `claude plugin install --config` documented in the plugin's setup skill for headless use,
+  following the short form in the
+  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md), which owns
+  the rerun behavior, its caveats, and the verified-version record; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E:
@@ -417,6 +434,23 @@ renaming one is exactly the refactor a skill must stay free to make.
 
 The full public-surface contract this narrows is
 `/docs-hygiene:audit-encapsulation`'s, which audits against it.
+
+## One owner per value
+
+Inside a plugin, code reads each value (a threshold, a default, a path, a frame rate, a package pin)
+from one owner. [Configuration ownership](#configuration-ownership-and-scope) settles which surface
+a consumer sets a value through; this rule settles where the plugin's own values live.
+
+- Code reads the owner and never repeats the literal.
+- Docs cite the owner and do not restate the number. A copy generated from the owner is not a second
+  owner.
+- Measurement records keep their numbers: a recorded result is data about one run, not a restatement.
+- A volatile external specific restated in a skill body carries the four-part record of the
+  [upstream-drift convention](conventions/upstream-drift/README.md).
+- A value read from two languages lives in a JSON file both read.
+
+Worked example: `animation`'s brush defaults live in `skills/rotoscope/scripts/brush.json`, read by
+both `roto.js` and `measure.py`.
 
 ## Setup is explicit and repeatable
 
@@ -632,6 +666,12 @@ Classify absence deliberately:
 - **Required for an optional feature:** warn visibly, skip only that feature, and continue with the
   documented reduced result.
 - **Not applicable:** exit quietly and successfully.
+
+Count as a dependency anything the plugin assumes about the machine: an external binary and the
+version it needs, a network port, a fixed size or resolution, another plugin's file layout, an
+installed browser, and a lookup on `PATH`. Each gets one verdict: behind a port
+([Skills are processes](#skills-are-processes)), a `userConfig` value, presence-gated with the
+absence class above, documented as a prerequisite, or fixed.
 
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully, never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
@@ -934,9 +974,10 @@ verified 2026-08-10).
 
 The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
 above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
-explicit: an agent definition that omits `model` defaults to `inherit`, the main conversation's
-model ([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-verified 2026-08-10; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
+explicit: an agent definition that omits `model` falls through to `CLAUDE_CODE_SUBAGENT_MODEL` and,
+where that is unset, to the main conversation's model, the same model `inherit` selects
+([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model): "When
+you omit it, Claude Code picks the model in the subagent model order", verified 2026-09-27; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
 `inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
 settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
 frontmatter, so it decides only where neither is set; setting it to `inherit` is the same as leaving

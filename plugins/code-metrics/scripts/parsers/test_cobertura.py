@@ -179,8 +179,7 @@ class MultiRootTests(unittest.TestCase):
     def test_absent_absolute_source_roots_fall_back_to_the_first(self) -> None:
         # The CI shape: absolute roots from the machine that produced the
         # report, none of which exist here. Every probe misses and rule 4
-        # keys the class under the first root, which is what the parser did
-        # before it read later roots at all.
+        # keys the class under the first root.
         body = _multi_root_xml(["/ci/build/alpha", "/ci/build/beta"], "later.sh")
         with (
             tempfile.TemporaryDirectory() as scan,

@@ -11,6 +11,11 @@
 # Every caller invokes this file in SHELL FORM — the `command` string names this
 # script by path and carries its arguments, with no `args` key. Claude Code
 # routes shell form through Git Bash on Windows, resolved by Claude Code itself.
+# hooks.json prefixes the path with `bash`, which saves the `env` process the
+# `#!/usr/bin/env bash` shebang would spend. That `bash` is looked up by the
+# Git Bash running the command string, on that shell's own PATH, the same
+# lookup the shebang's `env` already does, so it finds Git Bash, not the WSL
+# relay below.
 # It must NOT be registered in exec form: exec form is a bare PATH lookup, and on
 # Windows `"command": "bash"` resolves to the WSL relay `System32\bash.exe`
 # before Git Bash, failing with `execvpe(/bin/bash) failed` (#1006, regressed by
@@ -29,6 +34,10 @@
 #     (the detector's only output channel) so the operator sees the blind spot.
 #   * destructive_guard.py — exit 0 silently (existing PreToolUse fail-open).
 set -uo pipefail
+# `_lookup` reads bash's command hash table. A BASH_ENV (or inherited option
+# state) that turned hashing off would leave every lookup empty, so resolution
+# would find no interpreter at all and the guard would not run.
+set -h
 
 # `$(cd ... && pwd)` forks twice (command substitution plus `dirname`) on a path
 # every registered caller already passes ABSOLUTE — hooks.json and the skill
@@ -66,8 +75,13 @@ ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
 # instead of a `sed` plus a Python. `hygiene.MIN_PYTHON` remains the single
 # origin of the floor (#1028) — this changes who reads it, not where it lives —
 # and the hardcoded fallback below still applies when the engine is unreadable.
+#
+# Past the floor the probe reports `sys.executable` as filesystem-encoded bytes
+# (UTF-8 on Windows, which is how MSYS reads paths). `print` would encode it
+# with the ANSI code page when stdout is a pipe and raise on a path outside it,
+# failing the probe and rejecting a working interpreter.
 PYTHON_VERSION_PROBE='
-import re, sys
+import os, re, sys
 floor = (3, 11)
 try:
     with open(sys.argv[1], encoding="utf-8") as handle:
@@ -78,7 +92,9 @@ try:
                 break
 except OSError:
     pass
-raise SystemExit(0 if sys.version_info >= floor else 1)
+if sys.version_info < floor:
+    raise SystemExit(1)
+sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 '
 
 # --- optional per-session launch marker ------------------------------------
@@ -270,36 +286,80 @@ _is_store_alias_stub() {
   _under_windowsapps "$path"
 }
 
-# Echo a runnable Python 3 interpreter path, or return 1.
+# True when `path` has the basename an interpreter resolution can produce. The
+# hot path `exec`s a cached value, so the record is treated as untrusted: pure
+# parameter expansion, no spawn. Split on BOTH separators, because
+# `sys.executable` on Windows is a native backslash path
+# (`<drive>:\<path>\python.exe`); stripping only `/` would leave the whole path,
+# the allowlist would never match, and the cache would miss on every
+# invocation, silently. Case-insensitive, because Windows filenames are.
+# `python3.*` already covers `python3.exe`, `python3.13` and `python3.13.exe`;
+# spelling those separately is what SC2221/SC2222 flag as dead patterns.
+_interpreter_shaped() {
+  local base="${1##*/}"
+  base="${base##*\\}"
+  case "${base,,}" in
+  python3 | python | py | python3.* | python.exe | py.exe) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# Set `_LOOKUP` to where bash's own PATH search finds `name`, or to empty.
+# `hash` is a builtin and `BASH_CMDS` a variable, so this spawns nothing; the
+# cold path and the hot path both call it, so a record compares equal to a
+# fresh lookup exactly when the same file would win.
+_lookup() {
+  _LOOKUP=""
+  hash "$1" 2>/dev/null && _LOOKUP="${BASH_CMDS[$1]}"
+  return 0
+}
+
+# Resolve a runnable Python 3 into `PYTHON`, or return 1. `_LOOKUPS` gets one
+# `<name>|<path>` entry per name tried, in order, each the path bash found for
+# that name (empty when none). The cache compares those against a fresh lookup:
+# the order and the stub/probe decisions are the same, so equal lookups mean
+# resolution would pick the same interpreter again.
+#
+# `PYTHON` is the probe's `sys.executable`, not the file PATH found: a uv
+# trampoline or a version-manager shim spends a second process on every launch
+# to reach the same interpreter, which reports identical `sys.prefix` and
+# `sys.path` either way. A venv launcher reports itself, so nothing changes
+# there. A value that fails the shape check falls back to the PATH file.
 resolve_python3() {
-  local candidate resolved
+  local candidate exe
+  PYTHON=""
+  _LOOKUPS=()
 
   for candidate in python3 python; do
-    resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-    if _is_store_alias_stub "$resolved"; then
-      continue
+    _lookup "$candidate"
+    _LOOKUPS+=("$candidate|$_LOOKUP")
+    [[ -n "$_LOOKUP" ]] || continue
+    _is_store_alias_stub "$_LOOKUP" && continue
+    exe="$("$_LOOKUP" -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null)" || continue
+    exe="${exe%$'\r'}"
+    PYTHON="$_LOOKUP"
+    if [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe"; then
+      PYTHON="$exe"
     fi
-    if "$resolved" -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null; then
-      printf '%s' "$resolved"
-      return 0
-    fi
+    return 0
   done
 
-  if command -v py >/dev/null 2>&1; then
-    resolved="$(py -3 -c 'import sys; print(sys.executable)' 2>/dev/null)" || return 1
-    if [[ -n "$resolved" ]] && "$resolved" -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null; then
-      printf '%s' "$resolved"
-      return 0
-    fi
+  _lookup py
+  _LOOKUPS+=("py|$_LOOKUP")
+  [[ -n "$_LOOKUP" ]] || return 1
+  exe="$("$_LOOKUP" -3 -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null)" || return 1
+  exe="${exe%$'\r'}"
+  if [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe"; then
+    PYTHON="$exe"
+    return 0
   fi
-
   return 1
 }
 
 # --- resolved-interpreter cache -------------------------------------------
 #
 # The hot path must reach `exec` with ZERO extra process spawns, so every check
-# below is a bash BUILTIN (`[[ -x ]]`, `[[ -s ]]`, `[[ -nt ]]`, `read`,
+# below is a bash BUILTIN (`[[ -x ]]`, `[[ -s ]]`, `[[ -nt ]]`, `read`, `hash`,
 # `printf '%(%s)T'`). Anything that shells out here would reintroduce the cost
 # this cache exists to remove.
 #
@@ -313,18 +373,24 @@ resolve_python3() {
 #
 # INVALIDATION, in the order the hot path checks it:
 #   1. schema tag mismatch      — a launcher upgrade rewrote the record shape;
-#   2. `PATH` differs verbatim  — a different `python3` may now win the lookup;
-#   3. interpreter not executable / zero-length — removed, or replaced by a
+#   2. a recorded lookup differs from a fresh `_lookup` — another `python3`
+#      (or `python`, `py`) now wins on PATH, or the one recorded is gone. PATH
+#      itself is NOT compared: fnm puts a per-shell `fnm_multishells/<pid>_<ts>`
+#      directory on it, so a verbatim compare missed in every new shell while
+#      resolving the same interpreter;
+#   3. a recorded lookup NEWER than the cache file — a trampoline or shim
+#      rewritten to point elsewhere;
+#   4. interpreter not executable / zero-length — removed, or replaced by a
 #      WindowsApps App Execution Alias stub since the entry was written;
-#   4. interpreter NEWER than the cache file (`-nt`) — an in-place upgrade;
-#   5. TTL expiry — the backstop for the residual case none of the above sees:
+#   5. interpreter NEWER than the cache file (`-nt`) — an in-place upgrade;
+#   6. TTL expiry — the backstop for the residual case none of the above sees:
 #      a NEW interpreter installed into an existing `PATH` directory with a
 #      preserved (older) mtime. Bounded staleness, not correctness, is what the
 #      TTL buys; every other shape is caught structurally above.
 # Any miss, unreadable record, or malformed field falls through to full
 # resolution. A cache failure must never be able to produce "no interpreter" —
 # that is the guard's silent fail-open (exit 0, nothing enforced).
-_CACHE_SCHEMA=1
+_CACHE_SCHEMA=2
 # COMPILED IN, deliberately not an environment override. A widened TTL makes
 # this launcher accept a record it would otherwise have rejected as stale, so
 # the knob is an env-borne input to a security control — the exact shape
@@ -341,14 +407,13 @@ _CACHE_TTL_SECONDS=86400
 # exists to remove. Assigning a global keeps the whole hit path in-process.
 _CACHE_FILE=""
 _RESOLVED_INTERPRETER=""
+_LOOKUP=""
+_LOOKUPS=()
 
 _cache_file_path() {
   _CACHE_FILE=""
   local home="${HOME:-}"
   [[ -n "$home" && -d "$home" ]] || return 1
-  # `PATH` is compared verbatim inside the record; a newline in it would break
-  # the line-oriented format, so such an environment simply goes uncached.
-  [[ "$PATH" != *$'\n'* ]] || return 1
   local key="${SCRIPT_DIR//[^a-zA-Z0-9]/_}"
   # Bound the filename without `${key: -96}`: a negative offset whose magnitude
   # exceeds the string length yields the EMPTY string in bash, which would
@@ -365,25 +430,32 @@ _cached_python3() {
   local file="$1"
   _RESOLVED_INTERPRETER=""
   [[ -f "$file" && -r "$file" ]] || return 1
-  local schema="" cached_path="" interp="" written="" line
+  local schema="" interp="" written="" line entry name
+  local -a lookups=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
     "schema="*) schema="${line#schema=}" ;;
     "written="*) written="${line#written=}" ;;
     "interpreter="*) interp="${line#interpreter=}" ;;
-    # PATH last: it is the only field that may itself contain `=`.
-    "path="*) cached_path="${line#path=}" ;;
+    "lookup="*) lookups+=("${line#lookup=}") ;;
     *) ;;
     esac
   done <"$file"
 
   [[ "$schema" == "$_CACHE_SCHEMA" ]] || return 1
-  [[ "$cached_path" == "$PATH" ]] || return 1
+  ((${#lookups[@]})) || return 1
+  for entry in "${lookups[@]}"; do
+    name="${entry%%|*}"
+    case "$name" in
+    python3 | python | py) ;;
+    *) return 1 ;;
+    esac
+    _lookup "$name"
+    [[ "$_LOOKUP" == "${entry#*|}" ]] || return 1
+    [[ -z "$_LOOKUP" || ! "$_LOOKUP" -nt "$file" ]] || return 1
+  done
   [[ -n "$interp" && -x "$interp" && -s "$interp" ]] || return 1
-  # The hot path `exec`s this value, so the record is an input to a security
-  # control and is treated as untrusted: only a basename a resolution would
-  # itself have produced is accepted. Pure parameter expansion, so it costs no
-  # spawn.
+  # Only a basename a resolution would itself have produced is accepted.
   #
   # KNOWN LIMIT, stated rather than implied. This validates SHAPE, not identity:
   # an executable, non-empty file merely NAMED `python3` is accepted and
@@ -402,22 +474,7 @@ _cached_python3() {
   # channel, and the plugin tree is not writable-adjacent to it, so the "anyone
   # who can write here can already edit the hook registration" argument does not
   # cover it. Recorded so a future reviewer weighs it deliberately.
-  # Split on BOTH separators. The `py -3` fallback resolves through
-  # `print(sys.executable)`, which on Windows returns a NATIVE backslash path
-  # (`<drive>:\<path>\python.exe`) — and that fallback exists precisely for hosts
-  # where neither `python3` nor `python` is on PATH. Stripping only `/` leaves
-  # the whole path in `interp_base`, the allowlist below never matches, and the
-  # cache misses on every invocation: the warm path would be dead on exactly
-  # the host class this branch was written for, silently and with no error.
-  local interp_base="${interp##*/}"
-  interp_base="${interp_base##*\\}"
-  # Case-insensitive: Windows filenames are, and `PYTHON.EXE` is the same file.
-  # `python3.*` already covers `python3.exe`, `python3.13` and `python3.13.exe`;
-  # spelling those separately is what SC2221/SC2222 flag as dead patterns.
-  case "${interp_base,,}" in
-  python3 | python | py | python3.* | python.exe | py.exe) ;;
-  *) return 1 ;;
-  esac
+  _interpreter_shaped "$interp" || return 1
   # An interpreter modified after this record was written is not the one that
   # was validated.
   [[ ! "$interp" -nt "$file" ]] || return 1
@@ -432,7 +489,12 @@ _cached_python3() {
 # Persist a validated interpreter. Best-effort throughout: a write failure
 # leaves the next invocation to re-resolve, which is slow, never wrong.
 _store_python3() {
-  local file="$1" interp="$2" dir temp now
+  local file="$1" interp="$2" dir temp now entry
+  # A newline in any field would break the line-oriented record; such an
+  # environment simply goes uncached.
+  for entry in "$interp" "${_LOOKUPS[@]}"; do
+    [[ "$entry" != *$'\n'* ]] || return 0
+  done
   dir="${file%/*}"
   [[ -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || return 0
   # Best-effort on POSIX hosts. MSYS `chmod` is close to a no-op against
@@ -445,7 +507,7 @@ _store_python3() {
     printf 'schema=%s\n' "$_CACHE_SCHEMA"
     printf 'written=%s\n' "$now"
     printf 'interpreter=%s\n' "$interp"
-    printf 'path=%s\n' "$PATH"
+    printf 'lookup=%s\n' "${_LOOKUPS[@]}"
   } >"$temp" 2>/dev/null || {
     rm -f "$temp" 2>/dev/null || true
     return 0
@@ -464,11 +526,10 @@ if [[ -n "$_CACHE_FILE" ]] && _cached_python3 "$_CACHE_FILE"; then
   PYTHON="$_RESOLVED_INTERPRETER"
 fi
 
-# Cold path: full resolution, then publish for the next invocation.
+# Cold path: full resolution, then publish for the next invocation. Called
+# directly, not in `$(...)`, so the lookups it records reach the store.
 if [[ -z "$PYTHON" ]]; then
-  if ! PYTHON="$(resolve_python3)"; then
-    PYTHON=""
-  fi
+  resolve_python3 || PYTHON=""
   if [[ -n "$PYTHON" && -n "$_CACHE_FILE" ]]; then
     _store_python3 "$_CACHE_FILE" "$PYTHON"
   fi

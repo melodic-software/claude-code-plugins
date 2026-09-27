@@ -3,6 +3,18 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- `audit` routes MCP, agent, and skill coverage to `claude-config`'s `audit-automation-gaps` skill instead of the nonexistent `automation-gaps` (scope paragraph and Scope table). The `claude-md-management` references in "Complementary workflows" and `official-guidance.md` now say the plugin comes from Anthropic's `claude-plugins-official` marketplace, and call `revise-claude-md` a command (#4119).
+
+## [0.13.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.13.2] - 2026-09-23
 
 ### Changed

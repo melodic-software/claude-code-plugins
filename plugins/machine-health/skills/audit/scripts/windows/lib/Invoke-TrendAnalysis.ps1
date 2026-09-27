@@ -53,18 +53,8 @@ function Invoke-TrendAnalysis {
     foreach ($r in $CheckResults) {
         $relevantKey = Get-TrendRelevantKey -CheckId $r.id
 
-        # Extract this check's trend-relevant metric history from the tail
-        # (file order: oldest -> newest, since Read-HistoryJsonl uses
-        # Get-Content -Tail). top_metrics keys are "<check.id>.<detailKey>"
-        # per output-schema.md.
-        #
-        # Only runs in which this check SUCCEEDED contribute a baseline. A failed or
-        # incomplete run still persists whatever partial detail it gathered into
-        # top_metrics -- deliberately, so the human reads the floor in the history
-        # line -- but that figure is a lower bound. Comparing a later complete run
-        # against it reads the recovered difference as growth and upgrades a WARN to
-        # CRIT on nothing. checks_ran is already the repo's authority for "this check
-        # produced a usable result"; Get-CheckLastRun reads it the same way.
+        # Only runs where this check succeeded (checks_ran) give a baseline: a failed run's
+        # partial top_metrics is a lower bound that would upgrade a WARN to CRIT on nothing.
         #
         # Only the most recent qualifying value is ever compared against, so the
         # walk overwrites rather than accumulating: the tail is in file order
@@ -124,7 +114,6 @@ function Invoke-TrendAnalysis {
             adjusted_from = $adjustedFrom
         }
 
-        # Add-Member -Force creates the property if absent or overwrites if present.
         $r | Add-Member -NotePropertyName trend -NotePropertyValue $trend -Force
     }
 

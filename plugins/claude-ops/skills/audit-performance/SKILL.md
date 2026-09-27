@@ -207,7 +207,9 @@ spawns. Read `fan_out` in this order:
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
    firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
-   the total several times over. Claim: shell form passes the `command` string to a shell,
+   the total several times over. To find which hook is the wall on `Stop`, point the operator at
+   the `stop_hook_summary` durations named under "Never time a hook by running it" in Gotchas;
+   a per-turn bucket counts the costliest hook as one row among many. Claim: shell form passes the `command` string to a shell,
    `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when Git Bash is absent, or the
    shell a hook's own `shell` field names, while exec form, with `args` present, spawns the
    executable directly with no shell
@@ -279,7 +281,18 @@ subsystem).
 - **Never time a hook by running it.** The obvious way to attribute per-hook cost is to execute
   one and measure it, and it is the one move this skill will not make: a hook is third-party code
   with arbitrary side effects. Report the enumeration and the spawn baseline, and let the
-  operator attribute.
+  operator attribute. The harness has already timed the Stop hooks that ran: a
+  `stop_hook_summary` record in the session transcript carries `hookCount` and a `hookInfos`
+  array of `{"command", "durationMs"}`, one entry per hook. Reading it executes nothing. The
+  skill still never reads a transcript, so name the route and hand the operator a filter that
+  extracts those records alone, for example
+  `jq -c 'select(.subtype == "stop_hook_summary") | .hookInfos' <session>.jsonl`. Claim: the
+  record and its fields are observed harness behavior, not documented, so treat the shape as
+  unstable; basis: 41 such records in one session supplied every per-hook duration an audit
+  produced, and [hooks](https://code.claude.com/docs/en/hooks.md) contains neither
+  `stop_hook_summary` nor `durationMs`; verified 2026-09-27; recheck when the hooks page
+  documents a per-hook timing record, or when a filtered transcript returns no
+  `stop_hook_summary` record in a session whose Stop hooks ran.
 - **A single spawn number, unlabeled by machine state, is worse than no number.** The floor
   itself moves with load, so a reading taken under a storm looks like a permanent property of the
   machine and is not one. Every quoted timing carries its `concurrent_processes_at_sample`, and a

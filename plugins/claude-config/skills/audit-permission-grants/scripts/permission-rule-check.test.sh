@@ -437,8 +437,8 @@ assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settin
 # settings.json that parses with an empty allow array, were all examined and found
 # to grant nothing. That is a clean bill, exactly as a parsed plugin settings.json
 # declaring no `permissions` always was. Counting only the productive inputs is
-# "a denominator that counts only successes" — the defect this block exists to
-# remove — and it survived three earlier revisions of the formula.
+# "a denominator that counts only successes", the defect this block exists to
+# remove.
 D10BF="$TEST_TMPDIR/examined-not-productive"
 mkdir -p "$D10BF/.claude/skills/a" "$D10BF/.claude/skills/b" "$D10BF/.claude"
 printf -- '---\nname: a\n---\nbody\n' >"$D10BF/.claude/skills/a/SKILL.md"
@@ -569,9 +569,8 @@ assert_contains "refusal names the sanctioned variable as the fix" \
 # `//path` = "Absolute path from filesystem root", with `Read(//Users/<name>/secrets/**)`
 # resolving to `/Users/<name>/secrets/**`, and the same page says "Use
 # `//Users/<name>/file` for absolute paths." The docs' literal example names a concrete
-# user home and leaks `alice`. An earlier revision of this suite asserted the opposite,
-# which would have taught an `error`-tier username-leak check to ignore the canonical
-# spelling of the leak.
+# user home and leaks `alice`. Asserting the opposite would teach an `error`-tier
+# username-leak check to ignore the canonical spelling of the leak.
 D12A="$TEST_TMPDIR/issue-2282"
 mkdir -p "$D12A/.claude"
 jq -n --arg posix "Bash(${POSIX_MP}:*)" --arg abs "Read(${ABS_MP})" \

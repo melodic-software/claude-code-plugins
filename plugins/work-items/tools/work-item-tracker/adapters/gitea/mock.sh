@@ -3,9 +3,7 @@
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_GITEA_CURL, so
-# no test in this adapter touches the network. That is not merely convenient: no live
-# Gitea instance is reachable from the environment this adapter was built in, and the
-# alternative to mocked coverage is no coverage — see README.md "Recorded deferrals".
+# no test in this adapter touches the network (README.md "Recorded deferrals").
 #
 # The mock answers by REQUEST URL rather than by call count, because Gitea's verbs
 # interleave several endpoints (issues, dependencies, labels) and a count-indexed mock

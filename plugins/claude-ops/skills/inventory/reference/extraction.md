@@ -155,9 +155,8 @@ the remainder that are real registrations but never user-typed.
 its own `status`, `problems`, and `advisories`. One rule for one state: the top-level `status` is
 the worst lane. `broken` at the top level means every lane is broken or the binary is unreadable; a
 run with at least one healthy lane is at most `degraded`, with each broken lane's problems restated
-as top-level advisories prefixed by the lane name. The exit mapping is unchanged (`ok` 0, `broken`
-1, `degraded` 3); what changed is that a single broken lane no longer voids the healthy lanes'
-counts.
+as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `broken` 1,
+`degraded` 3, and a single broken lane never voids the healthy lanes' counts.
 
 | Lane | Breaks on | Degrades on |
 |---|---|---|

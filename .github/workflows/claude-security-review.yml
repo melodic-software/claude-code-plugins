@@ -1,0 +1,37 @@
+name: claude-security-review
+
+# Dedicated LLM security-review pass via the ci-workflows reusable workflow, the
+# security sibling of claude-review.yml (ADR 0002's default-on advisory
+# posture). The caller owns the triggers and the GITHUB_TOKEN grant. Every
+# non-draft pull request is reviewed; fork PRs and bot actors are not (ADR
+# 0038). Every check in this file is advisory: `ci-status` is the only
+# required check. The CLAUDE_CODE_OAUTH_TOKEN org secret has `all`
+# repository visibility (github-iac README). Public repo: hosted default
+# runner.
+#
+# The `security-review / claude-security-review-status` check goes red and
+# names the cause when the review fails (ci-workflows#619).
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  security-review:
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post the security review
+      id-token: write        # OIDC — mints the Claude GitHub App token
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@0d3e6a6f3851cf678f82fa9a8a17f10faa909ac9 # v0.29.1
+    with:
+      runner: ubuntu-24.04
+    # One named secret (least privilege), never `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

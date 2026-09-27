@@ -2,13 +2,8 @@
 # uncommitted-md.sh — list uncommitted .md files for the audit-derivability
 # skill's `## Pre-computed context` block.
 #
-# The awk body this replaces sat inline in SKILL.md, and skill argument
-# substitution rewrites `$<digit>` placeholders anywhere in a skill's file body
-# (0-based: `$0` is the first argument), so any invocation carrying an argument
-# corrupted the probe's `substr($0, …)` call before the shell ever ran. A script
-# reached through `${CLAUDE_SKILL_DIR}` keeps the awk outside the substitution
-# surface, and removes the inline `$`-expansion the worktree-isolation guard
-# refuses (#1687).
+# Keep this awk out of SKILL.md: skill argument substitution rewrites `$<digit>`
+# anywhere in a skill body, so an inline `$0` corrupts on any run given an argument.
 #
 # Usage: uncommitted-md.sh [max]
 #   max — cap on emitted paths (default 20)

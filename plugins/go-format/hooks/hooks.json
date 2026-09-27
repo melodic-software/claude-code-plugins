@@ -7,7 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/go-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/go-format.sh",
+            "shell": "bash",
             "if": "Edit(*.go)",
             "timeout": 15,
             "statusMessage": "Formatting Go imports..."

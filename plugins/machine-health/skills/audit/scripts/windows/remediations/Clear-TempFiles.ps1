@@ -36,15 +36,8 @@ function Test-IsReparsePoint {
 }
 
 function Get-NonReparseFile {
-    # Manual recursion that refuses to descend into reparse-point directories
-    # (junctions and symlinks). Get-ChildItem -Recurse applies its pipeline
-    # filter AFTER enumeration, so reparse-point children are already yielded
-    # by the time a Where-Object guard sees them. On pwsh 7+, symlinks are
-    # gated by -FollowSymlink, but junctions are followed by default -- they
-    # are mount points, not symbolic links, and share the same FileAttributes
-    # flag. Skipping reparse-point directories at descent time prevents a
-    # junction under %TEMP% pointing at, say, C:\Windows from exposing system
-    # files as deletion candidates.
+    # Manual recursion that never descends into reparse points: Get-ChildItem -Recurse filters
+    # after enumeration and follows junctions, so a %TEMP% junction could expose system files.
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo])]
     param(
@@ -67,11 +60,8 @@ function Get-NonReparseFile {
                 if ($ReparseSkipCount) { $ReparseSkipCount.Value++ }
                 continue
             }
-            # Safe container check -- Set-StrictMode -Version 3.0 throws on
-            # absent properties, and test mocks (pscustomobject fixtures)
-            # don't always expose PSIsContainer. A missing property is
-            # treated as "not a container" (a plain file), which matches
-            # the test mocks' intent.
+            # StrictMode throws on an absent property and test mocks may lack PSIsContainer;
+            # a missing one means a plain file.
             $isContainer = $false
             if ($entry.PSObject.Properties['PSIsContainer']) {
                 $isContainer = [bool]$entry.PSIsContainer

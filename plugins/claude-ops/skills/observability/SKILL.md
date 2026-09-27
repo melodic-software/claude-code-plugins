@@ -2,7 +2,7 @@
 description: "Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[scope|action]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir]"
+argument-hint: "[scope|action]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -29,13 +29,12 @@ contains git. The dated record for that composition claim is the `source-control
 
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
 Rendered options (empty or unrendered means the manifest default): root `${user_config.session_event_log_dir}`; enabled `${user_config.session_event_log_enabled}`; categories `${user_config.session_event_log_categories}`; keep-sessions `${user_config.session_log_keep_sessions}`; keep-days `${user_config.session_log_keep_days}`; pre-prune-command `${user_config.session_log_pre_prune_command}`
-Hook event log (default root): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "unknown"`
-Hook logging pipeline (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "unknown"`
+Hook event log, then the logging pipeline's six rows (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "event count unknown"; bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "pipeline unknown"`
 
-The two probe lines carry no option and print no option tier. The section 2.6 re-run
+That line's two probes carry no option and print no option tier. The section 2.6 re-run
 (data-sources.md), fed the rendered values above as flags, is the one place the options render:
-run it before reading either line into a report, and pass `--root` when the rendered root is not
-the default.
+run it before reading either probe's output into a report, and pass `--root` when the rendered
+root is not the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
@@ -123,6 +122,14 @@ remains the durable record).
 | Action | Args | Effect |
 |---|---|---|
 | `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` `[--hook-root REL]` `[--skill-usage-scope repo\|user\|data-dir]` `[--skill-usage-dir REL]` `[--keep-skill-usage-days N]` (default 365) | Prune the hook log root (the shared file line by line, session files untouched for the window whole, stale `prune-pending/` sets regardless of the logging switch), the retired shared file while it exists, and the OTEL store. See [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh`. Skill-usage pruning is **opt-in**: inert unless `--skill-usage-scope` is passed, and `data-dir` requires an explicit `--skill-usage-dir` rather than trusting `CLAUDE_PLUGIN_DATA` |
+| `latency` | `[--days N \| --since YYYY-MM-DD]` (default `--days 7`) `[--budget EVENT=MS]`... `[--min-fires N]` (20) `[--min-sessions N]` (5, minimum 3) | Read-only. Per lane and hook event from `hook_execution_complete` in the hot OTEL store: p50/p95 against a p95 budget, and a within-session slope that flags latency growing across a session. Fires `clean` has compacted to the cold tier are not included; a window reaching past the oldest hot fire prints a warning. Exit 0 none flagged, 1 flagged, 2 cannot evaluate. Takes about 60 s on a large store: run on demand or from a routine or loop, never a SessionStart hook. See `scripts/hook-latency.sh --help` |
+
+`latency` telemetry record:
+
+- **Claim**: Claude Code emits one `hook_execution_complete` log event per hook event firing. It carries `hook_event` (the event name), `total_duration_ms` (wall time for every hook that firing ran, with `num_hooks` counting them) and `session.id`. `claude.lane` is not a Claude Code attribute; it is a custom attribute set through `OTEL_RESOURCE_ATTRIBUTES`, which Claude Code includes on all events, and rows without it report as lane `unknown`.
+- **Basis**: the event is not documented. <https://code.claude.com/docs/en/monitoring-usage>, fetched 2026-09-24, lists no hook execution event (only the `claude_code.hook` trace span); it does document `OTEL_RESOURCE_ATTRIBUTES` custom attributes "included in all metrics and events". The event shape is observed in the live OTEL store on 2026-09-24 under Claude Code 2.1.281: `total_duration_ms` arrives as a `stringValue` (read with an `intValue` fallback in case that changes).
+- **As of**: 2026-09-24, Claude Code 2.1.281.
+- **Recheck trigger**: the monitoring page documents a hook execution event, a release note names `hook_execution_complete` or its attributes, or `latency` exits 2 with no rows on a store that has recent sessions.
 
 Action invocation: `/claude-ops:observability clean [flags]`.
 
@@ -143,18 +150,22 @@ When the user asks to inspect traces, logs, metrics, or hook data outside a scop
 
 ### 0. Dispatch. Action vs scope
 
-If the first argument is `clean`: delegate to `scripts/clean.sh` with the remaining arguments and return its exit code.
+If the first argument is `clean` or `latency`: delegate to `scripts/clean.sh` or `scripts/hook-latency.sh` with the remaining arguments and return its exit code.
 
 ```bash
 if [[ "${1:-}" == "clean" ]]; then
   shift
   exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/clean.sh" "$@"
 fi
+if [[ "${1:-}" == "latency" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/hook-latency.sh" "$@"
+fi
 SCOPE="${1:-week}"
 case "$SCOPE" in
   session|day|week|month|all) ;;
   session:*|since:*) ;;
-  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean" >&2; exit 1 ;;
+  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency" >&2; exit 1 ;;
 esac
 ```
 
@@ -166,7 +177,7 @@ Read [context/data-sources.md](context/data-sources.md). Summary:
 |---|---|---|
 | ccusage | MCP or CLI | Token counts, cost USD, billing blocks |
 | Hook log root | `<session_event_log_dir>/` (`.observability/claude` by default, project-relative): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl`; present only once a producer wrote there | Hook duration, exit codes, what was blocked, the per-session event timeline |
-| Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the "Hook logging pipeline" line above) | Toggles, retention, guard state, stale prune sets |
+| Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the pipeline rows of the "Hook event log" line above) | Toggles, retention, guard state, stale prune sets |
 | OTEL store | `$CC_OTEL_STORE/*.json` → DuckDB | Logs, metrics, spans. [context/otel-queries.md](context/otel-queries.md) |
 | Auto-memory | `~/.claude/.../memory/feedback_*.md` | User-correction patterns |
 | Git / GH | `git log`, `gh pr list` | Activity context |

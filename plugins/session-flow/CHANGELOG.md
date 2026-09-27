@@ -1,5 +1,70 @@
 # Changelog: session-flow plugin
 
+## [0.38.2] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.38.1] - 2026-09-27
+
+### Fixed
+
+- **`orchestrate` sources state the current subagent model order.** The per-invocation `model`
+  comes first, then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main
+  conversation's model. An omitted `model` follows that order rather than meaning `inherit`. The
+  workflow bullet quotes the workflows page's current wording. Both carry a dated record with a
+  recheck trigger.
+
+## [0.38.0] - 2026-09-25
+
+### Added
+
+- **`retro` parser reports forks and scopes its coverage denominator.** Multi-session output gains
+  `fork_candidates`: transcripts outside the requested set that share record uuids with it, which
+  no `previous_handoff` pointer reaches. They are offered, never added. Under `--chain-from`,
+  `chain_coverage.available` counts the chain plus the other transcripts that mention the
+  handoff's topic (reported as `topic`), so a chain launched from `$HOME` is no longer measured
+  against every unrelated session in that project directory.
+- **`handoff` promotes resolved cumulative entries.** When a cumulative section passes about 25
+  entries (judgment), resolved entries move into a committed doc or ADR and leave a
+  `- [hN] Promoted to <ref>: <opening words>` pointer. `save_point.py validate` accepts that
+  pointer in place of the dropped entry when it keeps the entry's tag and quotes at least its
+  first 20 characters.
+
+### Changed
+
+- **`orchestrate` imperative 4:** a worker that must wait on an external result polls in the
+  foreground or returns and lets the parent re-dispatch; its own background command, watch, or
+  sentinel file is not a wait. Sources and recheck trigger in `context/sources.md`.
+
+## [0.37.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.37.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/observer-arm.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
+
+## [0.37.1] - 2026-09-23
+
+### Changed
+
+- **`keep-going` no longer holds updates until the end after a usage limit lifts.** "Report only at
+  the end or on a hard block" contradicted the skill's own autonomy policy and suppressed progress
+  notes on models that already under-narrate; it now says to put status notes in the same message
+  as the next action.
+
 ## [0.37.0] - 2026-09-23
 
 ### Changed

@@ -208,7 +208,7 @@ Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/sk
 
 ### Phase 4: Policy unit, the `integration` axis and the two new grammars [TODO]
 
-Files: `docs/native-surfaces/records.json` (MODIFY, every row, plus two new rows), `docs/NATIVE-SURFACES.md` (regenerated), `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `docs/conventions/native-references/README.md` (MODIFY), `docs/conventions/native-references/CHANGELOG.md` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` (MODIFY, "Verdicts and the human gate", "The apply step"), `plugins/claude-ops/.claude-plugin/plugin.json` and `CHANGELOG.md` (MODIFY).
+Files: `docs/native-surfaces/records.json` (MODIFY, every row, plus two new rows), `docs/native-surfaces.md` (regenerated), `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `docs/conventions/native-references/README.md` (MODIFY), `docs/conventions/native-references/CHANGELOG.md` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` (MODIFY, "Verdicts and the human gate", "The apply step"), `plugins/claude-ops/.claude-plugin/plugin.json` and `CHANGELOG.md` (MODIFY).
 
 Pre-flight consumer check, first work item: `Grep` for readers of `records.json` and of the `baked` object; today they are `overlap.py` and the generated view only. The change is additive.
 
@@ -331,7 +331,7 @@ Files: `plugins/session-flow/skills/clean-stop/SKILL.md`, `handoff/SKILL.md`, `r
 | `plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json` | MODIFY | 3 |
 | `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` | MODIFY | 2, 4 |
 | `docs/native-surfaces/records.json` | MODIFY | 4, 5 to 11 |
-| `docs/NATIVE-SURFACES.md` | REGENERATE | 4, 5 to 11 |
+| `docs/native-surfaces.md` | REGENERATE | 4, 5 to 11 |
 | `docs/conventions/native-references/README.md`, `CHANGELOG.md` | MODIFY (one major bump) | 4 |
 | `plugins/claude-ops/.claude-plugin/plugin.json`, `CHANGELOG.md` | MODIFY | 3, 4, 5 |
 | `plugins/claude-ops/skills/{audit-install-state,audit-skill-visibility,audit-performance}/SKILL.md` | MODIFY | 5 |

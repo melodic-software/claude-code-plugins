@@ -1,5 +1,5 @@
 /**
- * Optional local ASR rung (T5): faster-whisper `large-v3` via batched
+ * Optional local ASR rung: faster-whisper `large-v3` via batched
  * inference (`batch_size=8`), invoked through the machine's Python.
  *
  * Delivery contract: the toolchain is a DOCUMENTED OPTIONAL PREREQUISITE

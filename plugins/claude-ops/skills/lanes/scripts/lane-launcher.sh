@@ -11,8 +11,8 @@
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
 # --settings re-verified against the CLI reference, 2026-07-25):
-#   claude --bg -n <name> [--model M] [--effort E] [--settings JSON] "<prompt>"
-#                                                               launch, return now
+#   claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
+#     [--settings JSON] "<prompt>"                              launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
 #                                                               startedAt,
@@ -828,7 +828,9 @@ launch_lane() {
     fi
   fi
 
-  local -a cmd=(claude --bg -n "$name")
+  # Explicit auto: a Manual defaultMode would stall an unattended lane at its
+  # first prompt. Never bypassPermissions.
+  local -a cmd=(claude --bg -n "$name" --permission-mode auto)
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")

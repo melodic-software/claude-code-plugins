@@ -1,9 +1,5 @@
-// Neutral default brand — the single concrete source the slide pipeline reads.
-// emit-slides-data.js imports `brand` (deck `meta` fields) + `theme` from here and
-// embeds them into the generated `slides-data.js`, which build-pptx.js / build-html.js
-// consume. This is the engine's OVERRIDABLE default: a consumer profile overlays its
-// own org name, tagline, logos, and theme. DO NOT redefine per run — edit this file
-// (or a profile overlay) only on a rebrand.
+// Neutral default brand that emit-slides-data.js embeds into slides-data.js. A consumer
+// profile overlays org name, tagline, logos, and theme; edit this file only on a rebrand.
 //
 // `logoColor` / `logoWhite` are empty by default (no bundled org logo); the build
 // scripts skip logo embedding when empty. A profile supplies logo asset paths.

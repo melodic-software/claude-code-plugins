@@ -7,7 +7,15 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form, matching hooks/hooks.json. Exec form resolves
+        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
+        # which runs the launcher without the `env` process its shebang costs.
+        # Git Bash, which runs the shell-form string, looks that `bash` up on
+        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
+        # Verified 2026-09-23 against Claude Code 2.1.281 at
+        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
+        # Windows; exec form resolves `command` on PATH); recheck when that
+        # page changes how shell-form commands are run on Windows, or a
+        # release note names hook shell selection. Exec form resolves
         # `command` on PATH with no shell, and a bare `python3` there is
         # the zero-length WindowsApps App Execution Alias stub on stock
         # Windows, the hook cannot launch, and a failed launch is non-blocking,
@@ -20,7 +28,7 @@ hooks:
         # \" escapes; every path placeholder must stay double-quoted, because the
         # shell re-tokenizes the string and plugin roots contain spaces.
         - type: command
-          command: '"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
+          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
           shell: bash
           timeout: 60
 metadata:
@@ -89,12 +97,14 @@ target; scan those without the flag.
   value could not be read. The guard enforces the same toggle independently and denies both mutation
   lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway, to state the
   configured value accurately and stop before proposing work the guard would deny. The guard is the
-  backstop, not the sole enforcer. It reports its absolute Python interpreter and the authorized
-  `--data-root` value in denial guidance; use that exact interpreter path as `<hook-python>` for
-  every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
-  replace them. If either value is not known yet, submit the otherwise exact scan shape once with
-  bare `python`: the guard must deny it and report both, after which retry the scan with the
-  absolute interpreter and the reported `--data-root`. If the reported interpreter is older than
+  backstop, not the sole enforcer. Every engine call and the probe need the guard's absolute Python
+  interpreter as `<hook-python>`, and every engine call needs its authorized `--data-root`; bare
+  `python`/`python3` is rejected because Bash aliases and functions can replace them. The expansion
+  of this command normally carries a `disk-hygiene guard values` note naming both as
+  `hook_python` and `data_root`, resolved by the guard's own code before the skill loads; use them
+  from the first call. Only when that note is absent, or says `data_root: none`, fall back to the
+  guard's denial guidance, which reports both: submit the otherwise exact scan shape once with
+  bare `python`, then retry with the reported values. If the reported interpreter is older than
   the engine's declared floor (the `MIN_PYTHON` constant in `hygiene.py`, the floor's single
   origin), stop with the declared prerequisite instead of improvising a different scanner or
   deletion path.
@@ -204,7 +214,9 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
-   interpolate names from one batch member.
+   interpolate names from one batch member. Triage of the entry is done when each of the five
+   questions has an evidence-backed answer or is recorded as unknown. An unknown answer to question
+   2 or 4 rules out High in step 3; an unknown on question 4 keeps the entry at Low.
 
 ## 3. Classify and report
 
@@ -226,7 +238,8 @@ Report every finding with these fields, in this order, size last:
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition.
-6. Logical / reclaimable bytes as a **secondary** signal only.
+6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only with
+   all six fields; a finding with name-only provenance is Low.
 
 Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
 

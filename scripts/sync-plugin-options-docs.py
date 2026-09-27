@@ -81,10 +81,8 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     for key, spec in options.items():
         typ = spec.get("type", "string")
         # `multiple: true` means the option takes an array of that type, and the
-        # constraint keys bound it. Rendering only `type` made a repeated option
-        # indistinguishable from a scalar one -- source-control declares 10 such options
-        # whose hand-written prose already says "string (multiple)", so the generated
-        # table contradicted the prose beside it.
+        # constraint keys bound it. Rendering only `type` would make a repeated option
+        # indistinguishable from a scalar one.
         if spec.get("multiple"):
             typ = f"{typ} (multiple)"
         bounds = [f"{k} {spec[k]}" for k in ("min", "max") if k in spec]

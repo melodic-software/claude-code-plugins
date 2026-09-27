@@ -296,9 +296,8 @@ else
 fi
 
 # --- The merge states its result instead of leaving silence -------------------
-# On a machine with no rules the merge used to emit two caveats and stop, leaving
-# the reader to interpret absence of output. Every sibling stage ends in a
-# summary; this one now does too.
+# On a machine with no rules the merge must still end in a summary, like every
+# sibling stage, rather than leave the reader to interpret absence of output.
 EMPTY_IN=$(
   cat <<'EOF'
 managed file absent <managed>/managed-settings.json

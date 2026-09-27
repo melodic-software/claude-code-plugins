@@ -19,8 +19,8 @@
 # drives a SCRIPT rather than a function needs: test_harness::run_guard, which
 # executes that script in a clean environment and records the exit-status
 # comparison, and assert_output_contains, which asserts on what it printed.
-# Two suites carried identical copies of both; one library keeps the clean
-# environment, which decides whether one case can leak into the next, in one place.
+# One library keeps the clean environment, which decides whether one case can
+# leak into the next, in one place.
 #
 # Plugin *.test.sh helpers stay duplicated on purpose; see
 # docs/conventions/shell-test-helpers/README.md. This file is the repo-tooling

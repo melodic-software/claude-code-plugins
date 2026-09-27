@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "title": "Surface dead delivery",
+    "eyebrow": "Interview",
+    "stages": {"interview": "Interview"}
+  },
+  "rev": 1,
+  "groups": [
+    {"id": "base", "title": "Basics", "summary": "One question with a delivered, unhandled answer."}
+  ],
+  "questions": [
+    {"id": "D1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Dead", "title": "Should the step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]}
+  ]
+}

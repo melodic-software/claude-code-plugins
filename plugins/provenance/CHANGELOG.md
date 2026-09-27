@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0] - 2026-09-27
+
+### Deprecated
+
+- **This plugin is now `attribution`.** Every skill, script, and reference moved to
+  `attribution@melodic-software`: `/provenance:audit` is `/attribution:audit` and
+  `/provenance:setup` is `/attribution:setup`. This version is a deprecation shim: its two skills
+  only tell you where the real skill went and do no work. Install `attribution@melodic-software`,
+  remove `provenance@melodic-software` from `enabledPlugins`, and rename `.claude/provenance.json`
+  to `.claude/attribution.json`. The shim is removed in a later release.
+
+## [0.5.16] - 2026-09-27
+
+### Fixed
+
+- `audit`'s "Does not scan" line routes doc-vs-code drift to the `review` plugin's `doc-drift-detector` agent (no skill by that name exists) and AI-writing style to `ai-slop:audit` instead of the bare `ai-slop` (#4119).
+
+## [0.5.15] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.5.14] - 2026-09-21
 
 ### Changed

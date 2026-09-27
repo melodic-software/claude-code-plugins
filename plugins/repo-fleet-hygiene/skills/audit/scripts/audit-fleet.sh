@@ -131,13 +131,23 @@ to_native_path() {
   printf '%s' "$text"
 }
 
-# Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
-# %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
-# let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
+# Well-formed UTF-8 made of printable ASCII and non-ASCII code points, matched byte-wise so the
+# result does not depend on which locales the host has installed. It excludes the C1 controls
+# (U+0080-U+009F, which include CSI and NEL), U+2028/U+2029 (line and paragraph separators), and
+# the bidi embedding, override, and isolate controls (U+202A-U+202E, U+2066-U+2069), along with
+# overlong forms, surrogates, and anything past U+10FFFF.
+DISPLAY_SAFE_TEXT_RE=$'^([\x20-\x7e]|\xc2[\xa0-\xbf]|[\xc3-\xdf][\x80-\xbf]|\xe0[\xa0-\xbf][\x80-\xbf]|\xe2\x80[\x80-\xa7\xaf-\xbf]|\xe2\x81[\x80-\xa5\xaa-\xbf]|\xe2[\x82-\xbf][\x80-\xbf]|[\xe1\xe3-\xec\xee\xef][\x80-\xbf][\x80-\xbf]|\xed[\x80-\x9f][\x80-\xbf]|\xf0[\x90-\xbf][\x80-\xbf][\x80-\xbf]|[\xf1-\xf3][\x80-\xbf][\x80-\xbf][\x80-\xbf]|\xf4[\x80-\x8f][\x80-\xbf][\x80-\xbf])*$'
+
+# Keep ordinary printable report values readable, including non-ASCII paths and branch names, but
+# encode any control-bearing or malformed value as one Bash %q field. Git permits newlines and
+# terminal-control bytes in filesystem paths; raw rendering would let a crafted registration forge
+# Finding/Confidence/Handoff lines in this actionable report. The C locale makes the regex ranges
+# match single bytes; it is also why [[:print:]] cannot be the test, since in the C locale it
+# rejects every byte above 0x7F.
 display_value() {
   local value="$1" escaped
   local LC_ALL=C
-  if [[ "$value" =~ ^[[:print:]]*$ ]]; then
+  if [[ "$value" =~ $DISPLAY_SAFE_TEXT_RE ]]; then
     to_native_path "$value"
   else
     printf -v escaped '%q' "$value"
@@ -2115,7 +2125,7 @@ repo_kind_counts_text() {
     fi
   done
   if [[ ${#keys[@]} -eq 0 ]]; then
-    printf '%s' '—'
+    printf '%s' 'none'
     return 0
   fi
   local first=true kind_sorted

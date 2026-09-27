@@ -1,5 +1,19 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.2] - 2026-09-27
+
+### Changed
+
+- `audit-noise` names `/attribution:audit` where it named `/provenance:audit`, since the
+  provenance plugin is now `attribution`. The skill body, one eval expectation, and comments in
+  `noise-shapes.sh` and `detect.test.sh` change; detection behavior does not.
+
+## [0.23.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.23.0] - 2026-09-23
 
 ### Added

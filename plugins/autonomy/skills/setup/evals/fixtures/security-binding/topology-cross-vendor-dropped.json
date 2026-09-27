@@ -7,6 +7,7 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
+        "host_interop": "none",
         "component_reachable_hosts": [
           "example.com"
         ],

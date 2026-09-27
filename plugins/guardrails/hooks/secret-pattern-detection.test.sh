@@ -13,7 +13,31 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/secret-pattern-detection.sh"
 TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# The temp-decline block below makes a directory link, hard-linked files and one
+# empty subdirectory in a temp dir of its own, outside TEST_TMPDIR. Each is
+# removed by name and without recursion, then the emptied dir, so no recursive
+# delete ever runs over a directory holding a link.
+D1_LINKDIR=""
+D1_SEAMDIR=""
+d1_cleanup() {
+  if [[ -n "$D1_SEAMDIR" ]]; then
+    rmdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null
+    rmdir "$D1_SEAMDIR" 2>/dev/null
+  fi
+  [[ -n "$D1_LINKDIR" ]] || return 0
+  if [[ -L "$D1_LINKDIR/ToHooks" ]]; then
+    if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+      MSYS_NO_PATHCONV=1 cmd /c rmdir "$(cygpath -w "$D1_LINKDIR/ToHooks")" >/dev/null 2>&1
+    else
+      rm -f "$D1_LINKDIR/ToHooks"
+    fi
+  fi
+  rm -f "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" "$D1_LINKDIR/plain.txt"
+  rmdir "$D1_LINKDIR/sub" 2>/dev/null
+  rmdir "$D1_LINKDIR" 2>/dev/null
+  return 0
+}
+trap 'd1_cleanup; rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -95,16 +119,262 @@ RC=$?
 assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
 assert_contains "secret after NUL → NUL refusal message" "$OUT" "NUL byte"
 
+# A project root is honored as a scope only when it is a git work tree, so the
+# scoped cases run against a real `git init`'d root. The file paths are read as
+# strings; only the root's `.git` has to exist.
+SCOPE_REPO="$TEST_TMPDIR/scoperepo"
+mkdir -p "$SCOPE_REPO"
+git -C "$SCOPE_REPO" init -q
+
 # In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
 assert_contains "in-project secret → message" "$OUT" "AWS Access Key"
 
 # Trailing slash on CLAUDE_PROJECT_DIR must not skip in-project scans.
-OUT=$(CLAUDE_PROJECT_DIR="/repo/" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO/" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "trailing-slash PROJECT_DIR still scans in-project file → exit 2" 2 "$RC"
+
+# A backslash spelling of a real repo root is the same root.
+OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "backslash-spelled repo root still scans in-project file → exit 2" 2 "$RC"
+
+# --- NotebookEdit: the payload shape Claude Code sends ------------------------
+# A real NotebookEdit carries tool_input.notebook_path and new_source (a required
+# string, "" on a delete), never file_path; notebook_json above builds a file_path
+# shape. nb_json <notebook_path> <new_source> [edit_mode] [file_path].
+nb_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" --arg m "${3:-}" --arg fp "${4:-}" \
+    '{tool_name:"NotebookEdit",tool_input:({notebook_path:$np,new_source:$s}
+      + (if $m == "" then {} else {edit_mode:$m} end)
+      + (if $fp == "" then {} else {file_path:$fp} end))}'
+}
+GUARD_UNDER_TEST="$HOOK"
+NB_ALSO=(--also "$HOOK_DIR/hardcoded-path-check.sh" --also "$HOOK_DIR/block-windows-drive-tmp.sh")
+# nb_both <label> <expected> <needle, "" for none> <payload> [env word...]:
+# alone and in the dispatcher row the Write|Edit|NotebookEdit matcher runs, each
+# arm's output checked for the needle so a sibling guard's exit 2 cannot pass.
+# No path uses a drive-root /tmp spelling block-windows-drive-tmp matches, and
+# that guard is inert off Windows.
+nb_both() {
+  local label="$1" expected="$2" needle="$3" payload="$4" via
+  shift 4
+  for via in direct dispatched; do
+    expect "$label ($via)" "$expected" --via "$via" --merge-stderr --payload "$payload" "${NB_ALSO[@]}" -- "$@"
+    [[ -z "$needle" ]] || assert_contains "$label ($via) names '$needle'" "$GUARD_OUT" "$needle"
+  done
+}
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then NB_BASE="C:/spd-nb-root"; else NB_BASE="/spd-nb-root"; fi
+NB_FILE="$NB_BASE/nb/x.ipynb"
+
+for NB_VIA in direct dispatched; do
+  guard_invoke --via "$NB_VIA" --merge-stderr --payload "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" "${NB_ALSO[@]}"
+  assert_exit "NotebookEdit real shape, no root ($NB_VIA) → exit 2" 2 "$GUARD_RC"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → names the pattern" "$GUARD_OUT" "AWS Access Key"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → names the notebook path" "$GUARD_OUT" "$NB_FILE"
+done
+nb_both "NotebookEdit edit_mode insert with a secret → exit 2" 2 "GitHub PAT" \
+  "$(nb_json "$NB_FILE" "token = '$GH_PAT'" insert)"
+nb_both "NotebookEdit clean new_source → exit 0" 0 "" "$(nb_json "$NB_FILE" "print('hello')")"
+nb_both "NotebookEdit edit_mode delete, empty new_source → exit 0" 0 "" "$(nb_json "$NB_FILE" "" delete)"
+nb_both "NotebookEdit to an allowlisted path → exit 0" 0 "" \
+  "$(nb_json "$NB_BASE/tests/fixtures/x.ipynb" "secret = '$AWS_TOKEN'")"
+
+# Scope comes from notebook_path, under a real git root holding the notebook.
+NB_REPO="$TEST_TMPDIR/nbrepo"
+mkdir -p "$NB_REPO"
+git -C "$NB_REPO" init -q
+[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && NB_REPO=$(cygpath -l -m "$NB_REPO")
+nb_both "NotebookEdit in a honored root → exit 2" 2 "AWS Access Key" \
+  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
+nb_both "NotebookEdit outside a honored root → exit 0" 0 "" \
+  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
+# notebook_path decides scope even when a file_path rides along.
+nb_both "NotebookEdit in-root notebook_path, out-of-root file_path → exit 2" 2 "AWS Access Key" \
+  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'" "" "$NB_FILE")" CLAUDE_PROJECT_DIR="$NB_REPO"
+nb_both "NotebookEdit out-of-root notebook_path, in-root file_path → exit 0" 0 "" \
+  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'" "" "$NB_REPO/nb/x.ipynb")" CLAUDE_PROJECT_DIR="$NB_REPO"
+
+# A NUL inside notebook_path is refused like one in file_path.
+NB_NUL=$(MSYS_NO_PATHCONV=1 jq -nc --arg np "$NB_FILE" --arg tok "$AWS_TOKEN" \
+  '{tool_name:"NotebookEdit",tool_input:{notebook_path:($np + ([0] | implode) + ".ipynb"),new_source:("x = " + $tok)}}')
+nb_both "NotebookEdit NUL inside notebook_path → exit 2" 2 "NUL byte" "$NB_NUL"
+
+# --- A set root that is not a trustworthy scope is treated as unset ----------
+# Claude Code sets CLAUDE_PROJECT_DIR to the launch directory, which can be the
+# home directory or any directory that is not a repository. Honoring such a
+# root would skip every write outside it, so each of these must scan.
+OUTSIDE_FILE="$TEST_TMPDIR/elsewhere/src/config.env"
+NONREPO="$TEST_TMPDIR/nonrepo"
+mkdir -p "$NONREPO"
+OUT=$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "non-repo root: outside write still scanned → exit 2" 2 "$RC"
+assert_contains "non-repo root: outside write names the pattern" "$OUT" "AWS Access Key"
+
+# The root carries .git, so only the home comparison can clear it.
+HOME_REPO="$TEST_TMPDIR/homerepo"
+mkdir -p "$HOME_REPO/user"
+git -C "$HOME_REPO" init -q
+OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is a repo AND home: outside write scanned → exit 2" 2 "$RC"
+OUT=$(env HOME="$HOME_REPO/" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is home with a trailing slash on HOME → exit 2" 2 "$RC"
+OUT=$(env HOME="$HOME_REPO/user" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is a repo that is an ancestor of home → exit 2" 2 "$RC"
+OUT=$(env -u HOME USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "HOME unset, USERPROFILE is the repo root → exit 2" 2 "$RC"
+
+# A real repo root that is not home keeps its scope: an outside write is skipped.
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "real repo root: outside write → exit 0" 0 "$RC"
+assert_silent "real repo root: outside write → no stderr" "$OUT"
+
+# The same real repo root spelled with backslashes keeps its scope too.
+OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "backslash-spelled real repo root: outside write → exit 0" 0 "$RC"
+assert_silent "backslash-spelled real repo root: outside write → no stderr" "$OUT"
+
+# Spellings that reach home: HOME is the repo itself, and each root below names
+# it. This pins that no spelling of home is honored; the spelling arms and the
+# directory comparison against home both clear these roots.
+H="$HOME_REPO"
+mkdir -p "$H/~"
+for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}" "$H/user/.." "$H/~/.."; do
+  OUT=$(env HOME="$H" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "unnormalized root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
+done
+
+# Each dot spelling on its own, with HOME elsewhere so only the spelling arm
+# can clear the root. A root kept as spelled cannot be compared with the file
+# path as a string, so even an in-project write would be skipped.
+SPELL_HOME="$TEST_TMPDIR/spell-home"
+mkdir -p "$SPELL_HOME" "$SCOPE_REPO/src" "${SCOPE_REPO%/*}/x"
+for SPELLED in "${SCOPE_REPO%/*}/./${SCOPE_REPO##*/}" "$SCOPE_REPO/src/.." \
+  "$SCOPE_REPO/." "${SCOPE_REPO%/*}/x/../${SCOPE_REPO##*/}"; do
+  OUT=$(env HOME="$SPELL_HOME" USERPROFILE="" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "dot-spelled root '$SPELLED', HOME elsewhere: in-project write scanned → exit 2" 2 "$RC"
+done
+
+# A `~` alone clears a real repo root that is not home: an 8.3 short name
+# (PROGRA~1) is one more spelling a string comparison cannot see through.
+TILDE_REPO="$TEST_TMPDIR/tilde~repo"
+mkdir -p "$TILDE_REPO"
+git -C "$TILDE_REPO" init -q
+OUT=$(CLAUDE_PROJECT_DIR="$TILDE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "repo root containing '~': outside write scanned → exit 2" 2 "$RC"
+
+# A trailing doubled slash survives a single trim. Left unrejected, the root
+# keeps a trailing `/`, so even an in-project write fails the prefix test and
+# is skipped.
+for SPELLED in "$SCOPE_REPO//" "${SCOPE_REPO//\//\\}\\\\"; do
+  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root '$SPELLED': in-project write scanned → exit 2" 2 "$RC"
+  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
+done
+
+# A relative root resolves against the hook's working directory, which is not
+# a statement about the project, so it is never honored.
+OUT=$(cd "$SCOPE_REPO" && CLAUDE_PROJECT_DIR=. bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "relative root '.' inside a repo: outside write scanned → exit 2" 2 "$RC"
+
+# A directory link to home names home under another path. Linux CI makes a
+# symlink; a Windows host makes a junction (a plain `ln -s` there copies).
+make_dir_link() { # <target> <link> -> 0 when <link> is a real directory link
+  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+    command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1 || return 1
+    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w "$2")" "$(cygpath -w "$1")" >/dev/null 2>&1
+  else
+    ln -s "$1" "$2" 2>/dev/null
+  fi
+  [[ -L "$2" ]]
+}
+if make_dir_link "$HOME_REPO" "$TEST_TMPDIR/home-link"; then
+  OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/home-link" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root is a link to home: outside write scanned → exit 2" 2 "$RC"
+else
+  echo "skip: root is a link to home (no directory link could be made on this host)"
+fi
+
+# Both home candidates are checked, not only the first one set.
+ELSEWHERE_HOME="$TEST_TMPDIR/elsewhere-home"
+mkdir -p "$ELSEWHERE_HOME"
+OUT=$(env HOME="$ELSEWHERE_HOME" USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is USERPROFILE while HOME is elsewhere: outside write scanned → exit 2" 2 "$RC"
+# The USERPROFILE fallback names a different home: a real repo root keeps scope.
+OUT=$(env -u HOME USERPROFILE="$ELSEWHERE_HOME" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "HOME unset, USERPROFILE elsewhere: real repo root keeps scope → exit 0" 0 "$RC"
+
+# With no home to compare against, a root cannot be shown not to contain it.
+OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty HOME and USERPROFILE: outside write scanned → exit 2" 2 "$RC"
+
+# A .git entry is a repository only when it looks like one: a directory with a
+# HEAD, or a file whose first line is a `gitdir:` pointer.
+FAKE_FILE="$TEST_TMPDIR/fake-gitfile"
+mkdir -p "$FAKE_FILE"
+: >"$FAKE_FILE/.git"
+OUT=$(CLAUDE_PROJECT_DIR="$FAKE_FILE" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty .git file: outside write scanned → exit 2" 2 "$RC"
+FAKE_DIR="$TEST_TMPDIR/fake-gitdir"
+mkdir -p "$FAKE_DIR/.git"
+OUT=$(CLAUDE_PROJECT_DIR="$FAKE_DIR" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty .git directory (no HEAD): outside write scanned → exit 2" 2 "$RC"
+# A real linked worktree, whose .git is a `gitdir:` file. It needs a commit.
+WT_MAIN="$TEST_TMPDIR/wt-main"
+WT_LINK="$TEST_TMPDIR/wt-link"
+mkdir -p "$WT_MAIN"
+git -C "$WT_MAIN" init -q
+git -C "$WT_MAIN" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m seed
+git -C "$WT_MAIN" worktree add -q "$WT_LINK" >/dev/null 2>&1
+if [[ -f "$WT_LINK/.git" ]]; then
+  OUT=$(CLAUDE_PROJECT_DIR="$WT_LINK" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "linked worktree root (.git gitdir: file): outside write → exit 0" 0 "$RC"
+else
+  bad "linked worktree root: git worktree add produced no .git file"
+fi
+
+# Windows spellings of the same directory: the root in mixed form (C:/...), HOME
+# in MSYS form (/c/...) with its case folded. Only a real msys/cygwin host with
+# cygpath can build both spellings of one existing directory. The mixed form
+# comes from git, which answers with long names: `cygpath -m` can return an 8.3
+# short name, whose `~` would clear the root for a reason other than home.
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
+  HOME_REPO_M=$(git -C "$HOME_REPO" rev-parse --show-toplevel)
+  HOME_REPO_U="/${HOME_REPO_M:0:1}${HOME_REPO_M:2}"
+  OUT=$(env HOME="$SCOPE_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: the C:/ root alone is honored when HOME is elsewhere → exit 0" 0 "$RC"
+  OUT=$(env HOME="${HOME_REPO_U,,}" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: C:/ root vs lower-cased /c/ HOME is home → exit 2" 2 "$RC"
+  OUT=$(env HOME="${HOME_REPO_U^^}/" CLAUDE_PROJECT_DIR="$HOME_REPO_M/" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: upper-cased /C/ HOME and trailing slashes still match → exit 2" 2 "$RC"
+fi
 
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1)
@@ -143,7 +413,7 @@ RC=$?
 assert_exit "CLAUDE.local.md allowlist (case-sensitive) → exit 0" 0 "$RC"
 
 # Secret in a file OUTSIDE the project root → exit 0, silent.
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "file outside project root → exit 0" 0 "$RC"
 assert_silent "outside project root → no stderr" "$OUT"
@@ -184,8 +454,8 @@ assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
-env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="/repo" \
-  bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$SCOPE_REPO" \
+  bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
 if wait_for_sink "$TEL"; then
   assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "secret-pattern-detection"
   assert_contains "telemetry: status blocked" "$(jq -r '.status' "$TEL")" "blocked"
@@ -332,6 +602,21 @@ if wait_for_sink "$TELTS"; then
     "src/config.env" "$(jq -r '.data.file' "$TELTS")"
 else
   bad "trailing-slash project dir: no envelope written"
+fi
+
+# --- Cleared root: data.file anchors on the file's own checkout -------------
+# A set root that is not a repository is treated as unset for scanning, so the
+# telemetry path must be expressed the same way the unset case expresses it:
+# relative to the checkout the file lives in, not to the rejected root.
+TELNR="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKNR="$(make_sink "cat >\"$TELNR\"")"
+env HOOK_TELEMETRY_SINK="$SINKNR" CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" \
+  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELNR"; then
+  assert_eq "non-repo root: data.file is relative to the file's own checkout" \
+    "src/config.env" "$(jq -r '.data.file' "$TELNR")"
+else
+  bad "non-repo root: no envelope written"
 fi
 
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
@@ -499,6 +784,35 @@ RC=0
 bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
 assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
+# --- a plugin-bundled GitHub server names its tools with a scoped segment
+# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'" | scoped create_or_update_file)" 2>&1)
+RC=$?
+assert_exit "MCP scoped create_or_update_file: secret → exit 2" 2 "$RC"
+assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'" | scoped push_files)" 2>&1)
+RC=$?
+assert_exit "MCP scoped push_files: secret in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" | scoped push_files)" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP scoped push_files: clean → exit 0" 0 "$RC"
+
+# The hooks.json row must route both name shapes here, and not delete_file.
+MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("secret-pattern-detection.sh")) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
+for name in mcp__github__push_files mcp__github__create_or_update_file \
+  mcp__plugin_github_github__push_files mcp__plugin_my-plugin_github__create_or_update_file; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row matches $name" 0 "$RC"
+done
+for name in mcp__github__delete_file mcp__plugin_github_github__delete_file mcp__gitlab__push_files; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row does not match $name" 1 "$RC"
+done
+
 # --- the allowlist is the SAME list, asked of a repo-relative path
 RC=0
 bash "$HOOK" <<<"$(mcp_single_json "docs/.env.example" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
@@ -525,5 +839,218 @@ RC=0
 CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" \
   <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
 assert_exit "MCP: disabled guard allows the write" 0 "$RC"
+
+# ============ Temp-tree decline at the Bash exemption's width ================
+# block-hook-bypass exempts a Bash redirect into a host temp tree when the
+# project root is known and outside that tree. A Write of the same content to
+# the same path declines here under the same gate, so the two routes agree.
+#
+# Every spelling case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
+# changed, so the refusal it pins is the only reason it scans.
+#
+# On a Windows host the Write tool is Node, which resolves `/tmp/x` and `/c/x`
+# differently from Git Bash, so only a long-name drive spelling may decline:
+# the temp base comes from `cygpath -l -m`, never from mktemp or raw TEMP (8.3).
+D1_WIN=0
+[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && D1_WIN=1
+if ((D1_WIN)); then
+  D1_TEMP=$(cygpath -l -m "${TEMP:-${TMP:-/tmp}}")
+  D1_ROOT="C:/spd-d1-nonrepo-root"
+  D1_HOME="C:/spd-d1-home"
+else
+  D1_TEMP=/tmp
+  D1_ROOT="/spd-d1-nonrepo-root"
+  D1_HOME="/spd-d1-home"
+fi
+D1_TARGET="$D1_TEMP/spd-d1-$$/sub/f.txt"
+
+# d1_rc <root, empty for unset> <target> [NAME=value...] -> the hook's exit code
+d1_rc() {
+  local root="$1" target="$2" rc=0
+  shift 2
+  if [[ -n "$root" ]]; then
+    env "$@" CLAUDE_PROJECT_DIR="$root" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
+  else
+    env "$@" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
+  fi
+  printf '%s' "$rc"
+}
+
+assert_exit "D1 non-temp non-git root, temp target → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_TARGET")"
+assert_exit "D1 root is HOME, temp target → exit 0" 0 \
+  "$(d1_rc "$D1_HOME" "$D1_TARGET" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+assert_exit "D1 root unset, temp target → exit 2" 2 "$(d1_rc "" "$D1_TARGET")"
+assert_exit "D1 root under temp → exit 2" 2 "$(d1_rc "$D1_TEMP/spd-d1-$$" "$D1_TARGET")"
+assert_exit "D1 root is the temp root → exit 2" 2 "$(d1_rc "$D1_TEMP" "$D1_TARGET")"
+
+# Target spellings refused before any resolution.
+for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f.txt" \
+  "$D1_TEMP/spd~1/f.txt" "/$D1_TARGET" "$D1_TEMP//spd-d1/f.txt" "tmp/spd-d1/f.txt" \
+  "$D1_TEMP/spd-a\$b/f.txt" "$D1_TEMP/spd-a[1]/f.txt" "$D1_TEMP/spd-a\`b/f.txt" \
+  "$D1_TEMP/spd a/f.txt" "$D1_TEMP/spd;a/f.txt" "$D1_TEMP/spd\"a/f.txt" "$D1_TEMP/spd'a/f.txt" \
+  "$D1_TEMP/spd(a)/f.txt" "$D1_TEMP/spd#a/f.txt" "$D1_TEMP/spd&a/f.txt"; do
+  assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
+done
+# Root spellings block-hook-bypass would not accept, and a filesystem root.
+for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/"; do
+  assert_exit "D1 root '$D1_R' → exit 2" 2 "$(d1_rc "$D1_R" "$D1_TARGET")"
+done
+
+# A test-owned temp dir for the cases that need real files under temp.
+D1_LINKDIR=$(mktemp -d) || D1_LINKDIR=""
+if [[ -n "$D1_LINKDIR" ]]; then
+  D1_LINKBASE="$D1_LINKDIR"
+  ((D1_WIN)) && D1_LINKBASE=$(cygpath -l -m "$D1_LINKDIR")
+  # A link under temp pointing at an existing non-temp directory. The target
+  # through it lands outside temp and scans; a genuine sibling declines. The
+  # link name carries capitals so a walk over a lowercased copy would miss it.
+  if make_dir_link "$HOOK_DIR" "$D1_LINKDIR/ToHooks"; then
+    assert_exit "D1 target through a temp link to a non-temp dir → exit 2" 2 \
+      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/ToHooks/spd-d1-absent/f.txt")"
+    assert_exit "D1 genuine sibling in the same temp dir → exit 0" 0 \
+      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/genuine/f.txt")"
+  else
+    echo "SKIP: D1 temp link cases (no directory link could be made on this host)"
+  fi
+  # A hard link resolves to itself, so a temp-tree name for a file stored
+  # elsewhere passes every path test: a link count above 1 scans. A plain file
+  # beside it declines.
+  : >"$D1_LINKDIR/hl-src.txt"
+  : >"$D1_LINKDIR/plain.txt"
+  if ln "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" 2>/dev/null; then
+    assert_exit "D1 hard-linked temp file → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/hl.txt")"
+    assert_exit "D1 plain temp file beside it → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/plain.txt")"
+  else
+    echo "SKIP: D1 hard link cases (ln could not make a hard link on this host)"
+  fi
+  # After a decline, the directory the target walk resolved is not in the
+  # resolver cache: the guard is sourced in a child shell whose `exit` is a
+  # function printing the cache keys before the real exit (abort-boundary owns
+  # the EXIT trap, so a trap of our own would be replaced).
+  mkdir "$D1_LINKDIR/sub"
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  D1_PROBE=$(CLAUDE_PROJECT_DIR="$D1_ROOT" bash -c 'exit() { printf "MARK|%s\n" "${_HOOK_PHYS_KEYS[*]-}"; builtin exit "$@"; }; source "$1"' _ "$HOOK" <<<"$(write_json "$D1_LINKBASE/sub/f.txt" "token = '$GH_PAT'")" 2>/dev/null)
+  D1_PROBE_RC=$?
+  assert_exit "D1 probe: sourced guard declines" 0 "$D1_PROBE_RC"
+  D1_KEYS="${D1_PROBE#*MARK|}"
+  if [[ "$D1_PROBE" == *"MARK|"* && -n "$D1_KEYS" ]]; then ok "D1 probe: resolve stage ran"; else bad "D1 probe: no cache keys ($D1_PROBE)"; fi
+  assert_absent "D1 probe: the resolved target directory is not cached" "$D1_KEYS" "$D1_LINKBASE/sub"
+else
+  echo "SKIP: D1 temp-file cases (mktemp -d failed)"
+fi
+
+# Width on POSIX: block-hook-bypass lowercases the target before comparing it
+# with temp candidates that keep their case, so a capitalized temp root never
+# exempts there, and the decline must not either. Lifted seam: the spd functions
+# run with OSTYPE forced to POSIX and the candidate set replaced by one
+# test-owned directory, capitalized or not.
+# shellcheck disable=SC2016  # the sed addresses are literal hook source text
+D1_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p' "$HOOK" | sed '$d')
+d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under it
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  CLAUDE_PROJECT_DIR=/spd-d1-nonrepo-root bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; eval "$2"
+    d1_cand="$3"
+    hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$d1_cand"); }
+    spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
+}
+# mktemp names carry capitals, so the seam dirs sit under a lowercase name of
+# their own, removed by name in the EXIT trap. The precondition asks the seam's
+# own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
+# which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
+# cases only run where that resolver spells each seam dir as given.
+d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given; answer left in D1_SEAM_GOT
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)
+  [[ "$D1_SEAM_GOT" == "$1" ]]
+}
+D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
+D1_SEAM_STEP="mkdir $D1_SEAM_TRY"
+if mkdir "$D1_SEAM_TRY" 2>/dev/null && D1_SEAMDIR="$D1_SEAM_TRY" &&
+  D1_SEAM_STEP="mkdir lowtemp and CapTemp under it" &&
+  mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null &&
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/lowtemp" &&
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/CapTemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
+  assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
+  assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
+elif [[ "${OSTYPE:-}" == linux* ]]; then
+  [[ "$D1_SEAM_STEP" == resolve* ]] && D1_SEAM_STEP+=" under the library's Linux resolver gave '$D1_SEAM_GOT'"
+  bad "D1 seam: precondition failed: $D1_SEAM_STEP"
+else
+  echo "SKIP: D1 seam width cases (under a forced Linux OSTYPE the library resolver does not spell the /tmp seam dirs as given on this host, or the seam dirs could not be made)"
+fi
+
+if ((D1_WIN)); then
+  assert_exit "D1 windows: drive root '${D1_ROOT%%/*}/' → exit 2" 2 "$(d1_rc "${D1_ROOT%%/*}/" "$D1_TARGET")"
+  # A drive spelling that names no volume must terminate. timeout 124 is a hang,
+  # not a verdict; a loaded Windows host spends tens of seconds on one fire.
+  assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
+    "$(
+      D1_RC=0
+      timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?
+      printf '%s' "$D1_RC"
+    )"
+  assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
+    "$(d1_rc "$D1_HOME" "${D1_TARGET//\//\\}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  assert_exit "D1 windows: /c/ spelling → exit 2" 2 \
+    "$(d1_rc "$D1_HOME" "/${D1_TARGET:0:1}${D1_TARGET:2}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  assert_exit "D1 windows: /tmp/ spelling → exit 2" 2 \
+    "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
+  if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
+    assert_exit "D1 windows: 8.3 short spelling → exit 2" 2 \
+      "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  else
+    echo "SKIP: D1 windows 8.3 case (the temp path has no short spelling on this volume)"
+  fi
+else
+  echo "SKIP: D1 Windows spelling cases (not a Windows Git Bash host)"
+  assert_exit "D1 posix: target carrying a backslash → exit 2" 2 \
+    "$(d1_rc "$D1_ROOT" "/tmp/spd-d1-$$\\x/f.txt")"
+fi
+
+# Fork-free common path: a shim logs every resolver the hook spawns. A non-temp
+# target spawns none; a temp target spawns at least one, which shows the shim is
+# on the path the hook takes. Telemetry is off: its path helper runs cygpath on
+# a block, which is not the decline's cost.
+D1_SHIM="$TEST_TMPDIR/d1-shim"
+D1_LOG="$TEST_TMPDIR/d1-shim.log"
+mkdir -p "$D1_SHIM"
+for D1_BIN in realpath readlink cygpath; do
+  D1_REAL=$(command -v "$D1_BIN") || continue
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s\\n" %s >>"%s"\n' "$D1_BIN" "$D1_LOG"
+    printf 'exec "%s" "$@"\n' "$D1_REAL"
+  } >"$D1_SHIM/$D1_BIN"
+  chmod +x "$D1_SHIM/$D1_BIN"
+done
+: >"$D1_LOG"
+d1_rc "$D1_ROOT" "$D1_ROOT/src/f.txt" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
+assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
+: >"$D1_LOG"
+d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
+if [[ "${OSTYPE:-}" == linux* ]]; then
+  # On Linux hook::physical_path_to resolves an existing absolute path with
+  # builtin `cd -P`, so the temp target starts no resolver either. Show the
+  # shim logs a spawn by calling it directly instead.
+  "$D1_SHIM/realpath" / >/dev/null
+  if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
+elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+
+# The dispatcher runs this guard beside the other Write|Edit guards.
+D1_DISPATCH_RC=0
+CLAUDE_PROJECT_DIR="$D1_ROOT" bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
+  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
+assert_exit "D1 dispatcher: non-temp root, temp target → exit 0" 0 "$D1_DISPATCH_RC"
+D1_DISPATCH_RC=0
+bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
+  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
+assert_exit "D1 dispatcher: root unset → exit 2" 2 "$D1_DISPATCH_RC"
+
+# A NotebookEdit declines or scans exactly as a Write to the same path does.
+nb_both "D1 NotebookEdit: non-temp non-git root, temp target → exit 0" 0 "" \
+  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")" CLAUDE_PROJECT_DIR="$D1_ROOT"
+nb_both "D1 NotebookEdit: root unset, temp target → exit 2" 2 "GitHub PAT" \
+  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")"
 
 report

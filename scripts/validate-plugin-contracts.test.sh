@@ -511,7 +511,9 @@ action: remove-line
 note: one line
 YAML
 
-{
+# Process substitution, not a pipe: a piped malformed_case runs in a subshell
+# and its ok/fail counts never reach the report.
+malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' < <({
   cat <<'YAML'
 id: alpha-r001
 retired: 2026-08-01
@@ -531,7 +533,7 @@ path: .claude/other.json
 action: delete
 note: one line
 YAML
-} | malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line'
+})
 
 malformed_case "a double-quoted match keeps backslashes instead of unescaping them" 'is not a usable ERE' <<'YAML'
 id: alpha-r001
@@ -836,6 +838,221 @@ else
   fail "an unresolvable base ref should fail: $out"
 fi
 rm -rf "$TMP/.git"
+
+# ===========================================================================
+# Agent definitions name a model (plugins/<plugin>/agents/*.md).
+#
+# Each case asserts on a failure line that names the one agent file under
+# test, so an unrelated fixture failure can neither satisfy nor mask it.
+# ===========================================================================
+
+A_NO_MODEL='agent definitions must name a model'
+A_BARE_INHERIT='model: inherit needs a trailing'
+A_DUPLICATE='model: appears more than once'
+A_MALFORMED='model: line is malformed'
+
+# make_agent <plugin> <name> <frontmatter-model-line-or-empty> -- an empty
+# third argument writes no model line at all.
+make_agent() {
+  local plugin="$1" name="$2" model_line="$3"
+  mkdir -p "$TMP/plugins/$plugin/agents"
+  {
+    echo '---'
+    printf 'name: %s\n' "$name"
+    printf 'description: "Fixture agent %s."\n' "$name"
+    echo 'tools: "Read"'
+    if [[ -n "$model_line" ]]; then printf '%s\n' "$model_line"; fi
+    echo 'effort: high'
+    echo '---'
+    echo
+    echo 'Fixture body.'
+  } >"$TMP/plugins/$plugin/agents/$name.md"
+}
+
+# agent_fail_line <name> <needle> -- a failure line for that agent file.
+agent_fail_line() {
+  grep -qE "^- .*agents[/\\\\]$1\.md: .*$2" <<<"$out"
+}
+
+# agent_any_fail <name> -- any model failure line for that agent file.
+agent_any_fail() {
+  agent_fail_line "$1" "$A_NO_MODEL" || agent_fail_line "$1" "$A_BARE_INHERIT" ||
+    agent_fail_line "$1" "$A_DUPLICATE" || agent_fail_line "$1" "$A_MALFORMED"
+}
+
+reset_fixture
+make_plugin alpha ''
+make_agent alpha no-model ''
+make_agent alpha bare-inherit 'model: inherit'
+make_agent alpha reasoned-inherit "model: inherit  # reason: must match the orchestrator's model"
+make_agent alpha named-alias 'model: sonnet'
+printf '%s\r\n' '---' 'name: crlf-opus' 'description: "Fixture agent crlf-opus."' \
+  'model: opus' '---' '' 'Fixture body.' >"$TMP/plugins/alpha/agents/crlf-opus.md"
+if [[ "$(tr -dc '\r' <"$TMP/plugins/alpha/agents/crlf-opus.md" | wc -c)" -eq 7 ]]; then
+  ok "the CRLF fixture carries a carriage return on every line"
+else
+  fail "the CRLF fixture should carry 7 carriage returns"
+fi
+{
+  echo '---'
+  echo 'name: body-model'
+  echo 'description: "Fixture agent whose model line sits in the body."'
+  echo '---'
+  echo
+  echo 'model: opus'
+} >"$TMP/plugins/alpha/agents/body-model.md"
+make_agent alpha quoted-inherit 'model: "inherit"  # reason: x'
+make_agent alpha empty-reason 'model: inherit  # reason:'
+make_agent alpha capital-inherit 'model: Inherit'
+make_agent alpha prefixed-key 'modelFoo: x'
+make_agent alpha nested-model $'metadata:\n  model: opus'
+make_agent alpha hash-in-quotes 'model: "a#b"'
+make_agent alpha spaced-comment 'model: opus  # the reviewer tier'
+mkdir -p "$TMP/plugins/alpha/agents/review"
+make_agent alpha review/nested-no-model ''
+make_agent alpha block-literal $'model: |-\n  inherit'
+make_agent alpha block-folded $'model: >\n  inherit'
+make_agent alpha null-word 'model: null'
+make_agent alpha null-tilde 'model: ~'
+make_agent alpha null-capital 'model: Null'
+make_agent alpha duplicate-model $'model: opus\nmodel: inherit'
+make_agent alpha no-space-colon 'model:opus'
+make_agent alpha glued-hash 'model: inherit#reason: x'
+{
+  printf '\xEF\xBB\xBF'
+  echo '---'
+  echo 'name: bom-opus'
+  echo 'description: "Fixture agent bom-opus."'
+  echo 'model: opus'
+  echo '---'
+  echo
+  echo 'Fixture body.'
+} >"$TMP/plugins/alpha/agents/bom-opus.md"
+out="$(run_fixture)"
+
+if agent_fail_line no-model "$A_NO_MODEL"; then
+  ok "an agent definition with no model line fails the gate"
+else
+  fail "an agent with no model line should fail: $out"
+fi
+
+if agent_fail_line bare-inherit "$A_BARE_INHERIT"; then
+  ok "model: inherit with no stated reason fails the gate"
+else
+  fail "a bare model: inherit should fail: $out"
+fi
+
+if agent_any_fail reasoned-inherit; then
+  fail "model: inherit with a trailing reason comment should pass: $out"
+else
+  ok "model: inherit with a trailing # reason: comment passes"
+fi
+
+if agent_any_fail named-alias; then
+  fail "an explicit model alias should pass: $out"
+else
+  ok "an agent naming an explicit model alias passes"
+fi
+
+if agent_any_fail crlf-opus; then
+  fail "a CRLF-terminated agent naming a model should pass: $out"
+else
+  ok "a CRLF-terminated agent definition naming a model passes"
+fi
+
+if agent_fail_line body-model "$A_NO_MODEL"; then
+  ok "a model line outside the frontmatter does not count"
+else
+  fail "a model line in the body only should fail as missing: $out"
+fi
+
+if agent_any_fail quoted-inherit; then
+  fail "a quoted inherit with a reason comment should pass: $out"
+else
+  ok "model: \"inherit\" with a trailing # reason: comment passes"
+fi
+
+if agent_fail_line empty-reason "$A_BARE_INHERIT"; then
+  ok "model: inherit with an empty # reason: fails as bare inherit"
+else
+  fail "an empty reason comment should fail as bare inherit: $out"
+fi
+
+if agent_fail_line capital-inherit "$A_BARE_INHERIT"; then
+  ok "model: Inherit is compared case-insensitively and fails as bare inherit"
+else
+  fail "model: Inherit should fail as bare inherit: $out"
+fi
+
+if agent_fail_line prefixed-key "$A_NO_MODEL"; then
+  ok "a modelFoo: key does not count as a model line"
+else
+  fail "a modelFoo: key alone should fail as missing: $out"
+fi
+
+if agent_fail_line nested-model "$A_NO_MODEL"; then
+  ok "an indented model: under a nested key does not count"
+else
+  fail "an indented nested model: should fail as missing: $out"
+fi
+
+if agent_any_fail bom-opus; then
+  fail "a BOM-prefixed agent naming a model should pass: $out"
+else
+  ok "a BOM-prefixed agent definition naming a model passes"
+fi
+
+if agent_any_fail hash-in-quotes; then
+  fail "a quoted model value containing # should pass: $out"
+else
+  ok "a quoted model value containing # is kept whole and passes"
+fi
+
+if agent_any_fail spaced-comment; then
+  fail "a model value followed by whitespace and a # comment should pass: $out"
+else
+  ok "a model value followed by whitespace and a # comment passes"
+fi
+
+if agent_fail_line 'review[/\\]nested-no-model' "$A_NO_MODEL"; then
+  ok "an agent nested under agents/<dir>/ with no model line fails the gate"
+else
+  fail "a nested agent with no model line should fail: $out"
+fi
+
+for name in block-literal block-folded; do
+  if agent_fail_line "$name" "$A_MALFORMED"; then
+    ok "a block-scalar model value ($name) fails as malformed"
+  else
+    fail "a block-scalar model value ($name) should fail as malformed: $out"
+  fi
+done
+
+for name in null-word null-tilde null-capital; do
+  if agent_fail_line "$name" "$A_NO_MODEL"; then
+    ok "a YAML null model value ($name) fails as missing"
+  else
+    fail "a YAML null model value ($name) should fail as missing: $out"
+  fi
+done
+
+if agent_fail_line duplicate-model "$A_DUPLICATE"; then
+  ok "two model: keys in one frontmatter fail as a duplicate"
+else
+  fail "duplicate model: keys should fail: $out"
+fi
+
+if agent_fail_line no-space-colon "$A_MALFORMED"; then
+  ok "model:opus with no whitespace after the colon fails as malformed"
+else
+  fail "model:opus should fail as malformed: $out"
+fi
+
+if agent_fail_line glued-hash "$A_MALFORMED"; then
+  ok "model: inherit#reason: x with no whitespace before # fails as malformed"
+else
+  fail "a # glued to the value should fail as malformed: $out"
+fi
 
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"

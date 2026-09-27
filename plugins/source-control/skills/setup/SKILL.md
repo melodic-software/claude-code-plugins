@@ -1,6 +1,6 @@
 ---
 description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the user-global, team, and personal-overlay layers plus the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
-argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
+argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -26,9 +26,9 @@ convention; the safe babysit tier over your own PRs), so an unconfigured surface
 FAIL.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-remediation. When `apply` carries a `subject_pattern=` argument it writes the convention
-non-interactively; with no arguments in an interactive session it runs the convention interview
-(spoke below). `layer=` selects which config layer `apply` writes, defaulting to the tracked team
+remediation. When `apply` carries a `subject_pattern=` or `branch_issue_pattern=` argument (or
+both) it writes non-interactively; with no arguments in an interactive session it runs the
+convention interview (spoke below). `layer=` selects which config layer `apply` writes, defaulting to the tracked team
 file.
 
 ## `check` (read-only)
@@ -55,15 +55,19 @@ pr_title_pattern           Same as subject_pattern      team
 trailer_policy             none                         local overlay
 pr_body_attribution        none                         local overlay
 pr_body_required_sections  Summary, Test plan           plugin default
-pr_skill_evidence          none (inert)                 plugin default
+branch_issue_pattern       ^[^/]+/([0-9]+)-             team
 ```
 
-`pr_skill_evidence` is the mandatory map `/source-control:pull-request` checks a pull request's
-skill evidence against, one `- <class> | <patterns> | <skills>` rule per bullet (grammar:
-config-resolution.md). Render the row as the class names the winning layer declares, comma-joined,
-and as `none (inert)` when no layer declares it or a layer declares `none`. Like
-`pr_body_required_sections` it is a closed list, so the winning layer's rules are taken whole. Both
-states are INFO: a repository that requires no skill evidence is a legitimate configuration.
+`branch_issue_pattern` resolves the way `parse-branch-issue.sh` reads it
+([../../reference/config-resolution.md](../../reference/config-resolution.md)): the layers first,
+then the deprecated userConfig value `${user_config.branch_issue_pattern}` (a surviving literal
+token means unset), then the built-in `<type>/<N>-<slug>` convention. `won by` names the layer,
+`userConfig (deprecated)` with a WARN recommending `apply branch_issue_pattern=<ERE>`, or
+`plugin default`. Confirm the row by running
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch> '${user_config.branch_issue_pattern}'`
+from `REPO_ROOT` and relaying any stderr note, which names a skipped layer and the reason. The
+single-quoted second argument passes the deprecated userConfig value, so a configuration set only
+there is reported correctly; the script ignores the literal placeholder when the key is unset.
 
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
@@ -263,6 +267,11 @@ In brief:
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
   non-machine-checkable value, and for an overlay omit requested keys the layers below already
   resolve identically.
+- **`branch_issue_pattern=`**: alone, it writes or replaces only the `## branch_issue_pattern`
+  section of the chosen layer, value in backticks, leaving every other section untouched; with
+  `subject_pattern=`, both are written in one pass. Reject a value that is not a valid ERE, holds a
+  backreference, or has no capture group, then confirm `parse-branch-issue.sh <sample-branch>`
+  prints the expected number.
 - **Interactive:** the interview. Anchor at `REPO_ROOT`, read all three layers first, infer before
   asking (declared prose, commit-msg hooks, commit-history consensus over the configurable
   `setup_inference_*` window), interview one decision at a time with a recommendation first, settle
@@ -308,7 +317,10 @@ sanctioned paths:
   this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
   Options reference to its manifest default. `-s` defaults to `user`; pass the scope
   `claude plugin list` reports for this plugin, and run from that project's directory for a
-  `project`/`local` scope, or the write lands at a scope that does not load.
+  `project`/`local` scope. A rerun at another scope adds an install record at that scope and
+  enables the plugin there (measured in both directions); the value itself always lands in user
+  settings. A rejected value
+  prints a warning yet exits 0, so read the output.
 
 When an uninstall is warranted for a reason other than reconfiguring (troubleshooting, changing
 scopes, reinstalling a version), pass `--keep-data`. Uninstalling from the **last remaining scope**
@@ -343,9 +355,7 @@ used. `check` alone reports the effective configuration across both surfaces and
   `apply` interview states this when it applies).
 - **`none` and absence are different states** for `trailer_policy`, `pr_body_attribution`, and
   `pr_body_required_sections`: absence falls through (ultimately to the bundled default), `none` is
-  a resolved opt-out that wins its layer's per-key override. `pr_skill_evidence` is the one key
-  where the two states meet in the same place: absent and `none` both leave the mechanism inert, so
-  report which of the two it is rather than collapsing them.
+  a resolved opt-out that wins its layer's per-key override.
 - **Gate inference on the resolved value, never file presence.** A `source-control.md` layer that
   contributes only other keys leaves `subject_pattern` unresolved. Skipping inference because
   "some config file exists" recommends the bundled default over the repo's real convention.

@@ -307,6 +307,7 @@ assert_not_contains "status ignores non-lane sessions" "$out" "sid-other"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
 assert_contains "start skips running lane" "$out" "skip work — already running"
 assert_contains "start launches babysit" "$out" "claude --bg -n babysit"
+assert_contains "start launches babysit in auto mode" "$out" "claude --bg -n babysit --permission-mode auto"
 assert_contains "start mirrors babysit model" "$out" "--model sonnet"
 assert_contains "start mirrors babysit effort" "$out" "--effort medium"
 assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
@@ -365,7 +366,6 @@ assert_eq "settings:null launches the lane" 0 "$rcnull"
 assert_contains "settings:null still launches work" "$outnull" "claude --bg -n work"
 assert_not_contains "settings:null passes no --settings flag" "$outnull" "--settings"
 
-# refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"
 assert_contains "start updates marketplace" "$out" "plugin marketplace update"
 out2="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
@@ -401,9 +401,9 @@ out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGEN
 log="$(cat "$CLAUDE_LOG")"
 assert_contains "start really pulls the repo" "$log" "git -C $REPO pull --ff-only"
 assert_contains "start really updates the marketplace" "$log" "plugin marketplace update"
-assert_contains "start really launches work with model+effort" "$log" "--bg -n work --model opus --effort high"
+assert_contains "start really launches work with model+effort" "$log" "--bg -n work --permission-mode auto --model opus --effort high"
 assert_contains "start seeds the prompt-file body as the trailing arg" "$log" "--effort high You are the work lane."
-assert_contains "start really launches babysit" "$log" "--bg -n babysit --model sonnet --effort medium"
+assert_contains "start really launches babysit" "$log" "--bg -n babysit --permission-mode auto --model sonnet --effort medium"
 
 # ============================================================================
 # unknown lane rejected
@@ -432,7 +432,7 @@ assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
 assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
-assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --effort ultracode"
+assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --permission-mode auto --effort ultracode"
 
 # ============================================================================
 # ultracode version gate — below the floor the lane is skipped, and a restart
@@ -469,7 +469,7 @@ cat >"$TMP/ultra3.json" <<'JSON'
 JSON
 : >"$CLAUDE_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/ultra3.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
-assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --effort ultracode"
+assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --permission-mode auto --effort ultracode"
 assert_eq "version probe memoized across lanes" 1 "$(grep -c -- '--version' "$CLAUDE_LOG")"
 
 # A dry run must preview with no `claude` installed — the exemption require_claude
@@ -485,7 +485,7 @@ out="$(
   run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1
 )"
 assert_contains "no-CLI dry run reports the gate unevaluated" "$out" "version gate not evaluated"
-assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --effort ultracode"
+assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --permission-mode auto --effort ultracode"
 
 # ============================================================================
 # Medium 1 — an option must not swallow the next flag as its value
@@ -685,7 +685,6 @@ assert_eq "marker: skipped (already-running) lane keeps its existing marker" "pr
 marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
 assert_eq "marker: a lane that DID launch this run still gets one" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# restart re-records the marker for the restarted lane.
 DATA_DIR3="$TMP/data3"
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR3" 2>&1)"
 marker="$(cat "$DATA_DIR3/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
@@ -740,7 +739,6 @@ out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config 
 marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
-# CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
 DATA_DIR6="$TMP/data6"
 out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"

@@ -46,8 +46,6 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# ctx_of <hook-stdout> / sys_of <hook-stdout> -> the one disclosure channel,
-# empty when the key is absent or the document does not parse.
 ctx_of() {
   printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
 }
@@ -101,12 +99,14 @@ new_typos_repo() {
 # membership guard is disabled (not part of the fire gate); this isolates
 # gate/fix behavior from path-form mismatch in the guard.
 run_hook_env() {
-  local file_path="$1"
+  local file_path="$1" payload
   shift
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  printf -v payload '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload"
   )
 }
 
@@ -991,6 +991,119 @@ else
   fail "notebook/matcher: NotebookEdit is not in the PostToolUse matcher: $(jq -c '[.hooks.PostToolUse[].matcher]' "$HOOKS_JSON" 2>&1)"
 fi
 
+# --- The hooks.json row reads typos_format_enabled in its own shell ----------
+# A disabled hook must cost the one shell Claude Code runs the row in, so the
+# row checks the option and execs the script only when it is on. The row's
+# command text is run the way Claude Code runs it: ${CLAUDE_PLUGIN_ROOT}
+# substituted into the text, then `bash -c` (the row's pinned shell). A
+# sentinel stands in for typos-format.sh and records whether it started. The
+# expected verdict for each value comes from the script's own kill-switch line,
+# run under the same environment, so the row and the script cannot disagree.
+if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
+  ok "row-gate: hooks.json registers exactly one hook command"
+else
+  fail "row-gate: hooks.json registers $(jq '[.hooks[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
+fi
+ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
+ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")
+ROW_SHELL=$(jq -r '.shell // empty' <<<"$ROW_JSON")
+if [[ "$ROW_SHELL" == "bash" ]]; then
+  ok "row-gate: the hooks.json row pins shell to bash"
+else
+  fail "row-gate: the hooks.json row shell is '$ROW_SHELL', want 'bash'"
+fi
+# `if` would narrow the scan-everything set (#3411); `async` would detach the disclosure from the tool call.
+if jq -e 'has("if") or has("async")' <<<"$ROW_JSON" >/dev/null; then
+  fail "row-gate: the hooks.json row carries an if or async field: $ROW_JSON"
+else
+  ok "row-gate: the hooks.json row has no if and no async field"
+fi
+
+# shellcheck disable=SC2016  # the literal text of the script's kill-switch line
+PRED_LINE=$(grep -m1 -F '[[ "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED:-true}" == "true" ]] || exit 0' "$HOOK")
+if [[ -n "$PRED_LINE" ]]; then
+  ok "row-gate: read the script's own kill-switch line"
+else
+  fail "row-gate: the script's kill-switch line was not found in $HOOK"
+fi
+
+ROWGATE="$(mktemp -d "$WORK/rowgate.XXXXXX")"
+mkdir -p "$ROWGATE/root/hooks"
+# shellcheck disable=SC2016  # the sentinel's own lines, expanded when it runs
+printf '%s\n' '#!/usr/bin/env bash' ': >"$ROWGATE_OUT/started"' 'cat >"$ROWGATE_OUT/stdin"' 'exit 7' \
+  >"$ROWGATE/root/hooks/typos-format.sh"
+chmod +x "$ROWGATE/root/hooks/typos-format.sh"
+printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Write"}\n' >"$ROWGATE/payload"
+# shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
+
+run_opt() {
+  local out="$1" v="$2"
+  shift 2
+  if [[ "$v" == "__unset__" ]]; then
+    env -u CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED ROWGATE_OUT="$out" "$@"
+  else
+    env CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED="$v" ROWGATE_OUT="$out" "$@"
+  fi
+}
+
+ROW_VALUES=("__unset__" "" "true" "false" "False" "TRUE" "0" "1" "yes" " true" "-n" "a=b")
+i=0
+for v in "${ROW_VALUES[@]}"; do
+  i=$((i + 1))
+  label="'$v'"
+  [[ "$v" == "__unset__" ]] && label="unset"
+  case "$v" in
+  __unset__ | "" | true) want=started ;;
+  *) want=skipped ;;
+  esac
+  case_dir="$ROWGATE/case$i"
+  mkdir -p "$case_dir"
+  run_opt "$case_dir" "$v" bash -c "$PRED_LINE"$'\nexit 3' </dev/null
+  if [[ $? -eq 3 ]]; then pred=started; else pred=skipped; fi
+  row_out=$(run_opt "$case_dir" "$v" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload")
+  row_rc=$?
+  if [[ -e "$case_dir/started" ]]; then got=started; else got=skipped; fi
+
+  if [[ "$got" == "$pred" ]]; then
+    ok "row-gate/$label: the row agrees with the script's own predicate ($got)"
+  else
+    fail "row-gate/$label: the row $got the script but its own predicate says $pred"
+  fi
+  if [[ "$want" == started ]]; then
+    if [[ "$got" == started && $row_rc -eq 7 ]] && cmp -s "$ROWGATE/payload" "$case_dir/stdin"; then
+      ok "row-gate/$label: the row starts the script with stdin unchanged and returns its exit code"
+    else
+      fail "row-gate/$label: want the script started with stdin unchanged and rc 7 (got=$got rc=$row_rc)"
+    fi
+  else
+    if [[ "$got" == skipped && $row_rc -eq 0 && -z "$row_out" ]]; then
+      ok "row-gate/$label: the row exits 0 silently without starting the script"
+    else
+      fail "row-gate/$label: want no start, rc 0, empty stdout (got=$got rc=$row_rc out=$row_out)"
+    fi
+  fi
+done
+
+# An inherited nounset (exported SHELLOPTS, or a BASH_ENV that runs `set -u`)
+# must not turn an unset option into a failed row: unset means on.
+printf 'set -u\n' >"$ROWGATE/nounset.env"
+for how in SHELLOPTS BASH_ENV; do
+  case_dir="$ROWGATE/nounset-$how"
+  mkdir -p "$case_dir"
+  if [[ "$how" == SHELLOPTS ]]; then
+    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+  else
+    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+  fi
+  row_rc=$?
+  if [[ -e "$case_dir/started" && $row_rc -eq 7 ]]; then
+    ok "row-gate/nounset-$how: an unset option still starts the script"
+  else
+    fail "row-gate/nounset-$how: want the script started and rc 7 (started=$([[ -e "$case_dir/started" ]] && echo yes || echo no) rc=$row_rc)"
+  fi
+done
+
 # Same stub, same file, two payload shapes: a NotebookEdit carrying only
 # notebook_path must produce the byte-identical disclosure a Write carrying
 # file_path does.
@@ -1276,7 +1389,7 @@ CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' |
   jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null |
-  jq -r '"\(.appliedCount)/\(.residualCount)/\(.applied[0].typo // "-")"' 2>/dev/null)
+  jq -r '"\(.appliedCount)/\(.residualCount)/\((.applied | fromjson)[0].typo // "-")"' 2>/dev/null)
 CF_SMOKE_WANT="1/1/teh"
 # spellchecker:on
 if [[ "$CF_SMOKE" == "$CF_SMOKE_WANT" ]]; then
@@ -1301,7 +1414,6 @@ def timed(f): (now) as $t0 | (f | .appliedCount + .residualCount) as $_ | (now -
 JQ
 } >"$CF_BENCH"
 
-# classify_case <shape> <what this shape gates>
 classify_case() {
   local shape="$1" gates="$2"
   local small="$WORK/classify-$shape-$CF_SMALL_N.jsonl"
@@ -1860,10 +1972,10 @@ for banned in dirname basename; do
   fi
 done
 N_JQ="$(trace_execs jq "$TRACE")"
-if [[ "$N_JQ" == "1" ]]; then
-  ok "traced benign: exactly 1 jq (the shared payload validation)"
+if [[ "$N_JQ" == "0" ]]; then
+  ok "traced benign: no jq (payload validation and the path read are builtin)"
 else
-  fail "traced benign: jq spawned $N_JQ time(s), expected 1"
+  fail "traced benign: jq spawned $N_JQ time(s), expected 0"
 fi
 
 # One external, the typos binary, which is the point of the hook. The two
@@ -1919,6 +2031,41 @@ else
     fi
   done
 fi
+
+# The report-only builtin classifier writes jq's CLASSIFIED text byte for byte,
+# or declines. Both are lifted out of the hook; each case either matches the jq
+# program's output or is declined, and the ASCII cases must be answered.
+# spellchecker:off
+RO_FN=$(awk '/^typos_classify_report_only\(\) \{/ { cap = 1 } cap { print } cap && /^}/ { exit }' "$HOOK")
+ro_case() { # <desc> <must-answer 0|1> <scan output>
+  local desc="$1" must="$2" got want
+  got=$(
+    # shellcheck source=hook-utils.sh
+    source "$HOOK_DIR/hook-utils.sh"
+    eval "$RO_FN"
+    # shellcheck disable=SC2034 # read by the eval'd function
+    SCAN_OUTPUT=$3 MAX_REPORT=10 WRITE_CHANGES=false CLASSIFIED=""
+    hook::_c_locale typos_classify_report_only || exit 3
+    printf '%s' "$CLASSIFIED"
+  ) || {
+    if ((must)); then fail "report-only builtin: $desc was declined"; else ok "report-only builtin: $desc goes to jq"; fi
+    return
+  }
+  want=$(printf '%s\n@@typos-format-split@@\n%s\n' "$3" "$3" | jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null)
+  if [[ "$got" == "$want" ]]; then ok "report-only builtin: $desc equals jq"; else fail "report-only builtin: $desc: got $got want $want"; fi
+}
+ro_long=$(printf 'x%.0s' {1..70})
+ro_case "one finding" 1 '{"type":"typo","path":"a.md","line_num":427,"byte_offset":65,"typo":"doin","corrections":["doing"]}'
+ro_case "ambiguous, disallowed, empty and elided" 1 "$(printf '%s\n' \
+  '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"wich","corrections":["which","witch"]}' \
+  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"teh","corrections":null}' \
+  '{"type":"typo","path":"a","line_num":3,"byte_offset":0,"typo":"nd","corrections":[]}' \
+  "{\"type\":\"typo\",\"path\":\"a\",\"line_num\":4,\"byte_offset\":0,\"typo\":\"$ro_long\",\"corrections\":[\"$ro_long\"]}")"
+ro_case "more findings than the report cap" 1 "$(for i in {1..12}; do printf '{"type":"typo","path":"a","line_num":%d,"byte_offset":0,"typo":"teh","corrections":["the"]}\n' "$i"; done)"
+ro_case "a quote in a token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"a\"b","corrections":["ab"]}'
+ro_case "a non-ASCII token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"é","corrections":["e"]}'
+ro_case "a stderr line" 0 'warning: something'
+# spellchecker:on
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

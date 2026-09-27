@@ -55,24 +55,37 @@ never exercised the subject.
 State the target as **met** or **not met**, with the measurement that explains why.
 
 ```text
-Target:     <realistic> / <ideal>        Floor: <value>
-Counter:    <before> -> <after>          [headline]
-Duration:   <p50/p95 before> -> <after>  [or: REFUSED, <reason from is_measurable>]
-Verdict:    MET | NOT MET | UNMEASURABLE
-Behavior:   UNCHANGED (differential: N inputs, modes covered: <list>)
-            | CHANGED: <what changed>    [ranked above the performance claim]
-Overrides:  <any recorded gate override, or none>
+Target:      <realistic> / <ideal>        Floor: <value>
+Counter:     <before> -> <after>          [headline] [unproven, when Correlation is]
+Correlation: <evidence, repeated from the goal> | unproven
+Duration:    <p50/p95 before> -> <after>  [or: REFUSED, <reason from is_measurable>]
+Rig:         <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
+Verdict:     MET | NOT MET | UNMEASURABLE
+Behavior:    UNCHANGED (differential: N inputs, modes covered: <list>)
+             | CHANGED: <what changed>    [ranked above the performance claim]
+Cost:        <diff size, new moving parts>   [optional; beside the gain]
+Not covered: <percentiles, inputs, paths, and modes not exercised>
+Overrides:   <any recorded gate override, or none>
 Reproduced by an independent verifier: yes/no, and what diverged
 ```
 
 Rules that bind the report:
 
+- **IF `Correlation:` is `unproven`, THEN the `Counter:` line shows `unproven` beside the
+  headline.** An unproven counter win is a counter win, not a user-perceived one.
+- **Any aggregate over several targets reports the speedup as a geometric mean** of the per-target
+  ratios, with each target's row shown beside it. An arithmetic mean of ratios changes with which
+  arm is the reference; a geometric mean does not. See
+  [write the result up](../../reference/techniques.md#j-write-the-result-up).
+- **`Not covered:` is never omitted.** Write `none` only when nothing was left unexercised.
+- **`Cost:` sits beside the gain it buys.** Whether a large diff is worth a small win is the
+  human's call; the report makes the trade visible.
 - **Never round a miss into a win.** A target missed by 8% is not met.
 - **A correctness regression outranks any speedup** and is stated separately, above the performance
   claim, never folded into it.
 - **The counter is the headline; the duration is context.** On a host that failed
   `is_measurable()`, there is no duration line at all, only the refusal and its reason.
-- **An unexercised mode is reported, not omitted.**
+- **An unexercised mode is reported under `Not covered:`, not omitted.**
 - **Say which claims rest on the plugin's own conventions** rather than on sourced practice: the
   p50/p95-over-20 default, the refusal threshold, and counts-over-wall-clock for anything other than
   instruction counts.
@@ -86,8 +99,11 @@ Rules that bind the report:
 
 ## Next
 
-- Target met: `/source-control:pull-request`.
-- Target not met, and another candidate is due: `/performance:target`.
+- Target met on a drift-immune counter, to lock the win in: `/performance:protect`, which then
+  hands off to `/source-control:pull-request`.
+- Target met on a duration only: `/source-control:pull-request`.
+- Target met with a large realistic-to-ideal gap (re-scan), or not met with another candidate due:
+  `/performance:target`.
 - Behavior changed: `/debugging:debug`.
 
 ## Gotchas

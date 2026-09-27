@@ -11,8 +11,7 @@
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
 # A plugin whose skills resolve the consumer's convention home at runtime
-# (config-cascade expression doctrine) enrolls a copy here; plugin-quality
-# (the ADR 0018 pilot) is the first carrier.
+# (config-cascade expression doctrine) enrolls a copy here.
 #
 # The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
 # sync-*.sh gates; this file supplies the resolve-convention-home cluster's parameters.

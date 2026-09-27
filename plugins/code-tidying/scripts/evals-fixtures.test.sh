@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Contract: every fixture the dissolve-comments eval suite seeds still parses in
-# its own language and still self-certifies through change-shape.py, so a case
-# that scores 0 means the skill regressed rather than the corpus rotting. The
-# UNPROVABLE excerpt is named here because its exit 21 is the point of the case
-# it feeds, not a defect.
+# Contract: every seeded eval fixture parses and self-certifies through
+# change-shape.py, so a 0-score case is a skill regression. The UNPROVABLE
+# excerpt's exit 21 is the point of the case it feeds, not a defect.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-is-read-only-and-reports-scan-candidate",
       "prompt": "/gaming:setup check (runtime_dll and runtime_source are unset, <data-dir>\\runtime\\nvngx_dlssnr.dll does not exist, and an installed Steam title holds data\\streamline\\nvngx_dlssnr.dll with the known-good hash)",
-      "expected_output": "Resolves data_dir model-side to a literal path, runs the read-only probes, and reports a PASS/FAIL/INFO table. The runtime row is FAIL because the DLL is missing, and its remediation names the Steam candidate by path with its gate result (known-good hash, passes) and says apply would copy it. It does not call provision in any form, and nothing is copied into <data-dir>\\runtime or anywhere else.",
+      "expected_output": "Resolves data_dir model-side to a literal path, runs the read-only probes including -Verb discover (which names each game's launcher), and reports a PASS/FAIL/INFO table. The runtime row is FAIL because the DLL is missing, and its remediation names the Steam candidate by path with its gate result (known-good hash, passes) and says apply would copy it. It does not call provision in any form, and nothing is copied into <data-dir>\\runtime or anywhere else.",
       "files": [],
       "expectations": [
         "Reports the missing runtime DLL as FAIL",
@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "missing-dll-no-candidate-no-source-is-fail",
-      "prompt": "/gaming:setup check (runtime_dll and runtime_source are unset, <data-dir>\\runtime\\nvngx_dlssnr.dll does not exist, and no Steam library holds any nvngx_dlssnr.dll)",
+      "prompt": "/gaming:setup check (runtime_dll and runtime_source are unset, <data-dir>\\runtime\\nvngx_dlssnr.dll does not exist, and no discovered game folder, from any launcher, holds any nvngx_dlssnr.dll)",
       "expected_output": "The runtime row is FAIL. The remediation states the scan found no candidate and runtime_source is unset, then names the three remedies in provision -Runtime's order: set runtime_dll to a copy the user already has, install a DLSS 5 title on this machine, set runtime_source to a copy the user controls. It states the plugin names no source of its own and does not suggest any download site for the DLL.",
       "files": [],
       "expectations": [

@@ -3,7 +3,21 @@ description: "Verify repo-hygiene's external prerequisites on this machine and r
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `ghq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `ghq`: !`{ command -v ghq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
+
+`git` is probed in the body, not here: the harness runs a skill's whole pre-compute block as one
+shell invocation, and a worktree-isolated session refuses a compound command that names git.
 
 ## Purpose
 
@@ -24,8 +38,9 @@ Action routing: no argument or `check` runs the check. Non-interactive, never pr
 The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the single
 source of truth for what each tier requires.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed `ghq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 Install nothing, and run no mutating tier.
 
@@ -38,10 +53,10 @@ Install nothing, and run no mutating tier.
      (`git ls-files --error-unmatch`), so even the `caches` and
      `build` tiers reach git through it, as does restoring a tracked file deleted by reparse-point
      traversal during a `tree` clean. No tier is safe to run without git.
-2. **`ghq`** (optional). `command -v ghq`. Present: INFO, `ghq list -p` can feed `tree-batch` and
-   the other `*-batch` actions. Absent: INFO, not a defect, the batch actions still take `--repo`
-   (repeatable, glob-expanded) and `--repos-from FILE|-`; only the `ghq`-derived enumeration is
-   unavailable. Report this rather than letting an empty repo list look like a bug.
+2. **`ghq`** (optional). The pre-computed `ghq` row. Present: INFO, `ghq list -p` can feed
+   `tree-batch` and the other `*-batch` actions. Absent: INFO, not a defect, the batch actions still
+   take `--repo` (repeatable, glob-expanded) and `--repos-from FILE|-`; only the `ghq`-derived
+   enumeration is unavailable. Report this rather than letting an empty repo list look like a bug.
 3. **A POSIX shell for the bundled scripts**. Every tier script and the destructive guard are
    `bash`. On Windows that means Git Bash must be present; the guard is registered in **shell form**
    with `shell: bash` precisely so Claude Code resolves it rather than a `PATH` lookup finding the
@@ -82,8 +97,10 @@ after everything passes changes nothing and reports "already configured":
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  from that project's directory for a `project`/`local` scope, or the rerun adds a second
+  install record at the scope passed and enables the plugin there; the value itself always
+  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered token is injected at skill load, so a same-session
   `check` still reports the OLD value; report the observed effective toggle value, never an
   unobserved change.
