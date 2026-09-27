@@ -117,8 +117,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   carries the Claude line, and Go moves focus to the target question.
 - **`interview` page:** a long question id is cut to eight characters in the rail, with the
   full id on hover, so its title and chips stay readable and the rail never scrolls sideways.
-- **`interview` surface:** `wait` refuses a `waitsOn` containing `; answer: `, the ledger's
-  hold/answer delimiter, so an exported held row imports back without a fake answer.
+- **`interview` surface:** `wait` refuses a `waitsOn` containing the ledger's hold delimiters
+  (`; answer:` or `; confirmed:` followed by a space), so an exported held row imports back
+  without a fake answer and with its confirmed commitments restored as confirmed.
 - **`interview` page:** plainer wording: `Sent to Claude` for the rail chip, `Waiting on Qn`
   for an upstream-pending question, `Still open from earlier rounds`, and no `terminal` chip.
 - Three digests in `tests/interview-defenses.test.sh` were re-pinned, none weakening a
