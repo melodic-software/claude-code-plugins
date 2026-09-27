@@ -511,7 +511,9 @@ action: remove-line
 note: one line
 YAML
 
-{
+# Process substitution, not a pipe: a piped malformed_case runs in a subshell
+# and its ok/fail counts never reach the report.
+malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' < <({
   cat <<'YAML'
 id: alpha-r001
 retired: 2026-08-01
@@ -531,7 +533,7 @@ path: .claude/other.json
 action: delete
 note: one line
 YAML
-} | malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line'
+})
 
 malformed_case "a double-quoted match keeps backslashes instead of unescaping them" 'is not a usable ERE' <<'YAML'
 id: alpha-r001
@@ -881,8 +883,13 @@ make_agent alpha no-model ''
 make_agent alpha bare-inherit 'model: inherit'
 make_agent alpha reasoned-inherit "model: inherit  # reason: must match the orchestrator's model"
 make_agent alpha named-alias 'model: sonnet'
-make_agent alpha crlf-opus 'model: opus'
-sed -i 's/$/\r/' "$TMP/plugins/alpha/agents/crlf-opus.md"
+printf '%s\r\n' '---' 'name: crlf-opus' 'description: "Fixture agent crlf-opus."' \
+  'model: opus' '---' '' 'Fixture body.' >"$TMP/plugins/alpha/agents/crlf-opus.md"
+if [[ "$(tr -dc '\r' <"$TMP/plugins/alpha/agents/crlf-opus.md" | wc -c)" -eq 7 ]]; then
+  ok "the CRLF fixture carries a carriage return on every line"
+else
+  fail "the CRLF fixture should carry 7 carriage returns"
+fi
 {
   echo '---'
   echo 'name: body-model'
