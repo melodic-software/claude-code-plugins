@@ -3,6 +3,33 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.31] - 2026-09-27
+
+### Fixed
+
+- `triage` no longer gives a lane that may not write `work-class:` labels two contradictory
+  instructions. For a delegable or decision-defaulted outcome, such a lane now applies
+  `status:ready` and the human-gated role label and posts a `kind=escalated` marker comment with
+  a `Proposed work class:` line. It never applies `agent-ready` without a class, and it never
+  leaves the item at `status:ready` with no role label, which no queue lists (#4605).
+- `attend-queue` resolves such a row with one stamp-then-flip edit: the operator confirms the
+  class, and that edit applies the `work-class:` label and the autonomous-eligible role and
+  removes the human-gated role. When the session may not write class labels either, it hands the
+  operator the edit to paste. An item with no class never takes the plain flip.
+- `escalation-marker.md` documents the optional `Proposed work class:` body line (no new `kind`),
+  and `work-loop`'s intake sweep gives this marker the same escalation-record write as
+  `routed-advisory`.
+
+## [0.40.30] - 2026-09-27
+
+### Fixed
+
+- `work-loop`'s admission gate now drops a frontier candidate that already has an open closing PR
+  (drafts included) before classifying it, using `/work-items:work`'s in-flight exclusion rule and
+  the adapter's "Open linked PRs" operation. Such an item is no longer ratify-queued, escalated,
+  or dispatched, its labels are left alone, and the cycle report lists it as in flight. A failed
+  check excludes the item for that cycle (#4610).
+
 ## [0.40.29] - 2026-09-27
 
 ### Fixed
