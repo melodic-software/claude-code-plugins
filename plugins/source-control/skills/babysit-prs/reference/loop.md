@@ -257,7 +257,7 @@ fi
 # auto-merge"). It never re-arms; that stays with the merge lane. A failed read
 # or disarm stops the push.
 disarm_auto_merge() {
-  ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest') || return 1
+  ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
   [ -z "$ARMED" ] || gh pr merge "$PR_NUMBER" --disable-auto
 }
 lane_push() {

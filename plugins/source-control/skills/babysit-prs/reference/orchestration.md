@@ -821,7 +821,7 @@ Each worker must:
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
 - disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
-  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest'` prints anything, run
+  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
   `gh pr merge <N> --disable-auto`, and do not push if either command fails; never re-arm
   (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
@@ -908,7 +908,7 @@ same-call cd into the worktree instead, or it will fetch and switch branches whe
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
 Before that pre-push re-check and again right after the push, when
-`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest'` prints anything, run
+`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
 `gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
