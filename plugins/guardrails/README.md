@@ -209,7 +209,11 @@ out of scope until such a signal exists.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
-  first) and `mcp__github__create_or_update_file`. This closes a real hole: a
+  first) and `mcp__github__create_or_update_file`, and, since **0.37.1**, the
+  same two tools from a plugin-bundled GitHub server, which Claude Code names
+  `mcp__plugin_<plugin>_github__<tool>`
+  ([hooks reference](https://code.claude.com/docs/en/hooks.md), "plugin-bundled
+  MCP server", checked 2026-09-27). This closes a real hole: a
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`

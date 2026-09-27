@@ -784,6 +784,35 @@ RC=0
 bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
 assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
+# --- a plugin-bundled GitHub server names its tools with a scoped segment
+# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'" | scoped create_or_update_file)" 2>&1)
+RC=$?
+assert_exit "MCP scoped create_or_update_file: secret → exit 2" 2 "$RC"
+assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'" | scoped push_files)" 2>&1)
+RC=$?
+assert_exit "MCP scoped push_files: secret in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" | scoped push_files)" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP scoped push_files: clean → exit 0" 0 "$RC"
+
+# The hooks.json row must route both name shapes here, and not delete_file.
+MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("secret-pattern-detection.sh")) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
+for name in mcp__github__push_files mcp__github__create_or_update_file \
+  mcp__plugin_github_github__push_files mcp__plugin_my-plugin_github__create_or_update_file; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row matches $name" 0 "$RC"
+done
+for name in mcp__github__delete_file mcp__plugin_github_github__delete_file mcp__gitlab__push_files; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row does not match $name" 1 "$RC"
+done
+
 # --- the allowlist is the SAME list, asked of a repo-relative path
 RC=0
 bash "$HOOK" <<<"$(mcp_single_json "docs/.env.example" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?

@@ -193,7 +193,7 @@ mcp_lane() {
   # the array this function was reached through.
   local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
 
-  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+  if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
     count="${HOOK_JQ_FIELDS[0]}"
     # A payload whose files array is absent or unreadable carries nothing this
@@ -202,7 +202,7 @@ mcp_lane() {
   fi
 
   for ((i = 0; i < count; i++)); do
-    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    if [[ "$TOOL" == *__push_files ]]; then
       # One jq process per file, on a lane that fires only on a GitHub MCP write
       # — never on the Write/Edit path this guard runs on for every keystroke of
       # authored content. Reusing hook::jq_fields rather than hand-rolling an
@@ -267,7 +267,10 @@ Write | Edit | NotebookEdit) IS_MCP=0 ;;
 # repo, path, message and branch, and NO content. There is nothing for a content
 # guard to scan, and a delete cannot introduce a secret. Naming it here would
 # claim coverage that consists of skipping every call.
-mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
+mcp__github__push_files | mcp__github__create_or_update_file | \
+  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
 
