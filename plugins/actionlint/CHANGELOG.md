@@ -3,6 +3,15 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.58] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq` and `actionlint` at load time.** The two `command -v` checks run as
+  pre-computed context, so `check` reads the result instead of making two Bash calls. The FAIL rules
+  are unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
 ## [0.8.57] - 2026-09-25
 
 ### Changed
