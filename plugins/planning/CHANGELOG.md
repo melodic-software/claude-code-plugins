@@ -41,9 +41,15 @@ All notable changes to the `planning` plugin are documented here. Format follows
   commitments; an older `confirmed: ...` or `; confirmed: ...` row still imports, split at each
   semicolon and space without unescaping. A superseded-by-plan row with confirmed commitments
   takes the escaped form and adds `; confirmed: <c1>; <c2>` after the proposal. An answered,
-  deferred or withdrawn row, a reconfirmed accept included, ends with
-  `; confirmed:: <c1>; <c2>`, escaped, and `import-ledger` restores those commitments as
-  confirmed; an older row's `; confirmed: ...` stays part of its resolution.
+  deferred or withdrawn row, a reconfirmed accept included, and a superseded-by-plan row whose
+  resolution is not a proposal, ends with `; confirmed:: <c1>; <c2>`, escaped, and
+  `import-ledger` restores those commitments as confirmed; an older row's `; confirmed: ...`
+  stays part of its resolution. An answered or deferred row whose plain resolution would not
+  read back the same decision (an accept's note, an alternative, free text that is not one
+  clean line, any defer) reads `answer:: <answer>; note: <note>`, escaped as a held row's
+  fields, with `; arbiter: USER-RESERVED` on a deferred row; `import-ledger` restores the
+  decision, its text and note, the accepted recommendation and the alternative, and refuses a
+  row whose answer contradicts its status.
 - **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
   page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,

@@ -31,13 +31,22 @@ Unheld rows use the same escaping, marked the same way by a double colon:
                                        a superseded-by-plan row with confirmed commitments, or
                                        whose proposal the plain
                                        `plan proposes: <new>; was: <old>` would not read back
+  answer:: E(answer)[; note: E(note)][; arbiter: USER-RESERVED]
+                                       an answered or deferred row (the arbiter on a deferred
+                                       row only) whose plain resolution would not read back the
+                                       same decision, text and answer; answer and note are a
+                                       held row's
   <resolution>; confirmed:: C(c1)[; C(c2)...]
-                                       an answered, deferred, withdrawn or blocked row with
-                                       confirmed commitments; the resolution before it is plain
-C() is E() with the `c` of each `confirmed::` written \\u0063, so the tail holds no other
-`confirmed::` and the last `; confirmed::` of the row (followed by a space, a `;` or the row's
-end) starts it. A plain resolution holding
-that mark and no confirmed commitment gets the empty tail `; confirmed::;`.
+                                       an answered, deferred, withdrawn or blocked row, or a
+                                       superseded-by-plan row whose resolution is not a
+                                       proposal, with confirmed commitments; the resolution
+                                       before it is plain or the escaped answer
+C() is E() with the `c` of each `confirmed::` written \\u0063 and the `w` of each `was:` (any
+case) written \\u0077 or \\u0057, so the tail holds no other `confirmed::`, the last
+`; confirmed::` of the row (followed by a space, a `;` or the row's end) starts it, and the tail
+never makes a row read as a plain proposal. A plain resolution holding that mark and no
+confirmed commitment gets the empty tail `; confirmed::;`; a superseded-by-plan row that reads
+as a plain proposal has no tail.
 An older `confirmed: ...` or `; confirmed: ...` row still imports, split on `; ` unescaped, and an
 older settled row's `; confirmed: ...` stays part of its resolution.
 """
@@ -80,6 +89,8 @@ PROPOSAL_MARK = re.compile(r"^plan proposes::(?: |$)(.*)$", re.DOTALL)
 WAS = re.compile(r"^was:(?: |$)(.*)$", re.DOTALL)
 CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
 TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
+ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
+WAS_MARK = re.compile(r"w(?=as:)", re.IGNORECASE)
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -129,11 +140,15 @@ def unesc_field(s):
 def with_tail(res, confirmed):
     """A settled row's resolution, cleaned, then its escaped `; confirmed:: ...` tail when it has
     confirmed commitments or the resolution already holds the tail's mark."""
-    res = clean(res)
+    res = res if isinstance(res, Escaped) else clean(res)
     if not confirmed and not TAIL.search(res):
         return res
     listed = "; ".join(
-        esc_field(c).replace("confirmed::", "\\u0063onfirmed::") for c in confirmed
+        WAS_MARK.sub(
+            lambda m: f"\\u{ord(m.group()):04x}",
+            esc_field(c).replace("confirmed::", "\\u0063onfirmed::"),
+        )
+        for c in confirmed
     )
     return Escaped(f"{res}; confirmed::" + (f" {listed}" if confirmed else ";"))
 
@@ -208,13 +223,69 @@ def seed_resolution(seed, confirmed):
     proposal = seed_proposal(seed)
     m = PROPOSES.match(res)
     plain = clean(res) == res and m and m.groups() == tuple(proposal or ())
-    if not proposal or (plain and not confirmed):
+    if not proposal:
+        superseded = seed.get("status") == "superseded-by-plan"
+        return with_tail(res, confirmed) if superseded else res
+    if plain and not confirmed:
         return res
     new, old = proposal
     fields = [f"plan proposes:: {esc_field(new)}", f"was: {esc_field(old)}"]
     if confirmed:
         fields.append("confirmed: " + "; ".join(esc_field(c) for c in confirmed))
     return Escaped("; ".join(fields))
+
+
+def plain_decision(status, res):
+    """The terminal decision import_ledger restores from a plain answered, deferred or blocked
+    resolution: (decision, alt, text, recommendation)."""
+    if status == "answered":
+        return seeded_decision(res)
+    return "defer", None, res, None
+
+
+def reads_back(status, res, q, rec):
+    """Whether importing the plain res restores rec's decision, text and answer."""
+    decision, alt, text, recommendation = plain_decision(status, res)
+    back = {"decision": decision, "alt": alt, "text": text}
+    mine = {"recommendation": recommendation, "alternatives": []}
+
+    def key(q, r):
+        alt = r.get("alt") if r.get("decision") == "alt" else None
+        return r.get("decision"), alt, r.get("text") or "", decision_fields(q, r)
+
+    return key(mine, back) == key(q, rec)
+
+
+def answer_row(q, rec, confirmed):
+    """(status, resolution) of an unheld answered or deferred question: the plain vocabulary
+    when it reads back, else the escaped `answer:: ...` form."""
+    status = "deferred" if rec["decision"] == "defer" else "answered"
+    answer, note = decision_fields(q, rec)
+    arbiter = ["arbiter: USER-RESERVED"] if status == "deferred" else []
+    noted = [f"note: {clean(note)}"] if clean(note) else []
+    res = "; ".join([clean(answer), *noted, *arbiter])
+    if not reads_back(status, res, q, rec):
+        noted = [f"note: {esc_field(note)}"] if note else []
+        res = Escaped("; ".join([f"answer:: {esc_field(answer)}", *noted, *arbiter]))
+    return status, with_tail(res, confirmed)
+
+
+def parse_answer(status, res, where):
+    """(answer, note) of an escaped `answer:: ...` answered or deferred resolution, or None."""
+    if status not in ("answered", "deferred") or not ANSWER_MARK.match(res):
+        return None
+    fields = split_fields(res)
+    arbiter = fields[-1] == "arbiter: USER-RESERVED"
+    fields = fields[:-1] if arbiter else fields
+    note = HOLD_FIELD.match(fields[1]) if len(fields) == 2 else None
+    if (
+        len(fields) > 2
+        or (len(fields) == 2 and not (note and note.group(1) == "note"))
+        or arbiter != (status == "deferred")
+    ):
+        raise SystemExit(f"refused: unreadable answer {res!r} in {where}")
+    answer = ANSWER_MARK.match(fields[0]).group(1)
+    return unesc_field(answer), unesc_field(note.group(2)) if note else ""
 
 
 def parse_proposal(res, where):
@@ -421,25 +492,8 @@ def settle(q, responses, events, seed_rows):
     if decision == "defer" and superseded:
         # The resolution stays the seed's own, so a re-import reads the same proposal back.
         return "superseded-by-plan", seed_resolution(seed, confirmed), text, False
-    if decision == "accept":
-        res = f"accepted: {q.get('recommendation') or 'the recommendation'}{note}"
-        return "answered", with_tail(res, confirmed), text, False
-    if decision == "alt":
-        key = rec.get("alt") or ""
-        alt = next(
-            (
-                a.get("text", "")
-                for a in q.get("alternatives") or []
-                if a.get("key") == key
-            ),
-            "",
-        )
-        return "answered", with_tail(f"alt {key}: {alt}{note}", confirmed), text, False
-    if decision == "own":
-        return "answered", with_tail(f"free-text: {text}", confirmed), text, False
-    if decision == "defer":
-        res = "deferred" + (f": {text}" if text else "") + "; arbiter: USER-RESERVED"
-        return "deferred", with_tail(res, confirmed), text, True
+    if decision in ("accept", "alt", "own", "defer"):
+        return (*answer_row(q, rec, confirmed), text, decision == "defer")
     if superseded:
         # A set-aside decision leaves the plan's proposal waiting on the user again.
         return "superseded-by-plan", seed_resolution(seed, confirmed), "", False
@@ -884,12 +938,17 @@ def import_ledger(doc, text, ledger, at):
                 res = f"confirmed: {held.group(4)}" if held.group(4) else ""
         elif status not in UNSETTLED:
             res, commits = split_tail(res)
+        elif status == "superseded-by-plan" and not (
+            PROPOSAL_MARK.match(res) or PROPOSES.match(res)
+        ):
+            res, commits = split_tail(res)
+        answer = parse_answer(status, res, ledger)
         listed = CONFIRMED.match(res) if status == "open" and not held else None
         proposal = (
             parse_proposal(res, ledger) if status == "superseded-by-plan" else None
         )
-        # An escaped open row settles from its commitments alone, as a held row does.
-        if not (listed and listed.group(1)):
+        # An escaped open or answer row settles from its state alone, as a held row does.
+        if not (listed and listed.group(1)) and not answer:
             seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         if proposal:
             new, old, commits = proposal
@@ -906,22 +965,20 @@ def import_ledger(doc, text, ledger, at):
             "commits": [],
             "alternatives": [],
         }
-        if status == "answered":
-            decision, alt, dtext, recommendation = seeded_decision(res)
+        if answer:
+            q["terminal"] = held_terminal(q, *answer, at)
+            if (q["terminal"]["decision"] == "defer") != (status == "deferred"):
+                raise SystemExit(
+                    f"refused: {status} row with answer {res!r} in {ledger}"
+                )
+        elif status in ("answered", "deferred", "blocked"):
+            decision, alt, dtext, recommendation = plain_decision(status, res)
             if recommendation:
                 q["recommendation"] = recommendation
             q["terminal"] = {
                 "decision": decision,
                 "alt": alt,
                 "text": dtext,
-                "updatedAt": at,
-                "seeded": True,
-            }
-        elif status in ("deferred", "blocked"):
-            q["terminal"] = {
-                "decision": "defer",
-                "alt": None,
-                "text": res,
                 "updatedAt": at,
                 "seeded": True,
             }

@@ -899,13 +899,13 @@ class TestImportLedger(SessionCase):
         self.assertEqual(
             rows,
             [
-                "- Q1 | answered | round 1 | Question Q1? | accepted: Recommended answer "
-                "for Q1.; note: fine; really" + tail,
-                "- Q2 | answered | round 1 | Question Q2? | alt a: Alt a of Q2; note: a note"
-                + tail,
+                "- Q1 | answered | round 1 | Question Q1? | answer:: accepted: Recommended "
+                "answer for Q1.; note: fine\\; really" + tail,
+                "- Q2 | answered | round 1 | Question Q2? | answer:: alt a: Alt a of Q2; "
+                "note: a note" + tail,
                 "- Q3 | answered | round 1 | Question Q3? | free-text: mine" + tail,
-                "- Q4 | deferred | round 1 | Question Q4? | deferred: later; arbiter: "
-                "USER-RESERVED" + tail,
+                "- Q4 | deferred | round 1 | Question Q4? | answer:: deferred: later; "
+                "arbiter: USER-RESERVED" + tail,
                 "- Q5 | answered | round 1 | Question Q5? | free-text: mine; confirmed:: y; "
                 "confirmed::;",
                 "- Q6 | answered | round 1 | Question Q6? | free-text: mine; confirmed::; "
@@ -935,6 +935,72 @@ class TestImportLedger(SessionCase):
             [q["terminal"]["text"] for q in got["questions"][4:7]],
             ["mine; confirmed:: y", "mine; confirmed::", "mine; confirmed::"],
         )
+
+    def test_an_unheld_answer_round_trips_its_text_and_note(self):
+        terminals = [
+            {"decision": "accept", "text": "keep it; short"},
+            {"decision": "alt", "alt": "a", "text": "a | note"},
+            {"decision": "own", "text": "two  spaces\nand | a pipe"},
+            {"decision": "defer", "text": "after the audit; maybe"},
+            {"decision": "accept"},
+            {"decision": "own", "text": "plain words"},
+        ]
+        qs = [
+            question(f"Q{i}", terminal=dict(t, updatedAt=AT))
+            for i, t in enumerate(terminals, 1)
+        ]
+        self.session(qs, [])
+        first = self.export("ledger")
+        rows = register_rows(first)
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | answered | round 1 | Question Q1? | answer:: accepted: Recommended "
+                "answer for Q1.; note: keep it\\; short",
+                "- Q2 | answered | round 1 | Question Q2? | answer:: alt a: Alt a of Q2; "
+                "note: a \\| note",
+                "- Q3 | answered | round 1 | Question Q3? | answer:: free-text: two  "
+                "spaces\\nand \\| a pipe",
+                "- Q4 | deferred | round 1 | Question Q4? | answer:: deferred: after the "
+                "audit\\; maybe; arbiter: USER-RESERVED",
+                "- Q5 | answered | round 1 | Question Q5? | accepted: Recommended answer "
+                "for Q5.",
+                "- Q6 | answered | round 1 | Question Q6? | free-text: plain words",
+            ],
+        )
+        rc, out = self.check("--ledger", first)
+        self.assertIn("deferred=1 blocked=0 withdrawn=0 answered=5", out)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        self.assertEqual(load_state(fresh), load_state(self.dir))
+
+    def test_an_escaped_answer_that_contradicts_its_row_is_refused(self):
+        for i, row in enumerate(
+            [
+                "answered | round 1 | Who? | answer:: deferred: later",
+                "deferred | round 1 | Who? | answer:: accepted: x; arbiter: USER-RESERVED",
+                "deferred | round 1 | Who? | answer:: deferred: later",
+                "answered | round 1 | Who? | answer:: free-text: x; arbiter: USER-RESERVED",
+                "answered | round 1 | Who? | answer:: accepted: x; why: y",
+            ]
+        ):
+            with self.subTest(row=row):
+                d = self.tmp / f"bad-{i}"
+                d.mkdir()
+                ledger = self.tmp / f"bad-{i}.md"
+                ledger.write_text(
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    f"- Q1 | {row}\n",
+                    encoding="utf-8",
+                )
+                rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=d)
+                self.assertNotEqual(rc, 0, out)
+                self.assertIn("refused", out)
 
     def test_a_legacy_answered_row_keeps_its_confirmed_text(self):
         rows = [
@@ -1285,7 +1351,7 @@ class TestSupersededByPlan(SessionCase):
         rows = self.respond([event(1, "Q2", "alt", alt="was")], d=fresh)
         self.assertEqual(
             rows[1],
-            "- Q2 | answered | round 1 | Who writes? | alt was: any enrolled user",
+            "- Q2 | answered | round 1 | Who writes? | answer:: alt was: any enrolled user",
         )
 
     def test_accept_after_a_reimported_defer_reconfirms_the_proposal(self):
@@ -1393,6 +1459,49 @@ class TestSupersededByPlan(SessionCase):
         self.seed()
         rows = self.respond([event(1, "Q2", "alt", alt="was")])
         self.assertRegex(rows[1], r"^- Q2 \| answered \| .*alt was: any enrolled user$")
+
+    def test_another_shape_keeps_its_confirmed_commitments(self):
+        cases = [
+            ("moot after the plan changed", ["A; b", "C"], "; confirmed:: A\\; b; C"),
+            ("moot; confirmed:: kept", [], "; confirmed::;"),
+            (
+                "plan proposes: x",
+                ["a; was: b", "WAS: c"],
+                "; confirmed:: a\\; \\u0077as: b; \\u0057AS: c",
+            ),
+        ]
+        for i, (res, commits, tail) in enumerate(cases):
+            with self.subTest(res=res):
+                d, fresh = self.tmp / f"other-{i}", self.tmp / f"other-re-{i}"
+                d.mkdir()
+                fresh.mkdir()
+                seed = {"status": "superseded-by-plan", "round": 1, "resolution": res}
+                q = question("Q1", title="Which?", alternatives=[], commits=commits)
+                q["commitsConfirmed"] = [
+                    {"index": k, "reason": "chat", "at": AT}
+                    for k in range(len(commits))
+                ]
+                doc = {
+                    "meta": {"seededFrom": {"at": AT, "rows": {"Q1": seed}}},
+                    "rev": 1,
+                    "questions": [q],
+                }
+                (d / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+                first = self.export("ledger", d=d)
+                rows = [f"- Q1 | superseded-by-plan | round 1 | Which? | {res}{tail}"]
+                self.assertEqual(register_rows(first), rows)
+                rc, out = self.check("--ledger", first)
+                self.assertIn("superseded=1", out)
+                rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+                self.assertEqual(rc, 0, out)
+                got = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+                self.assertEqual(
+                    exporters.commitments(got["questions"][0], []), (commits, [])
+                )
+                self.assertEqual(
+                    got["meta"]["seededFrom"]["rows"]["Q1"]["resolution"], res
+                )
+                self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
 
     def test_a_resolution_of_another_shape_still_imports(self):
         doc = self.seed(res="moot after the plan changed")
@@ -1570,6 +1679,7 @@ def held_state(doc, resp):
             "decision": rec.get("decision"),
             "alt": rec.get("alt") if rec.get("decision") == "alt" else None,
             "text": rec.get("text") or "",
+            "said": exporters.decision_fields(q, rec)[0] if rec else None,
             "confirmed": exporters.commitments(q, events)[0],
             "aside": (
                 aside.get("decision"),
@@ -1643,10 +1753,11 @@ for _name, (_ops, _seed) in corpus_cases().items():
 
 
 class TestHeldRowProperty(SessionCase):
-    """Random held rows over every hold shape, plus a never-held open row with confirmed
-    commitments and a superseded-by-plan row whose hold was cleared: export -> import -> export
-    is identical, the imported state equals the original before and after the hold is cleared,
-    no row spans lines, and check-open-questions.sh counts every row."""
+    """Random held rows over every hold shape, plus never-held rows (open with confirmed
+    commitments, answered and deferred, superseded-by-plan with a proposal or another
+    resolution): export -> import -> export is identical, the imported state equals the original
+    before and after the hold is cleared, no row spans lines, and check-open-questions.sh counts
+    every row."""
 
     PIECES = [
         ";",
@@ -1713,8 +1824,8 @@ class TestHeldRowProperty(SessionCase):
         rnd = random.Random(seed)
         qs, rows = [], {}
         expect = {"open": 0, "superseded": 0, "answered": 0, "deferred": 0}
-        # Unheld rows whose decision the plain answer vocabulary cannot carry whole; only
-        # their confirmed commitments are compared after the import.
+        # Unheld superseded-by-plan rows reconfirmed by an accept or kept by a defer: the row
+        # keeps the proposal, not the decision, so only their confirmed commitments are compared.
         expect["loose"] = set()
         for i, (by, decision, superseded, confirmed) in enumerate(self.SHAPES, 1):
             qid = f"Q{i}" if seed % 2 == 0 else f"H{i}"
@@ -1814,7 +1925,8 @@ class TestHeldRowProperty(SessionCase):
                     "text": self.text(rnd),
                     "updatedAt": AT,
                 }
-                expect["loose"].add(qid)
+                if superseded:
+                    expect["loose"].add(qid)
             if superseded:
                 new, old, structured = self.proposal(rnd)
                 q["recommendation"] = new
@@ -1833,6 +1945,33 @@ class TestHeldRowProperty(SessionCase):
             else:
                 expect["superseded" if superseded else "open"] += 1
             qs.append(q)
+        # Never-held superseded-by-plan rows whose resolution is not a proposal, some with
+        # confirmed commitments, some holding the confirmed tail's mark.
+        for mark in ("", "", "; confirmed::", "; confirmed:: x"):
+            qid = f"Q{len(qs) + 1}" if seed % 2 == 0 else f"H{len(qs) + 1}"
+            commits = [self.text(rnd) for _ in range(rnd.randint(0, 3))]
+            qs.append(
+                {
+                    "id": qid,
+                    "short": f"Short {qid}",
+                    "title": f"Question {qid}?",
+                    "round": 1,
+                    "commits": commits,
+                    "commitsConfirmed": [
+                        {"index": k, "reason": "chat", "at": AT}
+                        for k in range(len(commits))
+                        if rnd.random() < 0.7
+                    ],
+                    "alternatives": [],
+                    "history": [],
+                }
+            )
+            rows[qid] = {
+                "status": "superseded-by-plan",
+                "round": 1,
+                "resolution": exporters.clean("moot " + self.text(rnd) + mark),
+            }
+            expect["superseded"] += 1
         meta = {"title": "Held rows"}
         if rows:
             meta["seededFrom"] = {"at": AT, "rows": rows}
