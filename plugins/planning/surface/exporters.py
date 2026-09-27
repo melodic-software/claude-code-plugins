@@ -35,8 +35,11 @@ QN = re.compile(r"^Q[1-9][0-9]*$")
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
-# An open row held on research or on the user; a research hold carries the answer it keeps.
-HELD = re.compile(r"^(waits on|awaiting user): (.*?)(?:; answer: (.*))?$")
+# An open row held on research or on the user; a research hold carries the answer it keeps,
+# and an unanswered one the commitments confirmed on it.
+HELD = re.compile(
+    r"^(waits on|awaiting user): (.*?)(?:; answer: (.*)|; confirmed: (.*))?$"
+)
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -552,8 +555,12 @@ def import_ledger(doc, text, ledger, at):
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
         held = HELD.match(res) if status == "open" else None
+        confirmed = held.group(4) if held else None
         if held:  # the hold itself is restored below, so its text leaves the seeded row
-            status, res = ("answered", held.group(3)) if held.group(3) else (status, "")
+            if held.group(3):
+                status, res = "answered", held.group(3)
+            else:
+                res = f"; confirmed: {confirmed}" if confirmed else ""
         seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         q = {
             "id": qid,
@@ -593,6 +600,13 @@ def import_ledger(doc, text, ledger, at):
             q["alternatives"] = [{"key": "was", "text": m.group(2)}]
         if held:
             q.update(waiting=True, waitsOn=held.group(2))
+            # A held row settles from its commitments, not from the seeded text.
+            if confirmed:
+                q["commits"] = confirmed.split("; ")
+                q["commitsConfirmed"] = [
+                    {"index": i, "reason": SEED_NOTE, "at": at}
+                    for i in range(len(q["commits"]))
+                ]
             if held.group(1) == "awaiting user":
                 q["waitingBy"] = "user"
         by = "claude" if status in UNSETTLED else "user-terminal"

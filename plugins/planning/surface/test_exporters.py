@@ -716,6 +716,44 @@ class TestImportLedger(SessionCase):
             ],
         )
 
+    def test_a_held_row_keeps_its_confirmed_commitments_apart_from_its_hold(self):
+        self.session([question("Q1", commits=["One writer only", "No network"])], [])
+        self.apply(
+            {"op": "wait", "id": "Q1", "waitsOn": "the benchmark"},
+            {
+                "op": "confirm-commitments",
+                "id": "Q1",
+                "indices": [0],
+                "reason": "said in chat",
+            },
+        )
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Question Q1? | waits on: the benchmark; confirmed: One writer only"
+            ],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        [q] = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
+        self.assertEqual(q["waitsOn"], "the benchmark")
+        self.assertEqual(exporters.commitments(q, []), (["One writer only"], []))
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        self.apply({"op": "wait", "id": "Q1", "clear": True}, d=fresh)
+        self.assertEqual(
+            register_rows(self.export("ledger", d=fresh)),
+            ["- Q1 | open | round 1 | Question Q1? | ; confirmed: One writer only"],
+        )
+
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
         ledger = self.export("ledger")
