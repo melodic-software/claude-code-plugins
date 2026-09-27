@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.0] - 2026-09-27
+
+### Added
+
+- `branch_issue_pattern` is a key on the layered `.claude/source-control.md` surface. `parse-branch-issue.sh` reads the local, team, and user-global layers (per key, last wins) before any other source. A fenced value (backtick or tilde fence, info string allowed) resolves to the first non-blank line inside the fence, and headings inside fenced blocks are ignored. A layer holding an invalid ERE, a backreference, or an empty or unterminated fence is reported on stderr and skipped; an invalid or backreferencing userConfig value is reported and ignored. The script prints only an all-digit capture: a pattern with no capture group, or a non-numeric capture, prints nothing and exits 1 with a note. Every note names the source and the reason, never the pattern text. `parse-branch-issue.test.sh` covers cascade-only, userConfig-only, cascade over userConfig, layer order, the invalid-layer skip, the placeholder, fenced values, fence errors, the numeric-output rule, backreference rejection, and notes that omit the pattern.
+- `parse-branch-issue.sh` parses the section strictly, so a malformed layer never supplies the wrong issue number. It accepts a leading UTF-8 BOM and a closing `#` sequence on the heading. A near-miss H2 (`## branch_issue_pattern:`, `## Branch_Issue_Pattern`, `## branch_issue_pattern (ERE)`) stops resolution with a note: no output and exit 1, never a fall back to a lower layer, the userConfig, or the default. A first value line that is a heading or an HTML comment, and an unterminated fence with content, are reported and the layer skipped. Before any pattern is compiled or matched it must keep within 200 characters, `{m,n}` bounds of at most 16, and no quantifier on a group whose body already holds one; a pattern that breaks a limit is reported and skipped, which stops a nested bounded repetition from exhausting memory at compile time. `apply-convention.md` rejects the same patterns before setup writes one. `reference/config-resolution.md` states the parsing rules and the limits, and `parse-branch-issue.test.sh` covers each.
+- `/source-control:setup` `check` reports the effective `branch_issue_pattern` and what supplies it (a layer, the deprecated userConfig fallback, or the built-in default), and `apply` accepts `branch_issue_pattern=` to write it to the chosen layer. `check` confirms the row by running `parse-branch-issue.sh` with the deprecated userConfig value as its second argument, so a pattern set only there is reported correctly. `reference/apply-convention.md` routes `branch_issue_pattern=` alone (validate, then write or replace only that section, leaving the rest of the layer untouched) and combined with `subject_pattern=` (both in one pass), and its write template carries the optional `## branch_issue_pattern` section.
+- [ADR 0039](../../docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md) records which babysit keys stay in `userConfig` (identity and trust keys) and which move to the cascade (`branch_issue_pattern` now, ten repository-policy keys under #4572). `reference/config-resolution.md` states the multi-domain consequence: one value per machine for each `babysit_*` key, so an operator with several identity domains leaves them unset or launches the lane with a per-domain `--settings` file.
+
+### Changed
+
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+- `/source-control:pull-request create --pushed --worktree` runs `parse-branch-issue.sh` with `CLAUDE_PROJECT_DIR="$WT"`, so it reads the worktree's own `source-control.md` layers, and `create.md` keeps the script's stderr visible.
+
+### Deprecated
+
+- The `branch_issue_pattern` `userConfig` option. It is still read as a fallback after the cascade, with a deprecation note on stderr naming the cascade key, until a later minor release removes it, no earlier than 2026-12-27.
+
+## [0.60.1] - 2026-09-27
+
+### Fixed
+
+- The babysit stuck-check route for a wrong `runs-on` label points at the branch's own workflow YAML. An organization-owned label is resolved by reading the vendored standards `runner-policy` component and `docs/ci-runner-routing.md`.
+
 ## [0.60.0] - 2026-09-26
 
 ### Added

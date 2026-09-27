@@ -1,0 +1,9 @@
+{
+  "groups": [
+    {"id": "g3", "title": "Release", "summary": "How a green build ships."}
+  ],
+  "questions": [
+    {"id": "Q6", "group": "g3", "stage": "interview", "short": "Ship", "title": "Should a green build on main ship on its own?", "recommendation": "Yes, to staging only.", "commits": ["Ships every green main build to staging", "Never ships to production on its own"], "alternatives": [{"key": "a", "text": "Ship nothing on its own"}, {"key": "b", "text": "Ship to production too"}]},
+    {"id": "Q7", "group": "g3", "stage": "interview", "short": "Notes", "title": "Should a release write its own notes?", "recommendation": "Yes, from the merged pull requests.", "commits": [], "alternatives": [{"key": "a", "text": "Write them by hand"}, {"key": "b", "text": "No release notes"}]}
+  ]
+}

@@ -88,11 +88,13 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    generate findings. Coverage is uniform: never trade the rubric away for budget on a
    repo-wide run. Make it affordable by fanning out instead, per
    [`context/rubric-fanout.md`](context/rubric-fanout.md), with `rubric-fanout.sh`: `plan`
-   orders the step 2 list and packs it into batches of about 50,000 words, `extract` writes
+   orders the step 2 list, packs it into batches of about 50,000 words and writes the
+   corpus cue counts every batch receives, `extract` writes
    the rubric text to one file, one fresh-context subagent per batch gets that file's path and
    its batch list and writes its result file into the findings home (the scratchpad for a
    non-repository target) before it reports, `status` names the batches that still need a run,
-   and `merge` joins the results once every batch is complete. A batch whose result file is
+   and `merge` joins the results once every batch is complete and flags cross-batch
+   verdict splits. A batch whose result file is
    bound to its current list and the listed files' current contents is skipped on a re-run,
    so a rate limit or a crash costs one batch, not the pass, and a leftover result from an
    earlier scope or from before an edit is never accepted.

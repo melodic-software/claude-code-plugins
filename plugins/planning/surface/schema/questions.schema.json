@@ -18,9 +18,62 @@
     },
     "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
     "handled": {"type": "array", "items": {"type": "integer"}},
-    "handledSeq": {"type": "integer"}
+    "handledSeq": {"type": "integer"},
+    "status": {
+      "description": "What Claude is doing now, set and cleared by the set-status op.",
+      "type": "object",
+      "required": ["text", "at"],
+      "additionalProperties": false,
+      "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
+    },
+    "activity": {
+      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, and `restate` carries the restatement rev a `restate` wrote.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": ["at", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "at": {"type": "string"},
+          "seq": {
+            "type": "integer",
+            "description": "One above the highest seq kept when the entry was written; the page keys seen state by it. Entries written before it existed have none."
+          },
+          "text": {"type": "string"},
+          "ids": {"type": "array", "items": {"type": "string"}},
+          "notes": {"type": "boolean"},
+          "added": {"type": "boolean"},
+          "restate": {"type": "integer"}
+        }
+      }
+    },
+    "restatement": {
+      "description": "The shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
+      "type": "object",
+      "required": ["rev", "at", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"type": "integer"},
+        "at": {"type": "string"},
+        "sections": {"$ref": "#/$defs/sections"}
+      }
+    }
   },
   "$defs": {
+    "sections": {
+      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goal": {"type": "string"},
+        "constraints": {"type": "string"},
+        "decisions": {"type": "string"},
+        "acceptance": {"type": "string"},
+        "deferred": {"type": "string"},
+        "planningOwned": {"type": "string"}
+      }
+    },
     "meta": {
       "type": "object",
       "properties": {
@@ -48,7 +101,14 @@
             "properties": {
               "status": {"enum": ["open", "answered", "deferred", "withdrawn", "blocked", "superseded-by-plan"]},
               "round": {"type": "integer"},
-              "resolution": {"type": "string"}
+              "resolution": {"type": "string"},
+              "proposal": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "A held superseded-by-plan row's proposal and prior answer, as import-ledger read them from the escaped row; read in place of the resolution."
+              }
             }
           }
         }
@@ -98,6 +158,10 @@
         "alt": {"type": ["string", "null"]},
         "text": {"type": "string"},
         "updatedAt": {"type": "string"},
+        "rev": {
+          "type": "integer",
+          "description": "The questions.json rev the record-terminal write produced; compared with setAsideRev when both are present."
+        },
         "seeded": {"type": "boolean"}
       }
     },
@@ -126,6 +190,20 @@
         "recommendation": {"type": "string"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
+        "commitsConfirmed": {
+          "description": "Commitments confirmed outside the page, written by the confirm-commitments op, one entry per commitment index.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "reason", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "index": {"type": "integer"},
+              "reason": {"type": "string"},
+              "at": {"type": "string"}
+            }
+          }
+        },
         "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
         "dependsOn": {"type": "array", "items": {"type": "string"}},
         "followUpOf": {"type": "string"},
@@ -133,6 +211,22 @@
         "supersededBy": {"type": "string"},
         "waiting": {"type": "boolean"},
         "waitsOn": {"type": "string"},
+        "waitingBy": {
+          "enum": ["claude", "user"],
+          "description": "Who a hold waits on; absent means claude (pending research). Written by the wait op, removed when the hold clears."
+        },
+        "setAsideAt": {
+          "type": "string",
+          "description": "When a `wait` with `by: user` landed. A terminal decision without a rev whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+        },
+        "setAsideRev": {
+          "type": "integer",
+          "description": "The questions.json rev of the write that landed a `wait` with `by: user`. A terminal decision whose rev is not above this does not count as an answer, even after the hold clears. A record-terminal later in the same write lowers it by one, so that answer counts."
+        },
+        "setAsideSeq": {
+          "type": "integer",
+          "description": "The page's responses seq when a `wait` with `by: user` landed. A page decision whose seq is not above this does not count as an answer, even after the hold clears."
+        },
         "contentRev": {"type": "integer"},
         "rev": {"type": "integer"},
         "visuals": {

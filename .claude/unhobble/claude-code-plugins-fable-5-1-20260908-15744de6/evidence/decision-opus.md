@@ -51,7 +51,7 @@ EVIDENCE
   ("disable the ones classified `behavioral` **for this project**").
 - But the outcome of `true` at user + `false` at project is **inference, not documentation** (D1
   Unverified #1: no page states that pair), and mid-session enablement changes are unverified
-  (D1 Unverified #3; `docs/CLOUD-SESSIONS.md` ~line 286 records the registry is built at process
+  (D1 Unverified #3; `docs/cloud-sessions.md` ~line 286 records the registry is built at process
   start and not re-read). Thin evidence → keep the contract intact.
 
 WHAT WOULD CHANGE THIS VERDICT
@@ -106,7 +106,7 @@ EVIDENCE
   means that under contract Phase 4 step 4 it would be **restored regardless of the ledger** as a
   register hold. Stripping it therefore purchases cost with no evidentiary return. Thin/contested
   evidence → keep.
-- (d) **keep.** D2 §3.3, `docs/PLUGIN-PHILOSOPHY.md` "Classifying a hook": "a hook with a
+- (d) **keep.** D2 §3.3, `docs/plugin-philosophy.md` "Classifying a hook": "a hook with a
   behavioral purpose but a non-derivable ground-truth oracle ... is a keep, not an ablation
   candidate." D2 §4(d): `scripts/run-ruff.sh` exits 2 on drift but **127/SKIP when the pin is
   unavailable** (fail-open), CI's only ruff lane covers one subtree
@@ -231,7 +231,7 @@ EVIDENCE
 
 - `rule-ruff-pin` — manifest has `class: convention, action: keep, operator_optional_strip: true`,
   reason "Repo tooling convention". The memo shows it is stronger than that: D2 §3.3's ground-
-  truth-oracle carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Classifying a hook") plus D2 §4(d)'s
+  truth-oracle carve-out (`docs/plugin-philosophy.md` "Classifying a hook") plus D2 §4(d)'s
   fail-open wrapper, single-subtree CI lane, and non-derivable pin fact make it a **keep on the
   rule, not a keep the operator may casually override**. Change: keep `class: convention`, set
   `"operator_optional_strip": false`, and add `"keep_basis": "ground-truth-oracle carve-out

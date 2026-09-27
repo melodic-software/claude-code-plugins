@@ -40,11 +40,15 @@ EMPTY_RESPONSES = {
 }
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
 REQUESTS = {"ask", "rephrase"}
-FREE = {"note", "wrapup"}  # events not tied to a question
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision.
-WITH_ALT = {"alt", "confirm"}
+# Events not tied to a question; `confirm-understanding` answers the restatement.
+FREE = {"note", "wrapup", "confirm-understanding"}
+# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision, and
+# `confirm-understanding` carries `confirm` or `off`.
+WITH_ALT = {"alt", "confirm", "confirm-understanding"}
+UNDERSTANDING = ("confirm", "off")
 API = 2
 MAX_BODY = 64 * 1024
+MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 # A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
@@ -61,6 +65,9 @@ def runtime_path(rel):
 
 
 WAIT_MAX = 120
+QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 2.0  # never holding it longer than this in all
+PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
@@ -526,6 +533,46 @@ def check_alt(q, kind, alt):
             )
 
 
+def check_understanding(doc, alt, text, rev):
+    """ValueError (400) or Conflict (409 stale) for a confirm-understanding event."""
+    if alt not in UNDERSTANDING:
+        raise ValueError("confirm-understanding needs alt: confirm or off")
+    if alt == "off" and not text.strip():
+        raise ValueError("text required: say what is off")
+    current = (doc.get("restatement") or {}).get("rev")
+    if not isinstance(current, int):
+        raise ValueError("there is no restatement to confirm")
+    if rev is None:
+        raise ValueError("confirm-understanding needs contentRev: the restatement rev")
+    if rev != current:
+        raise Conflict({"error": "stale", "contentRev": current})
+
+
+def repeat_of(events, event):
+    """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
+    event's seq. A commitment's confirm repeats any live confirm of it; an understanding Confirm
+    repeats only when the newest answer to that restatement rev is a Confirm."""
+    kind = event["kind"]
+    if kind == "confirm":
+        same = [
+            e
+            for e in events
+            if not e.get("withdrawn")
+            and (e.get("kind"), e.get("id"), e.get("alt"))
+            == (kind, event["id"], event["alt"])
+        ]
+    elif kind == "confirm-understanding" and event["alt"] == "confirm":
+        same = [
+            e
+            for e in events
+            if e.get("kind") == kind and e.get("contentRev") == event["contentRev"]
+        ][-1:]
+        same = [e for e in same if e.get("alt") == "confirm"]
+    else:
+        return None
+    return same[0] if same else None
+
+
 class Conflict(Exception):
     """A 409; the payload goes back to the page as-is."""
 
@@ -549,6 +596,7 @@ class Hub:
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
         self.cond = threading.Condition()
         self.waiters = 0
+        self.streams = 0
         self.last_wait = 0.0
         self.last_deliver = 0.0
         self.hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
@@ -714,6 +762,10 @@ class Hub:
             raise ValueError("text required")
         now = now_iso()
         with self.cond:
+            if kind == "confirm-understanding":
+                check_understanding(
+                    load_json(self.questions, {}), alt, text, msg.get("contentRev")
+                )
             r = load_json(self.responses, EMPTY_RESPONSES)
             for k, v in EMPTY_RESPONSES.items():
                 r.setdefault(k, json.loads(json.dumps(v)))
@@ -728,6 +780,8 @@ class Hub:
             if kind == "undo":
                 self._undo(r, doc, msg, event)
                 qid = event["id"]
+            elif kind == "confirm-understanding":
+                event["contentRev"] = msg["contentRev"]
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
                 if msg.get("contentRev") != current:
@@ -750,8 +804,11 @@ class Hub:
                         }
                     )
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
-            if kind in WITH_ALT:
+            if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
+            dup = repeat_of(r["events"], event)
+            if dup:
+                return dup["seq"], content_rev(qs[qid], r["events"]) if qid else None
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
@@ -823,6 +880,20 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
+    def settle(self, r):
+        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all,
+        so a burst of saves wakes the watcher once. Holds self.cond; returns the newest responses."""
+        cap = time.time() + BURST_SECONDS
+        while True:
+            left = min(QUIET_SECONDS, cap - time.time())
+            if left <= 0:
+                return r
+            seq = r.get("seq", 0)
+            self.cond.wait(left)
+            r = load_json(self.responses, EMPTY_RESPONSES)
+            if r.get("seq", 0) == seq:
+                return r
+
     def wait(self, after, timeout, gone=None, replayed=0, watcher=None):
         """Block for events; returns (seq, events, replay) or None when the client went away.
 
@@ -835,6 +906,12 @@ class Hub:
         deadline = time.time() + timeout
         newest = None
         lease = None
+
+        def select_events(r):
+            if after == "handled":
+                return self.unhandled(r)
+            return [e for e in r.get("events", []) if e.get("seq", 0) > after]
+
         with self.cond:
             if watcher is not None:
                 lease = self.claim(watcher)
@@ -850,12 +927,10 @@ class Hub:
                     if after != "handled":
                         if after > top:
                             after = 0  # stale cursor: responses.json was reset
-                        events = [
-                            e for e in r.get("events", []) if e.get("seq", 0) > after
-                        ]
+                        events = select_events(r)
                     elif newest is None:
                         newest = top
-                        events = self.unhandled(r)
+                        events = select_events(r)
                         if replayed > top:
                             replayed = 0  # responses.json was reset
                         if any(e["seq"] > replayed for e in events):
@@ -864,10 +939,16 @@ class Hub:
                             events = []
                     elif top != newest:
                         newest = top
-                        events = self.unhandled(r)
+                        events = select_events(r)
                     else:
                         events = []
                     left = deadline - time.time()
+                    if events:
+                        r = self.settle(r)
+                        top = r.get("seq", 0)
+                        events = select_events(r)
+                        if replay is not None and events:
+                            replay = max(e["seq"] for e in events)
                     if events or left <= 0:
                         if events:
                             self.last_deliver = time.time()
@@ -1031,6 +1112,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def sse(self):
         hub = self.hub
+        with hub.cond:
+            full = hub.streams >= MAX_STREAMS
+            if not full:
+                hub.streams += 1
+        if full:
+            return self.send(503, {"error": f"at most {MAX_STREAMS} event streams"})
+        try:
+            self.stream()
+        finally:
+            with hub.cond:
+                hub.streams -= 1
+
+    def stream(self):
+        """State frames on every change and a ping when idle, until the client goes."""
+        hub = self.hub
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -1039,7 +1135,8 @@ class Handler(BaseHTTPRequestHandler):
         last_sig, last_beat, n = None, time.time(), 0
         try:
             self.wfile.write(b"retry: 2000\n\n")
-            while True:
+            self.wfile.flush()
+            while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
                     n += 1
@@ -1049,8 +1146,8 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     self.wfile.flush()
                     last_sig, last_beat = sig, time.time()
-                elif time.time() - last_beat > 15:
-                    self.wfile.write(b": keepalive\n\n")
+                elif time.time() - last_beat >= PING_SECONDS:
+                    self.wfile.write(b"event: ping\ndata: {}\n\n")
                     self.wfile.flush()
                     last_beat = time.time()
                 time.sleep(0.3)

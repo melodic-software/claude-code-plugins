@@ -147,7 +147,7 @@ covers `$HOME` specifically; that specific durability claim is unverified (see U
 
 > The whole catalog is installed here, so this repo dogfoods everything it publishes and a
 > regression in any plugin surfaces here first — bar what a repo delta opts out of.
-> — `<worktree>/docs/CLOUD-SESSIONS.md` (~line 372), read 2026-09-11
+> — `<worktree>/docs/cloud-sessions.md` (~line 372), read 2026-09-11
 
 > ... which the shared environment fetches at cache build, writes into the snapshot at
 > `/opt/melodic-fleet-plugins.json`, and installs at user scope; `cloud-bootstrap.sh` reads that
@@ -168,7 +168,7 @@ Bootstrap comment confirming user scope is the mechanism, not a preference:
 
 CI holds the dogfooding claim to the files:
 
-> docs/CLOUD-SESSIONS.md promises `enabledPlugins` "turns on the whole catalog, so this repo
+> docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole catalog, so this repo
 > dogfoods everything it publishes"; nothing enforced it ... The failure is silent by
 > construction: .claude/cloud-bootstrap.sh computes its install set from that same
 > enabledPlugins map.
