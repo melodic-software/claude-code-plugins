@@ -624,7 +624,10 @@ PROT3=(.appveyor.yml lefthook.yaml .lefthook.yml biome.jsonc .golangci.toml .gol
   .gitea/workflows/ci.yml .forgejo/workflows/ci.yml action.yml action.yaml
   db/changelog/db.changelog-master.yaml drizzle/0000_init.sql
   package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock Cargo.lock poetry.lock
-  composer.lock Gemfile.lock go.sum packages.lock.json gradle.lockfile)
+  composer.lock Gemfile.lock go.sum packages.lock.json gradle.lockfile
+  appveyor.yaml cloudbuild.yml cloudbuild.json .drone.yaml .pre-commit-config.yml
+  .pre-commit-hooks.yaml .semaphore/semaphore.yml .tekton/run.yaml .cirrus.yml codecov.yml
+  .vscode/settings.json .mcp.json)
 REC3=(.changeset/brave-cats.md docs/adrs/0001-x.md ADR-0002-y.md release-notes/v1.md incidents/2024-01.md)
 SETUP3=(sub/action.yml changelog/notes.md db/notes.md)
 for p in "${PROT3[@]}" "${REC3[@]}" "${SETUP3[@]}"; do put "$FX" "$p" 'v Q:\vol\one'; done
