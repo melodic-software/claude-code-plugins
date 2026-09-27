@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.41] - 2026-09-27
+
+### Changed
+
+- `generate` states three rules in normal register instead of all caps: every bullet renders all its source URLs (`slide-generation.md`), and `meta`/`theme` and the default brand tokens are not redefined per run (`build-pipeline.md`, two sites). The rules are unchanged, and `validate.js` still enforces the URL rule at gate time (#4120).
+
 ## [0.7.40] - 2026-09-27
 
 ### Changed

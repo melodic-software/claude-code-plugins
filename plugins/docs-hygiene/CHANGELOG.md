@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.2] - 2026-09-27
+
+### Changed
+
+- `compress`'s Phase A worker prompt writes its nine hard rules as "Never ..." instead of all-caps "NEVER ...". Every rule is unchanged, and the write-scope fence (`Touch ONLY <ABSOLUTE-PATH>. FORBIDDEN: ...`) keeps its emphasis (#4120).
+
 ## [0.23.1] - 2026-09-25
 
 ### Changed
