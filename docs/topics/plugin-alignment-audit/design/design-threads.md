@@ -126,8 +126,8 @@ tracked gaps (B) or shipping a placeholder (C).
 Addendum (plan review, 2026-09-27): four more live sites make the same promise and are rewritten too:
 `docs/finding-your-unknowns.md:142`, `docs/conventions/hook-precision/README.md:66`,
 `docs/conventions/pre-pr-ordering/README.md:69`, `docs/conventions/hook-observability/README.md:281`.
-Frozen records (CHANGELOGs, dated research, `docs/topics/`) stay as written. Listed in PLAN.md for
-the user's reply.
+Frozen records (CHANGELOGs, dated research, `docs/topics/`) stay as written. Approved by the user
+2026-09-27.
 
 ### T8. Skill name
 
@@ -254,8 +254,8 @@ only list because their verdicts are judgment (T3); reusing the suppression conv
 second store.
 
 Addendum (plan review, 2026-09-27): PLAN.md proposes standalone `ci.yml` steps for the registry check
-instead of `scripts/validate-plugins.sh`, which needs `claude` and `node` on PATH; listed in PLAN.md
-for the user's reply.
+instead of `scripts/validate-plugins.sh`, which needs `claude` and `node` on PATH. Approved by the
+user 2026-09-27.
 
 ### T14. Target scope, fan-out and findings persistence
 

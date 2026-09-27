@@ -1,6 +1,6 @@
 # Plugin conformance audit: plan
 
-Status: DRAFT, pending user approval. Implementation starts only after PR #4534 merges and this
+Status: APPROVED by the user 2026-09-27. Implementation starts only after PR #4534 merges and this
 branch merges `main` (design thread T17).
 
 ## Brief
@@ -269,10 +269,10 @@ each under the ~100 LOC-per-worker saving that would justify parallel workers. [
 
 ## Displaced answers and new external effects
 
-| Q | User said | Plan now proposes | New external effect | Source |
-|---|---|---|---|---|
-| T13 | Wire the registry check into `scripts/validate-plugins.sh` | Standalone `ci.yml` steps | none | reviewer fix |
-| T7 | Rewrite the listed citation sites | Also rewrite four more live sites of the same kind | none | reviewer fix |
+| Q | User said | Plan now proposes | New external effect | Source | Reply |
+|---|---|---|---|---|---|
+| T13 | Wire the registry check into `scripts/validate-plugins.sh` | Standalone `ci.yml` steps | none | reviewer fix | reconfirmed 2026-09-27 |
+| T7 | Rewrite the listed citation sites | Also rewrite four more live sites of the same kind | none | reviewer fix | reconfirmed 2026-09-27 |
 
 ## Decisions made (gate-passed)
 
