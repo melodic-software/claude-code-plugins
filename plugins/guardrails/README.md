@@ -170,17 +170,23 @@ out of scope until such a signal exists.
   sandbox. Content invariants that must hold are enforced write-path-independently
   by the opt-in git `pre-commit` content-invariants hook
   (`/guardrails:setup apply install-pre-commit-content`) or an equivalent CI check.
-  The block message carries a lane-specific scope note so a reader does
-  not credit the guard with coverage it never claimed.
-- **`block-hook-bypass` isolated-session remedy.** Write or Edit may be refused
-  for paths in the main checkout when the agent is in an isolated session or
-  worktree. That is not a dead end: write under a configured
-  `block_hook_bypass_scratch_roots` directory, or ask the operator for a
-  session-scoped disable via `claude --settings`. The user-global
-  `block_hook_bypass_enabled` switch is last resort. It persists across every
-  repository where guardrails is enabled. Those levers are printed on stderr
-  (Claude Code surfaces an exit-2 stderr reason; `systemMessage` is an exit-0
-  field and is discarded on a block).
+  This entry is where that scope is stated. Since **0.38.0** the block message
+  no longer prints it, so a blocked agent is not handed the list of unchecked
+  write forms; the once-per-session operator notice points here instead.
+- **`block-hook-bypass` block message and operator levers.** stderr is what the
+  blocked agent reads, so it carries only what the agent can act on: the
+  verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
+  too ("stop and tell the user"). On the `cat`, `echo`/`printf` and staged-move
+  lanes it also says why the target was not scratch-exempt and lists the roots
+  that exempt a bare target in this session. The PowerShell and python lanes
+  never consult a scratch root, so their message names none. The operator's
+  levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
+  targets only), a session-scoped disable via `claude --settings`, and the
+  user-global `block_hook_bypass_enabled` switch, which persists across every
+  repository where guardrails is enabled. They arrive once per session and agent
+  as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
+  human has confirmed that notice renders on a block, stderr also ends with a
+  one-line pointer to this README.
 - **Every hook says so when it could not run.** A hook has three outcomes,
   not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
   hook and the dispatcher install the shared abort boundary
