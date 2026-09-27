@@ -17,11 +17,20 @@
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SELF_DIR/.." && pwd)"
+# Prefer the git checkout root so a copy of this script outside scripts/
+# (workflow extracts origin/<base> to /tmp) still edits the PR working tree
+# and sources helpers from that checkout.
+if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  ROOT="$(cd "$SELF_DIR/.." && pwd)"
+fi
 cd "$ROOT"
 
+SCRIPTS_DIR="$ROOT/scripts"
+if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
+  SCRIPTS_DIR="$SELF_DIR"
+fi
 # shellcheck source=lib/changed-files.sh
-. "$SELF_DIR/lib/changed-files.sh"
+. "$SCRIPTS_DIR/lib/changed-files.sh"
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -216,8 +225,11 @@ if ((${#shipped_changed[@]} > 0)); then
     if [[ -n "$dep_body" ]]; then
       body_block+=$'\n'"$(printf '%s' "$dep_body" | sed 's/^/  /')"
     fi
-    if git diff --name-only "$merge_base..$head_commit" -- "plugins/$name" |
-      grep -qE 'dist/|bundle'; then
+    # Process substitution, not a pipe into grep -q: under pipefail a matched
+    # grep exits early and SIGPIPEs git (scripts/check-pipefail-grep-q.sh).
+    if grep -qE 'dist/|bundle' < <(
+      git diff --name-only "$merge_base..$head_commit" -- "plugins/$name"
+    ); then
       body_block+=$'\n'"  Committed bundle or dist artifact changed with this update."
     fi
 
@@ -234,19 +246,20 @@ if [[ "$edited" -eq 0 ]]; then
 fi
 
 # Self-check against the same gate Dependabot must pass.
-if ! bash "$SELF_DIR/check-changelog-parity.sh" --check; then
+parity="$SCRIPTS_DIR/check-changelog-parity.sh"
+if ! bash "$parity" --check; then
   echo "dependabot-plugin-bump: --check failed after edits" >&2
   exit 1
 fi
-if ! bash "$SELF_DIR/check-changelog-parity.sh" --check-bump "$base"; then
+if ! bash "$parity" --check-bump "$base"; then
   echo "dependabot-plugin-bump: --check-bump failed after edits" >&2
   exit 1
 fi
-if ! bash "$SELF_DIR/check-changelog-parity.sh" --check-preserved "$base"; then
+if ! bash "$parity" --check-preserved "$base"; then
   echo "dependabot-plugin-bump: --check-preserved failed after edits" >&2
   exit 1
 fi
-if ! bash "$SELF_DIR/check-changelog-parity.sh" --check-order; then
+if ! bash "$parity" --check-order; then
   echo "dependabot-plugin-bump: --check-order failed after edits" >&2
   exit 1
 fi

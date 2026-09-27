@@ -1085,6 +1085,9 @@ jobs:
       - name: Test the changelog-parity gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changelog-parity.test.sh
+      - name: Test the Dependabot plugin bump helper
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/dependabot-plugin-bump.test.sh
       - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         id: changelog_parity_check
         continue-on-error: true
