@@ -52,6 +52,9 @@ class Roots(http.server.SimpleHTTPRequestHandler):
             candidates.append(super().translate_path(path))
         return next((p for p in candidates if os.path.exists(p)), candidates[-1])
 
+    def list_directory(self, path):
+        self.send_error(403)
+
     def log_message(self, *a):
         pass
 
