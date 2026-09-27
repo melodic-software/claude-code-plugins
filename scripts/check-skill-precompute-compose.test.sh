@@ -43,7 +43,7 @@ run_check() (
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nBranch: !`git branch --show-current`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
-  if echo "$out" | grep -q '0 violation'; then
+  if grep -q '0 violation' <<<"$out"; then
     ok "single git precompute line passes"
   else
     fail "single git precompute should pass cleanly: $out"
@@ -57,7 +57,7 @@ rm -rf "$f"
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`date`\nB: !`pwd`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
-  if echo "$out" | grep -q '0 violation'; then
+  if grep -q '0 violation' <<<"$out"; then
     ok "two non-git precompute lines pass"
   else
     fail "two non-git lines should pass: $out"
@@ -71,7 +71,7 @@ rm -rf "$f"
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
-  if echo "$out" | grep -q 'VIOLATION:' && echo "$out" | grep -q 'Warn-only'; then
+  if grep -q 'VIOLATION:' <<<"$out" && grep -q 'Warn-only' <<<"$out"; then
     ok "git + multi-line warns in default mode"
   else
     fail "expected violation + warn-only: $out"
@@ -87,7 +87,7 @@ skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`g
 if out="$(run_check "$f" --strict --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   fail "strict mode should fail on violation"
 else
-  if echo "$out" | grep -q 'Strict mode: failing'; then
+  if grep -q 'Strict mode: failing' <<<"$out"; then
     ok "strict mode fails on violation"
   else
     fail "strict mode message missing: $out"
@@ -118,7 +118,7 @@ rm -rf "$f"
 # --- no args -> usage, exit 2 ------------------------------------------------
 new_fixture f
 out="$(run_check "$f" 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
+if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
   ok "no args prints usage and exits 2"
 else
   fail "no args should usage/exit 2 (rc=$rc): $out"
@@ -128,13 +128,13 @@ rm -rf "$f"
 # --- --help / -h -> usage, exit 2 --------------------------------------------
 new_fixture f
 out="$(run_check "$f" --help 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
+if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
   ok "--help prints usage and exits 2"
 else
   fail "--help should usage/exit 2 (rc=$rc): $out"
 fi
 out="$(run_check "$f" -h 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
+if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
   ok "-h prints usage and exits 2"
 else
   fail "-h should usage/exit 2 (rc=$rc): $out"
@@ -144,7 +144,7 @@ rm -rf "$f"
 # --- --strict alone -> usage, exit 2 (drains via --strict then empty) --------
 new_fixture f
 out="$(run_check "$f" --strict 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
+if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
   ok "--strict alone prints usage and exits 2"
 else
   fail "--strict alone should usage/exit 2 (rc=$rc): $out"
@@ -160,7 +160,7 @@ base="$(git -C "$f" rev-parse HEAD)"
 # Empty tip commit so diff vs base is empty — parser must still complete.
 git_test_config "$f" commit --allow-empty -qm tip >/dev/null
 if out="$(run_check "$f" "$base" 2>&1)"; then
-  if echo "$out" | grep -q 'nothing to gate'; then
+  if grep -q 'nothing to gate' <<<"$out"; then
     ok "bare base-ref drains parser and reaches scan"
   else
     fail "bare base-ref should reach scan (nothing to gate): $out"
@@ -183,7 +183,7 @@ git_test_config "$f" commit -qm change >/dev/null
 if out="$(run_check "$f" --strict "$base" 2>&1)"; then
   fail "strict + base-ref should fail on violation after parse"
 else
-  if echo "$out" | grep -q 'VIOLATION:' && echo "$out" | grep -q 'Strict mode: failing'; then
+  if grep -q 'VIOLATION:' <<<"$out" && grep -q 'Strict mode: failing' <<<"$out"; then
     ok "--strict base-ref drains parser, scans, and fails closed"
   else
     fail "expected violation + strict fail after --strict base-ref: $out"
@@ -206,7 +206,7 @@ skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm base >/dev/null
 out="$(run_check "$f" no-such-ref-deadbeef 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q 'not a valid commit'; then
+if [[ "$rc" -eq 2 ]] && grep -q 'not a valid commit' <<<"$out"; then
   ok "an invalid base ref exits 2"
 elif [[ "$rc" -eq 0 ]]; then
   fail "an invalid base ref passed SILENTLY (rc=0), the #3377 shape: $out"
@@ -243,7 +243,7 @@ fi
 out="$(run_check "$f" "$base" 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 0 ]]; then
   fail "a failed git diff passed SILENTLY (rc=0): $out"
-elif echo "$out" | grep -q 'refusing to report an empty change set'; then
+elif grep -q 'refusing to report an empty change set' <<<"$out"; then
   ok "a git diff failure after ref validation exits non-zero"
 else
   fail "expected the changed-files refusal diagnostic (rc=$rc): $out"
@@ -258,7 +258,7 @@ rm -rf "$f"
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 out="$(run_check "$f" --all 2>&1)" && rc=0 || rc=$?
-if [[ "$rc" -eq 0 ]] && echo "$out" | grep -q '1 skill(s) scanned, 1 violation'; then
+if [[ "$rc" -eq 0 ]] && grep -q '1 skill(s) scanned, 1 violation' <<<"$out"; then
   ok "--all scans the tree with no base-ref validation"
 else
   fail "--all should scan the fixture and report its violation (rc=$rc): $out"

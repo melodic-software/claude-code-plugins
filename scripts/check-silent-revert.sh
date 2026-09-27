@@ -1566,7 +1566,12 @@ verify_restoration() {
   # The whole file is validated, and both directions of the sha binding are
   # checked, BEFORE any marker is resolved -- so a corpus problem can never
   # pre-empt the walk and leave a partially reported failure looking complete.
-  local sha
+  # cut's delimiter is SEP, never its TAB default: the parsed view is
+  # SEP-delimited, so `cut -f1` would hand back the WHOLE line and the
+  # `grep -qxF` below could never match -- turning "does this fires row have
+  # a marker" into "no fires row has a marker" and dying on every corpus.
+  local sha marker_shas
+  marker_shas="$(cut -d"$SEP" -f1 "$markers")"
   while read -r sha; do
     [[ -n "$sha" ]] || continue
     # The incident has to be a real commit. A well-formed sha nobody can
@@ -1580,11 +1585,7 @@ verify_restoration() {
     # historical incident while silently covering no future one -- a green
     # signal that has stopped meaning what a reader takes it to mean, which is
     # #2691 wearing a new hat.
-    # cut's delimiter is SEP, never its TAB default: the parsed view is
-    # SEP-delimited, so `cut -f1` would hand back the WHOLE line and the
-    # `grep -qxF` below could never match -- turning "does this fires row have
-    # a marker" into "no fires row has a marker" and dying on every corpus.
-    cut -d"$SEP" -f1 "$markers" | grep -qxF "$sha" ||
+    grep -qxF "$sha" <<<"$marker_shas" ||
       die "the 'fires' row for ${sha:0:9} in $INCIDENTS_FILE carries no marker. Record at least one: marker $sha <path> <a line of the content it removed>"
   done <"$fires"
 

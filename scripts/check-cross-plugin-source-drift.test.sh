@@ -66,7 +66,7 @@ plugin_file "$f" beta hooks/new-shared.sh "same content"
 if out="$(run_check "$f" 2>&1)"; then
   fail "unregistered identical cluster should fail --check, got success: $out"
 else
-  if echo "$out" | grep -q "UNREGISTERED"; then
+  if grep -q "UNREGISTERED" <<<"$out"; then
     ok "unregistered identical cluster fails --check with UNREGISTERED"
   else
     fail "expected UNREGISTERED in output, got: $out"
@@ -82,7 +82,7 @@ registry "$f" "hooks/shared.sh"
 if out="$(run_check "$f" 2>&1)"; then
   fail "drifted registered cluster should fail --check, got success: $out"
 else
-  if echo "$out" | grep -q "DRIFTED"; then
+  if grep -q "DRIFTED" <<<"$out"; then
     ok "drifted registered cluster fails --check with DRIFTED"
   else
     fail "expected DRIFTED in output, got: $out"
@@ -97,7 +97,7 @@ registry "$f" "hooks/shared.sh"
 if out="$(run_check "$f" 2>&1)"; then
   fail "registry entry with <2 copies should fail --check, got success: $out"
 else
-  if echo "$out" | grep -q "STALE BASELINE: .*: 'hooks/shared.sh' no longer appears in 2+ plugins"; then
+  if grep -q "STALE BASELINE: .*: 'hooks/shared.sh' no longer appears in 2+ plugins" <<<"$out"; then
     ok "registry entry with <2 copies fails --check under the shared STALE BASELINE prefix"
   else
     fail "expected the shared STALE BASELINE diagnostic in output, got: $out"
@@ -140,12 +140,12 @@ plugin_file "$f" alpha reference/per-plugin.md "alpha version"
 plugin_file "$f" beta reference/per-plugin.md "beta version"
 registry "$f" "hooks/shared.sh"
 out="$(run_discover "$f" 2>&1)"
-if echo "$out" | grep -q "IDENTICAL.*hooks/shared.sh.*\[registered\]"; then
+if grep -q "IDENTICAL.*hooks/shared.sh.*\[registered\]" <<<"$out"; then
   ok "discover tags a registered identical cluster"
 else
   fail "expected discover to tag hooks/shared.sh as IDENTICAL + [registered], got: $out"
 fi
-if echo "$out" | grep -q "DIFFERS.*reference/per-plugin.md"; then
+if grep -q "DIFFERS.*reference/per-plugin.md" <<<"$out"; then
   ok "discover lists a differing cluster without failing"
 else
   fail "expected discover to list reference/per-plugin.md as DIFFERS, got: $out"

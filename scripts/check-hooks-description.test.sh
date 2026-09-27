@@ -37,7 +37,7 @@ hooks_file "$f" alpha "$UNLABELED"
 if out="$(run_check "$f" 2>&1)"; then
   fail "a hooks.json without a description should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'HOOKS DESCRIPTION: plugins/alpha/hooks/hooks.json: no top-level "description"'; then
+  if grep -q 'HOOKS DESCRIPTION: plugins/alpha/hooks/hooks.json: no top-level "description"' <<<"$out"; then
     ok "missing description fails and names the file"
   else
     fail "expected the missing-description line naming plugins/alpha, got: $out"
@@ -50,7 +50,7 @@ new_fixture f
 hooks_file "$f" alpha "$LABELED"
 mkdir -p "$f/plugins/beta/skills/x"
 if out="$(run_check "$f" 2>&1)"; then
-  if echo "$out" | grep -q 'Every plugin hooks.json (1) carries'; then
+  if grep -q 'Every plugin hooks.json (1) carries' <<<"$out"; then
     ok "a labeled file passes and a hook-less plugin is not counted"
   else
     fail "expected the clean statement counting 1 file, got: $out"
@@ -73,7 +73,7 @@ for case in \
   if out="$(run_check "$f" 2>&1)"; then
     fail "$name description should fail, got success: $out"
   else
-    if echo "$out" | grep -q "HOOKS DESCRIPTION: plugins/alpha/hooks/hooks.json: .*$expect"; then
+    if grep -q "HOOKS DESCRIPTION: plugins/alpha/hooks/hooks.json: .*$expect" <<<"$out"; then
       ok "$name description fails with the right reason"
     else
       fail "$name description: expected '$expect' in the output, got: $out"
@@ -99,12 +99,12 @@ hooks_file "$f" alpha "$UNLABELED"
 hooks_file "$f" beta "$LABELED"
 hooks_file "$f" gamma '{"description":"","hooks":{}}'
 out="$(run_check "$f" 2>&1)"
-if echo "$out" | grep -q 'plugins/alpha/hooks/hooks.json' && echo "$out" | grep -q 'plugins/gamma/hooks/hooks.json' && ! echo "$out" | grep -q 'plugins/beta/'; then
+if grep -q 'plugins/alpha/hooks/hooks.json' <<<"$out" && grep -q 'plugins/gamma/hooks/hooks.json' <<<"$out" && ! grep -q 'plugins/beta/' <<<"$out"; then
   ok "both failing files are named and the passing one is not"
 else
   fail "expected alpha and gamma flagged, beta clean, got: $out"
 fi
-if echo "$out" | grep -q '2 problem(s) across 3 hooks.json file(s)'; then
+if grep -q '2 problem(s) across 3 hooks.json file(s)' <<<"$out"; then
   ok "the summary counts problems and files"
 else
   fail "expected '2 problem(s) across 3 hooks.json file(s)', got: $out"
@@ -117,7 +117,7 @@ hooks_file "$f" alpha '{"description":"x", "hooks": '
 if out="$(run_check "$f" 2>&1)"; then
   fail "unparsable hooks.json should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'not parseable as JSON'; then
+  if grep -q 'not parseable as JSON' <<<"$out"; then
     ok "unparsable hooks.json fails closed"
   else
     fail "expected the parse-failure line, got: $out"
@@ -133,7 +133,7 @@ hooks_file "$f" alpha '{"description":"Formats Go source.","hooks":{}} trailing'
 if out="$(run_check "$f" 2>&1)"; then
   fail "trailing garbage after a labeled document should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'not parseable as JSON'; then
+  if grep -q 'not parseable as JSON' <<<"$out"; then
     ok "trailing garbage after a labeled document fails closed"
   else
     fail "expected the parse-failure line for trailing garbage, got: $out"
