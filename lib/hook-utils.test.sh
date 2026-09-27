@@ -1155,6 +1155,7 @@ lc12g2_run() {
   if [[ -z "${LC_ALL+x}" ]]; then ok "C locale: an unset LC_ALL stays unset"; else fail "C locale: LC_ALL left set to [$LC_ALL]"; fi
 )
 (
+  # shellcheck disable=SC2030
   export LC_ALL=C.UTF-8
   lc12g2_run
   if [[ "$LC_ALL" == C.UTF-8 && "$(declare -p LC_ALL)" == 'declare -x LC_ALL='* ]]; then
@@ -3589,6 +3590,7 @@ bps_mb_run() {
 }
 bps_mb_in() { # <LC_ALL value, empty for unset> -> bps_mb_run there, then the LC_ALL check
   (
+    # shellcheck disable=SC2030,SC2031
     if [[ -n "$1" ]]; then declare -x LC_ALL="$1"; else unset LC_ALL; fi
     bps_mb_run
     local now
@@ -3631,6 +3633,7 @@ else
   bps_lin_large=""
   for _ in 1 2 3 4 5 6 7 8; do bps_lin_large+="$bps_lin_small"; done
   (
+    # shellcheck disable=SC2031
     declare -x LC_ALL=C.UTF-8
     small=$(bps_lin_ms "$bps_lin_small")
     large=$(bps_lin_ms "$bps_lin_large")

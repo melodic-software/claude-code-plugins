@@ -1025,7 +1025,7 @@ assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&
 assert_eq "shared parse: the event's command is walked once" "1" \
   "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
 assert_eq "shared parse: a callback's re-parse is walked per guard, never cached" "3" \
-  "$(grep -cxF 'walk echo\ inner\ \>\ f' "$SEEN.walks")"
+  "$(grep -cxF 'walk echo\ inner\ \>\ f' "$SEEN.walks")" # portability-ok: grep -F fixed string of a recorded walk token, not a GNU word boundary
 : >"$SEEN"
 : >"$SEEN.walks"
 bash "$DISPATCH" "$TEST_TMPDIR/count.sh" "$TEST_TMPDIR/parse-exit.sh" "$TEST_TMPDIR/parse-b.sh" \
