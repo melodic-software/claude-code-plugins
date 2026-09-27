@@ -32,7 +32,7 @@ printf '%s\t%s\t%s\r\n' \
   residue-dissolve rerun 'version changed: c:x 1.0 -> 1.1' \
   testing-audit not-applicable 'repo has no tests' \
   tidy run 'never ran: c:t' \
-  prompt-audit rerun-optional 'same version ran: claude-api@builtin' >"$recs"
+  prompt-audit rerun-optional 'same version ran: claude-api@builtin-2.1.283' >"$recs"
 sel=$'repo-sweep-selection: residue-dissolve, dead-code,prompt-audit\r'
 
 bash "$SCRIPT" --checklist "$CATALOG" "$sel" "$recs" >"$TMP/checklist.md"

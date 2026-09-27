@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.24.2] - 2026-09-27
+## [0.24.3] - 2026-09-27
 
 ### Changed
 
@@ -10,6 +10,19 @@
   loads from a worktree-isolated agent. When the working directory is not the repository root, or
   the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
   post-write verification still re-reads the file live.
+
+## [0.24.2] - 2026-09-27
+
+### Fixed
+
+- **Turn-limit record:** the `maxTurns` partial-return and resume behavior is one dated record in
+  the parent contract's "Harness facts" section, re-verified against Claude Code 2.1.280 and the
+  sub-agents page fetched 2026-09-27. The explore, research, and trace-intent dispatch files point
+  at it instead of each carrying a copy.
+- **`research` gotchas:** a small single-topic dispatch at effort `high` can exhaust
+  `maxTurns: 40` with no payload; resuming it by agent ID with `SendMessage` recovers the run.
+- **Agents:** each worker states why it keeps re-emitting its payload block: the docs do not say
+  which text a partial return carries, and the block rides on a turn already spent on a write.
 
 ## [0.24.1] - 2026-09-27
 
