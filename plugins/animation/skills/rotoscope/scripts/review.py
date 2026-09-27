@@ -4,9 +4,9 @@
 usage: review.py <work> <tag> [--only K0-K1]
 Reads <work>/src, <work>/d and the replicas in <work>/out/<tag>/rep; writes <work>/out/<tag>/review-K0-K1.md and
 <work>/out/<tag>/crops/dNNN.png (source | replica | XOR heat, 1:1, the CROP window with the most XOR). Columns:
-  largest     the largest single-colour XOR component (R replica-only, B source-only), px, and `sliver` (no 4x4 square
+  largest     the largest single-color XOR component (R replica-only, B source-only), px, and `sliver` (no 4x4 square
               fits: at most 3 px thick, an edge coin-flip) or `blob` (a real miss)
-  blob        the largest blob of either colour, px (0: every cluster is a sliver)
+  blob        the largest blob of either color, px (0: every cluster is a sliver)
   edge        XOR px inside the 2 px frame border: tracers and filters mishandle border rows, and a full-frame heatmap
               hides a 1 px run along the edge
   tile        max |mean gray difference| over 32 px tiles after a sigma-3 blur of both images: a wrong tone inside ink

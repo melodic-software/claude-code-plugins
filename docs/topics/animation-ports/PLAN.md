@@ -29,16 +29,16 @@ output after every refactor phase, and the repo validators in Phase 12 pass.
 - **Inputs** (unshipped, under `<pixel-art worktree>/.work/animation/`):
   shfred0 `videos/shfred0-2102495989194236158.mp4`; round 3 `prototype/film.mp4`; other-style
   clips `videos/BiosRiosz-2102523343253520764.mp4`, `videos/kevin_t_ngo-2102171059592241410.mp4`,
-  `videos/kevin_t_ngo-2102437977435893771.mp4`. The `47d7ba2ae` control summaries are at
+  `videos/kevin_t_ngo-2102437977435893771.mp4`. The `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` control summaries are at
   `.work/classes/r10/ctl` in this worktree. Phase 0 step 0a copies all of these to
   `<inputs dir>` (a directory outside every worktree), and every run reads that copy.
 - **Branch state and merge order:** `feat/animation-plugin` is local-only (the orchestrator is
   writing a git bundle; pushing waits for the user). `feat/pixel-art` (PR #4407) merges first, then
   this branch is rebased onto main. Phase 10 and the version-bump decision assume that order.
   `[EXEC-SHAPE]`
-- **C2 frozen check:** the woodcut-ink check is frozen at `47d7ba2ae` (residuals: issue #4507).
+- **C2 frozen check:** the woodcut-ink check is frozen at `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` (residuals: issue #4507).
   `controls.py selftest <pack> --near <round 3 film>` exits 0; `controls.py check` reports 36/36;
-  `learn.py` reports held-out 150/150 in both halves. Distilled baseline at `47d7ba2ae`: replica
+  `learn.py` reports held-out 150/150 in both halves. Distilled baseline at `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f`: replica
   margin -0.18, source -1.00, attacks +4.80, +4.42, +11.77.
 - **C3 byte-identity:** code phases (1, 2, 3, 5, 6, 7) leave the Phase 0 safety net byte-identical:
   the 36 re-measured control summaries, `check` and `selftest` stdout, the `learn.py` style.json,
@@ -71,7 +71,7 @@ phase runs under it. `[EXEC-SHAPE]`
 No plugin code changes. Build a local script in the topic memory slice (never committed; it needs
 unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
 
-- Step 0a, run once before any baseline: copy every input clip and the `47d7ba2ae` ctl summaries
+- Step 0a, run once before any baseline: copy every input clip and the `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` ctl summaries
   out of every worktree into `<inputs dir>` (worktree cleanup must not take
   them), and write `MANIFEST.sha256` there (`sha256sum`). `baseline` and `compare` verify the
   manifest first and fail on any mismatch. `[EXEC-SHAPE]`
@@ -93,7 +93,7 @@ unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
 - `compare <baseline dir> <new dir>`: first verify the input manifest, then re-record the versions
   and fail fast if Python, `nproc`, ffmpeg, node, playwright-core or the Chromium build differ from
   `versions.txt`; then rerun steps 2-6 and compare only these: `diff -r` the control summary JSONs;
-  the stdout of `check` and `selftest`; `learn.py` stdout (normalising only the temp pack path in
+  the stdout of `check` and `selftest`; `learn.py` stdout (normalizing only the temp pack path in
   its first line); `cmp` the two `style.json` files and the two `out/regress/table-*.md` files.
   Never compared: `controls.py measure` stdout (it prints `<dir>`-prefixed paths in completion
   order, `imap_unordered`, `controls.py:175-177`) and raw regress stdout (Phase 4 adds a line to
@@ -104,7 +104,7 @@ unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
 
 - [x] `baseline` exits 0; its `check` stdout ends with `36/36 as required`; `selftest` exits 0;
   `learn.py` stdout line 1 contains `calibration 150/150, evaluation 150/150`; regress exits 0.
-- [x] `cmp` of the baseline-run `style.json` against `plugins/animation/styles/woodcut-ink/style.json` exits 0 (the check reproduces at `47d7ba2ae`).
+- [x] `cmp` of the baseline-run `style.json` against `plugins/animation/styles/woodcut-ink/style.json` exits 0 (the check reproduces at `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f`).
 - [x] `compare` of the baseline against a second baseline run exits 0 (the net is deterministic on
   this machine). If it does not, stop: the net cannot gate byte-identity.
 - If the `style.json` `cmp` fails (a hand edit after the last `learn.py` run), the baseline-run
@@ -139,14 +139,14 @@ and learn-style `SKILL.md` film steps, README.
     (`controls.py:129-147`, which `learn.py:174` uses for palette tolerance) with byte-identical
     arguments for mp4 (`libx264 -pix_fmt yuv420p -crf 16`). It keeps `controls.encode`'s input
     path: `frames` is an iterable of BGR images piped as rawvideo `bgr24` on stdin, holds expanded
-    by the caller from `index.json` timing; a frame folder is one caller that reads its PNGs. This
-    deviates from contracts.md:147's `encode(frames_dir, fmt, fps)`: a folder-of-PNGs input would
+    by the caller from `index.json` timing; a frame folder is one caller that reads its PNG files. This
+    deviates from contracts.md:147's `encode(frames_dir, fmt, fps)`: a folder-of-PNG files input would
     change what ffmpeg reads for the replica and source encodes and break C3 (the replica and
     palette-tolerance encodes are drawings with variable holds, not a frame folder). `[EXEC-SHAPE]`
   - Writes `render.json` `{scene, adapter, adapter_version, browser_build, fps, size, frames, duration}` (contracts.md section 4; `license_notice` absent while only native exists).
   - `--backend` accepts only `native` (contracts.md section 3).
 - `measure.py`: drop `render()` and its copy step; call `render.py` with `--root <work>`.
-  `fit.py`, `review.py` unchanged in behaviour.
+  `fit.py`, `review.py` unchanged in behavior.
 - `controls.py`: `encode` and `replica` call `render.encode`; `learn.py` likewise.
 - `inkstats.py`: when a frame folder holds `render.json`, read its fps; `--fps` stays the override.
 - `capture.mjs`: header comment drops the ffmpeg line (now `render.py --encode`).
@@ -709,7 +709,7 @@ what you found, what the brief expected, and the exact state of your work
 
 ### Mechanical work
 
-- One commit per phase (structural moves separate from behaviour fixes, Tidy First); the phase's
+- One commit per phase (structural moves separate from behavior fixes, Tidy First); the phase's
   PLAN.md tag change rides that commit.
 - After each code phase: C1, then the Phase 0 `compare` in the background, then the phase tag.
 - Post-implementation grep for stragglers: `grep -rn "measure.render\|PW_CORE\|with numpy,opencv\|shutil.copy" plugins/animation | grep -v "regress.py:.*shutil.copy(FIXTURE"` returns nothing (the fixture copy at `regress.py:24` is legitimate).

@@ -1,7 +1,7 @@
 # animation: domain model (design round 1)
 
 Scope: module + integration design for `plugins/animation`. This file separates three things the
-user asked to keep apart: process skills (behaviour), domain artifacts (tool-neutral stage files),
+user asked to keep apart: process skills (behavior), domain artifacts (tool-neutral stage files),
 and ports with adapters (the infrastructure the process reaches through). Nothing here is decided;
 open points are threads in [design-threads.md](design-threads.md).
 
@@ -10,7 +10,7 @@ editing `inkstats.py`, `learn.py` and `style.json`, so line numbers in those thr
 
 ## 1. Process skills (verbs)
 
-| Skill | Status | In | Out | Behaviour |
+| Skill | Status | In | Out | Behavior |
 |---|---|---|---|---|
 | `rotoscope` | ships | reference video, work dir | traces, override file, measured replica, review crops, learnings | decode, trace, render, measure, fit, review, record, retro |
 | `learn-style` | ships | rotoscope work dir | style pack | measure statistics into bands, describe judgment knobs, validate with a new scene |

@@ -4,16 +4,16 @@ Append-only. Each entry: plan said / found / chose / revisit.
 
 ## Phase 0
 
-- **discovery: Step 0a inputs.** Plan said: copy the clips and the `47d7ba2ae` ctl summaries to
+- **discovery: Step 0a inputs.** Plan said: copy the clips and the `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` ctl summaries to
   `~/.local/share/animation-inputs/`. Found: the clips were there with a five-line manifest; the ctl
-  summaries were not. Chose: copied `.work/classes/r10/ctl` to `ctl-47d7ba2ae/` and appended its
+  summaries were not. Chose: copied `.work/classes/r10/ctl` to `ctl-47d7ba2ae2187d1dac05bedfb4bfa1207db0392f/` and appended its
   files to `MANIFEST.sha256` (42 lines). Revisit: no.
 - **deviation: `--other` order.** Plan said (Phase 0 step 3): `--other <BiosRiosz>
   <kevin_t_ngo-2102171059592241410> <kevin_t_ngo-2102437977435893771>`. Found: `controls.py measure`
-  alternates calibration and evaluation by position, and the `47d7ba2ae` run put `…2102437977435893771`
+  alternates calibration and evaluation by position, and the `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` run put `…2102437977435893771`
   second; the plan's order swaps the two kevin clips between halves, so `learn.py` writes a
   different `negatives` list and `cmp` against the committed `style.json` fails (every one of the
-  36 summaries matched `47d7ba2ae` byte for byte modulo that split). Chose: the order Bios,
+  36 summaries matched `47d7ba2ae2187d1dac05bedfb4bfa1207db0392f` byte for byte modulo that split). Chose: the order Bios,
   `…2102437977435893771`, `…2102171059592241410`, which reproduces the committed `style.json`.
   Revisit: no.
 - **discovery: toolchain.** Private playwright-core `1.64.0-alpha-1789764292000` (the version the
@@ -141,17 +141,17 @@ Append-only. Each entry: plan said / found / chose / revisit.
   exact at 1762x982 (50.0, 300.0, 15000.0). Kernel sizes stay: they are lengths, not counts.
 - **choice: D37/D40 data rides on the per-drawing rows** (`size`, `peak`), never on `summary()`;
   `report(..., size)` prints the warning, `main` prints the weak-mode note. `WEAK_PEAK = 0.005` is
-  judgment, labelled in code. On BiosRiosz (1920x1080) both lines print (152/821 drawings weak);
+  judgment, labeled in code. On BiosRiosz (1920x1080) both lines print (152/821 drawings weak);
   on the shfred0 work dir neither does.
 - **choice: `learn.py --base-fps` threads through `value()` and `summary()`**, so excerpt holds and
   `offstep` use the same rate as the pack; parsed to an int when integral so the default and
   `--base-fps 24` write identical JSON (cmp equal; both cmp equal to the committed pack).
 - **not done: the palette-tolerance encode in `learn.py` still holds drawings on a 24 fps grid**
-  (`controls.held`); it measures colour shift only, and changing it would move `encode_shift`.
+  (`controls.held`); it measures color shift only, and changing it would move `encode_shift`.
 
 ## Phase 8
 
-- **human-decision (user): American spelling.** "licence" became "license" in every file under
+- **human-decision (user): American spelling.** "license" became "license" in every file under
   `docs/topics/animation-ports/` (PLAN.md, contracts.md, design-threads.md, domain-model.md) and in
   the new `reference/backends.md`, so the `render.json` key the rule names is `license_notice` and
   the row heading is "Cost and license" (pixel-art's own backends.md keeps its spelling; out of

@@ -12,7 +12,7 @@ and its traces are not shipped.
 ## Knobs
 
 Measured values come from `learn.py` over the clip and live in `style.json` under the key named;
-judgment values come from viewing it and are labelled so.
+judgment values come from viewing it and are labeled so.
 
 | Knob | Value | Basis |
 |---|---|---|

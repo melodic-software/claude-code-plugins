@@ -18,9 +18,9 @@ calibration pair against the band of the other calibration pairs, capped at CLEA
 --negative film (another style or a near miss) lies outside the raw band, counting each control only at the checked
 row that rejects it most: coverage gives way to discrimination where they conflict. style.json records, per statistic, the widening, the control margins and the calibration and
 evaluation pass rates, and `ref`, the whole source's value, which the distance is measured from. The palette tolerance
-is the encode shift (the largest channel change in the clip's median ink or paper colour when its drawings are encoded
+is the encode shift (the largest channel change in the clip's median ink or paper color when its drawings are encoded
 as render.py encodes a scene and decoded again) plus the largest channel difference between an excerpt's median
-colour and the clip's, rounded up. Statistics only: no geometry, no per-drawing rows, no frames.
+color and the clip's, rounded up. Statistics only: no geometry, no per-drawing rows, no frames.
 """
 import argparse
 import itertools
@@ -173,13 +173,13 @@ def main(argv=None):
         ok = sum(all(v is None or bands[s][0] <= v <= bands[s][1]
                      for s in check for v in [value([parts[j] for j in side], s, a.base_fps)]) for side in sides)
         return f'{ok}/{len(sides)}'
-    def colour(rs, k):
+    def color(rs, k):
         return np.median([r[k] for r in rs if r[k]], 0)
-    # palette tolerance = what encoding does to the colours + how far a source excerpt's colours stray from the clip's
+    # palette tolerance = what encoding does to the colors + how far a source excerpt's colors stray from the clip's
     with tempfile.TemporaryDirectory() as tmp:
         enc = inkstats.measure(str(render.encode(controls.held(a.work, workdir.src(a.work)), 'mp4', inkstats.BASE_FPS, Path(tmp) / 'source.mp4')))
-    shift = max(float(np.abs(colour(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
-    stray = max(float(np.abs(colour([r for j in side for r in parts[j]], k) - m[k]).max())
+    shift = max(float(np.abs(color(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
+    stray = max(float(np.abs(color([r for j in side for r in parts[j]], k) - m[k]).max())
                 for pair in ps for side in pair for k in ('ink_rgb', 'paper_rgb'))
     tol = math.ceil(shift + stray)
     st = m['stats']

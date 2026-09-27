@@ -120,7 +120,7 @@ Apache-2.0 adapter still prints its notice line, for uniformity.
 
 ### Errors
 
-| Case | Native behaviour today | Contract |
+| Case | Native behavior today | Contract |
 |---|---|---|
 | scene throws | `pageerror` logged, exit 1 at end (`capture.mjs:33,55`) | same |
 | `renderFrame` never defined | 30 s timeout, Playwright error (`capture.mjs:35`) | same, with the scene name in the message |

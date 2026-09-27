@@ -1,5 +1,5 @@
 ---
-description: "Copy a reference animation drawing by drawing: decode the video into its distinct drawings, trace each to vector paths, render them through the ink.js brush engine in headless Chromium, and measure every drawing against its source (ink/paper XOR against a codec-noise floor, SSIM, edge-band SSIM, paper colour), then fit per-shot brush overrides and review 1:1 crops until every drawing passes. Use when: 'rotoscope this', 'trace this clip', 'copy this animation one to one', 'replicate this video exactly', 'match the reference frame by frame', 'measure the replica against the source'. Not for an original film or a style study without a reference clip."
+description: "Copy a reference animation drawing by drawing: decode the video into its distinct drawings, trace each to vector paths, render them through the ink.js brush engine in headless Chromium, and measure every drawing against its source (ink/paper XOR against a codec-noise floor, SSIM, edge-band SSIM, paper color), then fit per-shot brush overrides and review 1:1 crops until every drawing passes. Use when: 'rotoscope this', 'trace this clip', 'copy this animation one to one', 'replicate this video exactly', 'match the reference frame by frame', 'measure the replica against the source'. Not for an original film or a style study without a reference clip."
 argument-hint: "<reference video> <work dir>"
 user-invocable: true
 disable-model-invocation: false
@@ -27,7 +27,7 @@ One work directory per reference clip, outside the plugin; it grows to hundreds 
 | Path | Written by | Holds |
 |---|---|---|
 | `src/dNNN.png`, `d/index.json` | `extract.py --video` | distinct drawings; size, duration, `[k, pts, t1]` |
-| `d/dNNN.json` | `extract.py` | T-layer paths with holes, tone layers, colours, applied overrides |
+| `d/dNNN.json` | `extract.py` | T-layer paths with holes, tone layers, colors, applied overrides |
 | `overrides.json` | you, `fit.py` | per-drawing parameters (below); survives re-extraction |
 | `out/<tag>/` | `measure.py`, `review.py` | replicas, heatmaps, `table-*.md`, `review-*.md`, `crops/` |
 | `learnings.md` | `measure.py`, you | one line per run, plus your findings |
@@ -64,14 +64,14 @@ this file; a fix that needs hand-edited paths is a finding to report, not an ove
    fits bias only: blur, sharpening and tone levels are yours, guided by the diagnostics in
    `method.md`. On shfred0, fitting every drawing from the default bias passes them all at a mean
    XOR 0.3% below the hand fits.
-4. Review: `$R/review.py <work> <tag>` adds the manual checks as columns (largest one-colour
-   cluster and whether it is a blob, frame-edge XOR, tone-tile difference, paper colour) and writes
+4. Review: `$R/review.py <work> <tag>` adds the manual checks as columns (largest one-color
+   cluster and whether it is a blob, frame-edge XOR, tone-tile difference, paper color) and writes
    one 1:1 crop per drawing of its hottest window. Read every crop, not only the flagged ones: a
    passing number can hide a visible defect such as a tint. Never downscale a crop or review a GIF.
 5. Record: append to `<work>/learnings.md` what failed, the cause, the change and the before and
    after numbers.
 
-Repeat 2-5 by shot or drawing range until the table passes and the crops show no one-colour
+Repeat 2-5 by shot or drawing range until the table passes and the crops show no one-color
 cluster.
 
 A film of the replica: `${CLAUDE_PLUGIN_ROOT}/scripts/render.py $R/roto.js <frames dir> --fps <the
@@ -109,6 +109,6 @@ drawings into a style pack.
   Rendering, holds the dated record), which is why `roto.js` blurs in JS; `gauss()` must not add 0.5 before writing to a `Uint8ClampedArray`, which already rounds.
 - A drawing JSON is one line of 1-4 MB. Change parameters through the override file and `--apply`,
   never by editing the JSON.
-- Gray XOR and SSIM cannot see colour. Read `paper_err` and the crops for tints.
+- Gray XOR and SSIM cannot see color. Read `paper_err` and the crops for tints.
 - An all-ink or all-paper frame has a floor near 0.02%; a few hundred border pixels decide it, so
   judge those by the ratio and the edge column, not by the XOR alone.

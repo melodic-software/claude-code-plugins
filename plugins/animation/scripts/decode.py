@@ -10,7 +10,7 @@ the gray modes every measure reads.
   per_area(px, shape)  a pixel count tuned at CAL_SIZE, scaled to a frame's area
   modes(gray)          (ink mode, paper mode, T): the gray histogram modes below and above 128 and their midpoint;
                        MID gray levels either side of a mode count as that tone, the band between is mid-gray.
-                       Two-tone by construction: a low-contrast, coloured or tonal film measures wrong silently;
+                       Two-tone by construction: a low-contrast, colored or tonal film measures wrong silently;
                        mode_peaks adds each mode's share of the frame so a caller can say so
 """
 import json

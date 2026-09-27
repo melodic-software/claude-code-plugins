@@ -10,7 +10,7 @@ anime duel), and synthetic flat-polygon films. Treat the bands as this pack's, n
 pack gets its own from its own source.
 
 **Two tones.** Every statistic below splits each drawing at T, the midpoint of an ink mode below
-gray 128 and a paper mode above it (`scripts/decode.py`, `modes`). A low-contrast, coloured or
+gray 128 and a paper mode above it (`scripts/decode.py`, `modes`). A low-contrast, colored or
 tonal style has no such pair and measures wrong without an error; `inkstats.py` prints a note when a
 drawing's ink or paper mode is weak. The statistics are also in pixels: with `--pack`, a film whose
 size differs from the pack's `measured_from.size` prints a warning.
@@ -52,7 +52,7 @@ Per drawing, with ink and paper at the gray histogram modes and T at their midpo
 | `flat` | dark drawings only (ink 50% or more): share of mostly-ink 32 px blocks that lie fully inside eroded ink with gray sd under 2: solid black against textured black | texture, backgrounds |
 | `grain` | inside the ink interior, sd of the 5x5 box-mean gray over sd of the gray: the scale of the texture (near 1 for patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes); measured only (see "Second adjudication") | texture |
 | `sliver` | median area / width² of the paper islands inside the ink (carved slivers and gouges): long thin lines score high, chunky cuts low; measured only | texture, line |
-| `sliver_border`, `sliver_caption` | the same over the islands centred in that content class: the breaks carved into the frame line, the counters and gaps of the lettering | texture, line |
+| `sliver_border`, `sliver_caption` | the same over the islands centered in that content class: the breaks carved into the frame line, the counters and gaps of the lettering | texture, line |
 | `period` | inside the eroded ink, at periods under 32 px, the largest ratio of one spectral bin's power to the mean power of every bin at the same frequency, divided by ln(eroded ink pixels): large for a texture at one fixed pitch and direction (ruled stripes, a combed dry brush), near the noise level for irregular texture and smooth tone drift | texture |
 | `ink` | ink coverage | color |
 | `boil` | over the border and caption classes (the anchor), on pairs whose anchor ink share changes under 1 point with 500 or more anchor edge pixels: ink/paper disagreement per anchor edge pixel, the mean edge displacement of the frame and caption between two drawings | line, movement |
@@ -136,9 +136,9 @@ miss, the widening, the controls that cap it, every control's margin, and the ca
 evaluation pass rates.
 
 The palette tolerance (`palette.tolerance`) adds two measured terms and rounds up.
-`palette.encode_shift` is the largest channel change in the clip's median ink or paper colour when
+`palette.encode_shift` is the largest channel change in the clip's median ink or paper color when
 all its drawings are encoded as `render.py` encodes a scene and decoded again. `palette.excerpt_stray`
-is the largest channel difference between an excerpt's median colour and the clip's. Encoding moves
+is the largest channel difference between an excerpt's median color and the clip's. Encoding moves
 the woodcut ink by 4 levels on its blue channel (15 to 11), which is also what it does to the replica.
 
 There are no per-shot rows. A shot of a few drawings (shfred0's 0.5 s flash has 3) cannot give a

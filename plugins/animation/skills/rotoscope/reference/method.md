@@ -24,7 +24,7 @@ laws: a new source with a different codec, scale or ink can move them, and the r
   T = 125.5 on every drawing).
 - Soft edges: shfred0 is blurred by about sigma 0.85 px, isotropic.
 - Scope: two tones. The method assumes a dark ink mode below gray 128 and a light paper mode above
-  it (`scripts/decode.py`, `modes`). A low-contrast, coloured or mostly-ink-with-light-lines source
+  it (`scripts/decode.py`, `modes`). A low-contrast, colored or mostly-ink-with-light-lines source
   traces and measures wrong without an error; `inkstats.py` prints a note when a drawing's ink or
   paper mode is weak.
 - Pixel counts are tuned on shfred0's 1762x982 frame: the repeat rule (`decode.is_repeat`,
@@ -33,7 +33,7 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 
 ## Tracing
 
-- `findContours` returns boundary-pixel centres, so a polygon through them sits 0.5/S px inside
+- `findContours` returns boundary-pixel centers, so a polygon through them sits 0.5/S px inside
   the true edge, and a 1 px line has zero area at S=1. Supersample (`extract.py` `S`, `INTERP`) before
   thresholding, then correct the leftover inset with render-side `bias`.
 - `approxPolyDP` epsilon `EPS` (`extract.py`, in source px). Epsilon 0 is worse: the raw staircase plus the bias ring
@@ -78,7 +78,7 @@ quantized tone ramp.
    whole shot means the bias is wrong for that shot, not that one drawing is broken. Above the
    ratio band re-render at a larger bias, below it at a smaller one; `fit.py` automates this (its
    `--ratio` and `--step` hold the band and the step). Bias moves
-   pixels between the two error colours and barely changes total XOR when the real problem is blur
+   pixels between the two error colors and barely changes total XOR when the real problem is blur
    or sharpening.
 2. **Ratio stuck near 2 while a bias sweep does nothing**: suspect over-sharpening on dense dashes.
    Sweep `sharp` sigma before bias (shfred0 skyline: sigma 0.6 instead of 0.9 took XOR/floor from
@@ -86,13 +86,13 @@ quantized tone ramp.
 3. **Near-all-ink or near-all-paper frames**: the floor drops to 0.02-0.05%, and a few hundred
    border pixels decide pass/fail. Signal: source-only 3x replica-only on a low-floor drawing. A
    larger bias (about 0.25) fixes it.
-4. **Largest cluster** (review table): a blob (a 4x4 square fits) of one colour is a real miss;
+4. **Largest cluster** (review table): a blob (a 4x4 square fits) of one color is a real miss;
    slivers at most 3 px thick along an edge are coin-flips.
 5. **Edge px**: XOR inside the 2 px frame border. A full-frame heatmap hides a 1 px run along the
    edge; this count is what surfaced the border bug.
 6. **Tile**: the largest 32 px tile gray difference after a sigma-3 blur. Above 8 means a wrong
    tone inside ink or paper, which XOR cannot see.
-7. **paper_err / paper_d**: a tint. One paper colour per drawing cannot follow a spatial tint (a
+7. **paper_err / paper_d**: a tint. One paper color per drawing cannot follow a spatial tint (a
    pink sign on cream paper differs by under 1 gray level); the `tint` override adds warm-paper
    layers.
 8. **Crops**, at 1:1 on the hottest window, for every drawing. Some defects (dash-tip fattening,

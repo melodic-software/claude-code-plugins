@@ -13,7 +13,7 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
   --rows    write the per-drawing rows (for analysis; a style pack never holds them)
   --pack    a style pack directory or its style.json. Each statistic in the pack's `check` must have its film value
             (the median over drawings, or a timing value such as per_second) inside the pack's band, and the ink and
-            paper colours must sit within the palette tolerance. A statistic the film leaves undefined (flat with no
+            paper colors must sit within the palette tolerance. A statistic the film leaves undefined (flat with no
             dark drawings, boil with no held pairs, grain with no ink interior) is n/a: neither pass nor fail, and
             left out of the distance. Prints each row with its distance to source and exits 1 if any row fails.
             The pack's `measured_only` statistics (subject-sensitive) print beside the source value, unjudged.
@@ -63,7 +63,7 @@ Content classes, from the ink mask alone, so a source and any film get them the 
             touching its edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box
             and holding ink (lettering), outside the border ring
   interior  everything else: the subject. straight and sliver there and over the whole frame follow what is drawn
-  ink_rgb paper_rgb median colours of the ink and paper cores
+  ink_rgb paper_rgb median colors of the ink and paper cores
 Per pair of consecutive drawings:
   boil      over the border and caption classes of both drawings (the anchor), on pairs whose anchor ink share
             changes under 1 point and that have 500 or more anchor edge pixels: ink/paper disagreement there per
@@ -219,7 +219,7 @@ def texture(g, ink):
 def sliver(ink, cls):
     """Median shape of the carved paper inside the ink: area / width^2 of each paper island that does not touch the
     frame edge (6 to 20000 px; width = 2 x its largest distance to ink). Long thin gouge lines score high, chunky
-    cuts low; None with no such island. Returns it and {class: the median over the islands centred in that class,
+    cuts low; None with no such island. Returns it and {class: the median over the islands centered in that class,
     None under 3}."""
     paper = (~ink).astype(np.uint8)
     n, lab, st, cen = cv2.connectedComponentsWithStats(paper, connectivity=4)

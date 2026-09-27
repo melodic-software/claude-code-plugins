@@ -12,7 +12,7 @@ Writes <work>/d/dNNN.json:
 Coordinates are canvas coordinates (pixel (x,y) covers [x,x+1)), flattened [x0,y0,x1,y1,...], 2 decimals.
 Method (reference/method.md): gray = cv2 RGB2GRAY; T = midpoint of the ink and paper gray modes; unsharp mask
 (keeping the raw gray on the outer 1 px frame border); supersample S x; threshold; findContours RETR_CCOMP;
-approxPolyDP(eps * S); map an upsampled pixel centre u to (u + 0.5) / S.
+approxPolyDP(eps * S); map an upsampled pixel center u to (u + 0.5) / S.
 """
 import argparse
 import json
@@ -118,8 +118,8 @@ def trace(gray, T, s=S, eps=EPS, interp=INTERP, sharp=SHARP):
 
 
 def tones(rgb, g, T, levels, **kw):
-    """Tone layer lv fills g < lv; its visible band is [next lower level, lv), coloured by that band's median RGB.
-    Returns (tone layers, colour of the T layer)."""
+    """Tone layer lv fills g < lv; its visible band is [next lower level, lv), colored by that band's median RGB.
+    Returns (tone layers, color of the T layer)."""
     lv = sorted(set(levels) | {T})
     col = {}
     for lo, hi in zip([-1] + lv, lv):
@@ -129,7 +129,7 @@ def tones(rgb, g, T, levels, **kw):
 
 
 def tint(rgb, g, T):
-    """Warm-paper layers (lv 252, 251): paper regions whose median R-G is warmer than neutral. One colour per frame
+    """Warm-paper layers (lv 252, 251): paper regions whose median R-G is warmer than neutral. One color per frame
     cannot follow a spatial tint, and gray XOR/SSIM cannot see it; paper_err can."""
     m = cv2.erode((g > 200).astype(np.uint8), np.ones((5, 5), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(m)

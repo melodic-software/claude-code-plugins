@@ -32,7 +32,7 @@ export function principalAngle(pts) {
 
 // inkFill(ctx, pts, opts): fill a closed polygon with rows of overlapping round-ended strokes.
 //   pts       [[x,y],...] closed polygon (any winding; even-odd spans)
-//   color     fill colour
+//   color     fill color
 //   seed,step identity and boil counter; boil (0..1) scales how much of the layout re-rolls per step
 //   angle     hatch direction in radians (default: longest edge)
 //   width     stroke thickness in px (default 12); row pitch is width * pitch (default 0.78)

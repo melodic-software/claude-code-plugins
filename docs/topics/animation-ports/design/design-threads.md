@@ -259,7 +259,7 @@ Owner decisions, from dependency-inventory.md section 2:
 | V8-V10 repeat rule, gray modes, decode commands | `scripts/decode.py` (T14) |
 | V11 Chromium blur floor | one stamped record in method.md; both SKILL.md gotchas point to it |
 | V12 24 fps | pack `knobs.frame_rate.base_fps` (style), `shots.json` `fps` or source rate (render) |
-| V13, V14 ink colour, grain seed | one const in `ink.js`; the pack's `palette.ink` for styled work |
+| V13, V14 ink color, grain seed | one const in `ink.js`; the pack's `palette.ink` for styled work |
 | V15 segment length | `inkstats.SEG` |
 | V16 worker counts | one `WORKERS` in `render.py` |
 | V17 2576 px | one stamped record (origin to be found) |
@@ -291,7 +291,7 @@ judged on the wrong scale.
 
 D18 (missing `DURATION` exits 0 with zero frames), D22 (layout strings in eight files; with T16),
 D23 (lexicographic frame sort breaks past 9,999 frames), D28 (2576 unrecorded), D29 (worker
-defaults), D41 (engine ink colour differs from the pack), D48 (Windows and macOS unverified; text
+defaults), D41 (engine ink color differs from the pack), D48 (Windows and macOS unverified; text
 files opened without `encoding=`). Recommendation: fix in the same PR as T10. No decision needed.
 
 Resolved 2026-09-25: user approved recommendation. Why: each is a defect with one correct fix, and

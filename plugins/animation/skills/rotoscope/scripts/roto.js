@@ -19,7 +19,7 @@ const load = k => cache.get(k) || cache.set(k, fetch(`${DIR}/d${String(k).padSta
 //   bias  px of ink added along every T edge (negative thins): a ring of ink.js capsules of width 2|bias| on the contour
 //   blur  gaussian sigma in px over the finished drawing: the source's edge softness (codec + scaling)
 //   grain 0 = off; else paperGrain opacity (uncorrelated grain lowers SSIM, so it stays off for a copy)
-//   tones 0 = two-tone only (T layer in the ink colour)
+//   tones 0 = two-tone only (T layer in the ink color)
 export const BRUSH = { ...await (await fetch('brush.json')).json(), ...JSON.parse(q.get('brush') || '{}') };
 
 function rings(d) {
