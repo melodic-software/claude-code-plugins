@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.0] - 2026-09-27
+
+### Added
+
+- `branch_issue_pattern` is a key on the layered `.claude/source-control.md` surface. `parse-branch-issue.sh` reads the local, team, and user-global layers (per key, last wins) before any other source; a layer holding an invalid ERE is reported on stderr and skipped. `parse-branch-issue.test.sh` covers cascade-only, userConfig-only, cascade over userConfig, layer order, the invalid-layer skip, and the placeholder.
+- [ADR 0039](../../docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md) records which babysit keys stay in `userConfig` (identity and trust keys) and which move to the cascade (`branch_issue_pattern` now, ten repository-policy keys under #4572). `reference/config-resolution.md` states the multi-domain consequence: one value per machine for each `babysit_*` key, so an operator with several identity domains leaves them unset or launches the lane with a per-domain `--settings` file.
+
+### Changed
+
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds a second install record there and enables the plugin at that scope, while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+- `/source-control:pull-request create --pushed --worktree` runs `parse-branch-issue.sh` with `CLAUDE_PROJECT_DIR="$WT"`, so it reads the worktree's own `source-control.md` layers, and `create.md` keeps the script's stderr visible.
+
+### Deprecated
+
+- The `branch_issue_pattern` `userConfig` option. It is still read as a fallback after the cascade, with a deprecation note on stderr naming the cascade key, until a later minor release removes it, no earlier than 2026-12-27.
+
 ## [0.60.0] - 2026-09-26
 
 ### Added

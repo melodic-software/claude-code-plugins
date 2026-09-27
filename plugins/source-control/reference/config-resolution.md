@@ -106,7 +106,11 @@ merge authority its lane holds, are properties of the target repository, which t
 user-settings-scoped `babysit_*` `userConfig` keys structurally cannot express. The split is
 deliberate and both surfaces coexist: `userConfig` keeps the personal and machine scalars the
 babysit-prs mechanic documents (watched owners, self logins, engine thresholds); this surface holds
-the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
+the lane policy a team reviews and tracks. Because `pluginConfigs` is read from user settings, each
+`babysit_*` `userConfig` key has one value per machine: an operator with several identity domains
+leaves those keys unset or launches the lane with a per-domain `--settings` file. Which keys stay in
+`userConfig` and which move to this surface is recorded in
+[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
 One `## <key>` H2 per key, exactly like the convention keys above. Every value is a scalar except

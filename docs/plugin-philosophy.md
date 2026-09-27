@@ -356,12 +356,10 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
 - `sensitive: true` for secrets, noting that on platforms without a supported keychain the value
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
-- `claude plugin install --config` documented in the plugin's setup skill for headless use. Note
-  in that same documentation that re-running it against an already-installed plugin prints
-  `already installed` **and still writes the value**: the short-circuit is about the install, not the
-  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
-  scope: a non-default value written to an installed plugin, then restored). A `sensitive` option
-  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
+- `claude plugin install --config` documented in the plugin's setup skill for headless use,
+  following the short form in the
+  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md), which owns
+  the rerun behaviour, its caveats, and the verified-version record; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E:
