@@ -2,7 +2,8 @@
 # Dispatcher: run several guardrails guards for ONE hook event inside ONE hook
 # process, instead of registering each guard as its own always-on hook.
 #
-#   run-guards.sh [--lib <path-under-plugin-root>]... <guard-script>...
+#   run-guards.sh [--lib <path-under-plugin-root>]... [--max-command-len <n>]
+#                 <guard-script>...
 #
 # Every guard named on the command line still ships as its own script with its
 # own contract test, kill switch, and telemetry envelope; nothing about a guard's
@@ -28,6 +29,14 @@
 #     through to the library's own hook::jq_fields_uncached otherwise. A
 #     NUL-bearing payload therefore still reaches each guard's own NUL handling
 #     through the real jq call.
+#   * The event's command is tokenized ONCE. Six guards of the Bash row hand
+#     the same string to hook::bash_parse_segments; the first parse records
+#     every segment it reports (argv words and the HOOK_SEG_* arrays), and each
+#     later call with that string replays the record to its own callback
+#     instead of walking the string again. A parse that a callback cut short
+#     with `exit` is never recorded, so a later guard parses afresh. Any other
+#     string, including one a callback re-parses, goes to the library's own
+#     hook::bash_parse_segments_uncached.
 #   * Each guard is `source`d in THIS shell, not in a subshell: on Windows Git
 #     Bash every fork is a Win32 process creation, so eight command-substitution
 #     subshells were eight processes per tool call. A sourced guard ends by
@@ -68,6 +77,20 @@
 #     guard returned; else 0. Every guard runs even after one has blocked, so a
 #     command that trips two guards still shows both reasons, as it did when
 #     the guards were separate hooks.
+#   * Over-length: with `--max-command-len <n>`, a command longer than <n>
+#     characters ends the chain at the first guard that blocks, and the
+#     remaining guards do not run. <n> is the MAX_COMMAND_LEN ceiling the row's
+#     guards share (run-guards.test.sh holds the two equal), above which they
+#     refuse a command unread. A guard with no ceiling that tokenizes would
+#     parse the whole command only to add a reason to a block already
+#     decided, and a row that runs past its hooks.json `timeout` is cancelled
+#     with its block discarded: Claude Code lets a timed-out PreToolUse command
+#     hook's tool call proceed (https://code.claude.com/docs/en/hooks,
+#     "Timeouts"). #4528 measured a ~70 KB command still running at 120 s.
+#     Each guard keeps its own kill switch: a disabled guard exits before its
+#     ceiling, so the next enabled ceiling guard is the one that blocks. An
+#     unprimed payload is measured by its own length, which no command inside
+#     it can exceed.
 #   * stdout: one emitter passes through verbatim. Several are merged into one
 #     document (contexts joined by a blank line) because Claude Code reads
 #     exactly one JSON document per hook process; as separate hooks each
@@ -120,8 +143,14 @@ esac
 
 GUARDS=()
 LIBS=()
+RUN_GUARDS_MAX_CMD=0
 while (($#)); do
   case "$1" in
+  --max-command-len)
+    [[ "$2" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
+    RUN_GUARDS_MAX_CMD=$2
+    shift 2
+    ;;
   --lib)
     # A library several guards source (the PowerShell classifier). Collect
     # the path now; the parse itself waits until tool_name is known. On a
@@ -228,6 +257,19 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
     _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
 fi
 
+# Over-length (AGGREGATION above). Measured in this shell's locale, as each
+# guard measures its own ${#COMMAND}.
+RUN_GUARDS_OVERLONG=0
+if ((RUN_GUARDS_MAX_CMD && RUN_GUARDS_STDIN_RC == 0)); then
+  if ((RUN_GUARDS_PRIMED)); then
+    _rg_cmd="${RUN_GUARDS_FIELD['.tool_input.command']-}"
+    ((${#_rg_cmd} > RUN_GUARDS_MAX_CMD)) && RUN_GUARDS_OVERLONG=1
+    unset _rg_cmd
+  elif ((${#RUN_GUARDS_INPUT} > RUN_GUARDS_MAX_CMD)); then
+    RUN_GUARDS_OVERLONG=1
+  fi
+fi
+
 # The cache in front of the library's extractor. The miss path is the
 # library's own function under its second name, so nothing is copied here.
 # shellcheck disable=SC2329  # invoked by every guard sourced below
@@ -313,6 +355,115 @@ hook::repo_root_to() {
   HOOK_REPO_ROOT_UNRESOLVED=$RUN_GUARDS_RR_UNRESOLVED
   printf -v "$1" '%s' "$RUN_GUARDS_RR_VAL"
   return "$RUN_GUARDS_RR_RC"
+}
+
+# One tokenization per event (HOW above). The record is one string's parse,
+# as flat arrays: per segment its argv count and redirection count, then the
+# words, their HOOK_SEG_WORD_QUOTED flags and the five HOOK_SEG_REDIR_* arrays
+# end to end. Only an outermost call records or stores, so a callback's
+# re-parse of a substring cannot evict the event's command; the depth is reset
+# before each guard, because a guard's `exit` inside a callback never unwinds
+# it.
+RUN_GUARDS_BPS_HAVE=0
+RUN_GUARDS_BPS_KEY=""
+RUN_GUARDS_BPS_DEPTH=0
+RUN_GUARDS_BPS_ARGC=()
+RUN_GUARDS_BPS_REDC=()
+RUN_GUARDS_BPS_WORDS=()
+RUN_GUARDS_BPS_WQ=()
+RUN_GUARDS_BPS_ROP=()
+RUN_GUARDS_BPS_RFD=()
+RUN_GUARDS_BPS_RTGT=()
+RUN_GUARDS_BPS_RQ=()
+RUN_GUARDS_BPS_ROPQ=()
+
+# shellcheck disable=SC2329  # invoked by every guard sourced below
+hook::bash_parse_segments() {
+  if ((RUN_GUARDS_BPS_HAVE)) && [[ "$1" == "$RUN_GUARDS_BPS_KEY" ]]; then
+    run_guards::bps_replay "$2"
+    return 0
+  fi
+  if ((RUN_GUARDS_BPS_DEPTH)); then
+    hook::bash_parse_segments_uncached "$@"
+    return
+  fi
+  local __rg_bps_cb="$2"
+  local -a __rg_bps_argc=() __rg_bps_redc=() __rg_bps_words=() __rg_bps_wq=()
+  local -a __rg_bps_rop=() __rg_bps_rfd=() __rg_bps_rtgt=() __rg_bps_rq=() __rg_bps_ropq=()
+  RUN_GUARDS_BPS_DEPTH=1
+  hook::bash_parse_segments_uncached "$1" run_guards::bps_record
+  RUN_GUARDS_BPS_DEPTH=0
+  RUN_GUARDS_BPS_KEY=$1
+  RUN_GUARDS_BPS_ARGC=(${__rg_bps_argc[@]+"${__rg_bps_argc[@]}"})
+  RUN_GUARDS_BPS_REDC=(${__rg_bps_redc[@]+"${__rg_bps_redc[@]}"})
+  RUN_GUARDS_BPS_WORDS=(${__rg_bps_words[@]+"${__rg_bps_words[@]}"})
+  RUN_GUARDS_BPS_WQ=(${__rg_bps_wq[@]+"${__rg_bps_wq[@]}"})
+  RUN_GUARDS_BPS_ROP=(${__rg_bps_rop[@]+"${__rg_bps_rop[@]}"})
+  RUN_GUARDS_BPS_RFD=(${__rg_bps_rfd[@]+"${__rg_bps_rfd[@]}"})
+  RUN_GUARDS_BPS_RTGT=(${__rg_bps_rtgt[@]+"${__rg_bps_rtgt[@]}"})
+  RUN_GUARDS_BPS_RQ=(${__rg_bps_rq[@]+"${__rg_bps_rq[@]}"})
+  RUN_GUARDS_BPS_ROPQ=(${__rg_bps_ropq[@]+"${__rg_bps_ropq[@]}"})
+  RUN_GUARDS_BPS_HAVE=1
+}
+
+# The recording callback: copy the segment before the guard's own callback
+# sees it, since that callback may re-parse and overwrite HOOK_SEG_*. Reads
+# the recording hook::bash_parse_segments frame's locals through dynamic scope.
+# shellcheck disable=SC2329  # invoked as the parse callback above
+run_guards::bps_record() {
+  __rg_bps_argc+=("$#")
+  __rg_bps_redc+=("${#HOOK_SEG_REDIR_OP[@]}")
+  __rg_bps_words+=("$@")
+  __rg_bps_wq+=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  __rg_bps_rop+=(${HOOK_SEG_REDIR_OP[@]+"${HOOK_SEG_REDIR_OP[@]}"})
+  __rg_bps_rfd+=(${HOOK_SEG_REDIR_FD[@]+"${HOOK_SEG_REDIR_FD[@]}"})
+  __rg_bps_rtgt+=(${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"})
+  __rg_bps_rq+=(${HOOK_SEG_REDIR_QUOTED[@]+"${HOOK_SEG_REDIR_QUOTED[@]}"})
+  __rg_bps_ropq+=(${HOOK_SEG_REDIR_OPAQUE[@]+"${HOOK_SEG_REDIR_OPAQUE[@]}"})
+  "$__rg_bps_cb" "$@"
+}
+
+# run_guards::bps_replay <callback>: hand the recorded segments to <callback>
+# exactly as the parse did, each with its HOOK_SEG_* arrays rebuilt first, and
+# leave those arrays empty afterwards, as the parse does. Elements are read one
+# index at a time rather than sliced: a slice walks the array from its head.
+run_guards::bps_replay() {
+  local __rg_cb="$1" __rg_k __rg_j __rg_a __rg_c __rg_w=0 __rg_r=0
+  local __rg_depth=$RUN_GUARDS_BPS_DEPTH
+  local -a __rg_argv=()
+  RUN_GUARDS_BPS_DEPTH=1
+  for ((__rg_k = 0; __rg_k < ${#RUN_GUARDS_BPS_ARGC[@]}; __rg_k++)); do
+    __rg_a=${RUN_GUARDS_BPS_ARGC[__rg_k]}
+    __rg_c=${RUN_GUARDS_BPS_REDC[__rg_k]}
+    __rg_argv=()
+    HOOK_SEG_WORD_QUOTED=()
+    for ((__rg_j = 0; __rg_j < __rg_a; __rg_j++)); do
+      __rg_argv+=("${RUN_GUARDS_BPS_WORDS[__rg_w + __rg_j]}")
+      HOOK_SEG_WORD_QUOTED+=("${RUN_GUARDS_BPS_WQ[__rg_w + __rg_j]}")
+    done
+    HOOK_SEG_REDIR_OP=()
+    HOOK_SEG_REDIR_FD=()
+    HOOK_SEG_REDIR_TARGET=()
+    HOOK_SEG_REDIR_QUOTED=()
+    HOOK_SEG_REDIR_OPAQUE=()
+    for ((__rg_j = 0; __rg_j < __rg_c; __rg_j++)); do
+      HOOK_SEG_REDIR_OP+=("${RUN_GUARDS_BPS_ROP[__rg_r + __rg_j]}")
+      HOOK_SEG_REDIR_FD+=("${RUN_GUARDS_BPS_RFD[__rg_r + __rg_j]}")
+      HOOK_SEG_REDIR_TARGET+=("${RUN_GUARDS_BPS_RTGT[__rg_r + __rg_j]}")
+      HOOK_SEG_REDIR_QUOTED+=("${RUN_GUARDS_BPS_RQ[__rg_r + __rg_j]}")
+      HOOK_SEG_REDIR_OPAQUE+=("${RUN_GUARDS_BPS_ROPQ[__rg_r + __rg_j]}")
+    done
+    __rg_w=$((__rg_w + __rg_a))
+    __rg_r=$((__rg_r + __rg_c))
+    "$__rg_cb" "${__rg_argv[@]}"
+  done
+  HOOK_SEG_WORD_QUOTED=()
+  HOOK_SEG_REDIR_OP=()
+  HOOK_SEG_REDIR_FD=()
+  HOOK_SEG_REDIR_TARGET=()
+  HOOK_SEG_REDIR_QUOTED=()
+  HOOK_SEG_REDIR_OPAQUE=()
+  RUN_GUARDS_BPS_DEPTH=$__rg_depth
 }
 
 # --- PowerShell classifier, once, and only on that tool -----------------------
@@ -416,6 +567,7 @@ run_guards::record() {
 # rest. Never returns.
 run_guards::guard_done() {
   run_guards::record "$1"
+  ((RUN_GUARDS_OVERLONG && RC == 2)) && run_guards::finish
   if ((RUN_GUARDS_DYING)); then
     run_guards::run_rest_in_subshell "$((RUN_GUARDS_CUR + 1))"
     run_guards::finish
@@ -446,6 +598,7 @@ run_guards::run_from() {
     # A fresh hook process has no alias memo; the guard before this one may
     # have armed it on the same command, and a memo hit is "already analyzed".
     hook::reset_analysis_state
+    RUN_GUARDS_BPS_DEPTH=0
     RUN_GUARDS_T0=${EPOCHREALTIME:-}
     # shellcheck disable=SC1090
     source "$__rg_path" </dev/null

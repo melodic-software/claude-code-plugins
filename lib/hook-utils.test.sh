@@ -1155,6 +1155,7 @@ lc12g2_run() {
   if [[ -z "${LC_ALL+x}" ]]; then ok "C locale: an unset LC_ALL stays unset"; else fail "C locale: LC_ALL left set to [$LC_ALL]"; fi
 )
 (
+  # shellcheck disable=SC2030
   export LC_ALL=C.UTF-8
   lc12g2_run
   if [[ "$LC_ALL" == C.UTF-8 && "$(declare -p LC_ALL)" == 'declare -x LC_ALL='* ]]; then
@@ -3554,6 +3555,96 @@ if [[ "$bps_word_q" == "0 2 1" ]]; then
   ok "bash_parse_segments: per-word quoting provenance"
 else
   fail "bash_parse_segments per-word quoting provenance: got [$bps_word_q], want [0 2 1]"
+fi
+
+# --- hook::bash_parse_segments: byte walk, caller's locale, linear cost ------
+# The command is split into bytes under C (#4528). A word reassembled from the
+# bytes of a multibyte character, or from a byte that is not valid UTF-8, must
+# be exactly the text written, and the caller must be handed back its locale.
+bps_mb_case() { # <desc> <command> <want words joined by |>
+  bps_last=()
+  hook::bash_parse_segments "$2" bps_collect
+  local got
+  got=$(join_a ${bps_last[@]+"${bps_last[@]}"})
+  if [[ "$got" == "$3" ]]; then
+    ok "bash_parse_segments bytes: $1"
+  else
+    fail "bash_parse_segments bytes $1: got [$(printf %q "$got")], want [$(printf %q "$3")]"
+  fi
+}
+bps_mb_run() {
+  bps_mb_case "multibyte words survive the byte walk" \
+    'echo "héllo wörld ✓" 日本語 𝄞' 'echo|héllo wörld ✓|日本語|𝄞'
+  bps_mb_case "an invalid UTF-8 byte stays the byte it was" \
+    $'printf \xff\xfe \xc3' $'printf|\xff\xfe|\xc3'
+  bps_mb_case "a multibyte heredoc body is skipped, the next line parsed" \
+    $'cat <<EOF\nünï ✓\nEOF\necho après' 'echo|après'
+  local mb='é日' before
+  before=${#mb}
+  hook::bash_parse_segments 'echo é' bps_collect
+  if [[ "${#mb}" == "$before" ]]; then
+    ok "bash_parse_segments: the caller's locale is restored"
+  else
+    fail "bash_parse_segments: locale leaked, \${#mb} $before -> ${#mb}"
+  fi
+}
+bps_mb_in() { # <LC_ALL value, empty for unset> -> bps_mb_run there, then the LC_ALL check
+  (
+    # shellcheck disable=SC2030,SC2031
+    if [[ -n "$1" ]]; then declare -x LC_ALL="$1"; else unset LC_ALL; fi
+    bps_mb_run
+    local now
+    now=$(declare -p LC_ALL 2>/dev/null)
+    if [[ -z "$1" && -z "$now" ]]; then
+      ok "bash_parse_segments: an unset LC_ALL stays unset"
+    elif [[ -n "$1" && "$now" == "declare -x LC_ALL=\"$1\"" ]]; then
+      ok "bash_parse_segments: LC_ALL=$1 keeps its value and export flag"
+    else
+      fail "bash_parse_segments: LC_ALL [${1:-unset}] came back as [${now:-unset}]"
+    fi
+  )
+}
+bps_mb_in ""
+bps_mb_in C.UTF-8
+
+# Cost grows linearly with the command. The per-character `${cmd:i:1}` walk
+# this replaced was quadratic: 1.2 s at 10,000 characters and 4.9 s at 20,000
+# under en_US.UTF-8. A ratio of two sizes measured back to back, best of
+# three, keeps the check off the host's absolute speed: 8x the text costs
+# about 8x when linear and 50x or more when quadratic, so 20 separates them
+# with room for noise either way.
+bps_lin_ms() { # <command> -> best of three parse times, in microseconds
+  local best=-1 t0 t1 d _r
+  for _r in 1 2 3; do
+    t0=$EPOCHREALTIME
+    hook::bash_parse_segments "$1" :
+    t1=$EPOCHREALTIME
+    d=$((${t1/./} - ${t0/./}))
+    ((best < 0 || d < best)) && best=$d
+  done
+  printf '%s' "$best"
+}
+if [[ -z "${EPOCHREALTIME:-}" ]]; then
+  ok "bash_parse_segments linear cost: not timed (EPOCHREALTIME absent, Bash < 5.0)"
+else
+  bps_lin_line='git commit -m "ünïcödé prose, again" && echo ok; '
+  bps_lin_small=""
+  while ((${#bps_lin_small} < 2000)); do bps_lin_small+="$bps_lin_line"; done
+  bps_lin_large=""
+  for _ in 1 2 3 4 5 6 7 8; do bps_lin_large+="$bps_lin_small"; done
+  (
+    # shellcheck disable=SC2031
+    declare -x LC_ALL=C.UTF-8
+    small=$(bps_lin_ms "$bps_lin_small")
+    large=$(bps_lin_ms "$bps_lin_large")
+    ((small > 0)) || small=1
+    ratio=$((large / small))
+    if ((ratio < 20)); then
+      ok "bash_parse_segments: 8x the command costs ${ratio}x (${small} us -> ${large} us)"
+    else
+      fail "bash_parse_segments: 8x the command costs ${ratio}x (${small} us -> ${large} us); the walk is superlinear again"
+    fi
+  )
 fi
 
 # repo_root_to / repo_relative_path_to write in this shell. hook::repo_root is
