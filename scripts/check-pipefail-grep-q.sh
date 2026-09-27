@@ -69,7 +69,18 @@ fi
 # shellcheck disable=SC2016  # awk program text; the shell must not expand it
 LEXER='
 # o[] is the masked view; si[] maps each masked char back to its source index.
-function emit(ch) { o[++k] = ch; ol[k] = line; si[k] = EP++ }
+# ek[] says what grep would see for a masked "_": l a quoted literal char, x a
+# quote or escape removed by the shell, n an expansion (neutral in the option
+# scan). A char left unmasked is code, kind c. Set EK just before an emit.
+function emit(ch) {
+  o[++k] = ch; ol[k] = line; si[k] = EP++
+  ek[k] = ch != "_" ? "c" : inexp() ? "n" : EK
+  EK = "n"
+}
+function inexp(   j) {
+  for (j = 1; j <= sp; j++) if (ft[j] == "B" || ft[j] == "A") return 1
+  return 0
+}
 function push(t, d) { ft[++sp] = t; fd[sp] = d }
 function wordstart(p,   c) {
   if (p <= 1) return 1
@@ -123,21 +134,22 @@ function subst_open(p,   n1, n2) {
   return 0
 }
 function lex(   i, c, t, nc, r) {
-  k = 0; line = 1; sp = 0; hn = 0; incomment = 0
+  k = 0; line = 1; sp = 0; hn = 0; incomment = 0; EK = "n"; VR = 0
   push("C", 0)
   len = length(S)
   for (i = 1; i <= len; i++) {
     c = substr(S, i, 1); t = ft[sp]; EP = i
+    if (VR && !(t == "D" && c ~ /[A-Za-z0-9_]/)) VR = 0
     if (c == "\n") {
       emit("\n"); line++; incomment = 0
       if (hn > 0 && (t == "C" || t == "T")) i = heredoc_bodies(i)
       continue
     }
     if (incomment) { emit(" "); continue }
-    if (t == "S") { emit("_"); if (c == "\047") sp--; continue }
+    if (t == "S") { EK = c == "\047" ? "x" : "l"; emit("_"); if (c == "\047") sp--; continue }
     if (t == "E") {
-      if (c == "\\") { emit("_"); i++; if (substr(S, i, 1) == "\n") { emit("\n"); line++ } else emit("_"); continue }
-      emit("_"); if (c == "\047") sp--; continue
+      if (c == "\\") { EK = "x"; emit("_"); i++; if (substr(S, i, 1) == "\n") { emit("\n"); line++ } else { EK = "l"; emit("_") }; continue }
+      EK = c == "\047" ? "x" : "l"; emit("_"); if (c == "\047") sp--; continue
     }
     if (t == "A") {
       if (c == "(") fd[sp]++
@@ -152,30 +164,37 @@ function lex(   i, c, t, nc, r) {
       } else if ((t == "C" || t == "T") && nc ~ /[A-Za-z0-9_]/) {
         # `\grep` bypasses an alias and still runs grep; keep the word readable.
         emit("\\"); emit(nc)
-      } else { emit("_"); emit("_") }
+      } else { EK = "x"; emit("_"); EK = "l"; emit("_") }
       continue
     }
     if (t == "D" || t == "B") {
+      if (VR) { emit("_"); continue }
       if (c == "$" && (r = subst_open(i))) { i = r; continue }
+      if (t == "D" && c == "$") {
+        # "$name" and "$1" are expansions: neutral, like ${...}.
+        nc = substr(S, i + 1, 1)
+        if (nc ~ /[A-Za-z_]/) { VR = 1; emit("_"); continue }
+        if (nc ~ /[0-9@*#?$!-]/) { emit("_"); i++; EP = i; emit("_"); continue }
+      }
       if (c == "`") { push("T", 0); emit("_"); continue }
-      if (t == "D" && c == "\"") { sp--; emit("_"); continue }
+      if (t == "D" && c == "\"") { sp--; EK = "x"; emit("_"); continue }
       if (t == "B") {
         if (c == "}") { sp--; emit("_"); continue }
         if (c == "\"") { push("D", 0); emit("_"); continue }
         if (c == "\047" && ft[sp - 1] != "D") { push("S", 0); emit("_"); continue }
       }
-      emit("_"); continue
+      EK = "l"; emit("_"); continue
     }
     # code: the top level, $( ), or backticks
     if (t == "T" && c == "`") { sp--; emit("_"); continue }
     if (c == "#" && wordstart(i)) { incomment = 1; emit(" "); continue }
-    if (c == "\047") { push("S", 0); emit("_"); continue }
-    if (c == "\"") { push("D", 0); emit("_"); continue }
+    if (c == "\047") { push("S", 0); EK = "x"; emit("_"); continue }
+    if (c == "\"") { push("D", 0); EK = "x"; emit("_"); continue }
     if (c == "`") { push("T", 0); emit("_"); continue }
     if (c == "$") {
       nc = substr(S, i + 1, 1)
-      if (nc == "\047") { push("E", 0); emit("_"); emit("_"); i++; continue }
-      if (nc == "\"") { push("D", 0); emit("_"); emit("_"); i++; continue }
+      if (nc == "\047") { push("E", 0); EK = "x"; emit("_"); EK = "x"; emit("_"); i++; continue }
+      if (nc == "\"") { push("D", 0); EK = "x"; emit("_"); EK = "x"; emit("_"); i++; continue }
       if ((r = subst_open(i))) { i = r; continue }
       emit("$"); continue
     }
@@ -202,12 +221,15 @@ function readword(y) {
   while (y <= k && index(" \t\n;|&()", o[y]) == 0) { W = W o[y]; y++ }
   return y
 }
-# unquoted(a, b): the source text of masked chars a..b-1 with quoting removed,
-# which is what grep receives as the argument.
+# unquoted(a, b): masked chars a..b-1 as grep would see them: code as is, quoted
+# literals as written, quotes and escapes dropped, each expansion char as "_".
 function unquoted(a, b,   y, r) {
   r = ""
-  for (y = a; y < b; y++) r = r substr(S, si[y], 1)
-  gsub(/\$["\047]/, "", r); gsub(/["\047\\]/, "", r)
+  for (y = a; y < b; y++) {
+    if (ek[y] == "c") r = r o[y]
+    else if (ek[y] == "l") r = r substr(S, si[y], 1)
+    else if (ek[y] == "n") r = r "_"
+  }
   return r
 }
 function early_exit(z,   w, zs, ch, ci, name) {

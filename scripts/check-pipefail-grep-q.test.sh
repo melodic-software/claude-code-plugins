@@ -168,6 +168,31 @@ EOF
 expect_flag "a single-quoted --quiet option" 1 <<'EOF'
 echo x | grep '--quiet' foo
 EOF
+
+# --- expansions are neutral in the option scan --------------------------------
+# A variable name never contributes option letters: `-${flags}q` is still -q,
+# and "-$lvl" is not -l.
+expect_flag "-q after a \${flags} expansion" 1 <<'EOF'
+echo a | grep -${flags}q a
+EOF
+expect_flag "-l after a \${verbose} expansion" 1 <<'EOF'
+echo a | grep -${verbose}l a
+EOF
+expect_flag "-q after a \${DEBUG} expansion" 1 <<'EOF'
+echo a | grep -${DEBUG}q a
+EOF
+expect_flag "-m1 after a \${extra} expansion" 1 <<'EOF'
+echo a | grep -${extra}m1 a
+EOF
+expect_flag "-q after a \${case_flag} expansion" 1 <<'EOF'
+echo a | grep -${case_flag}q a
+EOF
+expect_clean "a quoted \"-\$lvl\" argument" <<'EOF'
+echo a | grep "-$lvl" a
+EOF
+expect_clean "a quoted \"-\${level}\" argument" <<'EOF'
+echo a | grep "-${level}" a
+EOF
 # KNOWN GAP, pinned at current behavior: the lexer does not model `case`, so the
 # pattern `)` closes the double-quoted `$( )` early and the pipe after it is
 # masked. A fix that flags this should flip this case to expect_flag on purpose.
