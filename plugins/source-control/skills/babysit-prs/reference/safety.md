@@ -182,8 +182,8 @@ loop's own escalation contract is not outside it.
 - Fix (c) like any other in-scope defect, but count it. It is never deferrable, because it is a
   defect this change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`,
   D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A (b) finding follows D4.6's
-  scope test: a small or medium one is fixed in this PR as its own commit, even when unrelated to
-  the task, and only a structural, urgent-but-cannot-land, or research-blocked one is filed and
+  scope test: a small or medium one is fixed in this PR in a review-fix commit, even when unrelated
+  to the task, and only a structural, urgent-but-cannot-land, or fix-blocked-on-research one is filed and
   deferred. A second consecutive **advisory** round whose findings are *all* (c) means incremental
   patching is injecting defects about as fast as it removes them; that is the non-convergence
   signal a round count only approximates. The test is scoped to advisory rounds because those are
@@ -566,7 +566,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   - `deferred` + `--tracker-item <owner/repo#N|#N|N>`: the item must exist and still be **open**.
     A closed follow-up is not a deferral; it is the finding disappearing. The script cannot check
     D4.6's scope test, so claim `deferred` only for a structural, urgent-but-cannot-land, or
-    research-blocked finding; a small or medium one is `fixed` in this PR.
+    fix-blocked-on-research finding; a small or medium one is `fixed` in this PR.
   - `incorrect` + `--counter-evidence <text>`: the text must already appear in a **reply** on the
     thread, posted by **someone other than the thread's opener**. Excluding the opening comment
     alone is not enough: the mandated classification reply restates the finding's own text, so a

@@ -82,7 +82,7 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 |---|---------|---------------|----------|---------|
 | 1 | <summary> | VALID: fixing | <evidence> | 👍 |
 | 2 | <summary> | INCORRECT | <evidence why wrong> | 👎 |
-| 3 | <summary> | VALID (defer) | <structural, urgent, or research-blocked: why; item id> | 👍 |
+| 3 | <summary> | VALID (defer) | <structural, urgent, or fix blocked on research: why; item id> | 👍 |
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post the
@@ -139,7 +139,7 @@ Ledger constraints:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or research-blocked finding; a small or medium one is VALID (fix now)
+- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now)
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
@@ -211,10 +211,11 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   records D7.5 accepts, so the thread stays open and nothing merges over it
   <!-- contract-restatement-end: D4.6-deferral-grounding -->
   - [ ] **Defer only what cannot land in this PR (scope test).** A small or medium finding is
-    `VALID (fix now)` and is fixed in this PR as its own commit, even when it is unrelated to the
-    task. `VALID (defer)`, and the tracker item behind it, is only for a finding that is
-    structural (large enough to need its own planning pass), urgent and real but unable to land
-    in this PR, or blocked on research this lane is not positioned to do. Filing is never busy
+    `VALID (fix now)` and is fixed in this PR in a review-fix commit, separate from the original
+    work, even when it is unrelated to the task. `VALID (defer)`, and the tracker item behind it,
+    is only for a finding that is structural (large enough to need its own planning pass), urgent
+    and real but unable to land in this PR, or whose fix is blocked on research this lane is not
+    positioned to do (a claim research cannot confirm stays `UNCERTAIN`). Filing is never busy
     work: no item for a nit or a speculative concern
   - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce

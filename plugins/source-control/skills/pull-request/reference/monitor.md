@@ -386,7 +386,7 @@ For **every substantive comment from every participant** (bot accounts with the 
 |---|----------|---------|---------------|----------|
 | 1 | claude[bot] | "Missing null check on line 42" | INCORRECT: parameter is non-nullable by type | [sources] |
 | 2 | chatgpt-codex-connector[bot] | "Race condition in handler" | VALID (fix now): confirmed by research | [sources] |
-| 3 | human-reviewer | "Consider extracting to helper" | VALID (fix now): small refactor, own commit | [sources] |
+| 3 | human-reviewer | "Consider extracting to helper" | VALID (fix now): small refactor, review-fix commit | [sources] |
 | 4 | claude[bot] | "Split this module's persistence layer" | VALID (defer): structural, needs its own plan | Tracked work item |
 ```
 
@@ -445,7 +445,7 @@ When all readiness gates pass:
 **PR:** #N, title
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** [scanner] evaluated, N findings classified
-**Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or research-blocked; item ids), W incorrect
+**Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or fix blocked on research; item ids), W incorrect
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Cooldown:** 2+ min since last activity
 **Fix iterations:** N
