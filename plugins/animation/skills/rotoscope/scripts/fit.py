@@ -40,7 +40,7 @@ def next_bias(tried, b, R, step):
 
 
 def best(tried):
-    rows = sorted(tried.items(), key=lambda br: (not ok(br[1]), br[1]['xor'] if ok(br[1]) else br[1]['xor'] / br[1]['floor']))
+    rows = sorted(tried.items(), key=lambda br: (not ok(br[1]), br[1]['xor'] if ok(br[1]) else br[1]['xor'] / max(br[1]['floor'], 1e-9)))
     return rows[0]
 
 
@@ -83,7 +83,7 @@ def main(argv=None):
     for k in ks:
         b, r = best(tried[k])
         fit[k] = b
-        lines.append(f"| {k} | {start[k]:.2f} | {b:.2f} | {ratio(r):.2f} | {r['xor']:.3f} | {r['xor'] / r['floor']:.2f} | {r['ssim']:.4f} | "
+        lines.append(f"| {k} | {start[k]:.2f} | {b:.2f} | {ratio(r):.2f} | {r['xor']:.3f} | {r['xor'] / max(r['floor'], 1e-9):.2f} | {r['ssim']:.4f} | "
                      f"{r['ssim_e']:.4f} | {'yes' if ok(r) else 'NO'} | {' '.join(f'{x:.2f}' for x in sorted(tried[k]))} |")
     (out / f'fit-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
