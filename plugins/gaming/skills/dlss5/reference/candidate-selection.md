@@ -11,9 +11,27 @@ settings.
 | A DX11 game runs NR only with `Dx11Upscaler=dlss_12`, the dx11on12 bridge | wilsjo2 `OptiScaler.ini`; Dagherbou `v0.2.0-dlssnr` notes. Upstream README puts the bridge's cost at "up to 10-ish %" |
 | GeForce driver 616.56 or later | Dagherbou `v0.2.0-dlssnr` notes; wilsjo2 `INSTALL-DLSSNR.md` |
 | No anti-cheat signal, or the user's typed at-own-risk acknowledgement after the anti-cheat review. Online games: solo or offline play only | `reference/anticheat-posture.md`; upstream README ("Do not use this mod with online games") |
+| A 64-bit game exe. NVIDIA's DLSS SDK ships Windows NGX libraries for x86-64, ARM64 and ARM64EC only, and a 32-bit process cannot load a 64-bit DLL | NVIDIA/DLSS `lib/` (`Windows_x86_64`, `Windows_aarch64`, `Windows_arm64ec`; no 32-bit target); Microsoft, Process Interoperability ("a 32-bit process cannot load a 64-bit DLL"); wilsjo2 README ("a supported 64-bit game") |
 
-Single-source note, not a check: wilsjo2's README asks for "a supported 64-bit game". Neither
-Dagherbou nor upstream states a bitness requirement, and `assess` does not test for one.
+## Bitness and DirectX 12
+
+`assess` reads each `*.exe` in the exe directory as a PE image, per Microsoft's PE format spec, and
+reports it in `executables`: `machine` (the COFF Machine field, such as `0x8664` for x64, `0x14C`
+for x86 or `0xAA64` for ARM64), `format` (the optional-header magic: `0x10b` is `PE32`, `0x20b` is
+`PE32+`), `managed`, `dx12` and `dx12Basis`.
+
+- **`bitness`** is `32-bit` only when every exe is a native `PE32`. That is a refusal: verdict
+  `not-a-candidate` in `assess`, and `apply` refuses before any write. `64-bit` means every exe is
+  `PE32+`, which covers ARM64 as well as x64, so the check keys on the magic, not a machine list.
+  `mixed` (a 32-bit helper beside a 64-bit game) is not refused. `unknown` covers an exe that is
+  not a readable PE image and a managed (.NET) `PE32`, since an AnyCPU exe runs as a 64-bit
+  process wherever it can.
+- **`dx12`** is `true` when an exe has `d3d12.dll` in its import table or its delay-load import
+  table, or exports `D3D12SDKVersion` (Microsoft's Agility SDK requires that export "from the main
+  .exe"). It is `false` when every exe imports `d3d11.dll` with none of those. Otherwise it is
+  `null`, unknown, with each exe's `dx12Basis` naming why. A `d3d12*.dll` file beside the exe and an
+  Unreal `Binaries\Win64` path are not evidence either way: a proxy can carry that file name, and an <!-- portability-ok: Windows path, not a shell regex -->
+  Unreal game can be D3D11.
 
 ## What `assess` detects
 
@@ -37,12 +55,16 @@ upscaler plugins; otherwise the exe directory.
 No DLL from the table gives the verdict `not-a-candidate`, and `apply` refuses it before any write.
 There is no override flag.
 
-Known gaps, both judgment rather than sourced:
+Known gaps:
 
 - **An upscaler compiled into the executable leaves no DLL.** Such a game reads as
-  `not-a-candidate` even though it has an upscaler.
+  `not-a-candidate` even though it has an upscaler. Judgment, not sourced.
 - **A DLL on disk is not proof the game calls it.** The real test is the `DLSS-NR cost` log line in
-  `reference/tuning-guide.md`.
+  `reference/tuning-guide.md`. Judgment, not sourced.
+- **A renderer loaded at run time is in no PE table.** A game that loads D3D12 with `LoadLibrary`
+  (Microsoft, Run-Time Dynamic Linking) and exports no `D3D12SDKVersion` reads `dx12: null`. So does
+  one that imports only `dxgi.dll`, which D3D10 through D3D12 all use. Launch it on DX12 and check
+  the log line above.
 
 ## Non-candidates
 
@@ -97,4 +119,7 @@ overwrites a game file, so the collision gate would refuse `dbghelp.dll` there a
 |---|---|---|---|
 | Upscaler requirement, DX11 `dlss_12`, driver 616.56 | Upstream README; Dagherbou `v0.2.0-dlssnr` notes; wilsjo2 `v0.8.3` notes, `OptiScaler.ini`, `INSTALL-DLSSNR.md`; independent verification pass | 2026-09-23 | A fork release changes its requirements |
 | Upscaler DLL names | `gh api repos/optiscaler/OptiScaler/contents/OptiScaler/DllNames.h`, last changed in commit `3bae321` (2026-06-11) | 2026-09-23 | `DllNames.h` changes, or a game ships an upscaler under a new name |
+| No 32-bit Windows NGX library | `gh api repos/NVIDIA/DLSS/contents/lib`: `Windows_x86_64`, `Windows_aarch64`, `Windows_arm64ec`, `Linux_x86_64`, `Linux_aarch64` (release `v310.9.1`, HEAD `3749594`); Microsoft, [Process Interoperability](https://learn.microsoft.com/en-us/windows/win32/winprog64/process-interoperability) | 2026-09-27 | An NVIDIA/DLSS release adds a 32-bit Windows `lib/` target |
+| PE fields `assess` reads | Microsoft, [PE Format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format): signature offset at 0x3c, COFF Machine, optional-header magic, data directories 0 (export), 1 (import), 13 (delay import), 14 (CLR header), the delay-load RvaBased bit, and the lexically ordered export name pointer table | 2026-09-27 | The PE format page changes any of those fields |
+| DX12 evidence rules | Microsoft, [Agility SDK getting started](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/) (`D3D12SDKVersion` "exported from the main .exe"); [Run-Time Dynamic Linking](https://learn.microsoft.com/en-us/windows/win32/dlls/run-time-dynamic-linking); [DXGI overview](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/d3d10-graphics-programming-guide-dxgi); C# [PlatformTarget](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-options/output) (AnyCPU exes run as 64-bit processes) | 2026-09-27 | A live `assess` reads `dx12` wrong for a game whose API is known |
 | Engine notes and config sources | OptiScaler wiki clone (HEAD `2803618`); wilsjo2 #6, #56, #85; Dagherbou #8, #52; independent verification pass | 2026-09-23 | The wiki page or issue changes |

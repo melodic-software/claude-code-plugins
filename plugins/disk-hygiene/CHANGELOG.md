@@ -15,6 +15,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   or `contested`, even alongside `gone` paths. The verdicts, `clear` and `not_clear` are unchanged
   (`not_clear` still counts `gone`), and the `note` field and the handoff reference say so.
 
+## [0.24.1] - 2026-09-27
+
+### Fixed
+
+- **`scan --quiet` prints `truncated_paths` as a count.** Under `--quiet` the stdout payload carries the number of truncated paths instead of the list, which ran to about 140 lines on a depth-2 home scan. The count is present at zero, so a clean scan is distinguishable from a suppressed list. The snapshot file keeps the full list in both modes, and output without `--quiet` is unchanged. Both quiet notes name the change, and `SKILL.md` and the safety model say where the list lives (#4013).
+
 ## [0.24.0] - 2026-09-27
 
 ### Added

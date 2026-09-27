@@ -546,13 +546,15 @@ NON-EMPTY child is not knowable without walking it, so every such child reads `d
 loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
 subtree.
 
-The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout
-and nothing else. The two copies are otherwise identical, and the snapshot is the copy the engine
-treats as the record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`,
-`status`, `target`, the three coverage terms, `empty_directory_count`, both byte totals,
-`truncated_paths`, `errors`, `policy_sources` and `os_autoclean`, so every field a keep-or-review
-decision rests on survives, and it replaces the closing note with a short one naming where the
-rows went. That field set holds in `--root-children` mode too, which reports
+The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
+The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
+record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
+the three coverage terms, `empty_directory_count`, both byte totals, `errors`, `policy_sources`
+and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
+closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
+of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
+flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
+suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
 `empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.

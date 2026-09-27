@@ -1195,6 +1195,7 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("root_children_skipped", payload["note"])
             # The documented quiet field set applies to this mode too.
             self.assertIn("empty_directory_count", payload)
+            self.assertIs(type(payload["truncated_paths"]), int)
             self.assertEqual(["builds"], payload["root_children_selected"])
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")
@@ -2891,10 +2892,45 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
         # Every field the caller decides on survives, with the same value the
         # default run reported: quiet is a projection, never a recomputation.
-        for field in set(quiet) - {"note", "target", "snapshot"}:
+        for field in set(quiet) - {"note", "target", "snapshot", "truncated_paths"}:
             self.assertEqual(default[field], quiet[field], field)
+        self.assertEqual(
+            len(cast("list[object]", default["truncated_paths"])),
+            quiet["truncated_paths"],
+        )
         self.assertEqual(hygiene.QUIET_SCAN_NOTE, quiet["note"])
         self.assertIn("snapshot", quiet)
+
+    def test_quiet_reports_truncated_paths_as_a_count(self) -> None:
+        (default, _, default_snapshot), (quiet, _, quiet_snapshot) = self._both_modes(4)
+        self.assertEqual(
+            [f"child_{index:03d}" for index in range(4)],
+            default_snapshot["truncated_paths"],
+        )
+        self.assertEqual(
+            default_snapshot["truncated_paths"], default["truncated_paths"]
+        )
+        self.assertIs(type(quiet["truncated_paths"]), int)
+        self.assertEqual(4, quiet["truncated_paths"])
+        # The list the count stands for stays in the quiet run's snapshot.
+        self.assertEqual(
+            default_snapshot["truncated_paths"], quiet_snapshot["truncated_paths"]
+        )
+
+    def test_quiet_count_is_present_at_zero(self) -> None:
+        """A clean scan must read differently from a suppressed list."""
+        (default, _, _), (quiet, _, quiet_snapshot) = self._both_modes(0)
+        self.assertEqual([], default["truncated_paths"])
+        self.assertIn("truncated_paths", quiet)
+        self.assertIs(type(quiet["truncated_paths"]), int)
+        self.assertEqual(0, quiet["truncated_paths"])
+        self.assertEqual([], quiet_snapshot["truncated_paths"])
+
+    def test_default_stdout_is_the_unshaped_payload(self) -> None:
+        (default, raw, snapshot), _ = self._both_modes(4)
+        self.assertEqual(json.dumps(default, indent=2, sort_keys=True) + "\n", raw)
+        self.assertEqual(snapshot["truncated_paths"], default["truncated_paths"])
+        self.assertEqual(snapshot["children_rollup"], default["children_rollup"])
 
     def test_snapshot_on_disk_keeps_the_rollup_in_both_modes(self) -> None:
         """A quiet run whose snapshot lost the rollup is data loss, not brevity."""
@@ -2928,10 +2964,9 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         )
         self.assertLess(len(small_quiet_raw), len(small_raw))
         self.assertLess(len(large_quiet_raw), len(large_raw))
-        # The default payload grows a whole rollup row per extra child. Quiet
-        # carries no per-child rows, so its only per-child growth is the one
-        # truncated path each depth-cut child adds: an order of magnitude
-        # flatter, which is the saving this flag exists to buy.
+        # The default payload grows a whole rollup row and a truncated path per
+        # extra child. Quiet carries neither, only their counts: an order of
+        # magnitude flatter, which is the saving this flag exists to buy.
         default_growth = len(large_raw) - len(small_raw)
         quiet_growth = len(large_quiet_raw) - len(small_quiet_raw)
         self.assertGreater(default_growth, 5000)
@@ -2939,12 +2974,19 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
 
     def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
-        payload = {"status": "scan-complete", "children_rollup": [1], "note": "keep"}
+        payload = {
+            "status": "scan-complete",
+            "children_rollup": [1],
+            "truncated_paths": ["a", "b"],
+            "note": "keep",
+        }
         self.assertIs(payload, hygiene.scan_stdout_payload(payload, False))
         trimmed = hygiene.scan_stdout_payload(payload, True)
         self.assertNotIn("children_rollup", trimmed)
+        self.assertEqual(2, trimmed["truncated_paths"])
         # The caller's dict is never mutated in place.
         self.assertIn("children_rollup", payload)
+        self.assertEqual(["a", "b"], payload["truncated_paths"])
         self.assertEqual("keep", payload["note"])
 
 
