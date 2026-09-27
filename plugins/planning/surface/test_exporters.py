@@ -558,6 +558,32 @@ class TestImportLedger(SessionCase):
             "Pruned.",
         )
 
+    def test_a_user_hold_reopens_an_imported_answer_even_after_it_clears(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Who reads? | accepted: everyone\n"
+            "- Q2 | answered | round 1 | Who writes? | accepted: admins\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        ops = self.tmp / "ops.json"
+        for op in (
+            {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "who really writes"},
+            {"op": "wait", "id": "Q2", "clear": True},
+        ):
+            ops.write_text(json.dumps({"ops": [op]}), encoding="utf-8")
+            rc, out = self.rp("apply", "--file", str(ops))
+            self.assertEqual(rc, 0, out)
+            ledger = self.export("ledger")
+            rows = register_rows(ledger)
+            self.assertTrue(rows[1].startswith("- Q2 | open |"), rows)
+            self.assertTrue(rows[0].startswith("- Q1 | answered |"), rows)
+            rc, out = self.check("--ledger", ledger)
+            self.assertEqual(rc, 1, out)
+            self.assertIn("open=1", out)
+
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
         ledger = self.export("ledger")

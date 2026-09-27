@@ -116,7 +116,9 @@ def settle(q, responses, events, seed_rows):
     """(status, resolution, note, user_deferred) for one question."""
     seed = seed_rows.get(q["id"])
     page = responses.get(q["id"])
-    if seed and not page:
+    # A hold, or a user hold's set-aside stamp, outranks the seeded row.
+    held = q.get("waiting") or any(k.startswith("setAside") for k in q)
+    if seed and not page and not held:
         term, arch = q.get("terminal") or {}, q.get("archived") or {}
         untouched = seed["status"] in UNSETTLED and not term and not arch
         if untouched or term.get("seeded") or arch.get("seeded"):
