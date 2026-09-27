@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.5] - 2026-09-27
+
+### Changed
+
+- `audit-performance` names the no-execution route to per-hook Stop timings: the harness's `stop_hook_summary` transcript record carries a `hookInfos` array of `{"command", "durationMs"}`. The Gotchas entry "Never time a hook by running it" gives the operator a `jq` filter that extracts those records alone, labeled undocumented and unstable with a dated recheck trigger, and "Reading the report" item 2 points at it beside the warning against summing hook cost. The skill itself still reads no transcript.
+
 ## [0.62.4] - 2026-09-27
 
 ### Fixed
