@@ -80,10 +80,16 @@ def stats(rgb, g):
     ink_g, paper_g, T = modes(g)
     ink, paper = g < T, g >= T
     core_i, core_p = np.abs(g.astype(int) - ink_g) <= 8, np.abs(g.astype(int) - paper_g) <= 8
-    return dict(ink=hexcol(np.median(rgb[core_i], 0)), paper=hexcol(np.median(rgb[core_p], 0)), T=T, gray=dict(
+
+    def col(core, mode):   # an all-paper or all-ink frame leaves one core empty: fall back to its mode gray
+        return hexcol(np.median(rgb[core], 0) if core.any() else (mode,) * 3)
+
+    def r2(a, f):   # None, not NaN, for a class the frame lacks
+        return round(float(f(a)), 2) if a.size else None
+    return dict(ink=col(core_i, ink_g), paper=col(core_p, paper_g), T=T, gray=dict(
         ink_mode=ink_g, paper_mode=paper_g,
-        ink_mean=round(float(g[ink].mean()), 2), ink_sd=round(float(g[ink].std()), 2),
-        paper_mean=round(float(g[paper].mean()), 2), paper_sd=round(float(g[paper].std()), 2),
+        ink_mean=r2(g[ink], np.mean), ink_sd=r2(g[ink], np.std),
+        paper_mean=r2(g[paper], np.mean), paper_sd=r2(g[paper], np.std),
         edge_frac=round(float(((g > ink_g + MID) & (g < paper_g - MID)).mean()), 5),
         ink_frac=round(float(ink.mean()), 5)))
 
