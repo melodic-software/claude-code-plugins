@@ -77,10 +77,19 @@ START_SECONDS = 3
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
-# Free-text caps: one-line fields (a hold, a status, an activity entry, a reason) and markdown
-# fields (a thread reply, a note, a terminal answer, a restatement section).
+# Free-text caps: one-line fields (a title, a short label, a recommendation, an alternative, a
+# commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
+# basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
+# restatement section).
 LINE_CAP = 500
 TEXT_CAP = 20000
+QUESTION_CAPS = (
+    ("title", LINE_CAP),
+    ("short", LINE_CAP),
+    ("recommendation", LINE_CAP),
+    ("facts", TEXT_CAP),
+    ("basis", TEXT_CAP),
+)
 LOGGED_OPS = {
     "reply",
     "revise",
@@ -154,7 +163,7 @@ def save(d, doc, touched=()):
 
 def capped(field, text, cap):
     """`text` unchanged, or a refusal when it runs over `cap` characters."""
-    if len(text or "") > cap:
+    if isinstance(text, str) and len(text) > cap:
         sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
     return text
 
@@ -249,6 +258,13 @@ def add_question(doc, q):
             f"refused: {q['id']} has {len(alts)} alternatives; every question needs at least 2 "
             "genuine alternatives besides the recommendation (R-I)"
         )
+    for field, cap in QUESTION_CAPS:
+        capped(f"{q['id']} {field}", q.get(field), cap)
+    for i, alt in enumerate(alts, 1):
+        text = alt.get("text") if isinstance(alt, dict) else alt
+        capped(f"{q['id']} alternative {i}", text, LINE_CAP)
+    for i, c in enumerate(q.get("commits") or [], 1):
+        capped(f"{q['id']} commitment {i}", c, LINE_CAP)
     if any(x.get("id") == q["id"] for x in doc["questions"]):
         sys.exit(f"duplicate id: {q['id']}")
     known = {x["id"] for x in doc["questions"]}
@@ -312,6 +328,8 @@ def lint_questions(doc, qs):
 
 
 def put_group(doc, g):
+    capped(f"group {g['id']} title", g.get("title"), LINE_CAP)
+    capped(f"group {g['id']} summary", g.get("summary"), TEXT_CAP)
     cur = next((x for x in doc["groups"] if x["id"] == g["id"]), None)
     if cur is None:
         cur = {"id": g["id"]}
@@ -390,7 +408,12 @@ def op_group(d, doc, a):
 
 def op_reply(d, doc, a):
     q = find(doc, a.id)
-    capped("reply text", a.text, TEXT_CAP)
+    for field, val, cap in (
+        ("text", a.text, TEXT_CAP),
+        ("rec", a.rec, LINE_CAP),
+        ("why", a.why, TEXT_CAP),
+    ):
+        capped(f"reply {field}", val, cap)
     line = {"at": now(), "by": "claude", "text": a.text or ""}
     if a.kind:
         line["kind"] = a.kind
@@ -417,7 +440,16 @@ def op_reply(d, doc, a):
 
 def op_revise(d, doc, a):
     q = find(doc, a.id)
-    capped("revise text", a.text, TEXT_CAP)
+    for field, val, cap in (
+        ("title", a.title, LINE_CAP),
+        ("short", a.short, LINE_CAP),
+        ("rec", a.rec, LINE_CAP),
+        ("facts", a.facts, TEXT_CAP),
+        ("basis", a.basis, TEXT_CAP),
+        ("why", a.why, TEXT_CAP),
+        ("text", a.text, TEXT_CAP),
+    ):
+        capped(f"revise {field}", val, cap)
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
@@ -439,6 +471,8 @@ def op_revise(d, doc, a):
         changed.append("recommendation")
     if a.alt is not None:
         alts = [split_alt(s) for s in a.alt]
+        for alt in alts:
+            capped(f"revise alternative {alt['key']}", alt["text"], LINE_CAP)
         if len(alts) < 2:
             sys.exit(
                 f"refused: {a.id} would have {len(alts)} alternatives; every question needs at "

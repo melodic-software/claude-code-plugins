@@ -835,12 +835,52 @@ class TestClaudeActivity(DirCase):
             {"op": "revise", "id": "Q1", "title": "New?", "text": text},
             {"op": "note-reply", "text": text},
             {"op": "record-terminal", "id": "Q1", "decision": "own", "text": text},
+            {"op": "reply", "id": "Q1", "rec": line},
+            {"op": "reply", "id": "Q1", "rec": "Ok.", "affects": "none", "why": text},
+            {"op": "revise", "id": "Q1", "title": line},
+            {"op": "revise", "id": "Q1", "short": line},
+            {"op": "revise", "id": "Q1", "rec": line},
+            {"op": "revise", "id": "Q1", "facts": text},
+            {"op": "revise", "id": "Q1", "basis": text},
+            {"op": "revise", "id": "Q1", "rec": "Ok.", "affects": "none", "why": text},
+            {"op": "revise", "id": "Q1", "alternatives": ["a:" + line, "b:Later"]},
+            {"op": "add", "question": question("Q4", title=line)},
+            {"op": "add", "question": question("Q4", short=line)},
+            {"op": "add", "question": question("Q4", recommendation=line)},
+            {"op": "add", "question": question("Q4", facts=text)},
+            {"op": "add", "question": question("Q4", basis=text)},
+            {"op": "add", "question": question("Q4", commits=[line])},
+            {
+                "op": "add-round",
+                "questions": [question("Q4", alternatives=["a:" + line, "b:x"])],
+            },
+            {
+                "op": "add-round",
+                "questions": [
+                    question(
+                        "Q4",
+                        alternatives=[
+                            {"key": "a", "text": line},
+                            {"key": "b", "text": "x"},
+                        ],
+                    )
+                ],
+            },
+            {"op": "add-round", "questions": [question("Q4", facts=text)]},
+            {"op": "group", "id": "g3", "title": line},
+            {"op": "group", "id": "g3", "title": "T", "summary": text},
+            {"op": "add-round", "groups": [{"id": "g3", "title": line}]},
         ):
-            with self.subTest(op=op["op"]):
+            with self.subTest(op=repr(op)[:100]):
                 self.assertIn("the cap is", self.refused(op))
         self.apply(
             {"op": "wait", "id": "Q3", "waitsOn": "x" * 500},
             {"op": "restate", "sections": {"goal": "x" * 20000}},
+            {"op": "group", "id": "g3", "title": "x" * 500, "summary": "x" * 20000},
+            {
+                "op": "add",
+                "question": question("Q4", title="x" * 500, facts="x" * 20000),
+            },
         )
 
     def test_a_terminal_answer_after_a_hold_in_the_same_apply_counts(self):

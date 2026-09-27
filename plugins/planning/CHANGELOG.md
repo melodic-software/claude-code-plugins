@@ -24,7 +24,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   one), so only the user's next decision counts, including a `record-terminal` later in the
   same `apply`. An imported ledger row stays open in the export while held and after.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
-  activity and reason fields, 20000 for thread text and each restatement section. A repeated
+  activity and reason fields, titles, short labels, recommendations, alternatives and
+  commitments, 20000 for thread text, `why`, `facts`, `basis`, group summaries and each
+  restatement section, across `reply`, `revise`, `add`, `add-round` and `group`. A repeated
   Confirm (the same commitment, or the same restatement revision) returns the first event's
   seq and records nothing.
 - **`interview` surface:** a `confirm-commitments` op records commitments the user confirmed
