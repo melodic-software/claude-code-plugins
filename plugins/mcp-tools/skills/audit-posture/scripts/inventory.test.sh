@@ -1240,6 +1240,99 @@ check_row ok-cmd-opts npx pkg@1.0.0 exact unscoped
 check_row ok-env-chain npx pkg@1.0.0 exact unscoped
 check_row ok-bash-assign npx pkg@1.0.0 exact unscoped
 
+# --- Run 14: assignment value classes, invisible characters, drop-in bytes (zqg tokens) --
+# A pwsh or cmd assignment value holding anything outside [A-Za-z0-9._/:+~@,-] (plus space
+# inside single quotes) leaves the whole wrapper unparsed. d15 is the control case: a POSIX
+# value may hold a mid-word ~, so the package after it prints.
+
+cat >"$FIX/gate5 adv5.json" <<'JSON'
+{"mcpServers": {
+ "d01": {"command":"pwsh","args":["-c","$env:K=zq`;npx zqgleak1"]},
+ "d02": {"command":"pwsh","args":["-c","$env:K=zq`;zqgleak2"]},
+ "d03": {"command":"pwsh","args":["-c","$env:K=#;zqgleak3"]},
+ "d04": {"command":"pwsh","args":["-c","$env:K=<#;zqgleak4"]},
+ "d05": {"command":"pwsh","args":["-c","$env:K=zq`;npx -y zqgleak5@1.0.0"]},
+ "d06": {"command":"pwsh","args":["-c","$env:K=a#;npx -y zqgleak6"]},
+ "d07": {"command":"pwsh","args":["-c","$env:K=(zq;npx zqgleak7"]},
+ "d08": {"command":"pwsh","args":["-c","$env:K=@(zq;npx zqgleak8"]},
+ "d09": {"command":"pwsh","args":["-c","$env:K={zq;npx zqgleak9"]},
+ "d10": {"command":"pwsh","args":["-c","$env:K=zq\u2018;npx zqgleak10"]},
+ "d11": {"command":"pwsh","args":["-c","$env:K='zq`';npx zqgleak11"]},
+ "d12": {"command":"pwsh","args":["-c","$env:K=@'\n;npx zqgleak12"]},
+ "d13": {"command":"cmd","args":["/c","set K=zq)&& npx zqgleak13"]},
+ "d14": {"command":"cmd","args":["/c","set K=zq!&& npx zqgleak14"]},
+ "d15": {"command":"bash","args":["-c","K=zqgtilde~ npx okpkg"]},
+ "v-pw-tab": {"command":"pwsh","args":["-c","$env:K='zq\tzqgtab';npx zqgleak16"]},
+ "v-pw-ok": {"command":"pwsh","args":["-c","$env:K=a.b/c:d+e~f@g,h-i;$env:L='x y';npx -y pkg@1.0.0"]},
+ "v-cmd-ok": {"command":"cmd","args":["/c","set K=a.b/c:d+e~f@g,h-i&& npx -y pkg@1.0.0"]},
+ "w-tag": {"command":"bash","args":["-c","K=zqgwtag\udb40\udc41 npx zqgleak17"]},
+ "w-alm": {"command":"pwsh","args":["-c","$env:K='zqgwalm\u061c';npx zqgleak18"]},
+ "n-tagx\udb40\udc41": {"command":"npx","args":["-y","tagname@1.0.0"]},
+ "n-mvs\u180e": {"command":"npx","args":["-y","mvsname@1.0.0"]}
+}}
+JSON
+
+mkdir -p "$FIX/gate5 ms"
+cat >"$FIX/gate5 ms/managed-settings.json" <<'JSON'
+{"managedMcpServers": {
+  "ok": {"type": "http", "url": "https://ms-ok.example.com/mcp"},
+  "upper": {"type": "HTTP", "url": "https://ms-up.example.com/mcp"},
+  "i034f": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u034fb"}},
+  "i061c": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u061cb"}},
+  "i115f": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u115fb"}},
+  "i1160": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u1160b"}},
+  "i17b4": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u17b4b"}},
+  "i180e": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u180eb"}},
+  "i2028": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u2028b"}},
+  "i2065": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u2065b"}},
+  "i206f": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u206fb"}},
+  "i3164": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u3164b"}},
+  "ife0f": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\ufe0fb"}},
+  "iffa0": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\uffa0b"}},
+  "ifff8": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\ufff8b"}},
+  "i1bca0": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\ud82f\udca0b"}},
+  "i1d173": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\ud834\udd73b"}},
+  "ie0041": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\udb40\udc41b"}},
+  "ie0fff": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X\udb43\udfff": "ab"}},
+  "i007f": {"type": "http", "url": "https://h.example.com/mcp", "headers": {"X": "a\u007fb"}}
+}}
+JSON
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/gate5 ms" --config "$FIX/gate5 adv5.json" --date 2026-01-02
+assert_eq "run 14 exits 0" 0 "$RC"
+for wrapped in d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11 d12 d13 d14 v-pw-tab w-tag w-alm; do
+  check_row "$wrapped" local - unparsed -
+done
+check_row d15 npx okpkg floating-unversioned unscoped
+check_row v-pw-ok npx pkg@1.0.0 exact unscoped
+check_row v-cmd-ok npx pkg@1.0.0 exact unscoped
+assert_eq "tag character in a name redacts it" "tagname@1.0.0" "$(cell file 'redacted-name(7)' 6)"
+assert_eq "U+180E in a name redacts it" "mvsname@1.0.0" "$(cell file 'redacted-name(6)' 6)"
+assert_eq "valid managed-settings entry beside invisible cases" "yes" "$(cell managed-settings ok 3)"
+assert_eq "managed-settings type is case-sensitive" "rejected-by-client" "$(cell managed-settings upper 3)"
+for invisible in i034f i061c i115f i1160 i17b4 i180e i2028 i2065 i206f i3164 ife0f iffa0 ifff8 i1bca0 i1d173 \
+  ie0041 ie0fff i007f; do
+  assert_eq "managed-settings $invisible rejected" "rejected-by-client" "$(cell managed-settings "$invisible" 3)"
+done
+
+# A drop-in file name holding a non-ASCII byte prints as redacted-file under LC_ALL=C.
+BIDI=$'\342\200\256'
+mkdir -p "$FIX/gate5 drop/managed-settings.d"
+printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/gate5 drop/managed-settings.d/a${BIDI}zqgdrop.json"
+assert_eq "bidi drop-in file was created" "yes" \
+  "$([[ -f "$FIX/gate5 drop/managed-settings.d/a${BIDI}zqgdrop.json" ]] && echo yes)"
+OUT="$(LC_ALL=C bash "$INV" --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/gate5 drop" --date 2026-01-02 2>"$FIX/stderr.txt")"
+RC=$?
+ERR="$(<"$FIX/stderr.txt")"
+ALL+="$OUT$ERR"
+assert_eq "LC_ALL=C drop-in run exits 0" 0 "$RC"
+assert_contains "non-ASCII drop-in file name prints as redacted-file" "$OUT" \
+  "# source managed-settings $FIX/gate5 drop/managed-settings.d/redacted-file found"
+assert_not_contains "non-ASCII drop-in bytes not echoed" "$OUT$ERR" "$BIDI"
+assert_not_contains "non-ASCII drop-in name not echoed" "$OUT$ERR" "zqgdrop"
+
 # --- Exit 2 cases --------------------------------------------------------------
 
 printf '%s\n' '{not json' >"$FIX/bad.json"
@@ -1297,8 +1390,8 @@ assert_eq "all 85 re-attack ids were collected" 85 "$(printf '%s\n' "$planted" |
 second="$(grep -hoE 'ZQX[A-Za-z0-9]*' "$FIX/reattack2 cases.cfg" | LC_ALL=C sort -u)"
 assert_eq "second re-attack tokens were collected" "yes" "$([[ -n "$second" ]] && echo yes)"
 planted+=$'\n'"$second"
-third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}|zqy[0-9]{3}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
-assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* && "$third" == *zqy220* ]] && echo yes)"
+third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}|zqy[0-9]{3}|zqg[a-z0-9]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
+assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* && "$third" == *zqy220* && "$third" == *zqgleak1* && "$third" == *zqgtilde* ]] && echo yes)"
 planted+=$'\n'"$third"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
