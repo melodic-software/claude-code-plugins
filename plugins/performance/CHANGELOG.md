@@ -3,6 +3,13 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-09-27
+
+### Changed
+
+- **`snapshot`**: Storage is three numbered steps: check whether `/verification:measure` resolves, invoke it or record why not, and land the capture under `.work/<topic-slug>/baselines/`. The report header names which branch ran (assisted, verification absent, or verification present and skipped because of a stated reason), so a degraded dependency no longer reads the same as a deliberate skip. A capture that lands outside that path says so at the top of the report.
+- README names the reader of each skill's `metadata.workflow-stage` and `metadata.summary`: `scripts/generate-cheatsheet.mjs`, which builds `docs/skill-cheat-sheet.md`.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added
