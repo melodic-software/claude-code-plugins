@@ -120,7 +120,10 @@ Exit 0 means the committed record still matches. Exit 3 means it drifted; the re
 repositories and edges added or removed, facts whose value changed, and cited evidence files that no
 longer exist. A `last_touched` that moved is reported as `moved on <repo>` and does NOT set the exit
 code, because the subject repository advances its own HEAD on every commit. Surface the whole
-report, gating and non-gating lines alike, before the artifacts.
+report, gating and non-gating lines alike, before the artifacts. Exit 1 naming the
+one-object-per-line layout means someone reformatted the committed record (compacted, or one key per
+line), so neither the comparison nor the renderer can read it. Report that, not drift and not a thin
+result, and regenerate the record.
 
 `--check` stops there: run the comparison, print the report, write NOTHING, and report the
 comparison's exit code as the run's outcome, so a lane invoking the script directly fails on drift.

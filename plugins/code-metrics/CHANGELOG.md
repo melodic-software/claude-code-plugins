@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.18] - 2026-09-27
+
+### Fixed
+
+- **A total sanctioned-replication exclusion no longer leaves two unexplained file counts.** When a
+  registry excluded every clone group, the duplication report read `Files with clones: 0` beside a
+  scope header counting every scanned file, with nothing saying why. The two measure different
+  populations and stay apart: the exclusion line now adds how many files hold nothing but excluded
+  groups, and that `Files with clones` counts surviving groups only. `reference/report-schema.md`
+  states which population `summary.files` and `scope.files` each describe. A run with no exclusion,
+  or whose excluded groups touch only files a surviving group also touches, renders as before.
+
 ## [0.3.17] - 2026-09-25
 
 ### Changed

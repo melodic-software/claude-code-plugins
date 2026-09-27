@@ -27,7 +27,7 @@ from contextlib import (
     redirect_stdout,
 )
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from unittest import mock
 
 # FIXTURE ISOLATION (#2840). `git -C <dir>` is a readability guard, not an
@@ -4497,6 +4497,83 @@ class HandoffVerifyTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual("drifted", payload["verdicts"][0]["verdict"])
             self.assertTrue(junk.exists())
+
+    def handoff_verify_cli(
+        self, temporary: str, approved: list[str]
+    ) -> tuple[int, dict[str, Any]]:
+        paths_path = Path(temporary) / "handoff-paths.json"
+        paths_path.write_text(
+            json.dumps({"version": 1, "paths": approved}), encoding="utf-8"
+        )
+        argv = [
+            "handoff-verify",
+            "--snapshot",
+            str(Path(temporary) / "snapshot.json"),
+            "--paths",
+            str(paths_path),
+        ]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
+        root = Path(temporary) / "target"
+        root.mkdir()
+        names = [f"junk{index}.tmp" for index in range(5)]
+        for name in names:
+            (root / name).write_text("stale", encoding="utf-8")
+        snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        (Path(temporary) / "snapshot.json").write_text(
+            json.dumps(snapshot), encoding="utf-8"
+        )
+        return root, names
+
+    def test_handoff_verify_gone_approved_path_does_not_fail_the_round(self) -> None:
+        # Verify one, delete that one, then the next: from the second round on an
+        # earlier approved path reads `gone`, and that is progress, not a failure.
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            for index, name in enumerate(names):
+                with self.subTest(round=index + 1, verified=name):
+                    status, payload = self.handoff_verify_cli(temporary, names)
+                    verdicts = {
+                        item["path"]: item["verdict"] for item in payload["verdicts"]
+                    }
+                    self.assertEqual(0, status)
+                    self.assertEqual(
+                        ["gone"] * index + ["clear"] * (len(names) - index),
+                        [verdicts[value] for value in names],
+                    )
+                    self.assertEqual(index, payload["not_clear"])
+                    (root / name).unlink()
+            status, payload = self.handoff_verify_cli(temporary, names)
+            self.assertEqual(0, status)
+            self.assertEqual(
+                ["gone"] * len(names), [item["verdict"] for item in payload["verdicts"]]
+            )
+
+    def test_handoff_verify_gone_does_not_mask_a_blocking_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            (root / names[0]).unlink()
+            (root / names[1]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_cli(temporary, names[:2])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["gone", "drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+            with mock.patch.object(
+                hygiene, "hard_protection", return_value={"baseline-protected-name"}
+            ):
+                status, payload = self.handoff_verify_cli(
+                    temporary, [names[0], names[2]]
+                )
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["gone", "contested"], [item["verdict"] for item in payload["verdicts"]]
+            )
 
     @staticmethod
     def nested_residue(root: Path) -> Path:

@@ -66,7 +66,7 @@ assert_eq "capabilities is declared true" "true" "$(jq -r '.verbs["capabilities"
 
 # Every verb of the adapter surface is present and boolean — a missing key reads as
 # false at the gate, silently disabling a verb the adapter may actually implement.
-for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item \
+for v in create-item get-item claim renew-lease release reclaim link-blocks add-sub-item \
   list-items list-sub-items capabilities; do
   assert_eq "verbs[\"$v\"] is boolean" "boolean" "$(jq -r --arg v "$v" '.verbs[$v] | type' <<<"$out")"
 done

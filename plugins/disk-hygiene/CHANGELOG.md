@@ -3,11 +3,23 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.2] - 2026-09-27
+## [0.24.3] - 2026-09-27
 
 ### Fixed
 
 - **`scan` exits 0 when it returns a required next step.** `root-children-selection-required` (the documented first call for an OS-managed volume root) and `large-target-confirmation-required` (for the whole target or a selected root child) exited 5, so the harness showed a normal step as a tool error. Both now exit 0 with the payload unchanged, and `status` carries the distinction. Real failures keep their non-zero exits (2 for an invalid or blocked target, 3 for elevation or unverifiable filesystem state), and the skill states these semantics.
+
+## [0.24.2] - 2026-09-27
+
+### Fixed
+
+- **`handoff-verify` no longer exits 3 because an approved path is `gone`**
+  ([#4012](https://github.com/melodic-software/claude-code-plugins/issues/4012)). The manual lane
+  verifies one path, deletes it, then verifies the next, so from the second round on at least one
+  approved path reads `gone` and every round after the first exited 3 while every verdict was
+  correct. It now exits 0 when every approved path is `clear` or `gone`, and 3 when any is `drifted`
+  or `contested`, even alongside `gone` paths. The verdicts, `clear` and `not_clear` are unchanged
+  (`not_clear` still counts `gone`), and the `note` field and the handoff reference say so.
 
 ## [0.24.1] - 2026-09-27
 
