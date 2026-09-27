@@ -131,6 +131,20 @@ to_native_path() {
   printf '%s' "$text"
 }
 
+# An MSYS mount such as /tmp carries no drive letter for to_native_path to rewrite; only the mount
+# table knows it is %LOCALAPPDATA%\Temp. cygpath reads that table and ships with Git for Windows
+# and MSYS2. It forks once per call, so it is kept to the file paths an operator must open from
+# another shell, not run over every report value. The result goes to a named variable rather than
+# stdout so a non-Windows path reaches the report byte-for-byte, trailing newlines included.
+to_native_file_path() { # <out-var> <path>
+  local path="$2" native
+  if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
+    native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then
+    path="$native"
+  fi
+  printf -v "$1" '%s' "$path"
+}
+
 # Well-formed UTF-8 made of printable ASCII and non-ASCII code points, matched byte-wise so the
 # result does not depend on which locales the host has installed. It excludes the C1 controls
 # (U+0080-U+009F, which include CSI and NEL), U+2028/U+2029 (line and paragraph separators), and
@@ -3137,9 +3151,11 @@ fi
   printf '\n  ]\n'
   printf '}\n'
 } >"$PLAN_FILE" || fail "cannot write plan file: $PLAN_FILE"
-print_field 'Action plan' "$PLAN_FILE"
+plan_file_display=""
+to_native_file_path plan_file_display "$PLAN_FILE"
+print_field 'Action plan' "$plan_file_display"
 printf 'Apply dry-run: %s --apply-plan ' "$0"
-display_value "$PLAN_FILE"
+display_value "$plan_file_display"
 printf '\n'
 
 # --- Optional detail: collapsed per-target blocks + confidence groups -------

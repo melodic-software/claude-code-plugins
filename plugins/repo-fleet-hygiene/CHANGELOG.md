@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.36] - 2026-09-27
+
+### Fixed
+
+- `audit` on Windows Git Bash prints the `Action plan:` path and the `Apply dry-run:` plan argument
+  as a native `C:/...` path through `cygpath -m`. It printed the MSYS `/tmp/...` form, which
+  PowerShell, editors, and `/repo-fleet-hygiene:apply` in a PowerShell tool cannot open. Without
+  `cygpath`, and on every other host, the path prints unchanged.
+
 ## [0.23.33] - 2026-09-27
 
 ### Fixed
