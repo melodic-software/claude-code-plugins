@@ -158,8 +158,21 @@ answer without stopping the pass to ask which item is in front of them.
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane. **Read the item's `work-class:` label first: a human-floor class blocks this
-  flip**, per the branch below.
+  it from this lane. **Read the item's `work-class:` label first: a missing class or a human-floor
+  class blocks this plain flip**, per the two branches below.
+- **No recorded class: stamp, then flip.** An item with no `work-class:` label never takes the
+  plain flip, since the autonomous-eligible role without a class is the pairing defect
+  `/work-items:triage` forbids and the fail-closed admission gate never admits it. This is the row
+  an unattended triage lane leaves when it may not record a class: its marker comment carries a
+  `Proposed work class:` line
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)).
+  Put the proposed class and its basis to the operator, who confirms or changes it. For a C1-C3
+  class, **one edit** applies that `work-class:` label and the autonomous-eligible role and
+  removes the human-gated role; record the stamped class as a reply comment. When this session's
+  standing direction forbids writing `work-class:` labels, hand the operator that edit as a
+  ready-to-paste command instead, one line per item and one command per proposed class, and
+  re-read the labels before clearing `@me`. A C4/C5 answer applies the class label alone and the
+  item stays human-gated, per the branch below.
 - **Human-floor work class: reclassify or stay gated, never the plain flip.** An item carrying
   `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is human-gated
   regardless of any other signal

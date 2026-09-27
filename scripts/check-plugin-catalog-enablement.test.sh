@@ -344,4 +344,69 @@ else
   fail "missing marketplace.json should exit 2 (rc=$rc): $out"
 fi
 
+# --- 9. The fetch URL is overridable, and a failed fetch names the routes. ----
+# A curl shim records the URL it was handed and either serves the fixture fleet
+# list or fails the way an offline host does, so no case touches the network.
+SHIM_BIN="$TMP/shim-bin"
+CURL_LOG="$TMP/curl-url.log"
+mkdir -p "$SHIM_BIN"
+cat >"$SHIM_BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+out="" url=""
+while (($#)); do
+  case "$1" in
+  -o) out="$2"; shift ;;
+  https://*) url="$1" ;;
+  esac
+  shift
+done
+printf '%s\n' "$url" >"$CURL_LOG"
+[[ "$SHIM_CURL_MODE" == "ok" ]] || exit 6
+cp "$SHIM_FLEET" "$out"
+EOF
+chmod +x "$SHIM_BIN/curl"
+run_fetch() { # <ok|fail> [fleet-url-override]
+  : >"$CURL_LOG"
+  (
+    cd "$TMP" &&
+      PATH="$SHIM_BIN:$PATH" SHIM_CURL_MODE="$1" SHIM_FLEET="$FLEET" CURL_LOG="$CURL_LOG" \
+        PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
+        PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
+        PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
+        PLUGIN_CATALOG_ENABLEMENT_FLEET_URL="${2:-}" \
+        bash "$SUT" 2>&1
+  )
+}
+write_marketplace alpha
+printf 'alpha true\n' | write_settings
+write_fleet
+default_url='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
+out="$(run_fetch ok)"
+rc=$?
+if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$default_url" ]]; then
+  ok "with no override the fleet list is fetched from the standards repository"
+else
+  fail "default fetch URL (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
+fi
+
+fork_url='https://raw.githubusercontent.com/example-fork/standards/main/fleet-plugins.json'
+out="$(run_fetch ok "$fork_url")"
+rc=$?
+if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$fork_url" ]]; then
+  ok "PLUGIN_CATALOG_ENABLEMENT_FLEET_URL replaces the fetch URL"
+else
+  fail "fetch URL override not honored (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
+fi
+
+out="$(run_fetch fail "$fork_url")"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -Fq "could not fetch the fleet list from $fork_url" <<<"$out" &&
+  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy' <<<"$out" &&
+  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET_URL' <<<"$out" &&
+  ! grep -q 'none orphaned' <<<"$out"; then
+  ok "an unreachable fleet list exits 2 and names both overrides"
+else
+  fail "unreachable fleet list should exit 2 with the override routes (rc=$rc): $out"
+fi
+
 test_harness::report
