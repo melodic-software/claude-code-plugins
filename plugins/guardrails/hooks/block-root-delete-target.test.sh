@@ -1155,6 +1155,16 @@ for ((rdt_d = 0; rdt_d < 3000; rdt_d++)); do rdt_br+='{'; done
 rdt_ms_payload 'an operand of 3000 braces is refused in time' 2 8000 "$(rdt_pl "rm -rf ${rdt_br}x" "$RDT_TOP")"
 guard_invoke "${RDT_CWD[@]}" --command "rm -rf ${rdt_br}x"
 assert_contains "the brace-count refusal names its form" "$GUARD_ERR" "brace expansion"
+# A long run of nameless segments behind a `${X}` is stripped in one pass. A
+# rescan per segment took over 30 s at 2 KB, past the hook timeout, and the
+# harness cancels a hook there without a block, so the later `rm -rf ~` in the
+# same command would have run unjudged.
+rdt_sl=""
+for ((rdt_d = 0; rdt_d < 8000; rdt_d++)); do rdt_sl+='/*'; done
+rdt_ms_payload 'a ${X} operand of 8000 nameless segments is refused in time' 2 15000 \
+  "$(rdt_pl "rm -rf \"\${X}${rdt_sl}\"; rm -rf ~" "")"
+rdt_ms_payload 'the same operand with a cwd is refused in time' 2 15000 \
+  "$(rdt_pl "rm -rf \"\${X}${rdt_sl}\"; rm -rf ~" "$RDT_TOP")"
 expect_both 'an operand of 129 braces is refused' 2 --command "rm -rf ${rdt_br:0:129}x"
 expect_both 'an operand of 3 braces allowed' 0 --command "rm -rf ${rdt_br:0:3}x"
 # A glob before the last component over real directories under temp allowed.

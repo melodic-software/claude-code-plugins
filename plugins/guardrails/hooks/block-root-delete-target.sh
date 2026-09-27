@@ -502,50 +502,64 @@ rdt_normalize_to() {
   #
   # A slash inside a `${...}` is part of the expansion, not a path separator,
   # so `${X:-/}` and `${X:-${Y:-/}}` are never cut open.
-  local __rdt_last __rdt_cut
-  while :; do
-    rdt_outer_slash_to __rdt_cut "$__rdt_s"
-    ((__rdt_cut >= 0)) || break
-    __rdt_last="${__rdt_s:__rdt_cut+1}"
-    [[ "$__rdt_last" == *[[:alnum:]_]* ]] && break
-    __rdt_s="${__rdt_s:0:__rdt_cut}"
-    if [[ -z "$__rdt_s" ]]; then
-      __rdt_s="/"
-      break
-    fi
-  done
+  rdt_strip_nameless_to __rdt_s "$__rdt_s" 0
   printf -v "$__rdt_dest" '%s' "$__rdt_s"
 }
 
-# rdt_outer_slash_to <var> <text>: the index of the last `/` in <text> that sits
-# outside every `${...}`, or -1. A `${...}` ends where bash ends it: only `${`
-# nests, and the first `}` closes the innermost one, so a bare `{` inside
-# counts for nothing.
+# rdt_strip_nameless_to <var> <text> <min cut>: <text> without its trailing
+# path segments that carry no name (no letter, digit or underscore), cut only
+# at a `/` outside every `${...}` whose index is at least <min cut>. With a min
+# cut of 0 a text cut down to nothing becomes `/`. A `${...}` ends where bash
+# ends it: only `${` nests, and the first `}` closes the innermost one, so a
+# bare `{` inside counts for nothing.
+#
+# ONE pass over the text finds every outer slash, and the strip walks them
+# from the end, so the cost is linear in the operand. Rescanning the text for
+# each stripped segment was quadratic, and a 2 KB operand of `/*` segments
+# behind a `${X}` took over 30 s: past the hook timeout the harness cancels
+# the hook WITHOUT a block, which would fail open for the rest of the command.
 # shellcheck disable=SC2016,SC2329  # literal `${` pattern; invoked from rdt_normalize_to and rdt_strip_tail_to
-rdt_outer_slash_to() {
-  local __os_s="$2" __os_i __os_d=0 __os_cut=-1
-  if [[ "$__os_s" != *'${'* ]]; then
-    if [[ "$__os_s" == */* ]]; then
-      __os_i="${__os_s%/*}"
-      __os_cut=${#__os_i}
-    fi
-    printf -v "$1" '%s' "$__os_cut"
+rdt_strip_nameless_to() {
+  local __sn_s="$2" __sn_min="$3" __sn_i __sn_d=0 __sn_k __sn_cut __sn_end
+  local -a __sn_cuts=()
+  if [[ "$__sn_s" != *'${'* ]]; then
+    # No expansion: every slash is outer, and bash's own `%/*` finds the last.
+    while [[ "$__sn_s" == */* ]]; do
+      __sn_i="${__sn_s%/*}"
+      ((${#__sn_i} >= __sn_min)) || break
+      [[ "${__sn_s##*/}" == *[[:alnum:]_]* ]] && break
+      __sn_s="$__sn_i"
+      if [[ -z "$__sn_s" ]]; then
+        ((__sn_min == 0)) && __sn_s="/"
+        break
+      fi
+    done
+    printf -v "$1" '%s' "$__sn_s"
     return 0
   fi
-  for ((__os_i = 0; __os_i < ${#__os_s}; __os_i++)); do
-    case "${__os_s:__os_i:1}" in
+  for ((__sn_i = 0; __sn_i < ${#__sn_s}; __sn_i++)); do
+    case "${__sn_s:__sn_i:1}" in
     '$')
-      if [[ "${__os_s:__os_i+1:1}" == '{' ]]; then
-        __os_d=$((__os_d + 1))
-        __os_i=$((__os_i + 1))
+      if [[ "${__sn_s:__sn_i+1:1}" == '{' ]]; then
+        __sn_d=$((__sn_d + 1))
+        __sn_i=$((__sn_i + 1))
       fi
       ;;
-    '}') ((__os_d > 0)) && __os_d=$((__os_d - 1)) ;;
-    /) ((__os_d == 0)) && __os_cut=$__os_i ;;
+    '}') ((__sn_d > 0)) && __sn_d=$((__sn_d - 1)) ;;
+    /) ((__sn_d == 0)) && __sn_cuts+=("$__sn_i") ;;
     *) ;;
     esac
   done
-  printf -v "$1" '%s' "$__os_cut"
+  __sn_end=${#__sn_s}
+  for ((__sn_k = ${#__sn_cuts[@]} - 1; __sn_k >= 0; __sn_k--)); do
+    __sn_cut=${__sn_cuts[__sn_k]}
+    ((__sn_cut >= __sn_min)) || break
+    [[ "${__sn_s:__sn_cut+1:__sn_end-__sn_cut-1}" == *[[:alnum:]_]* ]] && break
+    __sn_end=$__sn_cut
+  done
+  __sn_s="${__sn_s:0:__sn_end}"
+  [[ -z "$__sn_s" && "$__sn_min" == 0 ]] && __sn_s="/"
+  printf -v "$1" '%s' "$__sn_s"
 }
 
 # rdt_is_root <normalized>: true when the operand names a filesystem root.
@@ -2317,15 +2331,7 @@ rdt_check_segment() {
 # digit or underscore), cut only at a slash that sits outside every `${...}`.
 # shellcheck disable=SC2329  # invoked from rdt_check_operand
 rdt_strip_tail_to() {
-  local __st_w="$2" __st_cut __st_last
-  while :; do
-    rdt_outer_slash_to __st_cut "$__st_w"
-    ((__st_cut > 0)) || break
-    __st_last="${__st_w:__st_cut+1}"
-    [[ "$__st_last" == *[[:alnum:]_]* ]] && break
-    __st_w="${__st_w:0:__st_cut}"
-  done
-  printf -v "$1" '%s' "$__st_w"
+  rdt_strip_nameless_to "$1" "$2" 1
 }
 
 # rdt_check_operand <text> <provenance>: one operand through the root and
