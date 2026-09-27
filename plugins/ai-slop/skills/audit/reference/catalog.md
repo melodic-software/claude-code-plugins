@@ -977,7 +977,7 @@ either layer, and those rows say so.
 - **Saturation.** Counted per audit scope, over the prose the rubric reads. Excluded: YAML
   frontmatter (closed by a `---` or `...` line), fenced and indented code, code spans,
   straight and curly double-quoted spans (also when wrapped across lines), blockquotes, HTML
-  comment interiors (a backslash-escaped `\<!--` opens nothing), raw HTML tags on one line
+  comment interiors (a comment opener escaped with a backslash opens nothing), raw HTML tags on one line
   (the text between tags counts), link and image destinations (the link text counts),
   reference definitions (also as a list item's first content), and autolinks. Known gaps: a
   cue split across a line break is not counted; a few rare CommonMark shapes (indented code
