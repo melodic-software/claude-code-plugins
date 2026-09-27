@@ -800,6 +800,16 @@ rm -rf "${X//a/b}"/*
 rm -rf "${X:-${Y:-/}}"/*
 rm -rf "${X:-${Y:-/}}/*"
 rm -rf "${X:-${Y}}"/*
+rm -rf "${X:-/}"*
+rm -rf ${X:-/}*
+rm -rf "${X:-/}"?*
+rm -rf "${X:-/}"[a-z]*
+rm -rf "${X:-/}"*/
+rm -rf "${X:-/}".*
+rm -rf "${A:-${B:-${C:-/}}}"*
+rm -rf "${X:-$HOME}"*
+rm -rf "$X"*
+rm -rf ${X}*
 EOF
 # `:?` aborts on an unset or empty X whatever its message word holds.
 expect_both 'bare variable: "${X:?${Y}}"/* allowed' 0 --command 'rm -rf "${X:?${Y}}"/*'
@@ -809,8 +819,15 @@ expect_both 'bare variable: "${X:?/}"/* allowed with a cwd' 0 "${RDT_CWD[@]}" --
 # A `${` that never closes is refused; bash rejects it.
 expect_both "bare variable: an unclosed \${ blocks" 2 --command "rm -rf '\${X:-/'/*"
 # Bash passes `${...}` through brace expansion whole, and its first `}` ends
-# it, so `${X:-{a,b}}` leaves a literal `}` behind and is not bare.
-expect_both 'bare variable: ${X:-{a,b}}/* allowed' 0 --command 'rm -rf ${X:-{a,b}}/*'
+# it, so `${X:-{a,b}}` leaves a literal `}` behind. A segment holding no
+# letter, digit or underscore names nothing to this guard (`rm -rf /}` is a
+# root), so the operand reads as bare and is refused, the conservative side.
+expect_both 'bare variable: ${X:-{a,b}}/* blocks' 2 --command 'rm -rf ${X:-{a,b}}/*'
+# A glob or dots after the expansion name nothing, so `"${X:-/}"*` with X unset
+# is `/*`. A remainder that names something goes on past the expansion.
+expect_both 'bare variable: "${X:?}"* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}"*'
+expect_both 'bare variable: "$X"-build allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
+expect_both 'bare variable: "${X}"_old* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X}"_old*'
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
@@ -1169,6 +1186,21 @@ guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bi
 assert_exit 'with no timeout an ordinary delete in the tree is allowed' 0 "$GUARD_RC"
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ../../x' -- "PATH=$TEST_TMPDIR/bin-to:$PATH" "$rdt_nocmd"
 assert_exit 'with no timeout an escape from the tree still blocks' 2 "$GUARD_RC"
+# The git toplevel lookup is bounded the same way: a stand-in `timeout` that
+# answers 124 for git alone, and runs the real `timeout` for everything else,
+# stands for a git that stalled. A 70 s git stall had carried the guard past
+# the 60 s hook timeout, which fails open.
+rdt_real_to="$(type -P timeout)"
+if [[ -n "$rdt_real_to" ]]; then
+  mkdir -p "$TEST_TMPDIR/bin-tog"
+  printf '#!/usr/bin/env bash\n[[ "${2-}" == git ]] && exit 124\nexec %q "$@"\n' "$rdt_real_to" >"$TEST_TMPDIR/bin-tog/timeout"
+  chmod +x "$TEST_TMPDIR/bin-tog/timeout"
+  guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-tog:$PATH"
+  assert_exit 'a git lookup that runs out of time refuses' 2 "$GUARD_RC"
+  assert_contains 'the git timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
+else
+  rdt_skip "no timeout on PATH to wrap (2 cases)"
+fi
 rdt_nt="$(sed -n '/^rdt_lines_to() {/,/^}/p' "$HOOK")"
 assert_contains 'with no timeout the deadline is checked after the batch call' \
   "$(grep -A1 -F '__rb_out=$("$@" 2>/dev/null) || __rb_rc=$?' <<<"$rdt_nt")" "rdt_deadline"

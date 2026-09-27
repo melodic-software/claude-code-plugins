@@ -108,10 +108,14 @@
 # it from, because the guard does not assume a cd succeeded or which command a
 # directory change applies to), `cd <worktree> && rm -rf .work/x`
 # from a different checkout's cwd (every target is judged against the payload
-# cwd's tree), a glob over a directory of many files (every entry counts toward
-# the glob cap, so `rm -rf node_modules/*/` over a large directory is refused),
-# an operand deeper than 128 components, a backslash-escaped brace (it reads
-# as partly quoted), and `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
+# cwd's tree), a glob over directories of many entries (every entry read at
+# every level of the glob counts toward the 256 cap, files included, so
+# `rm -rf node_modules/*/` over a large directory and `rm -rf
+# src/*/__pycache__` over a large `src` are refused), an operand over 4096
+# bytes or 128 path separators, an expansion followed by a segment of
+# punctuation alone (`${X:-{a,b}}/*` leaves a literal `}`, which names nothing
+# here), a backslash-escaped brace (it reads as partly quoted), and
+# `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
@@ -930,7 +934,15 @@ rdt_bare_var() {
       unit="${BASH_REMATCH[0]}"
       safe=0
     else
-      return 1
+      # What follows the expansions names nothing when it holds no letter,
+      # digit or underscore outside a bracket expression: a glob (`*`, `?*`,
+      # `[a-z]*`) or dots. `"${X:-/}"*` with X unset is `/*`, so such a
+      # remainder leaves the operand bare. Anything that names something
+      # (`$X-build`, `${X}_old`) is a path that goes on past the expansion.
+      local rem="$s" re_br='\[[^]]*\]'
+      while [[ "$rem" =~ $re_br ]]; do rem="${rem/"${BASH_REMATCH[0]}"/}"; done
+      [[ "$rem" == *[[:alnum:]_]* ]] && return 1
+      break
     fi
     s="${s:${#unit}}"
   done
@@ -1570,10 +1582,22 @@ rdt_tree_to() {
   rdt_is_unc "$o" || rdt_nearest_to d -d "$o"
   out=""
   if [[ -n "$d" ]]; then
+    # Bounded like the batch resolvers: a git that stalls (a slow network
+    # mount, a locked repository) would otherwise carry the hook past the
+    # harness timeout, which fails open. Running out of time refuses.
+    local left="" tcmd=()
+    if command -v timeout >/dev/null 2>&1; then
+      rdt_remaining_to left
+      tcmd=(timeout "$left")
+    else
+      rdt_deadline
+    fi
     out=$(
       unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-      git -C "$d" rev-parse --show-toplevel 2>/dev/null
+      ${tcmd[@]+"${tcmd[@]}"} git -C "$d" rev-parse --show-toplevel 2>/dev/null
     ) || rc=$?
+    ((rc == 124 && ${#tcmd[@]} > 0)) && rdt_block "too-slow"
+    ((${#tcmd[@]} > 0)) || rdt_deadline
     out="${out//$'\r'/}"
     ((rc == 0)) || out=""
   fi
