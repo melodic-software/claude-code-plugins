@@ -194,7 +194,7 @@ I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 # the rows into argument order, then family order, then line order, which is
 # the order a per-file scan produces.
 #
-# grep -Z ends each file name with a NUL so a path containing a colon (C:/...)
+# grep --null ends each file name with a NUL so a path containing a colon (C:/...)
 # splits unambiguously; tr maps the NUL to \003 because not every awk reads NUL
 # bytes. The awk applies the two same-line filters to the line TEXT alone:
 # I6 drops a hit carrying a rationale marker, I27 keeps a hit only when a
@@ -319,7 +319,7 @@ run_family() {
   local idx="$1" flags="$2" ere="$3" c
   printf '\001%s\n' "$idx"
   for ((c = 0; c < ${#chunk_start[@]}; c++)); do
-    grep "$flags" -e "$ere" -- "${files[@]:chunk_start[c]:chunk_len[c]}" 2>/dev/null
+    grep "$flags" --null -e "$ere" -- "${files[@]:chunk_start[c]:chunk_len[c]}" 2>/dev/null
   done
 }
 
@@ -328,17 +328,17 @@ run_family() {
     printf '\002%s\n' "${files[@]}"
   fi
   if [[ ${#chunk_start[@]} -gt 0 ]]; then
-    run_family 1 -nHZiE "$I6_ERE"
-    run_family 2 -nHZiE "$I10_ERE"
-    run_family 3 -nHZiE "$I23_ERE"
-    run_family 4 -nHZiE "$I8_A_ERE"
-    run_family 5 -nHZiE "$I8_B_ERE"
-    run_family 6 -nHZiE "$I8_C_ERE"
-    run_family 7 -nHZiE "$I8_F_ERE"
-    run_family 8 -nHZiE "$I27_EFFORT_ERE"
-    run_family 9 -nHZE "$I28_A_ERE"
-    run_family 10 -nHZiE "$I28_B_ERE"
-    run_family 11 -nHZiE "$I25_ERE"
+    run_family 1 -nHiE "$I6_ERE"
+    run_family 2 -nHiE "$I10_ERE"
+    run_family 3 -nHiE "$I23_ERE"
+    run_family 4 -nHiE "$I8_A_ERE"
+    run_family 5 -nHiE "$I8_B_ERE"
+    run_family 6 -nHiE "$I8_C_ERE"
+    run_family 7 -nHiE "$I8_F_ERE"
+    run_family 8 -nHiE "$I27_EFFORT_ERE"
+    run_family 9 -nHE "$I28_A_ERE"
+    run_family 10 -nHiE "$I28_B_ERE"
+    run_family 11 -nHiE "$I25_ERE"
   fi
 } | tr '\000' '\003' | awk -v mode="$mode" -v body_only="$body_only" \
   -v ids="I6 I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25" \

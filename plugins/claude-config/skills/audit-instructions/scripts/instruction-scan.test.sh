@@ -382,6 +382,12 @@ EOF
 ORDER_FILES=("$SPACED" "$I6F" "$TEST_TMPDIR/missing.md" "$I10F" "$FMF" "$SPACED")
 if command -v cygpath >/dev/null 2>&1; then
   ORDER_FILES+=("$(cygpath -m "$I8SC")")
+else
+  COLONF="$TEST_TMPDIR/a:b.md"
+  cat >"$COLONF" <<'EOF'
+Double-check your answer.
+EOF
+  ORDER_FILES+=("$COLONF")
 fi
 for flag in "" --body-only; do
   EXPECTED=""
