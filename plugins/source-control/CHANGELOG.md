@@ -15,6 +15,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. The orchestrator does the same before dispatching a fix worker to an armed PR, and every lane push in `babysit-prs/reference/loop.md` goes through `lane_push`, which disarms immediately before and again right after the push.
 - The merge lane retries an AI review check that failed on a rate limit with a full `gh run rerun <run-id>`, never `--failed`: a `--failed` rerun reruns only the `-status` job, which re-reads the cached rate-limit output of the successful `review` job and fails again.
 
+## [0.59.1] - 2026-09-26
+
+### Changed
+
+- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR in a review-fix commit, separate from the original work, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or whose fix is blocked on research the lane cannot do (a claim research cannot confirm stays `UNCERTAIN`); no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule as #4541 for work-items.
+
 ## [0.59.0] - 2026-09-26
 
 ### Added

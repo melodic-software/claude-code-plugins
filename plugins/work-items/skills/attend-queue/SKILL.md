@@ -46,6 +46,9 @@ Shared cross-lane concerns, topology, the escalation contract, capability tiers,
 telemetry, the guard binding, are owned by the loop-lane convention
 (`docs/conventions/loop-lane/README.md` in this plugin's marketplace repository) and held here by
 citation. This skill restates none of them; it adds only the attended-lane mechanics below.
+To skip an issue, hold a PR, or pause or stop a lane, the operator follows that convention's
+section 7, "Operator steering through GitHub state"
+(`docs/conventions/loop-lane/README.md#7-operator-steering-through-github-state`).
 
 ## Attention view (one view, two sources)
 
