@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.24.4] - 2026-09-27
+
+### Fixed
+
+- Parent contract: the depth-limit quote ("Claude Code withholds the `Agent` tool from every subagent except a fork") is marked as quoted with link markup removed and re-dated against the sub-agents page fetched 2026-09-27.
+
 ## [0.24.3] - 2026-09-27
 
 ### Changed

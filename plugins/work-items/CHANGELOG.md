@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.29] - 2026-09-27
+
+### Fixed
+
+- `decompose` routes `prototype` investigation tickets to `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel) instead of the bare `/prototype` plugin token (#4119).
+
 ## [0.40.28] - 2026-09-26
 
 ### Changed
