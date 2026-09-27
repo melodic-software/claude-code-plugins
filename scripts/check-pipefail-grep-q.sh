@@ -4,10 +4,11 @@
 #   scripts/check-pipefail-grep-q.sh              scan every scripts/**/*.sh
 #   scripts/check-pipefail-grep-q.sh <file>...    scan exactly these files
 #
-# Flags `producer | grep` (also `|&`, egrep, fgrep, and a pipe split across
-# lines) when that grep stops reading early: a short option cluster carrying
-# q, l, L or m, or --quiet, --silent, --files-with-matches,
-# --files-without-match, --max-count.
+# Flags `producer | grep` (also `|&`, egrep, fgrep, `\grep`, a path to grep, a
+# `command`, `env`, `!` or `{` prefix, and a pipe split across lines) when that
+# grep stops reading early: a short option cluster carrying q, l, L or m, or
+# --quiet, --silent, --files-with-matches, --files-without-match, --max-count.
+# Other wrappers (sudo, xargs) are not followed.
 #
 # Why: when grep exits at its first match, a producer still writing is killed
 # by SIGPIPE, and under `set -o pipefail` the pipeline reports that 141 instead
@@ -41,13 +42,19 @@ if (($# == 0)); then
   cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
   while IFS= read -r f; do
     files+=("$f")
-  done < <(find scripts -type f -name '*.sh' | LC_ALL=C sort)
+  done < <(find scripts -type f -name '*.sh' 2>/dev/null | LC_ALL=C sort)
+  if ((${#files[@]} == 0)); then
+    echo "check-pipefail-grep-q: no shell files found under scripts/" >&2
+    exit 2
+  fi
 else
   for f in "$@"; do
     if [[ ! -f "$f" || ! -r "$f" ]]; then
       echo "check-pipefail-grep-q: not a readable file: $f" >&2
       exit 2
     fi
+    # awk reads an operand shaped like name=value as an assignment, not a file.
+    [[ "$f" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && f="./$f"
     files+=("$f")
   done
 fi
@@ -99,7 +106,7 @@ function heredoc_bodies(p,   h, e, body, cmp) {
   hn = 0
   return p
 }
-function subst_open(p, t,   n1, n2) {
+function subst_open(p,   n1, n2) {
   # p is at "$"; returns the index consumed through, or 0 when not an opener.
   n1 = substr(S, p + 1, 1); n2 = substr(S, p + 2, 1)
   if (n1 == "(" && n2 == "(") { push("A", 2); emit("_"); emit("_"); emit("_"); return p + 2 }
@@ -134,11 +141,14 @@ function lex(   i, c, t, nc, r) {
       if (nc == "\n") {
         if (t == "C" || t == "T") { emit(" "); emit(" ") } else { emit("_"); emit("\n") }
         line++
+      } else if ((t == "C" || t == "T") && nc ~ /[A-Za-z0-9_]/) {
+        # `\grep` bypasses an alias and still runs grep; keep the word readable.
+        emit("\\"); emit(nc)
       } else { emit("_"); emit("_") }
       continue
     }
     if (t == "D" || t == "B") {
-      if (c == "$" && (r = subst_open(i, t))) { i = r; continue }
+      if (c == "$" && (r = subst_open(i))) { i = r; continue }
       if (c == "`") { push("T", 0); emit("_"); continue }
       if (t == "D" && c == "\"") { sp--; emit("_"); continue }
       if (t == "B") {
@@ -158,7 +168,7 @@ function lex(   i, c, t, nc, r) {
       nc = substr(S, i + 1, 1)
       if (nc == "\047") { push("E", 0); emit("_"); emit("_"); i++; continue }
       if (nc == "\"") { push("D", 0); emit("_"); emit("_"); i++; continue }
-      if ((r = subst_open(i, t))) { i = r; continue }
+      if ((r = subst_open(i))) { i = r; continue }
       emit("$"); continue
     }
     if (c == "(") { fd[sp]++; emit(c); continue }
@@ -184,9 +194,8 @@ function readword(y) {
   while (y <= k && index(" \t\n;|&()", o[y]) == 0) { W = W o[y]; y++ }
   return y
 }
-function early_exit(y,   w, z, ch, ci, name) {
-  # y is just past the grep word; parse its arguments up to the command end.
-  z = y
+function early_exit(z,   w, ch, ci, name) {
+  # z is just past the grep word; parse its arguments up to the command end.
   while (1) {
     z = skipws(z, 0)
     if (z > k || index("\n;|&)", o[z])) return 0
@@ -196,7 +205,7 @@ function early_exit(y,   w, z, ch, ci, name) {
     if (substr(w, 1, 2) == "--") {
       name = w; sub(/=.*/, "", name)
       if (name ~ /^--(quiet|silent|files-with-matches|files-without-match|max-count)$/) return 1
-      if (w !~ /=/ && name ~ /^--(regexp|file|after-context|before-context|context|devices|directories|label|include|exclude|exclude-dir|exclude-from|group-separator|binary-files|color|colour)$/) {
+      if (w !~ /=/ && name ~ /^--(regexp|file|after-context|before-context|context|devices|directories|label|include|exclude|exclude-dir|exclude-from|group-separator|binary-files)$/) {
         z = skipws(z, 0); z = readword(z)
       }
       continue
@@ -222,16 +231,18 @@ function scan(file,   x, y, y2, w, gl, text) {
     y = x + 1
     if (o[y] == "&") y++
     y = skipws(y, 1)
-    while (1) {
-      gl = ol[y]
-      y2 = readword(y); w = W
-      if (w ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || w == "command") { y = skipws(y2, 0); continue }
-      break
+    # Skip what may stand before the command name: assignments, a wrapper, its
+    # options, a negation, a brace group.
+    for (;;) {
+      gl = ol[y]; y2 = readword(y); w = W
+      if (w !~ /^([A-Za-z_][A-Za-z0-9_]*=|-)/ && w != "command" && w != "env" && w != "!" && w != "{") break
+      y = skipws(y2, 0)
     }
+    sub(/^\\/, "", w); sub(/^.*\//, "", w)
     if (w != "grep" && w != "egrep" && w != "fgrep") continue
     if (!early_exit(y2)) continue
     text = L[gl]; sub(/^[ \t]+/, "", text); sub(/[ \t]+$/, "", text)
-    printf "%s:%d: %s\n", file, gl, text
+    printf "PIPED EARLY-EXIT GREP: %s:%d: %s\n", file, gl, text
   }
 }
 function finish(   li) {
@@ -247,23 +258,17 @@ FNR == 1 {
 END { if (n > 0) finish() }
 '
 
-findings=""
-if ((${#files[@]} > 0)); then
-  findings="$(LC_ALL=C awk "$LEXER" "${files[@]}")" || {
-    echo "check-pipefail-grep-q: awk failed while scanning" >&2
-    exit 2
-  }
-fi
+findings="$(LC_ALL=C awk "$LEXER" "${files[@]}")" || {
+  echo "check-pipefail-grep-q: awk failed while scanning" >&2
+  exit 2
+}
 
 if [[ -z "$findings" ]]; then
   echo "No piped early-exit grep in ${#files[@]} shell file(s)."
   exit 0
 fi
 
-count=0
-while IFS= read -r finding; do
-  echo "PIPED EARLY-EXIT GREP: $finding" >&2
-  count=$((count + 1))
-done <<<"$findings"
+printf '%s\n' "$findings" >&2
+count="$(grep -c '' <<<"$findings")"
 echo "$count piped early-exit grep(s) found; rewrite each as grep ... <<<\"\$v\" or grep ... < <(producer)." >&2
 exit 1

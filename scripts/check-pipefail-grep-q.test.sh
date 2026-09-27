@@ -106,6 +106,21 @@ EOF
 expect_flag "a command-prefixed grep" 1 <<'EOF'
 echo "$x" | command grep -q foo
 EOF
+expect_flag "a backslash-escaped grep" 1 <<'EOF'
+echo "$x" | \grep -q foo
+EOF
+expect_flag "a grep named by path" 1 <<'EOF'
+echo "$x" | /usr/bin/grep -q foo
+EOF
+expect_flag "an env-prefixed grep" 1 <<'EOF'
+echo "$x" | env LC_ALL=C grep -q foo
+EOF
+expect_flag "a grep in a brace group" 1 <<'EOF'
+echo "$x" | { grep -q foo; }
+EOF
+expect_flag "-q after --color" 1 <<'EOF'
+echo "$x" | grep --color -q foo
+EOF
 expect_flag "a pipe of both streams (|&)" 1 <<'EOF'
 make 2>&1 |& grep -q error
 EOF
@@ -208,6 +223,33 @@ if ((RC == 2)) && [[ -n "$ERR" && -z "$OUT" ]]; then
   ok "a missing file argument exits 2 with a diagnostic on stderr"
 else
   fail "a missing file argument: wanted exit 2 on stderr only (rc=$RC, stdout='$OUT', stderr='$ERR')"
+fi
+
+# A default run that finds no scripts/ tree could not look, so it is not clean.
+mkdir -p "$WORK/noscripts/bin"
+cp "$SCRIPT" "$WORK/noscripts/bin/gate.sh"
+run_gate_default() {
+  RC=0
+  bash "$WORK/noscripts/bin/gate.sh" >"$WORK/out" 2>"$WORK/err" || RC=$?
+}
+run_gate_default
+if ((RC == 2)) && [[ ! -s "$WORK/out" ]]; then
+  ok "a default run with no scripts/ tree exits 2"
+else
+  fail "a default run with no scripts/ tree: wanted exit 2 (rc=$RC, stdout='$(cat "$WORK/out")')"
+fi
+
+# A bare name shaped like var=value must still be read as a file, not as an awk
+# variable assignment that would silently scan nothing.
+mkdir -p "$WORK/eq"
+# shellcheck disable=SC2016  # literal fixture source; nothing here should expand
+printf '%s\n' 'echo "$x" | grep -q foo' >"$WORK/eq/a=b.sh"
+RC=0
+(cd "$WORK/eq" && bash "$SCRIPT" a=b.sh >"$WORK/out" 2>"$WORK/err") || RC=$?
+if ((RC == 1)) && grep -q 'a=b.sh:1:' "$WORK/err"; then
+  ok "a file argument shaped like var=value is scanned"
+else
+  fail "a var=value file argument was not scanned (rc=$RC, stderr='$(cat "$WORK/err")')"
 fi
 
 new_case <<'EOF'
