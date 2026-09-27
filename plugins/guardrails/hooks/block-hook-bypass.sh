@@ -535,7 +535,7 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 #   assumption) that the decline is decided on, and the library expands an 8.3
 #   short name before it compares. On Windows the exemption also takes the 8.3
 #   spelling of a temp path (#4678), which the strict normalizer below refuses
-#   everywhere else. secret-pattern-detection's temp decline (D1, #4475) widens
+#   everywhere else. secret-pattern-detection's temp decline D1 (#4475) widens
 #   the same way on the same spelling, so a Write and a Bash redirect to one
 #   8.3 temp path get the same answer.
 #
