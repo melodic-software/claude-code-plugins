@@ -683,8 +683,8 @@ k5=(
   "$(printf 'Go to <https://x/seam> or <mailto:seam@x.y> now.\n')"
   "$(printf '# Title\n    seam code\n')"
   "$(printf '[ref]: https://x/u\n    seam\n')"
-  "$(printf 'A \\<!-- seam --> seam\n')"
-  "$(printf '%s\n' 'A \\<!-- seam --> seam')"
+  "$(printf 'A \\<!-- seam --> seam\n')" # portability-ok: printf data with an escaped comment opener, not a regex
+  "$(printf '%s\n' 'A \\<!-- seam --> seam')" # portability-ok: printf data with an escaped comment opener, not a regex
   "$(printf 'A \\"seam\\" seam and "q" seam\n')"
   "$(printf -- '- item seam\n\n  [ref]: https://x/seam "seam"\n')"
   "$(printf -- '- seam\n  [ref]: /seam\n')"

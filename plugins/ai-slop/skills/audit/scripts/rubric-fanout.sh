@@ -64,7 +64,7 @@ with an optional title; autolinks (<scheme:...>, <user@host>); raw HTML tags
 on one line (<tag attr="...">, </tag>), their text between them counted;
 double-quoted spans, straight or curly, which may wrap onto later lines of the
 same paragraph; and HTML comment interiors. A < after an odd run of
-backslashes is literal, so \<!-- opens nothing. Quotes and comments are read
+backslashes is literal, so an escaped comment opener opens nothing. Quotes and comments are read
 left to right, so a quoted <!-- opens nothing. A comment closes at the first --> after its <!-- (<!--> is whole) and may span
 lines; one at a line start (up to 3 spaces) that never closes runs to the end
 of the file, and one opened mid-line whose --> is not in its paragraph is
