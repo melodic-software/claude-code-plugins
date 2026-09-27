@@ -55,9 +55,12 @@ MAX_SUBSETS = 4096
 
 
 def traces(work):
-    ds = [json.load(open(f, encoding='utf-8')) for f in workdir.traces(work)]
-    if not ds:
-        sys.exit(f'learn: no traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
+    # the index's drawings, not a glob: an earlier extract into this dir can leave higher-numbered stale traces
+    fs = [workdir.trace(work, k) for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']] \
+        if workdir.index(work).exists() else []
+    if not fs or not all(f.exists() for f in fs):
+        sys.exit(f'learn: missing traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
+    ds = [json.load(open(f, encoding='utf-8')) for f in fs]
     tones, common = {}, Counter(tuple(d['levels']) for d in ds).most_common(1)[0][0]   # skip per-shot level overrides
     for d in (d for d in ds if tuple(d['levels']) == common):
         for t in d['tones']:
