@@ -30,7 +30,7 @@ for x86 or `0xAA64` for ARM64), `format` (the optional-header magic: `0x10b` is 
   table, or exports `D3D12SDKVersion` (Microsoft's Agility SDK requires that export "from the main
   .exe"). It is `false` when every exe imports `d3d11.dll` with none of those. Otherwise it is
   `null`, unknown, with each exe's `dx12Basis` naming why. A `d3d12*.dll` file beside the exe and an
-  Unreal `Binaries\Win64` path are not evidence either way: a proxy can carry that file name, and an
+  Unreal `Binaries\Win64` path are not evidence either way: a proxy can carry that file name, and an <!-- portability-ok: Windows path, not a shell regex -->
   Unreal game can be D3D11.
 
 ## What `assess` detects
