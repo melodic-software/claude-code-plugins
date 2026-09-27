@@ -22,12 +22,12 @@ trigger tag).
 | T9 | Concern registry: home and row shape | RESOLVED: `docs/conformance-dimensions.md` |
 | T10 | Verb-name check: gate or advisory | RESOLVED: CI gate with baseline |
 | T11 | Follow-up issue list | RESOLVED: #4582-#4586 filed; item 5 waits for the baseline run |
-| T12 | Remaining philosophy rule: dependency inventory classes | DIRECTIONAL, awaiting user agreement |
-| T13 | Script shape: extend vs new, CI wiring | DIRECTIONAL, awaiting user agreement |
-| T14 | Target scope, fan-out and findings persistence | DIRECTIONAL, awaiting user agreement |
-| T15 | Judgment steps and the positions tier | DIRECTIONAL, awaiting user agreement; positions tier DEFERRED |
-| T16 | Test-seam posture | DIRECTIONAL, awaiting user agreement |
-| T17 | Sequencing against #4534 | DIRECTIONAL, awaiting user agreement |
+| T12 | Remaining philosophy rule: dependency inventory classes | RESOLVED |
+| T13 | Script shape: extend vs new, CI wiring | RESOLVED |
+| T14 | Target scope, fan-out and findings persistence | RESOLVED |
+| T15 | Judgment steps and the positions tier | RESOLVED; positions tier TAGGED-DEFERRED |
+| T16 | Test-seam posture | RESOLVED |
+| T17 | Sequencing against #4534 | RESOLVED |
 
 ## Resolved (user decisions, 2026-09-24)
 
@@ -83,6 +83,9 @@ Rationale: independent of the animation and pixel-art plugins it will audit.
 
 Decision: the name is picked by the user from a `/naming:name-it-better` run, not locked by the
 design. T8 carries the candidates.
+
+Rationale: blind generators break the anchor on a name the design session already leaned toward, and
+the name is hard to change once docs and citations use it (T7).
 
 ## Resolved (user decisions, 2026-09-27)
 
@@ -215,7 +218,7 @@ baseline run so the list is complete. Unblocks: nothing in this design; keeps T4
 was found before filing. Filed: 1 = #4582, 2 = #4583, 3 = #4584, 4 = #4585, 6 = #4586. Item 5 is filed
 by the build phase that produces the verb baseline.
 
-## Directional (recommended, not yet agreed by the user; details for `/planning:plan`)
+## Resolved (user agreed the recommended direction, 2026-09-27; details for `/planning:plan`)
 
 ### T12. Remaining philosophy rule: dependency inventory classes
 
@@ -225,6 +228,9 @@ their verdict set (port, `userConfig`, presence-gated, documented, fix needed) a
 philosophy. Direction: add them as a short list under "Prerequisites and failure behavior" (`:660-`),
 reusing that section's absence classes, as the first commit of the build. No new token file
 (`:90-92`).
+
+Rationale: T2 puts the rule before the check; the dependency script (T13) needs a rule to cite, and
+that section already owns what happens when a prerequisite is absent.
 
 ### T13. Script shape and CI wiring
 
@@ -237,12 +243,19 @@ reusing that section's absence classes, as the first commit of the build. No new
 - Suppressions reuse the marketplace finding-suppression convention already used by
   `.claude/audit-pass.md`, not a new store.
 
+Rationale: extending the leaf-name script keeps one owner for leaf-name rules; the two new scripts
+only list because their verdicts are judgment (T3); reusing the suppression convention avoids a
+second store.
+
 ### T14. Target scope, fan-out and findings persistence
 
 Direction: argument is one plugin (default: plugins touched on the branch), or `all`. `all` runs the
 deterministic scripts once over the tree, then one judgment subagent per plugin, piloting one plugin
 before fanning out. Findings persist per plugin and lane so an interrupted run resumes, the
 `claude-config:audit-pass` shape, written to the memory tier, not tracked. Read-only; no `--fix`.
+
+Rationale: an `audit` verb is read-only (`:140`); the pilot guards against a usage limit stopping a
+wide fan-out mid-run; reusing `audit-pass`'s resume shape avoids a second persistence scheme.
 
 ### T15. Judgment steps; positions tier deferred
 
@@ -251,8 +264,13 @@ fit (1), a routing test in a fresh subagent given only descriptions and requests
 per output and tool (4), a verdict per dependency and value (5, 6), each in a fresh context per
 `docs/plugin-philosophy.md:867-` (fresh-eyes checkpoints). Existing judgment skills
 (`plugin-quality:audit`, `extract-ssot`, `code-metrics:audit-duplication`, `coupling:reduce`) are
-dispatched presence-gated. DEFERRED: the "N positions, then converge" deep tier (concern 8). Trigger:
-a run where the per-concern verdicts disagree on a boundary decision and a human asks for it.
+dispatched presence-gated. TAGGED-DEFERRED: the "N positions, then converge" deep tier (concern 8).
+Research tag: whether a positions-then-converge pass finds boundary errors the per-concern verdicts
+miss, measured on one real case. Trigger: a run where the per-concern verdicts disagree on a boundary
+decision and a human asks for it.
+
+Rationale: these are the gaps no existing check covers (capability matrix concerns 1, 3-6), and the
+fresh-eyes rule bars a producing context from grading its own output.
 
 ### T16. Test-seam posture
 
@@ -260,12 +278,19 @@ One seam per script: sibling `scripts/<name>.test.sh` fixtures, the repo's exist
 (`scripts/check-changed-skills.test.sh` and peers). The skill body itself is checked by
 `skill-quality:check`; no model-graded eval in the first cut.
 
+Rationale: the scripts carry all deterministic logic, so a fixture test per script is the smallest
+seam that fails when that logic breaks; a model-graded eval waits until the skill has run on real
+plugins.
+
 ### T17. Sequencing against #4534
 
 The two rules exist only on `feat/animation-plugin`. Build order: #4534 merges, this branch merges
 main, then T12's rule, the T9 registry, the T13 scripts, the skill, and T7's citation rewrites in one
 PR. Design work (this file) does not wait.
 
+Rationale: the skill cites the two rules #4534 adds, and T7's rewrites must land with the skill so
+no commit cites a missing audit.
+
 ## Next
 
-Once T7-T11 are answered: `/planning:design-handoff`, then `/planning:plan`.
+`/planning:design-handoff`, then `/planning:plan` into `../PLAN.md`.
