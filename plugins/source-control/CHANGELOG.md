@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.0] - 2026-09-26
+
+### Added
+
+- The babysit merge gate takes `--auto` (with `--merge` and `--expected-head`). When both AI review checks (`claude-review-status`, `claude-security-review-status`) report success on the pinned live head, no review thread is open, and every other gate blocker is clear, it runs `gh pr merge --auto --squash --match-head-commit <pin>` instead of holding. Other checks still running do not hold the arm: GitHub waits out `ci-status` itself, and a non-required check never holds a merge. A missing, skipped, failed, or running AI review check holds, as does a head that moved off the pin. Its JSON gains `autoMerge.ready`, `autoMerge.blockers`, and `autoMergeEnabled`; an arm reports `"action": "auto-merge"` with `merged: false`, so the PR stays queued. `ci-status` is the only required check and does not wait on the review workflows, so auto-merge armed earlier could merge before AI review posts.
+
+### Changed
+
+- Only the merge lane enables auto-merge: a `babysit-loop` lane-pinned invocation passes `--auto`, so it applies only to PRs the rung partition admitted as C2 mechanical or C3 scoped; C4 structural and C5 PRs still wait for the user. Workers, standalone babysit-prs runs, and `/source-control:pull-request` never enable it (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
+- `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. Every other push path disarms before and again right after pushing: each lane push in `babysit-prs/reference/loop.md` (through `lane_push`), the fix worker's push (`orchestration.md` Worker Contract and prompt template), and the orchestrator's conflict-resolution push.
+- The merge lane retries an AI review check that failed on a rate limit with a full `gh run rerun <run-id>`, never `--failed`: a `--failed` rerun reruns only the `-status` job, which re-reads the cached rate-limit output of the successful `review` job and fails again.
+
+## [0.59.1] - 2026-09-26
+
+### Changed
+
+- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR in a review-fix commit, separate from the original work, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or whose fix is blocked on research the lane cannot do (a claim research cannot confirm stays `UNCERTAIN`); no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule as #4541 for work-items.
+
+## [0.59.0] - 2026-09-26
+
+### Added
+
+- `scripts/resolve-version-bump-conflict.sh` resolves the conflict two concurrent PRs create when both bump one plugin's `.claude-plugin/plugin.json` version and add a `CHANGELOG.md` entry. Run during a merge of the default branch into a PR branch, or a rebase or cherry-pick of the PR onto it, it sets the version to the default branch's current version plus one bump at the PR's level (so no version is skipped), keeps the default branch's changelog entries, re-heads the PR's entry under the new version above them, three-way merges any other edit to the two files, and stages both. A plugin whose files do not fit that shape, or whose other edits conflict, is left untouched and named (exit 1). `scripts/resolve-version-bump-conflict.test.sh` covers the same-number collision, mixed bump levels, the rebase orientation, and the left-for-manual path.
+- `/source-control:resolve-conflicts` step 3, the babysit-prs inline freshness merge (`reference/loop.md`), the conflict-worker contract (`reference/orchestration.md`), and `/source-control:babysit-loop` run the resolver before hand-resolving these two files, so a version-bump collision no longer aborts the lane's merge as needing intent judgment.
+
 ## [0.58.5] - 2026-09-25
 
 ### Changed

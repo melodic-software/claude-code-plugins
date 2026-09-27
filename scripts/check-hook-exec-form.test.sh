@@ -107,8 +107,8 @@ plugin_file "$f" disk-hygiene hooks/hooks.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
   fail "pre-#2570 exec-form bash hooks should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/hooks/hooks.json:.hooks.PreToolUse\[0\].hooks\[0\]: .*"bash"' &&
-    echo "$out" | grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/hooks/hooks.json:.hooks.PreToolUse\[0\].hooks\[0\]: .*"bash"' <<<"$out" &&
+    grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"bash"' <<<"$out"; then
     ok "pre-#2570 shape fails, and BOTH exec-form entries are named"
   else
     fail "expected both PreToolUse and Stop entries flagged with their paths, got: $out"
@@ -197,7 +197,7 @@ if out="$(run_check "$f" 2>&1)"; then
   fail "the dirty sibling should fail, got success: $out"
 else
   if [[ "$(echo "$out" | grep -c 'EXEC-FORM HOOK:')" == "1" ]] &&
-    echo "$out" | grep -q 'hooks\[1\]: .*"python3"'; then
+    grep -q 'hooks\[1\]: .*"python3"' <<<"$out"; then
     ok "only the dirty sibling in a matcher entry is flagged"
   else
     fail "expected exactly one flag naming hooks[1]/python3, got: $out"
@@ -212,7 +212,7 @@ plugin_file "$f" alpha config/extra-hooks.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
   fail "manifest-pointed hook file should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: plugins/alpha/config/extra-hooks.json:'; then
+  if grep -q 'EXEC-FORM HOOK: plugins/alpha/config/extra-hooks.json:' <<<"$out"; then
     ok "manifest string-path hook config is scanned"
   else
     fail "expected flag on the manifest-pointed file, got: $out"
@@ -238,7 +238,7 @@ plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"Pre
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline manifest hooks object should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: plugins/alpha/.claude-plugin/plugin.json:.hooks.PreToolUse\[0\].hooks\[0\]:'; then
+  if grep -q 'EXEC-FORM HOOK: plugins/alpha/.claude-plugin/plugin.json:.hooks.PreToolUse\[0\].hooks\[0\]:' <<<"$out"; then
     ok "inline manifest hooks object is scanned with a resolvable path"
   else
     fail "expected inline-object flag with its path, got: $out"
@@ -272,7 +272,7 @@ new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$PRE_2570_HOOKS" >"$f/outside.json"
 if out="$(run_check "$f" 2>&1)"; then
-  if echo "$out" | grep -q 'skipping out-of-tree hooks path'; then
+  if grep -q 'skipping out-of-tree hooks path' <<<"$out"; then
     ok "out-of-tree manifest hooks path is skipped with a visible notice"
   else
     fail "expected visible out-of-tree skip notice, got: $out"
@@ -350,7 +350,7 @@ if out="$(run_check "$f" 2>&1)"; then
   fail "frontmatter exec-form python3 should fail, got success: $out"
 else
   if [[ "$(echo "$out" | grep -c 'EXEC-FORM HOOK:')" == "1" ]] &&
-    echo "$out" | grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/skills/clean/SKILL.md:8: .*"python3"'; then
+    grep -q 'EXEC-FORM HOOK: plugins/disk-hygiene/skills/clean/SKILL.md:8: .*"python3"' <<<"$out"; then
     ok "frontmatter exec-form python3 fails with its line number, and the body example is ignored"
   else
     fail "expected exactly one flag at SKILL.md:8, got: $out"
@@ -388,7 +388,7 @@ if out="$(run_check "$f" 2>&1)"; then
   fail "the dirty frontmatter sibling should fail, got success: $out"
 else
   if [[ "$(echo "$out" | grep -c 'EXEC-FORM HOOK:')" == "1" ]] &&
-    echo "$out" | grep -q 'SKILL.md:10: .*"sh"'; then
+    grep -q 'SKILL.md:10: .*"sh"' <<<"$out"; then
     ok "only the dirty frontmatter sibling is flagged, with a block-sequence args"
   else
     fail "expected exactly one flag at line 10 for sh, got: $out"
@@ -410,7 +410,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "unquoted command with a trailing comment should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'with bare command "python3"$'; then
+  if grep -q 'with bare command "python3"$' <<<"$out"; then
     ok "unquoted command value is parsed without its trailing comment"
   else
     fail "expected the comment stripped from the reported value, got: $out"
@@ -486,7 +486,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a flow-style hooks block should be walked and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:4: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*SKILL.md:4: .*"bash"' <<<"$out"; then
     ok "flow-style YAML in a hooks block is walked, not refused"
   else
     fail "expected a flag at line 4 for bash, got: $out"
@@ -540,7 +540,7 @@ body"
   if out="$(run_check "$f" 2>&1)"; then
     fail "the '$spelling' key spelling should still be walked, got success: $out"
   else
-    if echo "$out" | grep -q 'SKILL.md:7: .*"bash"'; then
+    if grep -q 'SKILL.md:7: .*"bash"' <<<"$out"; then
       ok "the '$spelling' key spelling is walked like the bare one"
     else
       fail "expected a flag at line 7 for '$spelling', got: $out"
@@ -558,7 +558,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an inline hooks declaration should be walked and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:2: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*SKILL.md:2: .*"bash"' <<<"$out"; then
     ok "a whole hooks declaration on the key line is walked"
   else
     fail "expected a flag at line 2 for bash, got: $out"
@@ -584,7 +584,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a duplicate top-level hooks key should not clear the gate, got success: $out"
 else
-  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate top-level `hooks` key'; then
+  if grep -q 'UNREADABLE FRONTMATTER: .*duplicate top-level `hooks` key' <<<"$out"; then
     ok "a duplicate top-level hooks key is reported, not silently first-wins"
   else
     fail "expected the duplicate-hooks message, got: $out"
@@ -607,7 +607,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a duplicate command key should not clear the gate, got success: $out"
 else
-  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key'; then
+  if grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key' <<<"$out"; then
     ok "a duplicate key inside a hook object is reported"
   else
     fail "expected the duplicate-command message, got: $out"
@@ -633,7 +633,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a duplicate key inside a merged mapping should not clear the gate, got success: $out"
 else
-  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key'; then
+  if grep -q 'UNREADABLE FRONTMATTER: .*duplicate `command` key' <<<"$out"; then
     ok "a duplicate key reached through a merge key is reported"
   else
     fail "expected the duplicate-command message through the merge, got: $out"
@@ -655,7 +655,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "unparsable frontmatter should fail closed, got success: $out"
 else
-  if echo "$out" | grep -q 'UNREADABLE FRONTMATTER: .*does not parse'; then
+  if grep -q 'UNREADABLE FRONTMATTER: .*does not parse' <<<"$out"; then
     ok "unparsable YAML frontmatter fails closed"
   else
     fail "expected the does-not-parse message, got: $out"
@@ -679,7 +679,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a commented hooks: key should still open the block, got success: $out"
 else
-  if echo "$out" | grep -q 'SKILL.md:6: .*"bash"'; then
+  if grep -q 'SKILL.md:6: .*"bash"' <<<"$out"; then
     ok "a trailing comment on the hooks key is not read as an inline value"
   else
     fail "expected the block to be walked and flagged at line 6, got: $out"
@@ -737,7 +737,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an aliased hooks value should be resolved and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"' <<<"$out"; then
     ok "a YAML alias under the hooks key is resolved to its anchor"
   else
     fail "expected a flag at the anchor's command line, got: $out"
@@ -759,7 +759,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an anchored value inside a hooks block should be walked, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*SKILL.md:6: .*"bash"' <<<"$out"; then
     ok "an anchored value inside a hooks block is walked"
   else
     fail "expected a flag at line 6 for bash, got: $out"
@@ -785,7 +785,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a merge key should be expanded and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*"bash"' <<<"$out"; then
     ok "a merge key inside a hooks block is expanded"
   else
     fail "expected a bash flag through the merge key, got: $out"
@@ -828,7 +828,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "a block-scalar command should be read and flagged, got success: $out"
 else
-  if echo "$out" | grep -q 'EXEC-FORM HOOK: .*"bash"'; then
+  if grep -q 'EXEC-FORM HOOK: .*"bash"' <<<"$out"; then
     ok "a block-scalar command is read as its content"
   else
     fail "expected a bash flag from the block scalar, got: $out"
@@ -869,7 +869,7 @@ plugin_file "$f" alpha hooks/hooks.json '{"hooks": [ this is not json'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an unparsable hooks.json should fail closed, got success: $out"
 else
-  if echo "$out" | grep -q 'UNREADABLE HOOK CONFIG: plugins/alpha/hooks/hooks.json:'; then
+  if grep -q 'UNREADABLE HOOK CONFIG: plugins/alpha/hooks/hooks.json:' <<<"$out"; then
     ok "an unparsable hook config fails closed and names the file"
   else
     fail "expected UNREADABLE HOOK CONFIG, got: $out"
@@ -937,7 +937,7 @@ body'
 if out="$(run_check "$f" 2>&1)"; then
   fail "agent frontmatter hooks should be scanned, got success: $out"
 else
-  if echo "$out" | grep -q 'plugins/alpha/agents/reviewer.md:7:'; then
+  if grep -q 'plugins/alpha/agents/reviewer.md:7:' <<<"$out"; then
     ok "agent frontmatter hooks are covered"
   else
     fail "expected the agent file flagged at line 7, got: $out"
@@ -955,7 +955,7 @@ plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 printf '%s\n' 'import sys' 'sys.exit(2)' >"$f/scripts/check-hook-exec-form-frontmatter.py"
 out="$(run_check "$f" 2>&1)"
 rc=$?
-if ((rc == 2)) && echo "$out" | grep -q 'the frontmatter reader did not complete'; then
+if ((rc == 2)) && grep -q 'the frontmatter reader did not complete' <<<"$out"; then
   ok "a frontmatter reader that did not complete exits 2, never clearing plugins/"
 else
   fail "expected exit 2 and the reader-did-not-complete line (rc=$rc): $out"
@@ -967,7 +967,7 @@ new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 skill_md "$f" alpha skills/x/SKILL.md "$FM_SHELL_FORM"
 if out="$(run_check "$f" 2>&1)"; then
-  if echo "$out" | grep -q 'No exec-form hooks with a bare command name.'; then
+  if grep -q 'No exec-form hooks with a bare command name.' <<<"$out"; then
     ok "a clean tree passes with an explicit statement"
   else
     fail "expected the clean-tree statement, got: $out"

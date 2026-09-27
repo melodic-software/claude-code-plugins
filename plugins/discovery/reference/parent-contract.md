@@ -56,19 +56,27 @@ limit. It can only move the agent's stop turn earlier than the default its own d
 an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
 does not receive it stops gathering at that default.
 
-**Research adds one more labeled line**, because source breadth is the caller's level and
-the researcher lane is pinned `high` for reasoning:
+**Research adds two more labeled lines.** `Source breadth:` because source breadth is the
+caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
+only the caller knows whether the answer will be quoted outside the session:
 
 ```text
 Source breadth: <low|medium|high|xhigh|max>
+Evidence use: <internal|publish>
 ```
 
-The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
-dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
-and trace-intent do not write this line. A research worker that does not receive it treats
-the run as `high` and names that default in the artifact, the same fallback as an
+The parent resolves the `Source breadth:` value from `${CLAUDE_EFFORT}` in the parent skill load
+before dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+and trace-intent write neither line. A research worker that does not receive `Source breadth:`
+treats the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
+
+Write `Evidence use: publish` when the output will be quoted outside this session: a
+pull-request review reply, an issue, a design document, a message to a third party. Otherwise
+`internal`. The line is degradable: a research worker that does not receive it records `internal`
+in the index and says so. What `publish` tightens, and why the value is copied into the index
+rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
 
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
@@ -82,12 +90,13 @@ the drift this file exists to close.
 
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
-named here rather than in the template above. None of the three worker definitions pins one, so the
-default is to **pass nothing**: the consumer's own `CLAUDE_CODE_SUBAGENT_MODEL` then decides, which
-is the whole point of carrying no pin. Supply the parameter only as a deliberate per-run change,
-because it outranks that setting and would otherwise replace the consumer's cost choice on this
-plugin's most expensive lane, `maxTurns: 40` at `effort: high`, spent almost entirely on reading.
-Under `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` it cannot be passed at all. Dated record:
+named here rather than in the template above. Each worker definition pins a default model:
+`explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
+**pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
+whose scope earns a different model; it replaces the pin in either direction. Every worker spends
+`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading. The pin
+outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
+overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -220,8 +229,8 @@ instead of an undated restatement at every site that relies on it. A skill, cont
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
 named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
-fetched 2026-09-08. Records 8-9 were verified against Claude Code 2.1.278 with the subagents
-page fetched 2026-09-19.
+fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
+fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 
 **One shared recheck trigger covers all nine:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
@@ -340,11 +349,13 @@ verbatim; "Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this orde
 the per-invocation parameter and the frontmatter, including `model: inherit`"; "While
 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
 definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
-it starts a subagent." *Why the plugin cares.* This is the plugin's cost knob and it belongs to the
-parent, not the agent definition: a worker pinned in frontmatter is a floor the dispatching session
-raises per run when the scope earns it. `model: inherit` in a worker definition is therefore a cost
-defect, not a neutral default. It outranks the environment variable, so a session on an expensive
-model pays that rate for every turn the worker spends reading files.
+it starts a subagent."; "When you omit it, Claude Code picks the model in the subagent model
+order". *Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
+session overrides it per run with the per-call `model`, which replaces the pin in either direction.
+An omitted `model` is not a neutral default: it falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to
+the main conversation's model, so on a machine without the variable an unpinned worker runs on the
+orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
+environment variable, so it is a cost defect in a worker definition.
 
 ## Running the acceptance gate
 
@@ -361,15 +372,16 @@ and exits 0:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # any dispatched route
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" --help   # research only (dispatch or inline)
 ```
 
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
-  before dispatching. Research also probes the coverage checker; trace-intent owes no ledger and so
-  probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
+  before dispatching. Research also probes the coverage and source-applicability checkers;
+  trace-intent owes no ledger and so probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
   as a non-zero gate exit: **halt**. Do not take the inline escape hatch to dodge an un-runnable
   post-dispatch gate.
-- **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
-  checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
+- **Inline research:** still owes the coverage-script exit status for criterion 11 and the
+  source-applicability exit status for criterion 13. Probe both checkers before spending the run; a denied probe **halts**. Reading the ledger instead is the
   silent self-grade the gate exists to prevent.
 - **Inline explore:** no script verdict to self-grade. The three escape-hatch reasons (tight
   iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
@@ -383,7 +395,12 @@ gate itself rather than an interpreter wrapping it:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <slice> --index-name <NAME.md> …
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" <ledger>   # or the .py twin
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <slice> --expect-evidence-use <mode>
 ```
+
+The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
+`python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
+from any open lane; a session that can run no Python interpreter halts on criterion 13.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
 whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another

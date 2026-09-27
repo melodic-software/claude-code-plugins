@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.1] - 2026-09-27
+
+### Changed
+
+- **`skill-authoring`**: the authoring guidance gains an "Agent model" section: a plugin agent
+  definition names its `model`, and `inherit` carries a trailing `# reason:` comment on that line.
+
 ## [0.13.0] - 2026-09-26
 
 ### Added

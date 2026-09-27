@@ -1,5 +1,49 @@
 # Changelog: discovery plugin
 
+## [0.24.1] - 2026-09-27
+
+### Changed
+
+- **Worker models:** `explorer` now pins `model: sonnet`, and `researcher` and `intent-tracer` pin
+  `model: opus`. For these three workers the pin now outranks a consumer's
+  `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` or a per-call `model` still
+  overrides it. A dispatch that passes no `model` runs on the pin instead of falling through to the
+  orchestrator's own model. The parent contract states the pin as the default a parent overrides
+  per run with the per-call `model`, and its dated record is re-verified.
+
+## [0.24.0] - 2026-09-26
+
+### Added
+
+- **`research`:** each `sources[]` entry records `published:` (a date or `undated`), `applies_to:`
+  (`<product> <range>` with dotted versions, `<v>-<v>` or `<v>+`, or `version-independent`) and
+  `standing: current | historical`; each claim records its target `applies_to:`. A source that does
+  not cover the claim's product and whole version range, or is undated, is `historical`: labeled
+  wherever shown and never counted toward criterion 4. The primary is always dated and `current`.
+- **`research`:** outcome-gate criterion 13, run-owned with a script verdict:
+  `scripts/check-source-applicability.py <slice>` derives each source's standing from its fields,
+  fails any stored label that disagrees, and exits 0 / 1 / 2. It applies to every run with claims,
+  inline included, and the parent re-runs it post-dispatch and on the by-value path. It matches
+  `RESEARCH-*.md` sidecars case-sensitively on every OS, so the lowercase `research-checklist.md`
+  ledger in the same slice is never read as a sidecar, and it needs no Python 3.12 glob flag.
+- **`research`:** criterion 12's joint-inference check runs the variable, population, era and
+  scenario checks on every cited source. The scenario check asks whether a source describes the
+  claim's specific situation or only the general mechanism; a general-mechanism source is recorded
+  and not counted.
+- **Envelope:** a research-only `Evidence use: internal|publish` line (degradable, default
+  `internal`), copied into the index as `evidence_use:`. Under `publish` an undated source is always
+  historical, the answer quotes only `current` sources as support, and the verifier grades every
+  cited source for applicability rather than quote presence. The parent passes the value to the
+  checker as `--expect-evidence-use`. The envelope keeps six shared fields.
+- **`researcher`:** the return payload carries `applicability: pass | fail`.
+- Two eval cases: an old-era verbatim quote labeled historical and not counted, and publish mode
+  grading applicability rather than quote presence.
+
+### Changed
+
+- **`research`:** criterion 4 counts only `current` corroborators; the recency gate section says it
+  dates claims, not sources, and points at criterion 13.
+
 ## [0.23.0] - 2026-09-25
 
 ### Added

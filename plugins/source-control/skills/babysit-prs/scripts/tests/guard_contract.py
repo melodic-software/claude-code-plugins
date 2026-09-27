@@ -1252,7 +1252,7 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=MERGE_CLI,
         wrapper=MERGE_WRAPPER,
         mutation=CONDITIONAL,
-        mutates_what="merges the PR on GitHub",
+        mutates_what="merges the PR on GitHub, or with --auto arms auto-merge",
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
             "Without --merge this is a readiness reporter. With it, the TOCTOU guard "
@@ -1337,7 +1337,10 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=REFRESH_CLI,
         wrapper=None,
         mutation=CONDITIONAL,
-        mutates_what="asks GitHub to update the PR branch server-side; writes queue state",
+        mutates_what=(
+            "disables an armed auto-merge, then asks GitHub to update the PR branch "
+            "server-side; writes queue state"
+        ),
         gate="--apply",
         claim=(
             "Mutates the PR branch on GitHub WITHOUT pushing: the update is a pinned "

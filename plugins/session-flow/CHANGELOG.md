@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [0.38.1] - 2026-09-27
+
+### Fixed
+
+- **`orchestrate` sources state the current subagent model order.** The per-invocation `model`
+  comes first, then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main
+  conversation's model. An omitted `model` follows that order rather than meaning `inherit`. The
+  workflow bullet quotes the workflows page's current wording. Both carry a dated record with a
+  recheck trigger.
+
 ## [0.38.0] - 2026-09-25
 
 ### Added

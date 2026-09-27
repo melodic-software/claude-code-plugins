@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, and root-delete guards..."

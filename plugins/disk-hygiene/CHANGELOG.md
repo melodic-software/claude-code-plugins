@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.16] - 2026-09-27
+
+### Security
+
+- **An exact engine call must now carry the authorized `--data-root`.** The belt and the engine gate deny a `scan`, `preview`, `handoff-verify`, or `apply` that omits it, even when every other word is exact; `apply` is denied, not asked. Without the flag the engine falls back to the raw `CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set, so the stronger channels were bypassed. With no authority resolved, no engine call is admitted; previously a read-only call without the flag still was. Calls that carry the authorized `--data-root` get the same verdicts as before.
+- The `CLAUDE_PLUGIN_DATA` env channel ignores the literal, unsubstituted `${CLAUDE_PLUGIN_DATA}` value, as the other channels already did. No channel's authority widened; the env channel stays the last resort.
+
+### Changed
+
+- **New belt tests pin the data-root precedence against a conflicting `CLAUDE_PLUGIN_DATA`.** With the env value set to a different directory, the belt denies an exact `scan --data-root` at the env root and allows it at the derived root, on both a directory-marketplace install and a cache-layout install. On the directory install the decision log lands at the derived root. A control run without the directory proof shows the env value does reach the guard.
+- New tests pin that a changed `known_marketplaces.json` shape (a versioned `{"version": 2, "marketplaces": {...}}` wrapper, or an entry with only `source.path` and no `installLocation`) yields no authority with the env unset, so the belt denies the scan; with the env set it falls back to the env value, the behavior before 0.23.15.
+- The `clean` skill's ownership triage is done when each of the five questions has an evidence-backed answer or is recorded as unknown. An unknown owner or work-product answer rules out High; an unknown work-product answer keeps the entry at Low.
+- A `clean` report finding is complete only with all six fields; one with name-only provenance is Low.
+
 ## [0.23.15] - 2026-09-24
 
 ### Fixed
