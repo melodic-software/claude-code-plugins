@@ -34,7 +34,15 @@ were eight, one per Write/Edit PreToolUse where there were three, one per Write/
 PostToolUse where there were three), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
-emit. The [hook budget accounting](#hook-budget-accounting) carries the measurement.
+emit. It also tokenizes the event's command once and hands every guard that parses it
+the same segments. One exception to "every guard still runs": on the Bash/PowerShell
+row, a command longer than `MAX_COMMAND_LEN` (16384 characters, passed to the dispatcher
+as `--max-command-len`) ends the chain at the first guard that blocks it. The five
+guards that carry that ceiling refuse such a command unread, and the row now answers a
+~70 KB command in about 64 ms instead of running past its 60-second `timeout`, where
+Claude Code would let the call through unchecked (#4528). Each guard keeps its kill
+switch; with one disabled, the next guard carrying the ceiling blocks.
+The [hook budget accounting](#hook-budget-accounting) carries the measurement.
 `workflow-resilience-check` is not always-on and is registered on its own.
 
 | Guard | Event / matcher | Behavior | What it catches |
@@ -197,7 +205,12 @@ out of scope until such a signal exists.
   freeze the session, with the dual-channel notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
-  override: if the process is killed at that bound, the tool call proceeds.
+  override: if the process is killed at that bound, the tool call proceeds
+  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). What the
+  plugin does instead is keep the row far from that bound: the command
+  tokenizer is linear in the command's length, one parse serves every guard,
+  and a command over `MAX_COMMAND_LEN` is refused by the first guard that
+  carries the ceiling before anything tokenizes it (#4528).
 - **`block-hook-bypass` option parse is strict.** Only the exact strings `true`
   and `false` are accepted (`unset` defaults to enabled). Any other value keeps
   the guard enabled and names the bad value. A typo must not silently disable
@@ -414,6 +427,20 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
+en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the
+whole row: 10 KB **7.23 s -> 132 ms**, 16 KB (just under the ceiling)
+**12.6 s -> 203 ms**, ~70 KB **still running at 120 s -> 64 ms**. The shared
+tokenizer read the command one `${cmd:i:1}` at a time, and bash measures the
+whole string on every one of those, so each parse was quadratic, and six
+guards parsed the same command. It now splits the command in 4096- and 64-byte
+blocks under the C locale (one parse of a 10,000-character heredoc:
+1.27 s -> 84 ms), one parse is
+replayed to the other five, and a command over `MAX_COMMAND_LEN` ends the chain
+at `block-no-verify`, the first guard, whose ceiling refuses it unread. No
+reported segment changed: the parse is byte-identical to the old one under
+en_US.UTF-8, C.UTF-8 and C, and every guard suite passes on both paths.
 
 **0.34.0, the in-process guard chain.** 2026-09-15, Windows 11 + Git Bash
 (`usr\bin\bash.exe` as the hook shell), host idle. Process creations counted
