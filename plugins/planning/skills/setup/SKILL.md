@@ -3,21 +3,7 @@ description: "Verify and configure the planning plugin for this repository acros
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s read of the concern file ran at load time, from the session's working directory (the
-repository root unless the session has changed directory). Read it here instead of re-reading the
-file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
-file exists but is empty:
-
-!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
-
-When the session's working directory is not the repository root, or the value reads
-`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
-root directly instead.
 
 ## Purpose
 
@@ -42,8 +28,7 @@ overwriting blind.
 Inspect both concerns and report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify
 nothing, and do NOT run a planning stage. Those are the pipeline skills.
 
-1. **topic-docs concern file**. Take `.claude/topic-docs.yaml` from the pre-computed block and
-   report its effective
+1. **topic-docs concern file**. Read `.claude/topic-docs.yaml` if present and report its effective
    values (absent keys mean the documented defaults). Absent file → INFO: the documented defaults apply;
    `apply` persists a concern file when the repo diverges. A file that does not parse as the schema
    (e.g. a comment-only document YAML parses as null) is FAIL.

@@ -3,12 +3,6 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.6] - 2026-09-27
-
-### Fixed
-
-- The `code-reviewer` agent defers an assertion whose two sides are the same expression to `testing:audit`'s `cant-fail-scan.sh` only when that scan's output for the change set is in its context and reports the assertion. Otherwise it reports the finding itself and says the scan did not run, so a repo without the `testing` plugin, or a review where the audit was not invoked, still gets the finding. Fanout's dedup stage merges the duplicate when both report it.
-
 ## [0.30.5] - 2026-09-27
 
 ### Changed

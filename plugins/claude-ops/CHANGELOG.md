@@ -3,15 +3,9 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.6] - 2026-09-27
-
-- **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the
-  `claude --version` and `command -v jq` probes on one line, and `observability` renders the
-  `--hook-events` and `--pipeline --observed` calls of `probe-observability-state.sh` on one line.
-  Each probe keeps its own fallback and labels its missing case; the git lines stay separate body
-  calls.
-
 ## [0.62.5] - 2026-09-27
+
+### Changed
 
 - `audit-performance` names the no-execution route to per-hook Stop timings: the harness's `stop_hook_summary` transcript record carries a `hookInfos` array of `{"command", "durationMs"}`. The Gotchas entry "Never time a hook by running it" gives the operator a `jq` filter that extracts those records alone, labeled undocumented and unstable with a dated recheck trigger, and "Reading the report" item 2 points at it beside the warning against summing hook cost. The skill itself still reads no transcript.
 

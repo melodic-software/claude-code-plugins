@@ -31,21 +31,18 @@ invocation".
 
 That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
 [worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
-2026-09-27, quoted with link markup removed), "Claude Code applies four checks": file edits into the
-main checkout, a command whose **working directory** resolves there, a **git redirect** into it
-("The redirect can come through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a
-`cd` into the main checkout before running git."), and the **command shape**. The last is the one
-that bites a compound command, and it fails closed: "Claude Code blocks a Bash or Monitor command
-when it can't verify from the command text that any git the command runs stays inside the
-worktree." A block is therefore not evidence the command *would* have reached the main checkout, an
-unverifiable one is refused on the same footing, which is exactly what a multi-command shell
-invocation looks like. The page's own remedy is the one this skill takes: "Claude Code tells Claude
-how to rewrite the refused command, such as splitting it into plain, separate commands." The same
-page adds two facts worth holding: "The same enforcement covers every subagent Claude spawns from
-the isolated session. It applies whether the session is interactive or runs in the background.", so
-a delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
+2026-08-10), an isolated session's tool calls are screened by three checks. File edits into the main
+checkout, a command whose **working directory** resolves there, and a **git redirect** into it
+"whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a `cd` into the
+main checkout before running git". The two that bite a compound command are the last two, and both
+fail closed: "Claude Code also blocks a command it can't verify stays inside the worktree." A block is
+therefore not evidence the command *would* have reached the main checkout, an unverifiable one is
+refused on the same footing, which is exactly what a multi-command shell invocation looks like. The
+same page adds two facts worth holding: the enforcement "covers every subagent Claude spawns from the
+isolated session, and it applies whether the session is interactive or runs in the background", so a
+delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
 applies only the working-directory check", so PowerShell is narrower coverage, never a sanctioned
-route around the git-redirect or command-shape check.
+route around the git-redirect check.
 
 ## Purpose
 
@@ -59,7 +56,7 @@ Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, o
 
 ### The nesting invariant, verified
 
-**This section is the sole owner of the mechanism claim.** Every other statement of it in this plugin is a pointer here. It is a *dated measurement*, not a standing fact. Read the expiry below before relying on it. **Stamp status: expired, pending re-probe.** The expiry below fires on whichever arm comes first, and its version arm has passed, so nothing in this section is currently verified; the heading keeps its name only because every pointer cites it. Creation still enforces the invariant as the conservative placement while the re-probe is outstanding.
+**This section is the sole owner of the mechanism claim.** Every other statement of it in this plugin is a pointer here. It is a *dated measurement*, not a standing fact. Read the expiry below before relying on it.
 
 The eager double-load this invariant was originally written against, CLAUDE.md, commands, agents, and rules all loading twice from a nested worktree, was fixed upstream in Claude Code v2.1.69, so that basis no longer holds. What replaces it, measured on 2.1.224: from a session inside a nested worktree, a read matching a `paths:` glob emits one `path_glob_match` naming the **parent** checkout's rule file, loading it alongside the worktree's own copy, both charged at roughly their own size. The same read from an externally-placed worktree emits zero such events. **That measurement is disputed, not refuted:** a later counter-reproduction on 2.1.227 did not observe the leak. Neither run disclosed its fixture, so the dispute is currently unadjudicable, which is what `fixtures/nesting-invariant-probe.sh` exists to end. A 2026-08-15 probe run on **2.1.232** pinned every discriminator the original runs omitted, but produced **zero `InstructionsLoaded` trace events on every arm** because the CLI was unauthenticated (`Not logged in`). That is a fixture failure, not a null finding. Do not cite this arm as settled in either direction. See `fixtures/README.md`.
 
@@ -78,7 +75,7 @@ On hook registration: use the `args`-array **exec form** here, per <https://code
 
 Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/16600) is the live issue. OPEN, labeled `enhancement` and `memory`, asking that memory traversal respect worktree boundaries. It concerns **memory files**; the same trace found those handled correctly on 2.1.224, so the surface still leaking is path-scoped rules, which no open upstream issue covers. That "handled correctly" is a **null result from this same trace**, not a release-note fact, no 2.1.224 changelog line covers memory, worktree, or rule loading, and that changelog scan is packet-sourced and has not been re-run.
 
-**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp. **The version arm has fired:** a 2026-09-19 audit found Claude Code 2.1.278 installed, and on 2026-09-27 the host carried 2.1.280, both past 2.1.244. The re-probe was not run on 2026-09-27 because that CLI was unauthenticated (`Not logged in`), the same fixture failure as 2026-08-15, so the stamp is marked expired rather than refreshed:
+**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp:
 
 - **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
 - **Unconditional expiry.** **2.1.244, or 2026-11-07. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.

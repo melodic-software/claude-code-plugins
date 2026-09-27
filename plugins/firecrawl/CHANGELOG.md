@@ -3,21 +3,6 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.17] - 2026-09-27
-
-### Fixed
-
-- `update` names the `skill-creator` rewrite helper as the `skill-creator` plugin from Anthropic's `claude-plugins-official` marketplace, when installed, instead of an unmarked `/skill-creator:skill-creator` route (#4119).
-
-## [0.5.16] - 2026-09-27
-
-### Changed
-
-- **`setup` probes `firecrawl` at load time.** The `command -v firecrawl` check runs as pre-computed
-  context, so `check` reads the result instead of making a Bash call. The FAIL rules are unchanged,
-  a policy-disabled injection falls back to the Bash probe, and any post-remediation re-check still
-  probes live.
-
 ## [0.5.15] - 2026-09-25
 
 ### Changed

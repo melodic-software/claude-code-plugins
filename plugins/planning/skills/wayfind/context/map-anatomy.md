@@ -73,8 +73,7 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    Decisions-so-far pointer (see Out-of-scope above). A dangling "resolved" comment on an
    open item is a broken close-out. Finish it.
 3. **The map holds decisions, not build work.** A buildable item means the decision already
-   graduated. Move it to the ordinary tracker (`/work-items:track add`, or
-   `/work-items:decompose` for a plan-shaped chunk), off the map.
+   graduated. Move it to the ordinary tracker (`/work-items`), off the map.
 4. **Coordination on the tracker, execution artifacts in the memory tier.**
    `<memory_dir>/<slug>/` (default `.work/`) is the topic-docs convention's memory tier (never
    committed; slug spec shared with the pipeline skills). The map never cites a concrete
@@ -84,7 +83,7 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
 
 - **Graduation (per resolution):** a resolved decision either sharpens the map (turns fog into
   new typed items) or feeds the destination. When it produces buildable work, that work leaves
-  the map for `/work-items:track add`.
+  the map for `/work-items`.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
   coherent. Close the map and hand the destination to the pipeline entry that fits it
   (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The

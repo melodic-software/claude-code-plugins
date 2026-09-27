@@ -29,12 +29,13 @@ contains git. The dated record for that composition claim is the `source-control
 
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
 Rendered options (empty or unrendered means the manifest default): root `${user_config.session_event_log_dir}`; enabled `${user_config.session_event_log_enabled}`; categories `${user_config.session_event_log_categories}`; keep-sessions `${user_config.session_log_keep_sessions}`; keep-days `${user_config.session_log_keep_days}`; pre-prune-command `${user_config.session_log_pre_prune_command}`
-Hook event log, then the logging pipeline's six rows (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "event count unknown"; bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "pipeline unknown"`
+Hook event log (default root): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "unknown"`
+Hook logging pipeline (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "unknown"`
 
-That line's two probes carry no option and print no option tier. The section 2.6 re-run
+The two probe lines carry no option and print no option tier. The section 2.6 re-run
 (data-sources.md), fed the rendered values above as flags, is the one place the options render:
-run it before reading either probe's output into a report, and pass `--root` when the rendered
-root is not the default.
+run it before reading either line into a report, and pass `--root` when the rendered root is not
+the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
@@ -177,7 +178,7 @@ Read [context/data-sources.md](context/data-sources.md). Summary:
 |---|---|---|
 | ccusage | MCP or CLI | Token counts, cost USD, billing blocks |
 | Hook log root | `<session_event_log_dir>/` (`.observability/claude` by default, project-relative): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl`; present only once a producer wrote there | Hook duration, exit codes, what was blocked, the per-session event timeline |
-| Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the pipeline rows of the "Hook event log" line above) | Toggles, retention, guard state, stale prune sets |
+| Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the "Hook logging pipeline" line above) | Toggles, retention, guard state, stale prune sets |
 | OTEL store | `$CC_OTEL_STORE/*.json` → DuckDB | Logs, metrics, spans. [context/otel-queries.md](context/otel-queries.md) |
 | Auto-memory | `~/.claude/.../memory/feedback_*.md` | User-correction patterns |
 | Git / GH | `git log`, `gh pr list` | Activity context |

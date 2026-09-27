@@ -3,21 +3,7 @@ description: "Verify or configure where verification artifacts land in this repo
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s read of the concern file ran at load time, from the session's working directory (the
-repository root unless the session has changed directory). Read it here instead of re-reading the
-file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
-file exists but is empty:
-
-!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
-
-When the session's working directory is not the repository root, or the value reads
-`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
-root directly instead.
 
 ## Purpose
 
@@ -48,8 +34,7 @@ at a time, recommendation first.
 
 Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do not write anything.
 
-1. **Current state.** From the pre-computed concern file: if `.claude/topic-docs.yaml` exists,
-   report its effective values (absent keys =
+1. **Current state.** If `.claude/topic-docs.yaml` exists, report its effective values (absent keys =
    defaults). If it does not exist, INFO: the plugin runs on the documented defaults; `apply` persists
    an explicit concern only if the consumer wants different values.
 2. **Inferred convention.** Look for a working-docs convention declared in the repo's own `CLAUDE.md`,

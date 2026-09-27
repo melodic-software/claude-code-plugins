@@ -145,7 +145,7 @@ into it, which is the human path from a phone or the web.
 | Built-in `ListAgents` / `SendMessage` | Sessions this session's own account can see; same machine, or same account through Remote Control                                                     |
 | `session-flow:continue-in-background` | A detached session on THIS machine. Same host, no SSH                                                                                                 |
 | `session-flow:orchestrate`            | Delegation inside one session, to subagents. Same host, same account                                                                                  |
-| `repo-fleet-hygiene:audit`            | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
+| `repo-fleet-hygiene`                  | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
 
 ## Gotchas
 

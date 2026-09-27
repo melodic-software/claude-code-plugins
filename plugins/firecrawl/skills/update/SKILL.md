@@ -52,9 +52,8 @@ in this exact form:
 
 The helper at `scripts/update.sh` does the deterministic parts (fetch, SHA, diff); this skill body
 does the Claude-facing decisions (integration and approval). For a non-trivial content delta, the
-`skill-creator` skill of the `skill-creator` plugin (Anthropic's `claude-plugins-official`
-marketplace, not this one), when installed, can drive the rewrite under the preservation rules
-above; otherwise inline-edit.
+`/skill-creator:skill-creator` plugin skill (if installed) can drive the rewrite under the
+preservation rules above; otherwise inline-edit.
 
 ## Safety
 

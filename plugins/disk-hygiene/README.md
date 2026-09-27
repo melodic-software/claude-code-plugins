@@ -118,12 +118,6 @@ retroactively scans a prior session's transcript. Every hook registration routes
 PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable, the detector still
 emits a `systemMessage` even though the guard cannot run (#1504).
 
-**The guard's interpreter and data root arrive with the command.** A `UserPromptExpansion` hook
-(`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
-skill the guard's absolute Python and authorized `--data-root`, resolved by the guard's own code, so
-a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
-guard still judges every call.
-
 **Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves Python
 through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the

@@ -3,18 +3,7 @@ description: "Verify the guardrails hooks' runtime prerequisites and per-guard t
 argument-hint: "check | apply | apply install-commit-msg | apply install-pre-commit-content"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
-the tool's path when present, or `absent` when missing:
-
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
-`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -33,9 +22,8 @@ points at each remediation. Both are non-interactive. Never prompt when the acti
 The guard scripts (`${CLAUDE_PLUGIN_ROOT}/hooks/*.sh`) and `hooks.json` are the single
 source of truth for the guard inventory and each guard's runtime needs.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When every guard's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. Each guard exits through its enabled-gate before probing anything, so a deliberately
@@ -44,7 +32,7 @@ restores the FAIL semantics.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    FAIL below the floor with the README Requirements remediation.
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, every guard then fails
+2. **`jq`.** `command -v jq`. FAIL if absent: per the README, every guard then fails
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
    exactly what this check exists to surface.
 3. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per

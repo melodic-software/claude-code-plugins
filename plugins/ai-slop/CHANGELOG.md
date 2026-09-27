@@ -1,14 +1,5 @@
 # Changelog
 
-## [0.11.1] - 2026-09-27
-
-### Changed
-
-- **`setup` resolves the effective config at load time.** The detector's `--show-config` runs as
-  pre-computed context, so `check` reads which layer supplies each value instead of spending a
-  Bash call. `apply`'s post-write re-run still calls the detector live, and a policy-disabled or
-  failed injection falls back to the Bash call.
-
 ## [0.11.0] - 2026-09-26
 
 ### Added

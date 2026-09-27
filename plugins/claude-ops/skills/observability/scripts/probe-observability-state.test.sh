@@ -318,15 +318,13 @@ while IFS= read -r line; do
   out="$(bash -c "$cmd" 2>&1)"
   rc=$?
   label="SKILL.md pre-compute line ${line%%:*} runs to the probe's own output"
-  # A line may chain two probe calls, each with its own fallback that ends in
-  # "unknown" ("unknown", "event count unknown", "pipeline unknown").
-  if [[ $rc -eq 0 && -n "$out" ]] && ! grep -qE '(^| )unknown$' <<<"$out"; then
+  if [[ $rc -eq 0 && -n "$out" && "$out" != "unknown" ]]; then
     pass "$label"
   else
     fail "$label" "exit 0 with probe output" "rc=$rc out=$out"
   fi
 done < <(grep -E '!`[^`]*probe-observability-state\.sh' "$SKILL_MD")
-assert_eq "SKILL.md carries the two probe-invoking pre-compute lines this case guards" "2" "$probe_lines"
+assert_eq "SKILL.md carries the three probe-invoking pre-compute lines this case guards" "3" "$probe_lines"
 unset STUB_GIT_TOPLEVEL
 
 # --- Mode validation ----------------------------------------------------------

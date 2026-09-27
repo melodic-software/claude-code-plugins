@@ -97,14 +97,12 @@ target; scan those without the flag.
   value could not be read. The guard enforces the same toggle independently and denies both mutation
   lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway, to state the
   configured value accurately and stop before proposing work the guard would deny. The guard is the
-  backstop, not the sole enforcer. Every engine call and the probe need the guard's absolute Python
-  interpreter as `<hook-python>`, and every engine call needs its authorized `--data-root`; bare
-  `python`/`python3` is rejected because Bash aliases and functions can replace them. The expansion
-  of this command normally carries a `disk-hygiene guard values` note naming both as
-  `hook_python` and `data_root`, resolved by the guard's own code before the skill loads; use them
-  from the first call. Only when that note is absent, or says `data_root: none`, fall back to the
-  guard's denial guidance, which reports both: submit the otherwise exact scan shape once with
-  bare `python`, then retry with the reported values. If the reported interpreter is older than
+  backstop, not the sole enforcer. It reports its absolute Python interpreter and the authorized
+  `--data-root` value in denial guidance; use that exact interpreter path as `<hook-python>` for
+  every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
+  replace them. If either value is not known yet, submit the otherwise exact scan shape once with
+  bare `python`: the guard must deny it and report both, after which retry the scan with the
+  absolute interpreter and the reported `--data-root`. If the reported interpreter is older than
   the engine's declared floor (the `MIN_PYTHON` constant in `hygiene.py`, the floor's single
   origin), stop with the declared prerequisite instead of improvising a different scanner or
   deletion path.

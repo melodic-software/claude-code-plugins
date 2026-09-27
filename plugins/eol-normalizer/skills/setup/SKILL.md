@@ -3,21 +3,7 @@ description: "Verify the eol-normalizer hook's runtime prerequisites and configu
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
-the tool's path when present, or `absent` when missing:
-
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
-`command -v` probe via Bash instead.
-
-`git` is probed in the body, not here: the harness runs a skill's whole pre-compute block as one
-shell invocation, and a worktree-isolated session refuses a compound command that names git.
 
 ## Purpose
 
@@ -40,9 +26,8 @@ that sourced library is where the real resolution lives (the `git check-attr` ca
 anchoring, and the NUL-byte binary guard), so the sourced files are in scope and the entry script
 alone will not tell you what runs.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -52,7 +37,7 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of normalizing.
 3. **`git`.** `command -v git`. FAIL if absent: unlike jq, the hook emits NO visible notice
    when git is missing. `git check-attr` and repo-root resolution silently fail and the

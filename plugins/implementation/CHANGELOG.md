@@ -3,12 +3,6 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.1] - 2026-09-27
-
-### Fixed
-
-- `implement`'s feature context names .NET scaffolding skills by class (a C# MCP-server scaffold, a .NET project-template skill), resolved from what the session has installed, instead of routing to `dotnet-ai:mcp-csharp-create` and `dotnet-template-engine:template-instantiation`, which this marketplace does not ship (#4119).
-
 ## [0.18.0] - 2026-09-26
 
 ### Added

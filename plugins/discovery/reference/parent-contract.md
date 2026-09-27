@@ -287,10 +287,9 @@ harness owns and revises; a site that needs it names the page rather than copyin
 causes and different error text, so read the error rather than inferring a depth ceiling from it.
 *Basis.* the same page. A deny rule refuses the spawn: subagents are blocked with an
 `Agent(subagent-name)` entry in the settings `deny` array, and denying the `Agent` tool itself
-prevents delegation entirely. The depth limit works the other way (re-fetched 2026-09-27, quoted
-with link markup removed): at the limit "Claude Code withholds the `Agent` tool from every
-subagent except a fork", so a subagent at the limit has no tool to call rather than a call that
-comes back denied, while "A fork at the limit keeps `Agent` in
+prevents delegation entirely. The depth limit works the other way: at the limit "Claude Code
+withholds the `Agent` tool from every subagent except a fork", so a subagent at the limit has no
+tool to call rather than a call that comes back denied, while "A fork at the limit keeps `Agent` in
 its inherited tool list, but the tool returns an error instead of spawning." *One bound worth
 carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
 it, but "any type list inside the parentheses is ignored".

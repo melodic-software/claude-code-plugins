@@ -3,15 +3,6 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.28] - 2026-09-27
-
-### Changed
-
-- **`setup` probes `jq` at load time.** The `command -v jq` check runs as pre-computed context, so
-  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
-  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
-  still probes live.
-
 ## [0.8.27] - 2026-09-27
 
 ### Fixed

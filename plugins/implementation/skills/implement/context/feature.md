@@ -27,6 +27,9 @@ Commit after each of these milestones:
 - **Skipping the scaffold commit**: if the scaffold is wrong (wrong project, wrong namespace, wrong layer), you want to revert just the scaffold, not scaffold plus implementation
 - **Building beyond the slice**: implementing options, hooks, or abstractions the plan did not ask for; add them when a second caller exists, not in anticipation of one
 
-## Ecosystem scaffolding skills (invoke only when installed)
+## Marketplace plugin skills (invoke only when installed)
 
-When the session's skill listing carries a scaffolding skill for the artifact being created (a C# MCP-server scaffold with transport configuration, a .NET project-template instantiation skill with package-version resolution), invoke it for scaffolding guidance; otherwise fall back to the project's own scaffolding tooling. Resolve the skill from what is actually installed; never invent a skill name.
+These are .NET-ecosystem plugin skills. Invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own scaffolding tooling:
+
+- **`dotnet-ai:mcp-csharp-create`**: when implementing a new C# MCP server, invoke for scaffolding guidance (project templates, tool/prompt/resource implementation, stdio and HTTP transport configuration)
+- **`dotnet-template-engine:template-instantiation`**: when creating a new .NET project, invoke for template selection with CPM adaptation and latest NuGet version resolution

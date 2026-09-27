@@ -1418,7 +1418,7 @@ function New-PeFixture([string]$Path, [int]$Magic = 0x20b, [int]$Machine = 0x866
     $b = [byte[]]::new(0x1000); $c = @{ n = 0x800 }
     function W16($o, $v) { [BitConverter]::GetBytes([uint16]$v).CopyTo($b, $o) }
     function W32($o, $v) { [BitConverter]::GetBytes([uint32]$v).CopyTo($b, $o) }
-    function Name($text) { $r = $c.n + 0xE00; [Text.Encoding]::ASCII.GetBytes($text).CopyTo($b, $c.n); $c.n += $text.Length + 1; $r }
+    function AddName($text) { $r = $c.n + 0xE00; [Text.Encoding]::ASCII.GetBytes($text).CopyTo($b, $c.n); $c.n += $text.Length + 1; $r }
     $wide = $Magic -eq 0x20b; $optSize = if ($wide) { 240 } else { 224 }; $base = if ($wide) { 0x140000000 } else { 0x400000 }
     W16 0 0x5A4D; W32 0x3C 0x40; W32 0x40 0x4550; W16 0x44 $Machine; W16 0x46 1; W16 0x54 $optSize
     $opt = 0x58; W16 $opt $Magic
@@ -1428,10 +1428,10 @@ function New-PeFixture([string]$Path, [int]$Magic = 0x20b, [int]$Machine = 0x866
     $sec = $opt + $optSize; [Text.Encoding]::ASCII.GetBytes('.rdata').CopyTo($b, $sec)
     W32 ($sec + 8) 0xE00; W32 ($sec + 12) 0x1000; W32 ($sec + 16) 0xE00; W32 ($sec + 20) 0x200; W32 ($sec + 36) 0x40000040
     # Each import entry's lookup and address tables point at one null thunk at RVA 0x15F0.
-    if ($Imports) { W32 ($dd + 8) 0x1000; W32 ($dd + 12) (20 * ($Imports.Count + 1)); $o = 0x200; foreach ($i in $Imports) { W32 $o 0x15F0; W32 ($o + 12) (Name $i); W32 ($o + 16) 0x15F0; $o += 20 } }
+    if ($Imports) { W32 ($dd + 8) 0x1000; W32 ($dd + 12) (20 * ($Imports.Count + 1)); $o = 0x200; foreach ($i in $Imports) { W32 $o 0x15F0; W32 ($o + 12) (AddName $i); W32 ($o + 16) 0x15F0; $o += 20 } }
     if ($DelayImports) {
         W32 ($dd + 104) 0x1200; W32 ($dd + 108) (32 * ($DelayImports.Count + 1)); $o = 0x400
-        foreach ($i in $DelayImports) { $r = Name $i; if ($VaDelay) { W32 ($o + 4) ($base + $r) } else { W32 $o 1; W32 ($o + 4) $r }; $o += 32 }
+        foreach ($i in $DelayImports) { $r = AddName $i; if ($VaDelay) { W32 ($o + 4) ($base + $r) } else { W32 $o 1; W32 ($o + 4) $r }; $o += 32 }
     }
     if ($Exports) {
         $sorted = [string[]]$Exports.Clone(); [Array]::Sort($sorted, [StringComparer]::Ordinal)
@@ -1440,8 +1440,8 @@ function New-PeFixture([string]$Path, [int]$Magic = 0x20b, [int]$Machine = 0x866
         # entry points at, so none reads as a forwarder.
         $k = $sorted.Count; $ord = 0x628 + 4 * $k; $eat = $ord + 2 * $k
         W32 $dd 0x1400; W32 ($dd + 4) 0x800
-        W32 0x60C (Name 'game.exe'); W32 0x610 1; W32 0x614 $k; W32 0x618 $k; W32 0x61C ($eat + 0xE00); W32 0x620 0x1428; W32 0x624 ($ord + 0xE00)
-        for ($i = 0; $i -lt $k; $i++) { W32 (0x628 + 4 * $i) (Name $sorted[$i]); W16 ($ord + 2 * $i) $i; W32 ($eat + 4 * $i) 0x1D00 }
+        W32 0x60C (AddName 'game.exe'); W32 0x610 1; W32 0x614 $k; W32 0x618 $k; W32 0x61C ($eat + 0xE00); W32 0x620 0x1428; W32 0x624 ($ord + 0xE00)
+        for ($i = 0; $i -lt $k; $i++) { W32 (0x628 + 4 * $i) (AddName $sorted[$i]); W16 ($ord + 2 * $i) $i; W32 ($eat + 4 * $i) 0x1D00 }
     }
     if ($Clr) { W32 ($dd + 112) 0x1D00; W32 ($dd + 116) 72 }
     New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null

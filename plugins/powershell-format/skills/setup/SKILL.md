@@ -3,18 +3,7 @@ description: "Verify the powershell-format hook's runtime prerequisites and conf
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
-the tool's path when present, or `absent` when missing:
-
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
-`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -40,9 +29,8 @@ offers remediation guidance. Both are non-interactive. Never prompt when the act
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh`) is the single source of
 truth for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -52,7 +40,7 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of running. This is the only FAIL-class prerequisite.
 3. **`pwsh` (PowerShell 7+).** Probe read-only:
    `pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'`. INFO,
@@ -115,9 +103,8 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
   the OLD value; report the observed effective value, never an unobserved change.
 
-After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
-predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
-the reader's report that they installed something.
+After pointing at a remediation, re-run the relevant `check` probe and report its actual
+result. Never claim resolved on the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

@@ -184,8 +184,7 @@ given, and one disposal venue does not exist.
   landed** in `plugins/review/agents/code-reviewer.md`'s Code quality checklist (`review` 0.24.0):
   it asks what the expected value's independent source is, names the round-trip/identity case
   alongside the canonical shape, and cedes the textually-identical-sides core to
-  `cant-fail-scan.sh` by name only when that scan's output is in the reviewer's context, reporting
-  the core itself otherwise so a repo without the scan still gets the finding. Placement went to
+  `cant-fail-scan.sh` by name so the scanner and the lens cannot double-report. Placement went to
   the agent definition rather than `quality-gate/context/criteria.md` because that file is a
   routing doc — it resolves the project's standards index and carries no criteria of its own,
   which is where its own "Baseline when the ladder yields nothing" step already points.

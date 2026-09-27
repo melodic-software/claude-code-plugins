@@ -3,19 +3,7 @@ description: "Verify the actionlint-check hook's runtime prerequisites and confi
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
-tool's path when present, or `absent` when missing:
-
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-- `actionlint`: !`{ command -v actionlint 2>/dev/null || echo "absent"; }`
-
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
-`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -36,9 +24,8 @@ offers remediation guidance. Both are non-interactive. Never prompt when the act
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh`) is the single source of
 truth for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then read the
-pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
-table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -48,9 +35,9 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of linting.
-3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the hook skips workflow lint
+3. **`actionlint`.** `command -v actionlint`. FAIL if absent: the hook skips workflow lint
    with a visible once-per-session notice (it ships no binary of its own).
 4. **actionlint config.** INFO: actionlint auto-discovers an optional
    `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
@@ -94,9 +81,8 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   `check` still reports the OLD value; report the observed effective value, never an
   unobserved change.
 
-After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
-predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
-the reader's report that they installed something.
+After pointing at a remediation, re-run the relevant `check` probe and report its actual
+result. Never claim resolved on the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
