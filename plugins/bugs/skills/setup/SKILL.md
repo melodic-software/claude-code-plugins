@@ -57,8 +57,9 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    -s <scope> --config output_dir=<path>` — it prints `already installed` and still writes the value.
    Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry, resetting every
    option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports,
-   from that project's directory for a `project`/`local` scope, or the write lands at a scope that does
-   not load. Rerun `check` in a **fresh session** (the rendered value is injected at skill load, so a
+   from that project's directory for a `project`/`local` scope, or the rerun adds a second install
+   record at the scope passed and enables the plugin there; the value itself always lands in user
+   settings. Rerun `check` in a **fresh session** (the rendered value is injected at skill load, so a
    same-session `check` still reports the OLD value), then report the observed destination. Convention:
    <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>.
 

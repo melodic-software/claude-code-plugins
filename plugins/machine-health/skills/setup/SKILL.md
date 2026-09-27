@@ -135,8 +135,9 @@ give, rather than writing a dangling entry.
    still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
    stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
    manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-   from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-   does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+   from that project's directory for a `project`/`local` scope, or the rerun adds a second
+   install record at the scope passed and enables the plugin there; the value itself always
+   lands in user settings. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
    `check` in a **fresh session**. The rendered `${user_config.*}` and each hook's
    `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
    the OLD value; report the observed effective value, never an unobserved change.
