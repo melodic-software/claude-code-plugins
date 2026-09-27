@@ -871,13 +871,20 @@ misread. A future `paused_until` is misread harmfully: a restarting instance see
 not stale, takes the live-collision branch (§4, instance-collision detection), escalates, and stops.
 
 **Skip an issue (worker lane).** Apply the human-gated role label, resolved from the binding rather
-than typed as a literal (§2), and say why in a plain comment:
+than typed as a literal (§2), and say why in a plain comment. Run it from a checkout of `$R`: the
+binding resolves from the same root the tracker seam uses.
 
 ```bash
-L=$(jq -r '.config.role_labels["human-gated"] // "needs-human"' .work-item-tracker.json 2>/dev/null || echo needs-human)
+B="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.work-item-tracker.json"
+L=$(jq -r '.config.role_labels["human-gated"] // "needs-human"' "$B" 2>/dev/null || echo needs-human)
 gh issue edit <n> -R "$R" --add-label "$L"
 gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
 ```
+
+When an `attend-queue` session writes this comment, or the hold comment below, on the operator's
+behalf, it opens with the
+[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md); the operator's own words
+need none.
 
 `list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
 next cycle-start snapshot. The comment carries no machine marker, which is what marks the item
