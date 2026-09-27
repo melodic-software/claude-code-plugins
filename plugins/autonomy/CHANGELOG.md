@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.2] - 2026-09-27
+
+### Changed
+
+- `lane_notify_os_toast_enabled` names its platforms: macOS (osascript) or Linux (requires notify-send), and no effect on Windows, where the terminal channels carry the alert. The generated README options table and the lane-stop options table say the same.
+
 ## [0.24.1] - 2026-09-26
 
 ### Fixed

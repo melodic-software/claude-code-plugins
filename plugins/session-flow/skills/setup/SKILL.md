@@ -71,7 +71,9 @@ writes the value. Do **not** uninstall to reconfigure: that drops the stored `pl
 outright, resetting every option in the README's Options reference to its manifest default, with
 nothing left to read the old values from. `-s` defaults to `user`; pass the scope
 `claude plugin list` reports, and run from that project's directory for a `project`/`local` scope,
-or the write lands at a scope that does not load. Afterwards rerun `check` in a **fresh session**:
+or the rerun adds a second install record at the scope passed and enables the plugin there; the
+value itself always lands in user settings. A rejected value prints a warning yet exits 0, so
+read the output. Afterwards rerun `check` in a **fresh session**:
 the rendered `${user_config.*}` is injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*`
 is fixed at session start, so a same-session `check` still reports the OLD value; report the
 observed effective value, never an unobserved change.

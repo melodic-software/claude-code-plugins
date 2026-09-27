@@ -76,7 +76,7 @@
         "Prescribes a plain `claude plugin install … --config bash_format_enabled=false` rerun as the headless route, naming this plugin's own key and the false value the request asked for",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version itself, and directs the rerun of check to a fresh session because the rendered value is injected at skill load, so a same-session check still reports the old value",
-        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory, or the write lands at a scope that does not load",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory, or the rerun adds a second install record at the scope passed and enables the plugin there; the value itself always lands in user settings",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]
     }

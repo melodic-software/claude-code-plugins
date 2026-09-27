@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "relentless-me-mode-frontier-rounds",
-      "prompt": "/planning:interview me — I want to add rate limiting to the public API but haven't thought through the details.",
+      "prompt": "/planning:interview me \u2014 I want to add rate limiting to the public API but haven't thought through the details.",
       "expected_output": "In me-mode the skill runs a relentless frontier-rounds interview: each round asks every question whose prerequisites are settled as one numbered set in inline prose (not AskUserQuestion), each question leading with a recommendation and its basis, and grounds answers in the codebase where the code already answers a question.",
       "files": [],
       "expectations": [
@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "auto-guard-never-folds-user-choice",
-      "prompt": "/planning:interview add a soft-delete flag to the accounts table. The intent is mostly clear — just lock the brief.",
+      "prompt": "/planning:interview add a soft-delete flag to the accounts table. The intent is mostly clear \u2014 just lock the brief.",
       "expected_output": "During synthesis, if a genuine user design decision with real tradeoffs and no codebase answer surfaces (e.g. cascade behavior for soft-deleted accounts), the skill STOPS and surfaces it as the user's to decide instead of silently folding it into the Brief as a captured assumption.",
       "files": [],
       "expectations": [
@@ -30,7 +30,7 @@
     {
       "id": 3,
       "name": "lock-mode-does-not-fudge-gap",
-      "prompt": "/planning:interview lock the brief for adding webhook retries — I've told you enough.",
+      "prompt": "/planning:interview lock the brief for adding webhook retries \u2014 I've told you enough.",
       "expected_output": "In lock mode the skill synthesizes the Brief directly without Q&A, but if a true unknown surfaces mid-synthesis it STOPS and surfaces the gap rather than guessing a value to fill it.",
       "files": [],
       "expectations": [
@@ -43,7 +43,7 @@
       "id": 4,
       "name": "brief-persisted-not-plan",
       "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
-      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
+      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan \u2014 it produces the WHAT contract, not an implementation approach.",
       "files": [],
       "expectations": [
         "Output writes a Brief with goal, constraints, and testable acceptance criteria",
@@ -54,8 +54,8 @@
     {
       "id": 5,
       "name": "dependent-questions-split-across-rounds",
-      "prompt": "/planning:interview me about the caching approach for the product catalog — the cache key depends on the eviction policy which depends on the read pattern.",
-      "expected_output": "Because these decisions form a dependency chain (each question's framing depends on the previous answer), the skill splits them across rounds — the prerequisite question first, each dependent question only after its prerequisite is answered — and never batches a question into the same round as a question it depends on, nor renders them as an AskUserQuestion card without the user opt-in.",
+      "prompt": "/planning:interview me about the caching approach for the product catalog \u2014 the cache key depends on the eviction policy which depends on the read pattern.",
+      "expected_output": "Because these decisions form a dependency chain (each question's framing depends on the previous answer), the skill splits them across rounds \u2014 the prerequisite question first, each dependent question only after its prerequisite is answered \u2014 and never batches a question into the same round as a question it depends on, nor renders them as an AskUserQuestion card without the user opt-in.",
       "files": [],
       "expectations": [
         "Output asks the prerequisite decision first and defers each dependent decision to a later round, after its prerequisite is answered",
@@ -67,7 +67,7 @@
     {
       "id": 6,
       "name": "skips-truly-mechanical-work",
-      "prompt": "/planning:interview I need to fix a single spelling typo in a code comment in utils.ts — no behavior change, just correcting one misspelled word.",
+      "prompt": "/planning:interview I need to fix a single spelling typo in a code comment in utils.ts \u2014 no behavior change, just correcting one misspelled word.",
       "expected_output": "The skill recognizes this as truly mechanical (a comment typo, no behavior change) and declines to gate it with an interview, telling the user it needs no brief.",
       "files": [],
       "expectations": [
@@ -79,7 +79,7 @@
     {
       "id": 7,
       "name": "engineering-term-resolution-delegates",
-      "prompt": "/planning:interview me — in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
+      "prompt": "/planning:interview me \u2014 in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
       "expected_output": "Invokes /domain-driven-design:curate-language immediately for the resolved engineering vocabulary, then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
       "files": [],
       "expectations": [
@@ -92,8 +92,8 @@
     {
       "id": 8,
       "name": "facts-looked-up-decisions-asked",
-      "prompt": "/planning:interview me — migrate our config loader to support environment overrides. I don't remember what format the current config file uses, and I'm torn on whether overrides should win over file values or vice versa.",
-      "expected_output": "The skill resolves the current config format from the codebase itself (a fact — read, stated, never asked) and puts the override-precedence choice to the user as a round question with a recommendation (a decision — real tradeoffs, never resolved on the user's behalf).",
+      "prompt": "/planning:interview me \u2014 migrate our config loader to support environment overrides. I don't remember what format the current config file uses, and I'm torn on whether overrides should win over file values or vice versa.",
+      "expected_output": "The skill resolves the current config format from the codebase itself (a fact \u2014 read, stated, never asked) and puts the override-precedence choice to the user as a round question with a recommendation (a decision \u2014 real tradeoffs, never resolved on the user's behalf).",
       "files": [],
       "expectations": [
         "The current config format is resolved by inspecting the codebase and stated as a finding, not asked as a question",
@@ -104,8 +104,8 @@
     {
       "id": 9,
       "name": "recommends-session-config-engineering-downstream",
-      "prompt": "/planning:interview me — I need to re-architect our authorization layer to support per-resource policies across three services, and I'm unsure which invariants can change safely.",
-      "expected_output": "This is an engineering session (a code re-architecture that hands off downstream per Step 5), so at the stop/handoff boundary the skill recommends how to configure the downstream execution session — a model tier and effort level chosen per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier, deriving the current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies, and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched rather than halting or guessing a model name.",
+      "prompt": "/planning:interview me \u2014 I need to re-architect our authorization layer to support per-resource policies across three services, and I'm unsure which invariants can change safely.",
+      "expected_output": "This is an engineering session (a code re-architecture that hands off downstream per Step 5), so at the stop/handoff boundary the skill recommends how to configure the downstream execution session \u2014 a model tier and effort level chosen per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier, deriving the current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies, and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched rather than halting or guessing a model name.",
       "files": [],
       "expectations": [
         "Because this is an engineering session that hands off downstream, output frames the recommendation as configuring the downstream execution session (not the current/next session)",
@@ -119,12 +119,12 @@
     {
       "id": 10,
       "name": "recommends-session-config-general-current-session",
-      "prompt": "/planning:interview me — help me decide our company's org structure: whether to reorganize from functional teams into cross-functional product squads, and how to sequence that transition across roughly 200 people. This is an organizational-strategy decision, not a code change.",
-      "expected_output": "This is a general/terminal session (an org-strategy decision with no build surface, explicitly not a code change, so per Step 5 nothing downstream exists to configure). Because the survey's complexity/ambiguity signals warrant a config change for this high-complexity decision, the skill surfaces a first config recommendation early — right after the Step 1 survey classifies the domain as general — so it can still improve the substantive rounds, then refreshes that read at the stop boundary as config for the current/next session, applied now: a model tier and effort level per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier, deriving current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies (via /model, the effort setting, /advisor), and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched. If the config was raised only at the end (or not at all), the skill offers to re-evaluate the reached understanding under the raised config. It does NOT frame the recommendation as configuring a downstream execution session that will never exist.",
+      "prompt": "/planning:interview me \u2014 help me decide our company's org structure: whether to reorganize from functional teams into cross-functional product squads, and how to sequence that transition across roughly 200 people. This is an organizational-strategy decision, not a code change.",
+      "expected_output": "This is a general/terminal session (an org-strategy decision with no build surface, explicitly not a code change, so per Step 5 nothing downstream exists to configure). Because the survey's complexity/ambiguity signals warrant a config change for this high-complexity decision, the skill surfaces a first config recommendation early \u2014 right after the Step 1 survey classifies the domain as general \u2014 so it can still improve the substantive rounds, then refreshes that read at the stop boundary as config for the current/next session, applied now: a model tier and effort level per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier, deriving current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies (via /model, the effort setting, /advisor), and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched. If the config was raised only at the end (or not at all), the skill offers to re-evaluate the reached understanding under the raised config. It does NOT frame the recommendation as configuring a downstream execution session that will never exist.",
       "files": [],
       "expectations": [
-        "Recognizes this as a general/terminal session (no downstream execution session exists per Step 5) and frames the recommendation as config for the current/next session, applied now — NOT a downstream execution session",
-        "Given the survey's complexity/ambiguity signals warrant a config change, a first config recommendation surfaces early — right after the Step 1 survey classifies the domain as general — not only after the substantive rounds are done",
+        "Recognizes this as a general/terminal session (no downstream execution session exists per Step 5) and frames the recommendation as config for the current/next session, applied now \u2014 NOT a downstream execution session",
+        "Given the survey's complexity/ambiguity signals warrant a config change, a first config recommendation surfaces early \u2014 right after the Step 1 survey classifies the domain as general \u2014 not only after the substantive rounds are done",
         "The stop-boundary recommendation is a refresh of the early read, and when the config was raised only at the end (or not at all) the output offers to re-evaluate the reached understanding under the raised config",
         "Output recommends a model tier and effort level, distinguishing capability (model) from thoroughness (effort)",
         "Output recommends advisor pairing when the main model is a faster tier, rather than a faster main with no advisor",
@@ -136,25 +136,25 @@
     {
       "id": 11,
       "name": "bulk-application-collapses-to-execution-contract",
-      "prompt": "/planning:interview me — we've settled on the new frontmatter shape for our docs site. Now I want to apply it across the 40 markdown pages under docs/. Interview me so we lock this down properly.",
-      "expected_output": "The interview recognizes a corpus application of an already-settled shape: its output is TWO things only — the small set of genuinely contested decisions (e.g. how to treat pages that deviate from the template, whether to batch the PRs), plus an execution contract, one line in the session's output artifact (the Brief's `### Acceptance criteria` here, since this is an engineering session) naming the per-unit close-out loop (one page at a time: apply, verify, close) and what closed means for a page. It NEVER enumerates the 40 pages as decision rows. If candidate questions start scaling with the page count rather than with genuine forks, the tripwire fires: the per-unit rows collapse into the loop, only the forks remain, and the collapse is stated. The signal is distinguished from a ballooning frontier — this does not route to /planning:wayfind, because the decisions are settled and merely numerous.",
+      "prompt": "/planning:interview me \u2014 we've settled on the new frontmatter shape for our docs site. Now I want to apply it across the 40 markdown pages under docs/. Interview me so we lock this down properly.",
+      "expected_output": "The interview recognizes a corpus application of an already-settled shape: its output is TWO things only \u2014 the small set of genuinely contested decisions (e.g. how to treat pages that deviate from the template, whether to batch the PRs), plus an execution contract, one line in the session's output artifact (the Brief's `### Acceptance criteria` here, since this is an engineering session) naming the per-unit close-out loop (one page at a time: apply, verify, close) and what closed means for a page. It NEVER enumerates the 40 pages as decision rows. If candidate questions start scaling with the page count rather than with genuine forks, the tripwire fires: the per-unit rows collapse into the loop, only the forks remain, and the collapse is stated. The signal is distinguished from a ballooning frontier \u2014 this does not route to /planning:wayfind, because the decisions are settled and merely numerous.",
       "files": [],
       "expectations": [
-        "Output is exactly two things for the corpus work: a small contested-decision set plus an execution contract naming the per-unit close-out loop — never one decision row per page",
+        "Output is exactly two things for the corpus work: a small contested-decision set plus an execution contract naming the per-unit close-out loop \u2014 never one decision row per page",
         "The execution contract lands as one line in the session's output artifact routed by domain (the Brief's `### Acceptance criteria` for this engineering task)",
         "The contract names the per-unit loop (apply, verify, close, one unit at a time) and what closed means for a unit",
         "Candidate question count scaling with the number of pages rather than genuine forks is treated as the tripwire: per-unit rows collapse into the loop and the collapse is stated",
-        "Does not route to /planning:wayfind for this signal — the unit-scaling remedy is the collapse into the execution contract, distinct from the ballooning-frontier remedy"
+        "Does not route to /planning:wayfind for this signal \u2014 the unit-scaling remedy is the collapse into the execution contract, distinct from the ballooning-frontier remedy"
       ]
     },
     {
       "id": 12,
       "name": "open-question-survives-an-unrelated-reply",
-      "prompt": "/planning:interview me — I want to add threaded comments to the course pages.\n\n[after the first round is asked] Oh, unrelated — the staging deploy is broken again, can you look at the pipeline config while we're here?",
+      "prompt": "/planning:interview me \u2014 I want to add threaded comments to the course pages.\n\n[after the first round is asked] Oh, unrelated \u2014 the staging deploy is broken again, can you look at the pipeline config while we're here?",
       "expected_output": "The round's questions were written into the ledger's open-question register at ask-time, each at `open`. The user's reply addresses none of them, so the skill treats the topic change as drift rather than consent: it restates the still-open questions in one line at the top of its next response instead of proceeding as though they were resolved or silently folding them into the Brief.",
       "files": [],
       "expectations": [
-        "A register row per asked question exists at ask-time, before any reply arrives — not written only once an answer lands",
+        "A register row per asked question exists at ask-time, before any reply arrives \u2014 not written only once an answer lands",
         "The unrelated reply does not resolve any open question; every unaddressed row stays `open`",
         "The next response restates the still-open questions in one line rather than continuing as though they were answered",
         "The skill does not lock the contract or hand off while a register row is still `open`"
@@ -163,8 +163,8 @@
     {
       "id": 13,
       "name": "unattended-run-emits-named-blockers-not-assumptions",
-      "prompt": "/planning:interview lock the brief for the notification-batching change. This is running unattended from our nightly workflow — there is no human on this session to answer anything.",
-      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
+      "prompt": "/planning:interview lock the brief for the notification-batching change. This is running unattended from our nightly workflow \u2014 there is no human on this session to answer anything.",
+      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's \u2014 real tradeoffs, no codebase answer \u2014 is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
       "files": [],
       "expectations": [
         "The unattended condition comes from the caller's declaration, not from the skill claiming to detect a non-interactive environment",
@@ -176,8 +176,8 @@
     {
       "id": 14,
       "name": "register-gate-halts-before-the-contract-locks",
-      "prompt": "/planning:interview — we've covered enough, write the brief for the audit-log retention work.",
-      "expected_output": "The skill runs scripts/check-open-questions.sh twice. At Step 3, before the contract is persisted, it passes --ledger ONLY — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
+      "prompt": "/planning:interview \u2014 we've covered enough, write the brief for the audit-log retention work.",
+      "expected_output": "The skill runs scripts/check-open-questions.sh twice. At Step 3, before the contract is persisted, it passes --ledger ONLY \u2014 PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass \u2014 the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
       "files": [],
       "expectations": [
         "The Step 3 run passes --ledger only; --brief is NOT named before Step 4 has written PLAN.md",
@@ -191,38 +191,38 @@
       "id": 15,
       "name": "lock-halts-on-planted-open-decision",
       "prompt": "/planning:interview lock the brief for the workspace-deletion endpoint. Treat evals/fixtures/lock-stop-on-gap/task-context.md as everything I have already told you, and evals/fixtures/lock-stop-on-gap/codebase-survey.md as the Step 1 survey result (both relative to the skill directory).",
-      "expected_output": "`lock` synthesizes the parts the survey answers (soft-delete column, membership cascade, 202-and-enqueue teardown, owner-only authorization) without asking, and then HALTS on the one decision the survey demonstrably cannot close — the disposition of export artifacts a deleted workspace already produced (purge on teardown vs retain for a grace window). It names that gap to the user and offers the STOP-on-gap choice (answer it now, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode); it does not pick a disposition, does not write a Brief carrying one, and does not bury it as a captured assumption. Because a question now exists, a register row exists and the Step 3 gate applies.",
+      "expected_output": "`lock` synthesizes the parts the survey answers (soft-delete column, membership cascade, 202-and-enqueue teardown, owner-only authorization) without asking, and then HALTS on the one decision the survey demonstrably cannot close \u2014 the disposition of export artifacts a deleted workspace already produced (purge on teardown vs retain for a grace window). It names that gap to the user and offers the STOP-on-gap choice (answer it now, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode); it does not pick a disposition, does not write a Brief carrying one, and does not bury it as a captured assumption. Because a question now exists, a register row exists and the Step 3 gate applies.",
       "files": [
         "evals/fixtures/lock-stop-on-gap/task-context.md",
         "evals/fixtures/lock-stop-on-gap/codebase-survey.md"
       ],
       "expectations": [
         "The export-artifact disposition is classified as a DECISION, not a fact: the output cites the survey's negative findings (no retention key in config, no bucket lifecycle rule, no ADR, the 24h scratch-file sweep named as non-transferable) rather than treating any of them as an answer",
-        "The run HALTS on that gap — no `## Brief` is written that carries a chosen disposition (neither purge-on-teardown nor a retention window), and no `### Captured assumptions` row records one as settled",
+        "The run HALTS on that gap \u2014 no `## Brief` is written that carries a chosen disposition (neither purge-on-teardown nor a retention window), and no `### Captured assumptions` row records one as settled",
         "The gap is SURFACED with a choice, not narrated in passing: name the gap and offer to ask it, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode",
-        "The decisions the survey DOES close are synthesized without a question (soft-delete column, membership cascade, `export_runs` rows following that same cascade, 202-and-enqueue teardown, owner-only 403) — the halt is scoped to the one open decision, the disposition of the object-storage artifacts themselves, and is not a refusal to lock anything",
+        "The decisions the survey DOES close are synthesized without a question (soft-delete column, membership cascade, `export_runs` rows following that same cascade, 202-and-enqueue teardown, owner-only 403) \u2014 the halt is scoped to the one open decision, the disposition of the object-storage artifacts themselves, and is not a refusal to lock anything",
         "`lock`'s exemption from the Step 3 confirmation gate is not read as an exemption from STOP-on-gap: invoking `lock` confirms the contract, it does not license guessing a value to fill a gap",
-        "Because a question now exists, the open-question register exists and the Step 3 ledger gate applies — the no-question carve-out is not claimed for this run"
+        "Because a question now exists, the open-question register exists and the Step 3 ledger gate applies \u2014 the no-question carve-out is not claimed for this run"
       ]
     },
     {
       "id": 16,
       "name": "auto-residue-asked-or-user-reserved-never-assumed",
       "prompt": "/planning:interview add idempotency keys to POST /charges in the payments service. Treat evals/fixtures/auto-guard-residue/task-context.md as the task as stated, and evals/fixtures/auto-guard-residue/codebase-survey.md as the Step 1 survey result (both relative to the skill directory).",
-      "expected_output": "This is an `auto` invocation on a narrow topic, so Step 1.5 runs and lands on Mixed: the four survey-closed decisions (header `Idempotency-Key`, the `idempotency_records` store, the 24h sweep window, the `problemDetails()` envelope) are resolved from the codebase and stated as findings, and the one residue — what to do when a seen key arrives with a mismatched body — is not synthesized. Attended, that residue is ASKED as a one-question residue round leading with a recommendation and its basis. If the CALLER declared the run unattended, the same residue instead becomes a `blocked` register row plus a Brief `### Deferred questions` entry led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, named as a blocker in the output. Both outcomes pass; silently capturing a disposition as an assumption is the failure this guard exists to prevent.",
+      "expected_output": "This is an `auto` invocation on a narrow topic, so Step 1.5 runs and lands on Mixed: the four survey-closed decisions (header `Idempotency-Key`, the `idempotency_records` store, the 24h sweep window, the `problemDetails()` envelope) are resolved from the codebase and stated as findings, and the one residue \u2014 what to do when a seen key arrives with a mismatched body \u2014 is not synthesized. Attended, that residue is ASKED as a one-question residue round leading with a recommendation and its basis. If the CALLER declared the run unattended, the same residue instead becomes a `blocked` register row plus a Brief `### Deferred questions` entry led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, named as a blocker in the output. Both outcomes pass; silently capturing a disposition as an assumption is the failure this guard exists to prevent.",
       "files": [
         "evals/fixtures/auto-guard-residue/task-context.md",
         "evals/fixtures/auto-guard-residue/codebase-survey.md"
       ],
       "expectations": [
-        "Routes through Step 1.5 auto-detect and lands on the Mixed outcome — one residue amid otherwise-clear intent — rather than synthesizing everything, and rather than re-opening as questions the four decisions the survey already closes",
+        "Routes through Step 1.5 auto-detect and lands on the Mixed outcome \u2014 one residue amid otherwise-clear intent \u2014 rather than synthesizing everything, and rather than re-opening as questions the four decisions the survey already closes",
         "The residue is identified as the mismatched-body replay semantics (replay the stored response vs reject with a conflict), and is justified as the user's: real tradeoffs both ways, no codebase answer, and it moves the Brief's acceptance criteria",
-        "The unused `request_fingerprint` column is treated as evidence the question was anticipated and never answered — NOT as a codebase answer licensing the reject-on-mismatch branch",
+        "The unused `request_fingerprint` column is treated as evidence the question was anticipated and never answered \u2014 NOT as a codebase answer licensing the reject-on-mismatch branch",
         "ATTENDED, the residue is ASKED: a one-question residue round carrying a recommendation and its 2-3 sentence basis, with the run declining to synthesize past it",
-        "UNATTENDED — and only when the CALLER declared it, never because the skill claims to detect a non-interactive environment — the same residue is instead recorded `blocked` in the register, written to the Brief's `### Deferred questions` led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, and named as a blocker; the run stops on it rather than idling or reading silence as confirmation",
+        "UNATTENDED \u2014 and only when the CALLER declared it, never because the skill claims to detect a non-interactive environment \u2014 the same residue is instead recorded `blocked` in the register, written to the Brief's `### Deferred questions` led by its `Q<N>` id and tagged `arbiter: USER-RESERVED`, and named as a blocker; the run stops on it rather than idling or reading silence as confirmation",
         "Either outcome is acceptable and the two are DISTINCT: which one applies is decided by the caller's declaration alone",
-        "In NEITHER outcome does a disposition reach `### Captured assumptions`, get resolved to the recommendation on the user's behalf, or vanish from the output — the silent capture is the disqualifying result",
-        "The four survey-closed decisions ARE synthesized without questions — the guard narrows what may be synthesized, it does not block synthesis, so a run that asks about the header name or the sweep window has over-applied it"
+        "In NEITHER outcome does a disposition reach `### Captured assumptions`, get resolved to the recommendation on the user's behalf, or vanish from the output \u2014 the silent capture is the disqualifying result",
+        "The four survey-closed decisions ARE synthesized without questions \u2014 the guard narrows what may be synthesized, it does not block synthesis, so a run that asks about the header name or the sweep window has over-applied it"
       ]
     },
     {
@@ -257,6 +257,19 @@
     },
     {
       "id": 19,
+      "name": "page-surface-starts-page-before-first-round",
+      "prompt": "/planning:interview me about the retry policy for our outbound webhook sender. The planning plugin's `surface` option is configured as `page`, and Python, curl and bash are all available on this machine.",
+      "expected_output": "Because the configured surface is `page`, the first action on the question surface is starting the page with `round.sh ... ensure-running` (carrying `--emoji-markers`), before any question is asked. The first round is then written to the page with `add-round` and the watcher is armed. No round is printed inline in the terminal before the page starts; the terminal only carries the page URL and short status lines.",
+      "files": [],
+      "expectations": [
+        "The first question-surface action is a `round.sh ... ensure-running` call that passes `--emoji-markers`, made before any round question is shown",
+        "The first round is written to the page with `round.sh ... add-round`, not rendered as a numbered prose round in the terminal",
+        "No round question with a recommendation is printed inline in the terminal before `ensure-running` runs",
+        "The configured value `page` is read as the active setting, not as a description of the available options, so the run does not fall back to the terminal surface"
+      ]
+    },
+    {
+      "id": 20,
       "name": "mechanism-tripwire-asks-now-or-at-planning",
       "prompt": "/planning:interview me I want nightly exports of course progress to the analytics team. My guess is a GitHub Actions cron job that pushes a CSV to their S3 bucket with a scoped token.",
       "expected_output": "The first round that names a mechanism (a CI runner, a storage target, a token scope) also carries one registered question: settle mechanism-level decisions now, or at planning. Until the user answers it, no recommendation fixes a mechanism. When the user answers \"at planning\", every still-open mechanism row, commitment rows included, becomes `deferred` with an arbiter tag in the Brief's `### Deferred questions`. When the user answers \"now\", the choice is written at once as a `confirmed` constraint and the Brief's Constraints records that this topic overrides \"does not plan implementation\".",
@@ -270,7 +283,7 @@
       ]
     },
     {
-      "id": 20,
+      "id": 21,
       "name": "assumption-sweep-before-confirmation-gate",
       "prompt": "/planning:interview me Add a retention policy for uploaded course videos. [after three rounds the frontier is empty: Q2 was answered \"yes?\", the accepted Q4 recommendation also assumes deletion runs in the primary region, and Q6 (keep drafts forever) contradicts the confirmed constraint C1 (no stored data older than two years)]",
       "expected_output": "Once the frontier is empty, and before the Step 3 register gate and the confirmation restate, the skill dispatches a fresh-context (non-fork) sub-agent that inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and composed artifacts. Items come back as `S<N>` lines with id, category, class, source, dependencies, blocking, and hidden-default fields. The skill, not the sub-agent, turns the region assumption and the Q6/C1 contradiction into register rows at the next contiguous `Q<N>`, asks them, and returns to Step 2; Q2's `hedged:` row is listed for the confirmation restate. The contract is not confirmed or locked while any row the sweep added is `open`.",
@@ -285,7 +298,7 @@
       ]
     },
     {
-      "id": 21,
+      "id": 22,
       "name": "evidence-labeled-by-currency",
       "prompt": "/planning:interview me Tune the review-queue SLA. Six months of merged-PR metrics show a median review time of 3 days. Last week we switched to required pairing on every PR.",
       "expected_output": "The survey finds a process change (the user's statement that pairing became required last week) dated after the evidence window, so each finding is labeled `past`, `current`, or `intended` before a recommendation rests on it. The six-month median is `past`. No SLA recommendation rests on that past-only evidence alone: the skill states that current review times under pairing are unknown and asks, or grounds the recommendation in current or intended evidence.",
@@ -299,7 +312,7 @@
       ]
     },
     {
-      "id": 22,
+      "id": 23,
       "name": "inherited-constraint-asked-not-assumed",
       "prompt": "/planning:interview me Build the v2 exports endpoint. Start from the exports topic's Brief, which we locked last month as a starting point; it says \"no new runtime dependencies\". This topic's research output recommends adding a streaming CSV library.",
       "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the contract relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names the constraint ids it was checked against.",

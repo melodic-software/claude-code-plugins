@@ -17,15 +17,16 @@ async page => {
   await page.click('[data-conflict="mine"]'); await page.waitForTimeout(800);
   const ev = await events();
   ok("Keep mine saves with the new contentRev", ev.length === n0 + 1 && ev[ev.length - 1].id === "N2" && ev[ev.length - 1].text === "Keep this note");
-  ok("advances to N3 in the unlocked group", await sel() === "N3", await sel());
+  ok("AC15: an Accept with a new note stays on N2", await sel() === "N2" && /Accept with note/.test(await page.textContent("#toast")), await sel() + " " + await page.textContent("#toast"));
   ok("group unlocks when its prerequisite group is answered", !(await page.$('.sec[data-key="g:g10"] .lock')));
 
   // status while Claude has events: deliver them with one wait, like the watcher
   const token = await page.$eval('meta[name="interview-token"]', m => m.content);
   await page.request.get(base + "api/wait?after=" + (ev[ev.length - 1].seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": token}});
   await page.waitForTimeout(900);
-  ok("status reads 'Claude is working on ...'", /^Claude is working on /.test(await page.textContent("#pill")), await page.textContent("#pill"));
-  await page.click('.sec[data-key="g:g9"] .sec-h'); await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
+  ok("Claude line reads 'Claude is working on ...'", /^Claude is working on /.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
+  if (await page.$eval('.qbtn[data-q="N2"]', el => !el.offsetParent)) await page.click('.sec[data-key="g:g9"] .sec-h');
+  await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
   ok("receipt shows Saved and Delivered with times", /Saved \d.*Delivered \d/.test(await page.textContent("#cur")), await page.textContent("#cur"));
   await page.click('.qbtn[data-q="N3"]'); await page.waitForTimeout(200);
 

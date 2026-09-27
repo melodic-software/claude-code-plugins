@@ -1,7 +1,7 @@
 # `apply`: convention config (surface 1)
 
 The full write path for the convention config: target-layer selection, the non-interactive
-`subject_pattern=` write, the interactive interview, the written-file template, the per-layer
+`subject_pattern=` and `branch_issue_pattern=` writes, the interactive interview, the written-file template, the per-layer
 post-write verification, and the effective-merge report. Loaded from [SKILL.md](../SKILL.md)
 "`apply` (idempotent)". The hub owns *when* this runs; this spoke owns *how*.
 
@@ -16,8 +16,8 @@ than headings. Find a step directly with:
 grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
 ```
 
-- Layer selection (`layer=`) and the non-interactive `subject_pattern=` write: immediately below,
-  before the interview starts
+- Layer selection (`layer=`), the non-interactive `subject_pattern=` write, and the
+  `branch_issue_pattern=` write (alone or combined): immediately below, before the interview starts
 - Step 0, anchor at the repo root
 - Step 1, read the current config first
 - Step 2, infer before asking
@@ -72,6 +72,39 @@ exact failure per-key override exists to prevent. This applies to the requested 
 licenses dropping an unrelated key the overlay already carries. When every requested key already holds
 and the overlay would otherwise be empty, write nothing and say so rather than materializing an empty
 file.
+
+**`branch_issue_pattern=<ERE>` writes the branch-to-issue grammar.** It is independent of
+`subject_pattern`: no other key derives from it, and it derives from no other key.
+
+- **Validate before writing.** Reject the value, persisting nothing, when it is longer than 200
+  characters, has a `{m}`, `{m,}`, or `{m,n}` bound over 16, applies a quantifier to a group whose
+  body already holds one (`(a+)+`, `([a-z]+-)*`), holds a backreference (`\1` through `\9`), does
+  not compile as an ERE, or has no capture group. Check the first three by reading the value, never
+  by compiling it, since compiling a large bounded repetition can exhaust memory.
+  `parse-branch-issue.sh` applies the same limits and skips a layer that breaks any of the first
+  five, with a stderr note; a pattern with no capture group is not skipped but can never yield a
+  number, so the script prints nothing and exits 1. It reads the issue number from the **last**
+  capture group and prints it only when it is all digits. Write the heading exactly as
+  `## branch_issue_pattern`: a near-miss heading stops resolution
+  ([config-resolution.md](../../../reference/config-resolution.md)).
+- **Alone** (no `subject_pattern=`): write or replace only the `## branch_issue_pattern` section of
+  the chosen layer, value in backticks on the first line under the heading (a value that itself
+  contains a backtick goes in a fenced code block instead). Every other section and the preamble stay
+  byte-for-byte as they are. When the target file does not exist yet, write the step 5 template's
+  preamble plus this one section, never placeholder sections for the other keys. The overlay rule
+  above applies: writing `user` or `local`, when the layers below already resolve the same value,
+  write nothing and say so.
+- **Combined** with `subject_pattern=`: one pass writes both. The `subject_pattern=` rules above
+  govern its own keys (carry independent keys, recompute derived ones), this route governs the
+  `## branch_issue_pattern` section, and the target layer is rewritten once.
+- **Confirm the result.** After the write, run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch>` from
+  `REPO_ROOT` with a branch name that follows the new grammar, and check it prints the expected
+  number with no stderr note naming the layer just written. A note or no output means the value is
+  not usable as written (or the sample branch does not match it); fix it before reporting success.
+  A higher layer that also sets the key wins over the one just written, so read the result against
+  step 7's effective merge. Then run step 6 (verify the write for the layer) and
+  step 7 (report the effective merge), as for any other write.
 
 With no argument in an interactive session, run the interview:
 
@@ -236,6 +269,12 @@ With no argument in an interactive session, run the interview:
    - Test plan
    - Related
    or the literal keyword `none` for a repo whose convention requires no PR-body sections>
+
+   ## branch_issue_pattern
+
+   <only present when set: one ERE in backticks whose last capture group holds the numeric issue
+   number, e.g. `^[^/]+/([0-9]+)-`. Omit this section entirely to keep the built-in
+   `<type>/<N>-<slug>` convention>
    ```
 
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
