@@ -969,8 +969,7 @@ def resolve_authorized_data_root() -> str | None:
        ``settings.json`` ``env`` block can set it, so it ranks last.
 
     A literal, unsubstituted placeholder is treated as absent at each step. Absent
-    every channel the guard has no authority and every ``--data-root`` engine call
-    fails closed.
+    every channel the guard has no authority and every engine call fails closed.
     """
     direct = _argv_authorized_data_root(sys.argv[1:])
     if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
@@ -983,7 +982,8 @@ def resolve_authorized_data_root() -> str | None:
         install = _directory_install_for(plugin_root)
         if install:
             return install.data_root
-    return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
+    env = os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
+    return env if env and env != _AUTHORIZED_DATA_ROOT_PLACEHOLDER else None
 
 
 def _user_settings_path_from_root(plugin_root: str) -> str | None:
@@ -1119,7 +1119,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     bundled engine; everything after the subcommand is matched against the
     engine's declared grammar (``lib/engine_grammar.py``), which the engine's
     own parser is built from. The one value that grammar cannot judge alone is
-    ``--data-root``: only the authorized root this hook resolved is admitted.
+    ``--data-root``: only the authorized root this hook resolved is admitted, and
+    the flag is mandatory here although the grammar keeps it optional, because
+    an engine call without it falls back to the raw ``CLAUDE_PLUGIN_DATA`` value.
     """
     tokens = _literal_shell_words(command)
     if tokens is None:
@@ -1131,12 +1133,19 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     subcommand = tokens[2]
     if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
-    external_checks = {
-        engine_grammar.AUTHORIZED_DATA_ROOT: (
-            lambda value: _is_authorized_data_root(value, authority)
-        ),
-    }
-    if engine_grammar.match_invocation(subcommand, tokens[3:], external_checks):
+    admitted_data_roots: list[str] = []
+
+    def data_root_ok(value: str) -> bool:
+        if not _is_authorized_data_root(value, authority):
+            return False
+        admitted_data_roots.append(value)
+        return True
+
+    external_checks = {engine_grammar.AUTHORIZED_DATA_ROOT: data_root_ok}
+    if (
+        engine_grammar.match_invocation(subcommand, tokens[3:], external_checks)
+        and admitted_data_roots
+    ):
         return subcommand
     return None
 

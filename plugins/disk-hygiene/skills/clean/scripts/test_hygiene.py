@@ -4849,6 +4849,16 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         return result
 
+    def authorize_data_root(self) -> str:
+        """Authorize the owned data root and return the ``--data-root`` words.
+
+        The guard admits an exact engine call only when it carries the
+        authorized ``--data-root``, so every case that expects one admitted
+        appends these words.
+        """
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self._data_root)
+        return f' --data-root "{self._data_root.resolve().as_posix()}"'
+
     def run_guard_tool(
         self, command: str, tool_name: str, enabled: bool
     ) -> dict[str, object] | None:
@@ -4888,6 +4898,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_forces_final_prompt_for_exact_engine_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
@@ -4997,6 +5008,8 @@ class GuardTests(unittest.TestCase):
         malformed = (
             f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
         )
+        data_root = self.authorize_data_root()
+        scan, preview, malformed = (c + data_root for c in (scan, preview, malformed))
         self.assertEqual(
             "allow",
             self.run_guard(scan)["hookSpecificOutput"]["permissionDecision"],
@@ -5016,6 +5029,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5027,6 +5041,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p --vcs-evidence e"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5040,6 +5055,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard_disabled(command)["hookSpecificOutput"][
@@ -5093,6 +5109,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --policy p",
             f"{base} --project-dir d",
@@ -7542,6 +7559,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(f"{base} --max-depth 3")["hookSpecificOutput"][
@@ -7560,6 +7578,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --confirmed-large-scan",
             f"{base} --confirmed-large-scan --max-depth 1",
@@ -7593,6 +7612,7 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --quiet",
             f"{base} --quiet --max-depth 1",
@@ -7622,6 +7642,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_root_children_selection_flags(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --root-children",
             f"{base} --root-children --root-child builds",
@@ -7993,6 +8014,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
@@ -10049,11 +10071,24 @@ class EngineGrammarTests(unittest.TestCase):
     def required_chunks(self, spec) -> list[list[str]]:
         return [self.chunk(flag) for flag in spec.required]
 
+    def is_data_root(self, flag) -> bool:
+        return flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT
+
+    def head(self, spec) -> list[str]:
+        return [word for chunk in self.required_chunks(spec) for word in chunk]
+
+    def data_root_chunk(self, spec) -> list[str]:
+        (flag,) = [flag for flag in spec.optional if self.is_data_root(flag)]
+        return self.chunk(flag)
+
     def words(self, spec, *, optionals: bool) -> list[str]:
-        words = [word for chunk in self.required_chunks(spec) for word in chunk]
+        """The required head plus ``--data-root``, which the guard requires."""
+        words = [*self.head(spec), *self.data_root_chunk(spec)]
         if not optionals:
             return words
         for flag in spec.optional:
+            if self.is_data_root(flag):
+                continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
                 words.extend(self.chunk(flag))
@@ -10166,7 +10201,7 @@ class EngineGrammarTests(unittest.TestCase):
 
     def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             for index, flag in enumerate(spec.required):
                 words = [
                     word
@@ -10182,7 +10217,7 @@ class EngineGrammarTests(unittest.TestCase):
     def test_guard_admits_only_the_declared_head_order(self) -> None:
         """The parser takes the required flags in any order; the guard takes one."""
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             if len(chunks) < 2:
                 continue
             swapped = [
@@ -10197,7 +10232,9 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.optional:
                 if flag.repeatable or flag.requires is not None:
                     continue
-                once = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                once = self.words(spec, optionals=False)
+                if not self.is_data_root(flag):
+                    once = [*once, *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertEqual(spec.name, self.classify(spec.name, once))
                     self.assertIsNone(
@@ -10255,11 +10292,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [
-                    *self.words(spec, optionals=False),
-                    flag.name,
-                    "/somewhere/else",
-                ]
+                words = [*self.head(spec), flag.name, "/somewhere/else"]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertIsNone(self.classify(spec.name, words))
 
@@ -10268,7 +10301,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                words = [*self.head(spec), *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertTrue(
                         self.grammar.match_invocation(
@@ -10278,6 +10311,15 @@ class EngineGrammarTests(unittest.TestCase):
                         )
                     )
                     self.assertFalse(self.grammar.match_invocation(spec.name, words))
+
+    def test_guard_refuses_an_invocation_without_data_root(self) -> None:
+        """The engine parses it; the guard does not, since the engine would fall
+        back to the raw ``CLAUDE_PLUGIN_DATA`` value."""
+        for spec in self.grammar.SUBCOMMANDS:
+            head = self.head(spec)
+            with self.subTest(subcommand=spec.name):
+                self.assertEqual(spec.name, self.parse(spec.name, head).command)
+                self.assertIsNone(self.classify(spec.name, head))
 
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
