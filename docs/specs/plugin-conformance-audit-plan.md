@@ -1,7 +1,11 @@
 # Plugin conformance audit: plan
 
-Status: APPROVED by the user 2026-09-27. Implementation starts only after PR #4534 merges and this
-branch merges `main` (design thread T17).
+Status: APPROVED by the user 2026-09-27. Phases 0 and 1 shipped in #4538: the dependency rule in
+`docs/plugin-philosophy.md`, the registry `docs/conformance-dimensions.md`, and its integrity gate.
+Phases 2 to 5 have not started; this document is their approved plan, and its user gates still
+hold. It graduated here from the task branch's `docs/topics/plugin-alignment-audit/PLAN.md` (in
+history at `38774fdfc4a70bed30ff79f5a158dcb129daf858`), so "this branch" and "this PR" below mean
+the branch that picks up Phase 2.
 
 ## Brief
 
@@ -9,9 +13,9 @@ Build `/audit-plugin-conformance`, a repo-local skill in `.claude/skills/` that 
 all of them, against `docs/plugin-philosophy.md`. It composes the checks and judgment skills that
 already exist, and adds three deterministic scripts plus one registry. It becomes the "fleet
 conformance audit" the philosophy doc cites. All design decisions are in
-`design/design-threads.md` (T1-T17, all RESOLVED; the several-positions tier in T15 is
-TAGGED-DEFERRED). The capability map is `design/capability-matrix.md`; the file layout and registry
-row shape are in `design/library-topology.md`.
+`docs/specs/plugin-conformance-design-threads.md` (T1-T17, all RESOLVED; the several-positions tier in T15 is
+TAGGED-DEFERRED). The capability map is `docs/specs/plugin-conformance-capability-matrix.md`; the file layout and
+registry row shape are in `docs/specs/plugin-conformance-topology.md`.
 
 Scope items (each maps to a phase):
 
@@ -76,7 +80,8 @@ PASS=15 FAIL=0; `--check` exit 0; `check-lane-coverage.sh --check` exit 0;
 `check-docs-only-gate.sh --check` exit 0; `no central registry` count 0; shellcheck and
 shell-portability clean. `check-script-contract.test.sh` PASS=37 FAIL=2, both failures
 `check-html-assets.sh` needing `htmlhint` (no `npm ci` in this worktree), unrelated to this phase.
-Not yet done: the fresh-context verifier pass on this phase's diff; run it before Phase 2.
+Reviewed before merge against this phase's work items and Sanity Check (2026-09-27), with main
+merged in: no finding; every Sanity Check command re-ran green.
 
 Work items:
 
@@ -84,7 +89,7 @@ Work items:
    behavior" in `docs/plugin-philosophy.md` (T12): external binaries and versions, network ports,
    sizes and resolutions, other plugins' layouts, installed browsers, PATH lookups; verdicts port,
    `userConfig`, presence-gated, documented, fix needed. Reuse the section's absence classes.
-2. Create `docs/conformance-dimensions.md`: one table. Row shape per `design/library-topology.md`
+2. Create `docs/conformance-dimensions.md`: one table. Row shape per `docs/specs/plugin-conformance-topology.md`
    (`id`, `concern`, `owner`, `checks`, `ci`, `scope`) plus one column, `lane`: either a script
    command line, or a judgment question the skill hands a fresh subagent. Every row has a
    non-empty `lane`; that is what makes each citation checkable. Ids `dim-8`, `dim-9`, `dim-11` keep
@@ -167,7 +172,8 @@ Work items:
    the script header). Exit 0 always except usage.
 3. CI runs only the two test files (these scripts list; they do not gate, T13).
 4. Measure recall against the hand inventory in `docs/topics/animation-ports/design/dependency-inventory.md`
-   (48 dependencies, 26 values) and record both numbers in this phase's notes.
+   (48 dependencies, 26 values; pruned, read it in history at
+   `fe29b787d4dc998861e9a0e5144334566f90cbe2`) and record both numbers in this phase's notes.
 
 **Sanity Check:** both `.test.sh` files exit 0;
 `scripts/list-plugin-dependencies.sh plugins/animation | grep -c $'\t'` prints a number greater than

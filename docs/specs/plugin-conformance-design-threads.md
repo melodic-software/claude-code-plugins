@@ -64,7 +64,8 @@ Verdicts on what they list stay judgment. Shape: T13.
 
 Rationale: these three are the gaps where a scalar or grammar match exists and no current check makes
 it (the animation inventory found 48 dependencies and 26 duplicated values by hand,
-`docs/topics/animation-ports/design/dependency-inventory.md`).
+`docs/topics/animation-ports/design/dependency-inventory.md`, pruned; in history at
+`fe29b787d4dc998861e9a0e5144334566f90cbe2`).
 
 ### T4. Existing overlaps are filed as follow-up issues
 
@@ -303,4 +304,4 @@ no commit cites a missing audit.
 
 ## Next
 
-`/planning:design-handoff`, then `/planning:plan` into `../PLAN.md`.
+`/planning:design-handoff`, then `/planning:plan` into `plugin-conformance-audit-plan.md`.

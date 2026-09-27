@@ -4,6 +4,11 @@ The registry of what the plugin conformance audit checks. Each row names one dim
 that owns its rule, the lane that checks it, and the existing checks it composes. The owner doc
 carries the rule; this table only points at it.
 
+The skill that runs every lane is not built yet. Until it is, a `judgment:` lane is a question a
+reviewer asks by hand, and a command lane runs as written. The approved plan for the skill, and for
+the gates it adds, is [the conformance audit plan](specs/plugin-conformance-audit-plan.md). Its
+design decisions are in [the design threads](specs/plugin-conformance-design-threads.md).
+
 Columns:
 
 - `id`: stable dimension id. `dim-8`, `dim-9` and `dim-11` keep the meaning fleet hook scripts and

@@ -4,7 +4,8 @@ Phase 1 of a design session: which parts of the proposed repo-local alignment sk
 this repo, so none of them is built twice. Read from the working tree of `feat/animation-plugin` on
 2026-09-24. Sources: the seed notes (`.work/strategy/grouping-audit-skill-seed.md`), the worked examples
 (`.work/strategy/repo-map.md`, `position-a.md`, `position-b.md`,
-`docs/topics/animation-ports/design/dependency-inventory.md`), and the skills, scripts, docs and CI
+`docs/topics/animation-ports/design/dependency-inventory.md`, pruned; in history at
+`fe29b787d4dc998861e9a0e5144334566f90cbe2`), and the skills, scripts, docs and CI
 cited below. "CI" means a step in `.github/workflows/ci.yml`. No lefthook, pre-commit or `package.json`
 script runs any of these checks locally.
 
