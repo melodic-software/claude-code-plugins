@@ -88,6 +88,19 @@
         "Re-reads the labels before clearing @me, and clears it while the claim is held"
       ],
       "id": 6
+    },
+    {
+      "id": 7,
+      "name": "attend-queue-release-lease-after-flip",
+      "prompt": "/work-items:attend-queue\n\nThe operator answers the [escalated] question on #3711 (work-class: scoped), which removes the human blocker. This session claimed the row through the seam at the start of the row; the claim object carried lease_comment_id 5858800001 under a 24-hour binding TTL. The bound provider is github, whose manifest declares release: true. A worker lane running as the same GitHub login will look for work on its next cycle.",
+      "expected_output": "While still holding the claim, applies the autonomous-eligible role label and removes the human-gated one in a single edit, then clears @me through the adapter's assignee edit, then runs the seam release verb, work-item-tracker.sh release \"github:<owner>/<repo>#3711\" --lease-comment-id 5858800001. It does not leave the lease to run out its TTL, because claim backs off from any earlier live lease including the same login's. It reads exit 0 with either released value as done, and it never hand-writes lease-comment JSON. Had the provider declared release: false (exit 6), it would leave the lease live until TTL expiry for a later session-start reclaim.",
+      "files": [],
+      "expectations": [
+        "Performs the single-edit role flip while the claim is held, before clearing @me",
+        "Clears @me through the adapter's assignee edit after the flip",
+        "Runs the seam release verb with the claim's lease_comment_id after the assignee clear",
+        "Never hand-writes or PATCHes lease-comment JSON directly"
+      ]
     }
   ]
 }

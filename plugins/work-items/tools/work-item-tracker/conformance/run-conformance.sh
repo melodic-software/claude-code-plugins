@@ -191,6 +191,7 @@ wit_case_if_unsupported create-item --title x
 wit_case_if_unsupported get-item "$FAKE_ID"
 wit_case_if_unsupported claim "$FAKE_ID"
 wit_case_if_unsupported renew-lease "$FAKE_ID" --lease-comment-id 1
+wit_case_if_unsupported release "$FAKE_ID" --lease-comment-id 1
 wit_case_if_unsupported reclaim "$FAKE_ID"
 wit_case_if_unsupported link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID"
 wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
@@ -331,6 +332,20 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
       wit_case "get-item B after reclaim" 0 get-item "$ITEM_B_ID"
       assert_eq "reclaim cleared assignees" "0" "$(jq -r '.assignees | length' <<<"$WIT_OUT")"
     fi
+  fi
+
+  # A's lease is still live here, and the s2 claim above backed off on it.
+  if verb_supported release && [[ "$LEASE_CID" =~ ^[0-9]+$ ]]; then
+    if [[ -n "$ITEM_B_ID" ]]; then
+      wit_case "release rejects a foreign item's lease → exit 7" 7 \
+        release "$ITEM_B_ID" --lease-comment-id "$LEASE_CID"
+    fi
+    wit_case "release A" 0 release "$ITEM_A_ID" --lease-comment-id "$LEASE_CID"
+    assert_schema_version "release A"
+    assert_eq "live lease released" "true" "$(jq -r '.released' <<<"$WIT_OUT")"
+    wit_case "re-release A is a no-op" 0 release "$ITEM_A_ID" --lease-comment-id "$LEASE_CID"
+    assert_eq "re-release reports released:false" "false" "$(jq -r '.released' <<<"$WIT_OUT")"
+    wit_case "same-identity claim after release holds" 0 claim "$ITEM_A_ID" --session-id "$RUN_TAG-s4"
   fi
 fi
 
