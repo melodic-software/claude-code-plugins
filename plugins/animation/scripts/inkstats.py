@@ -161,7 +161,7 @@ def classes(ink, boxes):
     lab = np.full((H, W), 2, np.uint8)
     for x0, y0, x1, y1 in boxes:
         lab[max(0, y0 - p):y1 + p, max(0, x0 - p):x1 + p] = 1
-    lab[:e], lab[-e:], lab[:, :e], lab[:, -e:] = 0, 0, 0, 0
+    lab[:e], lab[H - e:], lab[:, :e], lab[:, W - e:] = 0, 0, 0, 0
     return lab
 
 
