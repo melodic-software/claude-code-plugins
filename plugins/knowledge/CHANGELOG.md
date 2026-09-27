@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.3] - 2026-09-27
+
+### Changed
+
+- **`video-digest` and `course-digest` gather their four dependency probes in one fenced
+  pre-compute block each.** The rows and their labels are unchanged. Each `node -e` probe gains
+  the fallback it lacked, so a host without `node` renders `MISSING - node not found` instead of
+  failing the skill load.
+
 ## [0.14.2] - 2026-09-25
 
 ### Changed
