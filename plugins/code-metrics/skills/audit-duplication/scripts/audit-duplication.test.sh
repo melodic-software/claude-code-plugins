@@ -85,6 +85,8 @@ excluded_path="$(printf '%s' "$out" | "$PY" -c 'import json,sys; print(json.load
 assert_eq "the excluded entry names the registry line" "shared/shared-utils.sh" "$excluded_path"
 excluded_registry="$(printf '%s' "$out" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["excluded"][0]["registry"])' 2>/dev/null)"
 assert_contains "the excluded entry names the registry file" "$excluded_registry" "cluster.txt"
+assert_doc "a total exclusion counts no file with clones while the scope counts the scanned files" "$out" \
+  'd["summary"]["files"] == 0 and d["scope"]["files"] >= 2'
 
 # 2. Without the registry the same clones are duplication debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
@@ -100,6 +102,9 @@ assert_eq "the markdown run exits 0" 0 "$?"
 assert_contains "markdown carries the run table" "$out" "## Coverage of this run"
 assert_contains "markdown states the duplicated-line count" "$out" "Duplicated lines"
 assert_contains "markdown states the exclusion" "$out" "Excluded by a sanctioned-replication registry"
+assert_contains "markdown counts no file with clones after a total exclusion" "$out" "Files with clones: 0."
+assert_contains "markdown says which files the summary leaves out, and why" "$out" \
+  "so the 2 file(s) holding nothing but excluded groups are left out of it"
 
 # 4. Every collector absent: a report is still produced and says so.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"

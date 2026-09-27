@@ -710,9 +710,31 @@ def render(
             f"{summary.get('clone_groups', 0)} clone group(s)."
         )
     if doc.get("excluded"):
-        lines.append(
+        excluded_line = (
             f"Excluded by a sanctioned-replication registry: {len(doc['excluded'])}."
         )
+        # `Files with clones` counts surviving groups only, while the scope
+        # header counts every file scanned. A file whose every group was
+        # excluded is in the second and not the first; name how many, so the
+        # two counts read as the different populations they are.
+        surviving = {
+            instance.get("file")
+            for row in doc.get("measures", [])
+            for instance in row.get("instances") or []
+        }
+        excluded_only = {
+            instance.get("file")
+            for group in doc["excluded"]
+            for instance in group.get("instances") or []
+            if instance.get("file")
+        } - surviving
+        if excluded_only:
+            excluded_line += (
+                f" Files with clones counts surviving groups only, so the "
+                f"{len(excluded_only)} file(s) holding nothing but excluded groups are "
+                "left out of it; the scope's file count is every file scanned."
+            )
+        lines.append(excluded_line)
     elif duplication:
         lines.append(
             "Excluded by a sanctioned-replication registry: 0 (no registry configured, or "

@@ -486,6 +486,58 @@ assert_equals "usage: an unreadable record exits 1" "$?" "1"
 bash "$SCRIPT" --record "$TEST_TMPDIR/record.json" --out "$TEST_TMPDIR/nowhere" >/dev/null 2>&1
 assert_equals "usage: an output directory that is not there exits 1" "$?" "1"
 
+# A valid JSON record in another layout matches no object line, so the renderer
+# refuses it rather than drawing an empty landscape and calling it thin.
+tr -d '\n' <"$TEST_TMPDIR/record.json" >"$TEST_TMPDIR/compact.json"
+cat >"$TEST_TMPDIR/pretty.json" <<'JSON'
+{
+  "schema_version": 1,
+  "repositories": [
+    {
+      "name": "solo",
+      "owner": "acme"
+    }
+  ],
+  "edges": []
+}
+JSON
+for shape in compact pretty; do
+  rm -rf "$TEST_TMPDIR/layout-$shape"
+  mkdir -p "$TEST_TMPDIR/layout-$shape"
+  bad="$(bash "$SCRIPT" --record "$TEST_TMPDIR/$shape.json" --out "$TEST_TMPDIR/layout-$shape" 2>&1)"
+  assert_equals "layout: a $shape record exits 1" "$?" "1"
+  assert_contains "layout: and names the layout problem ($shape)" "$bad" "one-object-per-line layout"
+  assert_not_contains "layout: with no summary line ($shape)" "$bad" "landscape:"
+  assert_equals "layout: and writes no artifacts ($shape)" "$(ls -A "$TEST_TMPDIR/layout-$shape")" ""
+done
+printf '{"schema_version": 1, "repositories": [\n  {"name":"solo"}\n' >"$TEST_TMPDIR/unclosed.json"
+bad="$(bash "$SCRIPT" --record "$TEST_TMPDIR/unclosed.json" --out "$TEST_TMPDIR" 2>&1)"
+assert_equals "layout: a repositories array opened after other keys on its line exits 1" "$?" "1"
+cat >"$TEST_TMPDIR/noedges.json" <<'JSON'
+{
+  "schema_version": 1,
+  "repositories": []
+}
+JSON
+bad="$(bash "$SCRIPT" --record "$TEST_TMPDIR/noedges.json" --out "$TEST_TMPDIR" 2>&1)"
+assert_equals "layout: a record with no edges array exits 1" "$?" "1"
+assert_contains "layout: and says which array is missing" "$bad" "no edges array"
+cat >"$TEST_TMPDIR/bare.json" <<'JSON'
+{
+  "schema_version": 1,
+  "repositories": [
+  ],
+  "edges": []
+}
+JSON
+render layout-bare --record "$TEST_TMPDIR/bare.json"
+assert_equals "layout: genuinely empty arrays still render" "$?" "0"
+assert_contains "layout: and read as thin" "$(cat "$TEST_TMPDIR/layout-bare.out")" "thin=yes"
+printf '{"schema_version": 1, "repositories": [], "edges": []}\n' >"$TEST_TMPDIR/compact-empty.json"
+render layout-compact-empty --record "$TEST_TMPDIR/compact-empty.json"
+assert_equals "layout: a compacted record with empty arrays is read correctly" "$?" "0"
+assert_contains "layout: as thin" "$(cat "$TEST_TMPDIR/layout-compact-empty.out")" "thin=yes"
+
 printf '{"schema_version": 2, "repositories": [], "edges": []}\n' >"$TEST_TMPDIR/v2.json"
 bad="$(bash "$SCRIPT" --record "$TEST_TMPDIR/v2.json" --out "$TEST_TMPDIR" 2>&1)"
 assert_equals "usage: an unknown schema version exits 1" "$?" "1"
