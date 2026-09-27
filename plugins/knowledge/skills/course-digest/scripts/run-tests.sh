@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Public entry surface for the course-digest extraction suite. The Node
-# package under extraction/ is skill-private; external consumers (CI, docs)
-# invoke this facade instead of reaching into it.
+# Public entry for the course-digest extraction suite; CI and docs call this
+# facade instead of reaching into the skill-private extraction/ package.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../extraction"

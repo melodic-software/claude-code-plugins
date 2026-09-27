@@ -10,11 +10,8 @@
 # with an optional top-level `description` field" (raw `plugins-reference.md`,
 # fetched 2026-09-05), and the field is the one place a plugin can label its
 # hooks as a set, distinct from the per-handler `statusMessage` shown while a
-# hook runs. The 2026-09-04 hooks-reference audit found the field absent in 20
-# of 20 plugins (#3752); #3727 and #3750 added it to every file. Nothing else
-# reads the field, so nothing else would notice a new plugin shipping without
-# it, or a rewrite dropping it: this gate is what keeps 20 of 20 from drifting
-# back to 19.
+# hook runs. Nothing else reads the field, so nothing else would notice a new
+# plugin shipping without it, or a rewrite dropping it.
 #
 # The rule: `plugins/*/hooks/hooks.json` is scanned; a plugin with no such file
 # has no hooks to label and is skipped. The file must parse as JSON and its

@@ -6,29 +6,29 @@ Pre-PR quality phase: review, verify, and simplify changes before creating the P
 
 ```bash
 git diff --cached --name-only && git diff --name-only && git ls-files --others --exclude-standard
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/skill-evidence.sh" classes --base "<remote>/<default-branch>"
+git diff --name-status "<remote>/<default-branch>"...HEAD
 ```
 
-Each `class=<name>` line names a class of the repository's `pr_skill_evidence` map, and the map is what decides which skills this branch owes. That output is authoritative. The table below is what a map following the pre-PR order looks like; a repository's own map names its own classes and its own skills. No output at all means the map is absent or `none`, so classify by hand instead, **code** (source files: `.cs`, `.py`, `.ts`, `.js`, `.sh`, `.ps1`, project files), **tests** (paths containing `/tests/`, `*Tests.*`, `*.test.*`), **config/doc** (`.md`, `.json`, `.yml`), and run the steps that apply.
+Classify the branch's changed files by the table below and run the steps each class owes.
 
-| Class | What it owes | Where it runs |
-|---|---|---|
-| `code` | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
-| `markdown` | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
-| `renames` | a `docs-hygiene:rename-references` audit | §1.2.1 |
-| `skills` | `skill-quality:check` over each changed skill | §1.2.1 |
-| `rules` | `instruction-placement:check` | §1.2.1 |
-| `security` | `review:security-review` over the pull request's diff | [ready-for-review.md](ready-for-review.md) §2.5.4 |
+| Class | Which files | What it owes | Where it runs |
+|---|---|---|---|
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
+| `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
+| `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
+| `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |
+| `rules` | `.claude/rules/**` | `instruction-placement:check` | §1.2.1 |
+| `security` | any diff that is not docs-only | `review:security-review` over the pull request's diff | [ready-for-review.md](ready-for-review.md) §2.5.3 |
 
 **The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/conventions/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pre-pr-ordering/README.md). Read the order there; this file cites it rather than restating it.
 
-Every skill named below is invoked through the Skill tool when its plugin is installed, and replaced by the inline fallback stated beside it when it is not. A fallback does not write a ledger row, so it leaves that skill out of the evidence block a pull request carries; report the gap and what covered it instead of claiming the row.
+Every skill named below is invoked through the Skill tool when its plugin is installed, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
 
-**No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits, so a docs-only branch is not exempt: it owes the prose audits in 1.2.1. If the consuming project layers extra prep-evidence requirements on PR creation (hooks, gates), satisfy those per its own docs.
+**No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits, so a docs-only branch is not exempt: it owes the prose audits in 1.2.1. If the consuming project layers extra prep requirements on PR creation (hooks, gates), satisfy those per its own docs.
 
 ## 1.2 Review the changes (the `code` class)
 
-Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is installed. Either satisfies an any-of (`a,b`) token in the map, which is why only one of them runs.
+Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is installed.
 
 - Without that plugin: review the diff inline for correctness, error handling, security-sensitive surfaces, test coverage for new logic, and convention adherence against the project's own rules. Review agents (code-reviewer, security-reviewer, architecture-reviewer) serve the same purpose when your environment ships them
 - Auto-scale aspects to the diff: always check code errors; add test-focused review when test files changed; add type-design review for new type-heavy files. Collect findings
@@ -80,7 +80,7 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 - Any skip due to "tool missing" → install the tool OR document why the skip is acceptable in this PR (rare, since it is almost always faster to install)
 - All clean (or only non-applicable skips like "no `.md` changes") → proceed to PR creation
 
-**This is the map's terminal skill**, the one a `pr_skill_evidence` map marks with a trailing `!`. It runs last and its evidence row is checked at the head exactly, so nothing that edits the tree may run after it.
+**This gate runs last**, so nothing that edits the tree may run after it.
 
 **Why this gate is hard:** cost asymmetry. Each mechanical issue caught locally costs seconds; the same issue in CI burns a full multi-minute round trip plus rebase/repush overhead. A single sloppy PR can waste half a dozen CI cycles on issues that were all catchable locally.
 
@@ -88,4 +88,4 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 Report: findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, and which classes 1.1 detected. Proceed to PR creation.
 
-**Prep before create is the developer loop, not the evidence-bearing run.** Each skill run here leaves a ledger row stamped with whatever HEAD was at the moment it was invoked. The rebase in [create.md](create.md) §2.2 rewrites those SHAs, so any of those rows may be invalid by the time the PR exists. Nothing is lost by that: no pull request exists yet, so no evidence is owed yet. The run that owes it is [ready-for-review.md](ready-for-review.md), on a committed head with the base already merged in.
+**Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, which is why the ready step re-runs the verify gate on the head it flips.

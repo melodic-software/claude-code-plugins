@@ -43,7 +43,6 @@ fs.mkdirSync(data, { recursive: true });
 
 const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(data, "ms-playwright");
 
-/** Fingerprint the install inputs: package.json + every file under vendor/. */
 function computeStamp() {
   const hash = createHash("sha256");
   const files = ["package.json"];
@@ -70,7 +69,6 @@ function computeStamp() {
   return hash.digest("hex");
 }
 
-/** True when the browsers path already holds a Chromium build. */
 function chromiumInstalled() {
   if (!fs.existsSync(browsersPath)) return false;
   return fs
@@ -90,11 +88,8 @@ if (depsInstalled && chromiumInstalled()) {
   process.exit(0);
 }
 
-// npm is a `.cmd` shim on Windows, which node refuses to spawn without a shell
-// (CVE-2024-27980); a shell with a separate args array trips DEP0190. Passing a
-// single quoted command string with shell:true satisfies both. `here` is a
-// plugin-owned path with no untrusted input, and JSON.stringify quotes it for
-// both cmd.exe and POSIX sh.
+// Windows npm is a .cmd shim that needs a shell (CVE-2024-27980), and a shell plus an args
+// array trips DEP0190, so pass one command string; `here` is plugin-owned and JSON-quoted.
 if (!depsInstalled) {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(

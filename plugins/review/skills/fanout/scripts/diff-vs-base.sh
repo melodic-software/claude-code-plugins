@@ -6,7 +6,7 @@
 # `## Pre-computed context` block composes its ` !`cmd` ` lines into one shell
 # invocation, and the worktree-isolation Bash guard refuses any genuine `$`
 # expansion — a `$local` assignment or `$(…)` substitution makes the whole block,
-# and therefore the skill, fail to load from an isolated agent (#1687). Plugin
+# and therefore the skill, fail to load from an isolated agent. Plugin
 # variables are substituted by the harness into literal paths before a shell sees
 # them, so `bash "${CLAUDE_PLUGIN_ROOT}/…/diff-vs-base.sh"` is guard-safe while the
 # same logic inline is not. Inside this file `$` is free.

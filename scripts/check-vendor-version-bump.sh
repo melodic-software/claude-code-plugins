@@ -11,11 +11,8 @@
 # delivery-by-version — editing the shared source obligates a plugin `version`
 # bump, because the version is the update cache key and an unbumped plugin
 # never delivers the change to consumers. Every cross-plugin cluster gets that
-# half enforced by its sync gate's --check-bump; the intra-plugin shape had
-# only prose, and two drifts shipped through it: b3445bc2 re-vendored
-# knowledge's scene-detect.js with the release note folded into the
-# already-released 0.10.9 section and no bump, and b01dace3 edited its
-# vtt-parser.js with no bump at all.
+# half enforced by its sync gate's --check-bump; this gate enforces it for the
+# intra-plugin shape.
 #
 # WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree
 # differs from <base-ref> — an edit, an addition, or a deletion, since each is
@@ -82,10 +79,9 @@ fi
 # The resolver also carries the fail-closed mechanics: a failed git diff (or
 # a failure staging/sorting its output) is its own non-zero return rather
 # than an empty list that reads as "nothing changed", and paths arrive
-# NUL-delimited so a name git would
-# C-quote under the default core.quotePath (non-ASCII bytes, a literal quote)
-# reaches the structural filter verbatim instead of wrapped in quotes that
-# match no pattern.
+# NUL-delimited so a name git would C-quote under the default core.quotePath
+# (non-ASCII bytes, a literal quote) reaches the structural filter verbatim
+# instead of wrapped in quotes that match no pattern.
 changed_paths=()
 if ! changed_files::into changed_paths "$base" --include-deleted --no-renames -- plugins/; then
   echo "$self: git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
@@ -134,9 +130,9 @@ for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
   # release already carries the vendored source. But "absent" must be an
-  # observation, never a fallback: the old single-pipeline read collapsed a
-  # failed `git show`, a malformed base manifest, and a version-less one into
-  # the same empty string this carve-out keys on, silently exempting each.
+  # observation, never a fallback: a failed `git show`, a malformed base
+  # manifest, and a version-less one must not collapse into the empty string
+  # this carve-out keys on.
   # So existence is probed on its own (ls-tree exits 0 with empty output for
   # a path the base tree lacks, non-zero only when git itself failed), and
   # once the manifest is known to exist every later step must succeed: a base

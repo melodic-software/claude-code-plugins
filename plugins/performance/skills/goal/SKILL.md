@@ -41,6 +41,16 @@ and rank the counter above the duration. On a host that cannot support a wall-cl
 counter is what survives: a spawn census of 4 -> 1 still reproduces when the milliseconds behind it
 do not, because an independent verifier on the same machine an hour later meets different load.
 
+**Correlation, required.** Record the evidence that moving the counter moved the duration. A counter
+that does not track the duration is a hill nobody should climb. `unproven` is a legal value, and it
+travels to the verify report beside the headline counter. The two-rig recipe that produces the
+evidence is in `/performance:snapshot`. See [prove the proxy](../../reference/techniques.md#d-prove-the-proxy).
+
+**Measurement boundary.** Name the start event, the end event, and which side of any process or
+network split each falls on. Name the start state too (cold start, fresh load, warm path): each is a
+different measurement. End at the moment the user or caller can act, not when loading finishes.
+See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
+
 ### 2. The floor, computed before any work
 
 The irreducible cost this target cannot go below whatever the code does. Compute it by measuring the
@@ -100,6 +110,8 @@ two different baseline stores.
 ```text
 Metric:     <exact command> -> <field>
 Counter:    <drift-immune counter>   [ranked above the duration]
+Correlation: <evidence the counter moves the duration> | unproven   [REQUIRED]
+Boundary:   start <event> -> end <event>; <which side of the split each falls on>; <start state>
 Floor:      <value> (measured by: <command>)
 Realistic:  <value>    Ideal: <value>
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
@@ -129,5 +141,8 @@ Evidence tier of the target: <E1..E4 from /performance:target>
 - **"Faster" is not a metric.** If the user cannot name the command, the goal is not yet a goal.
 - **An ideal target is not a stretch goal.** It is the no-incidental-overhead cost, used to say how
   much room is left after a realistic win.
+- **A metric that stays green while the reported symptom is visible is the wrong metric.** A
+  composite score inside its "good" band can hide the defect a user can see. Name the underlying
+  signal (the raw events the score is built from) and measure that instead.
 - **A goal built on an E3/E4 candidate must record that.** Optimizing an unmeasured target can
   succeed against its own metric and change nothing a user perceives.

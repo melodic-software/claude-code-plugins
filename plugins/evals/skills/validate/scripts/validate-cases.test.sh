@@ -7,10 +7,6 @@
 #
 # Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter (a named
 # environment error, never a silent skip).
-#
-# Assertion helpers are deliberately NOT shared across plugins
-# (docs/conventions/shell-test-helpers/README.md); this wrapper needs none,
-# since unittest reports its own results.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

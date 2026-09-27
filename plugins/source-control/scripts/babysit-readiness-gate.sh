@@ -319,12 +319,9 @@ else
   [[ -n "$personal_login" ]] && SELF_LOGINS+=("$personal_login")
 fi
 # Reaching here means neither --self nor --extra-self was supplied AND the
-# supported `gh api user` default failed — expired auth, an unreachable API, or
-# an offline replay of a saved snapshot. The ARGUMENTS were valid, so reporting
-# `reason=bad-args` sends an operator (and the loop report that quotes this
-# verdict verbatim) off to edit flags that are already correct. The prerequisite
-# to repair is the identity lookup, and the reason now says so. The exit code
-# stays 3 for callers already keyed on it.
+# supported `gh api user` default failed (expired auth, an unreachable API, or
+# an offline replay of a saved snapshot). The ARGUMENTS were valid, so the reason
+# names the identity lookup, not bad-args; the exit code stays 3 for callers keyed on it.
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
   printf 'babysit-readiness-gate: cannot resolve self identity: the gh api user lookup returned no login (pass --self or --extra-self)\n' >&2
   unproven identity-unresolved 3
@@ -414,9 +411,8 @@ classify_rows() {
 # VALID/INCORRECT/UNCERTAIN token, NOT a severity/badge, so it never inflates the
 # finding count; classifications are still counted only from self bodies.
 # Neither extraction suppresses jq's stderr, and both route a non-zero status
-# through the fail-closed verdict. Swallowing them left a jq failure looking
-# exactly like a comment set with no bodies — findings=0, READINESS_OK — so the
-# gate could pass on input it never parsed. The array-shape check above rejects
+# through the fail-closed verdict: a swallowed jq failure looks exactly like a
+# comment set with no bodies (findings=0, READINESS_OK). The array-shape check above rejects
 # the common malformed payloads; these guards catch what survives it (an array
 # whose elements are not comment objects).
 bodies_unreadable() {

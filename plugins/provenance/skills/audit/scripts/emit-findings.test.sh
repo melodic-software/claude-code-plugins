@@ -33,10 +33,8 @@ pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
 }
-# A case whose subject this host cannot build is neither a pass nor a failure.
-# It prints its own visible line and carries its own counter, and never routes
-# through pass(), so a proof this host could not run can never be read off the
-# summary as one that did.
+# A case whose subject this host cannot build is neither a pass nor a failure:
+# it never routes through pass(), so the summary cannot count it as run.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -217,8 +215,7 @@ assert_contains "withheld judgment findings are counted, not dropped" "$BODY" "2
 # The refusal validates the SIDECAR, never an emitted row. `not-found` is a
 # judgment verdict the relay boundary withholds, so a well-formed one is accepted
 # and still emits nothing — and the `searched` surfaces it named must not reach the
-# findings file either. A schema check that relaxed the boundary to see its own
-# field would be a worse defect than the one it fixed.
+# findings file either.
 
 NF_SEARCHED='["https://code.claude.com/docs/llms.txt","site search: nf-surface.example"]'
 
@@ -330,14 +327,11 @@ assert_eq "the escaped row still has exactly the contract's columns" \
   "$(printf '%s' "$PIPE_ROW" | sed 's/\\|//g' | tr -cd '|' | wc -c | tr -d ' ')" "8"
 assert_contains "a bare pipe is escaped" "$PIPE_ROW" '\|'
 # The needle is the DOUBLE-ESCAPED form a naive gsub produces: three characters,
-# backslash backslash pipe. It read `\\\|` — four characters, which the broken
-# output does not contain either, so the assertion could not fail on the regression
-# it names.
+# backslash backslash pipe.
 assert_not_contains "an already-escaped pipe is not double-escaped" "$PIPE_ROW" '\\|'
 assert_not_contains "a newline inside a cell is replaced" "$PIPE_ROW" $'\n'
 
-# Location carries input too, and was not escaped: a pipe in a path split the row and
-# shifted every cell after it one column left.
+# Location carries input too: an unescaped pipe in a path splits the row.
 write_report pipe-path.json '{
   "findings": [
     {"rule": "provenance/audit/rule-stamp-expired", "file": "a|b.md", "line": 1,
@@ -550,10 +544,8 @@ assert_exit "a not-found named outside the declared tier is not gated" "$?" "0"
 
 # --- A `verdict` key is a declaration WHOLE, not only its `tier` child -------------
 #
-# Reading `verdict.tier` alone left three shapes saying the same thing outside the
-# boundary: a bare string, a list, and a `tier` one level further down. Each reached
-# the file — a stamp rule carrying one was RELAYED, and one with no rule id printed
-# verbatim into `## Unparsed`. The whole `verdict` value is the declared tier.
+# A bare string, a list, and a `tier` one level further down say what
+# `verdict.tier` says, so the whole `verdict` value is the declared tier.
 
 write_report verdict-string.json '{
   "counts": {"files": 2},
@@ -570,10 +562,7 @@ write_report verdict-deep.json '{
                 "excerpt": "VDEEPCANARY"}]
 }'
 # The KEY casing is what this case tests, so the VALUE is spelled the way the needle
-# below is. It read `"LLM-Suspected"` against a lowercase needle through a
-# case-sensitive glob, so reverting the whole-verdict read left this iteration
-# passing while its three siblings failed: an assertion that cannot fail on the
-# regression it names.
+# below is, or a case-sensitive glob would keep this assertion from failing.
 write_report verdict-cased.json '{
   "counts": {"files": 2},
   "findings": [{"Verdict": "llm-suspected", "file": "vc.md", "excerpt": "VCASECANARY"}]
@@ -650,9 +639,8 @@ assert_exit "a superseded outcome beside a declared tier refuses nothing" "$?" "
 assert_eq "and the confirmed copy still reaches the relay" \
   "$(grep -c '^| [0-9]' "$VSUP")" "1"
 
-# The fallback turns on a tier NAMED, not on a `tier` key present. Keying off the key
-# let one unusable value disarm the whole boundary: the verdict was never consulted,
-# so the record printed verbatim into `## Unparsed` and skipped the searched gate.
+# The fallback turns on a tier NAMED, not on a `tier` key present, so one unusable
+# value cannot disarm the whole boundary.
 write_report tier-unusable-null.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "provenance/audit/rule-future", "tier": null,
@@ -867,13 +855,10 @@ done
 
 # --- The neutral outcome under the retired spelling -------------------------------
 #
-# Every prose surface of this skill, `SKILL.md` included, now publishes the neutral
-# tier as `not-found`. `source-not-identified` is the name `SKILL.md` published before
-# that reconciliation, and the reader still recognizes it: a sidecar is model-authored
-# against whatever description was in context, so a reader that knows one spelling
-# relays the other. Recognizing one name too many can only withhold a record; one too
-# few walks a judgment verdict onto a relay row. These cases pin the tolerance, which
-# is permanent and must not be narrowed to a single name.
+# `source-not-identified` is a retired spelling of `not-found` the reader still
+# recognizes: a sidecar is model-authored against whatever description was in
+# context. One name too many can only withhold a record; one too few walks a
+# judgment verdict onto a relay row. This tolerance is permanent.
 write_report neutral-published-name.json '{
   "counts": {"files": 2},
   "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "sn.md",
@@ -902,8 +887,8 @@ assert_exit "the published neutral tier names its surfaces like the other spelli
 
 # --- A sidecar that does not parse says so ----------------------------------------
 #
-# `has("findings")` fails on unparsable input too, so every truncated or non-JSON
-# sidecar was refused for having no findings key — a cause the input does not have.
+# `has("findings")` fails on unparsable input too, which would blame a missing
+# findings key, a cause the input does not have.
 write_report truncated.json '{"findings": [{"rule": "x"'
 TRUNC_ERR="$(run --report "$REPORTS/truncated.json" --out "$OUTDIR/truncated.md" 2>&1)"
 assert_exit "a truncated sidecar exits 3" "$?" "3"
@@ -927,12 +912,8 @@ assert_not_contains "and does not blame the not-found check" "$FSC_ERR" "not-fou
 
 # --- A verdict name is matched EXACTLY, never as a prefix -------------------------
 #
-# `test()` searched for a substring, so an extended name such as `not-found-v2`
-# matched the verdict it merely starts with: the record was classified as withheld,
-# its payload erased, and no `## Unparsed` entry emitted — the exact silent drop the
-# appendix exists to prevent for a future record. A candidate name now has to EQUAL a
-# verdict after trimming and case-folding, which leaves every accepted wrapper shape
-# intact because the wrapper is walked before the names are compared.
+# A candidate name has to EQUAL a verdict after trimming and case-folding, so an
+# extended name such as `not-found-v2` reaches `## Unparsed` instead of a silent drop.
 
 write_report tier-extended.json '{
   "counts": {"files": 2},
@@ -976,9 +957,7 @@ assert_contains "a deeply wrapped verdict is counted" "$DW_BODY" "1 judgment"
 
 # Trimming covers every invisible character, by Unicode CLASS rather than by a list
 # of the ones someone thought of: a tier that RENDERS as a verdict name in the
-# written file is a verdict name in the written file. An enumeration of two code
-# points left six others leaking, and a trailing unhandled one anchored the
-# end-of-string trim so it neutralized a leading code point that WAS handled.
+# written file is a verdict name in the written file.
 write_report tier-invisible-zwsp.json '{
   "findings": [{"tier": "​not-found﻿", "file": "x.md", "note": "INVIS-ZWSP",
                 "searched": ["https://z.example/u"]}]
@@ -1005,9 +984,8 @@ write_report tier-invisible-nbsp.json '{
   "findings": [{"tier": " not-found ", "file": "x.md", "note": "INVIS-NBSP",
                 "searched": ["https://z.example/u"]}]
 }'
-# A format character reads as nothing INSIDE the name too, so trimming the ends alone
-# left this rendering as `not-found` in the file while comparing unequal, and walking
-# onto a relay row when a stamp rule carried it.
+# A format character reads as nothing INSIDE the name too, so it is stripped there,
+# not only at the ends.
 write_report tier-invisible-interior.json '{
   "findings": [{"tier": "not-‍found", "file": "x.md", "note": "INVIS-INTERIOR",
                 "searched": ["https://z.example/u"]}]
@@ -1017,8 +995,7 @@ write_report tier-invisible-interior2.json '{
                 "note": "INVIS-INTERIOR2"}]
 }'
 # A variation selector and a combining grapheme joiner render as nothing too, and are
-# category Mn rather than Cf: stripping `Cf` alone left both spellings reading as the
-# verdict name in the written file while comparing unequal.
+# category Mn rather than Cf, so stripping `Cf` alone does not cover them.
 write_report tier-invisible-vs16.json '{
   "findings": [{"tier": "not-found️", "file": "x.md", "note": "INVIS-VS16",
                 "searched": ["https://z.example/u"]}]
@@ -1182,12 +1159,8 @@ assert_eq "and the copy it annotates still reaches the relay" \
 
 # --- One reader answers the eligibility question too -------------------------------
 #
-# The allowlist decided WHERE a tier is declared when withholding, while eligibility
-# compared `.tier` to the string exactly. So a copy declaring fingerprint-confirmed
-# at either allowlisted position was dropped — no row, no appendix entry — and the
-# `## Surfaces` count called it a copy declaring no fingerprint-confirmed tier, which
-# the reader beside it disagrees with. Casing was closed as an evasion route in the
-# withholding direction only.
+# Eligibility reads the declared tier through the same reader withholding does, so a
+# copy declaring fingerprint-confirmed at an allowlisted position is not dropped.
 write_report eligible-capkey.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -1220,11 +1193,8 @@ done
 
 # --- One malformed record never takes the run with it ------------------------------
 #
-# jq aborts the whole program on a type error, so a record that is not an object, or
-# whose `span` or `rule` is the wrong type, ended the run at exit 3 under a message
-# blaming the JSON — and every well-formed finding beside it was lost. Refusing a
-# sidecar is for what the input-refusal gates examine deliberately; a single bad
-# record is what `## Unparsed` is for.
+# jq aborts the whole program on a type error. Refusing a sidecar is for what the
+# input-refusal gates examine deliberately; a single bad record goes to `## Unparsed`.
 write_report malformed-mixed.json '{
   "counts": {"files": 2},
   "findings": [
@@ -1255,12 +1225,9 @@ assert_contains "a mistyped span still emits its copy row" "$MAL_BODY" "| s.md |
 # --- The other direction: relay-eligible findings SURVIVE --------------------------
 #
 # Every assertion above is a withhold assertion, and a boundary asserted only in one
-# direction is satisfied by withholding everything. Reading `tier` at any depth did
-# exactly that: these records declare `fingerprint-confirmed` or a stamp rule at the
-# top level and carry an unrelated nested `tier`, and each was dropped — no relay
-# row, no `## Unparsed` entry, counted as a judgment finding it is not. The sidecar
-# is model-authored against no schema and `tier` is already overloaded here, so none
-# of these shapes is contrived.
+# direction is satisfied by withholding everything. These records declare
+# `fingerprint-confirmed` or a stamp rule at the top level and carry an unrelated
+# nested `tier`; the sidecar is model-authored against no schema, so none is contrived.
 
 write_report survive-nested-history.json '{
   "counts": {"files": 2},
@@ -1458,9 +1425,8 @@ assert_eq "a stamp rule declaring no tier relays" \
 
 # --- The searched key is case-folded like every other key the reader matches -------
 #
-# The boundary case-folds `tier` and `verdict`; the gate read `searched` literally, so
-# a sidecar that DOES name its surfaces was refused whole, taking every relay-eligible
-# finding beside it.
+# The boundary case-folds `tier` and `verdict`, so the gate case-folds `searched`
+# too, or a sidecar that DOES name its surfaces is refused whole.
 write_report gate-searched-cased.json '{
   "counts": {"files": 2},
   "findings": [

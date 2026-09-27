@@ -42,6 +42,10 @@ document names substrate classes as marked examples only, never an instance list
   contains. The second reaches classes that derive no work class at all, so it cannot be expressed
   through the min-isolation column.
 
+  A boundary contains only what runs inside it. A protocol-connected tool surface the substrate
+  brokers from the host, rather than one the contained process launches itself, keeps executing
+  on the host at `L2` and `L3` alike.
+
 ## Axes
 
 Two axes place a run on the ladder: **attendance** (whether a human is watching and able to

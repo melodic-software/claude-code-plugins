@@ -86,6 +86,19 @@ Blog posts:
 - <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
   The designated deep-dive for prompting the Claude 5 generation, already being read by local
   work without a custody record, applicability tags, or an attestation pass
+- <https://claude.com/blog/getting-started-with-loops>
+  Linked from the claude.ai performance post
+  (<https://claude.dev/blog/how-we-made-claude-ai-faster>); by its title, the loop mechanism the
+  `performance` plugin's measure, change, and verify cycle and the `playbooks` orchestration
+  chapter's narrow threads assume. Subject unverified until fetched
+- <https://claude.com/blog/code-review>
+  The automated-review gate the claude.ai performance post names as a safety mechanism set up
+  before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
+  record against it. Unverified until fetched
+- <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic>
+  The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
+  which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
+  technique. Unverified until fetched
 
 Engineering posts:
 

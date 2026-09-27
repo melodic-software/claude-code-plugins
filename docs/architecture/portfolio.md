@@ -1,6 +1,6 @@
 # Application portfolio
 
-Generated on 2026-09-19 from current repository plus reference graph. Remote facts: not used.
+Generated on 2026-09-25 from current repository plus reference graph. Remote facts: not used.
 
 Last touched is the local HEAD of each checkout unless a remote fact says
 otherwise, so a stale checkout reports a stale date. `unknown` means no probe
@@ -12,7 +12,7 @@ is built with.
 
 | Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |
 |---|---|---|---|---|---|---|
-| claude-code-plugins | melodic-software | unknown | shell | (none) | node, python | 2026-09-19T14:21:49+00:00 |
+| claude-code-plugins | melodic-software | unknown | shell | (none) | node, python | 2026-09-25T01:24:36-04:00 |
 
 ## Development-scope dependencies
 

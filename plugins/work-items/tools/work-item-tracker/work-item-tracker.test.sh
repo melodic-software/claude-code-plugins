@@ -84,9 +84,8 @@ WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bas
 assert_eq "missing adapter dir → exit 3" "3" "$?"
 
 # --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
-# Adapters resolve consumer-local first, so a shadowing/generated adapter can skew
-# from the engine: major skew refuses (exit 3, direction-appropriate fix named);
-# newer-minor proceeds with a stderr notice (tolerant reader).
+# Major skew refuses (exit 3, direction-appropriate fix named); a newer minor
+# proceeds with a stderr notice.
 
 # make_skew_adapter <provider> <schema_version-json> — fake adapter + binding for
 # handshake cases; capabilities.sh present so a passing handshake can dispatch.
@@ -127,9 +126,8 @@ ERR="$(run_skew oldermajor capabilities 2>&1 >/dev/null)"
 assert_eq "older-major manifest → exit 3" "3" "$?"
 assert_contains "older-major error says regenerate the adapter" "$ERR" "update or regenerate the adapter"
 
-# Leading-zero components must be read base-10, not octal: "08.0" is major 8,
-# which must refuse — a bare (( )) would error on octal 08 and, with the errored
-# condition read as false, wave the incompatible adapter through.
+# Leading-zero components are read base-10: "08.0" is major 8 and must refuse, not
+# error as octal and wave the adapter through.
 make_skew_adapter "leadingzero" "\"schema_version\":\"08.0\","
 ERR="$(run_skew leadingzero capabilities 2>&1 >/dev/null)"
 assert_eq "leading-zero major manifest → exit 3" "3" "$?"
@@ -179,8 +177,7 @@ assert_contains "--parent + --repo error names --repo/--parent" "$ERR" "--repo i
 
 # --- two-root adapter resolution (CONTRACT.md "Adapter resolution") ---
 # WIT_ADAPTERS_DIR is left UNSET here so the consumer-local-first / plugin-bundled
-# fallback search runs. Consumer-local root is ${CLAUDE_PROJECT_DIR}/tools/
-# work-item-tracker/adapters; the bundled root is the dispatcher's own adapters/.
+# fallback search runs.
 
 # make_fake_adapter <dir> <provider-sentinel> — a capabilities-only adapter whose
 # manifest echoes <provider-sentinel>, so the resolved dir can be attributed.
@@ -222,25 +219,16 @@ assert_eq "plugin-bundled adapter is the fallback" "local-markdown" "$(jq -r '.p
 OUT="$(WORK_ITEM_TRACKER_BINDING="$BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" CLAUDE_PROJECT_DIR="$PROJECT" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "WIT_ADAPTERS_DIR override wins over consumer-local" "fake" "$(jq -r '.provider' <<<"$OUT")"
 
-# --- F3.8: consumer-local resolution in a bare shell (no CLAUDE_PROJECT_DIR) ---
-# The consumer-local root anchors at the git toplevel when CLAUDE_PROJECT_DIR is
-# unset — the same anchor the binding read uses — so a bare shell that finds the
-# binding also finds consumer-local adapters instead of silently skipping them (#2941).
+# --- consumer-local resolution in a bare shell (no CLAUDE_PROJECT_DIR) ---
+# The root anchors at the git toplevel, the same anchor the binding read uses (#2941).
 git init -q "$PROJECT"
 mkdir -p "$PROJECT/deep"
 OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
 
 # --- gh version gate is scoped to the native sub-issue/dependency surface ---
-# gh >= 2.94 buys `--parent` / `--blocked-by` / `--add-blocked-by` and the
-# blockedBy / parent / subIssues --json fields. Gate those flags and the verbs
-# that always use them, not every github verb: a blanket create-item / get-item
-# gate refused plain creates on cloud images that ship gh 2.45 (#3598). The
-# lease trio and capabilities stay ungated for the same reason as 0.39.18.
-#
-# Provider is "github" so the gate applies, while WIT_ADAPTERS_DIR points at
-# stub verb scripts — the gate keys on the bound provider, not on adapter
-# content, so this stays offline and never invokes real gh.
+# Provider "github" applies the gate while WIT_ADAPTERS_DIR points at stub verbs:
+# the gate keys on the bound provider, so this stays offline.
 GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
 mkdir -p "$GH_ADAPTERS/github"
 printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
@@ -332,14 +320,9 @@ RC="$(
 assert_eq "non-github provider is not version-gated" "0" "$RC"
 
 # --- gh ABSENT stays a clean exit 3 (CONTRACT.md "Degradation without gh") ---
-# Narrowing the VERSION floor must not let a gh-less session dispatch a verb that
-# shells out and die on `gh: command not found` inside the adapter. Presence is
-# still required for every github verb that invokes gh; only capabilities, which
-# reads the manifest and never shells out, answers without the binary.
-# A PATH that genuinely lacks gh: symlink every system binary EXCEPT gh into one
-# dir. Shadowing gh with a non-executable stub would not work — `command -v`
-# skips it and keeps searching — and dropping the system dirs outright would take
-# jq and git with it, so the dispatcher would fail for the wrong reason.
+# Only capabilities, which never shells out, answers without the binary.
+# A PATH lacking gh: every system binary EXCEPT gh symlinked into one dir. A
+# non-executable stub fails (`command -v` skips it), and dropping dirs loses jq and git.
 NOGH_BIN="$TEST_TMPDIR/nogh-bin"
 mkdir -p "$NOGH_BIN"
 for _d in /usr/bin /bin /usr/local/bin; do
@@ -350,9 +333,8 @@ for _d in /usr/bin /bin /usr/local/bin; do
     [[ -e "$NOGH_BIN/$_b" ]] || ln -s "$_f" "$NOGH_BIN/$_b" 2>/dev/null || true
   done
 done
-# Guard only on what these cases actually need: that gh does not resolve inside
-# NOGH_BIN. Requiring an ambient gh as well would skip the whole block on a
-# runner that has none — the exact environment the cases exist to cover.
+# Guard only that gh does not resolve inside NOGH_BIN: requiring an ambient gh would
+# skip the block on the very runner these cases exist to cover.
 [[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
   skip_suite "could not build a gh-free PATH for the presence-gate cases"
 

@@ -76,7 +76,11 @@ told:
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
 4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
-   Watch running workers and intervene the moment one drifts or is missing context.
+   Watch running workers and intervene the moment one drifts or is missing context. A worker that
+   must wait on an external result polls it in the foreground with a bounded loop, or returns what
+   it has and lets the parent re-dispatch. A background command or watch the worker started is not
+   a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
+   sentinel file appears unless something the worker launched writes it.
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep

@@ -2,9 +2,8 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    # Test-IsElevated is dot-sourced so Pester's Mock can intercept it. The check
-    # script itself imports the file from its own scope, but that doesn't make
-    # the function visible here; we need our own copy to mock against.
+    # Test-IsElevated is dot-sourced here so Mock can intercept it; the check script's
+    # own import is not visible in this scope.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
         -AsObject 'Invoke-DefenderExclusionsAsObject' -LibScript 'Test-IsElevated.ps1'
 }

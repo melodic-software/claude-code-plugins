@@ -10,7 +10,7 @@
 #   - real_log_line/real_metric_line: realistic OTLP/JSON shapes (resource+scope envelope,
 #     typed attributes, traceId/spanId) for the cold-compaction cases, which run the REAL
 #     duckdb COPY path and assert on cold Parquet CONTENT (state-based). Those cases gate on
-#     `command -v duckdb` -> skip_case (CI installs duckdb; see shell-lint.yml bash-tests).
+#     `command -v duckdb` -> skip_case (CI installs duckdb in ci.yml test-linux).
 
 set -uo pipefail
 

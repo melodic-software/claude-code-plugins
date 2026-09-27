@@ -237,9 +237,8 @@ else
 fi
 
 # A PostToolUse hook is IN scope: the same rule, from both sides. A reversed
-# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted
-# (this case previously asserted the opposite, when the gate scanned PreToolUse
-# only), and a hoisted PostToolUse script passes on its own.
+# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted,
+# and a hoisted PostToolUse script passes on its own.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 guard "$f" demo "post.sh" "$REVERSED"
@@ -281,6 +280,185 @@ if ((rc != 0)) && [[ "$out" == *"verify-b.sh"* && "$out" != *"run-guards.sh — 
   ok "a PostToolUse launcher's arguments are scanned, the launcher is not"
 else
   fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
+fi
+
+# --- rule 2: every blocking event, first early exit before the first source --
+
+# stop_hook <fixture> <event> <body> [<async>]
+stop_hook() {
+  guard "$1" demo "stop.sh" "$3"
+  jq -n --arg e "$2" --argjson a "${4:-false}" \
+    '{hooks:{($e):[{hooks:[{type:"command",command:"bash stop.sh",async:$a}]}]}}' \
+    >"$1/plugins/demo/hooks/hooks.json"
+}
+
+SOURCE_THEN_EXIT='#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+[[ -n "${DEMO_ARMED:-}" ]] || exit 0
+echo work
+exit 0'
+
+EXIT_THEN_SOURCE='#!/usr/bin/env bash
+[[ -n "${DEMO_ARMED:-}" ]] || exit 0
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+echo work
+exit 0'
+
+new_fixture f
+stop_hook "$f" Stop "$SOURCE_THEN_EXIT"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"stop.sh — first early exit at line 4 is BELOW the source at line 3"* ]]; then
+  ok "a Stop hook that sources before its first early exit FAILS"
+else
+  fail "a Stop hook that sources before its first early exit FAILS (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Stop "$EXIT_THEN_SOURCE"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"1 blocking hook script(s)"* ]]; then
+  ok "a Stop hook that exits before sourcing passes and is counted"
+else
+  fail "a Stop hook that exits before sourcing passes and is counted (rc=$rc): $out"
+fi
+
+# A clean PreToolUse guard beside it, so the corpus is not empty once the async
+# row is skipped.
+new_fixture f
+stop_hook "$f" Stop "$SOURCE_THEN_EXIT" true
+guard "$f" other "alpha.sh" "$HOISTED"
+hooks_json "$f" other '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "an async Stop hook is exempt"
+else
+  fail "an async Stop hook is exempt (rc=$rc): $out"
+fi
+
+# The hooks reference: async is ignored on UserPromptSubmit, which runs sync.
+new_fixture f
+stop_hook "$f" UserPromptSubmit "$SOURCE_THEN_EXIT" true
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"BELOW the source"* ]]; then
+  ok "async on a sync-only event (UserPromptSubmit) is not an exemption"
+else
+  fail "async on a sync-only event (UserPromptSubmit) is not an exemption (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" SessionStart "$SOURCE_THEN_EXIT"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"BELOW the source"* ]]; then
+  ok "a SessionStart hook is in scope"
+else
+  fail "a SessionStart hook is in scope (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Notification '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+hook::check_enabled "DEMO"
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"calls hook::check_enabled below the source"* ]]; then
+  ok "a Notification hook calling hook::check_enabled after its source FAILS"
+else
+  fail "a Notification hook calling hook::check_enabled after its source FAILS (rc=$rc): $out"
+fi
+
+# A hook entry jq cannot index stops jq part-way; the rows after it must not be
+# silently dropped.
+new_fixture f
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
+guard "$f" broken "stop.sh" "$SOURCE_THEN_EXIT"
+mkdir -p "$f/plugins/broken/hooks"
+printf '%s\n' '{"hooks":{"Stop":[{"hooks":["bogus",{"type":"command","command":"bash stop.sh"}]}]}}' \
+  >"$f/plugins/broken/hooks/hooks.json"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"broken/hooks/hooks.json — not readable"* ]]; then
+  ok "a hooks.json jq cannot fully read fails closed"
+else
+  fail "a hooks.json jq cannot fully read fails closed (rc=$rc): $out"
+fi
+
+# `hoist-ok:` above the first early exit excuses the order; on a
+# hook::check_enabled call it does not.
+new_fixture f
+stop_hook "$f" Stop '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# hoist-ok: the arm test is a library function with no inline form
+hook::demo_armed || exit 0
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a hoist-ok marker above the first early exit excuses the order"
+else
+  fail "a hoist-ok marker above the first early exit excuses the order (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Stop '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+hook::check_enabled "DEMO" # hoist-ok: not honored here
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"calls hook::check_enabled below the source"* ]]; then
+  ok "hoist-ok does not excuse a kill switch left below the source"
+else
+  fail "hoist-ok does not excuse a kill switch left below the source (rc=$rc): $out"
+fi
+
+# A `*` token in a command is text, never a glob against the repository root:
+# a root file `a-root.sh` must not become a scanned (and missing) hook script.
+new_fixture f
+stop_hook "$f" Stop "$EXIT_THEN_SOURCE"
+jq -n '{hooks:{Stop:[{hooks:[{type:"command",command:"bash stop.sh a*"}]}]}}' \
+  >"$f/plugins/demo/hooks/hooks.json"
+: >"$f/a-root.sh"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a glob token in a Stop command is not expanded (rule 2 walk)"
+else
+  fail "a glob token in a Stop command is not expanded (rule 2 walk) (rc=$rc): $out"
+fi
+
+new_fixture f
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh a*'
+: >"$f/a-root.sh"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a glob token in a PreToolUse command is not expanded (rule 1 walk)"
+else
+  fail "a glob token in a PreToolUse command is not expanded (rule 1 walk) (rc=$rc): $out"
+fi
+
+# Only a trailing `exit 0`: nothing exits early, so nothing can be hoisted.
+new_fixture f
+stop_hook "$f" Stop "$NO_SWITCH"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a Stop hook whose only exit is its last line passes"
+else
+  fail "a Stop hook whose only exit is its last line passes (rc=$rc): $out"
 fi
 
 # --- fail closed -------------------------------------------------------------

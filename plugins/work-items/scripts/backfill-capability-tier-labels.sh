@@ -1,18 +1,9 @@
 #!/usr/bin/env bash
-# backfill-capability-tier-labels.sh — one-shot migration for #1716 body stamps.
+# One-shot #1716 migration: label open items still carrying a legacy frontier-tier body
+# stamp. Setup apply runs it because triage never re-triages already-triaged items.
 #
-# Finds open items whose body carries a legacy frontier-tier triage-briefing signal
-# but lack the provider-permissioned capability-tier: frontier label, then optionally
-# applies the label. Triage refuses to re-triage already-triaged output, so setup
-# apply runs this pass after the label axis is provisioned.
-#
-# Usage:
-#   backfill-capability-tier-labels.sh check [--repo <owner>/<repo>]
-#   backfill-capability-tier-labels.sh apply [--repo <owner>/<repo>] [--dry-run] [--yes]
-#
-# check — prints one candidate issue/PR number per line (stdout); exit 0 always.
-# apply — adds capability-tier: frontier to each candidate; exit 1 when label missing
-#         from repo or gh unavailable; exit 2 when interactive confirmation declined.
+# check exits 0 always. apply exits 1 when the label is unprovisioned or gh is missing,
+# 2 when interactive confirmation is declined.
 
 set -euo pipefail
 
@@ -88,9 +79,6 @@ list_open_items_without_label_json() {
     ]' <<<"$items"
 }
 
-# collect_candidates — one candidate issue/PR number per line: open items that
-# lack the capability-tier label (the jq select above already excludes labeled
-# ones) and whose body still carries a legacy frontier-tier stamp.
 collect_candidates() {
   local items item body number
   items="$(list_open_items_without_label_json)"

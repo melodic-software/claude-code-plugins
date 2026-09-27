@@ -41,13 +41,8 @@ function Get-CapacityFromBatteryReport {
         return $null
     }
 
-    # Locale-robust parser. Regex-matching the English labels "DESIGN
-    # CAPACITY" and "FULL CHARGE CAPACITY" breaks on localized Windows
-    # where they're translated. The HTML structure is stable across
-    # locales: the Installed Batteries section lists design capacity
-    # first, then full-charge capacity, each as a numeric value followed
-    # by "mWh". Accepting comma or dot as thousands separator covers both
-    # en-US (45,000) and de-DE (45.000) style numbers.
+    # Match "<number> mWh" values, not the English labels (translated on localized Windows):
+    # design capacity comes first, then full charge; comma or dot thousands separators.
     $pattern = '([\d][\d.,]*)\s*mWh'
     $mwhMatches = [regex]::Matches($html, $pattern, 'IgnoreCase')
     if ($mwhMatches.Count -lt 2) {

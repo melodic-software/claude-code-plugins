@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>repo-sweep plan</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto;
+    padding: 0 1rem 4rem; line-height: 1.5; background: #FAF9F5; color: #141413;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #141413; color: #FAF9F5; } }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  p.lead { opacity: .8; margin-top: 0; }
+  h2.phase { font-size: 1rem; margin: 1.5rem 0 .5rem; border-bottom: 1px solid currentColor; padding-bottom: .25rem; opacity: .8; }
+  ul#list { list-style: none; margin: 0; padding: 0; }
+  li.row {
+    display: grid; grid-template-columns: auto auto 1fr auto; gap: .5rem .75rem;
+    align-items: start; border: 1px solid #D1CFC5; border-radius: 8px;
+    padding: .6rem .8rem; margin-bottom: .5rem; cursor: grab; background: Canvas;
+  }
+  li.row.dimmed { opacity: .55; }
+  li.row.dragover { outline: 2px dashed currentColor; }
+  li.row .id { font-family: ui-monospace, monospace; font-weight: 600; }
+  li.row .meta { font-size: .85rem; opacity: .85; margin-top: .2rem; }
+  .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 1rem; border: 1px solid currentColor; white-space: nowrap; height: fit-content; }
+  .badge.run, .badge.rerun { color: #2f6b2f; border-color: #2f6b2f; }
+  .badge.rerun-optional { color: #8a6d00; border-color: #8a6d00; }
+  .badge.not-applicable { color: #8a3b3b; border-color: #8a3b3b; }
+  .order-buttons { display: flex; flex-direction: column; gap: .15rem; }
+  .order-buttons button { font: inherit; cursor: pointer; }
+  #copy-row { display: flex; gap: .5rem; align-items: center; margin: 1.5rem 0; flex-wrap: wrap; }
+  #line { flex: 1 1 320px; font-family: ui-monospace, monospace; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1 id="title">repo-sweep plan</h1>
+<p class="lead">Check the entries to run, drag a row or use its arrows to reorder, then copy the selection line back into chat.</p>
+<div id="groups"></div>
+<div id="copy-row">
+  <button id="copy-btn" type="button">Copy selection</button>
+  <textarea id="line" readonly rows="2" aria-label="Selection line"></textarea>
+</div>
+<script type="application/json" id="repo-sweep-data">__REPO_SWEEP_DATA__</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('repo-sweep-data').textContent);
+  var order = data.entries.slice();
+  document.getElementById('title').textContent = 'repo-sweep plan: ' + data.playbook;
+
+  function badge(rec) {
+    var span = document.createElement('span');
+    span.className = 'badge ' + rec;
+    span.textContent = rec;
+    return span;
+  }
+
+  function indexOf(id) {
+    for (var i = 0; i < order.length; i++) if (order[i].id === id) return i;
+    return -1;
+  }
+
+  function move(id, delta) {
+    var i = indexOf(id), j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    render();
+  }
+
+  function reorder(sourceId, targetId) {
+    var from = indexOf(sourceId), to = indexOf(targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    var entry = order.splice(from, 1)[0];
+    order.splice(to, 0, entry);
+    render();
+  }
+
+  function updateLine() {
+    var ids = order.filter(function (e) { return e.checked; }).map(function (e) { return e.id; });
+    document.getElementById('line').value = 'repo-sweep-selection: ' + ids.join(',');
+  }
+
+  function buildRow(entry) {
+    var li = document.createElement('li');
+    li.className = 'row' + (entry.recommendation === 'not-applicable' ? ' dimmed' : '');
+    li.draggable = true;
+    li.dataset.id = entry.id;
+
+    var label = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = entry.checked;
+    cb.setAttribute('aria-label', 'Select ' + entry.id);
+    cb.addEventListener('change', function () { entry.checked = cb.checked; updateLine(); });
+    label.appendChild(cb);
+
+    var info = document.createElement('div');
+    var idLine = document.createElement('div');
+    idLine.className = 'id';
+    idLine.textContent = entry.id + ' - ' + entry.skills.join(', ');
+    info.appendChild(idLine);
+    var bits = [];
+    if (entry.args) bits.push('args: ' + entry.args);
+    bits.push('applies when: ' + entry.appliesWhen);
+    if (entry.issue) bits.push('issue: ' + entry.issue);
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = bits.join(' · ');
+    info.appendChild(meta);
+    if (entry.reason) {
+      var reason = document.createElement('div');
+      reason.className = 'meta';
+      reason.textContent = entry.reason;
+      info.appendChild(reason);
+    }
+
+    var buttons = document.createElement('div');
+    buttons.className = 'order-buttons';
+    var up = document.createElement('button');
+    up.type = 'button'; up.textContent = '▲';
+    up.setAttribute('aria-label', 'Move ' + entry.id + ' up');
+    up.addEventListener('click', function () { move(entry.id, -1); });
+    var down = document.createElement('button');
+    down.type = 'button'; down.textContent = '▼';
+    down.setAttribute('aria-label', 'Move ' + entry.id + ' down');
+    down.addEventListener('click', function () { move(entry.id, 1); });
+    buttons.appendChild(up); buttons.appendChild(down);
+
+    li.appendChild(label);
+    li.appendChild(badge(entry.recommendation));
+    li.appendChild(info);
+    li.appendChild(buttons);
+
+    li.addEventListener('dragstart', function (e) { e.dataTransfer.setData('text/plain', entry.id); });
+    li.addEventListener('dragover', function (e) { e.preventDefault(); li.classList.add('dragover'); });
+    li.addEventListener('dragleave', function () { li.classList.remove('dragover'); });
+    li.addEventListener('drop', function (e) {
+      e.preventDefault();
+      li.classList.remove('dragover');
+      reorder(e.dataTransfer.getData('text/plain'), entry.id);
+    });
+    return li;
+  }
+
+  function render() {
+    var host = document.getElementById('groups');
+    host.textContent = '';
+    var list = document.createElement('ul');
+    list.id = 'list';
+    var lastPhase = null;
+    order.forEach(function (entry) {
+      if (entry.phase !== lastPhase) {
+        var h = document.createElement('h2');
+        h.className = 'phase';
+        h.textContent = entry.phase;
+        list.appendChild(h);
+        lastPhase = entry.phase;
+      }
+      list.appendChild(buildRow(entry));
+    });
+    host.appendChild(list);
+    updateLine();
+  }
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var line = document.getElementById('line').value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(line).catch(function () {});
+    }
+    document.getElementById('line').select();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

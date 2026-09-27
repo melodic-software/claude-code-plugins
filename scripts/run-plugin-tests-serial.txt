@@ -49,7 +49,7 @@ plugins/rate-limit-guard/bench/bench.test.sh
 plugins/rate-limit-guard/scripts/statusline-tee.test.sh
 plugins/context-guard/scripts/statusline-tee.test.sh
 
-# Always-on hooks assert the marketplace latency budget (.claude/rules/hook-budget.md).
+# Always-on hooks assert the marketplace latency budget (docs/conventions/hook-budget/README.md).
 plugins/desktop-notification/hooks/desktop-notification.test.sh
 plugins/instruction-placement/hooks/index-drift.test.sh
 plugins/markdown-format/hooks/markdown-format.test.sh

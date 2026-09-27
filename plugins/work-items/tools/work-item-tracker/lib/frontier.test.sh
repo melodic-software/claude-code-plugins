@@ -61,9 +61,8 @@ SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","bl
 COUNT="$(frontier_count true <<<"$SPARSE")"
 assert_eq "sparse item survives filters" "1" "$COUNT"
 
-# Container exclusion: a container item (default work-map
-# label) that is itself open/unassigned/unblocked must never surface as its own
-# frontier item — unconditionally, not only under --autonomous.
+# An open, unassigned, unblocked container item never surfaces as its own frontier
+# item, unconditionally, not only under --autonomous.
 CONTAINERS='{
   "schema_version": "1.0",
   "items": [
@@ -90,11 +89,8 @@ IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
-# Human-floor work classes (labels.sh WIT_HUMAN_FLOOR_WORK_CLASS_LABELS): C4
-# structural and C5 untrusted-provenance are human-gated regardless of any other
-# signal, so the autonomous frontier must drop them EVEN WHEN the item also
-# carries the autonomous-eligible role label. Before this filter existed such a
-# contradictory item was claimed and then escalated once per lane instance.
+# The autonomous frontier drops human-floor work classes (C4, C5) EVEN WHEN the item
+# also carries the autonomous-eligible role label.
 WORK_CLASS='{
   "schema_version": "1.0",
   "items": [
@@ -115,9 +111,8 @@ IDS="$(frontier_ids false <<<"$WORK_CLASS")"
 assert_eq "default frontier still surfaces C4/C5 for the attended lane" \
   "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5" "$IDS"
 
-# C3 scoped is deliberately NOT in the floor: its disposition depends on
-# bug-fix-vs-feature shape and first-drain ratification, which the work-loop
-# admission gate owns and no label carries. It must survive this filter.
+# C3 scoped is deliberately NOT in the floor (the admission gate owns it), so it
+# must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#7","state":"open","assignees":[],"labels":["work-class: scoped"],"blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$SCOPED")"

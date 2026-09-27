@@ -2,7 +2,8 @@
 # Deterministic engine for the audit skill.
 #
 # WHAT IT DECIDES. Every audit row that a script can settle without a reading:
-# schema and structure (A), the presence of each baseline permission pattern
+# schema, structure, and whether each settings key is documented or deprecated
+# (A), the presence of each baseline permission pattern
 # and the placement rules around it (B), MCP server shape (C), hook path, timeout
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
 # and drift (E), the secret scan and env-vars documentation status (F), the
@@ -11,6 +12,19 @@
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
 # shell calls.
+#
+# WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
+# fetches the docs index (llms.txt) over the network with curl, resolves each
+# page it needs (settings-reference, env-vars) from a link in that index, and
+# reads it verbatim into a temp directory it removes on exit (trap). A page
+# supplied through --docs-dir is read from there instead. Whether a key is
+# documented or deprecated, the accepted effortLevel and
+# disableDeepLinkRegistration values, and the version a key requires are taken
+# from settings-reference; env-var documentation status from env-vars. A row
+# resting on a page that was not read is not-inspectable, never clean. The
+# engine also runs `claude --version` and records the result, and searches the
+# installed claude binary for the literal names of undocumented keys. The
+# document lists every page with its byte count and read state.
 #
 # WHAT IT LEAVES TO THE MODEL. Anything that needs a reading: whether a hook
 # with no coverage manifest blocks a family, whether a disabled MCP server has a
@@ -30,8 +44,8 @@
 # to decide which rows apply: session posture is declared by the consumer's
 # suppression record and nothing else. It never echoes a value from
 # settings.local.json other than the four model and effort keys the audit
-# already reports by value. It never runs a hook, and it never writes anywhere
-# except the path given to --out.
+# already reports by value. It never runs a hook, and it writes nowhere except
+# the path given to --out and its own temp directories.
 #
 # Exit codes:
 #   0  no error-severity finding
@@ -43,8 +57,13 @@
 #   SETTINGS_AUDIT_ENGINE_USER_DIR      user config dir (else CLAUDE_CONFIG_DIR, else $HOME/.claude)
 #   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON path to installed_plugins.json
 #   SETTINGS_AUDIT_ENGINE_BASELINE_FILE  required-permissions.md to read the baseline from
+#   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
+#   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
+#                                       nothing is fetched and pages resolve through that llms.txt
+#   SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL the docs index (default https://code.claude.com/docs/llms.txt)
+#   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
 #
@@ -74,7 +93,7 @@ Usage:
   --table       emit a human-readable summary instead
   --out <file>  also write the findings rows, in the audit-pass identity shape, to <file>
   --docs-dir    a directory holding verbatim docs pages (<slug>.md) fetched this run;
-                when present the environment-variable rows are checked against env-vars.md
+                a page found there is read instead of fetched
   --debug-log   a debug log to read the skill-listing measurement from, ahead of the
                 documented locations
 
@@ -272,6 +291,7 @@ INSTALLED_JSON=""
 scopes::installed_registry_to INSTALLED_JSON "${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}" "$USER_DIR"
 
 BASELINE_FILE="${SETTINGS_AUDIT_ENGINE_BASELINE_FILE:-$PLUGIN_ROOT/skills/audit/reference/required-permissions.md}"
+CR_FILE="${SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE:-$PLUGIN_ROOT/skills/audit/reference/consent-receipts.json}"
 
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
@@ -306,6 +326,9 @@ MALFORMED=()
 row() {
   local cat="$1" slug="$2" status="$3" sev="$4" surface="$5" claim="$6" detail="$7" excerpt="${8:--}"
   local check="claude-config/audit/$cat/$slug" anchor="" fid="" json
+  # Git Bash rewrites an argument holding `=/` before a native jq sees it; a
+  # claim or detail carries a key exactly as written, so conversion is off here.
+  local -x MSYS2_ARG_CONV_EXCL='*'
   if [[ "$status" == "finding" ]]; then
     if [[ "$excerpt" == "-" ]]; then
       anchor="s:"
@@ -373,6 +396,37 @@ jqf() {
   local f="$1"
   shift
   tr -d '\r' <"$f" | jqs "$@"
+}
+
+# ejq <jq args>: jq with Git Bash argument conversion off, so a program or
+# value holding `=/` reaches jq unrewritten; CRLF is stripped from compact or
+# base64 output only, where a CR can only be a line ending.
+ejq() { MSYS2_ARG_CONV_EXCL='*' jq "$@" 2>/dev/null | tr -d '\r'; }
+
+# Shared jq definitions over the user, project and local scopes (category A's
+# consent receipts and category E's plugin rows); `enabled` is the merged
+# enabledPlugins, local over project over user.
+E_DEFS='
+def obj: if type == "object" then . else {} end;
+def mk: split("@") | last // "";
+def disp: gsub("[[:cntrl:]]"; "?");
+def scopes: [{label: "user", surface: $su, s: .user}, {label: "project", surface: $sp, s: .project}, {label: "local", surface: $sl, s: .local}]
+  | map(select(.s != null) | {label, surface, e: (.s | obj | .enabledPlugins | obj)});
+def enabled: [(reduce scopes[] as $x ({}; . + $x.e)) | to_entries[] | select(.value == true) | .key] | sort;
+def holder($S; $k): [range(0; $S | length) | select($S[.].e | has($k))] | last;
+def depkey($k):
+  if type == "string" then (if index("@") then . else . + "@" + ($k | mk) end)
+  elif type == "object" and (.name | type) == "string" then .name + "@" + ((.marketplace | select(type == "string")) // ($k | mk))
+  else null end;
+def emit: map(@base64 | if . == "" then "-" else . end) | join(" ");
+'
+E_ARGS=(--arg su "$SURF_USER" --arg sp "$SURF_SETTINGS" --arg sl "$SURF_LOCAL")
+
+# e_scope <ok> <file>: the scope's JSON, or null when it was not read.
+e_scope() {
+  local j=""
+  [[ "$1" -eq 1 ]] && j="$(jqf "$2" -c '.')"
+  printf '%s\n' "${j:-null}"
 }
 
 case "${SCOPE_STATE[project]}" in
@@ -477,6 +531,246 @@ load_suppression_layer team "$PROJECT_ROOT/.claude/audit-pass.md"
 [[ -n "$USER_DIR" ]] && load_suppression_layer user-global "$USER_DIR/audit-pass.md"
 load_suppression_layer local "$PROJECT_ROOT/.claude/audit-pass.local.md"
 
+# --- Upstream sources: the docs pages and the installed CLI ---------------------
+#
+# Read here, after every early exit, so the identity subcommands and a fatal
+# argument or settings error never reach the network or run the CLI.
+
+DOCS_TMP="$(mktemp -d 2>/dev/null)"
+if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
+  echo "ERROR: could not create a temp directory for the docs pages" >&2
+  exit 2
+fi
+trap 'rm -rf "$DOCS_TMP"' EXIT
+
+DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
+DOCS_ORIGIN=""
+[[ "$DOCS_INDEX_URL" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*) ]] && DOCS_ORIGIN="${BASH_REMATCH[1]}"
+# Set, even to an empty or missing directory, means no network: a seam that
+# points nowhere reads as unread pages, never as a fall back to the fetch.
+DOCS_FIXTURE_SET=0
+[[ -n "${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR+x}" ]] && DOCS_FIXTURE_SET=1
+DOCS_FIXTURE="${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR:-}"
+# Every control character but tab and newline, CR included, is dropped from the
+# working copy of a page, so text quoted from it into a row or the table never
+# carries one. Byte counts are taken from the page as read.
+DOC_CNTRL='\000-\010\013-\037\177'
+
+# fetch_verbatim <url> <dest>: the whole body or nothing. A timeout or an HTTP
+# error mid-download leaves no partial file to be counted as read (return 1).
+# HTTPS only, redirects included, and a redirect that lands outside the docs
+# origin is refused after the fact (return 2): the origin check on the linked
+# URL says nothing about where a redirected body came from.
+fetch_verbatim() {
+  local effective
+  if effective="$(curl -fsSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
+    -w '%{url_effective}' -o "$2" "$1" 2>/dev/null)" && [[ -s "$2" ]]; then
+    [[ -n "$DOCS_ORIGIN" && "$effective" == "$DOCS_ORIGIN/docs/"* ]] && return 0
+    rm -f "$2"
+    return 2
+  fi
+  rm -f "$2"
+  return 1
+}
+
+# The index is read on the first page that needs it; a run whose pages all
+# come from --docs-dir leaves it not-needed.
+INDEX_STATE=""
+INDEX_SOURCE=""
+INDEX_BYTES=0
+INDEX_REASON=""
+load_index() {
+  [[ -n "$INDEX_STATE" ]] && return 0
+  local raw=""
+  INDEX_STATE=unread
+  if [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
+    INDEX_SOURCE=fixture
+    if [[ -s "$DOCS_FIXTURE/llms.txt" ]]; then raw="$DOCS_FIXTURE/llms.txt"; else INDEX_REASON="fixture-missing"; fi
+  elif ! command -v curl >/dev/null 2>&1; then
+    INDEX_SOURCE=fetch
+    INDEX_REASON="curl-missing"
+  else
+    INDEX_SOURCE=fetch
+    fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"
+    case $? in
+    0) raw="$DOCS_TMP/llms.raw" ;;
+    2) INDEX_REASON="redirected-off-origin" ;;
+    *) INDEX_REASON="fetch-failed" ;;
+    esac
+  fi
+  [[ -n "$raw" ]] || return 0
+  INDEX_BYTES="$(wc -c <"$raw" | tr -d ' ')"
+  tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/llms.txt"
+  INDEX_STATE="read"
+}
+
+# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
+index_link() {
+  awk -v suf="/$1.md" '{
+    while (match($0, /\]\([^) \t]+\)/)) {
+      u = substr($0, RSTART + 2, RLENGTH - 3)
+      $0 = substr($0, RSTART + RLENGTH)
+      if (length(u) >= length(suf) && substr(u, length(u) - length(suf) + 1) == suf) { print u; exit }
+    }
+  }' "$DOCS_TMP/llms.txt"
+}
+
+declare -A PAGE_FILE=()
+DOCS_PAGES_JSON='[]'
+# acquire_page <slug>: read the page verbatim into the temp directory (control
+# characters stripped) and record where it came from, its byte count, and its state.
+acquire_page() {
+  local slug="$1" src="" loc="" raw="" reason="" state=unread bytes=0
+  if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
+    src=docs-dir
+    loc="$DOCS_DIR/$slug.md"
+    raw="$loc"
+  else
+    load_index
+    if [[ "$INDEX_STATE" != "read" ]]; then
+      reason="index-unread"
+    else
+      loc="$(index_link "$slug")"
+      if [[ -z "$loc" ]]; then
+        reason="not-in-index"
+      elif [[ -z "$DOCS_ORIGIN" || "$loc" != "$DOCS_ORIGIN/docs/"* ]]; then
+        reason="off-origin"
+      elif [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
+        src=fixture
+        if [[ -s "$DOCS_FIXTURE/$slug.md" ]]; then raw="$DOCS_FIXTURE/$slug.md"; else reason="fixture-missing"; fi
+      else
+        src=fetch
+        fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"
+        case $? in
+        0) raw="$DOCS_TMP/$slug.raw" ;;
+        2) reason="redirected-off-origin" ;;
+        *) reason="fetch-failed" ;;
+        esac
+      fi
+    fi
+  fi
+  if [[ -n "$raw" ]]; then
+    bytes="$(wc -c <"$raw" | tr -d ' ')"
+    tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
+    PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
+    state="read"
+  fi
+  DOCS_PAGES_JSON="$(jq -c --arg s "$slug" --arg l "$loc" --arg src "$src" --argjson b "$bytes" --arg st "$state" --arg r "$reason" \
+    '. + [{slug:$s,url_or_path:$l,source:$src,bytes:$b,state:$st,reason:$r}]' <<<"$DOCS_PAGES_JSON")"
+}
+acquire_page settings-reference
+acquire_page env-vars
+[[ -n "$INDEX_STATE" ]] || INDEX_STATE=not-needed
+SR="${PAGE_FILE[settings-reference]:-}"
+EV="${PAGE_FILE[env-vars]:-}"
+
+# The CLI. A seam that is set but names nothing is unreadable, never a fall
+# back to the claude on PATH.
+if [[ -n "${SETTINGS_AUDIT_ENGINE_CLAUDE_BIN+x}" ]]; then
+  CLAUDE_BIN="$SETTINGS_AUDIT_ENGINE_CLAUDE_BIN"
+else
+  CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
+  [[ -n "$CLAUDE_BIN" ]] && CLAUDE_BIN="$(readlink -f "$CLAUDE_BIN" 2>/dev/null || printf '%s' "$CLAUDE_BIN")" # portability-ok: a readlink without -f falls back to the unresolved path
+fi
+CLAUDE_RAW=""
+CLAUDE_VERSION=""
+if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" ]]; then
+  if command -v timeout >/dev/null 2>&1; then
+    CLAUDE_RAW="$(timeout 30 "$CLAUDE_BIN" --version 2>/dev/null </dev/null | head -n 1)"
+  else
+    CLAUDE_RAW="$("$CLAUDE_BIN" --version 2>/dev/null </dev/null | head -n 1)"
+  fi
+  # Control characters (a terminal escape, a CR) never reach a row or the table.
+  CLAUDE_RAW="$(tr -d '[:cntrl:]' <<<"$CLAUDE_RAW")"
+  [[ "$CLAUDE_RAW" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && CLAUDE_VERSION="${BASH_REMATCH[1]}"
+fi
+
+# version_lt <a> <b>: true when x.y.z a is older than b, compared numerically.
+version_lt() {
+  local IFS=. i
+  local -a a b
+  read -r -a a <<<"$1"
+  read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    ((10#${a[i]:-0} < 10#${b[i]:-0})) && return 0
+    ((10#${a[i]:-0} > 10#${b[i]:-0})) && return 1
+  done
+  return 1
+}
+
+# settings-reference, parsed once: every ### `key` heading, the first line of
+# its section that begins "Deprecated", and the first "Requires Claude Code
+# vX.Y.Z". A section ends at the next heading of any level outside a code fence.
+declare -A SR_KEY=()
+declare -A SR_DEPRECATED=()
+declare -A SR_REQUIRES=()
+declare -A PERM_TYPE_KEYS=()
+if [[ -n "$SR" ]]; then
+  while IFS=$'\t' read -r k dep req; do
+    [[ -n "$k" ]] || continue
+    SR_KEY[$k]=1
+    [[ "$dep" != "-" ]] && SR_DEPRECATED[$k]="$dep"
+    [[ "$req" != "-" ]] && SR_REQUIRES[$k]="$req"
+  done < <(awk '
+    function flush() { if (key != "") printf "%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req); key = "" }
+    /^[[:space:]]*```/ { fence = !fence; next }
+    fence { next }
+    /^(#|##|###|####) / {
+      flush()
+      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = "" }
+      next
+    }
+    key == "" { next }
+    dep == "" && /^[[:space:]]*Deprecated/ { dep = $0; sub(/^[[:space:]]+/, "", dep); gsub(/\t/, " ", dep) }
+    req == "" && match($0, /Requires Claude Code v[0-9]+\.[0-9]+\.[0-9]+/) { req = substr($0, RSTART + 22, RLENGTH - 22) }
+    END { flush() }
+  ' "$SR")
+fi
+
+# sr_section <key>: the body of the key's section on settings-reference.
+sr_section() {
+  awk -v h="### \`$1\`" '
+    /^[[:space:]]*```/ { fence = !fence; if (in_s) print; next }
+    !fence && /^(#|##|###|####) / { if (in_s) exit; in_s = ($0 == h); next }
+    in_s { print }
+  ' "$SR"
+}
+
+# type_values <key>: the string values the key's Type bullet accepts, one per
+# line, from either shape the page uses: "string, one of:" followed by nested
+# `"value"` bullets, or "the string `"value"`". Nothing when neither parses.
+type_values() {
+  sr_section "$1" | awk '
+    mode == "list" {
+      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); print v; next }
+      exit
+    }
+    /^\* \*\*Type\*\*:/ {
+      if ($0 ~ /string, one of:[[:space:]]*$/) { mode = "list"; next }
+      if (match($0, /the string `"[^"]*"`/)) print substr($0, RSTART + 13, RLENGTH - 15)
+      exit
+    }
+  '
+}
+
+# The permissions object's Type bullet names the nested keys it takes, which
+# covers one with no heading of its own.
+if [[ -n "$SR" ]]; then
+  while IFS= read -r pk; do
+    [[ -n "$pk" ]] && PERM_TYPE_KEYS[$pk]=1
+  done < <(sr_section permissions | grep -m1 -E '^\* \*\*Type\*\*:' | grep -oE '`[^`]+`' | tr -d '`')
+fi
+
+# Positive control: a page that was read but has no heading for two keys every
+# version documents (a soft 404, a reshaped page) did not parse, and every row
+# resting on it is not-inspectable rather than a run of undocumented keys.
+SR_UNREAD_WHY="settings-reference was not read this run"
+if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}" ) ]]; then
+  SR=""
+  SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
+  DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
+fi
+
 # --- Category A: schema and structure ----------------------------------------
 
 SCHEMA_URL="https://json.schemastore.org/claude-code-settings.json"
@@ -502,6 +796,219 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   if [[ "$(jqf "$LOCAL" -r 'has("hooks")')" == "true" ]]; then
     row A hooks-in-local finding info "$SURF_LOCAL" "personal-key:hooks" "hooks in settings.local.json are personal, not team configuration" /hooks
   fi
+fi
+
+# Documented and deprecated keys: every top-level and permissions.* key is
+# looked up on settings-reference. A key with no heading there is not reported
+# as ignored, because the page omits keys the CLI manages itself; the installed
+# binary settles it, searched once for every such key after the scopes are read.
+KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
+check_keys() {
+  # check_keys <file> <surface>
+  local file="$1" surface="$2" k leaf ptr dep since
+  # Fields arrive NUL-separated, so a key reaches its claim and the binary
+  # search exactly as written in the file: no tab-separated escaping.
+  while IFS= read -r -d '' k && IFS= read -r -d '' leaf && IFS= read -r -d '' ptr; do
+    [[ -n "$k" ]] || continue
+    if [[ -z "$SR" ]]; then
+      row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "$SR_UNREAD_WHY; whether $k is documented is not decided" -
+      continue
+    fi
+    if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
+      KP_SURF+=("$surface") KP_KEY+=("$k") KP_LEAF+=("$leaf") KP_PTR+=("$ptr")
+      continue
+    fi
+    dep="${SR_DEPRECATED[$k]:-}"
+    if [[ -z "$dep" ]]; then
+      row A key-documented ok none "$surface" "documented-key:$k" "$k is documented on settings-reference" -
+      continue
+    fi
+    if [[ "$dep" =~ since\ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+      since="${BASH_REMATCH[1]}"
+      if [[ -z "$CLAUDE_VERSION" ]]; then
+        row A key-deprecated skip none "$surface" "deprecated-key:$k" "settings-reference deprecates $k since v$since and the installed Claude Code version could not be read; not decided" -
+        continue
+      fi
+      if version_lt "$CLAUDE_VERSION" "$since"; then
+        row A key-deprecated ok none "$surface" "deprecated-key:$k" "installed v$CLAUDE_VERSION predates v$since, where settings-reference deprecates $k" -
+        continue
+      fi
+    fi
+    row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
+    # An empty key name has no literal to look up, so it is left out here.
+  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
+}
+[[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
+[[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
+[[ $USER_OK -eq 1 ]] && check_keys "$USER_SETTINGS" "$SURF_USER"
+
+# The binary is searched only for undocumented keys, once per literal, after
+# two documented keys every build carries are found in it. A file missing
+# either control (a .cmd shim, a wrapper script) was not really searched, so no
+# key is called absent. Every undocumented key keeps one claim; only the
+# severity and the detail say what the binary showed.
+#
+# The match is delimited: the name must stand alone, bounded on both sides by a
+# character that cannot continue a JavaScript identifier, so `e` does not match
+# inside `enabledPlugins`. Only an identifier-shaped name of four or more
+# characters is searched; a shorter or odd-shaped one would match too much to
+# prove anything and is reported as not searched. A hit shows the CLI carries
+# the name as a standalone identifier or string, not that it reads the key.
+# Consent receipts: reference/consent-receipts.json records, per owner (a
+# plugin@marketplace id, or `claude-code` for keys the CLI writes), the
+# undocumented top-level keys written when the user accepts a prompt. Read only
+# when an undocumented top-level key exists; a missing or invalid file (one that
+# lists a key under two owners is invalid) is one not-inspectable row and every
+# key keeps its undocumented-key finding.
+CR_STATE=unread CR_WHY=""
+CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
+cr_load() {
+  local i crj scopes_json why="" f=() n
+  for i in "${!KP_KEY[@]}"; do
+    [[ "${KP_KEY[$i]}" == "${KP_LEAF[$i]}" ]] && { CR_STATE=wanted; break; }
+  done
+  [[ "$CR_STATE" == wanted ]] || return 0
+  if [[ ! -f "$CR_FILE" || ! -r "$CR_FILE" ]]; then
+    why="is missing or unreadable"
+  else
+    crj="$(tr -d '\r' <"$CR_FILE" | ejq -c -s 'if length == 1 then .[0] else empty end')"
+    scopes_json="$(
+      {
+        e_scope "$USER_OK" "$USER_SETTINGS"
+        e_scope "$PROJECT_OK" "$SETTINGS"
+        e_scope "$LOCAL_OK" "$LOCAL"
+      } | ejq -c -s '{user: .[0], project: .[1], local: .[2]}'
+    )"
+    while IFS= read -r -d '' n; do f+=("$n"); done < <(printf '%s\n%s\n' "${crj:-null}" "${scopes_json:-null}" | ejq -j -s "${E_ARGS[@]}" "$E_DEFS"'
+      # A control character (U+0000-U+001F) in any field could shift the
+      # NUL-separated fields below, so such a record makes the file invalid.
+      def plain: type == "string" and length > 0 and (explode | all(. >= 32));
+      def rec: type == "object"
+        and all(("key", "meaning", "basis", "as_of", "recheck") as $f | .[$f]; plain)
+        and (.scopes | type) == "array" and (.scopes | length) > 0
+        and all(.scopes[]; . == "user" or . == "project" or . == "local");
+      # A key listed under two owners has no single owner, so the file is invalid.
+      def valid: type == "object" and (.consentReceipt | type) == "object"
+        and all(.consentReceipt | to_entries[]; (.key | plain) and (.key == "claude-code" or (.key | test("^[^@]+@[^@]+$")))
+          and (.value | type) == "array" and all(.value[]; rec))
+        and ([.consentReceipt | to_entries[] | .key as $o | .value[] | {k: .key, $o}]
+          | group_by(.k) | all(map(.o) | unique | length == 1));
+      # nkeys($s; $k): how many keys of scope $s read as $k once carriage
+      # returns are removed, the way check_keys reads them.
+      def nkeys($s; $k): [$s | obj | keys[] | select(gsub("\r"; "") == $k)] | length;
+      if length == 2 and (.[0] | valid) and (.[1] | type) == "object" then
+        .[1] as $c | ($c | enabled) as $en
+        | ("ok", (.[0].consentReceipt | to_entries[] | .key as $o | .value[] | .key as $k
+            | ($k, $o, (.scopes | join(",")), .meaning,
+               (if $o == "claude-code" then "-" elif ($en | index([$o])) != null then "yes" else "no" end),
+               ([("user", "project", "local") as $l | select(($c[$l] | obj | has($k)) and nkeys($c[$l]; $k) == 1) | $l] | join(",")),
+               ([("user", "project", "local") as $l | select(nkeys($c[$l]; $k) > 1) | $l] | join(",")))))
+        | (., "\u0000")
+      else empty end')
+    if [[ "${f[0]:-}" != "ok" || $(((${#f[@]} - 1) % 7)) -ne 0 ]]; then
+      why="is not valid JSON in the {\"consentReceipt\": {\"<owner>\": [records]}} shape"
+    fi
+  fi
+  if [[ -n "$why" ]]; then
+    CR_STATE=unread
+    row A consent-receipt not-inspectable none "settings" "consent-receipts-unread" "reference/consent-receipts.json $why; no key is labeled a consent receipt and every undocumented key keeps its undocumented-key finding" -
+    return 0
+  fi
+  CR_STATE=ok
+  for ((i = 1; i < ${#f[@]}; i += 7)); do
+    CR_KEY+=("${f[i]}") CR_OWNER+=("${f[i + 1]}") CR_SCOPES+=("${f[i + 2]}") CR_MEANING+=("${f[i + 3]}") CR_ON+=("${f[i + 4]}") CR_IN+=("${f[i + 5]}") CR_AMB+=("${f[i + 6]}")
+  done
+}
+
+# cr_match <surface> <key> <leaf>: emit the consent-receipt row and return 0
+# when a record for this top-level key passes every gate; otherwise return 1
+# with CR_WHY naming each gate that failed.
+cr_match() {
+  local surface="$1" k="$2" leaf="$3" scope j owner why note has
+  CR_WHY=""
+  [[ "$CR_STATE" == ok && "$k" == "$leaf" ]] || return 1
+  case "$surface" in
+  "$SURF_USER") scope=user ;;
+  "$SURF_SETTINGS") scope=project ;;
+  "$SURF_LOCAL") scope=local ;;
+  *) return 1 ;;
+  esac
+  has="${BIN_HAS[$leaf]:-}"
+  # A stale claude-code record is terminal for the key: no other owner labels a
+  # key the CLI record says the installed binary no longer carries.
+  if [[ "$BIN_SEARCH" == "searched" && "$has" == "no" ]]; then
+    for j in "${!CR_KEY[@]}"; do
+      [[ "${CR_KEY[$j]}" == "$k" && "${CR_OWNER[$j]}" == "claude-code" && ",${CR_AMB[$j]}," != *",$scope,"* &&
+        ",${CR_IN[$j]}," == *",$scope,"* && ",${CR_SCOPES[$j]}," == *",$scope,"* ]] || continue
+      CR_WHY="stale consent receipt, recheck: the claude-code record names $k but the installed claude binary does not carry it"
+      return 1
+    done
+  fi
+  for j in "${!CR_KEY[@]}"; do
+    # The file must hold the record's key exactly and no carriage-return
+    # variant of it, compared in jq: a key read through check_keys has lost
+    # any carriage return it carried.
+    [[ "${CR_KEY[$j]}" == "$k" ]] || continue
+    if [[ ",${CR_AMB[$j]}," == *",$scope,"* ]]; then
+      CR_WHY+="${CR_WHY:+; }a carriage-return variant of $k is also present in this file"
+      continue
+    fi
+    [[ ",${CR_IN[$j]}," == *",$scope,"* ]] || continue
+    owner="${CR_OWNER[$j]}" why="" note=""
+    if [[ ",${CR_SCOPES[$j]}," != *",$scope,"* ]]; then
+      why="the $owner record declares scope ${CR_SCOPES[$j]//,/, }, not $scope"
+    elif [[ "$owner" == "claude-code" ]]; then
+      if [[ "$BIN_SEARCH" == "searched" && "$has" == "yes" ]]; then
+        note="the installed claude binary carries the name"
+      else
+        note="binary not checked"
+      fi
+    elif [[ "${CR_ON[$j]}" != "yes" ]]; then
+      why="its owner $owner is not enabled in the merged enabledPlugins"
+    fi
+    if [[ -z "$why" ]]; then
+      row A consent-receipt ok none "$surface" "consent-receipt:$k" "$k is a consent receipt owned by $owner: ${CR_MEANING[$j]}; settings-reference does not document it (record: reference/consent-receipts.json${note:+; $note})" -
+      return 0
+    fi
+    CR_WHY+="${CR_WHY:+; }$why"
+  done
+  return 1
+}
+
+BIN_SEARCH=not-needed
+BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
+declare -A BIN_HAS=()
+if [[ ${#KP_KEY[@]} -gt 0 ]]; then
+  BIN_SEARCH=not-searched
+  if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]] &&
+    grep -aqF -- enabledPlugins "$CLAUDE_BIN" 2>/dev/null && grep -aqF -- permissions "$CLAUDE_BIN" 2>/dev/null; then
+    BIN_SEARCH=searched
+    for leaf in "${KP_LEAF[@]}"; do
+      [[ -n "${BIN_HAS[$leaf]:-}" ]] && continue
+      if [[ ! "$leaf" =~ $BIN_WORD ]]; then
+        BIN_HAS[$leaf]=unsearchable
+      elif grep -aqE -- "(^|[^A-Za-z0-9_\$])${leaf}([^A-Za-z0-9_\$]|\$)" "$CLAUDE_BIN" 2>/dev/null; then
+        BIN_HAS[$leaf]=yes
+      else
+        BIN_HAS[$leaf]=no
+      fi
+    done
+  fi
+  cr_load
+  for i in "${!KP_KEY[@]}"; do
+    surface="${KP_SURF[$i]}" k="${KP_KEY[$i]}" leaf="${KP_LEAF[$i]}" ptr="${KP_PTR[$i]}"
+    cr_match "$surface" "$k" "$leaf" && continue
+    cr_note="${CR_WHY:+; not labeled a consent receipt: $CR_WHY}"
+    if [[ "$BIN_SEARCH" != "searched" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known$cr_note" "$ptr"
+    elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
+    elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)$cr_note" "$ptr"
+    else
+      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
+    fi
+  done
 fi
 
 # --- Baseline patterns (read from the reference, never transcribed) ----------
@@ -867,30 +1374,136 @@ done < <(jqs -r '[.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}
 
 # --- Category E: plugins -------------------------------------------------------
 
-known_markets="$(
-  {
-    [[ $PROJECT_OK -eq 1 ]] && jqf "$SETTINGS" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ $LOCAL_OK -eq 1 ]] && jqf "$LOCAL" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ $USER_OK -eq 1 ]] && jqf "$USER_SETTINGS" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ -n "$USER_DIR" && -f "$USER_DIR/plugins/known_marketplaces.json" ]] && jqs -r 'keys[]' "$USER_DIR/plugins/known_marketplaces.json"
-  } | sort -u
-)"
-check_plugin_keys() {
-  # check_plugin_keys <file> <surface>
-  local file="$1" surface="$2"
-  while IFS=$'\t' read -r pk pv; do
-    [[ -n "$pk" ]] || continue
-    market="${pk##*@}"
-    if ! grep -qxF -- "$market" <<<"$known_markets"; then
-      row E marketplace-known finding error "$surface" "unknown-marketplace:$pk" "$pk names marketplace $market, which no scope registers" "/enabledPlugins/$pk"
+#
+# Plugin keys stay JSON from the file to the row: every comparison runs in jq,
+# and a row's fields come back base64-encoded, so a key carrying a carriage
+# return, a tab or `=/` reaches its claim exactly as written. Managed-scope
+# enabledPlugins is not merged here.
+
+# unb64_to <var> <field>: decode a base64 field into <var> byte for byte; `-`,
+# which base64 never produces, is the empty field. `-d` is GNU, macOS 13+ and
+# BusyBox; `--decode` and `-D` cover older BSD builds. Only the exit status is
+# trusted, since GNU prints partial output before rejecting bad input. Returns
+# 1 with <var> empty when no form decodes the field.
+unb64_to() {
+  local v opt
+  printf -v "$1" '%s' ""
+  [[ "$2" == "-" ]] && return 0
+  for opt in -d --decode -D; do
+    if v="$(printf '%s' "$2" | base64 "$opt" 2>/dev/null)x"; then
+      printf -v "$1" '%s' "${v%x}"
+      return 0
     fi
-    if [[ "$pv" == "false" ]]; then
-      row E disabled-plugin finding info "$surface" "disabled-plugin:$pk" "$pk is explicitly disabled; confirm the opt-out is intentional and recorded" "/enabledPlugins/$pk"
-    fi
-  done < <(jqf "$file" -r '(.enabledPlugins // {}) | to_entries[] | [.key, (.value|tostring)] | @tsv')
+  done
+  return 1
 }
-[[ $PROJECT_OK -eq 1 ]] && check_plugin_keys "$SETTINGS" "$SURF_SETTINGS"
-[[ $LOCAL_OK -eq 1 ]] && check_plugin_keys "$LOCAL" "$SURF_LOCAL"
+
+# e_rows: emit one category E row per input line of seven base64 fields
+# (slug, status, severity, surface, claim, detail, excerpt). A line with
+# another field count, or a field that does not decode, becomes a
+# not-inspectable row rather than vanishing.
+E_ROW_BAD=0
+e_rows() {
+  local line f slug st sev surf claim detail ex
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    [[ -n "$line" ]] || continue
+    read -r -a f <<<"$line"
+    if [[ ${#f[@]} -eq 7 ]] &&
+      unb64_to slug "${f[0]}" && unb64_to st "${f[1]}" && unb64_to sev "${f[2]}" &&
+      unb64_to surf "${f[3]}" && unb64_to claim "${f[4]}" && unb64_to detail "${f[5]}" &&
+      unb64_to ex "${f[6]}"; then
+      row E "$slug" "$st" "$sev" "$surf" "$claim" "$detail" "$ex"
+    else
+      E_ROW_BAD=$((E_ROW_BAD + 1))
+      row E plugin-state not-inspectable none "settings" "row-undecodable:$E_ROW_BAD" \
+        "a category E row came back with ${#f[@]} fields or a field that does not decode, so the plugin check it carried went unreported" -
+    fi
+  done
+}
+
+KNOWN_MK_JSON=null
+if [[ -n "$USER_DIR" && -f "$USER_DIR/plugins/known_marketplaces.json" ]]; then
+  KNOWN_MK_JSON="$(tr -d '\r' <"$USER_DIR/plugins/known_marketplaces.json" | ejq -c '.')"
+  KNOWN_MK_JSON="${KNOWN_MK_JSON:-null}"
+fi
+E_CTX="$(
+  {
+    e_scope "$USER_OK" "$USER_SETTINGS"
+    e_scope "$PROJECT_OK" "$SETTINGS"
+    e_scope "$LOCAL_OK" "$LOCAL"
+    printf '%s\n' "$KNOWN_MK_JSON" "$INVENTORY_JSON"
+  } | ejq -c -s '{user: .[0], project: .[1], local: .[2], known: .[3], inv: .[4]}'
+)"
+
+if [[ -n "$E_CTX" ]]; then
+  # Each enabled plugin's direct dependencies come from the plugin.json at the
+  # install path the hook inventory resolved for that exact key.
+  DEP_RECS=""
+  while read -r di dpath_b64; do
+    [[ "$di" =~ ^[0-9]+$ ]] || continue
+    dpath_ok=1
+    unb64_to dpath "$dpath_b64" || dpath_ok=0
+    dpath="${dpath//\\//}"
+    rec=""
+    if [[ "$dpath_ok" -eq 0 ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"its install path could not be decoded\"}"
+    elif [[ -z "$dpath" ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"
+    elif [[ ! -e "$dpath/.claude-plugin/plugin.json" ]]; then
+      # The manifest is optional: a plugin without one declares no dependencies.
+      rec="{\"i\":$di,\"deps\":[]}"
+    elif [[ ! -f "$dpath/.claude-plugin/plugin.json" || ! -r "$dpath/.claude-plugin/plugin.json" ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not a readable file\"}"
+    else
+      rec="$(tr -d '\r' <"$dpath/.claude-plugin/plugin.json" | ejq -c --argjson i "$di" \
+        '{i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"}')"
+      [[ -n "$rec" ]] || rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not valid JSON\"}"
+    fi
+    DEP_RECS+="$rec"$'\n'
+  done < <(printf '%s\n' "$E_CTX" | ejq -r "${E_ARGS[@]}" "$E_DEFS"'
+    . as $c | enabled | to_entries[] | .key as $i | .value as $k
+    | ([$c.inv.plugins[]? | select(type == "object" and .plugin == $k and (.status == "OK" or .status == "NO-HOOKS"))] | first | .path) as $p
+    | "\($i) \((if ($p | type) == "string" then $p else "" end) | @base64)"')
+
+  if e_out="$(printf '%s\n%s' "$E_CTX" "$DEP_RECS" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
+    .[0] as $c | (.[1:] | map(select(type == "object"))) as $recs
+    | ($c | scopes) as $S
+    | ($c | enabled) as $en
+    | (reduce $recs[] as $r ({}; if ($r.i | type) == "number" and $r.i < ($en | length) then .[$en[$r.i]] = $r else . end)) as $R
+    | ([$en[] as $k | $R[$k].deps as $d | select(($d | type) == "array") | $d[] | depkey($k) | select(type == "string") | {dep: ., by: $k}]
+       | group_by(.dep) | map({key: .[0].dep, value: ([.[].by] | unique)}) | from_entries) as $D
+    | ([($c.user, $c.project, $c.local) | obj | .extraKnownMarketplaces | obj | keys[]] + ($c.known | obj | keys)
+       | map({key: ., value: true}) | from_entries) as $K
+    | ($c.project | obj | .extraKnownMarketplaces | obj) as $PD
+    | (
+        ($en[] as $k | $R[$k] as $r | select(($r.deps | type) != "array")
+          | ["dependency-disabled", "not-inspectable", "none", $S[holder($S; $k)].surface, "dependencies-unread:" + $k,
+             "\($k) is enabled but its declared dependencies were not read (\($r.why // "no install record")); a disabled dependency of it would go unreported", "-"]),
+        (range(0; $S | length) as $i | $S[$i] as $x | $x.e | to_entries[] | select(.value == false) | .key as $k
+          | holder($S; $k) as $h
+          | if $h == $i and ($D | has($k)) then
+              ["dependency-disabled", "finding", "warning", $x.surface, "dependency-disabled:" + $k,
+               "\($k) is disabled (\($x.label)) but enabled plugin(s) \($D[$k] | join(", ")) declare it as a dependency; a plugin whose dependency is disabled is itself disabled at the next plugin load", "/enabledPlugins/" + $k]
+            else
+              ["disabled-plugin", "ok", "none", $x.surface, "disabled-plugin:" + $k,
+               "\($k) is false in \($x.label)" + (if $h > $i and $S[$h].e[$k] == true then "; shadowed by true at \($S[$h].label)" else "" end), "-"]
+            end),
+        ($S[] as $x | select($x.label != "user") | $x.e | keys[] | select(. != "") as $k | ($k | mk) as $m | select($K | has($m) | not)
+          | ["marketplace-known", "finding", "error", $x.surface, "unknown-marketplace:" + $k, "\($k) names marketplace \($m), which no scope registers", "/enabledPlugins/" + $k]),
+        ($S[] as $x | select($x.label != "user")
+          | [$x.e | keys[] | select(mk as $m | ($K | has($m)) and ($PD | has($m) | not))] | select(length > 0)
+          | ["drift", "skip", "none", $x.surface, "drift-coverage:" + $x.surface,
+             "\(length) enabledPlugins key(s) in \($x.surface) name a marketplace \(if $x.label == "project" then "this file" else $sp end) does not declare, so they were not diffed: \(map(disp) | join(", "))", "-"])
+      )
+    | emit')"; then
+    e_rows <<<"$e_out"
+  else
+    row E plugin-state skip none "settings" "plugin-state-unread" "the enabledPlugins program failed; dependency, marketplace and coverage rows not decided" -
+  fi
+else
+  row E plugin-state skip none "settings" "plugin-state-unread" "the settings scopes could not be assembled for the enabledPlugins rows; dependency, marketplace and coverage rows not decided" -
+fi
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
@@ -907,38 +1520,57 @@ if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f
   fi
   rm -f "$drift_tmp"
 fi
+# drift_rows <label> <jq program over the findings array>: category E rows from
+# the drift findings, through the same base64 path as every other E row, so a
+# key reaches its claim exactly as the dependency and marketplace rows carry it.
+drift_rows() {
+  local out
+  if out="$(printf '%s\n' "$DRIFT_JSON" | ejq -r "${E_ARGS[@]}" "$E_DEFS $2")"; then
+    e_rows <<<"$out"
+  else
+    row E drift not-inspectable none "$SURF_SETTINGS" "drift-$1-unread" "the drift findings could not be read for the $1 rows, so they went unreported" -
+  fi
+}
 if [[ "$DRIFT_STATE" == "ran" ]]; then
-  while IFS=$'\t' read -r mk st reason; do
-    [[ -n "$mk" ]] || continue
-    [[ "$st" == "skipped" ]] && row E drift skip none "$SURF_SETTINGS" "drift-skipped:$mk" "marketplace $mk not diffed: $reason" -
-  done < <(jqs -r '.[] | [.key, .status, (.skip_reason // "")] | @tsv' <<<"$DRIFT_JSON")
-  while IFS=$'\t' read -r name mk enabled; do
-    [[ -n "$name" ]] || continue
-    if [[ "$enabled" == "true" ]]; then
-      row E drift-orphan finding warning "$SURF_SETTINGS" "orphan-enabled:$name@$mk" "$name@$mk is enabled but no longer in the $mk catalog; review before removing" "/enabledPlugins/$name@$mk"
-    else
-      row E drift-orphan finding info "$SURF_SETTINGS" "orphan-disabled:$name@$mk" "$name@$mk is disabled and gone from the $mk catalog; the entry is removable" "/enabledPlugins/$name@$mk"
-    fi
-  done < <(jqs -r '.[] | .orphans[]? | [.name, .marketplace, (.enabled|tostring)] | @tsv' <<<"$DRIFT_JSON")
+  drift_rows skipped '.[] | select(type == "object" and .status == "skipped")
+    | (.key | tostring) as $mk
+    | ["drift", "skip", "none", $sp, "drift-skipped:" + $mk, "marketplace \($mk) not diffed: \(.skip_reason // "")", "-"]
+    | emit'
+  # Only an exact false is removable; true and any other value go to a person.
+  drift_rows orphan '.[] | select(type == "object") | .orphans[]? | select(type == "object")
+    | "\(.name)@\(.marketplace)" as $k | (.marketplace | tostring) as $mk
+    | if .enabled == false then
+        ["drift-orphan", "finding", "info", $sp, "orphan-disabled:" + $k,
+         "\($k) is disabled and gone from the \($mk) catalog; the entry is removable", "/enabledPlugins/" + $k]
+      elif .enabled == true then
+        ["drift-orphan", "finding", "warning", $sp, "orphan-enabled:" + $k,
+         "\($k) is enabled but no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+      else
+        ["drift-orphan", "finding", "warning", $sp, "orphan-nonboolean:" + $k,
+         "\($k) holds \(.enabled | tojson | disp), neither true nor false, and is no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+      end
+    | emit'
   # The drift script reads the project file alone; Claude Code merges the user,
   # project and local scopes, so a catalog entry keyed in any of them is not
-  # new to the session. Only a key absent from every readable scope is reported.
-  merged_keys="$(
-    {
-      [[ $PROJECT_OK -eq 1 ]] && jqf "$SETTINGS" -r '(.enabledPlugins // {}) | keys[]'
-      [[ $LOCAL_OK -eq 1 ]] && jqf "$LOCAL" -r '(.enabledPlugins // {}) | keys[]'
-      [[ $USER_OK -eq 1 ]] && jqf "$USER_SETTINGS" -r '(.enabledPlugins // {}) | keys[]'
-    } | sort -u
-  )"
-  while IFS=$'\t' read -r name mk; do
-    [[ -n "$name" ]] || continue
-    grep -qxF -- "$name@$mk" <<<"$merged_keys" && continue
-    row E drift-new finding info "$SURF_SETTINGS" "new-upstream:$name@$mk" "$name@$mk is in the $mk catalog and has no enabledPlugins entry in any scope; record an explicit true or false" "/enabledPlugins/$name@$mk"
-  done < <(jqs -r '.[] | .new_upstream[]? | [.name, .marketplace] | @tsv' <<<"$DRIFT_JSON")
-  while IFS=$'\t' read -r from to mk; do
-    [[ -n "$from" ]] || continue
-    row E drift-rename finding warning "$SURF_SETTINGS" "possible-rename:$from->$to@$mk" "$from may have been renamed to $to in $mk; confirm before editing the key" "/enabledPlugins/$from@$mk"
-  done < <(jqs -r '.[] | .renames[]? | [.from, .to, .marketplace] | @tsv' <<<"$DRIFT_JSON")
+  # new to the session. Catalog plugins absent from every readable scope are
+  # inventory, one row per marketplace.
+  if [[ -n "$E_CTX" ]]; then
+    e_rows < <(printf '%s\n%s\n' "$E_CTX" "$DRIFT_JSON" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
+      .[0] as $c
+      | ([($c.user, $c.project, $c.local) | obj | .enabledPlugins | obj | keys[]] | map({key: ., value: true}) | from_entries) as $A
+      | .[1] | if type == "array" then .[] else empty end | select(type == "object")
+      | .key as $mk
+      | [.new_upstream[]? | select(type == "object" and (.name | type) == "string" and (.marketplace | type) == "string")
+         | .name + "@" + .marketplace | . as $k | select($A | has($k) | not)] | unique
+      | select(length > 0)
+      | ["drift-new", "ok", "none", $sp, "drift-new:\($mk)",
+         "\(length) plugin(s) in the \($mk) catalog have no enabledPlugins entry in any scope (for example \(.[0] | disp))", "-"]
+      | emit')
+  fi
+  drift_rows rename '.[] | select(type == "object") | .renames[]? | select(type == "object")
+    | ["drift-rename", "finding", "warning", $sp, "possible-rename:\(.from)->\(.to)@\(.marketplace)",
+       "\(.from) may have been renamed to \(.to) in \(.marketplace); confirm before editing the key", "/enabledPlugins/\(.from)@\(.marketplace)"]
+    | emit'
 else
   row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (skipped, no project settings, or the drift script produced no document)" -
 fi
@@ -953,14 +1585,14 @@ if [[ $PROJECT_OK -eq 1 ]]; then
   fi
   while IFS= read -r ek; do
     [[ -n "$ek" ]] || continue
-    if [[ -n "$DOCS_DIR" && -f "$DOCS_DIR/env-vars.md" ]]; then
-      if grep -q -- "\`$ek\`" "$DOCS_DIR/env-vars.md"; then
+    if [[ -n "$EV" ]]; then
+      if grep -qF -- "\`$ek\`" "$EV"; then
         row F documented-var ok none "$SURF_SETTINGS" "documented-on-env-vars:$ek" "$ek is documented on env-vars" -
       else
         row F documented-var finding info "$SURF_SETTINGS" "not-on-env-vars-page:$ek" "$ek is not on the env-vars page; it may be documented elsewhere or be a justified custom variable (the model decides)" "/env/$ek"
       fi
     else
-      row F documented-var skip none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars.md not in --docs-dir; documentation status of $ek not decided" -
+      row F documented-var not-inspectable none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars was not read this run; documentation status of $ek not decided" -
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
@@ -1021,17 +1653,34 @@ fi
 
 # --- Category H: model and effort values -----------------------------------------
 
+# documented_value <cat> <slug> <key> <value> <surface>: the value against the
+# set the key's Type bullet on settings-reference accepts. The claim is
+# <key>:<value> whatever the outcome, so a finding keeps one identity.
+documented_value() {
+  local cat="$1" slug="$2" key="$3" v="$4" surface="$5" accepted
+  if [[ -z "$SR" ]]; then
+    row "$cat" "$slug" not-inspectable none "$surface" "$key:$v" "$SR_UNREAD_WHY; the values $key accepts are not known" -
+    return 0
+  fi
+  accepted="$(type_values "$key")"
+  if [[ -z "$accepted" ]]; then
+    row "$cat" "$slug" skip none "$surface" "$key:$v" "the Type bullet of $key on settings-reference did not parse to a value set; not decided" -
+  elif [[ -n "$v" && "$v" != *$'\n'* && $'\n'"$accepted"$'\n' == *$'\n'"$v"$'\n'* ]]; then
+    # A whole-string match: grep would read a multi-line value as several
+    # patterns and pass "bogus<newline>high" on its second line.
+    row "$cat" "$slug" ok none "$surface" "$key:$v" "$v is a value settings-reference documents for $key" -
+  else
+    row "$cat" "$slug" finding warning "$surface" "$key:$v" "$key is $v, which is not among the values its settings-reference Type bullet documents (${accepted//$'\n'/, })" "/$key"
+  fi
+}
+
 check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
-  local effort raw dedup mix enforce avail_len
-  effort="$(jqf "$file" -r 'if has("effortLevel") then (.effortLevel|tostring) else "" end')"
-  case "$effort" in
-  max | ultracode)
-    row H effort-level finding warning "$surface" "effortLevel:$effort" "effortLevel $effort is session-only and is not accepted from a settings file; the persisted level is not the one asked for" /effortLevel
-    ;;
-  *) ;;
-  esac
+  local raw dedup mix enforce avail_len req
+  if [[ "$(jqf "$file" -r 'has("effortLevel")')" == "true" ]]; then
+    documented_value H effort-level effortLevel "$(jqf "$file" -r '.effortLevel | tostring')" "$surface"
+  fi
   if [[ "$(jqf "$file" -r 'has("fallbackModel")')" == "true" ]]; then
     raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
     dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
@@ -1053,7 +1702,18 @@ check_h() {
   fi
   enforce="$(jqf "$file" -r 'if has("enforceAvailableModels") then (.enforceAvailableModels|tostring) else "" end')"
   if [[ "$enforce" == "true" && "${avail_len:-0}" -eq 0 ]]; then
-    row H enforce-available finding error "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels is true with no availableModels; the flag has no effect, so the Default option is not constrained" /enforceAvailableModels
+    # Gated on the first "Requires Claude Code vX.Y.Z" in the key's section: on
+    # an older CLI the key is not read at all, so the missing list costs nothing.
+    req="${SR_REQUIRES[enforceAvailableModels]:-}"
+    if [[ -z "$SR" ]]; then
+      row H enforce-available not-inspectable none "$surface" "enforceAvailableModels-without-list" "$SR_UNREAD_WHY; the version enforceAvailableModels requires is not known" -
+    elif [[ -n "$req" && -z "$CLAUDE_VERSION" ]]; then
+      row H enforce-available skip none "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels requires Claude Code v$req and the installed version could not be read; not decided" -
+    elif [[ -n "$req" ]] && version_lt "$CLAUDE_VERSION" "$req"; then
+      row H enforce-available ok none "$surface" "enforceAvailableModels-without-list" "installed v$CLAUDE_VERSION predates v$req, the first version that reads enforceAvailableModels" -
+    else
+      row H enforce-available finding error "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels is true with no availableModels; the flag has no effect, so the Default option is not constrained" /enforceAvailableModels
+    fi
   fi
 }
 [[ $PROJECT_OK -eq 1 ]] && check_h "$SETTINGS" "$SURF_SETTINGS"
@@ -1063,14 +1723,9 @@ check_h() {
 # --- Category I: deep-link registration ------------------------------------------
 
 check_i() {
-  local file="$1" surface="$2" v
+  local file="$1" surface="$2"
   if [[ "$(jqf "$file" -r 'has("disableDeepLinkRegistration")')" == "true" ]]; then
-    v="$(jqf "$file" -r '.disableDeepLinkRegistration | tostring')"
-    if [[ "$v" != "disable" ]]; then
-      row I deep-link-value finding warning "$surface" "disableDeepLinkRegistration:$v" "the key is present with $v; the one documented value that prevents registration is the string \"disable\"" /disableDeepLinkRegistration
-    else
-      row I deep-link-value ok none "$surface" "disableDeepLinkRegistration:disable" "set to \"disable\"" -
-    fi
+    documented_value I deep-link-value disableDeepLinkRegistration "$(jqf "$file" -r '.disableDeepLinkRegistration | tostring')" "$surface"
   fi
 }
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"
@@ -1085,6 +1740,10 @@ personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERS
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
+version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
+  '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
+docs_json="$(jq -c --arg url "$DOCS_INDEX_URL" --arg src "$INDEX_SOURCE" --argjson b "$INDEX_BYTES" --arg st "$INDEX_STATE" --arg r "$INDEX_REASON" \
+  '{index:{url:$url,source:$src,bytes:$b,state:$st,reason:$r},pages:.}' <<<"$DOCS_PAGES_JSON")"
 
 # The payloads ride stdin and are slurped, rather than being bound as --argjson
 # values. The whole argv is ONE Win32 command line, and a single argument past
@@ -1098,13 +1757,14 @@ inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.u
 DOC="$(printf '%s\n' \
   "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
   "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
-  "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" |
+  "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" \
+  "${version_json:-null}" "${docs_json:-null}" |
   jq -s \
     --arg root "$PROJECT_ROOT" \
     --arg drift_state "$DRIFT_STATE" \
     --argjson errors "$ERROR_COUNT" \
-    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing] |
-     {engine:"claude-config/audit-engine/1",project_root:$root,scopes:$scopes,
+    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs] |
+     {engine:"claude-config/audit-engine/1",project_root:$root,claude_version:$version,docs:$docs,scopes:$scopes,
       hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
       suppressions:{applied:$suppressed,personal_only:$personal,malformed:$malformed},
       summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
@@ -1130,6 +1790,10 @@ else
   echo "============"
   echo "Project root: $PROJECT_ROOT"
   jq -r '.scopes[] | "  \(.label): \(.state) (\(.path))"' <<<"$DOC"
+  jq -r '.claude_version | "Claude Code: \(.version // "unreadable") (\(.state); --version printed \"\(.raw)\")"' <<<"$DOC"
+  echo "Docs read this run:"
+  jq -r '.docs.index | "  index: \(.state) \(.bytes) bytes (\(.url))\(if .reason != "" then "; " + .reason else "" end)"' <<<"$DOC"
+  jq -r '.docs.pages[] | "  \(.slug): \(.state) \(.bytes) bytes (\(.source) \(.url_or_path))\(if .reason != "" then "; " + .reason else "" end)"' <<<"$DOC"
   echo
   jq -r '.summary | "Rows: \(.rows)  Findings: \(.findings)  errors=\(.errors) warnings=\(.warnings) info=\(.info)"' <<<"$DOC"
   echo

@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "if": "Bash(*hygiene.py*)",
             "shell": "bash",
             "timeout": 60,
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "if": "PowerShell(*hygiene.py*)",
             "shell": "bash",
             "timeout": 60,
@@ -28,7 +28,7 @@
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "if": "PowerShell(*python*$*)",
             "shell": "bash",
             "timeout": 60,
@@ -36,7 +36,7 @@
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "if": "PowerShell(*& $*)",
             "shell": "bash",
             "timeout": 60,
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --skip-unless-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --skip-unless-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
             "shell": "bash",
             "timeout": 20,
             "statusMessage": "Checking for silent destructive-guard failures..."

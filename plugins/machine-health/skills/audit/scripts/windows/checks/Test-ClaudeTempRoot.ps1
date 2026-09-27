@@ -289,8 +289,6 @@ try {
                 $summary += ' Route removal to disk-hygiene:clean.'
             }
 
-            # Reached only on a complete walk, so every figure here is exact rather
-            # than a lower bound and the threshold verdict stands on its own.
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
                 -NeedsAdmin $false -RanSuccessfully $true

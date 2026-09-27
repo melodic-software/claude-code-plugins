@@ -62,7 +62,7 @@ declare -A GUARD_FIELDS=(
   ["flag-commit-pr-skill-bypass.sh"]='.tool_input.command .tool_name'
   ["cli-flag-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
   ["hardcoded-path-check.sh"]='.tool_name .tool_input.file_path .tool_input.content .tool_input.new_string .tool_input.new_source .tool_input.path'
-  ["secret-pattern-detection.sh"]='.tool_name .tool_input.file_path .tool_input.content .tool_input.new_string .tool_input.new_source .tool_input.path'
+  ["secret-pattern-detection.sh"]='.tool_name .tool_input.file_path .tool_input.content .tool_input.new_string .tool_input.new_source .tool_input.path .tool_input.notebook_path'
   ["skill-reference-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
   ["stale-path-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
 )

@@ -1,9 +1,6 @@
 # shellcheck shell=bash
-# GitHub conformance binding — targets a throwaway sandbox repo (NEVER a
-# coordination repo). On-demand, not in CI. The target is required: set
-# WIT_CONFORMANCE_GITHUB_REPO to the sandbox repo (owner/name). No default —
-# no standing sandbox exists to fall back to (see the conformance note in
-# docs/adr/0014-resolve-seam-engine-plugin-canonical-and-adapters-consumer-first.md).
+# GitHub conformance binding: on-demand, against a throwaway sandbox repo (NEVER a
+# coordination repo) named by the required WIT_CONFORMANCE_GITHUB_REPO=owner/name.
 
 CB_BINDING_TMP=""
 

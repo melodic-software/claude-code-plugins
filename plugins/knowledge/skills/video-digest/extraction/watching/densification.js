@@ -2,7 +2,7 @@
  * Transcript-driven densification windows for adaptive frame sampling.
  *
  * High-signal segments (code, slides, demos) get denser sampling; talking-head
- * segments stay sparse. Starting keywords from RESEARCH lane 2.
+ * segments stay sparse.
  */
 
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */

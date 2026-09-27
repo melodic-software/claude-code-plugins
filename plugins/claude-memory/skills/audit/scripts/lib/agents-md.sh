@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 # agents-md.sh: which of the project root's AGENTS.md files load as the project instructions?
-#
-# Sourced by the audit scripts that need the answer: discover-instruction-surfaces.sh
-# (whether to emit an `agents-md` project row), instruction-load-stats.sh (whether the
-# file joins the always-loaded set and answers `--lines`/`--bytes` by default) and
-# audit-spine.sh (the header's root-file line). One reader so the three cannot disagree
-# about which file the session actually loaded.
+# One reader so the audit scripts cannot disagree about which file the session loaded.
 #
 #   Claim: Claude Code reads a repository's `AGENTS.md` and `.claude/AGENTS.md` as the
 #     project instructions only when no `CLAUDE.md`, `.claude/CLAUDE.md` or
@@ -28,31 +23,14 @@
 #     precedence between `AGENTS.md` and `.claude/AGENTS.md`, or the default **Project
 #     instructions** value stops being `claude-md-or-agents-md`.
 #
-# Two conditions the caller cannot see are assumed rather than modeled: the default
-# `claude-md-or-agents-md` setting (`claude-md-and-agents-md` would load both files,
-# `claude-md` neither) and a session able to read AGENTS.md directly at all. Both are
-# session state, not repository state.
+# Assumed, not modeled (session state): the default `claude-md-or-agents-md` setting,
+# and a session able to read AGENTS.md at all.
 #
-# The AGENTS.md files themselves are depth-1, like the rest of project-scope discovery:
-# deeper ones are subtree memory that loads on demand, which this checklist does not cover.
-# The displacement test is NOT depth-1, because the doc's condition is not: a `CLAUDE.md`
-# anywhere above the repository root suppresses the file just as one beside it does, and a
-# check that stopped at the root would report a surface the session never reads.
-#
-# Functions (pure, none writes anything):
-#   agents_md_is_user_root   true when a `.claude` directory is the user root, whose
-#                            CLAUDE.md loads alongside an AGENTS.md rather than displacing it.
-#   agents_md_displaced      true when a CLAUDE.md name in the current directory or any
-#                            directory above it makes Claude Code read it instead.
-#   agents_md_native_files   one path per line: the AGENTS.md files read as the project
-#                            instructions, in the doc's own order. Empty when a CLAUDE.md
-#                            displaces them or neither file exists.
+# The AGENTS.md files are depth-1, but the displacement test walks above the repository
+# root, because a `CLAUDE.md` up there suppresses the file just as one beside it does.
 
-# True when the `.claude` directory given is the user root, whose CLAUDE.md keeps loading
-# ALONGSIDE an AGENTS.md instead of displacing it. Both `~/.claude` and a relocated
-# `CLAUDE_CONFIG_DIR` answer to it. Compared with `-ef`, by device and inode, because the
-# same directory reaches the walk under names that are not equal as strings: a Windows 8.3
-# short name, a symlinked home, a case difference.
+# The user root's CLAUDE.md loads alongside an AGENTS.md instead of displacing it. `-ef`
+# compares by inode: 8.3 short names, symlinked homes, and case differences reach the walk.
 agents_md_is_user_root() {
   local d="$1"
   [[ -n "${HOME:-}" && -d "$HOME/.claude" && "$d" -ef "$HOME/.claude" ]] && return 0

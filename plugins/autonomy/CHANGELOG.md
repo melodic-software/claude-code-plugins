@@ -3,6 +3,130 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1] - 2026-09-26
+
+### Fixed
+
+- `lane-stop-gate.sh` and `lane-stop-gate-lib.sh`: the user `settings.json` opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A hook path with a drive letter now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
+
+## [0.24.0] - 2026-09-25
+
+### Added
+
+- The security-binding level entry gains `host_interop` (`"none"` or `"wsl2"`), the human-ratified
+  statement of whether the surface's host can launch host binaries from inside the boundary. With
+  `"wsl2"`, `check-security-binding.mjs` requires the probe transcript's fourth assertion,
+  `interop_launch_denied`: a present Windows executable (`test -x` succeeded) whose launch
+  succeeded in the outer context and was denied inside, with an inner exit code from 1 to 123, or
+  126 (124 and 125 are timeouts, 127 is command not found, and 128 or above is death by signal).
+  The inner launch is bound to the outer control: `arguments` and `outer_arguments` must be
+  byte-identical, `executable_sha256` and `outer_executable_sha256` must be equal, and
+  `executable_magic` must be `4d5a`, the PE `MZ` header. A recorded interop assertion is validated whatever the binding ratifies, and a `"none"` binding
+  whose capture reached a Windows drive mount (the default `/mnt/<letter>/` automount root, matched
+  after path normalization) stays unproven. The WSL2 interop launch check is now checker-enforced
+  instead of confirmed by the reviewing human. Still confirmed by the reviewing human, not the
+  checker: the per-run ephemerality of an `L3` microVM, its `--static-mcp` tool-server mode, and
+  the SSH agent forwarding condition.
+- The level entry gains `base_egress_allowlist`, an informational record of the base egress
+  allowlist. The checker checks only its shape: it is never merged into
+  `component_reachable_hosts`, never counts as probe coverage, and is never proof that other
+  traffic is denied.
+
+### Changed
+
+- Every existing `L2`/`L3` level binding goes UNPROVEN until it declares `host_interop`, the same
+  fail-closed rule an absent `component_reachable_hosts` follows. Under `autonomous-enabled` that is
+  a finding; add `"host_interop": "none"`, or `"wsl2"` with a re-probed transcript, on the
+  agent-unwritable binding.
+- `templates/isolation-probe.md` documents the interop launch probe shape and the capture field;
+  `context/windows-surfaces.md` and `context/guardrail-slice.md` describe the enforced check and
+  both new fields.
+- `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that relying on native inbound trace
+  context was evaluated and not adopted: Claude Code reads inbound `TRACEPARENT` only in Agent SDK
+  and `-p` sessions, and its tracing is beta, so the Pillar 2 attribute join stays the contract's
+  join. The record names surface classes and points at the vendor records in
+  `context/agent-session-telemetry.md`, which that same read reconfirmed.
+
+## [0.23.24] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.23.23] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.23.22] - 2026-09-24
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
+## [0.23.21] - 2026-09-24
+
+### Added
+
+- The setup skill's guardrail slice gains `context/windows-surfaces.md`, dated records for
+  Windows execution surfaces, each verified 2026-09-23 or 2026-09-24. Native Windows has no
+  Claude Code sandbox, and sandbox settings alone never evidence `L1` there. A bare WSL2
+  distribution is not `L2` or `L3`, its built-in sandbox is `L1`, and its `L2` candidates carry
+  the sandbox runtime's launch limits and an interop launch check a human confirms beside the
+  probe transcript. An `L3` microVM on a Windows host (a marked example) needs a sandbox created
+  and removed per run, a clone or mountless workspace, a pruned egress allowlist, an explicit
+  permission posture, SSH agent forwarding disabled or its signing capability ratified, and static
+  tool-server mode with no host-executing server attached. The fail-closed consequence names the
+  compliant paths.
+
+### Changed
+
+- The isolation ladder states that a protocol-connected tool surface the substrate brokers from
+  the host keeps executing on the host at `L2` and `L3`.
+- The guardrail slice's detect and probe steps and the setup skill's guardrail slice paragraph
+  point to the Windows records.
+
+## [0.23.20] - 2026-09-23
+
+### Changed
+
+- `lane-stop-gate.sh` decides whether the gate could be configured before it sources any library.
+  A session with no gate footprint (the interactive default) now exits without parsing
+  `hook-utils.sh`, `lane-notify.sh` and `lane-stop-gate-lib.sh`. The pre-filter still
+  reads the same opt-in sources: the arm-id and enabled env presences, the install-anchored user
+  settings.json, and every platform's managed-settings file and drop-ins. The suite pins its copy
+  of the managed paths to the lib's literals. `gate_managed_candidates_load` is removed from the
+  lib; the pre-filter was its only caller.
+- The Stop registration runs `bash "${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh"` with
+  `"shell": "bash"`, dropping the `env` process the `#!/usr/bin/env bash` shebang added. Each Stop
+  now starts two processes instead of three. Blocking decisions, messages and notifications are
+  unchanged in every mode (#4415).
+
+## [0.23.19] - 2026-09-23
+
+### Fixed
+
+- The setup skill's agent-session wiring step no longer says headless `-p` sessions inherit
+  `TRACEPARENT` only under the enhanced-telemetry beta. Headless and Agent SDK sessions read
+  inbound trace context, and their event records carry the inbound trace ID without the beta flag
+  or a traces exporter; spans still need both. The slice keeps joining on
+  `autonomy.work_item.url`.
+- The CI template's trace-context wording and session env block comment match that behavior.
+
+### Added
+
+- `context/agent-session-telemetry.md` gains dated records for resource attributes, inbound trace
+  context (with a probe on Claude Code 2.1.281), and the traces beta, each verified 2026-09-23.
+
 ## [0.23.18] - 2026-09-23
 
 ### Added

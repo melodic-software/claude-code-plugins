@@ -2,7 +2,7 @@
 # One emitter for the audit telemetry rows that differ only in an event, a kill
 # switch and a payload projection. Registered in hooks.json on each of those
 # events and dispatching on the payload's `hook_event_name`, the same shape
-# session-event-log.sh uses to serve ~30 events from one script.
+# session-event-log.sh uses to serve many events from one script.
 #
 # Sharing a script shares no identity and no switch. Each row emits its own
 # telemetry `hook` id, `hook_event`, `status` and `data` fields, and reads its

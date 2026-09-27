@@ -161,8 +161,8 @@ class SettleHarness(unittest.TestCase):
 
 class UnconfiguredIsInert(SettleHarness):
     def test_absent_config_makes_no_review_call_and_does_not_hold(self) -> None:
-        # The load-bearing claim of the whole change: with the hold unconfigured
-        # the gate issues no request it did not issue before, so "byte-for-byte
+        # With the hold unconfigured the gate issues no request it did not
+        # issue before, so "byte-for-byte
         # its prior self" is asserted against call records, not just `ready`.
         result = self._evaluate(settle=None)
         self.assertTrue(result["ready"], result["blockers"])

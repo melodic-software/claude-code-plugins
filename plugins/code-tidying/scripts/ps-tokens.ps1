@@ -26,21 +26,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Reserved and automatic variable names, asked of a fresh runspace rather than
-# hand-maintained: a rename whose target is one of these is not a rename, and a
-# list written out here would go stale the next time the language grows one.
-# The supplement covers names that exist only inside a pipeline, a function body
-# or a match, so they are absent from the global scope this reads.
+# Asked of a fresh runspace, not hand-maintained, so the list cannot go stale. The
+# supplement adds names that exist only inside a pipeline, function body, or match.
 $script:reserved = @(
     (Get-Variable -Scope Global).Name
     '_', 'PSItem', 'args', 'input', 'this', 'null', 'true', 'false', 'Matches', 'Error', 'Host'
 ) | Sort-Object -Unique
 
-# Structure English prose cannot produce. A CommandAst is NOT on the list: prose
-# about PowerShell parses as one, whether it names a -Switch (`the one
-# -AllowExitCode judges`) or a cmdlet (`Set-Acl asks the provider to...`), so
-# admitting it turns every comment in a PowerShell-documenting file into a
-# finding. The cost is that a commented-out bare command line is missed.
+# A CommandAst is NOT on the list: prose about PowerShell parses as one, so admitting
+# it flags every comment in a PowerShell-documenting file. A bare command line is missed.
 $script:evidence = @(
     'AssignmentStatementAst', 'IfStatementAst', 'ForEachStatementAst', 'ForStatementAst',
     'WhileStatementAst', 'FunctionDefinitionAst', 'TryStatementAst', 'HashtableAst',
@@ -79,14 +73,10 @@ if ($PSCmdlet.ParameterSetName -eq 'Bodies') {
     exit 0
 }
 
-# `"text $x here"` is ONE token whose Text carries the variable, so a rename that
-# updates the bare `$x` and misses the interpolated one is invisible in the flat
-# token list and would read as a clean rename. Emit each nested token as an
-# (index, kind, text) triple against the string token's position, keeping the
-# string token itself so editing the string is still a change. Interpolation
-# nests (`"$($a.b)"`), so this recurses. A side list rather than an inline one:
-# the main loop fills a preallocated array, and a `List.Add` per token there
-# costs 3.9 s on a 97k-token file where an indexed write costs 1.0 s.
+# `"text $x here"` is ONE token, so a rename missing the interpolated `$x` would read
+# clean. Nested tokens go to a recursive side list keyed on the string's index, and the
+# string token itself stays, so editing the string is still a change. A side list
+# because a `List.Add` per token in the main loop costs 3.9 s on 97k tokens against 1.0 s.
 function Add-NestedTokens {
     param([System.Collections.Generic.List[string]]$Out, [int]$Index, $Token)
     foreach ($n in $Token.NestedTokens) {

@@ -88,6 +88,26 @@ Research parallelizes well: read-only, results merge by union. Code parallelizes
 - **Mechanical-transform test:** fan out a many-file code change only when the recipe is exact enough that a careful stranger could follow it with zero judgment calls. A recipe requiring per-file judgment gives each worker different judgment and you inherit N inconsistent styles; do it yourself.
 - **Existing boundaries only:** parallelize code along boundaries that already exist, such as independent modules, independent packages, and per-file transforms with an exact recipe, never along boundaries you invented for the dispatch.
 
+## Narrow threads per benchmark or journey
+
+This section is inference. Its source, the vendor's [claude.ai performance post](https://claude.dev/blog/how-we-made-claude-ai-faster), runs each workstream as a Claude Tag Slack thread with a standing agent and one named human owner. Mapping a thread to a Claude Code session, or to one long-lived worker, is inference; the post describes no Claude Code mechanism.
+
+TRIGGER: an improvement effort spans several benchmarks or user journeys.
+
+- **One thread per benchmark or journey, searching only there.** A measurement is an existing boundary in the sense of "Existing boundaries only" above: each thread owns one number and its harness, and looks for improvements only within that scope. Many narrow searchers find more than one broad one, because each holds one number's context instead of all of them.
+- **Scale a loop horizontally only after it works on one thread.** Prove the loop end to end on one thread (measure, change, verify, keep or revert); after that, more threads are more instances of a loop you trust. Scaling an unproven loop multiplies its defects. The 3-5 wave cap above still binds any single orchestrator: in the post every thread had its own human owner, so horizontal scale meant many owned sessions, not one session reviewing every return.
+- **Merge threads that collide.** Two threads whose changes touch the same code, or whose wins trade against each other, are one piece under the touch-set rule in "Decompose by context, not by headcount" above. Combine them into one thread instead of reconciling their conflicts after the fact.
+- **Close a thread at diminishing returns.** The post names the call but not the criteria, so these are judgment: close when successive changes each move the number by less than its harness's run-to-run noise, when the next gain costs more complexity to maintain than it returns (the post rejects one change as not worth "the complexity of maintaining this build plugin"), or when what remains lies outside the thread's scope. Hitting the original target is not by itself a reason to close; a thread still finding in-scope gains keeps going.
+- **Leave room for agent-proposed work.** Keep capacity for threads the agent proposes from what it found during another thread's investigation or a scheduled job, and have the human owner rule on each. The post states the practice and gives no share of capacity; any number would be judgment.
+- **One named human owner per thread, who steers.** The agent finds, measures, ships, and watches; the owner sets the goal, rules on tradeoffs, approves each change, and decides sequencing: which surfaces come first and which threads merge or close. A productive loop is not an autonomous one; keeping it fast, safe, and on track stays the owner's job.
+- **A standing brief per thread.** State the owned surfaces, the responsibilities as verbs, and the current autonomy limit once, where every later turn can see it. Follow-ups can then be terse ("you know what we want") because the context is already shared; a fresh worker still gets the full contract from "Write worker specs as contracts" above.
+- **A signal the thread can re-run alone.** A thread working for hours or unattended needs a local measurement it can repeat without the owner; without one it waits on a human or guesses.
+- **Run threads in one shared, visible place.** Owners and others can see every thread, join one, and argue a call, and a new owner can start from an existing thread instead of from nothing.
+- **Plan the reporting cadence before throughput outgrows it.** At high volume nobody can summarize the output by hand, so decide up front what each thread reports and how often.
+
+> Weak: "One session: make the app faster."
+> Strong: "One session per journey: cold start, send message, load conversation. Each owns its benchmark and changes nothing outside it."
+
 ## Keep working while workers run
 
 TRIGGER: a wave is dispatched and the next thing you would do is wait for it.

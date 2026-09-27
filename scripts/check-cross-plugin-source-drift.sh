@@ -17,9 +17,7 @@
 # scripts/sync-hook-utils.sh stays authoritative for hooks/hook-utils.sh,
 # scripts/validate-plugin-contracts.mjs for reference/artifact-protocol.md.
 # This script's job is the one neither of those can do: notice when a NEW
-# shared-copy pattern appears with no dedicated check yet, the same way the
-# babysit-prs / source-control:pull-request policy split drifted apart
-# silently until a manual audit caught it. Register a cluster in
+# shared-copy pattern appears with no dedicated check yet. Register a cluster in
 # cross-plugin-source-registry.txt once it has a dedicated check (or is
 # accepted as low-stakes coincidence); an unregistered identical cluster is
 # a decision waiting to be made, not yet a violation of anything.
@@ -49,10 +47,7 @@ declare -A cluster_entries
 # rel path -> IDENTICAL | DIFFERS (only set for clusters with 2+ entries)
 declare -A cluster_status
 
-# One find of plugins/, not one find per plugins/*/ directory. The previous
-# loop paid a find exec per plugin (~76 on this tree) for the same leftover
-# class #3488 removed from the portability sweep. Paths stay plugins/<name>/…
-# so the within-plugin rel and the skip-basename filter are unchanged.
+# One find of plugins/, not one find exec per plugins/*/ directory.
 while IFS= read -r -d '' full; do
   rest="${full#plugins/}"
   [[ "$rest" != "$full" ]] || continue
@@ -90,8 +85,7 @@ load_cluster() {
   done
   # Lexicographic plugin order matches `plugins/*/` glob order so discover
   # lines stay comparable to the per-directory find. Insertion sort: a cluster
-  # is a handful of plugin names, and a leftover `sort` exec per load would
-  # put back the class this change removes.
+  # is a handful of plugin names, not worth a `sort` exec per load.
   if ((${#plugins_list[@]} > 1)); then
     local -a __pl_sorted=()
     local __p __i __j
@@ -109,11 +103,8 @@ load_cluster() {
   fi
 }
 
-# Hash every file that participates in a 2+ cluster in ONE sha256sum.
-# The previous loop spawned sha256sum (and a process substitution) per copy
-# (~103 execs on this tree). GNU Bash runs process substitution in a subshell
-# even for builtins (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution).
+# Hash every file that participates in a 2+ cluster in ONE sha256sum, not one
+# exec per copy.
 declare -A file_hash
 hash_paths=()
 for rel in "${!cluster_entries[@]}"; do
@@ -186,14 +177,10 @@ discover | --check) ;;
 esac
 
 if [[ "$mode" == "discover" ]]; then
-  # Feed `sort` from a loop rather than `printf '%s\n' "${!cluster_status[@]}"`
-  # (#3376). Two hazards, one of them latent in each direction: an unquoted
-  # `$(...)` here word-split every key on IFS whitespace and glob-expanded the
-  # results against the working directory, so a cluster path with a space
-  # iterated wrongly and silently; and `printf '%s\n'` with NO arguments prints
-  # one blank line, which `mapfile -t` would turn into a single empty key on a
-  # tree that has no clusters at all. An empty array iterates zero times and
-  # feeds `sort` nothing, which is the answer both cases want.
+  # Feed `sort` from a loop, not an unquoted `$(...)` (word-splits and globs a
+  # key containing a space) nor `printf '%s\n'` with NO arguments (prints one
+  # blank line, which `mapfile -t` turns into an empty key on a tree with no
+  # clusters). An empty array iterates zero times and feeds `sort` nothing.
   mapfile -t sorted_rels < <(
     for rel in "${!cluster_status[@]}"; do printf '%s\n' "$rel"; done | sort
   )

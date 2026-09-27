@@ -53,8 +53,7 @@
 # by basename. A file that grants that credit to its sourcers must therefore
 # perform the clear itself; inheriting it through test-git-helpers.sh would
 # leave every sourcer of this file uncredited and re-open the incident the gate
-# exists to stop. The list below is the full seven, not the three-variable
-# spelling that was drifting through the suites.
+# exists to stop. The list below is the full seven.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

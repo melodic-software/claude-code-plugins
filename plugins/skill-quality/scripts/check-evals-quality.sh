@@ -104,7 +104,6 @@ for f in "$@"; do
   fi
 done
 
-# Tunables.
 EXPECTED_OUTPUT_MIN=40
 # Q7: whole-item hedges only — a substring match would flag verifiable
 # criteria that merely contain a hedge word ("Touches no files" is fine).

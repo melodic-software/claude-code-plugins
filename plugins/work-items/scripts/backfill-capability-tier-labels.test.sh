@@ -17,16 +17,13 @@ else
   fail "legacy signal unit tests"
 fi
 
-# Offline: apply without gh should fail clearly.
 if "$BACKFILL" apply --dry-run 2>/dev/null; then
   fail "apply without gh should not succeed"
 else
   pass "apply without gh exits non-zero"
 fi
 
-# Empty repo_args under set -u must not abort (bash 4.0-4.3 unbound-variable).
-# check and apply both expand repo_args=() when --repo is omitted; a stub gh
-# lets the expansion run instead of dying at require_gh.
+# A stub gh lets check and apply reach the empty repo_args expansion instead of dying at require_gh.
 STUB_BIN="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN"' EXIT
 cat >"$STUB_BIN/gh" <<'EOF'

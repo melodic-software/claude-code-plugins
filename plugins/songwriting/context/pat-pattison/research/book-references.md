@@ -15,8 +15,8 @@ no invented substitutes.
 either form is acceptable. The four books are not even consistent with each
 other: the 2009 EPUB prints ASCII apostrophes, the other three print curly.
 
-**Do not sweep, measure, audit, or open work items on punctuation glyphs.** A
-session was spent on exactly that before the owner ruled it out of scope. If a
+**Do not sweep, measure, audit, or open work items on punctuation glyphs.** The
+owner ruled them out of scope. If a
 restoration reproduces the printed words, it is verbatim, full stop. Spend the
 effort on missing content, invented content, and wrong citations instead.
 

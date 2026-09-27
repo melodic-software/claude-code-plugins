@@ -44,12 +44,14 @@ inject_after() {
     "$file" >"$file.injected" && mv "$file.injected" "$file"
 }
 
-# pipe_run <payload> <cmd...>: the payload on the command's stdin through a
-# pipe (never a here-string; see lib/hook-utils.sh on the 64 KiB deadlock).
-pipe_run() {
-  local payload="$1"
+# feed_run <payload> <cmd...>: the payload on the command's stdin from a file.
+# Never a here-string (see lib/hook-utils.sh on the 64 KiB deadlock), and never a
+# pipe: a guard that exits before reading stdin (a forced abort, the kill
+# switch) leaves a printf still writing to a closed pipe, which pipefail reports.
+feed_run() {
+  printf '%s' "$1" >"$TEST_TMPDIR/payload"
   shift
-  printf '%s' "$payload" | "$@"
+  "$@" <"$TEST_TMPDIR/payload"
 }
 
 # run_hook <env NAME=VAL ...> -- <cmd...>: fills OUT, ERR, RC. A fixed benign
@@ -65,7 +67,7 @@ run_hook() {
   shift
   local rc=0
   # A subshell with exports rather than `env`, which execs a program and so
-  # cannot run the pipe_run function.
+  # cannot run the feed_run function.
   (
     unset HOOK_TELEMETRY_SINK
     export CLAUDE_PROJECT_DIR='' \
@@ -262,7 +264,7 @@ for name in "${REGISTERED[@]}"; do
   stem="${name%.sh}"
   inject_after "$COPY/hooks/$name" "^guard::abort_boundary ${stem} " \
     ": \"\${${MARKER}?forced abort}\"" || continue
-  run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys -- pipe_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
+  run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys -- feed_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
   assert_exit "$stem: forced abort exits with the declared fail-open posture" 0 "$RC"
   assert_contains "$stem: stderr names the guard and the status" "$ERR" \
     "guardrails ${stem}: ${NOTICE}1); fail-open"
@@ -294,7 +296,7 @@ cp -R "$PLUGIN_DIR" "$MID"
 inject_after "$MID/hooks/block-windows-drive-tmp.sh" '^source "[$]_HOOK_SELF/hook-utils.sh"' \
   "hook::jq_fields() { : \"\${${MARKER}?forced abort in hook::jq_fields}\"; }"
 run_hook CLAUDE_PLUGIN_ROOT="$MID" OSTYPE=msys -- \
-  pipe_run "$(write_json 'D:/tmp/x' 'body')" bash "$MID/hooks/block-windows-drive-tmp.sh"
+  feed_run "$(write_json 'D:/tmp/x' 'body')" bash "$MID/hooks/block-windows-drive-tmp.sh"
 assert_exit "block-windows-drive-tmp: helper failure after stdin fails open (declared posture)" 0 "$RC"
 assert_contains "block-windows-drive-tmp: helper failure is named on stderr" "$ERR" \
   "guardrails block-windows-drive-tmp: ${NOTICE}1); fail-open"
@@ -302,7 +304,7 @@ assert_eq "block-windows-drive-tmp: helper failure emits hookEventName PreToolUs
   "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
 # The same payload on the shipped guard is a deny, which is what makes the
 # fail-open above a documented, visible allow rather than a silent one.
-run_hook OSTYPE=msys -- pipe_run "$(write_json 'D:/tmp/x' 'body')" bash "$HOOK_DIR/block-windows-drive-tmp.sh"
+run_hook OSTYPE=msys -- feed_run "$(write_json 'D:/tmp/x' 'body')" bash "$HOOK_DIR/block-windows-drive-tmp.sh"
 assert_exit "block-windows-drive-tmp: shipped guard still denies D:/tmp" 2 "$RC"
 assert_absent "block-windows-drive-tmp: a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
 
@@ -310,7 +312,7 @@ inject_after "$MID/hooks/cli-flag-verify.sh" '^source "[$]_HOOK_SELF/hook-utils.
   "hook::require_jq() { : \"\${${MARKER}?forced abort in hook::require_jq}\"; }"
 mkdir -p "$TEST_TMPDIR/data"
 run_hook CLAUDE_PLUGIN_ROOT="$MID" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
-  pipe_run "$(write_json "$TEST_TMPDIR/notes.md" 'run git status')" bash "$MID/hooks/cli-flag-verify.sh"
+  feed_run "$(write_json "$TEST_TMPDIR/notes.md" 'run git status')" bash "$MID/hooks/cli-flag-verify.sh"
 assert_exit "cli-flag-verify: helper failure after stdin fails open (declared posture)" 0 "$RC"
 assert_contains "cli-flag-verify: helper failure is named on stderr" "$ERR" \
   "guardrails cli-flag-verify: ${NOTICE}1); fail-open"
@@ -320,13 +322,13 @@ assert_eq "cli-flag-verify: helper failure emits hookEventName PostToolUse" Post
 # --- Dispatched: an aborting guard neither masks a sibling's deny nor hides --
 DISPATCH="$HOOK_DIR/run-guards.sh"
 ABORTING="$COPY/hooks/block-no-verify.sh" # injected above
-run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/block-dangerous-git.sh"
+run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/block-dangerous-git.sh"
 assert_exit "dispatched: sibling deny still wins the exit code beside an aborting guard" 2 "$RC"
 assert_contains "dispatched: the abort notice is on stderr next to the deny" "$ERR" \
   "guardrails block-no-verify: ${NOTICE}"
 assert_contains "dispatched: the sibling's deny reason is on stderr" "$ERR" "BLOCKED"
 
-run_hook -- pipe_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/block-dangerous-git.sh"
+run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/block-dangerous-git.sh"
 assert_exit "dispatched: benign call with one aborting guard exits 0" 0 "$RC"
 assert_contains "dispatched: benign call carries the notice as systemMessage" \
   "$(json_field "$OUT" .systemMessage)" "guardrails block-no-verify: ${NOTICE}"
@@ -334,7 +336,7 @@ assert_eq "dispatched: notice hookEventName survives the dispatcher" PreToolUse 
   "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
 
 # Two aborting guards: the dispatcher merges both notices into ONE document.
-run_hook -- pipe_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$COPY/hooks/block-dangerous-git.sh"
+run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$COPY/hooks/block-dangerous-git.sh"
 assert_exit "dispatched: two aborting guards exit 0" 0 "$RC"
 assert_eq "dispatched: two notices merge into one document" 1 "$(printf '%s\n' "$OUT" | jq -c . 2>/dev/null | grep -c .)"
 merged_sys=$(json_field "$OUT" .systemMessage)
@@ -348,7 +350,7 @@ assert_contains "dispatched: merged systemMessage names the second guard" "$merg
 RG_EARLY="$TEST_TMPDIR/rg-early"
 cp -R "$PLUGIN_DIR" "$RG_EARLY"
 inject_after "$RG_EARLY/hooks/run-guards.sh" '^guard::abort_boundary run-guards ' ": \"\${${MARKER}?forced abort}\""
-run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$RG_EARLY/hooks/run-guards.sh" block-dangerous-git.sh
+run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_EARLY/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort before stdin fails open (declared posture)" 0 "$RC"
 assert_contains "dispatcher abort before stdin names run-guards" "$ERR" "guardrails run-guards: ${NOTICE}1); fail-open"
 assert_contains "dispatcher abort before stdin carries systemMessage" \
@@ -359,7 +361,7 @@ assert_eq "dispatcher abort before stdin has no hookSpecificOutput (event unknow
 RG_LATE="$TEST_TMPDIR/rg-late"
 cp -R "$PLUGIN_DIR" "$RG_LATE"
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
-run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
+run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$RC"
 assert_eq "dispatcher abort after priming names the event from the payload" PreToolUse \
   "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
@@ -372,29 +374,29 @@ RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
-run_hook -- pipe_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
+run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher: a prime filter inserted ahead of .hook_event_name still fails open" 0 "$RC"
 assert_eq "dispatcher: a prime filter inserted ahead of .hook_event_name still names the event" PreToolUse \
   "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
 
 printf '#!/usr/bin/env bash\nexit 3\n' >"$TEST_TMPDIR/three.sh"
-run_hook -- pipe_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"
+run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"
 assert_exit "dispatcher: a guard's deliberate 3 is aggregated, not reported as an abort" 3 "$RC"
 assert_absent "dispatcher: released boundary emits no notice for the aggregated status" "$ERR$OUT" "$NOTICE"
 
 # --- Transparency: chosen statuses pass through with no notice --------------
-run_hook -- pipe_run "$BASH_NO_VERIFY" bash "$HOOK_DIR/block-no-verify.sh"
+run_hook -- feed_run "$BASH_NO_VERIFY" bash "$HOOK_DIR/block-no-verify.sh"
 assert_exit "shipped block-no-verify still denies --no-verify" 2 "$RC"
 assert_absent "a deny carries no abort notice" "$ERR$OUT" "$NOTICE"
 assert_silent "a deny writes nothing to stdout" "$OUT"
-run_hook -- pipe_run "$BASH_BENIGN" bash "$HOOK_DIR/block-no-verify.sh"
+run_hook -- feed_run "$BASH_BENIGN" bash "$HOOK_DIR/block-no-verify.sh"
 assert_exit "shipped block-no-verify still allows a benign command" 0 "$RC"
 assert_silent "an allow is silent" "$ERR$OUT"
-run_hook CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false -- pipe_run "$BASH_NO_VERIFY" bash "$HOOK_DIR/block-no-verify.sh"
+run_hook CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false -- feed_run "$BASH_NO_VERIFY" bash "$HOOK_DIR/block-no-verify.sh"
 assert_exit "kill switch exit 0 (hook::check_enabled) passes through" 0 "$RC"
 assert_silent "kill switch exit is silent" "$ERR$OUT"
 run_hook CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
-  pipe_run "$(write_json "$TEST_TMPDIR/notes.md" 'plain prose')" bash "$HOOK_DIR/cli-flag-verify.sh"
+  feed_run "$(write_json "$TEST_TMPDIR/notes.md" 'plain prose')" bash "$HOOK_DIR/cli-flag-verify.sh"
 assert_exit "shipped cli-flag-verify exits 0 on plain prose" 0 "$RC"
 assert_absent "an advisory hook's normal run carries no abort notice" "$ERR$OUT" "$NOTICE"
 

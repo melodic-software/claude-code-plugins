@@ -46,7 +46,6 @@ assert_not_contains() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
-#   commit_all <dir> [<message>]
 commit_all() {
   git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
@@ -219,7 +218,6 @@ assert_eq "check treats no block and nothing to index as in sync" "0" "$?"
 out="$(run check --file "$empty/AGENTS.md" --root "$empty")"
 assert_contains "and says so" "$out" "IN-SYNC"
 
-# A block left behind after the last rule went away is drift the writer clears.
 {
   printf '# Songs\n\n'
   printf '<!-- BEGIN GENERATED: instruction-placement rules index -->\n'
@@ -247,10 +245,8 @@ printf '@AGENTS.md\n' >"$relroot/CLAUDE.md"
 printf '# Root\n' >"$relroot/AGENTS.md"
 commit_all "$relroot"
 
-# Run these from a neutral empty directory. The bug being fixed is a relative
-# --file resolving against the CALLER's cwd, so a run of this case against the
-# unfixed script writes into whatever repository the suite was launched from.
-# It did exactly that once, to this repository's own AGENTS.md.
+# Run these from a neutral empty directory: a --file resolved against the
+# caller's cwd would write into whatever repository the suite was launched from.
 neutral="$(mktemp -d)"
 
 out="$( (cd "$neutral" && run check --file AGENTS.md --root "$relroot") 2>&1)"
@@ -282,7 +278,6 @@ assert_eq "an in-sync check exits 0" "0" "$?"
 
 assert_contains "the written file kept its original content" "$(cat "$target")" "Root shared instructions"
 
-# Adding a rule must drift the committed block.
 cat >"$repo/.claude/rules/new.md" <<'EOF'
 ---
 paths:
@@ -304,7 +299,6 @@ out="$(run check --file "$target" --root "$repo")"
 assert_contains "rewriting restores sync" "$out" "IN-SYNC"
 assert_contains "the new rule appears after the rewrite" "$(cat "$target")" "Documentation rules"
 
-# A rewrite must be idempotent — no duplicated blocks.
 run write --file "$target" --root "$repo" >/dev/null 2>&1
 run write --file "$target" --root "$repo" >/dev/null 2>&1
 marker_count="$(grep -cF "BEGIN GENERATED" "$target")"
@@ -374,10 +368,8 @@ unwired="$(mktemp -d)"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
 printf '# Shared\n' >"$unwired/AGENTS.md"
-# One path-scoped rule, so there is something to index. The subject here is the
-# unreachable warning; without a rule the repository would have nothing to index
-# and `write` would correctly decline to write a block at all, which is a
-# different case (covered above) and would leave this one proving nothing.
+# One path-scoped rule, so there is something to index: without it `write`
+# declines to write a block and this case would prove nothing.
 mkdir -p "$unwired/.claude/rules"
 printf -- '---\npaths:\n  - "**/*.py"\n---\n# Python\n' >"$unwired/.claude/rules/py.md"
 commit_all "$unwired"
@@ -387,11 +379,8 @@ assert_contains "reachable reports an unimported AGENTS.md as UNREACHABLE" "$out
 run reachable --file "$unwired/AGENTS.md" --root "$unwired" >/dev/null 2>&1
 assert_eq "an unreachable target exits 1" "1" "$?"
 
-# Writing into an unreachable target still writes, but must say so on stderr:
-# the operator may be about to add the import, and silence would hide the fact
-# that the index currently does nothing.
-# `run` folds stderr into stdout, so the warning needs a direct call that keeps
-# the two streams apart.
+# `run` folds stderr into stdout, so the unreachable-target warning needs a direct
+# call that keeps the two streams apart.
 warn_only() { { bash "$SCRIPT" "$@" >/dev/null; } 2>&1; }
 
 warn="$(warn_only write --file "$unwired/AGENTS.md" --root "$unwired")"
@@ -552,8 +541,6 @@ nonested="$(mktemp -d)"
 git -C "$nonested" init -q .
 printf '# Root only\n' >"$nonested/CLAUDE.md"
 commit_all "$nonested"
-# Silence and "nothing to report" were the same output, so a clean repository
-# looked exactly like a subcommand that never ran.
 out="$(run wiring --root "$nonested")"
 assert_eq "no nested AGENTS.md says so rather than printing nothing" "NONE" "$out"
 run wiring --root "$nonested" >/dev/null 2>&1
@@ -629,14 +616,8 @@ assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
 # --------------------------------------------------------------------------
 # Windows path forms: a drive-letter --root and --file round trip
 # --------------------------------------------------------------------------
-# `git rev-parse --show-toplevel` answers `C:/repo` under Git Bash, and that is
-# the spelling hooks/index-drift.sh hands this script on every Windows write.
-# Reading such a target as relative made the production check a silent no-op for
-# every Windows user, so the round trip is pinned here rather than in the hook.
-#
-# The probe IS that spelling: where git answers the same string the fixture was
-# built under, the host has one path form, there is no second form to drive, and
-# the case reports a visible SKIP rather than a pass it never earned.
+# `git rev-parse --show-toplevel` answers `C:/repo` under Git Bash, the spelling
+# hooks/index-drift.sh hands this script; a host with one path form SKIPs visibly.
 winrepo="$(build_fixture)"
 win_root="$(git -C "$winrepo" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$win_root" || "$win_root" == "$winrepo" ]]; then
@@ -662,21 +643,14 @@ else
   run reachable --file "$win_target" --root "$win_root" >/dev/null 2>&1
   assert_eq "reachable admits a drive-letter target" "0" "$?"
 
-  # The written index must match the one a shell-form run produces byte for
-  # byte, so the drive-letter path stays a spelling and never becomes a second
-  # result. The two fixtures are built the same way, so only the spelling differs.
   posixrepo="$(build_fixture)"
   run write --file "$posixrepo/AGENTS.md" --root "$posixrepo" >/dev/null 2>&1
   assert_eq "the drive-letter run writes the same index as the shell-form run" \
     "$(cat "$posixrepo/AGENTS.md")" "$(cat "$winrepo/AGENTS.md")"
   rm -rf "$posixrepo"
 
-  # The same drive-letter path spelled with backslashes, as a PowerShell or cmd
-  # caller hands it. The renderer re-spells it with forward slashes at intake,
-  # so every status line names the forward-slash form; that spelling assertion
-  # is the one that pins the normalization. MSYS coreutils already split a
-  # backslash path correctly, so the round-trip assertions alone would pass on
-  # this host without the fix, and only the spelling assertion discriminates.
+  # Backslash spelling, as a PowerShell or cmd caller hands it. MSYS already
+  # splits it, so only the forward-slash spelling assertion pins normalization.
   bsrepo="$(build_fixture)"
   bs_root="$(git -C "$bsrepo" rev-parse --show-toplevel 2>/dev/null || true)"
   bs_root_bs="${bs_root//\//\\}"

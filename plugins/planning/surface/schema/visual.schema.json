@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual",
+  "title": "Interview surface visual",
+  "description": "A visual declared by format, never by the skill that produced it. `kind` is the v2.1 name for `format` and is read as an alias. `file` is a path relative to the data dir.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string"},
+    "scope": {"type": "string", "description": "question:<id>, group:<id>, round:<stage>:<n>, or all"},
+    "title": {"type": "string"},
+    "format": {"$ref": "#/$defs/format"},
+    "kind": {"$ref": "#/$defs/format"},
+    "content": {"type": ["string", "object", "array"]},
+    "file": {"type": "string"}
+  },
+  "allOf": [
+    {"anyOf": [{"required": ["format"]}, {"required": ["kind"]}]},
+    {"oneOf": [{"required": ["content"]}, {"required": ["file"]}]}
+  ],
+  "$defs": {
+    "format": {"enum": ["svg", "mermaid", "image", "markdown", "html", "chart"]}
+  }
+}

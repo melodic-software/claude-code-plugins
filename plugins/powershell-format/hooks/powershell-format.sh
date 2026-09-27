@@ -125,14 +125,20 @@ command -v pwsh >/dev/null 2>&1 || emit_skipped
 
 # PowerShell on Windows does not understand MSYS mount paths (/d/...). Convert
 # both the file and the settings path to a mixed drive-letter form (D:/...) that
-# pwsh consumes, when cygpath is available (Git Bash on Windows); on Linux/macOS
-# cygpath is absent and the POSIX paths pwsh already understands pass through.
+# pwsh consumes, when this is a Windows bash with cygpath (Git Bash); on
+# Linux/macOS the POSIX paths pwsh already understands pass through, with no
+# cygpath lookup (a miss probes every PATH directory, /mnt/c ones on WSL).
 to_pwsh_path() {
-  if command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
-  else
-    printf '%s' "$1"
-  fi
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    if command -v cygpath >/dev/null 2>&1; then
+      cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+      return
+    fi
+    ;;
+  *) ;;
+  esac
+  printf '%s' "$1"
 }
 PSSA_FILE_ARG="$(to_pwsh_path "$FILE")"
 PSSA_SETTINGS_ARG="$(to_pwsh_path "$SETTINGS_FOUND")"
@@ -672,7 +678,7 @@ case $PWSH_EXIT in
   done <<<"$PSSA_OUTPUT"
   if [[ "$TRUST_VERDICT" == "GATE" && -n "$TRUST_MARKER_NAME" ]]; then
     trust_state_base="${CLAUDE_PLUGIN_DATA:-}"
-    if command -v cygpath >/dev/null 2>&1 && [[ "$trust_state_base" == [A-Za-z]:\\* ]]; then
+    if [[ "$trust_state_base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
       trust_state_base="$(cygpath -u "$trust_state_base" 2>/dev/null)" || trust_state_base=""
     fi
     [[ -n "$trust_state_base" ]] &&

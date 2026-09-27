@@ -39,10 +39,6 @@ const VISIBLE_DATE_PATTERNS = [
 // Dometrain also publishes its dates through non-og meta properties.
 const DOMETRAIN_META_SUBSTRINGS = ["date", "time", "modified", "published"];
 
-// ---------------------------------------------------------------------------
-// Adapter defaults (Dometrain-specific config)
-// ---------------------------------------------------------------------------
-
 export const defaults = {
   videoPlayerSelector: "mux-player",
   authWarnDays: 6,
@@ -60,9 +56,7 @@ export const defaults = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // Required adapter methods
-// ---------------------------------------------------------------------------
 
 /**
  * The configured video-player selector, falling back to the adapter default.
@@ -222,9 +216,7 @@ export function buildLessonUrl(course, lesson, _platformCfg) {
   return `${baseUrl}${lesson.slug}/`;
 }
 
-// ---------------------------------------------------------------------------
 // Optional adapter methods
-// ---------------------------------------------------------------------------
 
 function applyJsonLdMetadata(metadata, jsonLd) {
   if (!jsonLd) return;

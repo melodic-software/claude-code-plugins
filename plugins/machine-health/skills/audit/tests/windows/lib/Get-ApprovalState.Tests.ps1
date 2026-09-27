@@ -127,11 +127,8 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         }
 
         It 'separates host and user in approved_by with exactly one backslash' {
-            # #3369: the interpolation used "$env:COMPUTERNAME\\$env:USERNAME".
-            # PowerShell double-quoted strings do not treat backslash as an
-            # escape, so that emitted a LITERAL doubled separator. Counted
-            # rather than compared against a rebuilt expected value: rebuilding
-            # it with the same expression would pass while both sides are wrong.
+            # #3369: count the separators; rebuilding the expected value with the same
+            # expression would pass while both sides are wrong.
             Set-Content -LiteralPath $script:todoPath `
                 -Value '- [x] Clear-TempFiles' -Encoding utf8
 

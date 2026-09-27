@@ -46,15 +46,8 @@ try {
         Write-Verbose "Test-DnsHealth: gateway probe failed. $($_.Exception.Message)"
     }
 
-    # Severity rubric (ordered by precedence, most severe first):
-    #   CRIT  -- gateway confirmed unreachable (primary network failure)
-    #   WARN  -- any DNS target failed, regardless of gateway status
-    #            (DNS failures are actionable even when gateway probe didn't run)
-    #   INFO  -- gateway probe couldn't determine reachability AND DNS is fine
-    #   OK    -- gateway reachable and all DNS resolved
-    # Order matters: DNS failures are still reported at WARN when the gateway
-    # state is unknown -- ordering "gateway unknown -> INFO" ahead of the
-    # DNS-failure check would under-report real DNS problems.
+    # Order matters: test DNS failures (WARN) before "gateway unknown" (INFO), or real
+    # DNS problems are under-reported whenever the gateway state is unknown.
     $severity = 'OK'
     $summary = "DNS OK ($($targets.Count)/$($targets.Count)); gateway $gateway reachable."
     if ($gatewayReachable -eq $false) {

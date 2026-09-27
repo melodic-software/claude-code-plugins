@@ -47,10 +47,8 @@ Describe 'Test-DnsHealth -- severity rubric' -Tag 'check' {
     }
 
     It 'reports WARN (not INFO) when DNS fails and gateway probe fails too (regression)' {
-        # Regression: when Get-NetRoute fails the script catches and leaves
-        # $gatewayReachable as $null. Previous code downgraded that to INFO
-        # regardless of DNS state, under-reporting actionable DNS failures.
-        # DNS WARN must survive the unknown-gateway case.
+        # Regression: a failed Get-NetRoute leaves $gatewayReachable $null, and a DNS WARN
+        # must survive that unknown-gateway case instead of dropping to INFO.
         Mock Resolve-DnsName { throw 'DNS resolution failed' }
         Mock Get-NetRoute { throw 'Get-NetRoute failed' }
 

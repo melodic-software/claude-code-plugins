@@ -35,13 +35,8 @@ function Get-PnpProblemDevice {
     }
     if (-not $raw) { return @() }
 
-    # Split into device blocks. Each block starts with "Instance ID:".
-    # The FIRST element of the split is always pre-"Instance ID:" preamble
-    # spellchecker:ignore-next-line
-    # (banner text like "Microsoft PnP Utility" and, on healthy systems, any
-    # "no devices have problems" message) -- drop it. When pnputil emits no
-    # device blocks at all, the split produces a single preamble element and
-    # we correctly return @().
+    # The first split element is always the pre-"Instance ID:" banner preamble, or
+    # the whole output when no device has a problem, so skip it.
     $blocks = @($raw -split '(?m)^Instance ID:' | Select-Object -Skip 1 | Where-Object { $_.Trim() })
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 

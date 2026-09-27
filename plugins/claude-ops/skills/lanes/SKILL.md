@@ -237,12 +237,20 @@ and skip the staleness check silently.
 
 The launcher shells out only to primitives this machine's `claude` reports.
 Verified 2026-09-06 against Claude Code 2.1.263, by reading `claude --help`,
-`claude agents --help`, and `claude plugin marketplace --help`. Recheck when the
-CLI's major or minor version moves, or a release note names background sessions,
-the `agents` command, or `plugin marketplace`. The primitives:
-`claude --bg -n <name> [--model M] [--effort E]
+`claude agents --help`, and `claude plugin marketplace --help`; `--permission-mode
+auto` re-verified 2026-09-27 against Claude Code 2.1.283, by running `claude --bg
+-n <test-name> --permission-mode auto "<prompt>"` and confirming `auto` is a
+listed `--permission-mode` choice, and against the official
+[CLI reference](https://code.claude.com/docs/en/cli-reference), which lists
+`--permission-mode` as accepting `default`, `acceptEdits`, `plan`, `auto`,
+`dontAsk`, `bypassPermissions`, or `manual`. Recheck when the CLI's major or
+minor version moves, or a release note names background sessions, the
+`agents` command, `plugin marketplace`, or `--permission-mode`. The primitives:
+`claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
 [--settings JSON] "<prompt>"` (launch a named background session, return
-immediately; `--settings` accepts inline JSON and applies session-only, per the
+immediately; `--permission-mode auto` is what makes an unattended lane run
+past its first permission prompt instead of stalling under a machine's Manual
+default; `--settings` accepts inline JSON and applies session-only, per the
 CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),

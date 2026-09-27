@@ -1,0 +1,47 @@
+name: claude-review
+
+# Automated PR code review via the ci-workflows reusable workflow. The caller
+# owns the triggers + GITHUB_TOKEN permission grant (a called workflow can only
+# downgrade them, never elevate); the reusable workflow owns the action pin and
+# the secret-handling safety model. Fork PRs and bot actors are not reviewed.
+# The CLAUDE_CODE_OAUTH_TOKEN org secret has `all` repository visibility
+# (github-iac README). Public repo: hosted default runner.
+#
+# EVERY PUSH IS REVIEWED; DRAFTS ARE NOT (ADR 0038). `synchronize` lands the
+# review on the head that merges, and on a pull request that conflicted with
+# main when it opened (GitHub runs no pull_request workflow while it
+# conflicts). A newer push cancels the older run.
+#
+# The `review / claude-review-status` check goes red and names the cause when
+# the review fails (ci-workflows#619). It is advisory: never add it, or any
+# check in this file, to required status checks.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post review + track_progress tracking comment
+      id-token: write        # OIDC — mints the Claude GitHub App token
+    # Repo-wide review queue: parallel PRs queue for the shared Claude seat
+    # instead of contending for it. `queue: max` admits no `cancel-in-progress`
+    # (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency).
+    concurrency:
+      group: claude-review-${{ github.repository }}
+      queue: max
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@0d3e6a6f3851cf678f82fa9a8a17f10faa909ac9 # v0.29.1
+    with:
+      runner: ubuntu-24.04
+    # One named secret (least privilege), never `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

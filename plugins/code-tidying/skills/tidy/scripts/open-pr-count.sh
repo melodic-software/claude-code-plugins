@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Open chore/tidy-* PR count for the backlog throttle.
 #
-# Output: Open tidy PR count, Throttle active, Detail
-# Exit: 0 when gh succeeded; 1 when count unknown.
-#
 # -e omitted: fact-gatherer must capture gh's exit code, not abort on it.
 # -o pipefail omitted: graceful degradation when gh fails mid-pipeline.
 set -u
@@ -34,7 +31,7 @@ case "${1:-}" in
   usage
   exit 0
   ;;
-*) ;; # no other flags; proceed to gather facts
+*) ;;
 esac
 
 if ! command -v gh >/dev/null 2>&1; then

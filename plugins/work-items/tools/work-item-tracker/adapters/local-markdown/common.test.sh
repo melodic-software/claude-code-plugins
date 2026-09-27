@@ -58,7 +58,7 @@ assert_eq "next number after one item" "2" "$(wit_next_number)"
 # pin both against a gap and a non-item file: numbers are max+1 rather than
 # count+1, and a markdown file that is not an item never enters either answer.
 #
-# The fixture is 2 and 10 on purpose. Allocation now derives the maximum from the
+# The fixture is 2 and 10 on purpose. Allocation derives the maximum from the
 # tail of this walk, so the walk's NUMERIC ordering is load-bearing: under a
 # lexical sort these come back "1,10,2," and the next number is 3, which is an
 # existing item. The pair must straddle a digit-count boundary to discriminate,

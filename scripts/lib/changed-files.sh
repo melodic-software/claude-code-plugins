@@ -1,14 +1,7 @@
 # shellcheck shell=bash
 # Shared base-ref validation and changed-file resolution. Sourced, never executed.
 #
-# Seven checkers under scripts/ each answered the same two questions for
-# themselves -- "is this base ref real?" and "what changed against it?" -- and
-# the copies drifted. The divergence was live when this file was extracted
-# (#2914, finding 1): check-shell-portability.sh and check-skill-portability.sh
-# carried the NUL-delimited (-z) read that keeps a C-quoted pathname intact,
-# while check-changed-skills.sh and check-docs-only.sh still read
-# `git diff --name-only` line-wise and silently dropped such a path. One
-# definition here means the next fix to the walk lands in every gate at once.
+# One definition here means the next fix to the walk lands in every gate at once.
 #
 # A caller sources this file and uses:
 #
@@ -78,11 +71,8 @@ changed_files::verify_base() {
 # prefix, and that is a correctness requirement rather than a naming style. A
 # nameref resolves its target in the scope where it is USED, so a local declared
 # after the binding and sharing the caller's chosen out-var name shadows that
-# caller's variable for the rest of the function. Measured on the unprefixed
-# version, with three distinct broken outcomes and no diagnostic pointing at the
-# caller: an out-var named `base` aborted under `set -u` citing an internal
-# variable, one named `filter` came back holding the option array, and ones
-# named `tmp` or `path` came back SILENTLY EMPTY -- the empty-change-set
+# caller's variable for the rest of the function. Measured on the unprefixed version: an
+# out-var named `tmp` or `path` came back SILENTLY EMPTY, the empty-change-set
 # fail-open this file exists to remove. Prefixing every internal name puts the
 # collision out of a caller's reach; do not introduce an unprefixed local here.
 

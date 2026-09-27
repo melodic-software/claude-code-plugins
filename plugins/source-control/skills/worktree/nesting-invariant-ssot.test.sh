@@ -64,7 +64,7 @@ assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-08
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
 # Keep the reasoning attached to the expiry, or a later reader deletes it as
-# redundant with the event triggers — which is how it went missing the first time.
+# redundant with the event triggers.
 assert_contains "the expiry states why the event triggers cannot carry this alone" \
   "$owner_text" "incapable of firing on their own"
 # The dispute is the reason the fixture exists; an owner that reads as settled
