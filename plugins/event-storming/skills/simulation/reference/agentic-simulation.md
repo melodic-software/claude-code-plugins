@@ -140,7 +140,7 @@ Every agent prompt already includes persona identity, domain context, color/form
 - You know 30% of this domain. Write ONLY from your expertise. Leave gaps.
 - Each event: 2-5 words, past tense, verb phrase. Not sentences.
 - When you read others' events: find what's WRONG first. Challenge 2-3 events.
-- Do NOT plan your output. Write events as they come to mind.
+- Place events in the order they occur to you. Decide no categories up front.
 - Use YOUR role's vocabulary. Different words for the same moment = valuable signal.
 - Your output volume matches your role: [Expert: 12-15 | Newbie: 4-6 | Specialist: 8-10]
 ```

@@ -82,7 +82,7 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 |---|---------|---------------|----------|---------|
 | 1 | <summary> | VALID: fixing | <evidence> | 👍 |
 | 2 | <summary> | INCORRECT | <evidence why wrong> | 👎 |
-| 3 | <summary> | VALID (defer) | <reason for deferral> | 👍 |
+| 3 | <summary> | VALID (defer) | <structural, urgent, or fix blocked on research: why; item id> | 👍 |
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post the
@@ -135,11 +135,11 @@ Return a SINGLE markdown ledger with this exact shape (one row per finding):
 | 2 | IMPORTANT | path/to/file.cs:73 | <one-line summary> | INCORRECT: code already does X | <counter-evidence> | INCORRECT |
 | 3 | SUGGESTION | path/to/file.md:12 | <one-line summary> | UNCERTAIN: behavior depends on Y | <what's missing> | UNCERTAIN |
 
-CRITICAL constraints on the ledger:
+Ledger constraints:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN
+- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now)
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
@@ -152,7 +152,7 @@ Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRIT
 1. Receive the ledger. Verify the row count matches the source comment's finding count
    (independent count via grep on the parent comment body for severity markers)
 2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)`:
-   provenance test first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
+   provenance and scope tests first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
    (reply with the per-finding sub-row from the ledger) + D6 (fix if `VALID (fix now)`) + D7
    (follow-up SHA) with verification gates between each step. A subagent ledger row saying
    `VALID (defer)` is a classification, not a grounding. D4.6 runs on it like any other
@@ -188,7 +188,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 - [ ] D3. **Validate the claim**. Verify against actual code before trusting. Research
   non-trivial claims. Never implement a fix based solely on a bot's assertion
 - [ ] D4. Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
-  Classification MUST cite evidence from D2–D3
+  Classification MUST cite evidence from D2–D3. `VALID (defer)` must pass D4.6's scope test
 - [ ] D4.5. React to the parent comment via `gh api .../reactions`. One reaction per comment
   (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
   (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or a mix
@@ -210,6 +210,13 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   finding in the run's report for the user to place. An ungrounded deferral is not one of the three
   records D7.5 accepts, so the thread stays open and nothing merges over it
   <!-- contract-restatement-end: D4.6-deferral-grounding -->
+  - [ ] **Defer only what cannot land in this PR (scope test).** A small or medium finding is
+    `VALID (fix now)` and is fixed in this PR in a review-fix commit, separate from the original
+    work, even when it is unrelated to the task. `VALID (defer)`, and the tracker item behind it,
+    is only for a finding that is structural (large enough to need its own planning pass), urgent
+    and real but unable to land in this PR, or whose fix is blocked on research this lane is not
+    positioned to do (a claim research cannot confirm stays `UNCERTAIN`). Filing is never busy
+    work: no item for a nit or a speculative concern
   - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce
     before this change, this change introduced it, and it is `VALID (fix now)`. Fix it, or

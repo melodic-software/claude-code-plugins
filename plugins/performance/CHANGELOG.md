@@ -3,6 +3,50 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-09-23
+
+### Added
+
+- **`protect`**: a fifth skill that locks in a proven counter win. It proposes a checked-in
+  counter ceilings file, a CI step that fails when a counter rises above its ceiling, and a lower
+  ceiling when the counter falls: in the same PR, or through a scheduled draft PR for a counter
+  that can fall without a code change. It also covers guardrails
+  for fragile optimizations and win decay. It never merges.
+- **`scripts/ratchet.py`** with `check`, `propose-tighten`, and `add`, plus `ratchet.test.sh`
+  negative controls: a counter above its ceiling fails, at or below passes, and malformed input,
+  including a NaN or infinite ceiling or measured value, fails.
+- **`reference/techniques.md`**: a technique catalog in loop-phase order (choose the target,
+  define the goal and its boundary, lab rigs, prove the proxy, diagnose, latency patterns, protect
+  the win, ship and read the field, steer, write the result up). Each skill step points at the
+  section it uses.
+- **`reference/glossary.md`**: the terms the skills and the catalog use, including correlation,
+  ratchet, win decay, measurement boundary, and geometric mean.
+- **`goal`**: a required `Correlation:` line (`unproven` is a legal value), a `Boundary:` line
+  and measurement-boundary clause (start event, end event, the side of a process or network split
+  each falls on, start state), and a gotcha that a metric green while the symptom is visible is the
+  wrong metric.
+- **`snapshot`**: a `Rig:` line on every duration, the two-rig recipe for correlation evidence,
+  first-pass and later-pass times reported separately, and fixed-tick budget-fit counts as counters.
+- **`verify`**: report lines `Correlation:` (with `unproven` shown beside the headline counter),
+  `Rig:`, an optional `Cost:`, and `Not covered:`; a rule that multi-target aggregates use the
+  geometric mean; `## Next` routes a met counter to `/performance:protect` and a met result with a
+  large realistic-to-ideal gap to `/performance:target` for a re-scan.
+- **`target`**: pointers to the census, region-and-phase tagging, hidden-work, and diagnosis
+  sections; screenshots and recordings count as candidate sources; telemetry is checked for
+  accuracy and coverage before it ranks anything.
+
+### Changed
+
+- **`harness-integrity.md` rule 3**: a check that may be flaky repeats each arm N times, with N
+  chosen per check and recorded, and both arms must be N/N. Rule 1 adds the fixed-tick rig
+  self-check. The checklist gains the N/N item.
+- **README**: the skill table lists five skills; the Baselines rule narrows to "durations are
+  never committed; a counter ceiling for `/performance:protect` may be"; a Reference section points
+  at the catalog, the glossary, and the source article.
+- **`snapshot` storage** states that a counter ceiling is not a baseline and no duration is
+  committed. The manifest description lists five skills.
+- **`verify`**: an unexercised mode is reported under `Not covered:`.
+
 ## [0.1.9] - 2026-09-21
 
 ### Changed

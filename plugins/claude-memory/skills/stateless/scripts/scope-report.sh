@@ -2,24 +2,8 @@
 # Snapshot the auto-memory posture for the CURRENT project (a git repo, or the current
 # directory outside one) across every settings scope.
 #
-# Reports two deterministic things so the skill workflow doesn't hand-derive them:
-#   1. Which settings.json files exist at each scope (managed / user / project / local),
-#      and whether CLAUDE_CODE_DISABLE_AUTO_MEMORY is set in the live OS environment.
-#   2. The DEFAULT auto-memory directory for this repo (via the plugin's single-source
-#      resolver) plus its MEMORY.md line count and topic-file count.
-#
-# It intentionally does NOT parse the JSON key values (autoMemoryEnabled,
-# autoMemoryDirectory, env.CLAUDE_CODE_DISABLE_AUTO_MEMORY): that avoids a hard `jq`
-# dependency and cross-scope precedence guessing. The workflow reads the existing
-# settings files (listed here) and extracts those keys with the model's own reading.
-#
-# autoMemoryDirectory can relocate the memory dir away from the default this script
-# reports; the workflow folds any override in as an additional candidate. Windows
-# managed policy can live in the registry rather than a file — flagged, not read here.
-#
-# Usage: bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/scope-report.sh"
-# Output: a plain-text report on stdout. Never exits non-zero for a missing file or
-# a non-git directory — absence is data the caller reports, not an error.
+# Reads no JSON key values, avoiding a jq dependency and precedence guessing; the
+# workflow reads the listed files and folds in any autoMemoryDirectory relocation.
 
 set -uo pipefail
 
@@ -43,21 +27,15 @@ fi
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 resolver="$script_dir/../../audit/scripts/resolve-memory-dir.sh"
 
-# Config root: CLAUDE_CONFIG_DIR relocates the whole `~/.claude` tree (user settings
-# AND the projects/ memory tree) when set — see the official .claude-directory doc.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 exists() { [[ -f "$1" ]] && echo "PRESENT" || echo "absent"; }
 dir_exists() { [[ -d "$1" ]] && echo "PRESENT" || echo "absent"; }
 
-# One row of the settings-scope table: scope label, presence state, path.
 row() { printf '%-10s %-8s %s\n' "$1" "$2" "$3"; }
 
-# Managed/policy settings locations are OS-specific and are shared vocabulary
-# (lib/managed-scope.sh) rather than this script's to restate.
-# This report stays presence-only: it names the non-file surfaces (registry,
-# preferences domain) without reading them, so an absent JSON file is never
-# mistaken for "no managed policy deployed".
+# Presence-only: non-file policy surfaces are named, never read, so an absent JSON
+# file is never mistaken for "no managed policy deployed".
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/managed-scope.sh
 source "$plugin_root/lib/managed-scope.sh"
@@ -70,7 +48,6 @@ managed_dropin="$(mscope::dropin_dir)"
 
 user_settings="$config_root/settings.json"
 
-# Project/local scopes: anchor to the repo root when inside one, else CWD.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 base="${repo_root:-$(pwd)}"
 project_settings="$base/.claude/settings.json"

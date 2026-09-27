@@ -1,26 +1,7 @@
 #!/usr/bin/env bash
 # file-provenance.sh — is this file owned here, or written by a sync from elsewhere?
-#
-# An audit finding proposes an edit. When the flagged file is a synced copy of a
-# source in another repository, that edit is overwritten by the next sync, so the
-# finding is real but its fix belongs upstream. This script answers the ownership
-# question with two cheap signals and no network:
-#
-#   header  the file carries a `SYNC-MANAGED` marker, the convention a managed
-#           file states about itself where its format allows a comment
-#   commit  the file's last commit is a sync: an author name containing
-#           `standards-sync`, or a subject starting `chore: sync standards`
-#
-# Either signal makes the file `synced`; a file with neither is `local`. A file
-# that is not tracked, or a directory that is not a repository, is `local` too:
-# with no history to read, the only honest answer is that nothing proves it is
-# synced. The upstream name is taken from a `Source of truth: <owner/repo>` line
-# next to the header when one exists, else reported as `unknown`.
-#
-# Usage:
-#   file-provenance.sh <path>            print `<synced|local>\t<signal>\t<upstream>`; exit 0
-#   file-provenance.sh --synced <path>   exit 0 when synced, 1 when local; prints nothing
-#   file-provenance.sh --help
+# A synced copy's fix belongs upstream, since the next sync overwrites it. An
+# untracked file is `local`: with no history, nothing proves it is synced.
 
 set -uo pipefail
 

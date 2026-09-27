@@ -137,6 +137,48 @@ expect_both 'rm -rf /.. blocks' 2 --command 'rm -rf /..'
 expect_both 'sudo -u bob rm -rf / blocks' 2 --command 'sudo -u bob rm -rf /'
 expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
 expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
+# `--` ends options, not the duration; a word that cannot be a duration is the
+# command word.
+expect_both 'timeout -- 5 rm -rf / blocks' 2 --command 'timeout -- 5 rm -rf /'
+expect_both 'timeout -- rm -rf / blocks' 2 --command 'timeout -- rm -rf /'
+# The duration after `--` is read in strtod's shape: space, a sign, inf.
+expect_both 'timeout -- +5 rm -rf /* blocks' 2 --command 'timeout -- +5 rm -rf /*'
+expect_both "timeout -- ' 5' rm -rf /* blocks" 2 --command "timeout -- ' 5' rm -rf /*"
+expect_both 'timeout -- inf rm -rf /* blocks' 2 --command 'timeout -- inf rm -rf /*'
+expect_both 'timeout --k 1 5 rm -rf /* blocks (abbreviated --kill-after)' 2 --command 'timeout --k 1 5 rm -rf /*'
+# The prefix reading is judged beside the plain one, never instead of it, so a
+# launcher this guard already walked keeps every refusal it had.
+expect_both 'nice --adj rm -rf /* blocks' 2 --command 'nice --adj rm -rf /*'
+expect_both 'ionice --cl rm -rf /* blocks' 2 --command 'ionice --cl rm -rf /*'
+expect_both 'env --ch rm -rf /* blocks' 2 --command 'env --ch rm -rf /*'
+expect_both 'stdbuf --ou rm -rf /* blocks' 2 --command 'stdbuf --ou rm -rf /*'
+expect_both 'timeout --k 1 rm -rf /* blocks' 2 --command 'timeout --k 1 rm -rf /*'
+expect_both 'nice --adj 5 ls / allowed' 0 --command 'nice --adj 5 ls /'
+# Both readings are judged for EVERY segment: an earlier segment spending some
+# shared budget, or many abbreviations in one segment, must not leave a later
+# delete judged on the plain reading alone.
+rdt_wa=""
+for ((rdt_d = 0; rdt_d < 17; rdt_d++)); do rdt_wa+="--wa 1 "; done
+expect_both 'abbreviations in earlier segments do not spend the later check' 2 \
+  --command 'flock --wa 1 --wa 1 --wa 1 --wa 1 --wa 1 f true; flock --wa 1 f rm -rf /*'
+expect_both 'repeated timeout --si segments still check the last' 2 \
+  --command 'timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 rm -rf /*'
+expect_both '17 abbreviations in one segment blocks' 2 --command "flock ${rdt_wa}f rm -rf /*"
+expect_both '17 abbreviations in one segment blocks on C:\' 2 --command "flock ${rdt_wa}f rm -rf C:\\"
+expect_both 'dangling backslash after abbreviation segments blocks' 2 \
+  --command 'flock --wa 1 --wa 1 --wa 1 --wa 1 --wa 1 f true; flock --wa 1 f rm -rf \'
+expect_both '17 abbreviations with an ordinary delete allowed' 0 --command "flock ${rdt_wa}f rm -rf ./build"
+rdt_ok20=""
+for ((rdt_d = 0; rdt_d < 20; rdt_d++)); do rdt_ok20+="timeout 5 true; "; done
+expect_both 'twenty ordinary timeout segments then an ordinary delete allowed' 0 --command "${rdt_ok20}rm -rf ./build"
+# Past the cap on resolved walks the guard REFUSES rather than judging one
+# reading only; the limit is far above any command a person writes.
+rdt_cap=""
+for ((rdt_d = 0; rdt_d < 260; rdt_d++)); do rdt_cap+="flock --wa 1 f true; "; done
+guard_invoke --command "${rdt_cap}rm -rf ./build"
+assert_exit "past the abbreviation cap the guard refuses" 2 "$GUARD_RC"
+assert_contains "the refusal names the abbreviation cap" "$GUARD_ERR" "too many command segments with abbreviated launcher options"
+expect_both 'timeout -- 5 ls / allowed' 0 --command 'timeout -- 5 ls /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
 expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
@@ -246,6 +288,54 @@ assert_exit "1300 sibling rm-bearing bodies are refused" 2 "$GUARD_RC"
 assert_contains "1300 siblings are refused by the COMMAND ceiling, not the body budget" \
   "$GUARD_ERR" "the command is too long to parse"
 
+# Launcher, child-shell and eval nesting is recursion in the guard. Unbounded,
+# 120 nested runusers exhausted bash's stack inside the block's telemetry, so
+# the BLOCKED message printed and the process still exited 0, and deeper ones
+# died on SIGSEGV. Past MAX_SEGMENT_DEPTH the guard refuses, and nested evals
+# are charged to the tokenizing budget so they refuse fast rather than
+# outrunning the hook timeout.
+rdt_rep() {
+  local s="" k
+  for ((k = 0; k < $2; k++)); do s+="$1"; done
+  printf '%s' "$s"
+}
+expect_both 'runuser -u nested 120 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 120)rm -rf /"
+expect_both 'runuser -u nested 900 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 900)rm -rf /"
+expect_both 'su -s /bin/su nested 300 deep is refused' 2 \
+  --command "$(rdt_rep 'su root -s /bin/su -- ' 300)root -s /bin/rm -- -rf /"
+# rdt_timed <label> <want> <command>: one case, alone and dispatched, each under
+# a `timeout 20` backstop. A slow path reads as rc 124 rather than as a pass,
+# because a hook the harness cancels on its timeout is cancelled WITHOUT a block.
+rdt_timed() {
+  local label="$1" want="$2" payload via rc
+  local -a argv
+  payload="$(command_json "$3")"
+  for via in direct dispatched; do
+    if [[ "$via" == direct ]]; then
+      argv=(bash "$HOOK")
+    else
+      argv=(bash "$GUARD_DISPATCH" "$HOOK")
+    fi
+    rc=0
+    timeout 20 "${argv[@]}" <<<"$payload" >/dev/null 2>&1 || rc=$?
+    assert_exit "$label ($via)" "$want" "$rc"
+  done
+}
+rdt_timed 'flock/eval nested 700 deep is refused inside the timeout' 2 "$(rdt_rep 'flock --wa 1 f eval ' 700)rm -rf /"
+# runuser with both -u and a non-shell -s is judged two ways at every level, so
+# the readings double per level below the depth cap. Every judged segment is
+# counted, and past the budget the guard refuses inside the timeout.
+rdt_timed 'runuser -u -s env nested 20 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 20)rm -rf ./x"
+rdt_timed 'runuser -u -s env nested 25 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf ./x"
+rdt_timed 'runuser -u -s env nested 25 deep with a root delete blocks' 2 \
+  "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf /"
+rdt_timed 'six-level mixed nesting with an ordinary delete allowed' 0 \
+  "sudo -u bob bash -c \"runuser -u x -- sh -c 'su root -c \\\"eval nice timeout 5 rm -rf ./build\\\"'\""
+expect_both 'moderate launcher nesting with an ordinary delete allowed' 0 \
+  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf ./build'"
+expect_both 'moderate launcher nesting with a root delete blocks' 2 \
+  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf /'"
+
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 
@@ -280,6 +370,175 @@ expect_both 'su - bob -c rm -rf / blocks' 2 --command "su - bob -c 'rm -rf /'"
 expect_both 'su -lc rm -rf / blocks (short cluster)' 2 --command "su -lc 'rm -rf /'"
 expect_both 'su --command= rm -rf / blocks' 2 --command "su --command='rm -rf /'"
 expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-command 'rm -rf /'"
+# getopt_long takes any unambiguous prefix of a long option, so an abbreviated
+# `--command` or `--session-command` carries the operand exactly as the full
+# name does.
+expect_both 'su --comm rm -rf / blocks (abbreviated --command)' 2 --command "su --comm 'rm -rf /'"
+expect_both 'su --c= rm -rf / blocks' 2 --command "su --c='rm -rf /'"
+# EVERY word after a -c-like word is parsed, not only the first: su runs the
+# last -c, and a -c-looking word may be another option's operand.
+expect_both 'su with two -c, the second a delete, blocks' 2 --command "su bob -c true -c 'rm -rf /*'"
+expect_both 'su -w -c -c blocks' 2 --command "su -w -c -c 'rm -rf /*'"
+# An operand attached to -c arrives inside the same word.
+expect_both "su -c'rm -rf /' blocks (attached operand)" 2 --command "su -c'rm -rf /'"
+expect_both "runuser -lc'rm -rf /' blocks (attached operand)" 2 --command "runuser -lc'rm -rf /'"
+expect_both "su -c'ls /' allowed (attached benign operand)" 0 --command "su -c'ls /'"
+# A shell reads `-c -- '…'` as `-c '…'`.
+expect_both 'su -c -- blocks' 2 --command "su bob -- -c -- 'rm -rf /*'"
+expect_both 'runuser -c -- blocks' 2 --command "runuser bob -- -c -- 'rm -rf /*'"
+# A -c operand of exactly `--` makes su build `sh -c -- CMD`, so CMD is the
+# word after it, in every spelling of the option.
+expect_both 'su --com=-- blocks' 2 --command "su root --com=-- 'rm -rf /*'"
+expect_both 'su -c-- blocks' 2 --command "su root -c-- 'rm -rf /*'"
+expect_both 'su --session-command=-- blocks' 2 --command "su root --session-command=-- 'rm -rf /*'"
+expect_both 'runuser --command=-- blocks' 2 --command "runuser root --command=-- 'rm -rf /*'"
+expect_both 'runuser -c -- operand blocks' 2 --command "runuser root -c -- 'rm -rf /*'"
+expect_both 'su --com=-- ls allowed' 0 --command "su root --com=-- 'ls /'"
+# -s / --shell naming a program that is not a shell runs that program with the
+# words after the user, so the program is the command.
+expect_both 'su -s /bin/rm blocks' 2 --command 'su root -s /bin/rm -- -rf /*'
+expect_both 'runuser -s /bin/rm blocks' 2 --command 'runuser bob -s /bin/rm -- -rf /*'
+expect_both 'runuser --shell=/bin/rm blocks' 2 --command 'runuser --shell=/bin/rm bob -- -rf /*'
+expect_both 'runuser -s/bin/rm blocks (attached)' 2 --command 'runuser -s/bin/rm root -- -rf /*'
+expect_both 'su -s /bin/bash -c ls allowed' 0 --command "su root -s /bin/bash -c 'ls /'"
+
+# The launcher family. Each of these moves the command word exactly as `sudo`
+# and `nice` do, so the real command is found behind its options and its own
+# positional argument.
+expect_both "runuser -c rm -rf / blocks" 2 --command "runuser -c 'rm -rf /'"
+expect_both 'taskset 1 rm -rf / blocks' 2 --command 'taskset 1 rm -rf /'
+# runuser WITHOUT -u is su's grammar: the operand follows -c, a user may sit
+# ahead of it, and short clusters and abbreviated long names carry it too.
+expect_both 'runuser bob -c rm -rf / blocks' 2 --command "runuser bob -c 'rm -rf /'"
+expect_both 'runuser - bob -c rm -rf / blocks' 2 --command "runuser - bob -c 'rm -rf /'"
+expect_both 'runuser -lc rm -rf / blocks' 2 --command "runuser -lc 'rm -rf /'"
+expect_both 'runuser --command= rm -rf / blocks' 2 --command "runuser --command='rm -rf /'"
+expect_both 'runuser --session-c rm -rf / blocks' 2 --command "runuser --session-c 'rm -rf /'"
+expect_both '/usr/sbin/runuser -c rm -rf / blocks' 2 --command "/usr/sbin/runuser -c 'rm -rf /'"
+expect_both 'RUNUSER.exe -c rm -rf / blocks' 2 --command "RUNUSER.exe -c 'rm -rf /'"
+expect_both 'sudo runuser -c rm -rf / blocks' 2 --command "sudo runuser -c 'rm -rf /'"
+expect_both 'nice -n 5 runuser -c rm -rf / blocks' 2 --command "nice -n 5 runuser -c 'rm -rf /'"
+# A -u hidden inside another option's operand is not -u, so these stay su form.
+expect_both 'runuser -lc with a -u inside the operand blocks' 2 --command "runuser -lc '-u x; rm -rf /'"
+expect_both 'runuser --whitelist-environment -u,PATH -c blocks' 2 \
+  --command "runuser --whitelist-environment -u,PATH bob -c 'rm -rf /'"
+expect_both 'runuser -w -u,PATH -c blocks' 2 --command "runuser -w -u,PATH bob -c 'rm -rf /'"
+expect_both 'runuser --white -u,PATH -c blocks' 2 --command "runuser --white -u,PATH bob -c 'rm -rf /'"
+# runuser's getopt PERMUTES and takes the LAST of a repeated option, so every
+# -c operand is judged, and an option operand is never mistaken for an option.
+expect_both 'runuser two -c, the second a delete, blocks' 2 --command "runuser bob -c true -c 'rm -rf /*'"
+expect_both 'runuser --command then --session-command blocks' 2 \
+  --command "runuser bob --command=true --session-command 'rm -rf /*'"
+expect_both 'runuser -wc then -c blocks' 2 --command "runuser bob -wc -c 'rm -rf /*'"
+expect_both 'runuser --whitelist-environment -c then -c blocks' 2 \
+  --command "runuser bob --whitelist-environment -c -c 'rm -rf /*'"
+expect_both 'runuser --white -u then -c blocks' 2 --command "runuser bob --white -u -c 'rm -rf /*'"
+expect_both 'runuser --sess -u then -c blocks' 2 --command "runuser bob --sess -u -c 'rm -rf /*'"
+expect_both 'runuser --comm with a -u inside the operand blocks' 2 --command "runuser bob --comm '-u; rm -rf /'"
+expect_both 'runuser --sess with a -u inside the operand blocks' 2 --command "runuser --sess '-u x; rm -rf /'"
+# runuser WITH -u is a launcher: its non-option words are the command, wherever
+# the options sit among them, and the first -- ends the options.
+expect_both 'runuser -u bob rm -- -rf /* blocks (permuted)' 2 --command 'runuser -u bob rm -- -rf /*'
+expect_both 'runuser rm -u bob -- -rf /* blocks (permuted)' 2 --command 'runuser rm -u bob -- -rf /*'
+expect_both 'runuser -mu cluster blocks' 2 --command 'runuser -mu bob -- rm -rf /'
+expect_both 'runuser --u bob blocks (abbreviated --user)' 2 --command 'runuser --u bob -- rm -rf /'
+expect_both 'runuser --us=bob blocks' 2 --command 'runuser --us=bob -- rm -rf /'
+# An unknown long option is kept as a non-option, which also reads the words
+# right when POSIXLY_CORRECT stops getopt at the first non-option.
+expect_both 'POSIXLY_CORRECT runuser rm --recursive blocks' 2 \
+  --command 'POSIXLY_CORRECT=1 runuser -u bob rm --recursive --force /*'
+# A word runuser rejects is never the command word.
+expect_both 'runuser -u root --foo rm blocks' 2 --command 'runuser -u root --foo rm -rf /*'
+expect_both 'runuser -u root -x rm blocks' 2 --command 'runuser -u root -x rm -rf /*'
+expect_both 'runuser -u bob -- flock -- /tmp/l -c blocks' 2 --command "runuser -u bob -- flock -- /tmp/l -c 'rm -rf /*'"
+expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
+expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
+expect_both 'runuser --user bob -- rm -rf / blocks' 2 --command 'runuser --user bob -- rm -rf /'
+expect_both 'runuser --user=bob -- rm -rf / blocks' 2 --command 'runuser --user=bob -- rm -rf /'
+expect_both 'runuser -ubob -- rm -rf / blocks' 2 --command 'runuser -ubob -- rm -rf /'
+expect_both 'runuser -u bob -G wheel -w PATH -- rm -rf / blocks' 2 \
+  --command 'runuser -u bob -G wheel -w PATH -- rm -rf /'
+expect_both 'runuser -u bob -- bash -c rm -rf / blocks' 2 --command "runuser -u bob -- bash -c 'rm -rf /'"
+expect_both 'sudo runuser -u bob -- rm -rf / blocks' 2 --command 'sudo runuser -u bob -- rm -rf /'
+# taskset takes a mask (or a cpu list under -c) ahead of the command.
+expect_both 'taskset 0x3 rm -rf / blocks' 2 --command 'taskset 0x3 rm -rf /'
+expect_both 'taskset -c 0 rm -rf / blocks' 2 --command 'taskset -c 0 rm -rf /'
+expect_both 'taskset --cpu-list 0-3 rm -rf / blocks' 2 --command 'taskset --cpu-list 0-3 rm -rf /'
+expect_both 'taskset -ac 0 rm -rf / blocks' 2 --command 'taskset -ac 0 rm -rf /'
+expect_both 'taskset -- 1 rm -rf / blocks' 2 --command 'taskset -- 1 rm -rf /'
+expect_both "'taskset' 1 rm -rf / blocks" 2 --command "'taskset' 1 rm -rf /"
+expect_both 'TASKSET.EXE 1 rm -rf / blocks' 2 --command 'TASKSET.EXE 1 rm -rf /'
+expect_both 'taskset 1 rm -rf C:\ blocks' 2 --command 'taskset 1 rm -rf C:\'
+expect_both 'taskset 1 rm -rf \ blocks (dangling backslash)' 2 --command 'taskset 1 rm -rf \'
+expect_both 'env -u X taskset -c 0 rm -rf / blocks' 2 --command 'env -u X taskset -c 0 rm -rf /'
+expect_both 'timeout 5 taskset 1 rm -rf / blocks' 2 --command 'timeout 5 taskset 1 rm -rf /'
+expect_both 'taskset 1 bash -c rm -rf / blocks' 2 --command "taskset 1 bash -c 'rm -rf /'"
+expect_both 'substitution through taskset blocks' 2 --command 'echo "$(taskset 1 rm -rf /)"'
+expect_both 'env -S through taskset blocks' 2 --command "env -S 'taskset 1 rm -rf /'"
+# chrt takes a priority only when the word is all digits; otherwise the word
+# is the command. `chrt -r rm` is an invocation chrt itself rejects (rr needs a
+# priority), refused anyway because underblocking is the costlier mistake.
+expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
+expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
+expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
+expect_both 'chrt -r rm -rf / blocks' 2 --command 'chrt -r rm -rf /'
+expect_both 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf / blocks' 2 --command 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf /'
+expect_both 'chrt -- 5 rm -rf / blocks' 2 --command 'chrt -- 5 rm -rf /'
+# flock takes a lock file, and runs -c / --command through a shell.
+expect_both 'flock /tmp/l rm -rf / blocks' 2 --command 'flock /tmp/l rm -rf /'
+expect_both 'flock -w 5 /tmp/l rm -rf / blocks' 2 --command 'flock -w 5 /tmp/l rm -rf /'
+expect_both 'flock -x /tmp/l -c rm -rf / blocks' 2 --command "flock -x /tmp/l -c 'rm -rf /'"
+expect_both 'flock /tmp/l --command rm -rf / blocks' 2 --command "flock /tmp/l --command 'rm -rf /'"
+expect_both 'flock -c rm -rf / blocks (no file)' 2 --command "flock -c 'rm -rf /'"
+expect_both 'flock -- /tmp/l rm -rf / blocks' 2 --command 'flock -- /tmp/l rm -rf /'
+# With --fd there is no lock file, so the first positional is the command.
+expect_both 'flock --fd 9 rm -rf / blocks' 2 --command 'flock --fd 9 rm -rf /'
+expect_both 'flock --fd=9 rm -rf / blocks' 2 --command 'flock --fd=9 rm -rf /'
+# -c / --command right after the lock file counts after `--` too.
+expect_both 'flock -- /tmp/l -c blocks' 2 --command "flock -- /tmp/l -c 'rm -rf /*'"
+expect_both 'flock -n -- /tmp/l --command blocks' 2 --command "flock -n -- /tmp/l --command 'rm -rf /*'"
+expect_both 'flock -- /tmp/l -c ls allowed' 0 --command "flock -- /tmp/l -c 'ls /'"
+# An abbreviated long option takes its operand as the full name does.
+expect_both 'flock --wa 5 blocks' 2 --command 'flock --wa 5 /tmp/l rm -rf /*'
+expect_both 'flock --tim 5 blocks' 2 --command 'flock --tim 5 /tmp/l rm -rf /*'
+expect_both 'nsenter --ta 1 blocks' 2 --command 'nsenter --ta 1 rm -rf /*'
+expect_both 'unshare --roo /mnt blocks' 2 --command 'unshare --roo /mnt rm -rf /*'
+expect_both 'numactl --memb 0 blocks' 2 --command 'numactl --memb 0 rm -rf /*'
+expect_both 'chroot --user a:b / blocks' 2 --command 'chroot --user a:b / rm -rf /*'
+expect_both 'chrt --sched-r 5 -d 0 blocks' 2 --command 'chrt --sched-r 5 -d 0 rm -rf /*'
+expect_both 'nsenter --ta 1 ls / allowed' 0 --command 'nsenter --ta 1 ls /'
+expect_both 'nsenter --ta rm -rf / blocks (plain reading)' 2 --command 'nsenter --ta rm -rf /'
+# A short cluster ending in an operand-taking letter takes the next word, as
+# getopt reads it, in the resolved reading.
+expect_both 'flock -nw 1 blocks' 2 --command 'flock -nw 1 /tmp/l rm -rf /'
+expect_both 'chrt -dT 1000 0 blocks' 2 --command 'chrt -dT 1000 0 rm -rf /'
+expect_both 'unshare -fR /mnt blocks' 2 --command 'unshare -fR /mnt rm -rf /'
+expect_both 'flock -xw 5 blocks' 2 --command 'flock -xw 5 /tmp/l rm -rf /*'
+expect_both 'nsenter -at 1 blocks' 2 --command 'nsenter -at 1 rm -rf /*'
+expect_both 'numactl -lN 0 blocks' 2 --command 'numactl -lN 0 rm -rf /*'
+expect_both 'flock -nw 1 ls allowed' 0 --command 'flock -nw 1 /tmp/l ls /'
+# unshare, nsenter and numactl take no positional; only their operand-taking
+# options consume a word.
+expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'
+expect_both 'unshare --mount --pid --fork rm -rf / blocks' 2 --command 'unshare --mount --pid --fork rm -rf /'
+expect_both 'unshare -S 0 -G 0 rm -rf / blocks' 2 --command 'unshare -S 0 -G 0 rm -rf /'
+expect_both 'unshare -R /mnt rm -rf / blocks' 2 --command 'unshare -R /mnt rm -rf /'
+expect_both 'nsenter -t 1 -m rm -rf / blocks' 2 --command 'nsenter -t 1 -m rm -rf /'
+expect_both 'nsenter --target 1 --mount rm -rf / blocks' 2 --command 'nsenter --target 1 --mount rm -rf /'
+expect_both 'nsenter -t1 -m rm -rf / blocks' 2 --command 'nsenter -t1 -m rm -rf /'
+expect_both 'numactl -i all rm -rf / blocks' 2 --command 'numactl -i all rm -rf /'
+expect_both 'numactl --interleave=all rm -rf / blocks' 2 --command 'numactl --interleave=all rm -rf /'
+expect_both 'numactl --cpunodebind 0 rm -rf / blocks' 2 --command 'numactl --cpunodebind 0 rm -rf /'
+# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host rather
+# than the host root, and is refused anyway: a known overblock, kept on the
+# refusal side.
+expect_both 'chroot / rm -rf / blocks' 2 --command 'chroot / rm -rf /'
+expect_both 'chroot /mnt rm -rf / blocks (known overblock)' 2 --command 'chroot /mnt rm -rf /'
+expect_both 'chroot --userspec bob:bob /mnt rm -rf / blocks' 2 --command 'chroot --userspec bob:bob /mnt rm -rf /'
+expect_both 'chroot -- / rm -rf / blocks' 2 --command 'chroot -- / rm -rf /'
+# Launchers stack.
+expect_both 'the whole launcher family stacked blocks' 2 \
+  --command 'flock /tmp/l chrt 5 unshare nsenter -t 1 chroot / numactl -l taskset 1 runuser -u bob -- rm -rf /'
 
 # The command word is compared case-insensitively, so the substring prefilter
 # in front of the parse must be too. On the Windows host this guard was written
@@ -407,10 +666,34 @@ expect_both 'brace group with an ordinary delete allowed' 0 --command '{ rm -rf 
 expect_both 'if/then with an ordinary delete allowed' 0 --command 'if true; then rm -rf ./build; fi'
 expect_both 'su -c with an ordinary delete allowed' 0 --command "su -c 'rm -rf ./build'"
 expect_both 'su with no -c allowed' 0 --command 'su bob ls /'
+# `--s` is ambiguous (session-command, shell, supp-group), so su rejects it.
+expect_both 'su --s ambiguous prefix allowed' 0 --command "su --s 'rm -rf /'"
 expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
 # An empty operand from a QUOTED span is not a dropped backslash, through eval
 # as anywhere else, so the restore must key on provenance rather than emptiness.
 expect_both 'eval rm -rf "" allowed' 0 --command 'eval rm -rf ""'
+
+# The launcher family must not widen the guard either: a launcher whose real
+# command is benign, or an ordinary delete, stays allowed, and so does a form
+# that launches nothing at all.
+expect_both 'taskset 1 rm -rf ./build allowed' 0 --command 'taskset 1 rm -rf ./build'
+expect_both 'taskset -p 1234 allowed (launches nothing)' 0 --command 'taskset -p 1234'
+expect_both 'taskset -cp 0 1234 allowed' 0 --command 'taskset -cp 0 1234'
+expect_both 'runuser -u bob -- ls / allowed' 0 --command 'runuser -u bob -- ls /'
+expect_both 'runuser -u bob -- rm -rf ./build allowed' 0 --command 'runuser -u bob -- rm -rf ./build'
+expect_both 'runuser -c with an ordinary delete allowed' 0 --command "runuser -c 'rm -rf ./build'"
+expect_both 'runuser -l bob allowed' 0 --command 'runuser -l bob'
+expect_both 'chrt 5 ls / allowed' 0 --command 'chrt 5 ls /'
+expect_both 'chrt -p 5 1234 allowed' 0 --command 'chrt -p 5 1234'
+expect_both 'flock /tmp/l rm -rf ./build allowed' 0 --command 'flock /tmp/l rm -rf ./build'
+expect_both 'flock -x 9 allowed' 0 --command 'flock -x 9'
+expect_both 'flock --fd 9 ls / allowed' 0 --command 'flock --fd 9 ls /'
+expect_both 'unshare ls / allowed' 0 --command 'unshare ls /'
+expect_both 'nsenter -t 1 -m ls / allowed' 0 --command 'nsenter -t 1 -m ls /'
+expect_both 'chroot /mnt ls / allowed' 0 --command 'chroot /mnt ls /'
+expect_both 'numactl -i all ls / allowed' 0 --command 'numactl -i all ls /'
+expect_both 'echo of the launcher names allowed' 0 --command 'echo runuser taskset chrt flock unshare nsenter chroot numactl'
+expect_both 'git commit -m quoting runuser allowed' 0 --command "git commit -m \"runuser -c 'rm -rf /'\""
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
@@ -424,6 +707,16 @@ assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 # Pinned so widening it later is a deliberate change to this line.
 expect "PowerShell payload is a declared gap, not a block" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
+
+# sudo spellings that stay declared gaps. Reading each one correctly means
+# treating the word after it as an operand, which changes how sudo lines the
+# guard refuses today are read (`sudo -R rm -rf /` would read `rm` as the
+# chroot directory), and this guard only ever adds refusals. Pinned so widening
+# any of them later is a deliberate change to these lines.
+expect_both 'sudo -R is a declared gap' 0 --command 'sudo -R /mnt rm -rf /'
+expect_both 'sudo --chroot is a declared gap' 0 --command 'sudo --chroot /mnt rm -rf /'
+expect_both 'sudo -Eu cluster is a declared gap' 0 --command 'sudo -Eu bob rm -rf /'
+expect_both 'sudo abbreviated --us is a declared gap' 0 --command 'sudo --us bob rm -rf /'
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

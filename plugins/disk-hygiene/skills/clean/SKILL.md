@@ -7,7 +7,15 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form, matching hooks/hooks.json. Exec form resolves
+        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
+        # which runs the launcher without the `env` process its shebang costs.
+        # Git Bash, which runs the shell-form string, looks that `bash` up on
+        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
+        # Verified 2026-09-23 against Claude Code 2.1.281 at
+        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
+        # Windows; exec form resolves `command` on PATH); recheck when that
+        # page changes how shell-form commands are run on Windows, or a
+        # release note names hook shell selection. Exec form resolves
         # `command` on PATH with no shell, and a bare `python3` there is
         # the zero-length WindowsApps App Execution Alias stub on stock
         # Windows, the hook cannot launch, and a failed launch is non-blocking,
@@ -20,7 +28,7 @@ hooks:
         # \" escapes; every path placeholder must stay double-quoted, because the
         # shell re-tokenizes the string and plugin roots contain spaces.
         - type: command
-          command: '"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
+          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
           shell: bash
           timeout: 60
 metadata:
@@ -204,7 +212,9 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
-   interpolate names from one batch member.
+   interpolate names from one batch member. Triage of the entry is done when each of the five
+   questions has an evidence-backed answer or is recorded as unknown. An unknown answer to question
+   2 or 4 rules out High in step 3; an unknown on question 4 keeps the entry at Low.
 
 ## 3. Classify and report
 
@@ -226,7 +236,8 @@ Report every finding with these fields, in this order, size last:
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition.
-6. Logical / reclaimable bytes as a **secondary** signal only.
+6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only with
+   all six fields; a finding with name-only provenance is Low.
 
 Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
 

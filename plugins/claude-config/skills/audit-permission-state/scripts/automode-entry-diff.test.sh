@@ -159,9 +159,8 @@ OUT=$(diff_only "$CAS_STRING")
 assert_eq "a string-typed value suspends nothing" 0 "$(count_matching "$OUT" '^entry-diff suspended ')"
 assert_contains "the type mismatch is called out" "$OUT" "neither of the documented boolean values"
 
-# `false` is the DOCUMENTED DEFAULT, not a type error. An earlier revision
-# lumped it in with malformed values and told operators their correct
-# configuration was wrong.
+# `false` is the DOCUMENTED DEFAULT, not a type error: reporting it with the
+# malformed values tells operators their correct configuration is wrong.
 CAS_FALSE=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json

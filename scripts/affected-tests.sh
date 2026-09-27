@@ -105,6 +105,14 @@
 #   R6 sync script   a changed scripts/sync-*.sh selects its own co-located test
 #                    plus everything its published `src` selects, since its
 #                    failure mode is the copies drifting from that source.
+#   R7 path class    a path under plugins/autonomy/reference/ selects the
+#                    plugin-contract validator's suite. The validator bans
+#                    vendor names across that whole directory, but its files
+#                    are markdown that no suite names, so R1-R4 never reach
+#                    them and they fell to the no-suite *.md class. Only a
+#                    path rule can see them. The validator's fleet-token ban
+#                    over the rest of plugins/autonomy/ is not mapped here;
+#                    CI also runs the contract suite in a step of its own.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
@@ -745,6 +753,16 @@ select_for() {
           add_suite "$sib" "co-located with $p" || true
         fi
       done < <(colocated_suites "$p")
+      # R7. The suite path is joined from two pieces so this file never carries
+      # its basename as one token: that would make this file an R4 dependent of
+      # the suite and fan every edit to it out to whatever names this file.
+      case "$p" in
+      plugins/autonomy/reference/*)
+        add_suite "scripts/validate-plugin-contracts"".test.sh" \
+          "path class: autonomy reference/ is gated by the contract validator" || true
+        ;;
+      *) ;;
+      esac
       b="${p##*/}"
       is_structural "$b" && continue
       lang_family "$p"

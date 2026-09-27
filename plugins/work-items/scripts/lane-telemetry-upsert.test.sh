@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Tests for lane-telemetry-upsert.sh. `gh` is stubbed by a fake on PATH that
-# keeps comments in a state directory and logs every argv it is called with, so
-# the suite asserts the flag FORM of each write (-F body=@ for create/update,
-# -f body= for the tombstone) and not only its effect. Nothing here reaches the
-# network.
+# A fake `gh` on PATH stores comments and logs every argv, so the suite asserts
+# each write's flag FORM (-F body=@ vs -f body=), not only its effect.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

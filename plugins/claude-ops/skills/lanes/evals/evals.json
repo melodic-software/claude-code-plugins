@@ -5,7 +5,7 @@
       "id": 1,
       "name": "start-is-default-action",
       "prompt": "launch my lanes",
-      "expected_output": "Routes to the default `start` action: runs lane-launcher.sh, which resolves the lane config (--config, else $CLAUDE_OPS_LANES_CONFIG, else <repo>/.work/lanes/lanes.json, falling back to the pre-move <repo>/.work/lanes.json under a deprecation warning), pulls the repo and refreshes the plugin marketplace, then launches each configured lane NOT already running as a named background session (claude --bg -n <lane> [--model] [--effort] <prompt-file-contents>). Prints the script output verbatim.",
+      "expected_output": "Routes to the default `start` action: runs lane-launcher.sh, which resolves the lane config (--config, else $CLAUDE_OPS_LANES_CONFIG, else <repo>/.work/lanes/lanes.json, falling back to the pre-move <repo>/.work/lanes.json under a deprecation warning), pulls the repo and refreshes the plugin marketplace, then launches each configured lane NOT already running as a named background session (claude --bg -n <lane> --permission-mode auto [--model] [--effort] <prompt-file-contents>). Prints the script output verbatim.",
       "files": [],
       "expectations": [
         "Output routes to the start action (lane-launcher.sh with no explicit action), not restart/stop/status",

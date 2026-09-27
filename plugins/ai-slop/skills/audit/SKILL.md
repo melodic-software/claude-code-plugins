@@ -1,9 +1,9 @@
 ---
 description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedging, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), and the rest of the catalog (distilled from Wikipedia's Signs of AI writing plus an evolving model-era inventory), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), and mechanism-free claims. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
-argument-hint: "[audit|fix] [target]"
+argument-hint: "[audit|fix] [target | user-scope [memory]]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -45,10 +45,11 @@ vocabulary):
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 
-Both layers sit behind the catalog's policy-level **quotation exemption**: wording rules never
-scan blockquotes, double-quoted spans, or inline code spans (typography rules still do), so a
-document that quotes a tell to document it, and a changelog that backticks the phrase a fix
-removed, stay marker-free by construction.
+Both layers sit behind the catalog's policy-level **quotation exemption**: no rule scans fenced
+code or inline code spans, wording rules also skip blockquotes and double-quoted spans, and
+typography rules (em dashes, emoji, paste residue, citation tokens, tracking params) still scan
+blockquotes and double-quoted spans. A document that quotes a wording tell to document it, and a
+changelog that backticks the phrase a fix removed, stay marker-free by construction.
 
 ## Action router
 
@@ -56,6 +57,8 @@ removed, stay marker-free by construction.
 |---|---|
 | *(empty)* or `audit [target]` | Read-only audit (default). Empty target = repo-wide |
 | `fix [target]` | Explicit fix pass over the target's findings (guarded; below). "Detect and rewrite" or `audit fix` chains audit then fix in one invocation |
+| `audit user-scope [memory]` | Read-only audit of the user-level Claude Code markdown, per [User-scope target](#user-scope-target) |
+| `fix user-scope [memory]` | Fix pass over that same file list, under the same rules |
 
 ## Audit flow
 
@@ -63,10 +66,20 @@ removed, stay marker-free by construction.
    tracked markdown minus config `excluded_paths`. Order repo-wide work by impact class first
    (instruction surfaces: `CLAUDE.md`, `AGENTS.md`, `.claude/rules/**`, `**/SKILL.md`,
    `README.md`), then by change frequency (`git log --since=90.days --name-only` counts over
-   tracked `.md`); ordering affects report and chunk order only, never inclusion.
-2. **Run the detector.** Chunk large corpora: write the ordered list to a temp file and invoke
-   `detect.sh --paths-file <list> --offset N --limit M` per chunk (one process per chunk, no
-   per-file shell loop; roughly 200 files per chunk keeps each call under a minute).
+   tracked `.md`). `rubric-fanout.sh plan` applies this order to the rubric batches; the
+   detector keeps its own path order, and ordering never changes inclusion. Inside a
+   repository, a directory target expands to its tracked markdown only, so pass untracked
+   in-repo files as file paths. Check the target first: a target outside any repository
+   follows [Non-repository targets](#non-repository-targets), and the literal target
+   `user-scope` follows [User-scope target](#user-scope-target).
+2. **Run the detector.** Build the target list once: `detect.sh --list-targets <targets>`,
+   with its stdout redirected to a list file in the session scratchpad (with no targets, it
+   lists the repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
+   detector's `file=` field, after directory expansion and `excluded_paths`. That file feeds
+   the chunked runs, `detect.sh --paths-file <list> --offset N --limit M` per chunk (one
+   process per chunk, no per-file shell loop; roughly 200 files per chunk keeps each call under
+   a minute), and `rubric-fanout.sh plan` in step 3. A `--paths-file` with no paths scans
+   nothing.
 3. **Apply the rubric** to every file in scope, in the same priority order. The rubric pass is
    independent of the detector: a file with zero script findings still gets its rubric read,
    and a fix pass that only revisits detector hits has not covered the rubric. The rubric tells
@@ -74,12 +87,15 @@ removed, stay marker-free by construction.
    reporting. Counter-signs (the catalog's "Signs of human writing") temper a verdict, never
    generate findings. Coverage is uniform: never trade the rubric away for budget on a
    repo-wide run. Make it affordable by fanning out instead, per
-   [`context/rubric-fanout.md`](context/rubric-fanout.md): pack the ordered list into batches of
-   roughly 50,000 words, dispatch one fresh-context subagent per batch with the rubric text and
-   the batch list, and have each subagent write its result file into the findings home before
-   it reports. A batch whose result file is bound to the current batch list (its digest and
-   file count match) is skipped on a re-run, so a rate limit or a crash costs one batch, not
-   the pass, and a leftover result from an earlier scope is never accepted.
+   [`context/rubric-fanout.md`](context/rubric-fanout.md), with `rubric-fanout.sh`: `plan`
+   orders the step 2 list and packs it into batches of about 50,000 words, `extract` writes
+   the rubric text to one file, one fresh-context subagent per batch gets that file's path and
+   its batch list and writes its result file into the findings home (the scratchpad for a
+   non-repository target) before it reports, `status` names the batches that still need a run,
+   and `merge` joins the results once every batch is complete. A batch whose result file is
+   bound to its current list and the listed files' current contents is skipped on a re-run,
+   so a rate limit or a crash costs one batch, not the pass, and a leftover result from an
+   earlier scope or from before an edit is never accepted.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
@@ -87,6 +103,7 @@ removed, stay marker-free by construction.
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
+   A run with any non-repository target writes no findings file.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
    `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
@@ -100,10 +117,102 @@ removed, stay marker-free by construction.
    changes the answer: the relay can only hand the rows over when `/ai-slop:audit` is available
    in that session, and surfaces them otherwise.
 
+### User-scope target
+
+The target `user-scope` audits the user-level markdown files Claude Code loads, listed by
+`user-scope.sh`. Run `${CLAUDE_SKILL_DIR}/scripts/user-scope.sh` (add `--memory` when the argument carries
+`memory`) with its stdout redirected to a list file in the session scratchpad, and feed that
+list to step 2 as `detect.sh --list-targets --paths-file <list>`. Run the rest of the audit, or
+the fix flow, under [Non-repository targets](#non-repository-targets).
+
+- The surfaces are the user-level markdown files the
+  [`.claude` directory docs](https://code.claude.com/docs/en/claude-directory) name:
+  `CLAUDE.md`, `rules/`, skills that hold `SKILL.md` with their supporting files, `commands/`,
+  `agents/`, and top-level `output-styles/*.md`; `memory` adds `projects/*/memory/` and
+  `agent-memory/*/`. The root is `CLAUDE_CONFIG_DIR` when set and non-empty, else
+  `~/.claude`. Verified 2026-09-25 against that page: it lists these user-level files and
+  states that with `CLAUDE_CONFIG_DIR` set, every `~/.claude` path on the page lives under that
+  directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
+  or changes what `CLAUDE_CONFIG_DIR` relocates.
+- `@path` imports are not followed. Pass an imported file as an explicit path target.
+- `memory` lists the default auto memory location only. Any settings scope can move it with
+  `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)); the script
+  warns when the user `settings.json` sets it, and a relocated directory is passed as a path
+  target.
+- A symlink is followed only to a readable regular `.md` file inside the config root, and
+  that file is listed once. A symlinked directory is not walked, and a link pointing outside
+  the root is skipped; the script names each on stderr. Pass a skipped link's target as an
+  explicit path.
+- `plugins/` is not in scope; plugin content is audited in its own repository.
+- The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
+  `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project directory.
+- A path target such as `~/.claude` covers every `*.md` beneath it.
+
+### Non-repository targets
+
+A target is outside a repository when `git -C <dir> rev-parse --is-inside-work-tree` fails or
+does not print `true`, where `<dir>` is the target directory or a file target's parent. Check
+the target, not the cwd. An empty target checks `CLAUDE_PROJECT_DIR`, else the cwd; when that is
+not a repository, stop and ask for an explicit path instead of guessing a scope. If any target
+is outside a repository, the whole run follows these rules:
+
+- Pass targets to the detector as absolute paths, and use the `file=` path it reports as the
+  path everywhere else in the run. It may be relative (to `CLAUDE_PROJECT_DIR`, else the git
+  toplevel or cwd) when the target sits under that directory.
+- A directory target expands to every `*.md` beneath it, untracked and vendored files included.
+  The detector usually prints a "could not confirm a work tree" line on stderr; a target inside
+  a `.git` directory is walked with no message. Both are expected.
+- Order files by modification time, newest first, ties broken by path. Ordering never changes
+  inclusion. `rubric-fanout.sh plan` picks this order for a target outside a repository; apply
+  it to the report too.
+- Config layers come from the session's project directory and the user-global file, not from
+  the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
+  applies only when it matches the path as the detector sees it.
+- No findings file: none is written, and the fix flow's closing re-emit is skipped.
+- A `fix` run has no git history to undo an edit, so back up each file before editing it:
+  - The backup path mirrors the file's full absolute path under the fix flow's run directory,
+    with a drive letter as a directory. Never name a backup by basename alone: a target holds
+    many files named `SKILL.md`.
+  - If the backup path already exists, do not edit the file. Stop and report it.
+  - If the backup cannot be written (the copy fails, or the mirrored path is not a valid path,
+    as a `\\?\` or UNC source produces), do not edit the file. Stop and report it.
+  - Next to each backup, write `<backup>.source` holding the file's absolute path.
+  - Verification takes the backup as the "before" file. Before restoring any hunk, read
+    `<backup>.source` and confirm it equals the file being restored; on a mismatch restore
+    nothing and report it. Restore only the hunks verification flags; an edit that passes
+    stays. Name the backup path in the per-file report.
+
+  Example, run directory `R`, home directory `H` on drive `C:`:
+  `H/.claude/skills/a/SKILL.md` backs up to `R/C/H/.claude/skills/a/SKILL.md`, and `H/.claude/skills/b/SKILL.md` to
+  `R/C/H/.claude/skills/b/SKILL.md`, with `H` spelled out in full. The two never collide, and each `.source` file
+  names its own original, so a restore meant for `a` can never write `b`'s content.
+- Rubric batch lists and result files go under the session scratchpad, else the system temp
+  directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
+- `rule-style-shift` is not evaluable, because there is no history to compare against. Report
+  it under what the rubric did not cover.
+
 ## Fix flow (explicit invocation only)
 
 Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
-"detect and rewrite" request). Per file, worst-first:
+"detect and rewrite" request).
+
+Every fix run first creates one new run directory, `<scratchpad>/ai-slop-fix-<TS>/` (`TS` as
+in [`context/persist-findings.md`](context/persist-findings.md)). A path "mirrored" under it
+is the file's full absolute path with a drive letter as a directory, the same rule the
+non-repository backups use.
+
+**Concurrent-edit guard.** The flow assumes nothing else writes the files it fixes, and checks
+that before each of its own writes. When the flow first reads a file, before it composes any
+rewrite, record the file's digest: create the state file's parent directory, then run
+`sha256sum <absolute path>` with its stdout redirected to `<run>/digests/<mirrored
+path>.sha256`. Before every write the flow makes to that file, a rewrite or a restore, run
+`sha256sum -c --status <that state file>`; after each of its own writes, record the digest
+again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
+it. If the state file cannot be written, do not edit the file; stop and report it. On macOS use
+`shasum -a 256` and `shasum -a 256 -c`. A write that lands between a check and
+the re-record after the flow's own write is not detected.
+
+Per file, worst-first:
 
 1. **Apply** the file's findings per [`reference/rewrite-guide.md`](reference/rewrite-guide.md)
    (read it first; it owns the replacement forms, the plain-speech target, the legitimate-hit
@@ -132,9 +241,18 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 3. **Close** the file: findings fixed, explicitly suppressed (in-file marker with a reason), or
    reverted-with-reason. Report per file as you go on long runs.
 
-After the last file: re-run the detector over the fixed set and re-emit the findings file per
-[`context/persist-findings.md`](context/persist-findings.md) "Re-running", so no stale findings
-file survives its own remediation. Then report totals: fixed, suppressed, reverted, remaining.
+After the last file: build the fixed set's list with `detect.sh --list-targets`, run the
+detector over it with `--paths-file`, redirecting both outputs to files in the run directory,
+and re-emit the findings file per [`context/persist-findings.md`](context/persist-findings.md)
+"Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
+non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
+--detector <detector output>`: it finds em-dash lines with its own parse, so an em dash the
+detector's parse missed still shows up. A `Disagree:` row names the lines only one side
+counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ; a row
+with both lists `-` differs by count alone, as when the detector reports one line twice. It
+follows the detector's fence rules but not its full parse, so a row is not a proven miss:
+reread those lines. Report every `Disagree:` row, then totals:
+fixed, suppressed, reverted, remaining.
 
 ## Configuration
 
@@ -152,9 +270,10 @@ carries the reason.
 - **Does not put rubric findings in the findings file.** No crosswalk row, no relay: judgment
   verdicts reach the human report only (V1 boundary, revisit with field history).
 - **Does not scan code comments** (`code-tidying:audit-comment-residue` owns them), commit
-  messages, PR bodies, or non-repo text; structural markdown (heading hierarchy, multiple H1,
-  title case) belongs to the markdown linter lane. Reshaping those commit messages, PR bodies
-  and non-repo text so they lead with the point and carry fewer words is `/writing:be-concise`,
+  messages, PR bodies, or text outside markdown files; structural markdown (heading
+  hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping those
+  commit messages, PR bodies and other text so they lead with the point and carry fewer words
+  is `/writing:be-concise`,
   which owns that doctrine when the `writing` plugin is installed; without it, say the text
   sits outside this skill's regime rather than auditing it anyway.
 - **Does not weaken rules to pass its own corpus**: a deliberate house style is config in the

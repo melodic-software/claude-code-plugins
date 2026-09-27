@@ -52,10 +52,6 @@ CLEAN_BUILD_FILE_GLOBS=(
   '*.binlog'
 )
 
-# build — no build-system clean driver: the universal bin/obj globs above remove
-# every output a driver like `dotnet clean` would, so running one first is pure
-# overhead.
-
 # git — safe prune mutations
 GIT_PRUNE_OPS=(
   'git worktree prune'

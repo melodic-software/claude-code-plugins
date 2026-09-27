@@ -70,9 +70,9 @@ fi
 printf 'OK\n'
 STUB_CLAUDE
 chmod +x "$STUB/claude"
-# Only `claude` is stubbed. An earlier revision wrapped every tool the scripts
-# use, which deadlocked: a wrapper for `env` re-entered itself through the very
-# PATH it was setting up, and the harness hung before its first assertion. The
+# Only `claude` is stubbed. Wrapping every tool the scripts use deadlocks: a
+# wrapper for `env` re-enters itself through the very PATH it is setting up, and
+# the harness hangs before its first assertion. The
 # real tools are reached through the inherited PATH appended below.
 
 snapshot() {
@@ -194,8 +194,7 @@ pipe_into "draft-automode-block.sh" "$STAGE/answers.txt" "$DRAFTER"
 pipe_into "automode-entry-diff.sh --oracle (SPAWNS)" "$merged" "$ENTRY_DIFF" --oracle
 
 # Every action above must actually have been attempted. Without this, a harness
-# that skipped stages would still print a confident "all checks passed" -- which
-# is exactly what an earlier revision did.
+# that skipped stages would still print a confident "all checks passed".
 #
 # Ten: the reader twice (default and --scopes), merge, plane lint, conformance,
 # entry diff, block lint twice (default and --critique), the drafter, and the

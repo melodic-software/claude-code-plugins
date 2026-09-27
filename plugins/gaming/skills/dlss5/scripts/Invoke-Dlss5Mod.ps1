@@ -2,19 +2,25 @@
 # Install/remove the OptiScaler DLSS-NR mod in a game exe dir, with a pre-install snapshot and a
 # file manifest so removal leaves the folder byte-identical. All state lives under -DataDir.
 param(
-    [Parameter(Mandatory)][ValidateSet('assess', 'provision', 'apply', 'status', 'remove', 'refetch', 'selftest')][string]$Verb,
+    [Parameter(Mandatory)][ValidateSet('assess', 'discover', 'provision', 'apply', 'status', 'remove', 'reset', 'capture', 'refetch', 'selftest')][string]$Verb,
     [Parameter(Position = 0)][string]$GameDir,
-    [string]$Build = 'dagherbou',
+    [string]$Build = 'wilsjo2',
     [string]$Proxy = 'dxgi.dll',
     [string]$DataDir,
     [string]$RuntimeDll,
     [string]$RuntimeSource,
     [string[]]$ScanRoots,
     [string]$Preset,
+    [string]$AcceptAntiCheatRisk,
+    [string]$AntiCheatResearch,
+    [string]$AntiCheatReviewId,
+    [string[]]$AntiCheatSources,
     [switch]$Runtime,
     [switch]$RestoreComputeSignature,
     [switch]$AllowUnknownRuntime,
     [switch]$Finish,
+    [string]$ConfirmReset,
+    [string]$ConfirmRefresh,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -54,14 +60,65 @@ $UpscalerDlls = @{
     'amd_fidelityfx_upscaler_dx12.dll' = 'FSR'; 'amd_fidelityfx_vk.dll' = 'FSR'
     'libxess.dll' = 'XeSS'; 'libxess_dx11.dll' = 'XeSS'
 }
-# The only OptiScaler.ini keys a preset may set, with their section in both pinned builds. The
-# baseline edits (Enabled, AutoCapture, logging) and every safety behavior stay off this list.
-# Mirrors reference/presets.md; change both together.
-$PresetKeys = @{ Dx11Upscaler = 'Upscalers'; RestoreComputeSignature = 'Hotfix'; RestoreGraphicSignature = 'Hotfix' }
+# The only OptiScaler.ini keys a preset may set, with their section and value type. A key with
+# Builds is allow-listed for those builds alone; the rest are in both pinned inis. AutoCapture,
+# DebugView, ShowSkinMask, logging and every safety behavior stay off this list. Mirrors
+# reference/presets.md; change both together.
+$PresetKeys = @{
+    Dx11Upscaler = @{ Section = 'Upscalers'; Type = 'token' }
+    RestoreComputeSignature = @{ Section = 'Hotfix'; Type = 'bool' }; RestoreGraphicSignature = @{ Section = 'Hotfix'; Type = 'bool' }
+    ShortcutKey = @{ Section = 'Menu'; Type = 'vk' }; FpsShortcutKey = @{ Section = 'Menu'; Type = 'vk' }
+    FpsCycleShortcutKey = @{ Section = 'Menu'; Type = 'vk' }; FGShortcutKey = @{ Section = 'Menu'; Type = 'vk' }
+    ToggleKey = @{ Section = 'DlssNr'; Type = 'vk' }
+    Enabled = @{ Section = 'DlssNr'; Type = 'bool' }; AutoMask = @{ Section = 'DlssNr'; Type = 'bool' }
+    TransferStrength = @{ Section = 'DlssNr'; Type = 'number' }; ColourStrength = @{ Section = 'DlssNr'; Type = 'number' } # spellchecker:disable-line
+    WhitePointScale = @{ Section = 'DlssNr'; Type = 'number' }; MaxRatio = @{ Section = 'DlssNr'; Type = 'number' }
+    Intensity = @{ Section = 'DlssNr'; Type = 'number' }; LocalStructure = @{ Section = 'DlssNr'; Type = 'number' }
+    LocalTone = @{ Section = 'DlssNr'; Type = 'number' }; SkinStructure = @{ Section = 'DlssNr'; Type = 'number' }
+    Preset = @{ Section = 'DlssNr'; Type = 'uint' }; Style = @{ Section = 'DlssNr'; Type = 'uint' }
+}
+# wilsjo2 v0.8.3 only, typed by its Config.cpp reader (readBool, readFloat, readInt/readUInt).
+# WorkingScale is in the Dagherbou ini too, but is allow-listed for wilsjo2 alone.
+$W2Keys = @{
+    bool   = 'SkinProtection', 'SkinToneEnabled', 'RunBeforeSR', 'FinishedPicture', 'HdrTransfer', 'DeferredDLSS', 'ResidualAcrossRR', 'Pass2AutoMask', 'Pass3AutoMask'
+    number = 'SkinDetail', 'SkinColour', 'EnvironmentDetail', 'EnvironmentColour', 'ResidualAcrossRRBlend', 'WorkingScale', 'Pass2Intensity', 'Pass2LocalStructure', 'Pass2LocalTone', 'Pass2SkinStructure', 'Pass3Intensity', 'Pass3LocalStructure', 'Pass3LocalTone', 'Pass3SkinStructure' # spellchecker:disable-line
+    uint   = 'Passes', 'PrivateUpscaler', 'Pass2Preset', 'Pass2Style', 'Pass3Preset', 'Pass3Style'
+}
+foreach ($t in $W2Keys.Keys) { foreach ($k in $W2Keys[$t]) { $PresetKeys[$k] = @{ Section = 'DlssNr'; Type = $t; Builds = @('wilsjo2') } } }
+# Each hotkey's default, from both pinned builds' ini comments; -1 is unbound (ToggleKey has no default).
+$HotkeyDefaults = [ordered]@{ ShortcutKey = '0x2D'; FpsShortcutKey = '0x21'; FpsCycleShortcutKey = '0x22'; FGShortcutKey = '0x23'; ToggleKey = '-1' }
+# \A..\z, not ^..$: a trailing newline would let a value inject its own ini line. Case-sensitive, so
+# 'True' is refused rather than guessed at. Hex digits take either case: Save Settings writes 0x7c.
+$PresetTypes = @{
+    token = '\A[A-Za-z0-9_.]+\z'; bool = '\A(true|false|auto)\z'; number = '\A(auto|-?\d+(\.\d+)?)\z'
+    uint = '\A(auto|\d+)\z'; vk = '\A(auto|-1|0x[0-9A-Fa-f]{1,2})\z'
+}
+# What apply always writes, before any preset. A preset may override Enabled; AutoCapture is off the
+# allow-list, so false always stands.
+$Baseline = @(
+    @{ Section = 'DlssNr'; Key = 'Enabled'; Value = 'true' }
+    @{ Section = 'DlssNr'; Key = 'AutoCapture'; Value = 'false' }
+    @{ Section = 'Log'; Key = 'LogToFile'; Value = 'true' }
+    @{ Section = 'Log'; Key = 'LogLevel'; Value = '2' }
+)
 $script:PresetDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\presets'))
+$WindowsApps = 'refusing: the folder is under WindowsApps, a protected package folder where installing a proxy DLL is unverified. Xbox app and Game Pass installs under XboxGames are supported; see reference/launchers.md'
 $NoUpscaler = 'not a candidate: no DLSS, FSR 2+ or XeSS DLL in the game tree, so the mod has no upscaler to hook and will not change the picture. See reference/candidate-selection.md'
 $script:fails = 0
 $script:FaultAfter = 0   # selftest hook: throw after this many copies
+# Discovery and anti-cheat sources. The selftest swaps each for a fixture, so it never reads the
+# real registry, real drives or the network.
+$script:Reg = $null   # $null = the live registry; else a hashtable of key path -> @{ value = data }
+$script:ProgramData = $env:ProgramData
+$script:EaRoots = @(Join-Path $env:ProgramFiles 'EA Games')
+$script:Drives = $null   # $null = every ready fixed drive
+$script:HttpGet = {
+    param($url, $headers)
+    $r = Invoke-WebRequest -Uri $url -Headers ($headers ?? @{}) -UseBasicParsing -TimeoutSec 30
+    [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+}
+$AwacyRepo = 'AreWeAntiCheatYet/AreWeAntiCheatYet'
+$SteamCookie = 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900'
 
 # An unset userConfig option arrives empty or as its own literal ${user_config.KEY} token.
 function Resolve-Opt([string]$v) { if (-not $v -or $v.StartsWith('${user_config.')) { $null } else { $v } }
@@ -97,7 +154,7 @@ function Init-Paths {
     $docs = [Environment]::GetFolderPath('MyDocuments')
     $script:DataDir = Resolve-DataDir $DataDir
     # Keyed on the resolved path, so a caller that passes the default explicitly is gated too.
-    if ($Verb -notin 'selftest', 'refetch' -and $script:DataDir -eq (Resolve-DataDir '' $docs)) { Assert-NoLegacyState $docs }
+    if ($Verb -notin 'selftest', 'refetch', 'discover' -and $script:DataDir -eq (Resolve-DataDir '' $docs)) { Assert-NoLegacyState $docs }
     $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
     $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
     # runtime_source is resolved only by provision -Runtime, so a bad value never blocks status or remove.
@@ -158,13 +215,15 @@ function IsAntiCheatName($name) {
 }
 # Scans from the game root, not the exe dir: EasyAntiCheat\ sits beside the root while the exe is
 # two or three levels down. ponytail: name match with capped depth; server-side or
-# launcher-delivered anti-cheat leaves nothing on disk, which assess's store-page check covers.
+# launcher-delivered anti-cheat leaves nothing on disk, which Get-AntiCheat's web sources cover.
+# A game-tree folder the scan cannot list lands in $script:AcScanGaps, which makes the status unknown.
 function Find-AntiCheat($root) {
+    $err = $null
     $items = if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') {
-        Get-ChildItem -LiteralPath $Matches[1] -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $Matches[1] -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
     }
     else {
-        Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
         $p = $root
         for ($i = 0; $i -lt 4; $i++) {
             $p = Split-Path $p -Parent
@@ -172,6 +231,7 @@ function Find-AntiCheat($root) {
             Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue
         }
     }
+    $script:AcScanGaps = @($err | ForEach-Object { "on-disk scan: $($_.TargetObject) unreadable: $($_.Exception.Message)" })
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
 
@@ -219,51 +279,365 @@ function Test-Runtime($path) {
     @{ Ok = $true; Hash = $h; Known = $false }
 }
 
-function SteamAppId($root) {
+function Acf($t, $key) { if ($t -match "`"$key`"\s+`"([^`"]*)`"") { $Matches[1] } }
+function SteamAcf($root) {
     if ($root -notmatch '^(.*\\steamapps)\\common\\([^\\]+)') { return }
     $dir = $Matches[2]
     foreach ($acf in Get-ChildItem -LiteralPath $Matches[1] -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
-        $t = Get-Content -LiteralPath $acf.FullName -Raw
-        if ($t -match '"installdir"\s+"([^"]+)"' -and $Matches[1] -eq $dir -and $t -match '"appid"\s+"(\d+)"') { return $Matches[1] }
+        # Another game's unreadable manifest must not hide this one's.
+        $t = try { Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8 } catch { continue }
+        # buildid is the installed build; TargetBuildID (a queued update) never matches Acf's leading quote.
+        if ((Acf $t 'installdir') -eq $dir -and (Acf $t 'appid') -match '^\d+$') { return @{ appid = (Acf $t 'appid'); name = (Acf $t 'name'); buildid = (Acf $t 'buildid'); lastUpdated = (Acf $t 'LastUpdated') } }
     }
 }
+function SteamAppId($root) { (SteamAcf $root).appid }
+# The launcher's record of the installed build, or $null. Steam only: no other launcher's install
+# record in reference/launchers.md carries a verified build field.
+function Get-LauncherBuild($root) {
+    $a = SteamAcf $root
+    if ($a.buildid) { [pscustomobject]@{ launcher = 'Steam'; appId = $a.appid; buildId = $a.buildid; lastUpdated = $a.lastUpdated } }
+}
 
-# Presets: shipped under skills\dlss5\presets, local overrides under <DataDir>\presets, both
-# <key>.json. Format and merge rule: reference/presets.md.
+# --- Launcher discovery. Each finder returns Game records and adds what it could not read to
+# $script:Unchecked. Locations: reference/launchers.md.
+# A missing key reads as nothing; one that exists but cannot be read throws, so the caller reports it.
+function Assert-RegRead($err) { foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { throw $x.Exception } } }
+function RegProps($key) {
+    if ($null -ne $script:Reg) { $v = $script:Reg[$key]; if ($v -is [Exception]) { throw $v }; return $v }
+    $err = $null
+    $p = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue -ErrorVariable err
+    Assert-RegRead $err
+    if (-not $p) { return }
+    $h = @{}
+    foreach ($x in $p.PSObject.Properties) { if ($x.Name -notin 'PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider') { $h[$x.Name] = $x.Value } }
+    $h
+}
+function RegKids($key) {
+    if ($null -ne $script:Reg) { return @($script:Reg.Keys | Where-Object { $_.StartsWith("$key\") -and $_.Substring($key.Length + 1) -notmatch '\\' } | Sort-Object) }
+    $err = $null
+    # A subkey that cannot be opened is reported; the readable ones are still returned.
+    @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue -ErrorVariable err | ForEach-Object { "$key\$($_.PSChildName)" })
+    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "registry: $($x.TargetObject) unreadable: $($x.Exception.Message)" } }
+}
+# A record whose folder is empty, quoted, relative or malformed is skipped, never resolved against the cwd.
+function Game($launcher, $name, $dir, $source) {
+    $dir = "$dir".Trim().Trim('"') -replace '/', '\'
+    if (-not $dir -or $dir.Contains([char]0) -or -not [IO.Path]::IsPathFullyQualified($dir)) { return }
+    $d = [IO.Path]::GetFullPath($dir)
+    if ($d.Length -gt 3) { $d = $d.TrimEnd('\') }
+    # A record with no display name is named after its folder, so the user can still type it.
+    $n = "$name".Trim(); if (-not $n) { $n = Split-Path $d -Leaf }
+    [pscustomobject]@{ launcher = $launcher; name = $n; installDir = $d; source = $source }
+}
+# One bad record is reported and skipped; the rest of that launcher's records still load.
+function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
+# Lists a folder; an absent one is silent, one that cannot be listed is reported.
+# The name filter is applied afterwards: Get-ChildItem -Filter drops an access-denied folder, at
+# any depth, without recording an error.
+function ListDir($label, $path, [hashtable]$opts = @{}) {
+    $pattern = $opts.Filter ?? '*'; $o = @{} + $opts; $o.Remove('Filter')
+    $err = $null
+    Get-ChildItem -LiteralPath $path @o -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -like $pattern
+    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "${label}: $($x.TargetObject) unreadable: $($x.Exception.Message)" } }
+}
+function Find-SteamGames {
+    $steam = (RegProps 'HKCU:\Software\Valve\Steam').SteamPath
+    if (-not $steam) { $script:Unchecked += 'Steam: no SteamPath under HKCU\Software\Valve\Steam'; return }
+    $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
+    $libs = @($steam)
+    if (Test-Path -LiteralPath $vdf) {
+        $libs += @(Record "Steam: $vdf (only the main library is scanned)" {
+                [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' }
+            })
+    }
+    foreach ($lib in @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps' } | Sort-Object -Unique)) {
+        foreach ($acf in ListDir 'Steam' $lib @{ Filter = 'appmanifest_*.acf'; File = $true }) {
+            Record "Steam: $($acf.FullName)" {
+                $t = Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8
+                if ($i = Acf $t 'installdir') { Game 'Steam' (Acf $t 'name') (Join-Path $lib "common\$i") $acf.Name }
+            }
+        }
+    }
+}
+function Find-EpicGames {
+    $dir = (RegProps 'HKCU:\Software\Epic Games\EOS').ModSdkMetadataDir
+    if (-not $dir) { $dir = Join-Path $script:ProgramData 'Epic\EpicGamesLauncher\Data\Manifests' }
+    $items = @(foreach ($f in ListDir 'Epic Games Launcher' $dir @{ Filter = '*.item'; File = $true }) {
+            Record "Epic Games Launcher: $($f.FullName)" { $j = LoadJson $f.FullName; Game 'Epic Games Launcher' ($j.DisplayName ?? $j.AppName) $j.InstallLocation $f.Name }
+        })
+    $items
+    # The second list repeats most installs; keep only folders the .item manifests did not name.
+    $dat = Join-Path $script:ProgramData 'Epic\UnrealEngineLauncher\LauncherInstalled.dat'
+    Record "Epic Games Launcher: $dat" {
+        foreach ($e in @((LoadJson $dat).InstallationList)) {
+            if ($e) { Game 'Epic Games Launcher' $e.AppName $e.InstallLocation 'LauncherInstalled.dat' | Where-Object { $_.installDir -notin $items.installDir } }
+        }
+    }
+}
+# The EA app's own list (the IS file) is encrypted with a hardware-derived key and is never read.
+function Find-EaGames {
+    $script:Unchecked += "EA app: the encrypted install list is not read; scanned $(@($script:EaRoots) -join ', ') for __Installer\installerdata.xml. An EA game elsewhere is recognized when assess is pointed at it"
+    foreach ($r in @($script:EaRoots)) {
+        foreach ($d in ListDir 'EA app' $r @{ Directory = $true }) {
+            Record "EA app: $($d.FullName)" { if (Test-Path -LiteralPath (Join-Path $d.FullName '__Installer\installerdata.xml')) { Game 'EA app' $d.Name $d.FullName '__Installer\installerdata.xml' } }
+        }
+    }
+    foreach ($f in ListDir 'Origin' (Join-Path $script:ProgramData 'Origin\LocalContent') @{ Recurse = $true; Filter = '*.mfst'; File = $true }) {
+        Record "Origin: $($f.FullName)" {
+            $q = [Web.HttpUtility]::ParseQueryString((Get-Content -LiteralPath $f.FullName -Raw).Trim().TrimStart('?'))
+            if ($p = $q['dipInstallPath']) { Game 'Origin' (Split-Path $p.TrimEnd('\') -Leaf) $p $f.Name }
+        }
+    }
+}
+function Find-BattleNetGames {
+    $script:Unchecked += 'Battle.net: Uninstall registry entries only; product.db is not parsed, and the client writes no entry for some games'
+    foreach ($u in 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall') {
+        foreach ($k in RegKids $u) {
+            Record "Battle.net: $k" {
+                $p = RegProps $k
+                if ("$($p.UninstallString)" -match 'Battle\.net.*--uid=') { Game 'Battle.net' $p.DisplayName $p.InstallLocation 'Uninstall registry' }
+            }
+        }
+    }
+}
+function Find-GogGames {
+    foreach ($k in RegKids 'HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games') { Record "GOG Galaxy: $k" { $p = RegProps $k; Game 'GOG Galaxy' $p.gameName $p.path 'GOG.com\Games registry' } }
+}
+function Find-UbisoftGames {
+    foreach ($u in 'HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs', 'HKLM:\SOFTWARE\ubisoft\Launcher\Installs') {
+        foreach ($k in RegKids $u) {
+            Record "Ubisoft Connect: $k" {
+                $d = "$((RegProps $k).InstallDir)" -replace '/', '\'
+                if ($d.Trim()) { Game 'Ubisoft Connect' (Split-Path $d.TrimEnd('\') -Leaf) $d 'ubisoft\Launcher\Installs registry' }
+            }
+        }
+    }
+}
+# .GamingRoot: magic 0x58424752, a UInt32 folder count, then UTF-16 null-terminated folder names
+# relative to the drive root. Undocumented by Microsoft, so any parse failure falls back.
+function Read-GamingRoot($path) {
+    $b = [IO.File]::ReadAllBytes($path)
+    if ($b.Length -lt 8 -or [BitConverter]::ToUInt32($b, 0) -ne 0x58424752) { throw 'file magic does not match' }
+    $n = [BitConverter]::ToUInt32($b, 4)
+    if ($n -ge 255 -or $n -eq 0) { throw "folder count $n is out of range" }
+    $names = @([Text.Encoding]::Unicode.GetString($b, 8, $b.Length - 8).Split([char]0) | Where-Object { $_ } | Select-Object -First $n)
+    if ($names.Count -ne $n) { throw "expected $n folder names, read $($names.Count)" }
+    $names | ForEach-Object { Join-Path (Split-Path $path -Parent) $_ }
+}
+function Find-XboxGames {
+    $drives = $script:Drives ?? @([IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady } | ForEach-Object { $_.RootDirectory.FullName })
+    foreach ($d in $drives) {
+        $roots = @()
+        $gr = Join-Path $d '.GamingRoot'
+        $parsed = $false
+        if (Test-Path -LiteralPath $gr -PathType Leaf) {
+            try { $roots += Read-GamingRoot $gr; $parsed = $true }
+            catch { $script:Unchecked += "Xbox app: $gr unreadable ($($_.Exception.Message)); fell back to $(Join-Path $d 'XboxGames')" }
+        }
+        if (-not $parsed) { $roots += Join-Path $d 'XboxGames' }
+        $roots += Join-Path $d 'Program Files\ModifiableWindowsApps'
+        foreach ($r in $roots) {
+            foreach ($g in ListDir 'Xbox app' $r @{ Directory = $true }) {
+                Record "Xbox app: $($g.FullName)" {
+                    $m = @((Join-Path $g.FullName 'appxmanifest.xml'), (Join-Path $g.FullName 'Content\appxmanifest.xml')) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+                    if ($m) {
+                        $n = try { "$(([xml](Get-Content -LiteralPath $m -Raw)).Package.Properties.DisplayName)" } catch { '' }
+                        if (-not $n -or $n -like 'ms-resource:*') { $n = $g.Name }
+                        Game 'Xbox app' $n (Split-Path $m -Parent) 'appxmanifest.xml'
+                    }
+                }
+            }
+        }
+    }
+}
+function Find-Games {
+    $script:Unchecked = @()
+    $all = @(foreach ($f in 'Find-SteamGames', 'Find-EpicGames', 'Find-EaGames', 'Find-BattleNetGames', 'Find-GogGames', 'Find-UbisoftGames', 'Find-XboxGames') {
+            try { & $f } catch { $script:Unchecked += "$($f -replace '^Find-|Games$'): $($_.Exception.Message)" }
+        })
+    # A record left behind by an uninstall names a folder that is gone: reported, not listed.
+    foreach ($g in $all) {
+        if (Test-Path -LiteralPath $g.installDir -PathType Container) { $g }
+        else { $script:Unchecked += "$($g.launcher): $($g.name) is recorded at $($g.installDir), which does not exist" }
+    }
+}
+# The launcher a game directory came from: the deepest discovered install that contains it, then an
+# on-disk marker in the directory or an ancestor. Neither is 'unknown'.
+$GenericLeaves = @('Win64', 'x64', 'bin', 'Binaries', 'Retail', 'Content', 'Game')
+function Get-Launcher($root) {
+    if ($root -match '\\WindowsApps(\\|$)') { return Game 'Xbox app' (Split-Path $root -Leaf) $root 'WindowsApps path' }
+    $hit = Find-Games | Where-Object { "$root\".StartsWith("$($_.installDir)\", 'OrdinalIgnoreCase') } | Sort-Object { $_.installDir.Length } -Descending | Select-Object -First 1
+    if ($hit) { return $hit }
+    for ($p = $root; $p -and $p.Length -gt 3; $p = Split-Path $p -Parent) {
+        if ($p -match '\\steamapps\\common\\[^\\]+$') { return Game 'Steam' ((SteamAcf $p).name ?? (Split-Path $p -Leaf)) $p 'steamapps\common path' }
+        if (Test-Path -LiteralPath (Join-Path $p '.egstore') -PathType Container) { return Game 'Epic Games Launcher' (Split-Path $p -Leaf) $p '.egstore' }
+        if (Test-Path -LiteralPath (Join-Path $p '__Installer\installerdata.xml')) { return Game 'EA app' (Split-Path $p -Leaf) $p '__Installer\installerdata.xml' }
+        if (Get-ChildItem -LiteralPath $p -Filter 'goggame-*.info' -File -ErrorAction SilentlyContinue) { return Game 'GOG Galaxy' (Split-Path $p -Leaf) $p 'goggame-*.info' }
+        if (Test-Path -LiteralPath (Join-Path $p 'appxmanifest.xml')) { return Game 'Xbox app' (Split-Path $p -Leaf) $p 'appxmanifest.xml' }
+    }
+    # ponytail: name from the folder, skipping generic exe-dir leaves; a wrong guess only changes
+    # what the user types to acknowledge.
+    $p = Get-GameRoot $root
+    while ((Split-Path $p -Leaf) -in $GenericLeaves -and (Split-Path $p -Parent).Length -gt 3) { $p = Split-Path $p -Parent }
+    Game 'unknown' (Split-Path $p -Leaf) $p 'no launcher record or marker'
+}
+
+# --- Anti-cheat signals. Status: 'signals' (a source names anti-cheat), 'unknown' (a source could
+# not be checked, or the launcher has none), 'none-disclosed' (Steam only: every source was read
+# and none named one). None of the three means "no anti-cheat". Posture: reference/anticheat-posture.md.
+# Names compare case-insensitively with punctuation, spacing and the (TM), (R) and curly-apostrophe glyphs removed.
+function NormName($s) { "$s".ToLowerInvariant() -replace '[^\p{L}\p{N}]', '' }
+function Get-AntiCheat($root, $launch, $appId) {
+    $signals = @(Find-AntiCheat $root | ForEach-Object { "on disk: $_" })
+    $unchecked = @($script:AcScanGaps)
+    if ($launch.launcher -eq 'Battle.net') {
+        $signals += 'Battle.net title: Blizzard EULA sections 1.C.i and 1.C.ii bar modifying the Platform and unauthorized software that changes its functionality (full text in reference/anticheat-posture.md)'
+    }
+    $aw = [ordered]@{ repo = $AwacyRepo; commit = $null; entries = @(); error = $null }
+    try {
+        $sha = ((& $script:HttpGet "https://api.github.com/repos/$AwacyRepo/commits/HEAD") | ConvertFrom-Json).sha
+        if ("$sha" -notmatch '\A[0-9a-f]{40}\z') { throw 'no commit SHA in the GitHub response' }
+        $all = (& $script:HttpGet "https://raw.githubusercontent.com/$AwacyRepo/$sha/games.json") | ConvertFrom-Json
+        if (-not @($all).Count) { throw 'games.json is empty' }
+        $aw.commit = $sha
+        $n = NormName $launch.name
+        # AWACY's status field is Linux support, not presence; only a non-empty anticheats list counts.
+        $aw.entries = @($all | Where-Object { ($appId -and "$($_.storeIds.steam)" -eq $appId) -or ($n -and (NormName $_.name) -eq $n) } |
+                ForEach-Object { [pscustomobject]@{ name = $_.name; steam = "$($_.storeIds.steam)"; anticheats = @($_.anticheats | Where-Object { $_ }) } })
+        # No entry means nobody recorded the title, not that it has no anti-cheat. A name match
+        # can raise a signal, but a Steam game counts as recorded only under its own app id, so a
+        # same-named re-release never stands in for it.
+        if ($appId -and -not @($aw.entries | Where-Object steam -eq $appId)) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for Steam app id $appId, so this source is unknown" }
+        elseif (-not $aw.entries) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for this title, so this source is unknown" }
+        foreach ($e in $aw.entries) { if ($e.anticheats) { $signals += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))) lists $($e.name): $($e.anticheats -join ', ')" } }
+    }
+    catch { $aw.error = $_.Exception.Message; $unchecked += "AreWeAntiCheatYet: fetch failed ($($aw.error)), so this source is unknown" }
+    $st = $null
+    if ($appId) {
+        $st = [ordered]@{ appId = $appId; url = "https://store.steampowered.com/app/$appId/?l=english"; storeName = $null; anticheats = @(); error = $null }
+        try {
+            $t = & $script:HttpGet $st.url @{ Cookie = $SteamCookie }
+            if ($t -match 'agecheck') { throw 'the age gate came back instead of the store page' }
+            if ($t -notmatch 'apphub_AppName">([^<]*)') { throw 'no store page for this app id' }
+            $st.storeName = [Net.WebUtility]::HtmlDecode($Matches[1])
+            if ($t -match 'anticheat_section') {
+                $st.anticheats = @([regex]::Matches($t, 'class="anticheat_name"[^>]*>\s*([^<]+?)\s*<') | ForEach-Object { [Net.WebUtility]::HtmlDecode($_.Groups[1].Value) })
+                $signals += "Steam store page discloses anti-cheat: $(if ($st.anticheats) { $st.anticheats -join ', ' } else { '(section present, names unreadable)' })"
+            }
+        }
+        catch { $st.error = $_.Exception.Message; $unchecked += "Steam store page: $($st.error)" }
+    }
+    elseif ($launch.launcher -eq 'Steam') { $unchecked += 'Steam: no appmanifest names this folder, so the store page was not read' }
+    else { $unchecked += "$($launch.launcher): no first-party per-game anti-cheat disclosure exists for this launcher" }
+    $status = if ($signals) { 'signals' } elseif ($unchecked) { 'unknown' } else { 'none-disclosed' }
+    # The acknowledgement is bound to this id, so a signal, or a source that could not be checked,
+    # appearing after the review refuses. Unchecked sources count by name, not by error text, and a
+    # newer AreWeAntiCheatYet commit alone changes nothing.
+    # The game itself (folder, launcher, app id) is part of it too, so a same-named game elsewhere never shares it.
+    $fp = (@("game $($root.ToLowerInvariant()) $($launch.launcher) $appId", $status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object) +
+        @($unchecked | ForEach-Object { 'unchecked ' + (($_ -replace ' \(commit [0-9a-f]{7}\)') -split ':')[0] } | Sort-Object -Unique)) -join "`n"
+    [pscustomobject]@{
+        status = $status; signals = $signals; unchecked = $unchecked
+        reviewId = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fp))).Substring(0, 12).ToLowerInvariant()
+        note = if ($status -eq 'none-disclosed') { 'Steam requires disclosure of kernel-mode anti-cheat only; user-mode and server-side anti-cheat need not be disclosed. AreWeAntiCheatYet has an entry for the title listing no anti-cheat, and nothing matched on disk. This is not proof of no anti-cheat.' }
+        awacy = [pscustomobject]$aw; steam = if ($st) { [pscustomobject]$st }
+    }
+}
+# Any status but none-disclosed needs the user's typed game name plus the ban and block research
+# the router ran, and all of it lands in the manifest. Nothing here touches the anti-cheat itself.
+function Assert-Acknowledged($acr, $name) {
+    if ($acr.status -eq 'none-disclosed') { return }
+    $found = "anti-cheat status '$($acr.status)'. Signals: $(if ($acr.signals) { $acr.signals -join '; ' } else { 'none' }). Not checked: $(if ($acr.unchecked) { $acr.unchecked -join '; ' } else { 'none' })"
+    if (-not $AcceptAntiCheatRisk) { throw "refusing: $found. Installing anyway is at the user's own risk and needs -AcceptAntiCheatRisk '$name' with -AntiCheatResearch and -AntiCheatSources; nothing was changed" }
+    if (-not (NormName $name) -or (NormName $AcceptAntiCheatRisk) -ne (NormName $name)) { throw "refusing: acknowledgement '$AcceptAntiCheatRisk' does not match the game name '$name'; nothing was changed" }
+    if ($AntiCheatReviewId -ne $acr.reviewId) { throw "refusing: the anti-cheat result changed since the review (reviewed '$AntiCheatReviewId', now '$($acr.reviewId)'). $found. Rerun assess and the review; nothing was changed" }
+    # pwsh -File hands a list over as one comma-separated string.
+    $src = @($AntiCheatSources -split ',\s*(?=https?://)' | ForEach-Object Trim | Where-Object { $_ })
+    if (-not "$AntiCheatResearch".Trim() -or -not $src -or @($src | Where-Object { $_ -notmatch '^https://\S+$' }).Count) {
+        throw 'refusing: an acknowledgement needs -AntiCheatResearch (the ban and block research summary) and -AntiCheatSources with one or more https:// URLs; nothing was changed'
+    }
+    [pscustomobject]@{ typed = $AcceptAntiCheatRisk; gameName = $name; reviewId = $acr.reviewId; date = (Get-Date).ToString('o'); research = $AntiCheatResearch.Trim(); sources = $src }
+}
+
+# Why a preset value is refused, or $null when it passes. With $build, a key allow-listed only for
+# other builds is refused too.
+function Test-PresetValue($key, $value, $build) {
+    # Refused by name whatever its value: capture stays off, and no preset can say otherwise.
+    if ($key -eq 'AutoCapture') { return 'AutoCapture is never settable by a preset' }
+    if ("$key" -cnotin $PresetKeys.Keys) { return "'$key' is not on the preset allow-list ($(($PresetKeys.Keys | Sort-Object) -join ', '))" }
+    $b = $PresetKeys[$key].Builds
+    if ($build -and $b -and $build -notin $b) { return "'$key' is on the preset allow-list only for -Build $($b -join ', '), not '$build'" }
+    $t = $PresetKeys[$key].Type
+    $want = @{ token = 'a plain token (letters, digits, _ and .)'; bool = 'true, false or auto'; number = 'a number or auto'; uint = 'a whole number or auto'; vk = 'a virtual-key code 0x01 to 0xFE, -1 (unbound) or auto' }[$t]
+    if ("$value" -cnotmatch $PresetTypes[$t] -or ("$value" -like '0x*' -and [Convert]::ToInt32("$value".Substring(2), 16) -notin 1..254)) { return "value for $key must be ${want}: '$value'" }
+}
 function Read-PresetFile($p) {
     $j = LoadJson $p
-    foreach ($e in @($j.ini)) {
-        if (-not $e) { continue }
-        # Refused by name whatever its value: capture stays off, and no preset can say otherwise.
-        if ($e.key -eq 'AutoCapture') { throw "preset $p sets AutoCapture; AutoCapture is never settable by a preset" }
-        if ("$($e.key)" -cnotin $PresetKeys.Keys) { throw "preset $p sets '$($e.key)', which is not on the preset allow-list ($($PresetKeys.Keys -join ', '))" }
-        # \A..\z, not ^..$: a trailing newline would let a value inject its own ini line.
-        if ("$($e.value)" -cnotmatch '\A[A-Za-z0-9_.]+\z') { throw "preset $p value for $($e.key) must be a plain token: '$($e.value)'" }
-    }
+    foreach ($e in @($j.ini)) { if ($e -and ($err = Test-PresetValue $e.key $e.value)) { throw "preset ${p}: $err" } }
     if ($j.proxy -and $j.proxy -notin $ProxyNames) { throw "preset $p proxy '$($j.proxy)' is not one of $($ProxyNames -join ', ')" }
     $j
 }
-# Shipped and local merged: a local ini key wins over the shipped one, and each key keeps its source.
-function Get-Preset($key) {
-    if ($key -cnotmatch '\A[a-z0-9-]+\z') { throw "preset key must be lowercase letters, digits and hyphens: '$key'" }
-    $files = [ordered]@{ shipped = Join-Path $script:PresetDir "$key.json"; local = Join-Path $script:DataDir "presets\$key.json" }
-    $got = [ordered]@{}
-    foreach ($src in $files.Keys) { if (Test-Path -LiteralPath $files[$src] -PathType Leaf) { $got[$src] = Read-PresetFile $files[$src] } }
-    if (-not $got.Count) { throw "no preset '$key': neither $($files.shipped) nor $($files.local) exists" }
+# The layers that exist, lowest precedence first: shipped base, shipped per-game, local base, local
+# per-game. Shipped files live in skills\dlss5\presets, local ones in <DataDir>\presets; a base is
+# _base.json and applies to every game. Format and merge rule: reference/presets.md.
+function Get-PresetLayers($key) {
+    if ($key -and $key -cnotmatch '\A[a-z0-9-]+\z') { throw "preset key must be lowercase letters, digits and hyphens: '$key'" }
+    $local = Join-Path $script:DataDir 'presets'
+    $files = [ordered]@{
+        'shipped-base' = Join-Path $script:PresetDir '_base.json'; shipped = if ($key) { Join-Path $script:PresetDir "$key.json" }
+        'local-base' = Join-Path $local '_base.json'; local = if ($key) { Join-Path $local "$key.json" }
+    }
+    foreach ($src in $files.Keys) {
+        $f = $files[$src]
+        if ($f -and (Test-Path -LiteralPath $f -PathType Leaf)) { [pscustomobject]@{ source = $src; file = $f; json = Read-PresetFile $f } }
+    }
+}
+# A higher layer's ini key wins, and each key keeps the layer it came from. title, proxy, manual and
+# recheck come from the highest layer that has them; sources from every layer.
+function Merge-Preset($key, $layers) {
+    if (-not $layers) { return }
+    $p = [ordered]@{ key = if ($key) { $key }; title = $null; proxy = $null; ini = @(); manual = @(); manualSource = $null; sources = @(); recheck = $null; from = @() }
+    $ini = Merge-Ini $layers
+    foreach ($l in $layers) {
+        $j = $l.json
+        # Present wins, even when empty: a local "manual": [] clears the shipped steps.
+        foreach ($f in 'title', 'proxy', 'recheck') { if ($null -ne $j.$f) { $p[$f] = $j.$f } }
+        if ($null -ne $j.manual) { $p.manual = @($j.manual | Where-Object { $_ }); $p.manualSource = $l.source }
+        $p.sources += @($j.sources | Where-Object { $_ })
+        $p.from += "$($l.source) $($l.file)"
+    }
+    $p.ini = @($ini.Values)
+    $dup = Get-HotkeyDup $ini
+    if ($dup) { throw "preset binds one key to several actions: $(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')" }
+    [pscustomobject]$p
+}
+# Key -> effective ini entry, the highest layer winning, each entry naming its layer.
+function Merge-Ini($layers) {
     $ini = [ordered]@{}
-    foreach ($src in $got.Keys) {
-        foreach ($e in @($got[$src].ini)) {
-            if ($e) { $ini["$($e.key)"] = [pscustomobject]@{ section = $PresetKeys["$($e.key)"]; key = "$($e.key)"; value = "$($e.value)"; why = $e.why; source = $src } }
+    foreach ($l in $layers) {
+        foreach ($e in @($l.json.ini)) {
+            if ($e) { $ini["$($e.key)"] = [pscustomobject]@{ section = $PresetKeys["$($e.key)"].Section; key = "$($e.key)"; value = "$($e.value)"; why = $e.why; source = $l.source } }
         }
     }
-    $l = $got['local']; $s = $got['shipped']
-    [pscustomobject]@{
-        key = $key; title = $l.title ?? $s.title; proxy = $l.proxy ?? $s.proxy
-        ini = @($ini.Values)
-        manual = @(($l.manual ?? $s.manual) | Where-Object { $_ }); manualSource = if ($l.manual) { 'local' } elseif ($s.manual) { 'shipped' }
-        sources = @(@($s.sources) + @($l.sources) | Where-Object { $_ }); recheck = $l.recheck ?? $s.recheck
-        from = @($got.Keys | ForEach-Object { "$_ $($files[$_])" })
+    $ini
+}
+# One key bound to two actions fires both. Checked on effective bindings: an unset or auto hotkey
+# keeps the fork's default, so ToggleKey=0x2D collides with the default Insert menu key.
+function Get-HotkeyDup($ini) {
+    $eff = foreach ($k in $HotkeyDefaults.Keys) {
+        $e = $ini[$k]
+        $v = if ($e -and $e.value -ne 'auto') { $e.value } else { $HotkeyDefaults[$k] }
+        if ($v -like '0x*') { [pscustomobject]@{ key = $k; code = [Convert]::ToInt32($v.Substring(2), 16); text = "[$($PresetKeys[$k].Section)] $k=$v ($(if ($e -and $e.value -ne 'auto') { $e.source } else { 'default' }))" } }
     }
+    @($eff | Group-Object code | Where-Object Count -gt 1)
+}
+# The effective preset for a per-game key, or for the bases alone when $key is empty.
+function Get-Preset($key) {
+    $layers = @(Get-PresetLayers $key)
+    if ($key -and -not @($layers | Where-Object source -in 'shipped', 'local').Count) {
+        throw "no preset '$key': neither $(Join-Path $script:PresetDir "$key.json") nor $(Join-Path $script:DataDir "presets\$key.json") exists"
+    }
+    Merge-Preset $key $layers
 }
 # First preset whose match rule fits this exe dir: Steam app id, or an exe name present in it. Local first.
 function Find-Preset($root) {
@@ -303,12 +677,28 @@ function Edit-Ini($path, $edits) {
     }
     [IO.File]::WriteAllText($path, ($lines -join "`n"), [Text.UTF8Encoding]::new($hadBom))
 }
+# Every key as 'Section/Key' -> value.
+function Read-Ini($path) {
+    $v = @{}; $sec = ''
+    foreach ($l in ([IO.File]::ReadAllText($path) -split "`n")) {
+        if ($l -match '^\s*\[([^\]]+)\]') { $sec = $Matches[1]; continue }
+        if ($l -match '^\s*([^;#=\s][^=]*?)\s*=\s*(.*?)\s*$') { $v["$sec/$($Matches[1])"] = $Matches[2] }
+    }
+    $v
+}
+# Save Settings writes 0x7c for 0x7C and 1.000000 for 1.0; compare the value, not its spelling.
+function NormVal($v) {
+    $v = "$v".Trim(); $d = 0.0
+    if ($v -match '\A0x([0-9a-f]{1,8})\z') { return [string][Convert]::ToInt64($Matches[1], 16) }
+    if ([double]::TryParse($v, 'Float', [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return [string]$d }
+    $v
+}
 
-function Do-Snapshot($root) {
+function Do-Snapshot($root, $lb) {
     $sp = Join-Path (StateDir $root) 'snapshot.json'
     $t = Tree $root
     [pscustomobject]@{
-        gameDir = $root; taken = (Get-Date).ToString('o')
+        gameDir = $root; taken = (Get-Date).ToString('o'); launcherBuild = $lb
         dirs    = @($ModDirs | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) -PathType Container })
         files   =@($t.Keys | Sort-Object | ForEach-Object { [pscustomobject]@{ Path = $_; Length = $t[$_].Length; Sha256 = $t[$_].Sha256 } })
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $sp -Encoding utf8
@@ -333,18 +723,22 @@ function Do-Apply($root) {
     if ($Proxy -notin $ProxyNames) { throw "unknown proxy '$Proxy' (have: $($ProxyNames -join ', '))" }
 
     # Refusal gates. All run before any write, the state directory included.
+    if ($root -match '\\WindowsApps(\\|$)') { throw $WindowsApps }
     if (-not (Get-ChildItem -LiteralPath $root -Filter *.exe -File)) { throw "no *.exe in $root; pass the directory that holds the game executable" }
     $opts = [IO.EnumerationOptions]@{ RecurseSubdirectories = $true; IgnoreInaccessible = $true; AttributesToSkip = 0 }
     $n = @([IO.Directory]::EnumerateFiles($root, '*', $opts) | Select-Object -First 2001).Count
     # 2000 is judgment, not measured: it catches a library or game root passed by mistake.
     if ($n -gt 2000 -and -not $Force) { throw "over 2000 files under $root; is this a game or library root rather than the exe directory? Pass -Force only after the user confirms it is the exe directory" }
-    $ac = Find-AntiCheat $root
-    if ($ac) { throw "anti-cheat on disk, refusing: $($ac -join ', ')" }
     if (-not (Find-Upscalers $root)) { throw $NoUpscaler }
     if ("$($script:DataDir)\".StartsWith("$root\", 'OrdinalIgnoreCase')) { throw "data_dir $($script:DataDir) is inside $root; state files would land in the tree the snapshot restores. Move data_dir outside the game directory" }
-    $pr = if ($Preset) { Get-Preset $Preset }
+    # The bases apply with or without -Preset.
+    $pr = Get-Preset $Preset
+    foreach ($e in @($pr.ini)) {
+        if ($e -and ($err = Test-PresetValue $e.key $e.value $Build)) { throw "preset key $($e.key) ($($e.source) layer): $err. Remove it from that layer or apply another build; nothing was changed" }
+    }
 
     $src = Join-Path $script:DataDir "builds\$Build"
+    $marker = LoadJson (Join-Path $src '.provisioned.json'); $tag = $marker.tag
     $plan = [Collections.ArrayList]::new()
     foreach ($item in $files) {
         $p = Join-Path $src $item
@@ -364,11 +758,22 @@ function Do-Apply($root) {
     if ($hit) { throw "destination collision, nothing copied: $($hit -join ', ')" }
     $rt = Test-Runtime $script:RuntimeDll
     if (-not $rt.Ok) { throw "runtime DLL refused: $($rt.Reason)" }
+    # The anti-cheat gate goes last: it is the only one that reads the network.
+    $launch = Get-Launcher $root
+    $acr = Get-AntiCheat $root $launch (SteamAppId $root)
+    $ack = Assert-Acknowledged $acr $launch.name
+    # Write probe: an Xbox app folder (or any protected one) fails here, not midway through the copy.
+    $probe = Join-Path $root ('.dlss5-write-probe-' + [guid]::NewGuid().ToString('N'))
+    try { [IO.File]::WriteAllBytes($probe, [byte[]]@()) }
+    catch { throw "$root is not writable ($($_.Exception.Message)); nothing was changed" }
+    finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $probe) { throw "write probe $probe could not be removed; nothing was installed. Delete it, then rerun" }
 
     # Always a fresh snapshot: with no manifest the tree is pre-install, and an old snapshot may
     # predate a game update.
     New-Item -ItemType Directory -Force -Path $sd | Out-Null
-    Do-Snapshot $root
+    $lb = Get-LauncherBuild $root
+    Do-Snapshot $root $lb
     $added = @($plan | ForEach-Object { $_.To } | Sort-Object)
     $pp = Join-Path $sd 'pending.json'
     # pending.json names only files whose copy has started, so a hard kill never leaves it naming a
@@ -390,16 +795,13 @@ function Do-Apply($root) {
             Copy-Item -LiteralPath $e.From -Destination $d
         }
         # One edit per key, later wins: baseline, then preset, then the explicit switch. The
-        # allow-list keeps a preset off the baseline keys, so AutoCapture=false always stands.
+        # allow-list keeps AutoCapture and logging off a preset, so AutoCapture=false always stands.
         $edits = [ordered]@{}
         @(
-            @{ Section = 'DlssNr'; Key = 'Enabled'; Value = 'true' }
-            @{ Section = 'DlssNr'; Key = 'AutoCapture'; Value = 'false' }
-            @{ Section = 'Log'; Key = 'LogToFile'; Value = 'true' }
-            @{ Section = 'Log'; Key = 'LogLevel'; Value = '2' }
+            $Baseline
             @($pr.ini) | Where-Object { $_ } | ForEach-Object { @{ Section = $_.section; Key = $_.key; Value = $_.value; Required = $true } }
             if ($RestoreComputeSignature) { @{ Section = 'Hotfix'; Key = 'RestoreComputeSignature'; Value = 'true' } }
-        ) | ForEach-Object { $edits[$_.Key] = $_ }
+        ) | ForEach-Object { $edits["$($_.Section)/$($_.Key)"] = $_ }
         Edit-Ini (Join-Path $root 'OptiScaler.ini') @($edits.Values)
     }
     catch {
@@ -412,7 +814,8 @@ function Do-Apply($root) {
 
     $drv = try { (& nvidia-smi --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() } catch { 'unknown' }
     [pscustomobject]@{
-        gameDir = $root; build = $Build; proxy = $Proxy; applied = (Get-Date).ToString('o'); driver = $drv
+        gameDir = $root; build = $Build; tag = $tag; buildSha256 = $marker.sha256; proxy = $Proxy; applied = (Get-Date).ToString('o'); driver = $drv
+        launcher = $launch; launcherBuild = $lb; antiCheat = $acr; acknowledgement = $ack
         restoreComputeSignature = [bool]$RestoreComputeSignature
         iniEdits = @($edits.Values | ForEach-Object { [pscustomobject]@{ section = $_.Section; key = $_.Key; value = $_.Value } })
         preset = $pr
@@ -422,10 +825,11 @@ function Do-Apply($root) {
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $sd 'manifest.json') -Encoding utf8
     Remove-Item -LiteralPath $pp -Force
 
-    "applied $Build (proxy $Proxy, driver $drv) -> $root"
+    "applied $Build $tag (proxy $Proxy, driver $drv) -> $root"
+    "launcher $($launch.launcher); anti-cheat $($acr.status)$(if ($ack) { "; risk acknowledged as '$($ack.typed)'" })"
     $added | ForEach-Object { "  + $_" }
-    if ($pr) {
-        "preset $($pr.key) ($($pr.title)):"
+    if ($pr.ini -or $pr.manual) {
+        "preset $(if ($pr.key) { "$($pr.key) ($($pr.title))" } else { '(bases only)' }):"
         $pr.ini | ForEach-Object { "  ini [$($_.section)] $($_.key)=$($_.value)  ($($_.source))" }
         if ($pr.manual) { "  manual settings ($($pr.manualSource)):"; $pr.manual | ForEach-Object { "    - $_" } }
     }
@@ -473,11 +877,52 @@ function Show-Stat($s, [switch]$NoManifest) {
     }
 }
 
+# A launcher update since the apply: the manifest's recorded build differs from the launcher's now,
+# and the drift is game files only: no manifest file changed, and none is missing unless all are
+# (a remove that kept the manifest deleted them). $null for a manifest with no recorded build.
+# The token covers the build ids and each drifted file's current hash, which a remove leaves
+# unchanged, so status and remove print the same one and any later change to the drift refuses.
+function Get-GameUpdate($root, $mj, $s) {
+    $was = $mj.launcherBuild; $now = Get-LauncherBuild $root
+    if (-not $was.buildId -or -not $now.buildId -or $was.buildId -eq $now.buildId) { return }
+    $drift = @($s.Modified) + @($s.Removed)
+    $miss = $s.ManifestMissing.Count
+    if (-not $drift.Count -or $s.ManifestModified.Count -or ($miss -and $miss -lt @($mj.files).Count)) { return }
+    $seen = @("$($was.buildId)>$($now.buildId)") + @($drift | Sort-Object | ForEach-Object {
+            $f = Join-Path $root $_
+            "$_ $(if (Test-Path -LiteralPath $f) { (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash } else { 'removed' })"
+        })
+    $token = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($seen -join "`n"))).Substring(0, 12).ToLowerInvariant()
+    [pscustomobject]@{
+        Token = $token
+        Text  = "game updated by $($now.launcher) (build $($was.buildId) -> $($now.buildId)) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh $token once the user has seen this drift and said yes"
+    }
+}
+# Every refusal of a confirmed refresh, before remove deletes anything. apply's own gates run again
+# after the remove; this repeats the ones that can fail, so a refusal leaves the mod installed.
+function Assert-Refresh($root, $mj, $gu) {
+    if (-not $mj.applied) { throw 'refusing refresh: an interrupted apply left pending.json; run remove without -ConfirmRefresh. Nothing was changed' }
+    if (-not $gu) { throw 'refusing refresh: this is not a launcher game update (a recorded build that changed, with only game files drifted). Run remove, show the user the drift, and use -Finish only on their request. Nothing was changed' }
+    if ($ConfirmRefresh -ne $gu.Token) { throw "refusing refresh: the drift changed since the user saw it (confirmed '$ConfirmRefresh', now '$($gu.Token)'). Rerun status and show the new drift. Nothing was changed" }
+    # Carried from the manifest; never the old acknowledgement, which the command line must supply.
+    $script:Build = $mj.build; $script:Proxy = $mj.proxy; $script:Preset = $mj.preset.key; $script:RestoreComputeSignature = [bool]$mj.restoreComputeSignature
+    $src = Join-Path $script:DataDir "builds\$Build"
+    $miss = @(@($BuildFiles[$Build]) + '.provisioned.json' | Where-Object { -not $_ -or -not (Test-Path -LiteralPath (Join-Path $src $_)) })
+    if (-not $BuildFiles[$Build] -or $miss) { throw "refusing refresh: build $Build is not fully provisioned under $src (missing: $($miss -join ', ')); run /gaming:setup apply. Nothing was changed" }
+    $null = Get-Preset $Preset
+    $rt = Test-Runtime $script:RuntimeDll
+    if (-not $rt.Ok) { throw "refusing refresh: runtime DLL refused: $($rt.Reason). Nothing was changed" }
+    $launch = Get-Launcher $root
+    $null = Assert-Acknowledged (Get-AntiCheat $root $launch (SteamAppId $root)) $launch.name
+}
+
 function Do-Remove($root) {
     $sd = StateDir $root
     $mj = Load-Manifest $root
     if (-not $mj) { throw "no manifest for $root, nothing to remove" }
     $s0 = Get-Stat $root
+    $gu = Get-GameUpdate $root $mj $s0
+    if ($ConfirmRefresh) { Assert-Refresh $root $mj $gu }
     $del = @($mj.files | ForEach-Object Path) + @($s0.Added | Where-Object Kind -eq 'byproduct' | ForEach-Object Path)
     foreach ($p in $del) {
         $f = Join-Path $root $p
@@ -488,39 +933,200 @@ function Do-Remove($root) {
     Remove-EmptyModDirs $root (Load-Snapshot $root)
     $s = Get-Stat $root
     Show-Stat $s -NoManifest
-    if (($s.Modified.Count -or $s.Removed.Count) -and -not $Finish) {
-        'Run Steam > Verify integrity of game files, then remove again (or remove -Finish to drop the manifest as is)'
+    if (($s.Modified.Count -or $s.Removed.Count) -and -not $Finish -and -not $ConfirmRefresh) {
+        if ($gu) { $gu.Text } else { 'Run Steam > Verify integrity of game files, then remove again (or remove -Finish to drop the manifest as is)' }
     }
     else {
         'manifest.json', 'pending.json' | ForEach-Object { Remove-Item -LiteralPath (Join-Path $sd $_) -Force -ErrorAction SilentlyContinue }
         'removed: manifest deleted, snapshot kept'
+        if ($ConfirmRefresh) { Do-Apply $root }
     }
 }
 
-# Read-only eligibility probe. On-disk facts only; the Steam store page's anti-cheat section is the
-# skill's job, so a clean scan is 'eligible' with requiresWebCheck set, never a final yes.
+# Saves overlay tuning as the game's local per-game preset: each allow-listed key whose value in the
+# game's OptiScaler.ini differs from what apply wrote (the build's stock ini with the manifest's
+# iniEdits over it), merged into any existing local file. Reads the game folder; writes only
+# <DataDir>\presets\<key>.json.
+function Do-Capture($root) {
+    $mj = Load-Manifest $root
+    if (-not $mj.applied) { throw "no completed apply for $root; capture reads a game the mod is applied to. Nothing was written" }
+    $own = $mj.preset.key ?? (Find-Preset $root)
+    if ($Preset -and $own -and $Preset -cne $own) { throw "this game's preset is '$own'; capture writes that one, not '$Preset'. Nothing was written" }
+    $key = $own ?? $Preset
+    if (-not $key) { throw 'no preset matches this game; pass -Preset <key> to name a new local preset. Nothing was written' }
+    $layers = @(Get-PresetLayers $key)
+    if (-not $own -and @($layers | Where-Object source -in 'shipped', 'local').Count) { throw "preset '$key' exists and does not match this game; pick another key. Nothing was written" }
+    $stock = Get-StockIni $mj
+    if (-not $mj.tag) { "note: this manifest predates recorded build tags; the diff assumes $($mj.build) is unchanged since the apply" }
+    $want = Read-Ini $stock
+    foreach ($e in @($mj.iniEdits)) { if ($e) { $want["$($e.section)/$($e.key)"] = $e.value } }
+    $now = Read-Ini (Join-Path $root 'OptiScaler.ini')
+    $old = @($layers | Where-Object source -eq 'local').json | Select-Object -First 1
+    $ini = [ordered]@{}; foreach ($e in @($old.ini)) { if ($e) { $ini["$($e.key)"] = $e } }
+    $oldIni = @{}; foreach ($k in $ini.Keys) { $oldIni[$k] = $ini[$k] }
+    $took = [ordered]@{}; $left = @()
+    foreach ($k in $now.Keys | Sort-Object) {
+        $sec, $name = $k -split '/', 2
+        $v = $now[$k]
+        # A respelling counts as unchanged only when it is valid for the key: 124 for 0x7C is reported.
+        $allowed = $name -cin $PresetKeys.Keys -and $PresetKeys[$name].Section -ceq $sec
+        if ($v -ceq $want[$k] -or ((NormVal $v) -ceq (NormVal $want[$k]) -and -not ($allowed -and (Test-PresetValue $name $v $mj.build)))) { continue }
+        $err = if ($name -eq 'AutoCapture') { 'never captured. Set it back to false: it writes frame captures into the game folder' }
+        elseif ($PresetKeys[$name].Section -cne $sec) { 'not on the preset allow-list' }
+        else { Test-PresetValue $name $v $mj.build }
+        if ($err) { $left += "[$sec] $name=$v ($err)"; continue }
+        $ini[$name] = [pscustomobject]@{ key = $name; value = $v; why = "captured $(Get-Date -Format 'yyyy-MM-dd') from the overlay's Save Settings" }
+        $took[$name] = "[$sec] $name=$v"
+    }
+    # A captured hotkey that shares a key with another layer's binding is left out and reported with
+    # both sources; the rest is still written. apply keeps refusing any such merge outright.
+    $lower = @($layers | Where-Object source -ne 'local')
+    $cur = Merge-Ini $layers
+    $lf = Join-Path $script:DataDir "presets\$key.json"
+    $merged = { Merge-Ini ($lower + [pscustomobject]@{ source = 'local'; file = $lf; json = [pscustomobject]@{ ini = @($ini.Values) } }) }
+    do {
+        $hit = $false
+        foreach ($grp in Get-HotkeyDup (& $merged)) {
+            foreach ($h in @($grp.Group | Where-Object { $_.key -cin $took.Keys })) {
+                $hit = $true
+                $others = @($grp.Group | Where-Object key -cne $h.key | ForEach-Object text) -join ' and '
+                $c = $cur[$h.key]
+                $keeps = if ($c -and $c.value -ne 'auto') { "$($c.value) ($($c.source))" } else { "$($HotkeyDefaults[$h.key]) (default)" }
+                $left += "$($took[$h.key]) (conflict: the game's ini binds the same key as $others; the preset keeps $($h.key)=$keeps. Rebind one of them, then capture again)"
+                if ($oldIni.Contains($h.key)) { $ini[$h.key] = $oldIni[$h.key] } else { $ini.Remove($h.key) }
+                $took.Remove($h.key)
+            }
+        }
+    } while ($hit)
+    $dup = Get-HotkeyDup (& $merged)
+    if ($dup) { "note: the preset layers already bind one key to several actions ($(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')); apply refuses until one is rebound" }
+    if (-not $took.Count) { 'nothing captured: no allow-listed key differs from what apply wrote, or every one conflicts' }
+    else {
+        # A new file beside a shipped preset of the same key inherits its title and match.
+        $j = if ($old) { $old } elseif (@($layers | Where-Object source -eq 'shipped').Count) { [pscustomobject]@{} } else {
+            [pscustomobject]@{
+                title = (Get-Launcher $root).name
+                # One exe only: a shared helper such as UnityCrashHandler64.exe would match other games.
+                # ponytail: the largest exe is taken as the game's; capture prints it for the user to check.
+                match = if ($app = SteamAppId $root) { @{ steamAppId = $app } } else { @{ exe = @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | Sort-Object Length -Descending | Select-Object -First 1 | ForEach-Object Name) } }
+            }
+        }
+        $j | Add-Member -Force -NotePropertyName ini -NotePropertyValue @($ini.Values)
+        New-Item -ItemType Directory -Force -Path (Split-Path $lf -Parent) | Out-Null
+        $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $lf -Encoding utf8
+        "captured $($took.Count) key(s) into local preset '$key' -> $lf"
+        if ($j.match.exe) { "  matches on $($j.match.exe); check it is the game's executable" }
+        $took.Values | ForEach-Object { "  $_" }
+    }
+    if ($left) { 'not captured:'; $left | ForEach-Object { "  $_" } }
+}
+
+# The provisioned stock ini of the build a manifest was applied from. A re-provisioned build's new
+# stock defaults would read as tuning (capture) or be written as stock (reset). Provisioning replaces
+# a build on a new asset hash even under the same tag, so both are compared. -Strict refuses a
+# manifest that predates recorded tags.
+function Get-StockIni($mj, [switch]$Strict) {
+    if ($Strict -and (-not $mj.tag -or -not $mj.buildSha256)) { throw "this manifest predates recorded build tags, so the stock ini it was applied from is unknown; remove and re-apply to use reset. Nothing was written" }
+    $stock = Join-Path $script:DataDir "builds\$($mj.build)\OptiScaler.ini"
+    if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) { throw "missing stock ini $stock (run /gaming:setup apply). Nothing was written" }
+    $m = LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")
+    if (($mj.tag -and $m.tag -ne $mj.tag) -or ($mj.buildSha256 -and $m.sha256 -ne $mj.buildSha256)) {
+        throw "the $($mj.build) build is now '$($m.tag)' ($($m.sha256)), but this game was applied from '$($mj.tag)' ($($mj.buildSha256)), so its stock ini no longer matches. Nothing was written"
+    }
+    $stock
+}
+
+# Whether a manifest's build is its build's current pin. Manifests before 0.5.0 lack tag or buildSha256.
+function Get-PinState($mj) {
+    $pin = $BuildPins["$($mj.build)"]
+    if (-not $mj.tag -or -not $mj.buildSha256) { return "installed build: $($mj.build), tag unknown, re-apply to record" }
+    if (-not $pin) { return "installed build: $($mj.build) $($mj.tag), which this plugin version no longer pins" }
+    if ($mj.tag -eq $pin.Tag -and $mj.buildSha256 -eq $pin.Sha256) { return "installed build: $($mj.build) $($mj.tag), the current pin" }
+    # Tags compare as versions (v0.8.3 < v0.9.0); a same-version tag or a changed asset hash is only "differs".
+    $a = $b = $null
+    $ok = [version]::TryParse(($mj.tag -replace '^v' -replace '-.*$'), [ref]$a) -and [version]::TryParse(($pin.Tag -replace '^v' -replace '-.*$'), [ref]$b) -and $a -ne $b
+    $what = "$($mj.build) $($mj.tag) ($($mj.buildSha256)) installed, $($pin.Tag) ($($pin.Sha256)) pinned"
+    if ($ok -and $a -lt $b) { "installed build is older than the current pin: $what. Update steps: reference/upstream-watch.md" }
+    elseif ($ok) { "installed build is newer than the current pin: $what. This plugin version is older than the one that applied it" }
+    else { "installed build differs from the current pin: $what. Check the pin history before re-applying" }
+}
+
+# Rewrites the game's OptiScaler.ini to the build's stock ini plus the manifest's iniEdits, which is
+# byte for byte what apply wrote, undoing the overlay's Save Settings. Prints what it discards and a
+# token, and writes only with -ConfirmReset <token>. OptiScaler.ini is the one game-folder file it writes, and only when
+# the manifest owns it; the manifest's hash for it is updated so remove stays byte-exact.
+function Do-Reset($root) {
+    $mj = Load-Manifest $root
+    if (-not $mj.applied) { throw "no completed apply for $root; reset rewrites the OptiScaler.ini an apply installed. Nothing was written" }
+    $own = @($mj.files | Where-Object { $_.Path -eq 'OptiScaler.ini' })
+    if (-not $own) { throw 'the manifest does not own OptiScaler.ini; refusing to write it. Nothing was written' }
+    $edits = @($mj.iniEdits | Where-Object { $_ } | ForEach-Object { @{ Section = $_.section; Key = $_.key; Value = $_.value; Required = $true } })
+    if (-not $edits) { throw 'this manifest predates recorded ini edits; remove and re-apply to use reset. Nothing was written' }
+    $stock = Get-StockIni $mj -Strict
+    $gi = Join-Path $root 'OptiScaler.ini'
+    $tmp = Join-Path (StateDir $root) 'reset.ini'
+    try {
+        Copy-Item -LiteralPath $stock -Destination $tmp -Force
+        Edit-Ini $tmp $edits
+        $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
+        if ((Test-Path -LiteralPath $gi) -and (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash -eq $hash) { return 'OptiScaler.ini already matches the stock ini plus the recorded preset; nothing to reset' }
+        # The confirmation names the ini the preview showed, so a file saved again since then refuses.
+        $token = if (Test-Path -LiteralPath $gi) { (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant() } else { 'absent' }
+        if ($ConfirmReset -and $ConfirmReset -ne $token) { throw "OptiScaler.ini changed since the preview (previewed '$ConfirmReset', now '$token'); rerun reset without -ConfirmReset and show the user the new list. Nothing was written" }
+        $cur = if (Test-Path -LiteralPath $gi) { Read-Ini $gi } else { @{} }
+        $new = Read-Ini $tmp
+        'reset discards these OptiScaler.ini values (now -> stock plus preset):'
+        $diff = foreach ($k in @(@($cur.Keys) + @($new.Keys) | Sort-Object -Unique)) {
+            if ($cur[$k] -cne $new[$k]) {
+                $sec, $name = $k -split '/', 2
+                "  [$sec] ${name}: $(if ($cur.ContainsKey($k)) { $cur[$k] } else { '(absent)' }) -> $(if ($new.ContainsKey($k)) { $new[$k] } else { '(absent)' })"
+            }
+        }
+        if ($diff) { $diff } else { '  (no value changes; comments or formatting only)' }
+        if (-not $ConfirmReset) { return "nothing written: rerun with -ConfirmReset $token once the user has confirmed" }
+        Copy-Item -LiteralPath $tmp -Destination $gi -Force
+        $own[0].Sha256 = $hash
+        $mj | Add-Member -Force -NotePropertyName reset -NotePropertyValue (Get-Date).ToString('o')
+        $mj | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path (StateDir $root) 'manifest.json') -Encoding utf8
+        "reset: $gi rewritten to the stock $($mj.build) $($mj.tag) ini plus the recorded preset; manifest updated"
+    }
+    finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+}
+
+# Read-only eligibility probe: on-disk facts, the launcher, and the anti-cheat sources (on disk,
+# AreWeAntiCheatYet, the Steam store page). Writes nothing.
 function Do-Assess($root) {
+    # A WindowsApps folder is usually unreadable, so nothing past the refusal is probed.
+    if ($root -match '\\WindowsApps(\\|$)') {
+        return [pscustomobject]@{ gameDir = $root; launcher = 'Xbox app'; launcherSource = 'WindowsApps path'; gameName = (Split-Path $root -Leaf); verdict = 'refused'; refusals = @($WindowsApps) } | ConvertTo-Json
+    }
     $gameRoot = Get-GameRoot $root
-    $ac = Find-AntiCheat $root
     $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
     $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
     $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
     $ups = @(Find-Upscalers $root)
     $appId = SteamAppId $root
+    $script:Unchecked = @()
+    $launch = Get-Launcher $root
+    $gaps = $script:Unchecked   # what discovery could not read; a launcher it missed reads as unknown
+    $acr = Get-AntiCheat $root $launch $appId
     # A broken preset file must not hide the verdict, so its error rides in the JSON instead.
     $pr = $null; $prErr = $null
-    try { if ($k = Find-Preset $root) { $pr = Get-Preset $k } } catch { $prErr = $_.Exception.Message }
-    $refusals = @($ac | ForEach-Object { "anti-cheat on disk: $_" })
+    try { $pr = Get-Preset (Find-Preset $root) } catch { $prErr = $_.Exception.Message }
+    $installed = try { if (($m = Load-Manifest $root).applied) { Get-PinState $m } } catch { "state unreadable: $($_.Exception.Message)" }
+    $refusals = @()
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
     elseif (-not $ups) { $refusals += $NoUpscaler }
-    $verdict = if ($ac) { 'refused' } elseif (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
+    elseif (-not $free) { $refusals += "no free proxy name: $($ProxyNames -join ', ') all exist in $root" }
+    $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
-        verdict = $verdict; requiresWebCheck = ($verdict -eq 'eligible')
+        launcher = $launch.launcher; launcherSource = $launch.source; gameName = $launch.name; discoveryGaps = $gaps
+        verdict = $verdict; antiCheat = $acr; acknowledgementRequired = ($acr.status -ne 'none-disclosed')
         refusals = $refusals; upscalers = $ups
         dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
         proxyCollisions = $collisions; freeProxies = $free; steamAppId = $appId
-        preset = $pr; presetError = $prErr
+        preset = $pr; presetError = $prErr; installedBuild = $installed
     } | ConvertTo-Json -Depth 8
 }
 
@@ -571,18 +1177,37 @@ function Do-ProvisionBuild($build) {
     finally { Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue }
 }
 
-# Steam library roots from libraryfolders.vdf (text VDF). ponytail: Steam only; add Epic/Xbox
-# discovery when a user reports a DLSS 5 title installed there.
+# Every discovered game's install folder, from all launchers.
 function Get-ScanRoots {
     if ($null -ne $script:ScanRoots) { return @($script:ScanRoots) }
-    $steam = (Get-ItemProperty -Path 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
-    if (-not $steam) { return @() }
-    $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
-    $libs = @($steam)
-    if (Test-Path -LiteralPath $vdf) {
-        $libs += [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' }
-    }
-    @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps\common' } | Where-Object { Test-Path -LiteralPath $_ } | Sort-Object -Unique)
+    @(Find-Games | ForEach-Object installDir | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Sort-Object -Unique)
+}
+function Find-RuntimeCandidates {
+    # A missing drive has no FileSystem provider, where Get-ChildItem -File does not exist.
+    # No -Filter: with one, a folder that cannot be listed drops out without an error to report.
+    $script:ScanGaps = @()
+    @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object {
+            $err = $null
+            Get-ChildItem -LiteralPath $_ -Recurse -File -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -eq 'nvngx_dlssnr.dll'
+            foreach ($x in $err) { $script:ScanGaps += "runtime scan: $($x.TargetObject) unreadable: $($x.Exception.Message)" }
+        } | Sort-Object FullName -Unique)
+}
+# Read-only: installed games per launcher, what could not be read, and runtime DLL candidates with
+# their gate result. setup check reads this.
+function Do-Discover {
+    $games = Find-Games
+    $unchecked = $script:Unchecked
+    if ($null -eq $script:ScanRoots) { $script:ScanRoots = @($games | ForEach-Object installDir | Sort-Object -Unique) }
+    $cands = Find-RuntimeCandidates
+    [pscustomobject]@{
+        games = @($games | Sort-Object launcher, name); unchecked = @($unchecked) + @($script:ScanGaps)
+        runtimeCandidates = @($cands | ForEach-Object {
+                # A candidate that cannot be read is reported as failing, and the rest still are.
+                $t = try { Test-Runtime $_.FullName; $v = "$(FileVer $_.FullName)" } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" }; $v = $null }
+                [pscustomobject]@{ path = $_.FullName; version = $v; sha256 = $t.Hash; passes = [bool]$t.Ok; known = [bool]$t.Known; reason = $t.Reason
+                    besideOptiScalerIni = (Test-Path -LiteralPath (Join-Path $_.DirectoryName 'OptiScaler.ini')) }
+            })
+    } | ConvertTo-Json -Depth 5
 }
 function Place-Runtime($file, $kind, $from) {
     $dest = Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll'
@@ -599,11 +1224,11 @@ function Do-ProvisionRuntime {
     if ($rt.Ok) { return "runtime ok: $($script:RuntimeDll)" }
     if ($script:RuntimeDllConfigured) { throw "configured runtime_dll refused: $($rt.Reason). Fix or unset runtime_dll." }
     $notes = @()
-    # A missing drive has no FileSystem provider, where Get-ChildItem -File does not exist.
-    $cands = @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter 'nvngx_dlssnr.dll' -File -Force -ErrorAction SilentlyContinue })
+    $cands = Find-RuntimeCandidates
+    $notes += $script:ScanGaps
     $ok = @()
     foreach ($c in $cands) {
-        $t = Test-Runtime $c.FullName
+        $t = try { Test-Runtime $c.FullName } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" } }
         if ($t.Ok) { $ok += [pscustomobject]@{ Path = $c.FullName; Known = $t.Known; Version = (FileVer $c.FullName) ?? [version]'0.0' } }
         else { $notes += "scan candidate refused: $($c.FullName): $($t.Reason)" }
     }
@@ -683,14 +1308,7 @@ function Do-Refetch {
 
 function Assert($name, $cond) { if ($cond) { "PASS  $name" } else { $script:fails++; "FAIL  $name" } }
 function Throws($block, $like) { try { & $block | Out-Null; $false } catch { $_.Exception.Message -like $like } }
-function IniVal($path, $section, $key) {
-    $sec = ''
-    foreach ($l in ([IO.File]::ReadAllText($path) -split "`n")) {
-        if ($l -match '^\s*\[([^\]]+)\]') { $sec = $Matches[1]; continue }
-        if ($sec -eq $section -and $l -match "^\s*$key\s*=\s*(.*?)\s*$") { return $Matches[1] }
-    }
-    $null
-}
+function IniVal($path, $section, $key) { (Read-Ini $path)["$section/$key"] }
 function SameTree($a, $b) {
     if ($a.Count -ne $b.Count) { return $false }
     foreach ($k in $a.Keys) { if (-not $b.ContainsKey($k) -or $a[$k].Sha256 -ne $b[$k].Sha256) { return $false } }
@@ -708,6 +1326,25 @@ function Do-Selftest {
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     $tmp = (Get-Item -LiteralPath $tmp).FullName.TrimEnd('\')
     Push-Location $tmp
+    # Every discovery and anti-cheat source is a fixture: an empty registry, no drives, and an
+    # HTTP stub serving a fixed AreWeAntiCheatYet commit and games.json plus per-app Steam pages.
+    $script:Reg = @{}; $script:ProgramData = "$tmp\pd"; $script:EaRoots = @("$tmp\ea"); $script:Drives = @()
+    $script:AwacySha = 'a' * 40
+    $script:AwacyGames = '[{"name":"EA SPORTS FC™ 26","anticheats":["EA anticheat"],"status":"Denied","storeIds":{}},{"name":"Listed Game","anticheats":["Easy Anti-Cheat"],"status":"Supported","storeIds":{"steam":"333"}},{"name":"Clean Game","anticheats":[],"status":"Supported","storeIds":{"steam":"222"}}]'
+    $script:SteamPages = @{}
+    $script:HttpGet = {
+        param($url, $headers)
+        if ($url -like 'https://api.github.com/*') { return "{`"sha`":`"$($script:AwacySha)`"}" }
+        if ($url -like 'https://raw.githubusercontent.com/*') { return $script:AwacyGames }
+        if ($url -match '/app/(\d+)/' -and $script:SteamPages[$Matches[1]] -and $headers.Cookie -eq $SteamCookie) { return $script:SteamPages[$Matches[1]] }
+        throw "offline fixture: $url"
+    }
+    # A fixture's acknowledgement: its own game name, a research summary and one source.
+    function Ack($d) {
+        $a = (Do-Assess $d) | ConvertFrom-Json
+        $script:AcceptAntiCheatRisk = $a.gameName; $script:AntiCheatReviewId = $a.antiCheat.reviewId
+        $script:AntiCheatResearch = 'fixture research'; $script:AntiCheatSources = @('https://example.com/r')
+    }
     try {
         $docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'
         Assert 'empty DataDir uses the default' ((Resolve-DataDir '') -eq $docs)
@@ -735,10 +1372,19 @@ function Do-Selftest {
         $script:ModelHash = (Get-FileHash -LiteralPath $script:RuntimeDll -Algorithm SHA256).Hash
         $bs = "$tmp\data\builds\selftest"
         Put "$bs\OptiScaler.dll" 'fakeproxy'; Put "$bs\OptiScaler\plugin.dll" 'plug'; Put "$bs\Licenses\LICENSE.txt" 'lic'
-        $ini = "[Upscalers]`nEnabled=auto`nDx11Upscaler=auto`n[Log]`nLogToFile=auto`nLogLevel=auto`n[Hotfix]`nRestoreComputeSignature=auto`nRestoreGraphicSignature=auto`n[DlssNr]`nEnabled=auto`nAutoCapture=auto`n"
+        # Every allow-listed key is in the fixture ini: preset keys are required, so a missing one rolls back.
+        $ini = "[Upscalers]`nEnabled=auto`nDx11Upscaler=auto`n[Log]`nLogToFile=auto`nLogLevel=auto`n[Hotfix]`nRestoreComputeSignature=auto`nRestoreGraphicSignature=auto`n" +
+        "[Menu]`nShortcutKey=auto`nFpsShortcutKey=auto`nFpsCycleShortcutKey=auto`nFGShortcutKey=auto`n[DlssNr]`nToggleKey=auto`nEnabled=auto`nAutoCapture=auto`n" +
+        (@($PresetKeys.Keys | Where-Object { $PresetKeys[$_].Section -eq 'DlssNr' -and $_ -notin 'ToggleKey', 'Enabled' } | ForEach-Object { "$_=auto`n" }) -join '')
         [IO.File]::WriteAllText("$bs\OptiScaler.ini", ($ini -replace "`n", "`r`n"), [Text.UTF8Encoding]::new($true))
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
         $BuildFiles['selftest'] = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
         $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:RestoreComputeSignature = $true
+        $BuildPins['selftest'] = @{ Tag = 'vtest'; Sha256 = 'AA' }
+        Copy-Item -LiteralPath $bs -Destination "$tmp\data\builds\wilsjo2" -Recurse
+        # The param block's default, not $script:Build, which this selftest overwrites.
+        $bp = [Management.Automation.Language.Parser]::ParseFile($PSCommandPath, [ref]$null, [ref]$null).ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'Build' }
+        Assert 'the default build is wilsjo2' ($bp.DefaultValue.Value -eq 'wilsjo2')
 
         # Fixtures sit three levels deep so the non-Steam ancestor scan never leaves $tmp.
         $w = "$tmp\w\x\y"
@@ -749,12 +1395,25 @@ function Do-Selftest {
         Assert 'data_dir inside the game dir refuses' (Throws { Do-Apply $g } '*inside*')
         $script:DataDir = "$tmp\data"
         Assert 'data_dir refusal writes nothing' (-not (Test-Path -LiteralPath "$g\state"))
+        Ack $g
         Do-Apply $g | Out-Null
         $sd = StateDir $g
         Assert 'apply with no prior snapshot snapshots first' (Test-Path -LiteralPath "$sd\snapshot.json")
         Assert 'state lands under DataDir' ($sd.StartsWith("$tmp\data\state\") -and (Test-Path -LiteralPath "$sd\manifest.json"))
         Assert 'nothing written under the script dir' (-not (Get-ChildItem -LiteralPath $PSScriptRoot -Directory))
         Assert 'no pending.json after success' (-not (Test-Path -LiteralPath "$sd\pending.json"))
+        Assert 'manifest records the build tag from .provisioned.json' ((LoadJson "$sd\manifest.json").tag -eq 'vtest' -and (LoadJson "$sd\manifest.json").buildSha256 -eq 'AA')
+        $gm = LoadJson "$sd\manifest.json"
+        Assert 'pin state: a manifest on its build''s pin is current' ((Get-PinState $gm) -like '*selftest vtest, the current pin')
+        $BuildPins['selftest'].Tag = 'vnext'
+        Assert 'pin state: a manifest off its build''s pin is reported, in assess too' (((Get-PinState $gm) -like 'installed build differs from the current pin: selftest vtest (AA) installed, vnext (AA) pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build differs from the current pin*'))
+        $pv = { param($tag, $sha) Get-PinState ([pscustomobject]@{ build = 'selftest'; tag = $tag; buildSha256 = $sha }) }
+        $BuildPins['selftest'] = @{ Tag = 'v0.9.0'; Sha256 = 'CC' }
+        Assert 'pin state: a lower version tag is older than the current pin' ((& $pv 'v0.8.3' 'AA') -like 'installed build is older than the current pin: selftest v0.8.3 (AA) installed, v0.9.0 (CC) pinned*')
+        Assert 'pin state: a higher version tag is newer, never older' ((& $pv 'v0.10.1' 'AA') -like 'installed build is newer than the current pin*')
+        Assert 'pin state: the same tag with another hash only differs' ((& $pv 'v0.9.0' 'AA') -like 'installed build differs from the current pin*(AA) installed*(CC) pinned*')
+        $BuildPins['selftest'] = @{ Tag = 'vtest'; Sha256 = 'AA' }
+        Assert 'pin state: an empty tag (before 0.5.0) is unknown' ((Get-PinState ([pscustomobject]@{ build = 'wilsjo2'; tag = '' })) -like '*unknown, re-apply to record')
         $gi = "$g\OptiScaler.ini"
         Assert 'proxy dxgi.dll placed' (Test-Path -LiteralPath "$g\dxgi.dll")
         Assert 'model nvngx_dlssnr.dll placed' (Test-Path -LiteralPath "$g\nvngx_dlssnr.dll")
@@ -799,27 +1458,116 @@ function Do-Selftest {
 
         # Presets: every shipped file validates, then fixture presets with a local override
         foreach ($f in Get-ChildItem -LiteralPath $script:PresetDir -Filter '*.json' -File) {
-            Assert "shipped preset validates: $($f.BaseName)" (-not (Throws { Get-Preset $f.BaseName } '*'))
+            $k = if ($f.BaseName -ne '_base') { $f.BaseName }
+            Assert "shipped preset validates: $($f.BaseName)" (-not (Throws { Get-Preset $k } '*'))
         }
+        Assert 'the shipped base binds no key and sets nothing' (-not @((Get-Preset $null).ini).Count)
         $script:PresetDir = "$tmp\presets"
-        Put "$tmp\presets\fx.json" '{"title":"Fx","match":{"exe":["fxgame.exe"]},"ini":[{"key":"RestoreGraphicSignature","value":"true"},{"key":"Dx11Upscaler","value":"fsr22"}],"manual":["DLSS Quality"],"sources":[{"url":"https://example.com","asOf":"2026-09-23"}],"recheck":"x"}'
-        Put "$tmp\data\presets\fx.json" '{"ini":[{"key":"Dx11Upscaler","value":"dlss_12"}]}'
+        # One key per adjacent pair of layers: shipped base < shipped < local base < local.
+        Put "$tmp\presets\_base.json" '{"ini":[{"key":"ToggleKey","value":"0x7C"},{"key":"FpsCycleShortcutKey","value":"0x7E"},{"key":"TransferStrength","value":"0.9"}]}'
+        Put "$tmp\presets\fx.json" '{"title":"Fx","match":{"exe":["fxgame.exe"]},"ini":[{"key":"RestoreGraphicSignature","value":"true"},{"key":"Dx11Upscaler","value":"fsr22"},{"key":"TransferStrength","value":"0.7"},{"key":"LocalTone","value":"0.6"}],"manual":["DLSS Quality"],"sources":[{"url":"https://example.com","asOf":"2026-09-23"}],"recheck":"x"}'
+        Put "$tmp\data\presets\_base.json" '{"ini":[{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"}]}'
+        Put "$tmp\data\presets\fx.json" '{"ini":[{"key":"Dx11Upscaler","value":"dlss_12"},{"key":"Intensity","value":"1.1"}]}'
         $pg = "$w\preset\Win64"; Put "$pg\fxgame.exe" 'exe'; Put "$pg\nvngx_dlss.dll" 'dlss'
         $pa = ((Do-Assess $pg) | ConvertFrom-Json).preset
-        $dx = @($pa.ini | Where-Object key -eq 'Dx11Upscaler'); $rgs = @($pa.ini | Where-Object key -eq 'RestoreGraphicSignature')
-        Assert 'assess matches a preset by exe name; the local key wins and names its source' ($pa.key -eq 'fx' -and $dx.Count -eq 1 -and $dx[0].value -eq 'dlss_12' -and $dx[0].source -eq 'local' -and $rgs[0].source -eq 'shipped' -and $pa.manualSource -eq 'shipped')
+        $src = @{}; foreach ($e in $pa.ini) { $src[$e.key] = "$($e.value) $($e.source)" }
+        Assert 'assess matches a preset by exe name; the local key wins and names its source' ($pa.key -eq 'fx' -and $src.Dx11Upscaler -eq 'dlss_12 local' -and $src.RestoreGraphicSignature -eq 'true shipped' -and $pa.manualSource -eq 'shipped')
+        Assert 'precedence: shipped per-game beats the shipped base' ($src.TransferStrength -eq '0.7 shipped' -and $src.ToggleKey -eq '0x7C shipped-base')
+        Assert 'precedence: the local base beats the shipped per-game preset' ($src.LocalTone -eq '0.5 local-base')
+        Assert 'precedence: the local per-game preset beats the local base' ($src.Intensity -eq '1.1 local')
+        $nb = ((Do-Assess $g) | ConvertFrom-Json).preset
+        Assert 'assess: a game with no per-game preset reports the bases, key null' ($null -eq $nb.key -and @($nb.ini | Where-Object { $_.key -eq 'LocalTone' -and $_.source -eq 'local-base' }).Count -eq 1)
         $before = Tree $pg
         $script:Preset = 'fx'
+        Ack $pg
         Do-Apply $pg | Out-Null
         $pgi = "$pg\OptiScaler.ini"
         Assert 'preset keys applied' ((IniVal $pgi 'Hotfix' 'RestoreGraphicSignature') -eq 'true' -and (IniVal $pgi 'Upscalers' 'Dx11Upscaler') -eq 'dlss_12')
+        Assert 'every layer applied, highest wins' ((IniVal $pgi 'DlssNr' 'ToggleKey') -eq '0x7C' -and (IniVal $pgi 'DlssNr' 'TransferStrength') -eq '0.7' -and (IniVal $pgi 'DlssNr' 'LocalTone') -eq '0.5' -and (IniVal $pgi 'DlssNr' 'Intensity') -eq '1.1')
+        Assert 'a [DlssNr] preset key leaves the same-named [Upscalers] key alone' ((IniVal $pgi 'Upscalers' 'Enabled') -eq 'auto')
         Assert 'AutoCapture=false with a preset' ((IniVal $pgi 'DlssNr' 'AutoCapture') -eq 'false')
         $pm = LoadJson "$(StateDir $pg)\manifest.json"
-        Assert 'preset keys recorded in the manifest with their source' ($pm.preset.key -eq 'fx' -and @($pm.preset.ini | Where-Object { $_.key -eq 'Dx11Upscaler' -and $_.value -eq 'dlss_12' -and $_.source -eq 'local' }).Count -eq 1 -and @($pm.iniEdits | Where-Object { $_.key -eq 'RestoreGraphicSignature' -and $_.value -eq 'true' }).Count -eq 1)
+        Assert 'preset keys recorded in the manifest with their source' ($pm.preset.key -eq 'fx' -and @($pm.preset.ini | Where-Object { $_.key -eq 'Dx11Upscaler' -and $_.value -eq 'dlss_12' -and $_.source -eq 'local' }).Count -eq 1 -and @($pm.preset.ini | Where-Object { $_.key -eq 'ToggleKey' -and $_.source -eq 'shipped-base' }).Count -eq 1 -and @($pm.iniEdits | Where-Object { $_.key -eq 'RestoreGraphicSignature' -and $_.value -eq 'true' }).Count -eq 1)
+
+        # capture: the overlay's Save Settings respells every value and changes some
+        Put "$tmp\data\presets\_base.json" '{"ini":[{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"},{"key":"WhitePointScale","value":"1.3"}]}'
+        $saved = (Get-Content -LiteralPath $pgi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=124' -replace 'FpsCycleShortcutKey=0x7E', 'FpsCycleShortcutKey=0x7e' -replace 'TransferStrength=0\.7', 'TransferStrength=0.700000' -replace 'LocalTone=0\.5', 'LocalTone=0.300000' -replace 'FpsShortcutKey=auto', 'FpsShortcutKey=0x7d' -replace 'LogLevel=2', 'LogLevel=4' -replace 'AutoCapture=false', 'AutoCapture=true' -replace 'FGShortcutKey=auto', 'FGShortcutKey=0'
+        Set-Content -LiteralPath $pgi -Value $saved -NoNewline
+        $pre = Tree $pg
+        $cap = @(Do-Capture $pg)
+        $cj = LoadJson "$tmp\data\presets\fx.json"; $cv = @{}; foreach ($e in $cj.ini) { $cv[$e.key] = $e.value }
+        Assert 'capture writes changed allow-listed keys into the local preset and keeps its earlier keys' ($cv.LocalTone -eq '0.300000' -and $cv.FpsShortcutKey -eq '0x7d' -and $cv.Dx11Upscaler -eq 'dlss_12' -and $cv.Intensity -eq '1.1')
+        Assert 'capture skips a value Save Settings only respelled' (-not $cv.ContainsKey('FpsCycleShortcutKey') -and -not $cv.ContainsKey('TransferStrength'))
+        Assert 'capture ignores a base edited after apply' (-not $cv.ContainsKey('WhitePointScale'))
+        Assert 'capture lists unknown keys, AutoCapture with its warning, and invalid values, without capturing them' (-not $cv.ContainsKey('LogLevel') -and -not $cv.ContainsKey('AutoCapture') -and -not $cv.ContainsKey('FGShortcutKey') -and -not $cv.ContainsKey('ToggleKey') -and @($cap | Where-Object { $_ -like '*LogLevel=4 (not on the preset allow-list)' -or $_ -like '*AutoCapture=true (never captured. Set it back to false*' -or $_ -like '*FGShortcutKey=0 (value for FGShortcutKey must be a virtual-key code*' -or $_ -like '*ToggleKey=124 (value for ToggleKey must be a virtual-key code*' }).Count -eq 4)
+        Assert 'capture never writes the game folder' (SameTree (Tree $pg) $pre)
+        Put "$bs\.provisioned.json" '{"tag":"vnext","sha256":"AA"}'
+        Assert 'capture refuses when the build was re-provisioned under a new tag' (Throws { Do-Capture $pg } "*now 'vnext'*applied from 'vtest'*")
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"BB"}'
+        Assert 'capture refuses when the build was re-provisioned under the same tag with a new hash' (Throws { Do-Capture $pg } "*(BB)*applied from 'vtest' (AA)*")
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
+        $script:Preset = 'other'
+        Assert 'capture refuses a key other than the game''s own preset' (Throws { Do-Capture $pg } "*preset is 'fx'*")
+        $script:Preset = 'fx'
+        # reset: back to the stock ini plus the recorded preset, only with -ConfirmReset
+        $pmf = "$(StateDir $pg)\manifest.json"
+        $h0 = (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256
+        $pre = Tree $pg
+        $ro = @(Do-Reset $pg)
+        Assert 'reset without -ConfirmReset prints what it discards and writes nothing' ((SameTree (Tree $pg) $pre) -and @($ro | Where-Object { $_ -like '*`[DlssNr`] LocalTone: 0.300000 -> 0.5' }).Count -eq 1 -and @($ro | Where-Object { $_ -like '*`[DlssNr`] AutoCapture: true -> false' }).Count -eq 1 -and $ro[-1] -like 'nothing written*-ConfirmReset ????????????*')
+        $tok = ($ro[-1] -split ' ')[5]
+        Put "$bs\.provisioned.json" '{"tag":"vnext","sha256":"AA"}'
+        Assert 'reset refuses when the build was re-provisioned' ((Throws { Do-Reset $pg } "*now 'vnext'*") -and (SameTree (Tree $pg) $pre))
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
+        $saved = [IO.File]::ReadAllBytes($pgi)
+        Add-Content -LiteralPath $pgi -Value 'SavedAgain=1'
+        $script:ConfirmReset = $tok
+        $pre2 = Tree $pg
+        Assert 'reset refuses a confirmation for an ini saved again since the preview' ((Throws { Do-Reset $pg } '*changed since the preview*') -and (SameTree (Tree $pg) $pre2))
+        [IO.File]::WriteAllBytes($pgi, $saved)
+        Do-Reset $pg | Out-Null
+        $script:ConfirmReset = $null
+        $post = Tree $pg
+        Assert 'reset restores the stock ini plus the preset byte for byte and records its hash' ((Get-FileHash -LiteralPath $pgi -Algorithm SHA256).Hash -eq $h0 -and (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256 -eq $h0 -and (IniVal $pgi 'DlssNr' 'AutoCapture') -eq 'false')
+        $pre.Remove('OptiScaler.ini'); $post.Remove('OptiScaler.ini')
+        Assert 'reset writes no other file, and status is clean' ((SameTree $post $pre) -and -not (Get-Stat $pg).Bad)
+        Assert 'reset of an unchanged ini writes nothing' (@(Do-Reset $pg)[-1] -like '*nothing to reset')
         Do-Remove $pg | Out-Null
-        Assert 'remove after a preset apply is byte-exact' ((SameTree (Tree $pg) $before) -and -not (Test-Path -LiteralPath "$(StateDir $pg)\manifest.json"))
+        Assert 'remove after a preset apply and a reset is byte-exact' ((SameTree (Tree $pg) $before) -and -not (Test-Path -LiteralPath "$(StateDir $pg)\manifest.json"))
+        Do-Apply $pg | Out-Null
+        Assert 'capture round-trips: the next apply writes the captured values' ((IniVal $pgi 'DlssNr' 'LocalTone') -eq '0.300000' -and (IniVal $pgi 'Menu' 'FpsShortcutKey') -eq '0x7d' -and (IniVal $pgi 'DlssNr' 'WhitePointScale') -eq '1.3')
+        Do-Remove $pg | Out-Null
+        Assert 'remove after the captured apply is byte-exact' (SameTree (Tree $pg) $before)
+        $script:Preset = $null
         $rg = "$w\refuse\Win64"; Put "$rg\game.exe" 'exe'; Put "$rg\nvngx_dlss.dll" 'dlss'
+        Assert 'capture refuses a game with no apply' (Throws { Do-Capture $rg } '*no completed apply*')
         $before = Tree $rg
+        foreach ($t in @(
+                @('ToggleKey', '0x7C', $true), @('ToggleKey', '0x7c', $true), @('ShortcutKey', '-1', $true), @('FGShortcutKey', 'auto', $true), @('FpsShortcutKey', '0xFE', $true)
+                @('ToggleKey', '0x00', $false), @('ToggleKey', '0xFF', $false), @('ToggleKey', '124', $false), @('ToggleKey', 'F13', $false), @('ToggleKey', '0x100', $false)
+                @('Enabled', 'True', $false), @('TransferStrength', 'abc', $false), @('SkinStructure', '-1.0', $true), @('Style', '-1', $false))) {
+            Assert "value check: $($t[0])=$($t[1]) $(if ($t[2]) { 'passes' } else { 'refused' })" ([bool](Test-PresetValue $t[0] $t[1]) -ne $t[2])
+        }
+        foreach ($t in @(
+                @('Passes', '2', 'wilsjo2', $true), @('Pass2Style', '1', 'wilsjo2', $true), @('Pass3AutoMask', 'false', 'wilsjo2', $true), @('WorkingScale', '0.75', 'wilsjo2', $true)
+                @('SkinColour', '0.5', 'wilsjo2', $true), @('ResidualAcrossRR', 'true', 'wilsjo2', $true), @('ToggleKey', '0x7C', 'dagherbou', $true) # spellchecker:disable-line
+                @('Passes', '2', 'dagherbou', $false), @('WorkingScale', '0.75', 'dagherbou', $false), @('Passes', '1.5', 'wilsjo2', $false)
+                @('DebugView', '1', 'wilsjo2', $false), @('ShowSkinMask', 'true', 'wilsjo2', $false), @('AutoCapture', 'false', 'wilsjo2', $false))) {
+            Assert "per-build check: $($t[0])=$($t[1]) on $($t[2]) $(if ($t[3]) { 'passes' } else { 'refused' })" ([bool](Test-PresetValue $t[0] $t[1] $t[2]) -ne $t[3])
+        }
+        Put "$tmp\presets\hk.json" '{"ini":[{"key":"ToggleKey","value":"F13"}]}'
+        $script:Preset = 'hk'
+        Assert 'hotkey that is not a VK code refused' (Throws { Do-Apply $rg } '*virtual-key code*')
+        Put "$tmp\presets\dup.json" '{"ini":[{"key":"ShortcutKey","value":"0x7c"}]}'
+        $script:Preset = 'dup'
+        Assert 'a key bound to two actions across layers refused' (Throws { Do-Apply $rg } '*several actions*ToggleKey=0x7C (shipped-base)*')
+        Put "$tmp\presets\ins.json" '{"ini":[{"key":"ToggleKey","value":"0x2D"}]}'
+        $script:Preset = 'ins'
+        Assert 'a hotkey on a default key the preset left unset is refused' (Throws { Do-Apply $rg } '*several actions*ToggleKey=0x2D (shipped) and `[Menu`] ShortcutKey=0x2D (default)*')
+        Put "$tmp\data\presets\ins.json" '{"ini":[{"key":"ShortcutKey","value":"-1"}],"manual":[]}'
+        Put "$tmp\presets\ins.json" '{"ini":[{"key":"ToggleKey","value":"0x2D"}],"manual":["stale step"]}'
+        $ip = Get-Preset 'ins'
+        Assert 'unbinding the default frees its key, and an empty local manual clears the shipped one' ($ip.manualSource -eq 'local' -and -not $ip.manual.Count)
         Put "$tmp\presets\bad.json" '{"ini":[{"key":"LogLevel","value":"0"}]}'
         $script:Preset = 'bad'
         Assert 'preset key off the allow-list refused' (Throws { Do-Apply $rg } '*not on the preset allow-list*')
@@ -833,6 +1581,16 @@ function Do-Selftest {
         Assert 'preset key with a path refused' (Throws { Do-Apply $rg } '*lowercase letters*')
         $script:Preset = $null
         Assert 'preset refusals write nothing' ((SameTree (Tree $rg) $before) -and -not (Test-Path -LiteralPath (StateDir $rg)))
+        Put "$tmp\presets\w2.json" '{"ini":[{"key":"Passes","value":"2"},{"key":"Pass2Style","value":"1"}]}'
+        $script:Preset = 'w2'
+        Assert 'a wilsjo2-only preset key on another build refuses before any write' ((Throws { Do-Apply $rg } "*Passes (shipped layer)*only for -Build wilsjo2, not 'selftest'*") -and (SameTree (Tree $rg) $before) -and -not (Test-Path -LiteralPath (StateDir $rg)))
+        $script:Build = 'wilsjo2'
+        Ack $rg
+        Do-Apply $rg | Out-Null
+        Assert 'a wilsjo2-only preset key applies with -Build wilsjo2' ((IniVal "$rg\OptiScaler.ini" 'DlssNr' 'Passes') -eq '2' -and (IniVal "$rg\OptiScaler.ini" 'DlssNr' 'Pass2Style') -eq '1' -and (LoadJson "$(StateDir $rg)\manifest.json").build -eq 'wilsjo2')
+        Do-Remove $rg | Out-Null
+        Assert 'remove after a wilsjo2 apply is byte-exact' (SameTree (Tree $rg) $before)
+        $script:Build = 'selftest'; $script:Preset = $null
 
         # The mod's own upscaler copies under OptiScaler\ do not make a game a candidate
         $os = "$w\ownonly\Win64"; Put "$os\game.exe" 'exe'; Put "$os\OptiScaler\amd_fidelityfx_dx12.dll" 'fsr'; Put "$os\OptiScaler\libxess.dll" 'xess'
@@ -849,7 +1607,7 @@ function Do-Selftest {
         Assert 'no upscaler DLL: apply refuses as not a candidate' (Throws { Do-Apply $nc } '*not a candidate*')
         Assert 'not-a-candidate refusal writes nothing' ((SameTree (Tree $nc) $before) -and -not (Test-Path -LiteralPath (StateDir $nc)))
         $nca = (Do-Assess $nc) | ConvertFrom-Json
-        Assert 'assess: no upscaler DLL is not-a-candidate with a reason' ($nca.verdict -eq 'not-a-candidate' -and -not $nca.requiresWebCheck -and @($nca.refusals | Where-Object { $_ -like '*no upscaler to hook*' }).Count -eq 1 -and @($nca.upscalers).Count -eq 0)
+        Assert 'assess: no upscaler DLL is not-a-candidate with a reason' ($nca.verdict -eq 'not-a-candidate' -and @($nca.refusals | Where-Object { $_ -like '*no upscaler to hook*' }).Count -eq 1 -and @($nca.upscalers).Count -eq 0)
         $fs = "$w\fsr\Win64"; Put "$fs\game.exe" 'exe'; Put "$fs\AMD_FidelityFX_DX12.dll" 'fsr'
         $fsa = (Do-Assess $fs) | ConvertFrom-Json
         Assert 'assess: FSR-only fixture is eligible' ($fsa.verdict -eq 'eligible' -and @($fsa.upscalers).Count -eq 1 -and $fsa.upscalers[0].family -eq 'FSR')
@@ -860,10 +1618,11 @@ function Do-Selftest {
         Put "$w\unreal\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll" 'dlss'
         Assert 'assess: non-Steam Unreal finds DLSS under Engine\Plugins' (((Do-Assess $un) | ConvertFrom-Json).verdict -eq 'eligible')
 
-        $a = "$tmp\ac\a\b\c"; Put "$a\game.exe" 'exe'
+        $a = "$tmp\ac\a\b\c"; Put "$a\game.exe" 'exe'; Put "$a\nvngx_dlss.dll" 'dlss'
         New-Item -ItemType Directory -Force -Path "$tmp\ac\EasyAntiCheat" | Out-Null
-        Assert 'EasyAntiCheat three levels above the exe dir refuses' (Throws { Do-Apply $a } '*anti-cheat*')
-        Assert 'anti-cheat refusal copies nothing' (@(Get-ChildItem -LiteralPath $a -Recurse -File).Count -eq 1 -and -not (Test-Path -LiteralPath (StateDir $a)))
+        $script:AcceptAntiCheatRisk = $null
+        Assert 'EasyAntiCheat three levels above the exe dir refuses without an acknowledgement' (Throws { Do-Apply $a } "*anti-cheat status 'signals'*on disk*EasyAntiCheat*")
+        Assert 'anti-cheat refusal copies nothing' (@(Get-ChildItem -LiteralPath $a -Recurse -File).Count -eq 2 -and -not (Test-Path -LiteralPath (StateDir $a)))
 
         $x = "$w\noexe"; Put "$x\readme.txt" 'r'
         Assert 'directory with no *.exe refuses' (Throws { Do-Apply $x } '*no `*.exe*')
@@ -875,21 +1634,301 @@ function Do-Selftest {
         $script:Proxy = 'dxgi.dll'
         Assert 'proxy refusal writes nothing' (-not (Test-Path -LiteralPath "$w\f\escape.dll") -and -not (Test-Path -LiteralPath (StateDir $f)))
         $script:FaultAfter = 3
+        Ack $f
         Assert 'copy fault midway rethrows' (Throws { Do-Apply $f } '*injected*')
         $script:FaultAfter = 0
         Assert 'copy fault leaves tree byte-identical' ((SameTree (Tree $f) $before) -and -not (Test-Path -LiteralPath "$f\OptiScaler"))
         Assert 'copy fault leaves no pending.json or manifest' (-not (Test-Path -LiteralPath "$(StateDir $f)\pending.json") -and -not (Test-Path -LiteralPath "$(StateDir $f)\manifest.json"))
 
+        # Launcher discovery: one fixture per launcher's own record format
+        $sp = "$tmp\steam"; $l2 = "$tmp\lib2"
+        $script:Reg['HKCU:\Software\Valve\Steam'] = @{ SteamPath = ($sp -replace '\\', '/') }
+        Put "$sp\steamapps\libraryfolders.vdf" "`"libraryfolders`"`n{`n`t`"0`"`n`t{`n`t`t`"path`"`t`t`"$($sp -replace '\\', '\\')`"`n`t}`n`t`"1`"`n`t{`n`t`t`"path`"`t`t`"$($l2 -replace '\\', '\\')`"`n`t}`n}"
+        $acf = { param($id, $name, $dir) "`"AppState`"`n{`n`t`"appid`"`t`t`"$id`"`n`t`"name`"`t`t`"$name`"`n`t`"installdir`"`t`t`"$dir`"`n}" }
+        Put "$l2\steamapps\appmanifest_111.acf" (& $acf 111 "Tom Clancy`u{2019}s Ack Game" 'Ack Game')
+        Put "$l2\steamapps\appmanifest_222.acf" (& $acf 222 'Clean Game' 'Clean Game')
+        Put "$l2\steamapps\appmanifest_333.acf" (& $acf 333 'Listed Game' 'Listed')
+        Put "$tmp\pd\Epic\EpicGamesLauncher\Data\Manifests\A1.item" (@{ DisplayName = 'Epic Game'; AppName = 'Ep'; InstallLocation = "$tmp\epic\EpicGame" } | ConvertTo-Json)
+        Put "$tmp\pd\Epic\UnrealEngineLauncher\LauncherInstalled.dat" (@{ InstallationList = @(@{ AppName = 'EpicTwo'; InstallLocation = "$tmp\epic\Two" }, @{ AppName = 'Ep'; InstallLocation = "$tmp\EPIC\EpicGame" }) } | ConvertTo-Json -Depth 3)
+        Put "$tmp\ea\EA SPORTS FC 26\__Installer\installerdata.xml" '<DiPManifest><contentIDs><contentID>1</contentID></contentIDs></DiPManifest>'
+        Put "$tmp\pd\Origin\LocalContent\Old\OFB-1.mfst" ('?id=OFB-1&dipInstallPath=' + [uri]::EscapeDataString("$tmp\origin\Old Game\"))
+        $un = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+        $script:Reg["$un\Overwatch"] = @{ DisplayName = 'Overwatch'; InstallLocation = "$tmp\bnet\Overwatch"; UninstallString = '"C:\Program Files (x86)\Battle.net\Battle.net.exe" --uid=prometheus' }
+        $script:Reg["$un\Quoted"] = @{ DisplayName = 'Quoted'; InstallLocation = "`"$tmp\bnet\Quoted`""; UninstallString = 'Battle.net.exe --uid=q' }
+        $script:Reg["$un\Nameless"] = @{ InstallLocation = "$tmp\bnet\Nameless Game"; UninstallString = 'Battle.net.exe --uid=n' }
+        $script:Reg["$un\Relative"] =@{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\999'] = @{}
+        $script:Reg["$un\Other"] =@{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\0denied'] = [UnauthorizedAccessException]::new('fixture: access denied')
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] = @{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\635'] = @{ InstallDir = ("$tmp\ubi\Siege\" -replace '\\', '/') }
+        $d1 = "$tmp\d1\"; $d2 = "$tmp\d2\"; $d3 = "$tmp\d3\"; $script:Drives = @($d1, $d2, $d3)
+        New-Item -ItemType Directory -Force -Path $d3 | Out-Null
+        [IO.File]::WriteAllBytes("$($d3).GamingRoot", [byte[]](@(0x52, 0x47, 0x42, 0x58) + [BitConverter]::GetBytes([uint32]0)))
+        $appx = { param($n) "<Package xmlns=`"http://schemas.microsoft.com/appx/manifest/foundation/windows10`"><Properties><DisplayName>$n</DisplayName></Properties></Package>" }
+        Put "$($d1)Games\Forza\Content\appxmanifest.xml" (& $appx 'Forza Fixture')
+        [IO.File]::WriteAllBytes("$($d1).GamingRoot", [byte[]](@(0x52, 0x47, 0x42, 0x58) + [BitConverter]::GetBytes([uint32]1) + [Text.Encoding]::Unicode.GetBytes("Games`0")))
+        Put "$($d1)Program Files\ModifiableWindowsApps\Gears\appxmanifest.xml" (& $appx 'ms-resource:AppName')
+        Put "$($d2).GamingRoot" 'garbage'
+        Put "$($d2)XboxGames\Halo\appxmanifest.xml" (& $appx 'Halo Fixture')
+        Put "$($d3)XboxGames\Zero\appxmanifest.xml" (& $appx 'Zero Fixture')
+        foreach ($p in "$l2\steamapps\common\Ack Game", "$l2\steamapps\common\Clean Game", "$l2\steamapps\common\Listed", "$sp\steamapps\common\MainLib",
+            "$tmp\epic\EpicGame", "$tmp\epic\Two", "$tmp\origin\Old Game", "$tmp\bnet\Overwatch", "$tmp\bnet\Quoted", "$tmp\bnet\Nameless Game", "$tmp\gog\Witcher 3", "$tmp\ubi\Siege") {
+            New-Item -ItemType Directory -Force -Path $p | Out-Null
+        }
+        $script:Reg["$un\Gone"] = @{ DisplayName = 'Gone Game'; InstallLocation = "$tmp\bnet\Gone"; UninstallString = 'Battle.net.exe --uid=g' }
+        # A manifest another process holds open sorts first; the manifests after it still load
+        Put "$l2\steamapps\appmanifest_000.acf" 'locked'
+        $lock = [IO.File]::Open("$l2\steamapps\appmanifest_000.acf", 'Open', 'Read', 'None')
+        try { $found = Find-Games } finally { $lock.Dispose() }
+        $has ={ param($l, $nm, $d) [bool]@($found | Where-Object { $_.launcher -eq $l -and $_.name -eq $nm -and $_.installDir -eq $d }).Count }
+        Assert 'discover Steam: registry, libraryfolders.vdf, appmanifest' (& $has 'Steam' "Tom Clancy`u{2019}s Ack Game" "$l2\steamapps\common\Ack Game")
+        Assert 'discover Epic: .item manifest' (& $has 'Epic Games Launcher' 'Epic Game' "$tmp\epic\EpicGame")
+        Assert 'discover Epic: LauncherInstalled.dat' (& $has 'Epic Games Launcher' 'EpicTwo' "$tmp\epic\Two")
+        Assert 'discover Epic: an install in both lists is listed once, with the .item name' (@($found | Where-Object { $_.launcher -eq 'Epic Games Launcher' -and $_.installDir -eq "$tmp\epic\EpicGame" }).Count -eq 1 -and (& $has 'Epic Games Launcher' 'Epic Game' "$tmp\epic\EpicGame"))
+        Assert 'discover EA app: installerdata.xml under an EA root' (& $has 'EA app' 'EA SPORTS FC 26' "$tmp\ea\EA SPORTS FC 26")
+        Assert 'discover Origin: .mfst dipInstallPath' (& $has 'Origin' 'Old Game' "$tmp\origin\Old Game")
+        Assert 'discover Battle.net: Uninstall entries with --uid only' ((& $has 'Battle.net' 'Overwatch' "$tmp\bnet\Overwatch") -and -not @($found | Where-Object name -eq 'Other').Count)
+        Assert 'discover: a record whose folder is gone is reported, not listed' (-not @($found | Where-Object name -eq 'Gone Game').Count -and @($script:Unchecked | Where-Object { $_ -like 'Battle.net: Gone Game is recorded at*does not exist' }).Count -eq 1)
+        Assert 'discover: a record with no display name is named after its folder' (& $has 'Battle.net' 'Nameless Game' "$tmp\bnet\Nameless Game")
+        Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
+        Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
+        Assert 'discover GOG: GOG.com\Games registry' (& $has 'GOG Galaxy' 'The Witcher 3' "$tmp\gog\Witcher 3")
+        Assert 'discover: a registry key that exists but cannot be read is reported' (@($script:Unchecked | Where-Object { $_ -like 'GOG Galaxy:*0denied unreadable*access denied' }).Count -eq 1)
+        Assert 'discover Xbox: a .GamingRoot listing zero folders falls back to XboxGames' ((& $has 'Xbox app' 'Zero Fixture' "$($d3)XboxGames\Zero") -and @($script:Unchecked | Where-Object { $_ -like '*d3\.GamingRoot unreadable*out of range*' }).Count -eq 1)
+        Assert 'discover: one unreadable record is reported and the next still loads' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*appmanifest_000.acf unreadable*' }).Count -eq 1)
+        Assert 'discover Ubisoft: InstallDir with forward slashes' (& $has 'Ubisoft Connect' 'Siege' "$tmp\ubi\Siege")
+        Assert 'discover Xbox: .GamingRoot folder, manifest under Content' (& $has 'Xbox app' 'Forza Fixture' "$($d1)Games\Forza\Content")
+        Assert 'discover Xbox: ModifiableWindowsApps; an ms-resource name falls back to the folder' (& $has 'Xbox app' 'Gears' "$($d1)Program Files\ModifiableWindowsApps\Gears")
+        Assert 'discover Xbox: malformed .GamingRoot falls back to XboxGames and says so' ((& $has 'Xbox app' 'Halo Fixture' "$($d2)XboxGames\Halo") -and @($script:Unchecked | Where-Object { $_ -like '*d2\.GamingRoot unreadable*fell back*' }).Count -eq 1)
+        Assert 'discover names what it cannot read (EA install list, Battle.net product.db)' (@($script:Unchecked | Where-Object { $_ -like 'EA app:*not read*' -or $_ -like 'Battle.net:*product.db*' }).Count -eq 2)
+        Put "$sp\steamapps\appmanifest_777.acf" (& $acf 777 'Main Lib Game' 'MainLib')
+        $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
+        try { $vf = Find-Games } finally { $vlock.Dispose() }
+        Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
+        # A library folder that cannot be listed is reported, not read as empty
+        $deny = [Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'ListDirectory', 'Deny')
+        $acl = Get-Acl -LiteralPath "$l2\steamapps"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
+        $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
+        $acl2 = Get-Acl -LiteralPath $od; $acl2.AddAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
+        try { $null = Find-Games }
+        finally {
+            $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
+            $acl2 = Get-Acl -LiteralPath $od; [void]$acl2.RemoveAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
+        }
+        Assert 'discover: a library that cannot be listed is reported' (@($script:Unchecked | Where-Object { $_ -like "Steam: *lib2\steamapps unreadable*" }).Count -eq 1)
+        Assert 'discover: a nested folder that cannot be listed is reported, and the rest still loads' (@($script:Unchecked | Where-Object { $_ -like 'Origin: *LocalContent\Denied unreadable*' }).Count -eq 1)
+        Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'; Put "$tmp\rc\c\x.txt" 'x'
+        $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
+        $acl = Get-Acl -LiteralPath "$tmp\rc\c"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl
+        try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json }
+        finally { $dlock.Dispose(); $script:ScanRoots = $null; $acl = Get-Acl -LiteralPath "$tmp\rc\c"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl }
+        Assert 'discover: a game subfolder the runtime scan cannot list is reported' (@($rc.unchecked | Where-Object { $_ -like 'runtime scan:*rc\c*unreadable*' }).Count -eq 1)
+        Assert 'discover: an unreadable runtime candidate fails alone and the next is still reported' (@($rc.runtimeCandidates | Where-Object { -not $_.passes -and $_.reason -like 'unreadable*' }).Count -eq 1 -and @($rc.runtimeCandidates | Where-Object passes).Count -eq 1)
+        $dj = (Do-Discover) | ConvertFrom-Json
+        Assert 'discover verb prints every launcher' (@($dj.games.launcher | Sort-Object -Unique).Count -eq 8)
+
+        $wg = "$tmp\gog\Witcher 3\bin\x64"; Put "$wg\witcher3.exe" 'exe'; Put "$wg\nvngx_dlss.dll" 'dlss'
+        $wa = (Do-Assess $wg) | ConvertFrom-Json
+        Assert 'assess names the launcher and game from the GOG record; best case unknown' ($wa.launcher -eq 'GOG Galaxy' -and $wa.gameName -eq 'The Witcher 3' -and $wa.antiCheat.status -eq 'unknown' -and $wa.acknowledgementRequired)
+        Assert 'assess reports discovery gaps (Battle.net product.db) apart from the anti-cheat block' (@($wa.discoveryGaps | Where-Object { $_ -like 'Battle.net:*product.db*' }).Count -eq 1 -and -not @($wa.antiCheat.unchecked | Where-Object { $_ -like 'Battle.net:*' }).Count)
+        $eg = "$tmp\m\EgsGame\Binaries"; Put "$tmp\m\EgsGame\.egstore\x.manifest" 'm'; Put "$eg\g.exe" 'exe'
+        Assert 'assess names Epic from the .egstore marker' (((Do-Assess $eg) | ConvertFrom-Json).launcher -eq 'Epic Games Launcher')
+        $bg = "$tmp\bnet\Overwatch\_retail_"; Put "$bg\Overwatch.exe" 'exe'
+        $bn = (Do-Assess $bg) | ConvertFrom-Json
+        Assert 'Battle.net title is a signal citing EULA 1.C.i and 1.C.ii' ($bn.launcher -eq 'Battle.net' -and $bn.antiCheat.status -eq 'signals' -and @($bn.antiCheat.signals | Where-Object { $_ -like '*EULA sections 1.C.i and 1.C.ii*' }).Count -eq 1)
+        $fc = "$tmp\ea\EA SPORTS FC 26"; Put "$fc\FC26.exe" 'exe'
+        $fa = (Do-Assess $fc) | ConvertFrom-Json
+        Assert 'AWACY match by name ignores the trademark glyph' ($fa.launcher -eq 'EA app' -and $fa.antiCheat.status -eq 'signals' -and @($fa.antiCheat.signals | Where-Object { $_ -like 'AreWeAntiCheatYet (commit aaaaaaa) lists EA SPORTS FC*26: EA anticheat' }).Count -eq 1)
+        $lg = "$l2\steamapps\common\Listed"; Put "$lg\l.exe" 'exe'
+        $script:SteamPages['333'] = '<div class="apphub_AppName">Listed Game</div>'
+        Assert 'AWACY match by Steam app id' (@(((Do-Assess $lg) | ConvertFrom-Json).antiCheat.signals | Where-Object { $_ -like '*lists Listed Game: Easy Anti-Cheat' }).Count -eq 1)
+
+        # Acknowledgement: required, mismatched, missing research, accepted and recorded
+        $script:SteamPages['111'] = '<div class="apphub_AppName">Tom Clancy&#8217;s Ack Game</div><div class="anticheat_section DRM_notice"><div class="anticheat_name">Easy Anti-Cheat</div></div>'
+        $ag = "$l2\steamapps\common\Ack Game\bin"; Put "$ag\ack.exe" 'exe'; Put "$ag\nvngx_dlss.dll" 'dlss'
+        $lock = [IO.File]::Open("$l2\steamapps\appmanifest_000.acf", 'Open', 'Read', 'None')
+        try { Assert 'Steam app id lookup skips another game''s locked manifest' ((SteamAppId $ag) -eq '111') } finally { $lock.Dispose() }
+        $aa = (Do-Assess $ag) | ConvertFrom-Json
+        Assert 'Steam store anti-cheat section is a signal' ($aa.launcher -eq 'Steam' -and $aa.steamAppId -eq '111' -and $aa.antiCheat.steam.storeName -eq "Tom Clancy`u{2019}s Ack Game" -and @($aa.antiCheat.signals | Where-Object { $_ -eq 'Steam store page discloses anti-cheat: Easy Anti-Cheat' }).Count -eq 1)
+        $before = Tree $ag
+        $script:AcceptAntiCheatRisk = $null
+        Assert 'ack required: a signal refuses without an acknowledgement' (Throws { Do-Apply $ag } "*anti-cheat status 'signals'*-AcceptAntiCheatRisk*")
+        $script:AcceptAntiCheatRisk = 'Ack Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $aa.antiCheat.reviewId
+        Assert 'ack mismatched: another name refuses' (Throws { Do-Apply $ag } '*does not match the game name*')
+        $script:AcceptAntiCheatRisk = "tom clancy's ack game"; $script:AntiCheatReviewId = 'stale'
+        Assert 'ack with a stale review id refuses' (Throws { Do-Apply $ag } '*changed since the review*')
+        $script:AntiCheatReviewId = $aa.antiCheat.reviewId
+        $script:AcceptAntiCheatRisk = "tom clancy's ack game"; $script:AntiCheatResearch = ' '
+        Assert 'ack without research refuses' (Throws { Do-Apply $ag } '*-AntiCheatResearch*')
+        $script:AntiCheatResearch = 'No ban reports found'; $script:AntiCheatSources = @('http://insecure.example')
+        Assert 'ack without an https source refuses' (Throws { Do-Apply $ag } '*-AntiCheatSources*')
+        Assert 'ack refusals write nothing' ((SameTree (Tree $ag) $before) -and -not (Test-Path -LiteralPath (StateDir $ag)))
+        $script:AntiCheatSources = @('https://example.com/r, https://example.com/s')   # the one-string form pwsh -File delivers
+        Do-Apply $ag | Out-Null
+        $am = LoadJson "$(StateDir $ag)\manifest.json"
+        Assert 'ack accepted: manifest records the typed name, research, sources, date, signals and AWACY commit' ($am.acknowledgement.typed -eq "tom clancy's ack game" -and $am.acknowledgement.research -eq 'No ban reports found' -and "$($am.acknowledgement.sources)" -eq 'https://example.com/r https://example.com/s' -and $am.acknowledgement.date -and $am.antiCheat.status -eq 'signals' -and $am.antiCheat.awacy.commit -eq $script:AwacySha -and $am.launcher.launcher -eq 'Steam')
+        Do-Remove $ag | Out-Null
+        Assert 'remove after an acknowledged apply is byte-exact' ((SameTree (Tree $ag) $before) -and -not (Test-Path -LiteralPath "$(StateDir $ag)\manifest.json"))
+
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'
+        $cg = "$l2\steamapps\common\Clean Game"; Put "$cg\clean.exe" 'exe'; Put "$cg\nvngx_dlss.dll" 'dlss'
+        $cga = (Do-Assess $cg) | ConvertFrom-Json
+        Assert 'Steam with nothing disclosed anywhere: none-disclosed, no acknowledgement, caveat stated' ($cga.antiCheat.status -eq 'none-disclosed' -and -not $cga.acknowledgementRequired -and $cga.antiCheat.note -like '*not proof of no anti-cheat*')
+        New-Item -ItemType Directory -Force -Path "$cg\locked" | Out-Null
+        $acl = Get-Acl -LiteralPath "$cg\locked"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl
+        try { $cgl = (Do-Assess $cg) | ConvertFrom-Json } finally { $acl = Get-Acl -LiteralPath "$cg\locked"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl; Remove-Item -LiteralPath "$cg\locked" -Force }
+        Assert 'a game folder the on-disk scan cannot list makes the status unknown' ($cgl.antiCheat.status -eq 'unknown' -and @($cgl.antiCheat.unchecked | Where-Object { $_ -like 'on-disk scan:*locked*unreadable*' }).Count -eq 1)
+        $script:SteamPages['444'] = '<div class="apphub_AppName">Unlisted Game</div>'
+        Put "$l2\steamapps\appmanifest_444.acf" (& $acf 444 'Unlisted Game' 'Unlisted')
+        $ul = "$l2\steamapps\common\Unlisted"; Put "$ul\u.exe" 'exe'
+        $ula = (Do-Assess $ul) | ConvertFrom-Json
+        Assert 'Steam with a clean page but no AWACY entry is unknown, not none-disclosed' ($ula.antiCheat.status -eq 'unknown' -and @($ula.antiCheat.unchecked | Where-Object { $_ -like '*no entry for Steam app id 444*' }).Count -eq 1)
+        # An AWACY entry with the same name under another Steam id does not count as this game's record
+        $script:AwacyGames = $script:AwacyGames.TrimEnd(']') + ',{"name":"Unlisted Game","anticheats":[],"storeIds":{"steam":"999"}}]'
+        Assert 'a same-named AWACY entry under another app id leaves a Steam game unknown' (((Do-Assess $ul) | ConvertFrom-Json).antiCheat.status -eq 'unknown')
+        $script:SteamPages['222'] = '<div id="agecheck">'
+        Assert 'Steam age gate is unknown, not none-disclosed' (((Do-Assess $cg) | ConvertFrom-Json).antiCheat.status -eq 'unknown')
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'
+        $ok = $script:HttpGet
+        $script:HttpGet = { param($url, $headers) if ($url -like 'https://api.github.com/*') { throw 'offline' }; & $ok $url $headers }
+        $ua = (Do-Assess $cg) | ConvertFrom-Json
+        Assert 'AWACY fetch failure: unknown, never none-disclosed' ($ua.antiCheat.status -eq 'unknown' -and $null -eq $ua.antiCheat.awacy.commit -and @($ua.antiCheat.unchecked | Where-Object { $_ -like 'AreWeAntiCheatYet: fetch failed*' }).Count -eq 1)
+        $script:AcceptAntiCheatRisk = $null
+        Assert 'AWACY fetch failure: apply refuses without an acknowledgement' (Throws { Do-Apply $cg } "*anti-cheat status 'unknown'*AreWeAntiCheatYet*")
+        $script:HttpGet = $ok
+        # A same-named game in another folder, with identical results, does not share the review
+        $ta = "$tmp\twinA\Twin\Win64"; $tb = "$tmp\twinB\Twin\Win64"
+        foreach ($t in $ta, $tb) { Put "$t\twin.exe" 'exe'; Put "$t\nvngx_dlss.dll" 'dlss' }
+        $taa = (Do-Assess $ta) | ConvertFrom-Json
+        $script:AcceptAntiCheatRisk = $taa.gameName; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $taa.antiCheat.reviewId
+        Assert 'ack bound to the game: a same-named twin elsewhere refuses' ($taa.gameName -eq ((Do-Assess $tb) | ConvertFrom-Json).gameName -and (Throws { Do-Apply $tb } '*changed since the review*') -and -not (Test-Path -LiteralPath (StateDir $tb)))
+        # Reviewed while AWACY was unreachable; by apply time AWACY answers but the store page does not
+        $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
+        $script:SteamPages['222'] = '<div id="agecheck">'
+        Assert 'ack bound to the review: a different unchecked source refuses' (Throws { Do-Apply $cg } "*changed since the review*Steam store page*")
+        # Reviewed while unknown; by apply time the store page names an anti-cheat
+        $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div><div class="anticheat_section"><div class="anticheat_name">BattlEye</div></div>'
+        $before = Tree $cg
+        Assert 'ack bound to the review: a signal found after it refuses and writes nothing' ((Throws { Do-Apply $cg } '*changed since the review*BattlEye*') -and (SameTree (Tree $cg) $before) -and -not (Test-Path -LiteralPath (StateDir $cg)))
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'
+
+        # Xbox: WindowsApps refused before any write; an XboxGames install applies and the write probe leaves nothing
+        $wx = "$tmp\WindowsApps\Pkg_1.0_x64\Game"; Put "$wx\g.exe" 'exe'; Put "$wx\nvngx_dlss.dll" 'dlss'
+        $before = Tree $wx
+        Assert 'WindowsApps: apply refuses and writes nothing' ((Throws { Do-Apply $wx } '*WindowsApps*') -and (SameTree (Tree $wx) $before) -and -not (Test-Path -LiteralPath (StateDir $wx)))
+        $wxa = (Do-Assess $wx) | ConvertFrom-Json
+        Assert 'WindowsApps: assess verdict refused, launcher Xbox app' ($wxa.verdict -eq 'refused' -and $wxa.launcher -eq 'Xbox app')
+        $xg = "$($d1)Games\Forza\Content"; Put "$xg\forza.exe" 'game-exe'; Put "$xg\CrashHandler.exe" 'c'; Put "$xg\nvngx_dlss.dll" 'dlss'
+        $before = Tree $xg
+        Ack $xg
+        Do-Apply $xg | Out-Null
+        Assert 'Xbox XboxGames install applies; the write probe is not in the snapshot' ((LoadJson "$(StateDir $xg)\manifest.json").launcher.launcher -eq 'Xbox app' -and -not @((Load-Snapshot $xg).files | Where-Object { $_.Path -like '.dlss5-write-probe-*' }).Count)
+        $xi = "$xg\OptiScaler.ini"; Set-Content -LiteralPath $xi -Value ((Get-Content -LiteralPath $xi -Raw) -replace 'MaxRatio=auto', 'MaxRatio=1.500000') -NoNewline
+        Assert 'capture with no preset of its own needs -Preset' (Throws { Do-Capture $xg } '*pass -Preset*')
+        $script:Preset = 'fx'
+        Assert 'capture refuses a new key that belongs to another game' (Throws { Do-Capture $xg } '*does not match this game*')
+        $script:Preset = 'forza-fx'
+        Do-Capture $xg | Out-Null
+        $fj = LoadJson "$tmp\data\presets\forza-fx.json"
+        Assert 'capture under a new key writes a local preset matching only the game exe, not a helper' ("$($fj.match.exe)" -eq 'forza.exe' -and $fj.title -eq 'Forza Fixture' -and @($fj.ini).Count -eq 1 -and $fj.ini[0].key -eq 'MaxRatio' -and $fj.ini[0].why -like 'captured *' -and (Find-Preset $xg) -eq 'forza-fx')
+        # #4424: an overlay-saved hotkey that collides with a local base added after the apply
+        $lb = '{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"},{"key":"WhitePointScale","value":"1.3"}'
+        Put "$tmp\data\presets\_base.json" "{`"ini`":[$lb,{`"key`":`"FGShortcutKey`",`"value`":`"0x7F`"}]}"
+        Set-Content -LiteralPath $xi -Value ((Get-Content -LiteralPath $xi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=0x7f' -replace '(?m)^Style=auto', 'Style=2') -NoNewline
+        $script:Preset = $null
+        $cc = @(Do-Capture $xg)
+        $fv = @{}; foreach ($e in (LoadJson "$tmp\data\presets\forza-fx.json").ini) { $fv[$e.key] = $e.value }
+        Assert 'capture writes the keys that do not conflict with another layer''s hotkey' ($fv.Style -eq '2' -and $fv.MaxRatio -eq '1.500000' -and -not $fv.ContainsKey('ToggleKey'))
+        Assert 'capture reports a conflicting hotkey with both sources and the binding the preset keeps' (@($cc | Where-Object { $_ -like '*`[DlssNr`] ToggleKey=0x7f (conflict:*`[Menu`] FGShortcutKey=0x7F (local-base)*keeps ToggleKey=0x7C (shipped-base)*' }).Count -eq 1)
+        Put "$tmp\data\presets\_base.json" "{`"ini`":[$lb]}"
+        Do-Remove $xg | Out-Null
+        Assert 'Xbox remove is byte-exact' (SameTree (Tree $xg) $before)
+
+        # #4445: Steam updates a modded game and replaces its exe; the snapshot is refreshed on one confirmation
+        $acfb = { param($b) (& $acf 555 'Update Game' 'Update Game').TrimEnd('}') + "`t`"buildid`"`t`t`"$b`"`n`t`"TargetBuildID`"`t`t`"999`"`n`t`"LastUpdated`"`t`t`"1790000000`"`n}" }
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '100')
+        $ug = "$l2\steamapps\common\Update Game\Binaries\Win64"; Put "$ug\Ride-Win64-Shipping.exe" 'exe-v1'; Put "$ug\nvngx_dlss.dll" 'dlss'
+        $script:Proxy = 'winmm.dll'; $script:Preset = 'fx'; $script:RestoreComputeSignature = $false
+        Ack $ug
+        Do-Apply $ug | Out-Null
+        $umf = "$(StateDir $ug)\manifest.json"; $um = LoadJson $umf
+        Assert 'apply records the Steam buildid and LastUpdated, not TargetBuildID, in the manifest and the snapshot' ($um.launcherBuild.launcher -eq 'Steam' -and $um.launcherBuild.buildId -eq '100' -and $um.launcherBuild.lastUpdated -eq '1790000000' -and (Load-Snapshot $ug).launcherBuild.buildId -eq '100')
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '200'); Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2'
+        # The real verbs in a child process, for their exit codes; -DataDir keeps it off the user's data.
+        $pw = (Get-Process -Id $PID).Path
+        $so = @(& $pw -NoProfile -NonInteractive -File $PSCommandPath -Verb status $ug -DataDir "$tmp\data"); $sx = $LASTEXITCODE
+        Assert 'status: a Steam update with only game files drifted reads as a game update, and still exits 1' ($sx -eq 1 -and @($so | Where-Object { $_ -like 'game updated by Steam (build 100 -> 200) since the apply: only game files drifted*remove -ConfirmRefresh ????????????*' }).Count -eq 1)
+        $tok = [regex]::Match(($so -join "`n"), 'ConfirmRefresh ([0-9a-f]{12})').Groups[1].Value
+        $wm = "$ug\winmm.dll"; $wb = [IO.File]::ReadAllBytes($wm); Put $wm 'tampered'
+        Assert 'a changed mod file beside the update keeps the generic drift report' (-not (Get-GameUpdate $ug $um (Get-Stat $ug)))
+        Remove-Item -LiteralPath $wm
+        Assert 'a missing mod file beside the update keeps the generic drift report' (-not (Get-GameUpdate $ug $um (Get-Stat $ug)))
+        [IO.File]::WriteAllBytes($wm, $wb)
+        $pre = Tree $ug
+        $script:ConfirmRefresh = 'stale'
+        Assert 'refresh with a token for other drift refuses before any write' ((Throws { Do-Remove $ug } '*drift changed since the user saw it*') -and (SameTree (Tree $ug) $pre) -and (Test-Path -LiteralPath $umf))
+        $script:ConfirmRefresh = $tok
+        $script:SteamPages['555'] = '<div class="apphub_AppName">Update Game</div><div class="anticheat_section"><div class="anticheat_name">BattlEye</div></div>'
+        Assert 'refresh with the old acknowledgement after the review id changed refuses before any write' ((Throws { Do-Remove $ug } '*changed since the review*BattlEye*') -and (SameTree (Tree $ug) $pre) -and (Test-Path -LiteralPath $umf))
+        $script:SteamPages.Remove('555'); $script:ConfirmRefresh = $null
+        $ro = @(& $pw -NoProfile -NonInteractive -File $PSCommandPath -Verb remove $ug -DataDir "$tmp\data"); $rx = $LASTEXITCODE
+        Assert 'remove: the game update replaces the verify-integrity line with the same token, exits 0, keeps the manifest' ($rx -eq 0 -and @($ro | Where-Object { $_ -like "game updated by Steam (build 100 -> 200) since the apply*-ConfirmRefresh $tok once*" }).Count -eq 1 -and -not @($ro | Where-Object { $_ -like '*Verify integrity*' }).Count -and (Test-Path -LiteralPath $umf) -and -not (Test-Path -LiteralPath $wm))
+        $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
+        Ack $ug
+        $script:ConfirmRefresh = $tok
+        Move-Item -LiteralPath "$bs\OptiScaler.dll" -Destination "$tmp\held.dll"
+        Assert 'refresh refuses a build with a payload file missing, before any write' ((Throws { Do-Remove $ug } '*not fully provisioned*OptiScaler.dll*') -and (Test-Path -LiteralPath $umf))
+        Move-Item -LiteralPath "$tmp\held.dll" -Destination "$bs\OptiScaler.dll"
+        Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2b'
+        Assert 'refresh refuses when a drifted file changed again since the user saw it' ((Throws { Do-Remove $ug } '*drift changed since the user saw it*') -and (Test-Path -LiteralPath $umf))
+        Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2'
+        $rf = @(Do-Remove $ug)
+        $script:ConfirmRefresh = $null
+        $nm = LoadJson $umf
+        Assert 'refresh drops the old manifest and applies again with its build, proxy, preset and switch' (@($rf | Where-Object { $_ -eq 'removed: manifest deleted, snapshot kept' }).Count -eq 1 -and @($rf | Where-Object { $_ -like 'applied selftest*' }).Count -eq 1 -and $nm.build -eq $um.build -and $nm.proxy -eq 'winmm.dll' -and $nm.preset.key -eq 'fx' -and $nm.restoreComputeSignature -eq $false -and (Test-Path -LiteralPath $wm))
+        Assert 'refresh snapshots the updated game, records the new build, and status is clean' ($nm.launcherBuild.buildId -eq '200' -and @((Load-Snapshot $ug).files | Where-Object { $_.Path -eq 'Ride-Win64-Shipping.exe' -and $_.Sha256 -eq (Get-FileHash -LiteralPath "$ug\Ride-Win64-Shipping.exe" -Algorithm SHA256).Hash }).Count -eq 1 -and -not (Get-Stat $ug).Bad)
+        # A manifest from before 0.7.0 records no build: the drift report is unchanged and refresh refuses
+        $nm.PSObject.Properties.Remove('launcherBuild'); $nm | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $umf -Encoding utf8
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '300'); Put "$ug\Ride-Win64-Shipping.exe" 'exe-v3'
+        $script:ConfirmRefresh = 'x'
+        Assert 'an old manifest refuses -ConfirmRefresh before any write' ((Throws { Do-Remove $ug } '*not a launcher game update*') -and (Test-Path -LiteralPath $wm))
+        $script:ConfirmRefresh = $null
+        $oo = @(Do-Remove $ug)
+        Assert 'an old manifest keeps the verify-integrity line and the manifest, with no game-update line' (@($oo | Where-Object { $_ -like 'Run Steam > Verify integrity*' }).Count -eq 1 -and -not @($oo | Where-Object { $_ -like 'game updated*' }).Count -and (Test-Path -LiteralPath $umf))
+        $script:Finish = $true; Do-Remove $ug | Out-Null; $script:Finish = $false
+        $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
+
+        # A manifest shaped as 0.1 wrote it: no tag, buildSha256, iniEdits or preset
+        $lm = "$w\legacy\Win64"; Put "$lm\game.exe" 'exe'; Put "$lm\nvngx_dlss.dll" 'dlss'
+        $before = Tree $lm
+        Ack $lm
+        Do-Apply $lm | Out-Null
+        $lmf = "$(StateDir $lm)\manifest.json"; $lj = LoadJson $lmf
+        [pscustomobject]@{ gameDir = $lj.gameDir; build = $lj.build; proxy = $lj.proxy; applied = $lj.applied; iniEdits = $lj.iniEdits; files = $lj.files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $lmf -Encoding utf8
+        Assert 'reset refuses a manifest with no recorded build tag' (Throws { Do-Reset $lm } '*predates recorded build tags*')
+        [pscustomobject]@{ gameDir = $lj.gameDir; build = $lj.build; proxy = $lj.proxy; applied = $lj.applied; files = $lj.files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $lmf -Encoding utf8
+        Assert 'a 0.1-shaped manifest: status is clean and the build reads unknown, re-apply to record' (-not (Get-Stat $lm).Bad -and (Get-PinState (LoadJson $lmf)) -like '*unknown, re-apply to record' -and ((Do-Assess $lm) | ConvertFrom-Json).installedBuild -like '*unknown, re-apply to record')
+        Assert 'reset refuses a manifest with no recorded ini edits' (Throws { Do-Reset $lm } '*predates recorded ini edits*')
+        Do-Remove $lm | Out-Null
+        Assert 'remove of a 0.1-shaped manifest is byte-exact' ((SameTree (Tree $lm) $before) -and -not (Test-Path -LiteralPath $lmf))
+        Assert 'reset refuses a game with no apply' (Throws { Do-Reset $lm } '*no completed apply*')
+
         $script:RuntimeDll = "$tmp\other.dll"; Put $script:RuntimeDll 'unknown-runtime'
         Assert 'unknown-hash runtime refused' (Throws { Do-Apply $f } '*runtime DLL refused*')
 
         # assess: read-only verdicts
-        Assert 'assess refuses anti-cheat fixture' (((Do-Assess $a) | ConvertFrom-Json).verdict -eq 'refused')
+        $aa = (Do-Assess $a) | ConvertFrom-Json
+        Assert 'assess reports on-disk anti-cheat as a signal needing acknowledgement' ($aa.antiCheat.status -eq 'signals' -and $aa.acknowledgementRequired -and @($aa.antiCheat.signals | Where-Object { $_ -like 'on disk:*EasyAntiCheat' }).Count -eq 1)
         $ca = (Do-Assess $c) | ConvertFrom-Json
         Assert 'assess lists dxgi.dll collision, not as a free proxy' ('dxgi.dll' -in $ca.proxyCollisions -and 'dxgi.dll' -notin $ca.freeProxies)
+        $np = "$w\noproxy\Win64"; Put "$np\game.exe" 'exe'; Put "$np\nvngx_dlss.dll" 'dlss'; foreach ($x in $ProxyNames) { Put "$np\$x" 'own' }
+        $npa = (Do-Assess $np) | ConvertFrom-Json
+        Assert 'assess: every proxy name taken is unknown with a reason' ($npa.verdict -eq 'unknown' -and @($npa.refusals | Where-Object { $_ -like 'no free proxy name*' }).Count -eq 1)
         $k = "$w\clean\Win64"; Put "$k\game.exe" 'exe'; Put "$k\nvngx_dlss.dll" 'dlss'
         $ka = (Do-Assess $k) | ConvertFrom-Json
-        Assert 'assess clean fixture is eligible with requiresWebCheck' ($ka.verdict -eq 'eligible' -and $ka.requiresWebCheck)
+        Assert 'assess: clean fixture from no known launcher is eligible, anti-cheat unknown' ($ka.verdict -eq 'eligible' -and $ka.launcher -eq 'unknown' -and $ka.gameName -eq 'clean' -and $ka.antiCheat.status -eq 'unknown' -and $ka.acknowledgementRequired)
         Assert 'assess creates no state dir' (-not (Test-Path -LiteralPath (StateDir $k)))
 
         # provision: verify-and-extract over a local zip, no network
@@ -931,6 +1970,7 @@ function Do-Selftest {
         $script:Build = 'noac'
         $n = "$w\noac\Win64"; Put "$n\game.exe" 'exe'; Put "$n\nvngx_dlss.dll" 'dlss'
         $before = Tree $n
+        Ack $n
         Assert 'missing AutoCapture key aborts apply' (Throws { Do-Apply $n } '*AutoCapture*')
         Assert 'aborted apply leaves the tree byte-identical' ((SameTree (Tree $n) $before) -and -not (Test-Path -LiteralPath "$(StateDir $n)\manifest.json"))
 
@@ -961,10 +2001,14 @@ switch ($Verb) {
     'provision' { if ($Runtime) { Do-ProvisionRuntime } else { Do-ProvisionBuild $Build } }
     'apply' { Do-Apply (Root $GameDir) }
     'status' {
-        $s = Get-Stat (Root $GameDir); Show-Stat $s
+        $r = Root $GameDir; $s = Get-Stat $r; Show-Stat $s
+        if (($m = Load-Manifest $r).applied) { Get-PinState $m; if ($gu = Get-GameUpdate $r $m $s) { $gu.Text } }
         if ($s.Bad) { exit 1 }
     }
     'remove' { Do-Remove (Root $GameDir) }
+    'reset' { Do-Reset (Root $GameDir) }
+    'capture' { Do-Capture (Root $GameDir) }
     'refetch' { Do-Refetch }
+    'discover' { Do-Discover }
     'selftest' { Do-Selftest; exit ([int]$script:fails) }
 }

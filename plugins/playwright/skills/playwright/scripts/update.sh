@@ -93,9 +93,8 @@ fetch_upstream_skill_dir() {
   printf '%s' "$skill_dir"
 }
 
-# Replace a nested metadata field in the SKILL.md frontmatter.
-# Anchored to the indented key under the metadata: block to avoid matching
-# unrelated top-level keys.
+# Replace a nested metadata field in the SKILL.md frontmatter, anchored to the
+# indented key under the metadata: block so a top-level key never matches.
 replace_metadata_field() {
   local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.tmp"
   # Escape chars special on sed's replacement side (& \ and the | delimiter) so
@@ -179,9 +178,8 @@ run_apply() {
   rm -rf "$VENDOR_DIR"
   mkdir -p "$VENDOR_DIR"
   cp -r "$upstream_dir"/. "$VENDOR_DIR"/
-  # Redistribution requires the upstream license text (Apache-2.0) to travel
-  # with the vendored content — it lives at the package root, not in the
-  # skill subdirectory.
+  # Apache-2.0 redistribution requires the license to travel with the vendored
+  # content; it lives at the package root, not in the skill subdirectory.
   if [[ -f "${TMPDIR_RUN}/package/LICENSE" ]]; then
     cp "${TMPDIR_RUN}/package/LICENSE" "${VENDOR_DIR}/LICENSE"
   else

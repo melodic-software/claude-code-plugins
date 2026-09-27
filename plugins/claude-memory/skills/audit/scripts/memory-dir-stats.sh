@@ -1,31 +1,11 @@
 #!/usr/bin/env bash
 # memory-dir-stats.sh — single-integer auto-memory statistics for the audit skill's
 # `## Pre-computed context` block.
-#
-# Why this exists as a script rather than inline in SKILL.md: the harness composes
-# every `` !`command` `` line of a skill into one shell invocation, and the
-# worktree-isolation Bash guard refuses any command string carrying a shell
-# expansion — `$var`, `$(…)`, `${VAR:-default}`. The stats these lines report need
-# the resolved memory dir, so inline they read
-# `d=$(resolve-memory-dir.sh); ls "$d"/*.md | wc -l`, which the guard rejects and
-# the whole skill then fails to load from an isolated agent (#1687). Hoisting the
-# logic here leaves the pre-compute line free of every `$` except the plugin
-# variables the harness substitutes into literal paths before any shell sees them.
-#
-# The memory dir is resolved by the sibling resolve-memory-dir.sh — this plugin's
-# single source of truth for that resolution — never by re-deriving the slug here.
-#
-# OUTPUT CONTRACT (both stat modes): exactly one integer on stdout, always exit 0.
-# Every failure path — resolver failure, absent memory dir, absent MEMORY.md —
-# reports `0` rather than an error, because the caller is a pre-compute line whose
-# output is injected verbatim into the skill body. A non-zero exit is reserved for
-# a bad or missing mode argument, which prints usage to stderr and nothing to stdout.
-#
-# Usage:
-#   memory-dir-stats.sh --md-count      # count of *.md files in the memory dir
-#   memory-dir-stats.sh --memory-lines  # loaded-content line count of MEMORY.md (0 when absent)
-#   memory-dir-stats.sh --memory-bytes  # loaded-content byte count of MEMORY.md (0 when absent)
-#   memory-dir-stats.sh --help
+# Every stat mode prints exactly one integer and exits 0, failures included: the
+# output is injected verbatim into the skill body. Only a bad mode exits non-zero.
+# Keep this a script, not an inline pre-compute line: the worktree-isolation Bash
+# guard refuses a pre-compute command carrying a `$` expansion, so inlining it breaks
+# skill loading from an isolated agent.
 
 set -uo pipefail
 
@@ -63,8 +43,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# No repo guard here: the sibling resolver handles the non-repo case itself (outside a
-# git repo the cwd is the project key, per the memory doc).
+# No repo guard here: the sibling resolver handles the non-repo case itself.
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 
 # An empty resolution would make the glob below expand against the filesystem root.
@@ -74,9 +53,7 @@ if [[ -z "$memory_dir" ]]; then
 fi
 
 if [[ "$mode" == "--md-count" ]]; then
-  # nullglob (the idiom the sibling memory-index-refs-check.sh already uses) so an
-  # empty or absent dir yields an empty array rather than the literal pattern —
-  # and, unlike `ls | wc -l`, cannot fail the pipeline under `pipefail`.
+  # nullglob, not `ls | wc -l`, which fails the pipeline under pipefail on an empty dir.
   shopt -s nullglob
   files=("$memory_dir"/*.md)
   shopt -u nullglob
@@ -90,68 +67,15 @@ if [[ ! -f "$index" ]]; then
   exit 0
 fi
 
-# The 200-line/25KB limits measure only the content that loads: YAML frontmatter and
-# block-level HTML comments are stripped before the index is loaded (memory doc), so
-# both MEMORY.md stats measure that stripped content — matching criteria.md M1.
-#
-# A block only counts as one once it closes. An opening `---` or `<!--` that never
-# closes is ordinary content, so those lines are held and flushed at EOF instead of
-# swallowed: a leading thematic break or a clipped frontmatter block would otherwise
-# report 0, and M1 is a [FAIL]-severity size gate that 0 always passes — it could
-# never fire. A MEMORY.md that has frontmatter keeps it stamped (Claude Code writes a
-# `modified` field into any memory file that already has frontmatter, and never adds
-# frontmatter to one that has none), so this is a live shape, not a corner case.
-#
-# Closing is necessary but not sufficient: a leading `---` only opens frontmatter if
-# what follows is shaped like frontmatter. Markdown carries thematic breaks freely, so
-# a file opening with `---` and carrying any later `---` would otherwise have the whole
-# span between them stripped — a 253-line index reporting one loaded line, disarming
-# the very gate the flush-at-EOF rule above exists to arm. Frontmatter mode is
-# therefore bounded three ways, and abandoning it re-emits the held lines as content:
-#   * grammar — the block ends at the first line that is not blank and not a `key:`
-#     mapping entry, which is all YAML a memory index's frontmatter holds. A `#` line
-#     is deliberately NOT frontmatter here: it is a comment to YAML but a heading to
-#     markdown, and a heading is loaded content, so admitting it would let a pseudo-
-#     frontmatter block of headings swallow them. The cost is that a real YAML comment
-#     inside frontmatter ends the block, and ending it strips nothing — the opening
-#     `---`, every entry held so far, and the rest of the block through its close all
-#     count. An over-count, and a rare one: Claude Code writes only the `modified`
-#     scalar and never authors comments, so this needs a hand-edited index;
-#   * length — `fmcap` lines, because grammar alone still swallows a runaway whose
-#     every line happens to be a `Label: value` pair, a plausible shape for a
-#     hand-written index;
-#   * weight — `fmbytecap` bytes of held block, because the line bound still swallows a
-#     runaway whose few lines are individually heavy. Markdown prose opening `Note:` or
-#     `Important:` parses as a mapping entry, so a single long paragraph between a leading
-#     thematic break and any later `---` was stripped however much it weighed. The cap is
-#     measured in characters, which is bytes for the ASCII a memory index's frontmatter
-#     holds and merely a looser — still finite — bound otherwise.
-# All three bounds fail toward counting when they fire: an over-count can only make this
-# gate fire early, while the under-count they replace stopped it firing at all. Each leaves
-# a residue, since a misparsed block still strips up to `fmcap` lines and `fmbytecap` bytes
-# before the bound ends it. `fmbytecap` is set so its residue is the smaller share of M1's
-# two limits — 1KB of 25KB against 20 lines of 200 — while clearing every real shape by a
-# wide margin: Claude Code stamps only a `modified` scalar, and even a hand-written block
-# of twenty entries runs to a few hundred bytes.
-#
-# A block-level comment occupies whole lines; text sharing a line with the comment's
-# open or close is loaded content and survives. Each comment ends at the FIRST `-->`
-# after its opener and the line is then re-scanned, because one line can carry several:
-# matching to the last `-->` swallows the text between two of them, and stopping after
-# the first leaves the rest counted as content. `index`/`substr` walk the line instead
-# of a regex — awk's ERE has no lazy quantifier, and spelling "up to the first close"
-# as a bounded complement reads far worse than the scan. Only whole `<!-- ... -->`
-# spans are removed, so a residue still holding text always survives; only a line that
-# is entirely comment disappears.
-#
-# Comments inside fenced code blocks are preserved — a comment inside a fence is code,
-# not block-level markdown. The memory doc states that explicitly for CLAUDE.md and says
-# nothing either way for MEMORY.md; criteria.md M1 records the reading rather than
-# claiming it as documented.
-#
-# tr guards Git Bash CRLF, so both counts measure LF-normalized content (see the
-# assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
-# padding BSD `wc` emits on macOS.
+# Emits only the MEMORY.md content that loads (criteria.md M1 records the reading):
+# YAML frontmatter and block-level HTML comments are stripped, fenced comments kept.
+# A `---` or `<!--` that never closes is content, flushed at EOF: counting 0 would
+# disarm M1's size gate. Frontmatter mode ends at the first line that is not blank or
+# `key:` (a `#` line is a markdown heading), after `fmcap` lines, or after `fmbytecap`
+# bytes, re-emitting what it held; every bound fails toward over-counting.
+# A comment ends at the FIRST `-->` after its opener and the line is re-scanned, so
+# text beside a comment survives; awk's ERE has no lazy match, hence index/substr.
+# tr strips Git Bash CRLF; the caller's $((n)) strips BSD wc padding.
 strip_unloaded() {
   tr -d '\r' <"$index" | LC_ALL=C awk '
     BEGIN { fmcap = 20; fmbytecap = 1024 }

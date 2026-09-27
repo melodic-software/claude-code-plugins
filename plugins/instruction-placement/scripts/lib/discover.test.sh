@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 # Regression tests for lib/discover.sh — the shared discovery layer.
 #
-# WHY THIS FILE EXISTS. Version 0.1.0 shipped 92 tests covering glob SEMANTICS
-# exhaustively and file DISCOVERY barely. All four bugs found by probing after
-# release were in the discovery layer, so it gets its own suite and its own
-# fixtures rather than being tested incidentally through the engines.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
@@ -28,20 +23,15 @@ pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
 }
-# A case whose subject this host cannot build is neither a pass nor a failure.
-# It prints its own visible line and carries its own counter, and never routes
-# through pass(), so a proof this host could not run can never be read off the
-# summary as one that did.
+# A case whose subject this host cannot build is neither a pass nor a failure:
+# it never routes through pass(), so the summary cannot count it as run.
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 
-# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
-# it. Most cases below survive that -- a copied rule file is still a rule file to
-# discovery -- but a case that asserts on where a link POINTS has no subject at
-# all. Probe the round trip rather than the OS name: create a link and ask
-# readlink whether one was made.
+# Under MSYS without winsymlinks, `ln -s` COPIES the target, so a case asserting
+# where a link POINTS has no subject. Probe the round trip, not the OS name.
 host_makes_symlinks() {
   local d rc=1
   d="$(mktemp -d)"
@@ -133,8 +123,7 @@ assert_has "a SYMLINKED rule file is discovered" "$out" ".claude/rules/security.
 assert_has "a rule inside a SYMLINKED directory is discovered" "$out" ".claude/rules/shared/style.md"
 
 # The rules ROOT itself being a symlink is the documented way to share one whole
-# rule set across projects. The first symlink fix followed links INSIDE the tree
-# and missed the tree root, which loses every shared rule rather than one.
+# rule set across projects; missing it loses every shared rule rather than one.
 symroot="$(mktemp -d)"
 git -C "$symroot" init -q .
 mkdir -p "$symroot/.claude" "$symroot/shared"
@@ -308,7 +297,7 @@ assert_eq "and the verdict is NATIVE, not LOADED" "NATIVE" "$(printf '%s' "$reas
 
 # A CLAUDE.md on a NESTED target's own path blocks it exactly as a root one
 # does, so the verdict must agree with what the wiring gate says about the same
-# tree. It said NATIVE while wiring said UNWIRED.
+# tree.
 nestedblock="$(mktemp -d)"
 git -C "$nestedblock" init -q .
 mkdir -p "$nestedblock/svc" "$nestedblock/free"
@@ -355,10 +344,8 @@ commit_all "$nativeroot"
 ip_index_target_loaded "$nativeroot" "docs-index.md" >/dev/null 2>&1
 assert_eq "a target under another name is still unreachable" "1" "$?"
 
-# An ABSOLUTE target must not be re-anchored under the root. Prefixing it
-# unconditionally built `<root>//abs/path`, which collapses to a path under the
-# root that does not exist, so a real file was reported "does not exist" —
-# an easy invocation to reach with the default `--root .` and a --file elsewhere.
+# An ABSOLUTE target must not be re-anchored under the root: `<root>//abs/path`
+# names a file that does not exist.
 ip_index_target_loaded "$chain" "$chain/AGENTS.md" >/dev/null 2>&1
 assert_eq "an absolute target that exists is reachable" "0" "$?"
 reason="$(ip_index_target_loaded "$chain" "$chain/AGENTS.md" 2>&1)"
@@ -368,7 +355,6 @@ else
   pass "an absolute target is not reported missing"
 fi
 
-# ...and a genuinely absent absolute target still says so.
 ip_index_target_loaded "$chain" "$chain/nope.md" >/dev/null 2>&1
 assert_eq "an absolute target that is absent is still unreachable" "1" "$?"
 reason="$(ip_index_target_loaded "$chain" "$chain/nope.md" 2>&1)"

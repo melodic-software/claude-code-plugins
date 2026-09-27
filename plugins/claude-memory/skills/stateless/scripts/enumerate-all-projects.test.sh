@@ -8,10 +8,8 @@ SCRIPT="$SCRIPT_DIR/enumerate-all-projects.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Every case but Case 6 runs through this: the script honors CLAUDE_CONFIG_DIR over
-# $HOME, so an ambient value from the caller's environment would point the scan at the
-# host machine's real config root instead of the fixture, reporting and naming the real
-# project stores. Case 6 sets CLAUDE_CONFIG_DIR deliberately on the bash call itself.
+# CLAUDE_CONFIG_DIR is dropped so the scan never reports the host's real project
+# stores. Case 6 sets it deliberately on the bash call itself.
 run_isolated() { env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT"; }
 
 # --- Case 1: --help exits 0 with usage ---

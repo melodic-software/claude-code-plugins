@@ -13,7 +13,7 @@ where artifacts land in the consuming repo.
 | `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared decision map on the work-item tracker, then works its frontier one decision at a time, routing each to the right skill until the fog clears and a Brief / PRD / PLAN can be handed onward. Upstream of the whole pipeline. |
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers (one-pager, consumer-feature, B2B-internal) with a synthesize path and a review mode. Acceptance-criteria capture asks once about missing unwanted-behavior and state-driven cases (skipped and reported unexamined on the `synthesize` path). |
-| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. Acceptance-criteria capture asks once about missing unwanted-behavior and state-driven cases, and emits EARS-tagged criteria when the team's convention selects that format. |
+| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief, synthesizing when intent is clear, running frontier-rounds Q&A when it isn't, or interviewing relentlessly on request. Acceptance-criteria capture asks once about missing unwanted-behavior and state-driven cases, and emits EARS-tagged criteria when the team's convention selects that format. The `surface` option can render rounds on a local page the session watches. |
 | `/planning:audit-answers` | Contract validation | Independent adversarial validation of a completed `/planning:interview`'s answers, over any filled ledger, hand-answered or auto-accepted. Fresh-context validators re-examine each answer with its rationale withheld and return one verdict per answer: `confirmed`, `challenged`, or `reclassified`. Only the challenged and reclassified answers, plus every user-reserved decision, return as real human questions. Open branches are accept-filled first, holding the never-auto floor. |
 | `/planning:questionnaire` | Person hand-off | Turns a decision another person holds into a discovery questionnaire delivered async. It interviews the user about the send only (recipient, what's needed back), writes the document to the topic's memory slice, and leaves delivery out-of-band. |
 | `/planning:draft-goal-condition` | Goal authoring | Crafts a paste-ready `/goal` completion condition from a stated intent. It reads the current official `/goal` docs live for the condition shape and character limit (nothing hardcoded), drafts a transcript-demonstrable condition, and proves it fits the limit with a deterministic character counter instead of model guesswork, with a branch that builds a checkable condition for goals no metric can measure; a lever-fit gate routes interval-shaped, cloud/sessionless, orchestration-only, and multi-window / multi-ticket work elsewhere. Standalone. |
@@ -88,8 +88,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
+| `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. Any other value falls back to terminal. |
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly). |
-| `use_emoji_question_markers` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When enabled, each inline interview round question leads with a ❓ anchor on its Q<N> line and its 'My recommendation:' line leads with ➡️. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: emoji anchors. Set false for plain text. |
+| `use_emoji_question_markers` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When enabled, each interview round question leads with a ❓ anchor on its Q<N> line and its 'My recommendation:' line leads with ➡️, inline in the terminal and, on the page surface, on the question title and the Recommendation heading. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: emoji anchors. Set false for plain text. |
 
 ### How to set these
 
@@ -101,7 +102,7 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=<value>
+   claude plugin install planning@<marketplace> -s <scope> --config surface=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -125,7 +126,7 @@ Three supported routes, in the order most people want them:
      "pluginConfigs": {
        "planning@<marketplace>": {
          "options": {
-           "use_ask_user_question": <value>
+           "surface": <value>
          }
        }
      }

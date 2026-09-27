@@ -37,10 +37,6 @@ const LECTURE_ATTACHMENT_TYPE_SOURCE = "lecture-attachment-type-(\\w+)";
 const CODE_LANGUAGE_SOURCE = "language-(\\w+)";
 const COURSE_SLUG_PATH = /\/courses\/([^/]+)/;
 
-// ---------------------------------------------------------------------------
-// Adapter defaults (Teachable/Hotmart-specific config)
-// ---------------------------------------------------------------------------
-
 export const defaults = {
   videoPlayerSelector: DEFAULT_VIDEO_PLAYER_SELECTOR,
   authWarnDays: 14,
@@ -63,9 +59,7 @@ export const defaults = {
   manifestTimeoutMs: 15000,
 };
 
-// ---------------------------------------------------------------------------
 // Required adapter methods
-// ---------------------------------------------------------------------------
 
 /**
  * Extract transcript from Hotmart HLS subtitle stream.
@@ -83,7 +77,6 @@ export async function extractHlsUrl(page, _platformCfg) {
   return timed("extract-hls-url", null, () => getHlsUrl(page));
 }
 
-/** Merge the adapter's attachment selectors with any platformConfig overrides. */
 function resolveResourceSelectors(platformCfg) {
   return { ...defaults.resourceSelectors, ...platformCfg.resourceSelectors };
 }
@@ -98,7 +91,6 @@ export function resolveVideoPlayerSelector(platformCfg) {
   });
 }
 
-/** The configured subtitle language, falling back to the adapter default. */
 function resolveSubtitleLanguage(platformCfg) {
   return platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
 }
@@ -147,9 +139,7 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
   return courseUrl.replace("/enrolled/", "/");
 }
 
-// ---------------------------------------------------------------------------
 // Optional lifecycle hooks
-// ---------------------------------------------------------------------------
 
 /**
  * Install page.on("response") interceptors for HLS and subtitle data.
@@ -193,7 +183,6 @@ async function scrapeCodeSnippets(page, codeDisplaySelector) {
   );
 }
 
-/** Collect every `a[href]` under an attachment selector as `{ label, href }`. */
 async function scrapeAttachmentLinks(page, attachmentSelector) {
   return page.evaluate((selector) => {
     const links = [];
@@ -353,10 +342,6 @@ export async function extractMetadata(page, _courseUrl, _platformCfg) {
     return metadata;
   });
 }
-
-// ---------------------------------------------------------------------------
-// URL construction
-// ---------------------------------------------------------------------------
 
 export function buildLessonUrl(course, lesson, platformCfg) {
   const baseUrl = platformCfg.baseUrl ?? course.url?.split("/courses/")[0];

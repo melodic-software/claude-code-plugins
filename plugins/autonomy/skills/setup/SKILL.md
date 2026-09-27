@@ -112,17 +112,19 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
      draw from metered pools.
 3. **Agent-session wiring (Claude Code specifics)**. `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
    per-signal `OTEL_*_EXPORTER` values, and for work-item-dispatched sessions
-   `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>` (the
-   vendor attaches resource attributes to every metric datapoint and event. Verified against
-   the official monitoring doc). Headless `-p` sessions inherit `TRACEPARENT`/`TRACESTATE`
-   from the environment only under the enhanced-telemetry beta, the default surface starts
-   a fresh root and joins query-side via the resource attribute (verified empirically). And
-   interactive sessions deliberately ignore inbound trace context. Traces stay beta behind
-   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as optional and never
-   depends on beta span shapes. Read
+   `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>`, which
+   lands on every metric datapoint and event. Headless `-p` (and Agent SDK) sessions read
+   inbound `TRACEPARENT`/`TRACESTATE`, and their event records carry the inbound trace ID
+   without the beta flag or a traces exporter. Spans need
+   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` plus `OTEL_TRACES_EXPORTER`; the slice treats spans
+   as optional and never depends on beta span shapes. Interactive sessions ignore inbound trace
+   context. The slice joins on `autonomy.work_item.url`, since metrics carry no trace IDs;
+   relying on native inbound-context joining is the telemetry contract's recorded migration
+   trigger. Read
    [`context/agent-session-telemetry.md`](context/agent-session-telemetry.md) when a binding
-   needs evidence that a guardrail fired or asks what memory activity is observable: it holds the
-   dated records for the permission-decision event, its limits, and the memory gap.
+   asks about trace context or the join, needs evidence that a guardrail fired, or asks what
+   memory activity is observable: it holds the dated records for these wiring facts, the
+   permission-decision event, its limits, and the memory gap.
 4. **Record the binding**. Sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance**. Run
@@ -234,8 +236,9 @@ policy resolves; this slice is the action that produces the security binding it 
 [`context/guardrail-slice.md`](context/guardrail-slice.md) when `apply` reaches the guardrail
 slice: it owns the per-layer wiring, the isolation-ladder probe (recipe in
 [`templates/isolation-probe.md`](templates/isolation-probe.md)), the security-binding schema and
-its validator, and the paid-SKU opt-in surface. The slice is argument-selected, so a run that does
-not select it never needs the file.
+its validator, and the paid-SKU opt-in surface. It reads
+[`context/windows-surfaces.md`](context/windows-surfaces.md) when a surface's host is Windows. The
+slice is argument-selected, so a run that does not select it never needs the file.
 
 ## Routine slice
 

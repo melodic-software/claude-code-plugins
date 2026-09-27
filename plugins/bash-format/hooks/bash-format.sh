@@ -115,13 +115,22 @@ append_notice() {
 # can fail that open on some spellings even when bash's `[[ -f ]]` succeeded on
 # the original (#1817). Prefer cygpath's mixed long form when available so both
 # tools see one stable existing path; fall back to FILE unchanged elsewhere.
+# cygpath is looked up only on the Windows bash hosts (the OSTYPE set
+# hook::repo_relative_path_to uses): elsewhere the lookup misses after probing
+# every PATH directory, which on WSL includes the /mnt/c entries, one 9P round
+# trip each.
 TOOL_FILE="$FILE"
-if command -v cygpath >/dev/null 2>&1; then
-  _tool_lm=$(cygpath -lm -- "$FILE" 2>/dev/null)
-  if [[ -n "$_tool_lm" && -f "$_tool_lm" ]]; then
-    TOOL_FILE="$_tool_lm"
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32)
+  if command -v cygpath >/dev/null 2>&1; then
+    _tool_lm=$(cygpath -lm -- "$FILE" 2>/dev/null)
+    if [[ -n "$_tool_lm" && -f "$_tool_lm" ]]; then
+      TOOL_FILE="$_tool_lm"
+    fi
   fi
-fi
+  ;;
+*) ;;
+esac
 
 # Format pass (opt-in, mutating). No parser/printer flags — that keeps
 # .editorconfig formatting in effect. --apply-ignore is a utility flag (not a

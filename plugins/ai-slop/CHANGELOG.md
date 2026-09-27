@@ -1,5 +1,127 @@
 # Changelog
 
+## [0.10.0] - 2026-09-25
+
+### Added
+
+- **`user-scope` target.** `/ai-slop:audit user-scope` and `fix user-scope` audit the
+  user-level Claude Code markdown: `CLAUDE.md`, `rules/`, skills holding `SKILL.md`,
+  `commands/`, `agents/` and top-level `output-styles/*.md`, under `CLAUDE_CONFIG_DIR` else
+  `~/.claude`, per the `.claude` directory docs page; `memory` adds auto memory and agent
+  memory. The new `scripts/user-scope.sh` prints the file list for
+  `detect.sh --list-targets --paths-file`, skipping FIFOs, directories, unreadable files and
+  paths holding a newline or tab. It follows a symlink only to a readable regular `.md`
+  file inside the config root whose resolved path holds no newline or tab, lists that file
+  once, never walks a symlinked directory, and names every skipped link on stderr. With
+  `--memory` it warns when the user `settings.json` sets `autoMemoryDirectory`, which it does
+  not list. Under MSYS it prints Windows-form paths (`C:/...`). A path target such as
+  `~/.claude` is unchanged.
+
+### Fixed
+
+- **A FIFO at a listed path hung `rubric-fanout.sh status` and `plan`.** `sha256sum` and
+  `wc -w` opened it and blocked. Only readable regular files are now hashed or counted, so
+  `status` reports the batch `reason=paths` and `plan` counts the path as 0 words. A
+  targets file that is not a regular file makes `plan` exit 2 instead of blocking.
+- **A missing row did not say its sidecar was unsound.** `status` now prints
+  `status=missing reason=paths digest=<d>` when the result file is absent and the sidecar
+  cannot bind the contents, so the batch is re-planned rather than dispatched. A missing row
+  with a sound sidecar is unchanged.
+- **A sidecar that is not a regular file** (a FIFO, a directory) was treated as absent. It is
+  never opened and now reads `reason=paths`.
+
+## [0.9.0] - 2026-09-25
+
+### Added
+
+- **`rubric-fanout.sh plan`** writes a `batch-NN.paths` sidecar beside each `batch-NN.txt`,
+  one absolute path per listed file (an absolute target path is kept as given; a relative one
+  resolves against the cwd, ignoring `CDPATH`), warns on stderr for a path it cannot read,
+  and the batch digest now covers the list plus those files' contents.
+- **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
+  digest>`, which a re-dispatch hands the batch subagent, and reports `stale reason=paths`
+  when a sidecar's length differs from its list's or one of its paths is not a readable file (a
+  trailing CR on a sidecar line is ignored). Complete rows are unchanged.
+
+### Changed
+
+- **`cross-check.sh`** compares the set of em-dash line numbers per file, not only the count.
+  A `Disagree:` row keeps its `file= detector= cross_check=` fields and adds
+  `detector_only=` and `cross_check_only=`, the lines only one side counted, or `-`.
+- **Rubric batch subagents** are dispatched with `model: sonnet`, pinned in
+  `context/rubric-fanout.md`: the session's own model when it is Sonnet-family, otherwise the
+  alias's Sonnet version.
+
+### Fixed
+
+- **A header written twice could pass `status`.** Copies of `batch:`, `files_reviewed:` or
+  `files_with_findings:` joined into one value, so `files_reviewed: 1` twice read `11` and
+  passed an 11-file batch. Each header must now appear exactly once, and any other count is
+  stale under that header's reason.
+- **A listed file edited after its batch completed kept the batch complete.** The digest bound
+  the result to the list only; it now binds the listed files' contents too, so the batch reads
+  stale, and a listed path that can no longer be read (a moved checkout) reads stale
+  `reason=paths` rather than falling back to the list alone. A batch directory planned before
+  0.9.0 has no sidecars and stays bound to the list.
+- **`cross-check.sh` missed a disagreement with equal counts.** Detector lines {3,4} against
+  actual {3,5} printed no `Disagree:` row; it now names line 4 and line 5.
+
+## [0.8.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.8.0] - 2026-09-23
+
+### Added
+
+- **`rubric-fanout.sh`** runs the rubric fan-out's deterministic steps: `plan` orders the target
+  list and packs batches by `wc -w`, printing each list's digest; `extract` writes the
+  catalog's rubric entries and "Signs of human writing" to one file, whose path is all a batch
+  subagent receives from the catalog; `status` reports each batch as complete, missing, or
+  stale with the failed check; `merge` refuses until every batch is complete, then writes
+  summed counts and per-rule totals. `context/rubric-fanout.md` now runs on these commands.
+- **`detect.sh --list-targets`** prints the files a scan would read, as `<key><TAB><path>`
+  after directory expansion and `excluded_paths`, keyed by the `file=` spelling. `--paths-file`
+  reads that format.
+- **`cross-check.sh`** counts em-dash lines per file with a parse separate from the detector's
+  (same fence rules, count only) and prints a `Disagree:` row for each file whose count differs from the detector's
+  `rule-em-dash` findings. The fix flow's closing step runs it and reports every disagreement.
+- **Fix flow concurrent-edit guard**: every fix run gets a run directory; before each write to a
+  file the flow checks the digest it last recorded (`sha256sum -c`) and stops that file on a
+  mismatch. A write that lands between the check and the re-record after the fixer's own write
+  is not detected.
+
+### Fixed
+
+- **An empty `--paths-file` scanned the repository.** A list with no paths fell back to the
+  repository's tracked markdown; it now scans nothing and says so on stderr.
+- **A backup that cannot be written now stops the edit** for a non-repository `fix` run, as when
+  a `\\?\` or UNC source mirrors to an invalid path.
+
+## [0.7.1] - 2026-09-23
+
+### Fixed
+
+- **`audit` defines a target outside any repository**: the skill had no rule for it, so the
+  orchestrator asked or improvised. It now checks the target with `git -C <dir> rev-parse
+  --is-inside-work-tree`, stops and asks for a path when an empty target has no repository, and
+  for such a run passes absolute paths, orders by modification time, writes no findings file,
+  keeps rubric batch files in the session scratchpad, and reports `rule-style-shift` as not
+  evaluable. A `fix` run backs each file up first, since no git history can undo the edit: the
+  backup path mirrors the file's absolute path under a per-run scratchpad directory, an
+  existing backup stops the edit, and a restore checks the backup's recorded source path. The skill also says config comes from the session, not the
+  target, and "does not scan" now names text outside markdown files instead of non-repo text.
+- **`catalog.md` "Known limitation"** said a double-quoted span wrapped across a line escaped
+  the exemption. The detector carries an open span across lines; the limit is a blank line or
+  a new block.
+- **Quote guidance matches the detector**: the rewrite guide said the exemption declined quotes
+  wherever blockquoted, double-quoted or backticked, and SKILL.md said typography rules scan
+  inline code. Every rule skips inline code; typography rules still scan blockquotes and double
+  quotes. The guide now says a quoted em dash needs a marker, and that `-start`/`-end` lines
+  prefixed with the blockquote `>` do not work. New `detect.test.sh` cases pin this existing behavior.
+
 ## [0.7.0] - 2026-09-23
 
 ### Added

@@ -100,8 +100,8 @@ emit_event "2025-01-01T00:00:00.000Z" old-hook Write 100 0 old.sh success
 emit_session_event "2026-04-29T12:01:00.000Z" bash-format PostToolUse 130 0 s.sh success false
 emit_session_event "2026-04-29T12:02:00.000Z" bash-format PostToolUse 140 0 t.sh success true
 emit_session_event "2026-04-29T12:03:00.000Z" block-dangerous-git PreToolUse 7 2 "Bash:git push --force" blocked
-emit_log_row "2026-04-29T12:00:59.000Z" PreToolUse tool Write s.sh
-emit_log_row "2026-04-29T12:01:00.500Z" PostToolUse tool Write s.sh
+emit_log_row "2026-04-29T12:00:59.000Z" PostToolUseFailure tool Write s.sh
+emit_log_row "2026-04-29T12:01:00.500Z" PostToolBatch tool Write s.sh
 emit_log_row "2026-04-29T12:05:00.000Z" Stop turn
 
 # The whole-root file set, as data-sources.md builds it.
@@ -182,7 +182,7 @@ TIMELINE=$(jq -sr '.[] | select(.source == "event-log")
   | [.ts, .hook_event_name, .category, (.tool_name // ""), (.file_path // ""), (.agent_id // "")]
   | @tsv' "${SESSION_FILES[0]}")
 assert_eq "per-session: timeline has the three event-log rows" "3" "$(printf '%s\n' "$TIMELINE" | grep -c .)"
-assert_contains "per-session: timeline carries the tool and file" "$TIMELINE" "PreToolUse	tool	Write	s.sh"
+assert_contains "per-session: timeline carries the tool and file" "$TIMELINE" "PostToolBatch	tool	Write	s.sh"
 
 # session:<id> names one file; `session` is the newest by mtime.
 sleep 1

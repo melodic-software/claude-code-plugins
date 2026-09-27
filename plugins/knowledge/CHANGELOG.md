@@ -4,6 +4,27 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.14.1] - 2026-09-23
+
+### Changed
+
+- The Anthropic docs profile records a third blog-channel extraction artifact: chart and diagram
+  text (inline SVG `<text>`, image alt text, video captions) is dropped by text extraction, so the
+  raw HTML is kept as `source.html` beside `source.md` and that text is read from it;
+  `docpage-digest` Phase 1 and the checklist template count `source.html` in the rendered
+  channel's file set where the profile requires it. A resumed work root holding only
+  `source.md` keeps it unchanged and fetches `source.html` beside it, noted in the checklist. The title
+  recovery reads `source.html` first. Claude Tag product mechanics are `tag-exempt
+  (consumer-surface)`.
+- The Anthropic docs queue records three blog posts: getting started with loops, code review, and
+  test-impact analysis for agentic CI.
+
 ## [0.14.0] - 2026-09-23
 
 ### Changed

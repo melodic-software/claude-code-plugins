@@ -57,6 +57,10 @@
 # record written before it was dropped still compares clean. A `last_touched`
 # that moved is reported but never gated on: the subject repository advances its
 # own HEAD on every commit, and a check lane that went red for that gets muted.
+# A `remote` that changed transport (https vs ssh) is reported the same way:
+# whichever checkout runs the collector reports its own clone's origin URL, so
+# gating on it fails a CI drift check the moment it disagrees with an
+# operator's local clone protocol, for a value that names no architecture fact.
 #
 # Nothing here fetches and nothing is written: the record goes to stdout, and the
 # caller decides where it lands.
@@ -458,6 +462,13 @@ compare_fields() {
       [[ -n "$c" ]] || continue
       case "$c" in
       last_touched:*) note "  moved on $id: $c" ;;
+      # `remote` is `git remote get-url origin` on whichever checkout ran the
+      # collector: an https clone and an ssh clone of the same repository
+      # report different strings for the same system, the same machine-vs-
+      # architecture split `path` is dropped for outright. Downgraded to a
+      # note rather than dropped, because unlike `path` it is still a useful
+      # fact worth keeping in the emitted record.
+      remote:*) note "  remote transport differs on $id: $c" ;;
       *) say "  changed $label on $id: $c" ;;
       esac
     done <<<"$changed"

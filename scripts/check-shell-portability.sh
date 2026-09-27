@@ -20,64 +20,28 @@
 # `awk -f` over two data operands: the active token list and the file. This
 # file owns mode dispatch, scannability, the skill-md baseline, and reporting.
 #
-# COST of `--all`, and what stopped being true about it. Per-file time used to
-# grow superlinearly, so a handful of files dominated the whole run while the
-# great majority cost almost nothing: on
-# 2026-08-20 the single worst file took ~123s where its own first 1200 lines
-# took ~3s, and the full sweep took ~10 minutes. That was structural rather
-# than environmental, and #3481 removed the structure. Every change below was
-# made in place with the findings held byte-identical. The one that dominates
-# is that the quote-aware walk now RESUMES per physical line of a joined record
-# instead of re-walking the whole accumulation.
-#
-# An earlier revision of this header credited three changes — that walk, a
-# chunked buffer for the two derived views, and matching the stat fallback
-# ladder inside the window a ladder can occupy — and that list is wrong about
-# which of the remaining ones carry weight. Measured on 2026-08-29 by reverting
-# ONE change at a time and re-scanning this file, each ablation confirmed
-# output-identical first: the doubling `blanks()` pad is worth 2.30x, the
-# split-based `after_last_boundary()` 1.69x, the chunked buffer 0.99x, and the
-# cheap `index()`/`!~` pre-filters in is_negated() and status_swallowed()
-# nothing measurable at all (0.96x, inside the run-to-run noise). The two the
-# old list omitted are the two that pay; the buffer and the pre-filters are
-# kept because they cost nothing, not because they bought anything here.
+# COST of `--all`. The quote-aware walk RESUMES per physical line of a joined
+# record instead of re-walking the whole accumulation, which is what keeps
+# per-file time from growing superlinearly.
 #
 # What made a file expensive was never its line count, which is why the shape
 # was so easy to misread: it was the length of its longest LOGICAL record. A
-# file of ordinary one-line commands scanned linearly before and still does
-# (25,600 such lines, ~1.7s then, ~1.9s now). A file carrying one long
+# file of ordinary one-line commands scanned linearly before and still does.
+# A file carrying one long
 # quote-joined record paid a quadratic price for it. Cost is linear in file
 # length now ONLY while the longest logical record stays bounded: a file that
 # is one enormous record is still superlinear in that record's length, just
 # with a far smaller constant. The residue tracks record LENGTH, not how many
-# hits the record carries. Measured on 2026-08-29 against a synthetic file
-# that is one quote-joined record with no hits in it
-# at all: 1,600 lines 0.11s, 6,400 lines 0.35s, 25,600 lines 6.58s. Holding the
-# record at 6,400 lines and varying hit density instead moved nothing outside
-# the noise: 0.35s with no hits, 0.38s with a hit every eighth line, 0.34s with
-# a hit on every line.
-#
-# As dated observations rather than standing claims -- the figures move with
-# the corpus and the machine, the shape does not -- both versions measured on
-# 2026-08-29 on one machine over one tree, before and after: a file whose body
-# is a single ~1,580-line quote-joined record, ~70s before and ~1.8s after; a
-# 2,900-line script ~173s before and ~0.4s after; the whole `--all` sweep of
-# 1,537 files ~1,019s before and ~35s after; and this gate's own suite, whose
-# fixtures re-scan this file, ~471s before and ~15s after.
+# hits the record carries.
 #
 # CI still runs the changed-file mode rather than `--all` (see ci.yml's
 # `shell-portability-lint`), and not because of what a sweep costs: a per-PR
 # fleet sweep is runner time spent re-proving files the PR did not touch.
 #
-# `--all` now finishes well inside a 600s command timeout, so an audit no
-# longer has to be run detached. What follows is for a run that DOES outlive
-# its timeout, and it is kept because misreading a long run's outcome has cost
-# real time more than once:
+# What follows is for a run that DOES outlive its command timeout:
 #
 #   - A timeout is not flakiness. Re-running an unchanged command that timed
-#     out is the predicted outcome, not new information; four attempts were
-#     spent on that before it was understood, each recorded as an environment
-#     problem.
+#     out is the predicted outcome, not new information.
 #   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
 #     appears in the waiting shell's OWN command line, so the waiter matches
 #     itself and the condition never clears. Wait on the pid instead.
@@ -132,9 +96,7 @@
 #   This lands on the gate's EXISTING uncovered-platform axis rather than a new
 #   one: macOS — the one platform no runner here covers — ships bash 3.2, while
 #   every runner in this repo ships 5.2 or later, so the same line silently
-#   means two different things on the two platforms. It shipped a real defect
-#   in this repo (#2008): a sentinel restored to itself became a no-op and
-#   produced a live false positive in a guardrails hook, on bash >=5.2 only.
+#   means two different things on the two platforms.
 #
 #   It cannot be an ERE token. Matching runs on the `qline`/`cline` views, and
 #   `neutralize()` replaces every SEPS character — `&` among them — inside a
@@ -322,8 +284,7 @@ if [[ -f "$BASELINE" ]]; then
   # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
   # anywhere on the line is a comment. This gate's OTHER list — the token file —
   # takes `leading` instead, because its entries are EREs that may contain a
-  # `#`. Those two modes are exactly the divergence #3161 collapsed into one
-  # library; this file is the one that carried both shapes.
+  # `#`.
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 

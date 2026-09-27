@@ -326,6 +326,48 @@ def test_validate_shape2_failures_exit_one(tmp_path, case, name, needle):
     assert "FAIL" in out(result)
 
 
+@pytest.mark.parametrize(
+    ("pointer", "passes"),
+    [
+        ("[h1] Promoted to docs/adr/0007.md: Migrations run forward-only;", True),
+        ("[h1] Promoted to docs/adr/0007.md: Migrations", False),
+        ("[h2] Promoted to docs/adr/0007.md: Migrations run forward-only;", False),
+        ("[h1] Promoted to docs/adr/0007.md: Something else entirely here", False),
+        ("[h1] Promoted to : Migrations run forward-only;", False),
+    ],
+)
+def test_validate_promoted_pointer_replaces_a_dropped_entry(tmp_path, pointer, passes):
+    """A resolved entry may leave the handoff for a committed doc, but only behind a
+    pointer that keeps its tag and quotes enough of it to name which entry left."""
+    handoffs = materialize(tmp_path, "dropped-entry")
+    hop2 = handoffs / HOP2
+    text = hop2.read_text(encoding="utf-8")
+    anchor = "- [h1] The public `WidgetReader` signature is frozen.\n"
+    hop2.write_text(text.replace(anchor, anchor + f"- {pointer}\n"), encoding="utf-8")
+    result = run("validate", str(hop2), "--strict-transcript")
+    assert (result.returncode == 0) is passes, out(result)
+    assert ("predecessor entry dropped" not in out(result)) is passes, out(result)
+
+
+@pytest.mark.parametrize(("pointers", "passes"), [(1, False), (2, True)])
+def test_validate_promoted_pointer_stands_in_for_one_entry(tmp_path, pointers, passes):
+    """Two dropped same-tag entries sharing a prefix need two pointers, not one."""
+    handoffs = materialize(tmp_path, "dropped-entry")
+    hop1, hop2 = handoffs / HOP1, handoffs / HOP2
+    kept = "- [h1] Migrations run forward-only; a down-migration corrupts the tenant partition key.\n"
+    text1 = hop1.read_text(encoding="utf-8")
+    hop1.write_text(
+        text1.replace(kept, kept + "- [h1] Migrations run forward-only; seeds are too.\n"),
+        encoding="utf-8",
+    )
+    anchor = "- [h1] The public `WidgetReader` signature is frozen.\n"
+    pointer = "- [h1] Promoted to docs/adr/0007.md: Migrations run forward-only;\n"
+    text2 = hop2.read_text(encoding="utf-8")
+    hop2.write_text(text2.replace(anchor, anchor + pointer * pointers), encoding="utf-8")
+    result = run("validate", str(hop2), "--strict-transcript")
+    assert (result.returncode == 0) is passes, out(result)
+
+
 # --- validate: relocation is a warning, misidentification is a failure -------------
 
 

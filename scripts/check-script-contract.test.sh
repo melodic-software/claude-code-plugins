@@ -79,6 +79,7 @@ REGISTRY=(
   "check-fleet-audit-doc-grammar.sh|-|-|-"
   "check-fleet-finding-test-coverage.sh|-|-|-"
   "check-hook-exec-form.sh|jq|-|hook_exec_form"
+  "check-hook-slow-shapes.sh|jq|-|hook_slow_shapes"
   "check-hook-userconfig-argv.sh|jq|-|hook_userconfig_argv"
   "check-hook-wiring-liveness.sh|jq|-|-"
   "check-hooks-description.sh|jq|-|hooks_description"
@@ -87,6 +88,7 @@ REGISTRY=(
   "check-lane-coverage.sh|-|-|-"
   "check-loop-lane-floor-drift.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
+  "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"
   "check-plugin-manifest-presence.sh|jq|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
@@ -250,6 +252,24 @@ recipe::hook_exec_form() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-exec-form.sh
 }
 
+recipe::hook_slow_shapes() { # <clean|violation>
+  # shellcheck disable=SC2016  # the literal hooks.json command; Claude Code expands it, not this suite
+  local cmd='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh'
+  # shellcheck disable=SC2016  # see above
+  [[ "$1" == violation ]] && cmd='"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh'
+  fixture_tree::build f \
+    --sut "$SELF_DIR/check-hook-slow-shapes.sh" \
+    --sut "$SELF_DIR/check-hook-exec-form-frontmatter.py" --plugins || return 2
+  mkdir -p "$f/plugins/alpha/hooks" "$f/.github"
+  cp "$REPO_ROOT/.github/requirements-ci.txt" "$f/.github/requirements-ci.txt"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$f/plugins/alpha/hooks/x.sh"
+  # The command goes in on stdin: Git Bash rewrites a `.../hooks/x.sh` argument
+  # into a Windows path before a native jq sees it.
+  printf '%s' "$cmd" | jq -Rs '{hooks:{Stop:[{hooks:[{type:"command",command:.}]}]}}' \
+    >"$f/plugins/alpha/hooks/hooks.json"
+  capture run_in "$f" bash scripts/check-hook-slow-shapes.sh
+}
+
 recipe::killswitch_hoist() { # <clean|violation>
   # The gate pins its inlined predicate against the real hook::is_enabled, so the
   # fixture carries the real library: a stub would let the pin pass on text this
@@ -334,16 +354,28 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
+recipe::pipefail_grep_q() { # <clean|violation>
+  # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
+  local body='grep -q x <<<"$v"'
+  # shellcheck disable=SC2016  # see above
+  [[ "$1" == violation ]] && body='echo "$v" | grep -q x'
+  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --no-lib || return 2
+  printf '%s\n' "$body" >"$f/scripts/sample.sh"
+  capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
+}
+
 # The finding each recipe's violation arm must produce, keyed by recipe slug.
 declare -A VIOLATION_NEEDLE=(
   [hooks_description]='HOOKS DESCRIPTION:'
   [hook_userconfig_argv]='USERCONFIG ARGV:'
   [hook_exec_form]='EXEC-FORM HOOK:'
+  [hook_slow_shapes]='ENV SHEBANG:'
   [killswitch_hoist]='VIOLATION:'
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
   [docs_naming]='is not lower-kebab-case'
+  [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
 )
 
 # --- 1. every member is registered, and every row names a member -------------

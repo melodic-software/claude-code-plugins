@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-test for check-fleet-audit-doc-grammar.sh. Synthetic trees prove each
 # assertion and the inconclusive-probe guard; a historical extract of a6be07f9
-# proves the gate goes red on the docs-only silent revert (#2713).
+# proves the gate goes red on the docs-only silent revert.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -136,7 +136,7 @@ write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
 if run_check "$repo" >/dev/null; then ok "aligned skill+parser passes --check"; else fail "aligned tree wrongly flagged"; fi
 rm -rf "$repo"
 
-# Bare accepted but argument-hint omits [<dir>] (the #2646 shape).
+# Bare accepted but argument-hint omits [<dir>].
 mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
@@ -241,7 +241,7 @@ else
 fi
 rm -rf "$repo"
 
-# Historical proof (#2713): a6be07f9's SKILL.md + audit-fleet.sh must go red,
+# Historical proof: a6be07f9's SKILL.md + audit-fleet.sh must go red,
 # naming the missing bare positional form.
 if git rev-parse --verify --quiet "a6be07f9^{commit}" >/dev/null 2>&1; then
   fixture_tree::build hist --sut "$SCRIPT"
@@ -267,7 +267,7 @@ if git rev-parse --verify --quiet "a6be07f9^{commit}" >/dev/null 2>&1; then
 else
   # Historical proof-of-red must fail closed when the anchor is unavailable —
   # scoring the skip as ok would let a shallow clone or rewritten history
-  # report green while proving nothing (#2807).
+  # report green while proving nothing.
   fail "historical proof unavailable (a6be07f9 not in this clone)"
 fi
 

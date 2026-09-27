@@ -617,9 +617,7 @@ assert_eq "a rename whose SOURCE was never executable is NOT reported" \
 # unqualified `git commit` clears the previous one's staged set, which is why
 # that has gone unnoticed — but file NAMES persist, and a fixture reusing an
 # earlier one's name gets `fatal: destination exists` from `git mv`, silently,
-# inside the `>/dev/null 2>&1` subshell. This group hit exactly that against
-# `repo19`'s `lib.sh`: it passed standalone and skipped in the full suite. The
-# diagnostic skip below is what surfaced it.
+# inside the `>/dev/null 2>&1` subshell.
 repo24="$(mkrepo)"
 (
   cd "$repo24" || exit 1
@@ -743,10 +741,8 @@ fi
 # content gets two answers there. That is not an oversight and the gate is not
 # presumed to be a bug: `repo19` pins a real false positive it prevents -- a
 # deliberately non-executable sourced library must not be flipped to `100755`
-# by being moved. Whether that trade is right on the DEFAULT config, and which
-# of the available policies to adopt, is the open decision tracked in #2141;
-# this case does not prejudge it and must not be widened to the rename arm
-# without going through that issue.
+# by being moved. The trade is recorded in #2141; this case must not be widened
+# to the rename arm without going through that issue.
 #
 # `extra.sh` is an unrelated newly-added shebang file sorting AFTER `copy.sh`,
 # so its record follows the copy pair in the NUL stream. Asserting the EXACT

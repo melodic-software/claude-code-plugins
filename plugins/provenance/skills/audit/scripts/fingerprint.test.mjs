@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Unit tests for fingerprint.mjs, the one pure module in this plugin.
 //
-// The first two cases are the binding S2 spike amendments: quotation stripping
+// The first two cases are load-bearing: quotation stripping
 // covers INLINE quotes and not only blockquotes, and verdicts are matched SPANS
 // rather than whole-file containment, which dilutes a real match to noise on a
 // real-sized file.
@@ -183,8 +183,7 @@ const SOURCE_TEXT = [
 
 // --- case: wrapped_quote_fixture --------------------------------------------
 // Hard-wrapped prose is ordinary markdown, so a quotation routinely opens on
-// one line and closes on the next. Stripping per line left that excerpt in and
-// reported it as overlap. Inline stripping now runs over the paragraph.
+// one line and closes on the next, so inline stripping runs over the paragraph.
 {
   const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
   const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
@@ -283,9 +282,7 @@ const SOURCE_TEXT = [
 // --- case: contraction_does_not_close_a_quote --------------------------------
 // A single-quoted excerpt that wraps and contains a contraction. The apostrophe
 // in "doesn't" is the first ' after the opening mark, so a naive forward search
-// closes the quote there and leaves the rest of the excerpt in the token stream
-// — the exact false positive paragraph-wide stripping exists to prevent, and it
-// only became reachable once the pairing scope widened past one line.
+// closes the quote there and leaves the rest of the excerpt in the token stream.
 {
   const withContraction = [
     "The upstream page is explicit about this:",
@@ -330,14 +327,9 @@ const SOURCE_TEXT = [
 }
 
 // --- case: possessive_after_markup_is_not_an_opening_quote -------------------
-// The opening guard tested only for a word char before the mark, so a
-// possessive following a closing backtick or paren — `Location`'s, (FILE.md)'s,
-// which this repository's own prose is full of — read as an OPENING quote.
-// That was bounded while the closing scan stopped at the next contraction; once
-// pairing skipped word-internal apostrophes it ran to the next stray mark
-// instead, blanking whole paragraphs of original prose. Measured across tracked
-// markdown, that reached 16,031 characters in one file. Over-stripping hides
-// real copies, so this is the false-negative direction and the worse one.
+// A possessive following a closing backtick or paren, `Location`'s or
+// (FILE.md)'s, is not an OPENING quote. Over-stripping hides real copies, so this
+// is the false-negative direction and the worse one.
 {
   const possessiveAfterMarkup = [
     "The rule is contained to `Location`'s file, but the runner still applies it.",

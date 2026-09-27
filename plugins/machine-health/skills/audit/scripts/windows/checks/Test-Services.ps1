@@ -9,11 +9,8 @@ See reference/windows/check-catalog.md#4-services--startup-items for rubric.
 param([switch]$Human)
 
 Set-StrictMode -Version 3.0
-# Resilient-worker pattern: keep
-# ErrorActionPreference at Continue so non-terminating errors don't
-# abort the structured JSON envelope; outer try/catch around the main
-# body catches catastrophic failures and emits UNKNOWN. Strict mode
-# still catches typos as terminating errors.
+# Continue so non-terminating errors cannot abort the JSON envelope; the outer
+# try/catch turns catastrophic failures into UNKNOWN.
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-ServiceTriggerStart.ps1')
@@ -42,8 +39,6 @@ try {
     try {
         $win32Services = @(Get-CimInstance -ClassName Win32_Service -ErrorAction Stop |
                 Where-Object { $_.StartMode -eq 'Auto' })
-        # Index by Name once so the per-service classification loop below
-        # is O(1) instead of scanning $win32Services for every stopped svc.
         foreach ($svc in $win32Services) {
             if ($svc.Name) { $win32ByName[$svc.Name] = $svc }
         }
@@ -51,23 +46,14 @@ try {
         Write-Verbose "Test-Services: Win32_Service query failed. $($_.Exception.Message)"
     }
 
-    # Collect every stopped Automatic service, then classify each into one
-    # of three buckets:
-    #   - trigger_start: has a TriggerInfo registry key; stopped is normal
-    #   - delayed_pending: DelayedAutoStart=true and uptime < 10 min
-    #   - unexpected_stopped: everything else -- these warrant WARN
+    # Stopped Automatic services: trigger_start (TriggerInfo key, stopped is normal),
+    # delayed_pending (DelayedAutoStart, uptime < 10 min), else unexpected_stopped (WARN).
     $unexpectedStopped = [System.Collections.Generic.List[pscustomobject]]::new()
     $triggerStartStopped = [System.Collections.Generic.List[pscustomobject]]::new()
     $delayedPending = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # Per-service permission errors (e.g. WaaSMedicSvc denies query to non-SYSTEM)
-    # are non-terminating; SilentlyContinue skips inaccessible entries instead of
-    # terminating the cmdlet and dropping the check to UNKNOWN. Catastrophic
-    # SCM/RPC failures need to remain detectable: if Get-Service returns zero
-    # entries, surface UNKNOWN via the outer try/catch rather than reporting an
-    # empty "no stopped services" result. -ErrorVariable captures errors that
-    # would otherwise be silenced so the count-zero check can include the first
-    # error message in the diagnostic.
+    # SilentlyContinue so a per-service permission error (WaaSMedicSvc) cannot drop the check
+    # to UNKNOWN; zero services back is a catastrophic SCM/RPC failure, reported with svcErrs.
     $svcErrs = $null
     $allServices = @(Get-Service -ErrorAction SilentlyContinue -ErrorVariable svcErrs)
     if ($allServices.Count -eq 0) {

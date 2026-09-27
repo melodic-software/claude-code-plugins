@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the spawn-noise lib test suite.
 #
-# The lib is imported by the audit-performance engine and (from #3530) by the
+# The lib is imported by the audit-performance engine and by the
 # performance plugin, so its tests live beside the canonical copy rather than
 # inside either consumer.
 set -euo pipefail

@@ -8,14 +8,9 @@
 # caught the drop. CI stays green because the reverting squash deletes those
 # tests in the same commit.
 #
-# SCOPE — the stale-BASE class only, and only that class. The
-# claude-code-plugins#2691 audit surfaced two distinct classes; this gate covers
-# the one where the merge-base is genuinely behind the target tip. It does NOT
-# cover the 2026-08-15 incidents (#2633, #2639, #2641), which were stale in
-# CONTENT while up to date in HISTORY: `git merge-base --is-ancestor f603880d
-# refs/pull/2641/head` is true, yet that tree carried none of #2639's work. Run
-# against those exact branches this check exits 0 ("fresh"). That class belongs
-# to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
+# SCOPE: the stale-BASE class only, where the merge-base is genuinely behind
+# the target tip. A branch stale in CONTENT while up to date in HISTORY exits 0
+# here ("fresh"); that class belongs to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
 # subsumes the other, so a green run here is not evidence about the other class.
 #
 # Agreement is established by comparing path lists only:
@@ -104,6 +99,19 @@ if ! changed_files::into head_paths "$merge_base..HEAD" --include-deleted --no-r
   echo "check-stale-base-overlap: cannot list paths changed on HEAD since merge-base" >&2
   exit 2
 fi
+
+# Generated docs nearly every plugin PR regenerates are dropped from the
+# overlap: scripts/validate-plugins.sh runs each generator with --check in CI,
+# which fails unless the committed block matches what its sources produce, and
+# those sources stay in the comparison. Only the text between each file's
+# markers is generated; the short hand-written preamble is not re-checked.
+# Add a path here only when a --check in that script covers it.
+generated_paths=(docs/catalog.md docs/skill-cheat-sheet.md)
+kept=()
+for path in ${head_paths[@]+"${head_paths[@]}"}; do
+  [[ " ${generated_paths[*]} " == *" $path "* ]] || kept+=("$path")
+done
+head_paths=(${kept[@]+"${kept[@]}"})
 
 # `comm` requires both inputs ordered under the collation it compares with, so
 # both sides are re-sorted under LC_ALL=C here rather than relying on whatever

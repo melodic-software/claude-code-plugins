@@ -16,9 +16,8 @@ assert_eq "wit_iso_to_epoch known ts" "1783828800" "$(wit_iso_to_epoch '2026-07-
 # Lease-marker JSON extraction.
 assert_eq "lease json extracted" '{"holder":"me"}' "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"} -->')"
 assert_eq "non-marker → empty" "" "$(wit_lease_json 'just a comment')"
-# Trailing content after the marker must still parse: whatever posts the comment
-# may append to it (a bot wrapper's attribution footer, a signature, a CI note).
-# Treating those as "not a lease" makes claim grant over a live incumbent.
+# Trailing content after the marker (a bot footer, a signature) must still parse, or
+# claim grants over a live incumbent.
 assert_eq "trailing footer after the marker still parses" '{"holder":"me"}' \
   "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"} -->
 
@@ -35,9 +34,8 @@ assert_not_live() {
   assert_fails "$1" "not live" "live" wit_lease_is_live "$2" "$3"
 }
 
-# Lease liveness with DETERMINISTIC timestamps (no now-boundary flake — see #1424):
-# a lease renewed far in the past is expired regardless of ttl; a fresh lease is
-# live; a superseded lease is never live even inside its ttl window.
+# Lease liveness with DETERMINISTIC timestamps, so no now-boundary flake (#1424); a
+# superseded lease is never live even inside its ttl window.
 NOW="$(date -u +%s)"
 NOW_ISO="$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$NOW" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback co-located (#1510)
 PAST_DEAD="$(jq -cn '{renewed_at:"2000-01-01T00:00:00Z", ttl_hours:24}')"
@@ -62,9 +60,8 @@ assert_live "boundary: expiry-1s is live" "$BOUNDARY_LEASE" "$((BOUNDARY_EXPIRY 
 assert_not_live "boundary: exact expiry is dead" "$BOUNDARY_LEASE" "$BOUNDARY_EXPIRY"
 assert_not_live "boundary: expiry+1s is dead" "$BOUNDARY_LEASE" "$((BOUNDARY_EXPIRY + 1))"
 
-# Active-lease selection: newest NON-superseded lease wins, and it is the marker's
-# own selection (a superseded higher-id back-off does not mask the still-active
-# earlier lease — the subtlety both renew-lease and reclaim depend on).
+# Active-lease selection: newest NON-superseded lease wins; a superseded higher-id
+# back-off must not mask the earlier active lease (renew-lease and reclaim depend on it).
 mk() { printf '<!-- work-item-lease v1 %s -->' "$1"; }
 BODY_A="$(mk "$(jq -cn '{holder:"a"}')")"
 BODY_B="$(mk "$(jq -cn '{holder:"b"}')")"

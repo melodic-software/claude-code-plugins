@@ -470,11 +470,7 @@ write support) was closed `not_planned` **on the strength of this topology**, on
 under the role-split model Jira's read-only-ness is the feature and the backlog-pollution guarantee
 becomes structural rather than configured.
 
-That decision previously existed only as a comment on a sub-issue. Under this plugin's own
-disposable-tickets doctrine (`decompose`: slices are projections of the spec and are closed and
-regenerated when it moves) a decision resting solely in a ticket is resting in the wrong place, so
-it is graduated here. Building `sources` is demand-gated: a consumer who needs it opens a new item
-citing this section.
+Building `sources` is demand-gated: a consumer who needs it opens a new item citing this section.
 
 ## Capabilities manifest
 

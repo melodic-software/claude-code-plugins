@@ -1,16 +1,13 @@
 # shellcheck shell=bash
-# Self-contained assertion library for the work-item-tracker seam's *.test.sh
-# files. The seam ships with its own harness so its tests run unchanged wherever
-# the seam is resolved from — the plugin's bundled copy or a consumer-vendored
-# copy — with no dependency on the host repo's test tooling.
+# Self-contained assertion library for the seam's *.test.sh files, so they run
+# unchanged from a bundled or consumer-vendored copy.
 #
 # Source it from any seam test, CWD-independent, relative to the test's own
 # location (never via git toplevel — the host repo is not the seam's repo):
 #   source "$SCRIPT_DIR/../tests/lib.sh"
 #
-# Each test file owns its own FAILED and CASE_NUM counters; helpers increment
-# them in the caller's scope. PASS lines go to stdout, FAIL lines to stderr.
-# Test files exit non-zero at the end:  [[ $FAILED -eq 0 ]] || exit 1
+# Each test file owns its FAILED and CASE_NUM counters and ends with:
+#   [[ $FAILED -eq 0 ]] || exit 1
 #
 # Duplicated across plugins by design, not drift — see
 # docs/conventions/shell-test-helpers/README.md at the repo root.
@@ -18,10 +15,8 @@
 [[ -n "${_WIT_TESTS_LIB_LOADED:-}" ]] && return 0
 readonly _WIT_TESTS_LIB_LOADED=1
 
-# Strip any inherited git-hook context so a test that builds a git fixture can
-# never resolve to the real repo instead of its throwaway dir (a git hook chain
-# exports GIT_DIR / GIT_INDEX_FILE etc.; leaving them set has rewritten a real
-# repo's refs in the past). Every seam test gets a clean git environment.
+# Strip inherited git-hook context (GIT_DIR, GIT_INDEX_FILE, ...) so a git fixture
+# can never resolve to the real repo instead of its throwaway dir.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 # Defensive counter defaults so the first assertion in a test that forgot to
@@ -62,9 +57,8 @@ assert_eq() {
 }
 
 # assert_succeeds <label> <expected> <actual> <command...>: the command must exit 0.
-# The command's stdout is discarded so the PASS/FAIL line stays the only stdout of
-# the case; its stderr is left alone, so a diagnostic the case does not assert on
-# still reaches the log. <expected>/<actual> are the words the FAIL line reports.
+# Its stdout is discarded, its stderr left to reach the log. <expected>/<actual> are
+# the words the FAIL line reports.
 assert_succeeds() {
   local label="$1" expected="$2" actual="$3"
   shift 3

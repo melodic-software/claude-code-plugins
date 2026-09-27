@@ -21,14 +21,18 @@
 # documented on the as-of date, never that the running binary fires the event:
 # a producer row on an event the binary does not fire costs nothing.
 #
-# Not every documented event is observable by a logging hook. Three are
-# excluded with their reason stamped in the registry, because a registered
-# hook on them changes behavior rather than observing it:
+# Not every documented event gets a producer row. Five are excluded with their
+# reason stamped in the registry. Three because a registered hook on them
+# changes behavior rather than observing it:
 #   WorktreeCreate  configuring one REPLACES the default git worktree creation,
 #                   and a hook that prints no path fails the worktree
 #   MessageDisplay  Claude Code holds each streamed batch until the hook returns
 #   FileChanged     the matcher builds the watch list; a matcherless row
 #                   watches nothing
+# and two for cost, because they fire on every tool call and even a disabled
+# log pays a process creation per fire:
+#   PreToolUse, PostToolUse  PostToolBatch and PostToolUseFailure still record
+#                            tool activity
 # An event this script does not know is excluded as `unclassified` with a
 # warning, never registered by default: classify it here first.
 #
@@ -94,10 +98,14 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 # The producer row is SHELL FORM carrying its own kill switch, so a consumer who
 # has not turned the log on pays one process (the shell Claude Code runs the
 # command in) per event instead of three: that shell, the `env` of the script's
-# shebang, and the bash it execs. hooks.json has no other way to read the
-# switch: `if` takes one permission rule and is evaluated only on tool events,
-# so it cannot see a plugin option, and the option reaches a hook only as
-# $CLAUDE_PLUGIN_OPTION_<KEY> in the environment.
+# shebang, and the bash it execs. A consumer who has turned it on skips the
+# `env` too: `exec bash` replaces the shell with bash directly (the
+# check-hook-slow-shapes.sh ENV SHEBANG rule). The RETENTION row carries the
+# same gate, so a disabled install starts no bash at SessionEnd either.
+# hooks.json has no other way to read the switch: `if` takes one permission
+# rule and is evaluated only on tool events, so it cannot see a plugin option,
+# and the option reaches a hook only as $CLAUDE_PLUGIN_OPTION_<KEY> in the
+# environment.
 #
 # regen_rows pins every row it writes to `"shell": "bash"`. The Hooks reference
 # documents that field as "Defaults to `bash`, or to `powershell` on Windows
@@ -112,9 +120,9 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 # which Claude Code is meant to expand. The script keeps its own line-41
 # switch: it is what a direct invocation reads.
 # shellcheck disable=SC2016  # the literal hooks.json command text; Claude Code expands it, not this script
-PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
-RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
+RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
@@ -144,6 +152,7 @@ classify_to() {
   WorktreeCreate) p="exclude: configuring a WorktreeCreate hook replaces the default git worktree creation, and a hook that prints no path fails the worktree" ;;
   MessageDisplay) p="exclude: Claude Code holds each streamed batch until the hook returns" ;;
   FileChanged) p="exclude: the matcher builds the watch list, so a matcherless row watches nothing" ;;
+  PreToolUse | PostToolUse) p="exclude: fires on every tool call, so even a disabled log costs a process creation per call; PostToolBatch and PostToolUseFailure still record tool activity" ;;
   *) [[ "$c" == other ]] && p="exclude: unclassified by scripts/gen-hook-event-registry.sh; classify it there before registering" ;;
   esac
   printf -v "$1" '%s' "$c"
@@ -191,13 +200,13 @@ build_registry() {
 }
 
 # regen_rows <registry-json-file> <hooks-json-file> -> hooks.json on stdout with
-# the producer rows re-derived: every row naming the producer or the retention
-# hook is stripped, then one producer row per observable event and one
-# retention row on SessionEnd are appended; the existing handlers and their
-# order are untouched.
+# the producer rows re-derived: every row naming the producer or ending in the
+# retention script path is stripped, then one producer row per observable event
+# and one retention row on SessionEnd are appended; the existing handlers and
+# their order are untouched.
 regen_rows() {
   jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --slurpfile reg "$1" '
-    def strip: map(select(any(.hooks[]?; .command == $prod or .command == $ret) | not));
+    def strip: map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not));
     .hooks |= (with_entries(.value |= strip) | with_entries(select(.value | length > 0)))
     | reduce ($reg[0][] | select(.producer == "observe")) as $e (.;
         .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [{type: "command", command: $prod, shell: "bash",

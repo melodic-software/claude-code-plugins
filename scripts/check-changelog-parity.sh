@@ -36,15 +36,13 @@
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
-#     all (autonomy shipped 5 minor bumps with none). It also owns the REVERSE
+#     all. It also owns the REVERSE
 #     direction of the parity pair: the changelog's newest version heading must
 #     not exceed the manifest `version`. Nothing else covers that direction —
 #     --check-bump fires only when the manifest version CHANGED, and
 #     --check-order is satisfied by a correctly ordered heading list — so a
-#     release note written ahead of its bump reaches main unseen, which is how
-#     docs-hygiene shipped a `## [0.9.7]` the manifest went 0.9.6 -> 0.10.0
-#     straight past (claude-code-plugins#2131). A manifest ABOVE the newest
-#     heading stays legal: a bump with no consumer-visible change need not write
+#     release note written ahead of its bump would reach main unseen. A
+#     manifest ABOVE the newest heading stays legal: a bump with no consumer-visible change need not write
 #     a release note.
 #   * --check-bump is the go-forward PR discipline: a version change must ADD a
 #     `## [<version>]` entry for the new version — present in the plugin's
@@ -65,7 +63,7 @@
 #   * --check-preserved is the other half of that PR discipline: the bump gate
 #     polices what a change set ADDS and never what it REMOVES, so a released
 #     section could be deleted — its notes absorbed into the new release — with
-#     all three other modes green (claude-code-plugins#2264). --check-bump asks
+#     all three other modes green. --check-bump asks
 #     only about the bumped version, --check-order reads a gap in the sequence as
 #     correctly ordered, and --check compares the manifest against the changelog
 #     MAXIMUM. The live producer is a concurrent bump: when two change sets bump
@@ -80,12 +78,8 @@
 #     and ANNOTATE a note written against a version the manifest then skipped
 #     rather than folding it into the release that shipped — the manifest cannot
 #     be bumped back down onto the skipped number, which --check-bump would read
-#     as a VERSION REGRESSION. The one deletion in this repo's recent history —
-#     04822fc4 folding docs-hygiene's never-released `## [0.9.7]` into
-#     `## [0.10.0]` while closing #2131 — is that second shape, and in the diff
-#     it is indistinguishable from the absorption this gate exists to catch.
-#     That is precisely why the remedy is to annotate the section rather than to
-#     hand a required gate an off switch.
+#     as a VERSION REGRESSION. In a diff that second shape is indistinguishable
+#     from the absorption this gate exists to catch.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -145,18 +139,13 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 
 # --check-order: every changelog reads newest-first, with no version repeated.
 #
-# The gap this closes shipped: docs/conventions/loop-lane/CHANGELOG.md reached
-# main reading 6.0.0 -> 3.1.1 -> 5.0.0 -> 4.0.0. The 3.1.1 entry was authored
-# against 3.1.0 and merged after 4.0.0 had already landed, so its number was a
-# regression the moment it merged. Nothing caught it: --check and --check-bump
-# both reason about ONE version at a time, and neither reads the sequence. Any
-# two branches that stage the same next version, or one that sits on a stale
-# base, produce this — and the reviewer sees only their own diff hunk, never the
-# resulting order.
+# --check and --check-bump both reason about ONE version at a time, and neither
+# reads the sequence. Any two branches that stage the same next version, or one
+# that sits on a stale base, produce a misordered list, and the reviewer sees
+# only their own diff hunk, never the resulting order.
 #
-# Convention changelogs are in scope precisely because that is where it shipped:
-# they are unversioned by any manifest, so --check and --check-bump never look
-# at them at all.
+# Convention changelogs are in scope: they are unversioned by any manifest, so
+# --check and --check-bump never look at them at all.
 
 # A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
 # digits per field is far beyond any version this repo will reach. Every caller —
@@ -628,11 +617,10 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
 
   # A branch that changes shipped plugin files but leaves the manifest version
-  # unchanged vs the fork point reuses a published version number (#1559). Two
-  # cases: (1) manifest untouched and head still matches the base tip — reuse;
+  # unchanged vs the fork point reuses a published version number. Two
+  # cases: (1) manifest untouched and head still matches the base tip: reuse;
   # (2) manifest touched cosmetically (path in diff, .version unchanged) while
-  # shipped files also changed — the old bumped_candidate guard let this evade
-  # detection. A stale branch whose base advanced without integrating stays out
+  # shipped files also changed. A stale branch whose base advanced without integrating stays out
   # of scope when the manifest was never touched (manifest-scoping).
   if [[ -n "${shipped_changed[$name]:-}" && "$head_version" == "$fork_version" ]]; then
     if [[ -n "${bumped_candidate[$name]:-}" || "$head_version" == "$base_version" ]]; then
@@ -693,9 +681,8 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   # still writing kills the writer with SIGPIPE (exit 141), which pipefail then
   # reports as the pipeline's failure — a FOUND heading misread as missing. A
   # real changelog puts the newest heading near the top of a file larger than
-  # one stdio buffer, exactly the shape that loses the race (#2130 failed CI on
-  # a correctly documented bump); the small fixtures in the test suite fit in
-  # one buffer and can never trip it.
+  # one stdio buffer, exactly the shape that loses the race; the small fixtures
+  # in the test suite fit in one buffer and can never trip it.
   heading="## [${head_version}]"
   has_heading() {
     rendered_lines - | awk -v h="$heading" '

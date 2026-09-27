@@ -657,10 +657,8 @@ function bucketAdditivity(rows, cmp) {
       : -parts.reduce((sum, d) => sum + d, 0);
     const combinedDelta = cmp.delta[bucket];
     const combinedSaved = typeof combinedDelta === 'number' ? -combinedDelta : null;
-    // Skill-listing / Skills-token drift poisons only the prefix bucket.
-    // The deferred bucket still has a measurable delta under the shared
-    // mode/binary checks, so one listing mismatch no longer takes the other
-    // column's verdict with it.
+    // Skill-listing / Skills-token drift poisons only the prefix bucket; the
+    // deferred bucket stays measurable under the shared mode/binary checks.
     const runComparable = bucket === 'System tools'
       ? cmp.comparability.systemToolsComparable
       : cmp.comparability.modeBinaryComparable;

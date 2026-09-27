@@ -106,7 +106,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
+        uses: melodic-software/ci-workflows/.github/actions/change-detection@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
         with:
           filters: |
             shell:
@@ -199,6 +199,8 @@ jobs:
         run: bash scripts/emit-windows-path.test.sh
       - name: Test the drive-root litter detector on Windows
         run: bash scripts/check-drive-root-litter.test.sh
+      - name: Test the piped early-exit grep gate on Windows
+        run: bash scripts/check-pipefail-grep-q.test.sh
       # NTFS is case-insensitive, which is the whole point of running this one
       # here: the rename executor's case-only `git mv` path and its
       # index-not-filesystem existence test cannot be exercised on a

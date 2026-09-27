@@ -27,10 +27,8 @@ Downloads to a temp file first, then validates JSON and atomically replaces
 the cache. Partial/corrupt downloads do not clobber a previously-good cache.
 #>
 
-# Egress lines go through the canonical Write-EgressLogLine so they carry a
-# single timestamp in the exact "<ts> egress <kind> <uri>" shape Read-EgressLog
-# parses -- hand-rolling the line here would double-stamp it (the writer
-# adds its own timestamp) and break urls_called ingestion.
+# Write egress lines only through Write-EgressLogLine: a hand-rolled line gets
+# double-stamped and breaks Read-EgressLog's urls_called ingestion.
 . (Join-Path $PSScriptRoot 'Invoke-AllowlistedWeb.ps1')
 
 $script:CisaKevUrl = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
@@ -54,8 +52,6 @@ function Get-CisaKevCache {
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
                 $cached = $raw | ConvertFrom-Json -ErrorAction Stop
             } else {
-                # Empty or whitespace is the same class as a missing file: the
-                # cache cannot be reused and must refresh.
                 $needsRefresh = $true
             }
         } catch {

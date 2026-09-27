@@ -44,7 +44,7 @@ function makeDomPage(presentSelector) {
   return {
     evaluate: async (fn, arg) => {
       // Rebuild the callback from source so it cannot reach any binding in
-      // this module — the same isolation page.evaluate imposes.
+      // this module: the same isolation page.evaluate imposes.
       const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
       const document = {
         querySelector: (s) => (s === presentSelector ? { tag: "div" } : null),
@@ -315,9 +315,8 @@ describe("hotmart player module", () => {
     it("should fail past detection when the configured selector matches", async () => {
       const page = makeDetectionPage(".skin-v2-player");
 
-      // Detection passes, so preparePage moves on to iframe lookup and throws
-      // because this stand-in exposes no Hotmart frame. That throw is the proof
-      // the custom selector matched.
+      // preparePage reaches the iframe lookup, which throws on this frameless
+      // stand-in, only when the custom selector matched.
       await expect(preparePage(page, "eng", 15000, ".skin-v2-player")).rejects.toThrow(
         "iframe not accessible",
       );

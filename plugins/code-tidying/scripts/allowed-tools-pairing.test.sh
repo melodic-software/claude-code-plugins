@@ -98,14 +98,9 @@ for skill in "${SKILLS[@]}"; do
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
     fi
-    # An injected ${CLAUDE_PLUGIN_ROOT} script is unmatched by any grant this
-    # gate permits, so under default permissions the injection aborts before
-    # Claude sees the skill. The grant-side checks above cannot catch it — the
-    # grant is simply absent — which is how two skills shipped an ungranted
-    # injection while this gate passed green. Route the shared script through a
-    # skill-local exec wrapper instead. (Not because the token fails to
-    # substitute; see the header. It is that this repo grants only the shape
-    # whose runtime matching is exercised.)
+    # An injected ${CLAUDE_PLUGIN_ROOT} script matches no grant this gate permits, so the
+    # injection aborts under default permissions, and the grant-side checks above cannot
+    # see a grant that is absent. Route it through a skill-local exec wrapper instead.
     if grep -qE '!`[^`]*\$\{CLAUDE_PLUGIN_ROOT\}/scripts/' "$f"; then
       fail "$f: body injects a \${CLAUDE_PLUGIN_ROOT} script no permitted grant covers — add a \${CLAUDE_SKILL_DIR}/scripts wrapper"
     else
@@ -113,8 +108,7 @@ for skill in "${SKILLS[@]}"; do
     fi
   done
 
-  # Each granted script must exist, be executable, and be invoked by the body —
-  # a grant nothing runs is dead weight, and a non-executable target cannot be
+  # A grant nothing runs is dead weight, and a non-executable target cannot be
   # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
   if [[ ${#granted[@]} -eq 0 ]]; then

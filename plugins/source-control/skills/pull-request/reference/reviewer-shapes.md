@@ -141,8 +141,7 @@ Basis reads below are `gh api` reads against `melodic-software/claude-code-plugi
   repository's own workflows, so their names belong to the workflow set discovery reads, not to the
   reviewer.
 - **Basis.** `issues/3793/comments`, `pulls/3793/reviews`, `pulls/3793/comments`, and
-  `commits/22b42881b0.../check-runs`, where the review lane appeared as `review / review` and
-  `review-skill-evidence`.
+  `commits/22b42881b0.../check-runs`, where the review lane appeared as `review / review`.
 - **As-of.** 2026-09-06.
 - **Recheck trigger.** The finished-comment opening line changes, or a round arrives with no
   issue-level comment.

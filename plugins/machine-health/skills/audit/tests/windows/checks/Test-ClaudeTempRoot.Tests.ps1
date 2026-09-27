@@ -188,9 +188,8 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'does not follow a junction out of the tree' {
-            # Get-ChildItem -Recurse does not traverse reparse points without
-            # -FollowSymlink; the hand-rolled walk must match, or a junction both
-            # inflates the total with content living elsewhere and can cycle forever.
+            # Get-ChildItem -Recurse does not traverse reparse points without -FollowSymlink; the
+            # hand-rolled walk must match, or a junction inflates the total and can cycle forever.
             $root = Join-Path $script:tmpDir 'base\claude'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
@@ -228,9 +227,8 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'never treats a bare CLAUDE_CODE_TMPDIR base as the root' {
-            # Claude Code appends `claude` to the base on Windows, so a base with no
-            # claude child means it has not written there. Measuring the bare base
-            # would report an unrelated temp directory's contents as this finding.
+            # Claude Code appends `claude` to the base on Windows; measuring a base with no claude
+            # child would report an unrelated temp directory's contents as this finding.
             $base = Join-Path $script:tmpDir 'base'
             New-Item -ItemType Directory -Path (Join-Path $base 'unrelated') -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $base 'unrelated\big.bin') -Value 'not ours'

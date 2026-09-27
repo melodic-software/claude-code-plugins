@@ -83,9 +83,8 @@ function Get-VendorUpdateCli {
         }
     }
 
-    # ASUS special-case: MyASUS is a Store app, so it gets no filesystem
-    # candidate above -- a naive scan of WindowsApps is too expensive. The
-    # AppxPackage probe below is fast and is the only ASUS detection path.
+    # MyASUS is a Store app with no filesystem candidate above, and scanning
+    # WindowsApps is too slow, so this AppxPackage probe is the only ASUS path.
     try {
         $myAsus = Get-AppxPackage -Name *MyASUS* -ErrorAction SilentlyContinue
         if ($myAsus) {

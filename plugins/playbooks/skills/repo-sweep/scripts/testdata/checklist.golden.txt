@@ -1,0 +1,9 @@
+<!-- repo-sweep:begin playbook=fixture -->
+- [ ] residue-dissolve: c:x, c:y
+- [ ] dead-code: a:x
+- [ ] prompt-audit: claude-api
+<!-- repo-sweep:end -->
+
+Not run:
+- testing-audit: not applicable, repo has no tests
+- tidy: not selected, recommended run: never ran: c:t

@@ -530,7 +530,7 @@ def _match_function(
     """
     tail = _tail(name)
     # An exact name is not an identity either: two `render` methods in one file
-    # both carry that name, and the records are kept separate now, so taking
+    # both carry that name, and the records are kept separate, so taking
     # the first would hand the second method the first one's hit flag and
     # region. Disambiguate by the start line the complexity collector reported.
     exact = [candidate for candidate in functions if candidate.get("name") == name]

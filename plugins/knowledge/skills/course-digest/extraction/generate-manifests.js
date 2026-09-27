@@ -112,15 +112,12 @@ function classifyLesson(dedupEntry, durationSec) {
     let keep;
 
     if (isScene) {
-      // Scene-detected frames are always code/IDE content
       type = "code";
       keep = true;
     } else if (isTalkingHead) {
       type = "talking-head";
       keep = false;
     } else if (isDup) {
-      // For consecutive duplicate runs, keep only the LAST frame in each run
-      // (progressive bullet build-up = later frames have more content)
       const nextFrame = frames[i + 1];
       const isLastInRun = !nextFrame?.likelyDuplicate;
       type = "slide";

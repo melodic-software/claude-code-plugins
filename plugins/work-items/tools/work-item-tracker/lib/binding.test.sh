@@ -116,8 +116,7 @@ assert_rejected "provider with path traversal rejected" '{"schema_version":"1.0"
 assert_rejected "provider with slash rejected" '{"schema_version":"1.0","provider":"github/extra","config":{"lease_ttl_hours":24}}'
 
 # --- storage_dir: a relative value roots against the binding file's directory,
-# not the caller's CWD (a verb invoked from a subdirectory must resolve the
-# same store as one invoked from the repo root) ---
+# not the caller's CWD ---
 
 STORAGE_ROOT="$TEST_TMPDIR/storage-repo"
 mkdir -p "$STORAGE_ROOT/deep/nested"
@@ -147,8 +146,7 @@ wit_read_binding "$BINDING"
 assert_eq "autonomous-eligible label honors configured remap" "ready-bot" "$WIT_AUTONOMOUS_ELIGIBLE_LABEL"
 assert_eq "recurring-maintenance label honors configured remap" "maint" "$WIT_RECURRING_MAINTENANCE_LABEL"
 
-# --- container_label: config.container_label remap and default fallback (a
-# sibling of config.role_labels — the container marker is not a worker role) ---
+# --- container_label: config.container_label remap and default fallback ---
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
@@ -252,8 +250,7 @@ assert_overlay_rejected "empty-object unknown key rejected" '{"evil":{}}'
 assert_overlay_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
 # A null at a non-leaf allowlisted prefix is a leaf, not scaffolding.
 assert_overlay_rejected "null jira subtree rejected" '{"config":{"jira":null}}'
-# An allowlisted key must hold a scalar: an object or array there would either
-# dodge the merge or reach a downstream surface with no type check — reject at
+# An allowlisted key must hold a scalar: an object or array there is rejected at
 # load with the key named, never a silent fallback to the team value.
 assert_overlay_rejected "object-valued allowlisted key rejected" '{"config":{"jira":{"auth_email":{}}}}'
 assert_overlay_rejected "populated object at allowlisted key rejected" '{"config":{"jira":{"auth_email":{"x":1}}}}'

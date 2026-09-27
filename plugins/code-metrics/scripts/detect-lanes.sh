@@ -166,9 +166,6 @@ for file in "${FILES[@]}"; do
       ext="${base##*.}"
       ext="${ext,,}"
     fi
-    # The lookup returns through LANE rather than stdout: a command
-    # substitution forks once per file, and over a whole repository that fork
-    # is most of the classifier's remaining time.
     lane_for_extension "$ext"
     lane="$LANE"
     # A lane the consumer redefined by globs no longer claims files by extension.

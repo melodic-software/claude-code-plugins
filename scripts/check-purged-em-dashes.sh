@@ -10,18 +10,17 @@
 # tracked config puts out of enforcement, 2 usage or a prerequisite this gate
 # cannot verify around.
 #
-# WHY (#2891). The de-slop campaign rewrites prose surface by surface, and each
-# landed shard is paid for by hand: a mechanical em-dash split changes meaning
-# often enough that every shard so far has needed a rationale-withheld reviewer
-# to catch clauses the automated passes waved through. Nothing then stops the
-# next contributor from reintroducing one, because no lane enforces the policy.
+# WHY. The de-slop campaign rewrites prose surface by surface, and each shard is
+# paid for by hand: a mechanical em-dash split changes meaning often enough that
+# a shard needs a rationale-withheld reviewer to catch clauses the automated
+# passes wave through. Without a lane enforcing the policy, nothing stops the
+# next contributor from reintroducing one.
 # A one-time purge with no gate is a purge that silently rots. This gate is the
 # ratchet: what the campaign has already cleaned stays clean.
 #
 # ALLOWLIST, NOT A REPO-WIDE RULE, and the distinction is the whole design.
-# 29,649 em-dash prose lines across 1,074 tracked markdown files remained when
-# this gate was written, so a repo-wide check would fail nearly every pull
-# request on contact and would have to be merged disabled, which is not a gate.
+# Much of the tracked markdown still carries em-dash prose lines, so a
+# repo-wide check would fail nearly every pull request on contact and would have to be merged disabled, which is not a gate.
 # Enforcing only DECLARED-CLEAN paths inverts that: blast radius at adoption is
 # zero, because every listed path already passes. Enforcement then grows with
 # the campaign instead of waiting for it. A shard that purges a surface adds
@@ -57,8 +56,7 @@
 #
 # THE GATE ONLY JUDGES rule-em-dash. The rest of the roster is wasted work here:
 # each enabled rule greps every declared file, and this script ignores those
-# findings. #3342 needs a several-hundred-file allowlist; that is only
-# affordable when this invocation is a one-rule run. Slugs are read from the
+# findings. A several-hundred-file allowlist is only affordable when this invocation is a one-rule run. Slugs are read from the
 # detector's own rule tables so a newly shipped rule is disabled here without a
 # second roster to drift.
 #

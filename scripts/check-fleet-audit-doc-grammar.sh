@@ -4,11 +4,9 @@
 #
 #   scripts/check-fleet-audit-doc-grammar.sh --check
 #
-# Why this lives outside SKILL.md and audit-fleet.sh: #2646 rebased cleanly and
-# reverted only the skill prose, leaving the parser untouched. Every script-side
-# test stayed green while the skill instructed agents to refuse a valid
-# invocation (claude-code-plugins#2713). A check that only lives inside either
-# protected file cannot defend the agreement between them.
+# Why this lives outside SKILL.md and audit-fleet.sh: a revert of either file's
+# half alone keeps every test inside the other green. A check that only lives
+# inside either protected file cannot defend the agreement between them.
 #
 # Agreement is established by probing the script and reading its answers — never
 # by pattern-matching the parser source:

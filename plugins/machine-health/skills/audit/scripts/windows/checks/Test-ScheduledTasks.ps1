@@ -42,11 +42,8 @@ $commands = @(
 )
 
 try {
-    # Filter out \Microsoft\* tasks -- too noisy, mostly OS housekeeping.
-    # Never-run detection (LastTaskResult=267011 or LastRunTime sentinel) is
-    # delegated to Test-IsNeverRunScheduledTask; see helper docs above for
-    # the full SCHED_S_* code mapping. 267014 (SCHED_S_TASK_TERMINATED) is
-    # NOT filtered -- termination is a real event worth surfacing.
+    # \Microsoft\* tasks are OS housekeeping noise. 267014 (SCHED_S_TASK_TERMINATED) is
+    # deliberately not filtered: termination is a real event worth surfacing.
     $tasks = @(Get-ScheduledTask -ErrorAction Stop |
             Where-Object { $_.TaskPath -notlike '\Microsoft\*' -and $_.State -eq 'Ready' })
 

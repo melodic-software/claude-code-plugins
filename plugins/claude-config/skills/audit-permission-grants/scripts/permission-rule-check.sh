@@ -584,10 +584,8 @@ while IFS= read -r file; do
   # `find` needs only directory-traversal permission to report a file as
   # `-type f`; it does NOT need read permission on the file. So an existing but
   # unreadable candidate (mode 000, a restrictive ACL, a mount that denies
-  # reads) is enumerated here, and before this gate it fell through to `awk`,
-  # which wrote its own error to the real stderr and returned nothing — leaving
-  # the file counted in no bucket at all while the coverage block promised to
-  # disclose exactly that input. `-f` is rechecked alongside `-r` so a candidate
+  # reads) is enumerated here; without this gate `awk` would error to the real
+  # stderr and the file would land in no coverage bucket. `-f` is rechecked alongside `-r` so a candidate
   # that vanished between the walk and this line lands here too, not nowhere.
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     fm_unreadable=$((fm_unreadable + 1))

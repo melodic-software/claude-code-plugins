@@ -109,16 +109,17 @@ new_ruff_repo() {
 # membership guard is disabled (not part of the fire gate); this isolates
 # lint/format behavior from path-form mismatch in the guard.
 run_hook_env() {
-  local file_path="$1"
+  local file_path="$1" payload
   shift
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  printf -v payload '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload"
   )
 }
 
-# The plain enabled-hook run.
 run_hook() {
   run_hook_env "$1" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true
 }
@@ -605,7 +606,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^(\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/ruff-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/ruff-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^bash (\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/ruff-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/ruff-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
     ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else

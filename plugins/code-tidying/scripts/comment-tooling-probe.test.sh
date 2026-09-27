@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # Black-box contract test for comment-tooling-probe.sh.
 #
-# Proves the probe's two load-bearing promises: it never fails on a missing
-# tool (a downgrade is not an error), and every absent layer names the
-# capability lost, because a bare "absent" gives the reader nothing to act on.
-#
-# Self-contained: no external test library. Tool absence is simulated with an
-# emptied PATH and a PYTHONPATH pointing at an empty directory, so the test
-# exercises the absent branch on a machine where the tools are installed.
+# Proves the probe never fails on a missing tool and every absent layer names the
+# capability lost. Absence is simulated with an emptied PATH and an empty PYTHONPATH.
 set -u
 
 PROBE="$(cd "$(dirname "$0")" && pwd)/comment-tooling-probe.sh"
@@ -73,9 +68,8 @@ fi
 # and the probe must still exit 0.
 EMPTY="$(mktemp -d)"
 trap 'rm -rf "$EMPTY"' EXIT
-# BASH must be an absolute path: with PATH emptied, the interpreter itself is
-# unresolvable and the run dies at 127 before the probe executes, which would
-# leave the assertions below inspecting empty output and passing vacuously.
+# BASH must be an absolute path: with PATH emptied the run would die at 127 before
+# the probe executes, and the assertions below would pass vacuously.
 BASH_ABS="$(command -v bash)"
 bare="$(PATH="$EMPTY" PYTHONPATH="$EMPTY" "$BASH_ABS" "$PROBE" 2>/dev/null)"
 bare_rc=$?

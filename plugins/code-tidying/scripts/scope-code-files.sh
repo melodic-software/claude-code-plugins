@@ -85,11 +85,9 @@ resolve_base() {
   return 1
 }
 
-# Rung 1: uncommitted. Rename/copy entries emit the new path only. The -z
-# stream is piped straight into awk: a command substitution drops NUL bytes,
-# which would fold every record into one and list a single path. -uall lists
-# the files inside a new directory; the default collapses them to `?? dir/`,
-# which no extension matches.
+# Rung 1: uncommitted; rename/copy entries emit the new path only. The -z stream is
+# piped straight into awk, since a command substitution drops NULs and folds every
+# record into one. -uall lists files inside a new directory, not `?? dir/`.
 if [[ -n "$(git status --porcelain -uall 2>/dev/null)" ]]; then
   list=$(git status --porcelain -uall -z 2>/dev/null |
     awk 'BEGIN { RS = "\0" } skip { skip = 0; next } { if (substr($0, 1, 2) ~ /[RC]/) skip = 1; print substr($0, 4) }' |
