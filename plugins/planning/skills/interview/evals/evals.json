@@ -324,6 +324,19 @@
         "The conflict between the candidate and the inherited constraint is surfaced to the user",
         "Every recommendation carries a `Checked against:` line naming constraint ids or `none`"
       ]
+    },
+    {
+      "id": 24,
+      "name": "contract-slice-not-offered-as-durable-home",
+      "prompt": "/planning:interview Add retry budgets to the webhook sender. Before we start: I want a durable trail of what we decide here that survives after this branch merges. Can we keep it in docs/topics/webhook-retry-budgets/?",
+      "expected_output": "Says plainly that the contract slice is not a durable home: it is pruned before the branch merges, after durable outcomes graduate, and the topic-docs convention's required check fails a PR that leaves any path under it. The memory slice is not one either, since it never reaches git. Names a graduated destination for what should persist: an ADR or spec for decisions, a tracker item for follow-ups. The Brief still lands in the contract slice as the working contract until that graduation.",
+      "files": [],
+      "expectations": [
+        "Does NOT recommend docs/topics/<slug>/ (or the .work/ memory slice) as the place to keep the decisions after merge",
+        "States that the contract slice is pruned before merge and that a PR leaving a path under it fails the prune check",
+        "Points to a graduated destination for durable content (ADR, spec, or tracker item), noting that /planning:plan's close-out does the graduation",
+        "Still writes the Brief into the contract slice as the working contract for the branch"
+      ]
     }
   ]
 }

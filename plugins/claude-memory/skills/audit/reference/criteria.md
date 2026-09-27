@@ -11,6 +11,10 @@ Version: 1.7.0
 Last updated: 2026-09-20
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
+`<skill-dir>` in the commands below is the parent of this file's `reference/` directory. SKILL.md
+"Script paths" renders its absolute path; put it in place of the placeholder before running a
+command.
+
 This file defines every check the audit runs. Each check has a severity, description, and instructions
 for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memory).
 
@@ -37,7 +41,7 @@ condition and its recheck trigger are recorded in `scripts/lib/agents-md.sh`.
 
 **How to check**:
 
-1. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/instruction-load-stats.sh" --lines --file <path>`.
+1. Run `bash "<skill-dir>/scripts/instruction-load-stats.sh" --lines --file <path>`.
    It strips block-level HTML comments (kept inside fenced code), expands `@path` imports the way
    the loader does (relative to the importing file, four hops, code spans and fences skipped), and
    counts the non-empty lines that remain. `--breakdown` lists every file that contributed, plus
@@ -372,7 +376,7 @@ already loads would spend budget restating it), so "unreferenced" alone proves n
 `description:` line is the rule naming its own purpose; a rule that has one is never an orphan.
 
 **How to check**: run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` (deterministic
+`bash "<skill-dir>/scripts/orphan-rule-check.sh"` (deterministic
 set-difference: enumerate always-loaded rules without `description:`, `git grep` each basename across
 tracked files excluding the rule's own file; zero hits = orphan). Path-scoped rules are exempt: they
 load only on matching-file Read, so being unreferenced costs nothing per session. WARN per orphan.
@@ -393,7 +397,7 @@ Such a file never loads, however well written, and every static gate around it r
 nested `AGENTS.md` with none of those files above it is read directly and is not a finding.
 
 **How to check**: run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL line
+`bash "<skill-dir>/scripts/nested-agents-check.sh"` and fold each FAIL line
 into the report. The script enumerates tracked `**/AGENTS.md` below the root (skipping `.claude`,
 `.codex`, `.cursor`, `.github`, `node_modules`, `vendor`, and `.git` trees, so another tool's own
 instruction files are never reported as a missing Claude shim), and for each asks first whether any
@@ -424,7 +428,7 @@ quoted here unchanged as the superseded basis, never as a current claim.
 
 Every finding proposes a change to a file. When that file is a synced copy of a source elsewhere,
 the change is overwritten by the next sync, so the finding stands but its fix belongs upstream. Run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>` for each flagged
+`bash "<skill-dir>/scripts/file-provenance.sh" <path>` for each flagged
 repository file: `synced` (a `SYNC-MANAGED` marker in the file, or a last commit by the standards
 sync) makes the report's fix line name the upstream (`owner/repo` when the marker names one) instead
 of a local edit; `local` keeps the ordinary fix line. RD1 does this itself; the judgment-tier checks
@@ -484,7 +488,7 @@ under-count stops it firing at all. The `update` action must not overwrite them.
 
 **How to check**:
 
-1. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh"` for the
+1. Run `bash "<skill-dir>/scripts/memory-index-refs-check.sh"` for the
    deterministic index↔topic-file integrity half (missing targets + orphan topic files)
 2. For entries referencing specific files/features, verify they still exist (judgment half: the
    script checks existence, not content)
