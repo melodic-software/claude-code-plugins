@@ -1573,18 +1573,22 @@ rdt_allowed() {
 # <directory> that are symlinks, into RDT_LINKS. `rm -rf */` follows a symlink
 # to a directory, so each such match is judged by where it points. Reads the
 # directory only; nothing is expanded but the glob.
+#
+# Names first, with no trailing slash, and capped at MAX_GLOB before any entry
+# is tested: a pattern ending in `/` makes bash stat every entry, and over a
+# temp directory of 50,000 entries that ran past the hook timeout, which the
+# harness answers WITHOUT a block. Past the cap the guard refuses.
 # shellcheck disable=SC2206  # the pattern is meant to glob; IFS is empty so it cannot split
 rdt_enum_links() {
   local dir="$1" pat="$2" m IFS=
   local -a all=()
   RDT_LINKS=()
   rdt_glob_on
-  all=("$dir"/$pat/)
+  all=("$dir"/$pat)
   rdt_glob_off
-  ((${#all[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
+  ((${#all[@]} > MAX_GLOB)) && rdt_block "too-many-targets"
   for m in ${all[@]+"${all[@]}"}; do
-    m="${m%/}"
-    [[ -L "$m" ]] && RDT_LINKS+=("$m")
+    [[ -L "$m" && -d "$m" ]] && RDT_LINKS+=("$m")
   done
   return 0
 }

@@ -1139,6 +1139,14 @@ mkdir -p "$TEST_TMPDIR/wide/d"{01..20}/e{01..20}
 rdt_ms_payload 'a wide glob tree is refused at the match cap' 2 8000 \
   "$(rdt_pl "rm -rf '$TEST_TMPDIR/wide'/*/*/x" "$RDT_TOP")"
 expect_both 'a narrow glob in the same tree allowed' 0 "${RDT_CWD[@]}" --command "rm -rf '$TEST_TMPDIR/wide/d01'/*/x"
+# A trailing `*/` reads names before testing any entry, and past 256 refuses:
+# a stat per entry over a large temp directory outran the hook timeout.
+mkdir -p "$TEST_TMPDIR/wide2"
+for ((rdt_d = 0; rdt_d < 300; rdt_d++)); do : >"$TEST_TMPDIR/wide2/f$rdt_d"; done
+rdt_ms_payload 'a trailing */ over 300 entries is refused at the cap' 2 15000 \
+  "$(rdt_pl "rm -rf '$TEST_TMPDIR/wide2'/*/" "$RDT_TOP")"
+expect_both 'a trailing */ over a few entries under temp allowed' 0 "${RDT_CWD[@]}" \
+  --command "rm -rf '$TEST_TMPDIR/wide/d01'/*/"
 rdt_sys=""
 for rdt_t in C:/Windows /usr; do
   [[ -d "$rdt_t" ]] && rdt_sys="$rdt_t" && break
