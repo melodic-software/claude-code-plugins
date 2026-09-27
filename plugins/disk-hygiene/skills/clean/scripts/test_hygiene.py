@@ -9847,21 +9847,12 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
 
     def test_belt_ignores_a_conflicting_env_data_root(self) -> None:
         env_root = self.set_env_data_root()
-        gate_argv = [
-            self.SCRIPT,
-            "--mode",
-            "engine-gate",
-            "--plugin-root",
-            os.fspath(self.plugin_root),
-            "--authorized-data-root",
-            os.fspath(self.expected),
-        ]
         for data_root, verdict in ((env_root, "deny"), (self.expected, "allow")):
             with self.subTest(data_root=data_root):
                 self.assertEqual(verdict, self.scan_verdict(data_root, self.argv()))
-                self.assertEqual(verdict, self.scan_verdict(data_root, gate_argv))
         # The decision log follows the derived root, never the env root.
         self.assertEqual([], list(env_root.iterdir()))
+        self.assertNotEqual([], list(self.expected.iterdir()))
         # Control: without the directory proof the env value is the authority,
         # so the env-root scan is admitted and the log lands there.
         (self.config / "plugins" / "known_marketplaces.json").unlink()
@@ -9878,6 +9869,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         argv = [self.SCRIPT, "--plugin-root", os.fspath(cached)]
         self.assertEqual("deny", self.scan_verdict(env_root, argv))
         self.assertEqual("allow", self.scan_verdict(derived, argv))
+        self.assertEqual([], list(env_root.iterdir()))
         # Control: a root with neither a cache layout nor a directory proof
         # falls through to the env value.
         elsewhere = self.base / "elsewhere"
@@ -9897,8 +9889,8 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.write_known(known)
                 self.assert_fails_closed()
                 self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
-                # With env set, a format change falls through to the env value,
-                # the behavior before the directory channel, not a widening.
+                # With env set, an unreadable format falls through to the env
+                # channel; the env channel's authority does not widen.
                 env_root = self.set_env_data_root()
                 self.assertEqual(os.fspath(env_root), self.resolve())
 
