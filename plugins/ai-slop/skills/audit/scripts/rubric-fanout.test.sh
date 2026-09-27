@@ -639,7 +639,7 @@ assert_line_in "replay: a silent batch holding the cue is flagged" "$X/merged.md
   "consistency: rule-abstract-metaphor-jargon cue=load-bearing unaccounted_in=03"
 assert_line_in "replay: the flagged rule's total says so" "$X/merged.md" \
   "rule_total: rule-abstract-metaphor-jargon=1 consistency=flagged"
-assert_line_in "replay: declines are totalled per rule, cue and reason" "$X/merged.md" \
+assert_line_in "replay: declines are totaled per rule, cue and reason" "$X/merged.md" \
   "declined_total: rule-abstract-metaphor-jargon load-bearing reason=saturated batches=02"
 assert_eq "replay: declined lines are stripped from the bodies" "$(grep -c '^declined:' "$X/merged.md")" "0"
 assert_eq "replay: exactly three consistency lines" "$(grep -c '^consistency:' "$X/merged.md")" "3"
@@ -678,11 +678,11 @@ assert_line_in "reasons: a saturated decline of a cue cues.txt does not list is 
   "consistency: rule-abstract-metaphor-jargon cue=keystone saturated=no declined_in=02"
 assert_not_contains "reasons: a cap decline accounts for the cue" "$merged" "unaccounted_in=03"
 assert_not_contains "reasons: a boundary decline accounts for the cue" "$merged" "cue=seam unaccounted_in"
-assert_line_in "reasons: cap declines are totalled" "$X/reasons.md" \
+assert_line_in "reasons: cap declines are totaled" "$X/reasons.md" \
   "declined_total: rule-abstract-metaphor-jargon load-bearing reason=cap batches=03"
 assert_line_in "reasons: a declined: line with another reason stays in the body" "$X/reasons.md" \
   "declined: rule-abstract-metaphor-jargon seam reason=whatever"
-assert_not_contains "reasons: and is not totalled" "$merged" "reason=whatever batches"
+assert_not_contains "reasons: and is not totaled" "$merged" "reason=whatever batches"
 
 # --- Result ---------------------------------------------------------------------
 

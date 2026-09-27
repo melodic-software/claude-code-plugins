@@ -134,7 +134,7 @@ When `cues.txt` is present, `merge` also checks that the batches agreed and prin
   `cues.txt` line shows occurrences neither quoted the cue in a finding of that rule nor
   declined it.
 
-The `rule_total:` line of any rule named on a `consistency:` line gains ` consistency=flagged`.
+The `rule_total:` line of any rule named on a `consistency:` line ends with `consistency=flagged`.
 A flagged rule's total is an artifact of batch assignment until the named batches are
 dispatched again. With no `cues.txt`, `merge` runs none of these checks and prints nothing
 extra. `rule-colon-crutch` and the other rules without cue words get no merge check; their
