@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.2] - 2026-09-27
+
+### Changed
+
+- `audit-noise` names `/attribution:audit` where it named `/provenance:audit`, since the
+  provenance plugin is now `attribution`. The skill body, one eval expectation, and comments in
+  `noise-shapes.sh` and `detect.test.sh` change; detection behavior does not.
+
 ## [0.23.1] - 2026-09-25
 
 ### Changed

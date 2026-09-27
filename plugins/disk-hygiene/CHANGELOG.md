@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-27
+
+### Added
+
+- **`/disk-hygiene:clean` no longer opens with a deliberately denied tool call.** A new `UserPromptExpansion` hook, matching `disk-hygiene:clean$`, runs `skills/clean/scripts/engine_context.py` through the same launcher and with the same `--plugin-root` argument as the skill guard, and hands the skill the guard's absolute interpreter (`hook_python`) and authorized `--data-root` (`data_root`) as context before the skill loads. The skill uses them from the first call. The guard still judges every call, and when the note is absent or says `data_root: none` the skill falls back to the denial route as before.
+
 ## [0.23.17] - 2026-09-27
 
 ### Fixed

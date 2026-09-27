@@ -4,7 +4,7 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
-## [3.1.2] - 2026-09-27
+## [3.1.3] - 2026-09-27
 
 **Patch, docs-only.** `review`'s `severity.md` now ranks confidence `high` > `medium` > `low` >
 `unscored`, so an omitted `Confidence` ranks last rather than above `low`. Rule 2's rationale said
@@ -12,6 +12,15 @@ emitting `low` ranks a finding below saying nothing; that is no longer true, and
 rests on what a detector can grade: a scan that fired is `high`, and it has no partial-verification
 scale for `medium` or `low`. The rule itself, `high` or omitted and never `low`, does not move, and
 no producer's output changes.
+
+## [3.1.2] - 2026-09-27
+
+**Patch, docs-only.** The `provenance` plugin is renamed `attribution`, so its three crosswalk rows
+now carry the `attribution/audit/` plugin segment: `rule-verbatim-copy`, `rule-stamp-expired`, and
+`rule-trigger-less-stamp`, and the verbatim-copy row's remediation names `/attribution:audit fix`.
+The rule-id form `<plugin>/<skill>/rule-<slug>` is unchanged and only this producer's plugin
+segment follows its rename. No producer-owned field's rule, coexistence obligation, tier, or
+enforceability verdict moves.
 
 ## [3.1.1] - 2026-09-19
 

@@ -5,6 +5,17 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.33] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `node` and the Claude Code CLI at load time.** `command -v node`,
+  `node --version`, `command -v claude`, and `claude --version` run as pre-computed context, so
+  `check` reads four rows instead of making those Bash calls. The two version probes are
+  pre-approved in `allowed-tools`, since a load-time command that is not allowed aborts the skill
+  outside auto mode. The FAIL rules are unchanged, and a policy-disabled injection falls back to
+  the Bash probe.
+
 ## [0.6.32] - 2026-09-27
 
 ### Fixed

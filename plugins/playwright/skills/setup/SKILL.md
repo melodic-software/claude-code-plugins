@@ -3,7 +3,18 @@ description: "Verify the playwright plugin's runtime prerequisites: the playwrig
 argument-hint: "check | apply [install-cli]"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `playwright-cli` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `playwright-cli`: !`{ command -v playwright-cli 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -25,11 +36,12 @@ The main skill and its reference files are the single source of truth for what t
 requires: `${CLAUDE_PLUGIN_ROOT}/skills/playwright/SKILL.md` (Prerequisite + quick start) and
 `${CLAUDE_PLUGIN_ROOT}/skills/playwright/reference/` (`commands.md`, `windows-quirks.md`).
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed `playwright-cli` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
-1. **`playwright-cli` binary**. `command -v playwright-cli` (the binary name the skill drives;
-   the npm package is `@playwright/cli`). FAIL if absent. Remediation is `apply install-cli`
+1. **`playwright-cli` binary**. The pre-computed `playwright-cli` row (the binary name the skill
+   drives; the npm package is `@playwright/cli`). FAIL if absent. Remediation is `apply install-cli`
    below. When present, report the version (`playwright-cli --version`).
 2. **Browser availability**. The CLI needs a browser beyond its own install. Per the plugin's
    own `skills/playwright/reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system

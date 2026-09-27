@@ -510,6 +510,15 @@ carried by a version bump and a changelog note, the standing posture locked in
 in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`). The map therefore records migrations
 already shipped rather than serving as the go-forward mechanism.
 
+A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
+shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
+point at the successor. It keeps an existing install from reporting
+`Plugin "<name>" not found in marketplace` without adding to the frozen map, since upstream has no
+deprecation state of its own
+([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
+checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
+the shim like any retirement. `provenance` → `attribution` (#4589) is the first.
+
 ### Same-version commit drift (directory-source marketplaces)
 
 For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
