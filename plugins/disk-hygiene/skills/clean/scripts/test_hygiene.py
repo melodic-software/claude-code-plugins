@@ -9517,7 +9517,8 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ):
             return guard.resolve_disk_hygiene_enabled()
 
-    def engine_command(self, subcommand: str) -> str:
+    def engine_command(self, subcommand: str, data_root: Path | None = None) -> str:
+        root = self.expected if data_root is None else data_root
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
         if subcommand == "scan":
             tail = "scan --target t --output s"
@@ -9528,7 +9529,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             )
         return (
             f'"{guard._display_python()}" "{script}" {tail} '
-            f'--data-root "{self.expected.as_posix()}"'
+            f'--data-root "{root.as_posix()}"'
         )
 
     def run_main(self, command: str, argv: list[str]) -> dict[str, object]:
@@ -9831,6 +9832,75 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         assert derived is not None
         self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
         self.assertEqual("disk-hygiene-------evil", Path(derived).name)
+
+    # --- #4464 remainder: a conflicting env value never outranks a proof -----
+
+    def set_env_data_root(self) -> Path:
+        env_root = self.base / "from-env"
+        env_root.mkdir(exist_ok=True)
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(env_root)
+        return env_root
+
+    def scan_verdict(self, data_root: Path, argv: list[str]) -> str:
+        belt = self.run_main(self.engine_command("scan", data_root), argv)
+        return cast(str, belt["permissionDecision"])
+
+    def test_belt_ignores_a_conflicting_env_data_root(self) -> None:
+        env_root = self.set_env_data_root()
+        gate_argv = [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+        for data_root, verdict in ((env_root, "deny"), (self.expected, "allow")):
+            with self.subTest(data_root=data_root):
+                self.assertEqual(verdict, self.scan_verdict(data_root, self.argv()))
+                self.assertEqual(verdict, self.scan_verdict(data_root, gate_argv))
+        # The decision log follows the derived root, never the env root.
+        self.assertEqual([], list(env_root.iterdir()))
+        # Control: without the directory proof the env value is the authority,
+        # so the env-root scan is admitted and the log lands there.
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assertEqual("allow", self.scan_verdict(env_root, self.argv()))
+        self.assertNotEqual([], list(env_root.iterdir()))
+
+    def test_belt_ignores_a_conflicting_env_data_root_on_a_cache_install(
+        self,
+    ) -> None:
+        env_root = self.set_env_data_root()
+        cached = self.base / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
+        cached.mkdir(parents=True)
+        derived = self.base / "plugins" / "data" / "disk-hygiene-mk"
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(cached)]
+        self.assertEqual("deny", self.scan_verdict(env_root, argv))
+        self.assertEqual("allow", self.scan_verdict(derived, argv))
+        # Control: a root with neither a cache layout nor a directory proof
+        # falls through to the env value.
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
+        self.assertEqual("allow", self.scan_verdict(env_root, argv))
+
+    def test_changed_known_marketplaces_shape_fails_closed(self) -> None:
+        entry = self.directory_entry(self.checkout)
+        shapes = {
+            "versioned-wrapper": {"version": 2, "marketplaces": {"acme": entry}},
+            "source-path-only": {"acme": {"source": entry["source"]}},
+        }
+        for label, known in shapes.items():
+            with self.subTest(shape=label):
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+                self.write_known(known)
+                self.assert_fails_closed()
+                self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
+                # With env set, a format change falls through to the env value,
+                # the pre-#4464 behavior rather than a widening.
+                env_root = self.set_env_data_root()
+                self.assertEqual(os.fspath(env_root), self.resolve())
 
     # --- AC7: the no-authority denial names a recovery ----------------------
 
