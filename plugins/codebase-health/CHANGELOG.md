@@ -3,6 +3,13 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1] - 2026-09-27
+
+### Changed
+
+- The audit's routing table points prose restated from an external source at
+  `/attribution:audit`, the renamed `/provenance:audit`.
+
 ## [0.10.0] - 2026-09-23
 
 ### Changed

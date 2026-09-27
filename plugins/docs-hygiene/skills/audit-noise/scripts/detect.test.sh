@@ -1595,7 +1595,7 @@ assert_not_contains "clean scanned file is not no-targets" "$clean_out" "status:
 # --- Origin notes are citations -------------------------------------------------------
 # An origin note names where a passage came from or when it was added. The cue has to
 # open the line, a list item, or a clause, and a line carrying a markdown link or a URL
-# stands the two origin cues down, because a pointer is the artifact /provenance:audit
+# stands the two origin cues down, because a pointer is the artifact /attribution:audit
 # asks an author to write.
 
 ORIGIN="$SCRIPT_DIR/../evals/fixtures/origin-notes.md"
@@ -1652,7 +1652,7 @@ printf '%s\n' 'Adapted from [the upstream guide][1].' >"$REFLINK_ORIGIN"
 reflink_origin_out="$(bash "$DETECT" "$REFLINK_ORIGIN")"
 assert_not_contains "a reference-style link stands the origin cue down" "$reflink_origin_out" "Finding shape: citation"
 
-# The stamp verbs /provenance:audit keys on are absent from both cue lists, so a
+# The stamp verbs /attribution:audit keys on are absent from both cue lists, so a
 # verification record never reads as an origin note whichever verb it opens with.
 STAMPS="$TEST_TMPDIR/stamps.md"
 printf '%s\n' 'Checked 2026-09-03 against v2.1.259' 'Confirmed 2026-09-03 against v2.1.259' 'As of 2026-09-03 the flag is still required' 'Last updated 2026-09-03' >"$STAMPS"
