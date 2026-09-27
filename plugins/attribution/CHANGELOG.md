@@ -5,8 +5,8 @@
 ### Changed
 
 - **Breaking: the plugin is renamed from `provenance` to `attribution`.** Install it as
-  `attribution@melodic-software`; the `provenance@melodic-software` install id no longer names
-  this plugin.
+  `attribution@melodic-software`. The `provenance@melodic-software` install id now resolves to
+  a one-release deprecation shim.
 - **Breaking: skill ids.** `/provenance:audit` is now `/attribution:audit`, and
   `/provenance:setup` is now `/attribution:setup`.
 - **Breaking: rule ids.** Emitted findings carry `attribution/audit/rule-verbatim-copy`,
@@ -14,14 +14,14 @@
   consumer that matches on the old `provenance/audit/` prefix must update it.
 - **Breaking: config file name.** The cascade reads `~/.claude/attribution.json`,
   `<repo>/.claude/attribution.json`, and `<repo>/.claude/attribution.local.json`. A legacy
-  `provenance.json` or `provenance.local.json` in any layer is never read; each script that reads
-  the config cascade prints one warning to stderr naming the legacy file and the new name.
-  Rename the file to keep its settings.
+  `provenance.json` or `provenance.local.json` in any layer is never read. When a layer has the
+  legacy file and no `attribution` file, each script that reads the config cascade prints one
+  warning to stderr naming the legacy file and the new name. Rename the file to keep its settings.
 - **Breaking: findings file name.** The persisted findings file is `${TS}-attribution.md`.
 - The README marker example is now `attribution:source`. An existing `provenance:source` fence is
   still recognized, because the breadcrumb extractor reads any URL-carrying HTML comment fence.
-- The `Action` cell `emit-findings.sh` writes for a copy now reads `Not auto-applicable:
-  remediate with /attribution:audit fix`, with a colon in place of the dash.
+- The `Action` cells `emit-findings.sh` writes now open `Not auto-applicable:`, with a colon in
+  place of the dash, on all three rules; the copy row names `/attribution:audit fix`.
 
 ## [0.5.15] - 2026-09-25
 

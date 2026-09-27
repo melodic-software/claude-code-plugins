@@ -4,9 +4,9 @@
     {
       "id": 1,
       "name": "points-to-attribution-setup",
-      "prompt": "/provenance:setup show",
+      "prompt": "/provenance:setup check",
       "narration": true,
-      "expected_output": "A short notice that the skill moved to /attribution:setup, with the step to install the attribution plugin, the config rename to .claude/attribution.json, and the instruction to re-run as /attribution:setup show. No config is read or written.",
+      "expected_output": "A short notice that the skill moved to /attribution:setup, with the step to install the attribution plugin, the config rename to .claude/attribution.json, and the instruction to re-run as /attribution:setup check. No config is read or written.",
       "expectations": [
         "Names /attribution:setup as the replacement skill",
         "Tells the user to install the attribution plugin",
@@ -17,11 +17,11 @@
     {
       "id": 2,
       "name": "refuses-to-write-config",
-      "prompt": "/provenance:setup set stamp_expiry_days 90",
-      "expected_output": "The shim declines to write the key and repeats the migration steps, so the setting is made under /attribution:setup instead.",
+      "prompt": "/provenance:setup apply",
+      "expected_output": "The shim declines to write any config and repeats the migration steps, so the change is made under /attribution:setup instead.",
       "expectations": [
         "Does not create or edit any .claude config file",
-        "Tells the user to re-run the request as /attribution:setup set stamp_expiry_days 90"
+        "Tells the user to re-run the request as /attribution:setup apply"
       ]
     }
   ]

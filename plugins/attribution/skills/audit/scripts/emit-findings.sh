@@ -533,9 +533,9 @@ function rule_action(slug) {
   if (slug == "rule-verbatim-copy")
     return "Not auto-applicable: remediate with `/attribution:audit fix`; disposition choice, the semantic-diff guard and pointer liveness are producer-owned"
   if (slug == "rule-stamp-expired")
-    return "Not auto-applicable — re-derive the record against its live basis and restamp, or replace the restatement with a pointer"
+    return "Not auto-applicable: re-derive the record against its live basis and restamp, or replace the restatement with a pointer"
   if (slug == "rule-trigger-less-stamp")
-    return "Not auto-applicable — state the observable event that obliges re-derivation (upstream-drift required part 4)"
+    return "Not auto-applicable: state the observable event that obliges re-derivation (upstream-drift required part 4)"
   return "Review by hand"
 }
 
