@@ -172,4 +172,189 @@ else
   fail "unknown mode should exit 2 (rc=$rc)"
 fi
 
+# 11. No drift from the docs-hygiene template this gate was generalized into.
+#     The emitter renders the template with THIS repository's
+#     .claude/docs-hygiene.json, both gates run over one seeded tree, and their
+#     exit codes, stdout, and stderr must agree. The comparison is behavioural,
+#     not textual: the two differ by construction in the script's name and
+#     path, in the rule's display name (`lower-kebab-case` here, the config's
+#     `rule` there), and in how the roots are spelled in the clean-run line, so
+#     exactly those literals are normalized and nothing else is. Every root and
+#     exemption the config declares is seeded, so an entry added on one side
+#     only surfaces as a finding the other side lacks.
+EMITTER="$SCRIPT_DIR/../plugins/docs-hygiene/skills/generate-file-name-gate/scripts/emit-gate.sh"
+REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-hygiene.json"
+EMITTED_RULE=""
+EMITTED_ROOTS=""
+DRIFT_REPORT=""
+DRIFT_RC=""
+
+# drift_norm <script-path> <rule> <roots> <file>: <file> with the three
+# by-construction differences replaced by fixed tokens.
+drift_norm() {
+  local path="$1" rule="$2" roots="$3" s stem
+  s="$(cat "$4" && printf x)"
+  s="${s%x}"
+  stem="${path##*/}"
+  stem="${stem%.sh}"
+  s="${s//"$path"/SCRIPT}"
+  s="${s//"$stem"/GATE}"
+  s="${s//"under $roots is $rule."/under ROOTS is RULE.}"
+  s="${s//"basename is not $rule (rule:"/basename is not RULE (rule:}"
+  s="${s//"rename to $rule (see"/rename to RULE (see}"
+  printf '%s' "$s"
+}
+
+# drift_compare <repo> <emitted-script> [<arg>]: runs this gate and the emitted
+# one with the same argument. Sets DRIFT_RC to this gate's exit code and
+# DRIFT_REPORT to empty when both agree after normalization, or to what differs.
+drift_compare() {
+  local repo="$1" emitted="$2" tmp rc_a rc_b side a b
+  shift 2
+  tmp="$repo/.git/drift"
+  mkdir -p "$tmp"
+  bash "$repo/scripts/check-docs-naming.sh" "$@" >"$tmp/a.out" 2>"$tmp/a.err"
+  rc_a=$?
+  bash "$repo/$emitted" "$@" >"$tmp/b.out" 2>"$tmp/b.err"
+  rc_b=$?
+  DRIFT_RC=$rc_a
+  DRIFT_REPORT=""
+  ((rc_a == rc_b)) || DRIFT_REPORT+="exit $rc_a here, $rc_b emitted; "
+  for side in out err; do
+    a="$(drift_norm scripts/check-docs-naming.sh lower-kebab-case docs/ "$tmp/a.$side")"
+    b="$(drift_norm "$emitted" "$EMITTED_RULE" "$EMITTED_ROOTS" "$tmp/b.$side")"
+    [[ "$a" == "$b" ]] ||
+      DRIFT_REPORT+="std$side differs:"$'\n'"$(diff <(printf '%s\n' "$a") <(printf '%s\n' "$b"))"$'\n'
+  done
+}
+
+# drift_seed <repo> <path>...: writes and commits each path.
+drift_seed() {
+  local repo="$1" p
+  shift
+  for p in "$@"; do
+    mkdir -p "$repo/$(dirname "$p")"
+    printf 'seed\n' >"$repo/$p"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm seed >/dev/null
+}
+
+drift_ready=1
+if ! command -v jq >/dev/null 2>&1; then
+  drift_ready=""
+  fail "template drift: jq is required to emit the template gate, so the drift cases cannot run"
+fi
+
+exempt_seeds=()
+offender_seeds=()
+if [[ -n "$drift_ready" ]]; then
+  EMITTED_RULE="$(jq -r '.file_names.rule' "$REPO_CONFIG")"
+  EMITTED_ROOTS="$(jq -r '.file_names.roots | join(", ")' "$REPO_CONFIG")"
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && exempt_seeds+=("docs/x/$one")
+  done < <(jq -r '.file_names.exempt_basenames[]' "$REPO_CONFIG")
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && exempt_seeds+=("docs/a/Bad_Name.$one")
+  done < <(jq -r '.file_names.exempt_extensions[]' "$REPO_CONFIG")
+  # A glob entry gets its literal prefix plus a name the rule rejects, the
+  # same seed the emitter's own suite uses.
+  while IFS= read -r one; do
+    [[ "$one" == *'*' ]] || continue
+    one="${one%%\**}"
+    one="${one%/}"
+    [[ -n "$one" ]] && exempt_seeds+=("$one/Exempt_By-PATH.md")
+  done < <(jq -r '.file_names.exempt_paths[]' "$REPO_CONFIG")
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && offender_seeds+=("$one/Root_Probe.md")
+  done < <(jq -r '.file_names.roots[]' "$REPO_CONFIG")
+  # Every offender shape the header names, the exemption boundaries (a case
+  # variant of an exempt name, a sibling of the exempt directory, an exempt
+  # extension in the wrong case), case collisions including one against an
+  # exempt name, and files outside docs/ that neither gate may judge.
+  offender_seeds+=(
+    docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
+    docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
+    docs/a/v1.2.schema.json docs/Foo.md docs/foo.md
+    docs/conventions/topic-docs/readme.md docs/x/Readme.md
+    docs/topicsx/PLAN.md docs/a/Bad_Name.PY
+    "docs/topics/caf"$'\303\251'".md" "docs/topics/Caf"$'\303\251'".md"
+    "docs/New"$'\n'"line/foo.md" "docs/new"$'\n'"line/foo.md"
+    Top_Level.md other/Bad_Name.md
+  )
+fi
+
+# drift_emit <repo> <config> <out-dir>: renders the template into the fixture.
+drift_emit() {
+  bash "$EMITTER" --config "$2" --root "$1" --out-dir "$3" >/dev/null 2>"$1/.git/emit.err"
+}
+
+# 11a. A tree holding only exempt names is clean under both gates.
+repo=""
+if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
+  drift_seed "$repo" "${exempt_seeds[@]}"
+  if drift_emit "$repo" "$REPO_CONFIG" scripts; then
+    drift_compare "$repo" scripts/check-file-names.sh --check
+    if [[ -z "$DRIFT_REPORT" && "$DRIFT_RC" -eq 0 ]]; then
+      ok "template drift: exempt-only tree is clean under both gates"
+    else
+      fail "template drift: exempt-only tree (rc=$DRIFT_RC): $DRIFT_REPORT"
+    fi
+  else
+    fail "template drift: emission failed: $(cat "$repo/.git/emit.err")"
+  fi
+elif [[ -n "$drift_ready" ]]; then
+  fail "template drift: fixture build failed"
+fi
+
+# 11b. The seeded offending tree: same findings, streams, and exit code in
+#      --check, discover, and usage-error modes.
+repo=""
+if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
+  drift_seed "$repo" "${exempt_seeds[@]}" "${offender_seeds[@]}"
+  if drift_emit "$repo" "$REPO_CONFIG" scripts; then
+    for mode in --check "" --bogus; do
+      want=1
+      [[ "$mode" == --bogus ]] && want=2
+      if [[ -n "$mode" ]]; then
+        drift_compare "$repo" scripts/check-file-names.sh "$mode"
+      else
+        drift_compare "$repo" scripts/check-file-names.sh
+      fi
+      if [[ -z "$DRIFT_REPORT" && "$DRIFT_RC" -eq "$want" ]]; then
+        ok "template drift: offending tree agrees in ${mode:-discover} mode"
+      else
+        fail "template drift: offending tree in ${mode:-discover} mode (rc=$DRIFT_RC, want $want): $DRIFT_REPORT"
+      fi
+    done
+
+    # 11c. The comparison has teeth: a config that loses one entry from any
+    #      exemption list, or narrows the regex, emits a gate that must NOT
+    #      agree with this one over the same tree.
+    n=0
+    for filter in \
+      '.file_names.exempt_basenames |= .[1:]' \
+      '.file_names.exempt_paths |= .[1:]' \
+      '.file_names.exempt_extensions |= .[1:]' \
+      '.file_names.regex = "^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+$"'; do
+      n=$((n + 1))
+      jq "$filter" "$REPO_CONFIG" >"$repo/.git/mutant-$n.json"
+      if drift_emit "$repo" "$repo/.git/mutant-$n.json" "scripts/mutant-$n"; then
+        drift_compare "$repo" "scripts/mutant-$n/check-file-names.sh" --check
+        if [[ -n "$DRIFT_REPORT" ]]; then
+          ok "template drift: mutant config ($filter) is caught"
+        else
+          fail "template drift: mutant config ($filter) agreed with this gate, so the comparison cannot see drift"
+        fi
+      else
+        fail "template drift: mutant emission failed ($filter): $(cat "$repo/.git/emit.err")"
+      fi
+    done
+  else
+    fail "template drift: emission failed: $(cat "$repo/.git/emit.err")"
+  fi
+elif [[ -n "$drift_ready" ]]; then
+  fail "template drift: fixture build failed"
+fi
+
 test_harness::report
