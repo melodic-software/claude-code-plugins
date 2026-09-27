@@ -463,6 +463,78 @@ class TestExportReport(SessionCase):
         self.assertEqual(h.srcdocs, [svg, page])
 
 
+class TestReadableResolutions(SessionCase):
+    """The Brief and the report show an escaped row's resolution unescaped, as plain text; the
+    ledger keeps the escaped row, and it still imports."""
+
+    def test_brief_and_report_show_escaped_rows_as_plain_text(self):
+        seeded = {
+            "Q7": {
+                "status": "superseded-by-plan",
+                "round": 1,
+                "resolution": "plan proposes: new | one; was: old; two",
+                "proposal": ["new | one", "old; two"],
+            }
+        }
+        qs = [
+            question("Q1", commits=["One writer only", "No network"]),
+            question("Q2"),
+            question("Q3"),
+            question("Q4"),
+            question("Q5", commits=["Keep it"], archived={"why": "Off.", "at": AT}),
+            question(
+                "Q6",
+                waiting=True,
+                waitsOn="a | lookup; later",
+                terminal={"decision": "accept", "text": "why; not", "updatedAt": AT},
+            ),
+            question("Q7"),
+        ]
+        events = [
+            event(1, "Q1", "accept", text="only for v1; revisit later"),
+            event(2, "Q1", "confirm", alt="0"),
+            event(3, "Q2", "alt", alt="a", text="with a note"),
+            event(4, "Q3", "own", text="Use A | B; not C"),
+            event(5, "Q4", "defer", text="after the pilot"),
+            event(6, "Q5", "confirm", alt="0"),
+        ]
+        self.session(
+            qs, events, meta={"title": "Readable", "seededFrom": {"rows": seeded}}
+        )
+        plain = [
+            "accepted: Recommended answer for Q1.; note: only for v1; revisit later; "
+            "confirmed: One writer only",
+            "alt a: Alt a of Q2; note: with a note",
+            "free-text: Use A / B; not C",
+            "deferred: after the pilot; arbiter: USER-RESERVED",
+            "archived: Off.; confirmed: Keep it",
+            "waits on: a / lookup; later; answer: accepted: Recommended answer for Q6.; "
+            "note: why; not",
+            "plan proposes: new / one; was: old; two",
+        ]
+        brief = self.export("brief").read_text(encoding="utf-8")
+        constraints = brief.split("### Constraints")[1].split("###")[0]
+        for n, i in (("Q1", 0), ("Q2", 1), ("Q3", 2)):
+            self.assertIn(f"- {n} Short {n}: {plain[i]}\n", constraints)
+        scope = brief.split("### Out-of-scope")[1].split("###")[0]
+        self.assertIn(f"- Q5 Question Q5?: {plain[4]}\n", scope)
+        report = self.export("report").read_text(encoding="utf-8")
+        cells = [html.unescape(c) for c in re.findall(r"<td>([^<]*)</td></tr>", report)]
+        self.assertEqual(cells, plain)
+        ledger = self.export("ledger")
+        rows = register_rows(ledger)
+        self.assertIn(
+            "answer:: accepted: Recommended answer for Q1.; note: only", rows[0]
+        )
+        self.assertIn("waits on:: a \\| lookup\\; later", rows[5])
+        self.assertIn("plan proposes:: new \\| one; was: old\\; two", rows[6])
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+
 class TestReportFileVisuals(SessionCase):
     SVG = "<svg xmlns='http://www.w3.org/2000/svg'><text>filemark</text></svg>"
     PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452")

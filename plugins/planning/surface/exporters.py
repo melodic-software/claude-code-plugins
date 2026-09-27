@@ -368,6 +368,47 @@ def parse_hold(res, where):
     return hold
 
 
+def readable(status, res):
+    """An escaped row's resolution as a reader sees it: the plain vocabulary on one line, its
+    marks dropped and its fields unescaped, read in import_ledger's order. The Brief and the
+    report show it; the ledger keeps the escaped row."""
+    where = "the register"
+    hold = parse_hold(res, where) if status in UNSETTLED else None
+    parts, confirmed = [], None
+    if hold:
+        if "proposal" in hold:
+            new, old = hold["proposal"]
+            parts += [f"plan proposes: {new}", f"was: {old}"]
+        label = "awaiting user" if hold["user"] else "waits on"
+        parts.append(f"{label}: {hold['waitsOn']}")
+        parts += [f"{k}: {hold[k]}" for k in ("answer", "aside", "note") if k in hold]
+        confirmed = hold.get("confirmed")
+    else:
+        if status not in UNSETTLED or (
+            status == "superseded-by-plan"
+            and not (PROPOSAL_MARK.match(res) or PROPOSES.match(res))
+        ):
+            res, confirmed = split_tail(res)
+        answer = parse_answer(status, res, where)
+        proposal = (
+            parse_proposal(res, where) if status == "superseded-by-plan" else None
+        )
+        listed = CONFIRMED.match(res) if status == "open" else None
+        if answer:
+            parts = [answer[0], *([f"note: {answer[1]}"] if answer[1] else [])]
+            parts += ["arbiter: USER-RESERVED"] if status == "deferred" else []
+        elif proposal:
+            parts = [f"plan proposes: {proposal[0]}", f"was: {proposal[1]}"]
+            confirmed = proposal[2]
+        elif listed and listed.group(1):
+            confirmed = [unesc_field(c) for c in split_fields(listed.group(2))]
+        else:
+            parts = [res]
+    if confirmed:
+        parts.append("confirmed: " + "; ".join(confirmed))
+    return clean("; ".join(parts))
+
+
 def held_terminal(q, answer, note, at):
     """The terminal record a held row's answer restores; an alternative's text and an accept's
     recommendation go back on the question so a re-export writes the same answer."""
@@ -517,6 +558,10 @@ def register(doc, resp):
     rows = []
     for i, q in enumerate(qs, start=1):
         status, res, note, reserved = settle(q, responses, events, seed_rows)
+        lead = "" if contiguous else f"[{q['id']}] "
+        shown = (
+            clean(lead + readable(status, res)) if isinstance(res, Escaped) else None
+        )
         if isinstance(res, Escaped):
             res = f"[{clean(q['id'])}] {res}" if not contiguous else str(res)
         else:
@@ -531,6 +576,7 @@ def register(doc, resp):
                 "q": q,
                 "status": status,
                 "resolution": res,
+                "display": res if shown is None else shown,
                 "note": note,
                 "reserved": reserved,
                 "confirmed": confirmed,
@@ -594,7 +640,7 @@ def export_brief(d):
     )
     out += ["", "### Goal", "", para(title), "", "### Constraints", ""]
     out += [
-        f"- {r['n']} {clean(r['q'].get('short'))}: {r['resolution']}" for r in answered
+        f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
     ] or ["- none recorded"]
     out += [
         "",
@@ -613,7 +659,7 @@ def export_brief(d):
     out += ["", "### Out-of-scope", ""]
     archived = [r for r in rows if r["status"] == "withdrawn"]
     out += [
-        f"- {r['n']} {clean(r['q'].get('title'))}: {r['resolution']}" for r in archived
+        f"- {r['n']} {clean(r['q'].get('title'))}: {r['display']}" for r in archived
     ] or ["- none"]
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
@@ -759,7 +805,7 @@ def export_report(d):
         q = r["q"]
         out.append(
             f'<tr><td>{esc(r["n"])}</td><td><a href="#q-{esc(q["id"])}">{esc(q["id"])}</a></td>'
-            f"<td>{esc(q.get('title'))}</td><td>{esc(r['status'])}</td><td>{esc(r['resolution'])}</td></tr>"
+            f"<td>{esc(q.get('title'))}</td><td>{esc(r['status'])}</td><td>{esc(r['display'])}</td></tr>"
         )
     out.append("</tbody></table>")
     out.append("<h2>Questions</h2>")
