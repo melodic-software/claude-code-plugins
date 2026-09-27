@@ -5,7 +5,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ## [0.30.6] - 2026-09-27
 
-### Fixed
+### Changed
 
 - `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
 
