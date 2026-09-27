@@ -1,7 +1,7 @@
 """A stdlib subset of JSON Schema 2020-12 for the surface's shipped schemas in schema/.
 
 Keywords: type, enum, required, properties, additionalProperties (false or a schema), items,
-minItems, oneOf, anyOf, allOf, and $ref to `#/$defs/<name>` or to another shipped schema by $id.
+minItems, maxItems, oneOf, anyOf, allOf, and $ref to `#/$defs/<name>` or to another shipped schema by $id.
 Anything else in a schema is ignored. `first_error` returns the first failure as
 `<path>: <message>` (path in `$.a[0].b` form), or None when the instance is valid.
 """
@@ -83,6 +83,8 @@ def first_error(inst, schema, path="$", root=None):
     if isinstance(inst, list):
         if len(inst) < schema.get("minItems", 0):
             return f"{path}: needs at least {schema['minItems']} items, has {len(inst)}"
+        if len(inst) > schema.get("maxItems", len(inst)):
+            return f"{path}: allows at most {schema['maxItems']} items, has {len(inst)}"
         if "items" in schema:
             for i, val in enumerate(inst):
                 err = first_error(val, schema["items"], f"{path}[{i}]", root)

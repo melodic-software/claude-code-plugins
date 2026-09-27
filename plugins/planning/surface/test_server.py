@@ -908,6 +908,87 @@ class TestReplay(WaitCase):
         self.assertEqual(seqs(body["events"]), [posted["seq"]])
 
 
+class TestBurst(WaitCase):
+    """AC18: saves close together reach an armed watcher as one wake."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B"), question("C"))
+
+    def test_three_accepts_50_ms_apart_arrive_in_one_wait(self):
+        seq0 = self.state()["responses"]["seq"]
+
+        def burst():
+            posted = []
+            for qid in "ABC":
+                posted.append(self.post({"id": qid, "kind": "accept"})[1]["seq"])
+                time.sleep(0.05)
+            return posted
+
+        r, posted = self.wait_during(f"after={seq0}&timeout=20", burst)
+        code, body, _ = r
+        self.assertEqual(code, 200)
+        self.assertEqual(seqs(body["events"]), posted)
+        events = self.state()["responses"]["events"]
+        self.assertEqual([e["seq"] for e in events if e.get("deliveredAt")], posted)
+
+
+class TestEventStreamPing(ServerCase):
+    """An idle event stream carries a ping frame at least every PING_SECONDS."""
+
+    def test_idle_stream_gets_a_ping(self):
+        from server import PING_SECONDS
+
+        conn = http.client.HTTPConnection(
+            "127.0.0.1", self.port, timeout=PING_SECONDS + 5
+        )
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            started = time.monotonic()
+            while not (line := resp.fp.readline()).startswith(b"event: ping"):
+                self.assertTrue(line, "the stream closed before a ping")
+            self.assertLess(time.monotonic() - started, PING_SECONDS + 2)
+            self.assertEqual(resp.fp.readline(), b"data: {}\n")
+        finally:
+            conn.close()
+
+
+class TestEventStreamCap(ServerCase):
+    """At most MAX_STREAMS event streams at once: one more is 503 until a stream closes."""
+
+    def open_stream(self, streams):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        conn.request("GET", "/events")
+        resp = conn.getresponse()
+        streams.append((conn, resp))
+        return resp
+
+    def test_the_stream_over_the_cap_is_503_until_one_closes(self):
+        from server import MAX_STREAMS
+
+        streams = []
+        try:
+            for _ in range(MAX_STREAMS):
+                resp = self.open_stream(streams)
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(resp.fp.readline(), b"retry: 2000\n")
+            resp = self.open_stream(streams)
+            self.assertEqual(resp.status, 503)
+            self.assertIn("streams", json.loads(resp.read())["error"])
+            for part in streams.pop(0):
+                part.close()
+            deadline = time.monotonic() + 5
+            while (resp := self.open_stream(streams)).status != 200:
+                resp.read()
+                self.assertLess(time.monotonic(), deadline, "no slot freed")
+                time.sleep(0.2)
+        finally:
+            for conn, resp in streams:
+                resp.close()
+                conn.close()
+
+
 class TestListener(WaitCase):
     """listener.idleFor (AC26 server side): null before any wait, 0 while one waits, then counting.
 
@@ -1103,6 +1184,128 @@ class TestConfirm(WaitCase):
         code, _ = self.post({"id": "A", "kind": "confirm"})
         self.assertEqual(code, 400)
 
+    def test_3_a_repeated_confirm_returns_the_existing_seq(self):
+        body = {"id": "A", "kind": "confirm", "alt": "1"}
+        before = self.state()["responses"]
+        first = next(e["seq"] for e in before["events"] if e["kind"] == "confirm")
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, first), data)
+        after = self.state()["responses"]
+        self.assertEqual(after["seq"], before["seq"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+        code, data = self.post({**body, "alt": "0"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["seq"], after["seq"] + 1)
+
+
+def seed_restatement(d, rev):
+    doc = json.loads((Path(d) / "questions.json").read_text(encoding="utf-8"))
+    doc["restatement"] = {"rev": rev, "at": "t", "sections": {"goal": "Ship it."}}
+    (Path(d) / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+class TestConfirmUnderstanding(WaitCase):
+    """The `confirm-understanding` event: free, `alt` confirm or off, keyed to restatement.rev."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+        seed_restatement(cls.dir, 2)
+
+    def test_1_confirm_is_saved_free_with_its_rev_and_wakes_the_watcher(self):
+        code, data = self.post(
+            {
+                "id": "A",
+                "kind": "confirm-understanding",
+                "alt": "confirm",
+                "contentRev": 2,
+            }
+        )
+        self.assertEqual(code, 200, data)
+        e = self.state()["responses"]["events"][-1]
+        self.assertEqual(
+            (e["id"], e["kind"], e["alt"], e["contentRev"]),
+            (None, "confirm-understanding", "confirm", 2),
+        )
+        self.assertNotIn("A", self.state()["responses"]["responses"])
+        code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
+        self.assertIn(data["seq"], seqs(body["events"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+    def test_2_off_needs_text(self):
+        body = {"kind": "confirm-understanding", "alt": "off", "contentRev": 2}
+        code, data = self.post(body)
+        self.assertEqual(code, 400, data)
+        code, data = self.post({**body, "text": "The goal is wrong."})
+        self.assertEqual(code, 200, data)
+
+    def test_3_alt_must_be_confirm_or_off(self):
+        for alt in (None, "yes", "0"):
+            code, data = self.post(
+                {"kind": "confirm-understanding", "alt": alt, "contentRev": 2}
+            )
+            self.assertEqual(code, 400, (alt, data))
+
+    def test_4_an_old_rev_is_409_stale(self):
+        code, data = self.post(
+            {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 1}
+        )
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data, {"error": "stale", "contentRev": 2})
+        code, data = self.post({"kind": "confirm-understanding", "alt": "confirm"})
+        self.assertEqual(code, 400, data)
+
+    def test_5_a_repeated_confirm_of_the_same_rev_returns_the_existing_seq(self):
+        # test_2 flagged rev 2 after test_1 confirmed it, so the next Confirm is new.
+        body = {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
+        before = self.state()["responses"]
+        self.assertEqual(before["events"][-1]["alt"], "off")
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, before["seq"] + 1), data)
+        after = self.state()["responses"]
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, after["seq"]), data)
+        self.assertEqual(self.state()["responses"]["events"], after["events"])
+
+
+class TestConfirmUnderstandingNeedsARestatement(WaitCase):
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_no_restatement_is_400(self):
+        code, data = self.post(
+            {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 1}
+        )
+        self.assertEqual(code, 400, data)
+        self.assertIn("restatement", data["error"])
+
+
+class TestUnderstandingCheckedUnderTheLock(unittest.TestCase):
+    """confirm-understanding is checked against questions.json read inside the hub's lock."""
+
+    def test_the_check_runs_under_the_lock(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-lock-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        seed_questions(tmp, question("A"))
+        seed_restatement(tmp, 2)
+        with unittest.mock.patch.dict(os.environ, settings_env(), clear=True):
+            hub = server.Hub(0, tmp)
+        held, real = [], server.check_understanding
+
+        def spy(*args):
+            held.append(hub.cond._is_owned())
+            return real(*args)
+
+        with unittest.mock.patch.object(server, "check_understanding", spy):
+            hub.record(
+                {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
+            )
+        self.assertEqual(held, [True])
+
 
 def settings_env(**extra):
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
@@ -1284,9 +1487,9 @@ class TestEmojiMarkers(ServerCase):
     def meta(self):
         return self.state()["questions"]["meta"]
 
-    def test_1_default_true_creates_questions_json(self):
+    def test_1_no_flag_on_a_new_file_records_false(self):
         self.assertTrue((self.dir / "questions.json").exists())
-        self.assertIs(self.meta().get("emojiMarkers"), True)
+        self.assertIs(self.meta().get("emojiMarkers"), False)
 
     def test_2_false_is_recorded_and_a_repeat_does_not_bump_rev(self):
         p = ensure_running(self.dir, "--emoji-markers", "false")
@@ -1298,6 +1501,16 @@ class TestEmojiMarkers(ServerCase):
 
     def test_3_display_name_reaches_state(self):
         self.assertEqual(self.state()["settings"]["displayName"]["value"], "You")
+
+    def test_4_no_flag_keeps_the_recorded_value(self):
+        for value in ("true", "false"):
+            with self.subTest(value=value):
+                ensure_running(self.dir, "--emoji-markers", value)
+                rev = self.state()["questions"]["rev"]
+                p = ensure_running(self.dir)
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertIs(self.meta().get("emojiMarkers"), value == "true")
+                self.assertEqual(self.state()["questions"]["rev"], rev)
 
 
 class TestAnswerValidation(WaitCase):
