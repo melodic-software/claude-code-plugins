@@ -229,7 +229,11 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "record-terminal", "id": "Q7", "decision": "accept"},
     {"op": "wait", "id": "Q3", "waitsOn": "a second benchmark '"$long"'", "by": "claude"},
     {"op": "set-status", "text": "Running a second benchmark '"$long"'"},
-    {"op": "group", "id": "g3", "title": "Release", "dependsOn": ["g2"]}]}'
+    {"op": "group", "id": "g3", "title": "Release", "dependsOn": ["g2"]},
+    {"op": "add", "question": {"id": "Q8_runner_image_cache_key_follow_up_0123456789", "group": "g1", "stage": "interview",
+      "short": "Cache key follow-up", "title": "Should the cache key include the runner image?",
+      "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on main"}]}},
+    {"op": "record-terminal", "id": "Q8_runner_image_cache_key_follow_up_0123456789", "decision": "accept"}]}'
   jrun 6
   japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true}]}'
   jrun 7
@@ -238,8 +242,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 252 browser checks not run, 98 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 252))
+  echo "SKIP: 254 browser checks not run, 100 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 254))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

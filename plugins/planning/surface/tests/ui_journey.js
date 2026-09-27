@@ -282,6 +282,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     // a Claude line and a hold near their 500-character caps never widen the page
     for (const w of [360, 1400]) {
       await page.setViewportSize({width: w, height: 860});
+      // a long unbroken question id keeps its rail row compact, the title readable and the chip whole
+      const long = "Q8_runner_image_cache_key_follow_up_0123456789";
+      await pick(long);
+      const row = await page.evaluate(id => {
+        const list = document.getElementById("railList"), b = list.querySelector('.qbtn[data-q="' + id + '"]'), r = b.getBoundingClientRect(), c = b.querySelector(".chip").getBoundingClientRect();
+        return {scroll: list.scrollWidth, client: list.clientWidth, h: Math.round(r.height), title: Math.round(b.querySelector(".qtitle").getBoundingClientRect().width), chip: c.width > 0 && c.right <= r.right + 0.5, full: b.querySelector(".qid").title === id};
+      }, long);
+      ok("at " + w + " px a long unbroken question id keeps the rail from scrolling sideways, its row under 200 px, its title 100 px wide and its chip whole", row.scroll <= row.client && row.h < 200 && row.title >= 100 && row.chip && row.full, JSON.stringify(row));
       const fit = [];
       for (const v of ["Q3", "summary"]) {
         if (v === "summary") await tap("#sumBtn", 300); else await pick(v);

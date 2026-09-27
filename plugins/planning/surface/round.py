@@ -593,6 +593,9 @@ def op_wait(d, doc, a):
     write produces), which outlive the hold: decisions up to them stop counting."""
     q = find(doc, a.id)
     waits = capped("waitsOn", (a.waitsOn or "").strip(), LINE_CAP)
+    # The ledger row's hold/answer delimiter, kept out so an import splits the row once.
+    if "; answer: " in waits:
+        sys.exit(f"refused: waitsOn on {a.id} contains '; answer: '; reword it")
     if bool(waits) == bool(a.clear):
         sys.exit(
             f"refused: wait on {a.id} takes a non-empty waitsOn or clear, not both"

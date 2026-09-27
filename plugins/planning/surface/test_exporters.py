@@ -647,6 +647,75 @@ class TestImportLedger(SessionCase):
             ],
         )
 
+    def test_a_hold_text_never_carries_the_answer_delimiter_through_a_round_trip(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Who reads? | accepted: everyone\n"
+            "- Q2 | open | round 1 | Who writes? |\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        path = self.tmp / "ops.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "wait",
+                            "id": "Q2",
+                            "waitsOn": "vendor quote; answer: pending",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(path))
+        self.assertEqual(rc, 1, out)
+        self.apply(
+            {"op": "wait", "id": "Q1", "waitsOn": "vendor quote, answer: pending"},
+            {"op": "wait", "id": "Q2", "waitsOn": "vendor quote, answer: pending"},
+        )
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Who reads? | waits on: vendor quote, answer: pending; answer: accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? | waits on: vendor quote, answer: pending",
+            ],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        qs = {
+            q["id"]: q
+            for q in json.loads((fresh / "questions.json").read_text(encoding="utf-8"))[
+                "questions"
+            ]
+        }
+        self.assertEqual(
+            [qs[i].get("waitsOn") for i in ("Q1", "Q2")],
+            ["vendor quote, answer: pending"] * 2,
+        )
+        self.assertNotIn("terminal", qs["Q2"])
+        self.apply(
+            {"op": "wait", "id": "Q1", "clear": True},
+            {"op": "wait", "id": "Q2", "clear": True},
+            d=fresh,
+        )
+        self.assertEqual(
+            register_rows(self.export("ledger", d=fresh)),
+            [
+                "- Q1 | answered | round 1 | Who reads? | accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? |",
+            ],
+        )
+
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
         ledger = self.export("ledger")

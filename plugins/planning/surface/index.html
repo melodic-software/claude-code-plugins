@@ -117,7 +117,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
 .qbtn.archived{opacity:.45;filter:grayscale(1)}
-.qid{font:600 13px var(--mono);grid-row:span 3;align-self:start;padding-top:1px}
+.qid{font:600 13px var(--mono);grid-row:span 3;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qtitle{font-size:13.5px;line-height:1.35}
 .qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
 .qmeta .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3;max-width:100%}
@@ -640,7 +640,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
     return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
-      '<span class="qid">' + esc(q.id) + '</span><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
+      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
       '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
   }
