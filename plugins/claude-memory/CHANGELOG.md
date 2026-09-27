@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- **Script commands in the `context/` and `reference/` files run as written again (#4613).** The
+  `audit` skill's `context/audit.md`, `context/fix.md` and `reference/criteria.md`, and the
+  `stateless` skill's `context/status.md` and `context/purge.md`, wrote each bundled script as
+  `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>.sh`. Claude Code substitutes that token only
+  in a rendered `SKILL.md`; a spoke read later with the Read tool keeps it literal, and the Bash
+  tool's environment has no `CLAUDE_PLUGIN_ROOT`, so each command resolved to
+  `/skills/<skill>/scripts/...` and failed. Discovery, M2, RD1 and N1 then ran only when the model
+  repaired the path by hand. The 16 commands now start from `<skill-dir>`, and each `SKILL.md`
+  renders that directory from `${CLAUDE_SKILL_DIR}` with a dated verification record. No spoke
+  carries the dollar-brace root token any more, so the rule is grep-checkable.
+
 ## [0.13.3] - 2026-09-25
 
 ### Changed

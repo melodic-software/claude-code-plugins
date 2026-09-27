@@ -86,6 +86,16 @@ not in criteria. Label those "judgment candidate" in the report. Criteria derive
 Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));
 refresh both via the `update` action.
 
+## Script paths
+
+The `context/` and `reference/` files write each bundled script as `<skill-dir>/scripts/<name>.sh`,
+where `<skill-dir>` is this skill's directory: `${CLAUDE_SKILL_DIR}`. Put that path in place of the
+placeholder before running a command. Those files arrive through the Read tool as plain bytes, so a
+`${…}` token in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference, "Where each variable resolves",
+and the skills page, "Available string substitutions", both verified 2026-09-27; recheck when either
+table adds supporting files to where a `${…}` reference resolves.
+
 ## Audit mode (default)
 
 Load [context/audit.md](context/audit.md) for the full audit workflow.
