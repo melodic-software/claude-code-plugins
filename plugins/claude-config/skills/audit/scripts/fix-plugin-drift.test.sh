@@ -27,6 +27,24 @@ export TMPDIR="$TEST_TMPDIR/tmp"
 # CLAUDE_CONFIG_DIR, so no case inherits another's `true`.
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
+# Nothing the caller exported reaches a case: every other settings-path
+# variable is cleared, and CLAUDE_SETTINGS_FILE names a fixture path no case
+# creates. A case that needs the project-root ladder unsets it on its own run.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
+unset CLAUDE_PROJECT_DIR
+export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
+
+# guard_apply <settings-path> - abort the whole suite (exit 2) unless the file
+# an --yes run would write lies under the suite temp dir. Called before every
+# --yes run; it signals the suite shell, so it aborts from inside $(...) too.
+SUITE_PID=$$
+trap 'exit 2' TERM
+guard_apply() {
+  [[ "$1" == "$TEST_TMPDIR"/* && "$1" != *"/../"* ]] && return 0
+  printf 'ABORT: an --yes run would write %s, outside the suite temp dir %s\n' "$1" "$TEST_TMPDIR" >&2
+  kill -s TERM "$SUITE_PID"
+  exit 2
+}
 
 FAILED=0
 PASSED=0
@@ -134,6 +152,7 @@ run_fix_dry() {
 
 run_fix_apply() {
   local case_dir="$1"
+  guard_apply "$case_dir/settings.json"
   NO_COLOR=1 \
     CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
     bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
@@ -145,6 +164,7 @@ run_fix_apply() {
 run_fix_internal() {
   local case_dir="$1"
   shift
+  guard_apply "$case_dir/settings.json"
   NO_COLOR=1 \
     CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
     bash "$SCRIPT" "$@" 2>&1
@@ -438,7 +458,8 @@ cp "$case_dir/.claude/settings.json" "$case_dir/settings.pre"
 # CLAUDE_PROJECT_DIR; CLAUDE_CONFIG_DIR makes that same directory the user
 # scope, which is the collision the guard exists to refuse.
 exit_code=0
-out=$(NO_COLOR=1 \
+guard_apply "$case_dir/.claude/settings.json"
+out=$(NO_COLOR=1 env -u CLAUDE_SETTINGS_FILE \
   GIT_DIR=/nonexistent \
   CLAUDE_PROJECT_DIR="$case_dir" \
   CLAUDE_CONFIG_DIR="$case_dir/.claude" \
@@ -563,6 +584,7 @@ EOF
 # scope. The guard is waived because the path was given explicitly, so the run
 # must apply, but it must say out loud that it waived it.
 exit_code=0
+guard_apply "$case_dir/.claude/settings.json"
 out=$(NO_COLOR=1 \
   CLAUDE_CONFIG_DIR="$case_dir/.claude" \
   CLAUDE_SETTINGS_FILE="$case_dir/.claude/settings.json" \
@@ -659,6 +681,7 @@ signal_shim() {
 # run_signalled <case-dir> <signal> - an apply interrupted at that point.  # identifier, not prose # spellchecker:disable-line
 run_signalled() {  # identifier, not prose # spellchecker:disable-line
   local case_dir="$1" sig="$2"
+  guard_apply "$case_dir/settings.json"
   signal_shim "$case_dir/shim" "$sig"
   PATH="$case_dir/shim:$PATH" \
     SHIM_MARKER="$case_dir/fired" \
@@ -862,6 +885,7 @@ printf '{"enabledPlugins":{"alpha@market1":true,"removed@market1":false,"other@m
 concurrent_shim "$case_dir/shim"
 
 exit_code=0
+guard_apply "$case_dir/settings.json"
 out=$(PATH="$case_dir/shim:$PATH" \
   SHIM_MARKER="$case_dir/fired" \
   SHIM_WRITE="$case_dir/concurrent.json" \
@@ -1043,6 +1067,7 @@ for backup_case in "29 quiet" "30 concurrent"; do
     fi
     cp "$case_dir/settings.json" "$case_dir/settings.pre"
     exit_code=0
+    guard_apply "$case_dir/settings.json"
     out=$(PATH="$case_dir/shim:$PATH" \
       SHIM_SETTINGS="$shim_settings" \
       NO_COLOR=1 \
@@ -1111,6 +1136,7 @@ printf '%s\n' '{"name": "mk", "plugins": [{"name": "alpha"}, {"name": "dup"}]}' 
   >"$case_dir/.claude-plugin/marketplace.json"
 
 exit_code=0
+guard_apply "$case_dir/.claude/settings.json"
 out=$(NO_COLOR=1 CLAUDE_SETTINGS_FILE="$case_dir/.claude/settings.json" \
   bash "$SCRIPT" --yes 2>&1) || exit_code=$?
 assert_exit "case-32: check then apply exits 0" 0 "$exit_code"
@@ -1216,6 +1242,7 @@ cp "$case_dir/settings.local.json" "$case_dir/local.pre"
 printf '{"enabledPlugins":{"removed@market1":true}}\n' >"$case_dir/settings.json"
 
 exit_code=0
+guard_apply "$case_dir/settings.local.json"
 out=$(NO_COLOR=1 CLAUDE_CONFIG_DIR="$case_dir/user" CLAUDE_SETTINGS_FILE="$case_dir/settings.local.json" \
   bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1) || exit_code=$?
 assert_exit "case-37: held local apply exits 0" 0 "$exit_code"
@@ -1229,6 +1256,7 @@ cp "$case_dir/findings.json" "$case_dir/free/findings.json"
 printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/free/settings.local.json"
 printf '{"enabledPlugins":{"removed@market1":false}}\n' >"$case_dir/free/settings.json"
 exit_code=0
+guard_apply "$case_dir/free/settings.local.json"
 out=$(NO_COLOR=1 CLAUDE_CONFIG_DIR="$case_dir/user" CLAUDE_SETTINGS_FILE="$case_dir/free/settings.local.json" \
   bash "$SCRIPT" --input "$case_dir/free/findings.json" --yes 2>&1) || exit_code=$?
 assert_exit "case-37: free local apply exits 0" 0 "$exit_code"
@@ -1345,6 +1373,7 @@ for link in hard sym dangling; do
   cp "$case_dir/decoy" "$case_dir/decoy.ref"
   mktemp_shim "$case_dir/shim"
   exit_code=0
+  guard_apply "$case_dir/settings.json"
   out=$(PATH="$case_dir/shim:$PATH" \
     REAL_MKTEMP="$real_mktemp" \
     SHIM_LINK="$link" \
@@ -1376,6 +1405,27 @@ for link in hard sym dangling; do
   assert_eq "$label is left in place" "yes" "$kept"
   assert_eq "$label is the only backup-shaped name" "1" "$(backup_count "$case_dir")"
 done
+
+# --- Guard: an --yes target outside the suite temp dir aborts the suite -----------
+# guard_probe <settings-path> - the suite's guard_apply in a child shell, so its
+# abort ends the child and never this suite. No apply runs and no path is created.
+guard_probe() {
+  bash -c "$(declare -f guard_apply)"'
+    TEST_TMPDIR=$1 SUITE_PID=$$
+    trap "exit 2" TERM
+    guard_apply "$2"
+    echo reached' guard-probe "$TEST_TMPDIR" "$1" 2>&1
+}
+for outside in "${TEST_TMPDIR}x/settings.json" "$TEST_TMPDIR/../elsewhere/settings.json" "/settings.json"; do
+  exit_code=0
+  out=$(guard_probe "$outside") || exit_code=$?
+  assert_exit "guard: $outside aborts with exit 2" 2 "$exit_code"
+  assert_contains "guard: $outside is named in the abort" "$out" "ABORT: an --yes run would write $outside"
+  assert_not_contains "guard: $outside never reaches the apply" "$out" "reached"
+done
+exit_code=0
+out=$(guard_probe "$TEST_TMPDIR/case-x/settings.json") || exit_code=$?
+assert_eq "guard: a path under the suite temp dir passes" "0 reached" "$exit_code $out"
 
 # --- Final ------------------------------------------------------------------
 

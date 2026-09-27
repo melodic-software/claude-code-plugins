@@ -25,6 +25,12 @@ export TMPDIR="$TEST_TMPDIR/tmp"
 # Every case runs against a fixture user scope, never this machine's.
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
+# Nothing the caller exported reaches a case: every other settings-path
+# variable is cleared, and CLAUDE_SETTINGS_FILE names a fixture path no case
+# creates. Each case pins the settings file it reads.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
+unset CLAUDE_PROJECT_DIR
+export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
 
 FAILED=0
 PASSED=0

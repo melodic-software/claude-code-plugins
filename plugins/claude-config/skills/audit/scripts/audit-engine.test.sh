@@ -14,6 +14,15 @@ if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   exit 2
 fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# Nothing the caller exported reaches a case: every settings-path variable is
+# cleared or pinned to a fixture under the suite temp dir. Each run sets the
+# SETTINGS_AUDIT_ENGINE_* seams it uses.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
+unset CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT
+mkdir -p "$TEST_TMPDIR/home/.claude"
+export HOME="$TEST_TMPDIR/home"
+export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
+export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
 
 FAILED=0
 CASE_NUM=0
