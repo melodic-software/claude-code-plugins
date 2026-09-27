@@ -6,7 +6,7 @@ Usage:
   value-sites.py apply --old V --new W [--root DIR] [--allow-fixture] SITE...
 
 find reads tracked files (`git -C DIR ls-files`, optionally restricted to PATH
-prefixes) and never writes. Files with a NUL byte in the first 8 KiB are
+prefixes; `.` means the whole root) and never writes. Files with a NUL byte in the first 8 KiB are
 skipped and counted. The value is searched in these forms, each a `form` tag:
 
   exact    the value as given
@@ -25,7 +25,8 @@ longest first, once.
 
 tsv rows: class, path, line, col, form, reason, text (tab separated; tabs in
 text written as `\\t`). Class, first rule wins: generated (marker in the first
-5 lines), fixture, record, contract, else setup; `reason` names the rule.
+5 lines), protected (CI, agent settings, hooks, lint configs, migrations),
+fixture, record, contract, else setup; `reason` names the rule.
 summary lines: `file<TAB>path<TAB>n`, `class<TAB>name<TAB>n`, `sites: n`,
 `skipped-binary: n`.
 
@@ -37,9 +38,10 @@ replaces every match on the line with W in that match's form (a `case:T` match
 gets W in form T). Bytes outside the matches, CRLF and a BOM included, are
 kept. Refusals are all-or-nothing: if any site is refused (outside the root,
 untracked, missing, or a symlink; line past the end or no longer carrying the
-value; class record, contract or generated; fixture without --allow-fixture;
+value; class record, contract, generated or protected; fixture without --allow-fixture;
 W has no spelling for a matched form; the file's control-byte count would
-change) nothing is written. Prints one row per replaced site:
+change; a target not writable) nothing is written. If a write still fails,
+the files already written get their original bytes back and the exit is 2. Prints one row per replaced site:
 `applied<TAB>path<TAB>line<TAB>forms<TAB>text`.
 
 Exit: 0 sites found or applied, 1 no sites (find), 2 usage or environment
@@ -53,6 +55,7 @@ import argparse
 import fnmatch
 import io
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -72,8 +75,31 @@ FIXTURE_NAMES = ("*.test.*", "test_*.py", "*_test.*", "*.Tests.ps1")
 RECORD_PREFIXES = ("CHANGELOG", "HISTORY", "RELEASE-NOTES", "RELEASENOTES")
 RECORD_SEGMENTS = ("adr", "decisions", "evidence", "records", "postmortems", "retros")
 CONTRACT_SEGMENTS = ("specs", "rfcs", "proposals")
-CLASSES = ("setup", "record", "contract", "fixture", "generated")
-LOCKED = ("record", "contract", "generated")
+PROTECTED_SEGMENTS = (
+    ".github",
+    ".claude",
+    ".husky",
+    ".githooks",
+    "hooks",
+    "migrations",
+)
+PROTECTED_NAMES = (
+    "ruff.toml",
+    ".ruff.toml",
+    "_typos.toml",
+    ".typos.toml",
+    "typos.toml",
+    ".pre-commit-config.yaml",
+    ".golangci.yml",
+    ".golangci.yaml",
+    ".editorconfig",
+    ".shellcheckrc",
+    ".eslintrc*",
+    "eslint.config.*",
+    ".markdownlint*",
+)
+CLASSES = ("setup", "record", "contract", "fixture", "generated", "protected")
+LOCKED = ("record", "contract", "generated", "protected")
 
 
 class UsageError(Exception):
@@ -172,6 +198,12 @@ def classify(rel: str, head: str) -> tuple[str, str]:
             return "generated", f"marker:{marker}"
     parts = rel.lower().split("/")
     dirs, name = parts[:-1], parts[-1]
+    for seg in PROTECTED_SEGMENTS:
+        if seg in dirs:
+            return "protected", f"segment:{seg}"
+    for pat in PROTECTED_NAMES:
+        if fnmatch.fnmatchcase(name, pat):
+            return "protected", f"name:{pat}"
     for seg in FIXTURE_SEGMENTS:
         if seg in dirs:
             return "fixture", f"segment:{seg}"
@@ -207,7 +239,9 @@ def tracked(root: Path, prefixes: list[str]) -> list[str]:
     )
     if proc.returncode != 0:
         raise UsageError(f"not a git work tree: {root}")
-    wanted = [p.replace("\\", "/").removeprefix("./").rstrip("/") for p in prefixes]
+    wanted = [posixpath.normpath(p.replace("\\", "/")) for p in prefixes]
+    if "." in wanted:
+        wanted = []
     files = []
     for rel in proc.stdout.decode("utf-8", "surrogateescape").split("\0"):
         if rel and (
@@ -351,12 +385,23 @@ def cmd_apply(args: argparse.Namespace) -> int:
             continue
         writes.append((root / rel, new_data))
         printed += file_rows
+    for path, _ in writes:
+        if not os.access(path, os.W_OK):
+            refusals.append(f"{path.relative_to(root)}: not writable")
     if refusals:
         for msg in refusals:
             print(f"refused: {msg}", file=sys.stderr)
         return 3
-    for path, new_data in writes:
-        path.write_bytes(new_data)
+    done: list[tuple[Path, bytes]] = []
+    try:
+        for path, new_data in writes:
+            old = path.read_bytes()
+            path.write_bytes(new_data)
+            done.append((path, old))
+    except OSError as exc:
+        for path, old in done:
+            path.write_bytes(old)
+        raise UsageError(f"write failed, earlier writes restored: {exc}") from exc
     for row in printed:
         print(row)
     return 0

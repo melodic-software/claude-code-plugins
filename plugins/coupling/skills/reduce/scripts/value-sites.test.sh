@@ -327,6 +327,55 @@ if [[ -e "$FX/a.md" ]]; then
   assert_eq "both casings' edits land in one write" $'one Q:\\vol\\two\ntwo Q:\\vol\\two' "$(cat "$FX/A.md")"
 fi
 
+# --- a dot scope means the whole repository -----------------------------------------
+FX=$(new_fixture dotscope)
+put "$FX" README.md 'v Q:\vol\one'
+put "$FX" docs/guide.md 'v Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+assert_eq "scope . finds every site" "2" "$(row_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" .)")"
+assert_eq "scope ./ finds every site" "2" "$(row_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" ./)")"
+
+# --- protected surfaces: CI, agent settings, hooks, lint configs, migrations ---------
+FX=$(new_fixture protected)
+put "$FX" .github/workflows/ci.yml 'pin: Q:\vol\one'
+put "$FX" .claude/settings.json '{"dir": "Q:\\vol\\one"}'
+put "$FX" hooks/pre.sh 'v Q:\vol\one'
+put "$FX" ruff.toml 'v = "Q:\vol\one"'
+put "$FX" .pre-commit-config.yaml 'v: Q:\vol\one'
+put "$FX" db/migrations/001.sql '-- Q:\vol\one'
+put "$FX" README.md 'v Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
+assert_contains "workflow is protected" "$OUT" $'protected\t.github/workflows/ci.yml\t1\t6\texact\tsegment:.github'
+assert_contains "agent settings are protected" "$OUT" $'protected\t.claude/settings.json'
+assert_contains "hook script is protected" "$OUT" $'protected\thooks/pre.sh\t1\t3\texact\tsegment:hooks'
+assert_contains "lint config is protected" "$OUT" $'protected\truff.toml\t1\t6\texact\tname:ruff.toml'
+assert_contains "pre-commit config is protected" "$OUT" $'protected\t.pre-commit-config.yaml'
+assert_contains "migration is protected" "$OUT" $'protected\tdb/migrations/001.sql\t1\t4\texact\tsegment:migrations'
+assert_contains "README stays setup" "$OUT" $'setup\tREADME.md'
+assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t6'
+rc=0
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 .github/workflows/ci.yml:1 >/dev/null 2>&1 || rc=$?
+assert_exit "apply refuses a protected site" 3 "$rc"
+assert_eq "protected refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/README.md")"
+
+# --- a target that cannot be written stops the run before any write -------------------
+if [[ "$(id -u 2>/dev/null)" != "0" ]]; then
+  FX=$(new_fixture readonly)
+  put "$FX" a.md 'v Q:\vol\one'
+  put "$FX" b.md 'v Q:\vol\one'
+  stage "$FX"
+  chmod a-w "$FX/b.md"
+  ROOT=$(host_path "$FX")
+  rc=0
+  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" a.md:1 b.md:1 >/dev/null 2>&1 || rc=$?
+  chmod u+w "$FX/b.md"
+  assert_exit "an unwritable target is refused" 3 "$rc"
+  assert_eq "no earlier target is written" 'v Q:\vol\one' "$(cat "$FX/a.md")"
+fi
+
 echo
 if [[ "$FAILED" -gt 0 ]]; then
   echo "value-sites.test.sh: $FAILED of $CASE_NUM FAILED" >&2

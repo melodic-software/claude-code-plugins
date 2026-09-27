@@ -51,6 +51,7 @@ rows before confirming: `apply` edits any listed setup site.
 | contract | Approved plans, briefs, specs, published schemas | Never edit. Write a correction entry to the proposal file below, citing path and line |
 | fixture | Test inputs and expected outputs | Flag for a person. Change only when a test pins a value the source of truth now owns |
 | generated | Files whose header says they are generated or not to be edited | Never edit. Flag for a person with the generator input to change |
+| protected | CI workflows and actions, agent settings, hook scripts, lint configs, migrations | Never edit here. Route to a person as its own change; phase E keeps these surfaces out of any batch |
 
 The script cannot see a vendored copy (a file synced from another location); reclassify it as
 `generated` and change the source it is copied from.
@@ -102,13 +103,14 @@ Only `change apply` edits, and only after the human confirms the classified site
    coupling pass.
 4. Substitute the value with `value-sites.py apply`, which changes the value only, on the listed
    `path:line` sites only. It refuses a site that is not a tracked file inside the root (or is a
-   symlink), record, contract, and generated sites, fixture sites unless `--allow-fixture` is
-   given, a line that no longer carries the value, and any write that changes a file's
-   control-byte count; one refusal means no file is written. Then make the confirmed
+   symlink), record, contract, generated, and protected sites, fixture sites unless
+   `--allow-fixture` is given, a line that no longer carries the value, a target that is not
+   writable, and any write that changes a file's control-byte count; one refusal means no file is
+   written, and a write that fails midway restores the files already written. Then make the confirmed
    reference-form conversions with the Edit tool.
 5. Write contract corrections to the proposal file; never edit the contract.
 6. Re-run `find` for the old value. Every remaining row must be a record, a contract, a generated
-   file, or a fixture the human chose to leave; a remaining setup row means the change is not done.
+   or protected file, or a fixture the human chose to leave; a remaining setup row means the change is not done.
    When `<new>` contains `<old>`, a re-run matches the new value too; check the rows' text for the
    new value instead of counting them.
 7. Record each converted site and each flagged contract or fixture in the ledger as a
