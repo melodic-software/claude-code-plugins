@@ -9517,20 +9517,31 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ):
             return guard.resolve_disk_hygiene_enabled()
 
-    def engine_command(self, subcommand: str, data_root: Path | None = None) -> str:
+    ENGINE_TAILS = {
+        "scan": "scan --target t --output s",
+        "preview": "preview --snapshot s --plan p",
+        "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "apply": (
+            "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        ),
+    }
+
+    def engine_command(
+        self,
+        subcommand: str,
+        data_root: Path | None = None,
+        *,
+        omit_data_root: bool = False,
+    ) -> str:
         root = self.expected if data_root is None else data_root
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
-        if subcommand == "scan":
-            tail = "scan --target t --output s"
-        else:
-            tail = (
-                "apply --execute --snapshot s --plan p --confirm-tier high "
-                f"--approval-token {'a' * 24} --report r"
-            )
-        return (
-            f'"{guard._display_python()}" "{script}" {tail} '
-            f'--data-root "{root.as_posix()}"'
+        command = (
+            f'"{guard._display_python()}" "{script}" {self.ENGINE_TAILS[subcommand]}'
         )
+        if omit_data_root:
+            return command
+        return f'{command} --data-root "{root.as_posix()}"'
 
     def run_main(self, command: str, argv: list[str]) -> dict[str, object]:
         guard._directory_marketplace_install.cache_clear()
@@ -9877,7 +9888,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
         self.assertEqual("allow", self.scan_verdict(env_root, argv))
 
-    def test_changed_known_marketplaces_shape_fails_closed(self) -> None:
+    def test_changed_known_marketplaces_shape_yields_no_directory_authority(
+        self,
+    ) -> None:
         entry = self.directory_entry(self.checkout)
         shapes = {
             "versioned-wrapper": {"version": 2, "marketplaces": {"acme": entry}},
@@ -9893,6 +9906,61 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 # channel; the env channel's authority does not widen.
                 env_root = self.set_env_data_root()
                 self.assertEqual(os.fspath(env_root), self.resolve())
+
+    # --- an exact engine call must carry the authorized --data-root ----------
+
+    def engine_gate_argv(self) -> list[str]:
+        return [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+
+    def test_engine_call_without_data_root_is_denied(self) -> None:
+        # Without --data-root the engine would fall back to the raw env value,
+        # which here differs from the proven root.
+        self.set_env_data_root()
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        for subcommand in self.ENGINE_TAILS:
+            command = self.engine_command(subcommand, omit_data_root=True)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual("deny", decision["permissionDecision"])
+                    self.assertIn(
+                        f'--data-root "{self.expected.as_posix()}"',
+                        decision["permissionDecisionReason"],
+                    )
+
+    def test_engine_call_with_data_root_keeps_its_verdict(self) -> None:
+        self.set_env_data_root()
+        verdicts = {
+            "scan": "allow",
+            "preview": "allow",
+            "handoff-verify": "allow",
+            "apply": "ask",
+        }
+        for subcommand, verdict in verdicts.items():
+            command = self.engine_command(subcommand)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual(verdict, decision["permissionDecision"])
+
+    def test_literal_env_placeholder_is_no_authority(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        os.environ["CLAUDE_PLUGIN_DATA"] = "${CLAUDE_PLUGIN_DATA}"
+        self.assertIsNone(self.resolve())
 
     # --- AC7: the no-authority denial names a recovery ----------------------
 
