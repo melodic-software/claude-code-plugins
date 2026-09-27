@@ -1431,10 +1431,9 @@ reason_is "staged move destination outside every root" \
   "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
 assert_contains "reason: staged lane's root list names the move destination" \
   "$GUARD_ERR" "A bare move destination under these roots is exempt: /tmp/scratch."
-# The code is reset on every call: an earlier refusal that did not block (a
-# quoted destination with no staged source) must not become the blocking
-# segment's reason.
-reason_is "a stale refusal code is not inherited" \
+# An earlier refusal that did not block (a quoted destination with no staged
+# source) must not become the blocking segment's reason.
+reason_is "the blocking destination's reason wins over an earlier refusal" \
   "The move destination is not under an exempt root." \
   "jq . f > /tmp/scratch/x && mv a \"/tmp/q\" && mv /tmp/scratch/x /srv/out.json" \
   "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
