@@ -90,13 +90,13 @@ the drift this file exists to close.
 
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
-named here rather than in the template above. Each worker definition pins a model as a floor:
+named here rather than in the template above. Each worker definition pins a default model:
 `explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
-**pass nothing**, and then the pin applies. Supply the parameter only to raise the model for a run
-whose scope earns it, since every worker spends `maxTurns: 40` at `effort: high`, and the
-explorer's are spent almost entirely on reading. The pin outranks the consumer's
-`CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still overrides both the pin and
-the per-call parameter, which it blocks outright. Dated record:
+**pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
+whose scope earns a different model; it replaces the pin in either direction. Every worker spends
+`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading. The pin
+outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
+overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -350,11 +350,11 @@ the per-invocation parameter and the frontmatter, including `model: inherit`"; "
 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
 definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
 it starts a subagent."; "When you omit it, Claude Code picks the model in the subagent model
-order". *Why the plugin cares.* Each worker's frontmatter pin is the floor, and the dispatching
-session raises it per run when the scope earns it. An omitted `model` is not a neutral default: it
-falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to the main conversation's model, so on a machine
-without the variable an unpinned worker runs on the orchestrator's model and pays that rate for
-every turn it spends reading files. `model: inherit` selects the same model and outranks the
+order". *Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
+session overrides it per run with the per-call `model`, which replaces the pin in either direction.
+An omitted `model` is not a neutral default: it falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to
+the main conversation's model, so on a machine without the variable an unpinned worker runs on the
+orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
 environment variable, so it is a cost defect in a worker definition.
 
 ## Running the acceptance gate

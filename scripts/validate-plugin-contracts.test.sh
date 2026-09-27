@@ -898,6 +898,22 @@ fi
   echo
   echo 'model: opus'
 } >"$TMP/plugins/alpha/agents/body-model.md"
+make_agent alpha quoted-inherit 'model: "inherit"  # reason: x'
+make_agent alpha empty-reason 'model: inherit  # reason:'
+make_agent alpha capital-inherit 'model: Inherit'
+make_agent alpha prefixed-key 'modelFoo: x'
+make_agent alpha nested-model $'metadata:\n  model: opus'
+make_agent alpha hash-in-quotes 'model: "a#b"'
+{
+  printf '\xEF\xBB\xBF'
+  echo '---'
+  echo 'name: bom-opus'
+  echo 'description: "Fixture agent bom-opus."'
+  echo 'model: opus'
+  echo '---'
+  echo
+  echo 'Fixture body.'
+} >"$TMP/plugins/alpha/agents/bom-opus.md"
 out="$(run_fixture)"
 
 if agent_fail_line no-model "$A_NO_MODEL"; then
@@ -934,6 +950,48 @@ if agent_fail_line body-model "$A_NO_MODEL"; then
   ok "a model line outside the frontmatter does not count"
 else
   fail "a model line in the body only should fail as missing: $out"
+fi
+
+if agent_any_fail quoted-inherit; then
+  fail "a quoted inherit with a reason comment should pass: $out"
+else
+  ok "model: \"inherit\" with a trailing # reason: comment passes"
+fi
+
+if agent_fail_line empty-reason "$A_BARE_INHERIT"; then
+  ok "model: inherit with an empty # reason: fails as bare inherit"
+else
+  fail "an empty reason comment should fail as bare inherit: $out"
+fi
+
+if agent_fail_line capital-inherit "$A_BARE_INHERIT"; then
+  ok "model: Inherit is compared case-insensitively and fails as bare inherit"
+else
+  fail "model: Inherit should fail as bare inherit: $out"
+fi
+
+if agent_fail_line prefixed-key "$A_NO_MODEL"; then
+  ok "a modelFoo: key does not count as a model line"
+else
+  fail "a modelFoo: key alone should fail as missing: $out"
+fi
+
+if agent_fail_line nested-model "$A_NO_MODEL"; then
+  ok "an indented model: under a nested key does not count"
+else
+  fail "an indented nested model: should fail as missing: $out"
+fi
+
+if agent_any_fail bom-opus; then
+  fail "a BOM-prefixed agent naming a model should pass: $out"
+else
+  ok "a BOM-prefixed agent definition naming a model passes"
+fi
+
+if agent_any_fail hash-in-quotes; then
+  fail "a quoted model value containing # should pass: $out"
+else
+  ok "a quoted model value containing # is kept whole and passes"
 fi
 
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------

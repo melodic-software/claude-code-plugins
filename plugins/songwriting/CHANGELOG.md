@@ -7,7 +7,7 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ### Fixed
 
-- The `object-writer` agent pins `model: opus` instead of `inherit`, a fail-safe floor so a call that forgets the model never runs the fleet on the session's model. `object-writing` rule 6 still requires every call to name the fleet tier, and now states the current model resolution order (per-call `model`, frontmatter, `CLAUDE_CODE_SUBAGENT_MODEL`, main model) with a dated record, replacing the pre-v2.1.251 order.
+- The `object-writer` agent pins `model: opus` instead of `inherit`, a fail-safe default so a call that forgets the model never runs the fleet on the session's model. `object-writing` rule 6 still requires every call to name the fleet tier, and now states the current model resolution order (per-call `model`, frontmatter, `CLAUDE_CODE_SUBAGENT_MODEL`, main model) with a dated record.
 
 ## [1.4.31] - 2026-09-25
 

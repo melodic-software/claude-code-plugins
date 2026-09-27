@@ -986,23 +986,24 @@ for (const path of pluginFiles) {
 // orchestrator's model wherever the variable is unset. `inherit` picks that
 // model on purpose and outranks the variable, so it must carry a stated reason
 // on its own line. Basis: https://code.claude.com/docs/en/subagents
+// Scope: plugins/<plugin>/agents/*.md only. No plugin declares a custom
+// `agents` path in plugin.json, so that directory is every agent definition.
 const agentDefinitions = pluginFiles.filter((path) => {
   const parts = pluginPathParts(path);
   return parts.length === 3 && parts[1] === "agents" && parts[2].endsWith(".md");
 });
 for (const path of agentDefinitions) {
-  const lines = read(path).split(/\r?\n/);
+  const lines = read(path).replace(/^﻿/, "").split(/\r?\n/);
   const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
   const frontmatter = close === -1 ? [] : lines.slice(1, close);
-  const modelLine = frontmatter.find((line) => /^model:/.test(line));
-  const value = modelLine
-    ?.slice("model:".length)
-    .replace(/#.*$/, "")
-    .trim()
-    .replace(/^(["'])(.*)\1$/, "$2");
+  const match = frontmatter
+    .map((line) => /^model:[ \t]*(?:"([^"]*)"|'([^']*)'|([^\s#]+))?(.*)$/.exec(line))
+    .find(Boolean);
+  const value = match ? (match[1] ?? match[2] ?? match[3] ?? "") : "";
+  const comment = match?.[4] ?? "";
   if (!value) {
     fail(path, "agent definitions must name a model in frontmatter (model: <alias or id>)");
-  } else if (value === "inherit" && !/#\s*reason:\s*\S/.test(modelLine)) {
+  } else if (value.toLowerCase() === "inherit" && !/#\s*reason:\s*\S/.test(comment)) {
     fail(path, "model: inherit needs a trailing `# reason: <why>` comment on the same line");
   }
 }

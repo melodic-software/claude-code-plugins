@@ -301,13 +301,13 @@ Verified 2026-09-10. Recheck: the alias list changes.
 
 A plugin agent definition names its `model` in frontmatter. `inherit` is reserved for an agent that
 must run on the orchestrator's model, and it says why in a trailing comment on the same line:
-`model: inherit  # reason: <why>`. The reason is the resolution order: a subagent runs on the
-per-call `model`, then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main
-conversation's model. A definition that omits the field therefore runs on the orchestrator's model
-wherever the variable is unset, which is the same cost as `inherit` with nothing to show it was
-chosen. The pin is a floor; a dispatching skill still passes the per-call `model` to raise it. In
-the claude-code-plugins marketplace, `scripts/validate-plugin-contracts.mjs` fails an agent
-definition that breaks either rule.
+`model: inherit  # reason: <why>`. Why: a subagent runs on the per-call `model` if one is passed,
+then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's
+model. A definition that omits the field therefore runs on the orchestrator's model wherever the
+variable is unset, which is the same cost as `inherit` with nothing to show it was chosen. The pin
+is the default; a dispatching skill overrides it per run with the per-call `model`, which replaces
+the pin in either direction. In the claude-code-plugins marketplace,
+`scripts/validate-plugin-contracts.mjs` fails an agent definition that breaks either rule.
 
 **Record.** Resolution order and the omitted-field fallback:
 <https://code.claude.com/docs/en/subagents#choose-a-model>. Verified 2026-09-27. Recheck: the page
