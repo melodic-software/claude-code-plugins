@@ -3,7 +3,22 @@ description: "Verify or configure an ai-briefing profile and, only when explicit
 argument-hint: "check | apply [install-build-deps] [--profile <name>]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(node --version*)"
+  - "Bash(npm --version*)"
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s build-preflight version probes ran at load time. Read these rows instead of re-issuing
+them; each shows the reported version, or `unavailable` when the tool is absent or fails to run:
+
+- `node --version`: !`{ node --version 2>/dev/null || echo "unavailable"; }`
+- `npm --version`: !`{ npm --version 2>/dev/null || echo "unavailable"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
+Bash instead. `apply install-build-deps` still runs its own live guards.
 
 ## Variables
 
@@ -84,7 +99,8 @@ anything.
    Read-only: never launch a browser here. Missing or stale is INFO with remediation
    `apply install-build-deps`, because the toolchain is opt-in. Markdown output needs none
    of it.
-5. **Build preflight.** INFO: report `node --version`, `npm --version`, and the OS family
+5. **Build preflight.** INFO: report the pre-computed `node --version` and `npm --version`
+   rows, and the OS family
    against Playwright's current supported environment matrix. The README's matrix is a dated
    snapshot (verified against
    [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements));
