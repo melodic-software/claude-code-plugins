@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.3] - 2026-09-27
+
+### Fixed
+
+- `audit-prompting-postures` Phase D no longer does nothing on a clean run. With no proposed addition
+  to refute, the verifier now checks the verdicts instead: that a component needs a posture it was
+  judged not to need, that a classification is wrong, or that a `PRESENT` citation does not carry
+  the posture. A reversal becomes a row with its corrected verdict. The verifier attestation line is
+  now required on every run, names surface batches in both places it is described, and says which
+  check the verifier ran (`proposals` or `verdicts`). A new eval covers the clean-audit case.
+
 ## [0.49.2] - 2026-09-27
 
 ### Changed

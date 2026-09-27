@@ -28,6 +28,15 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   now lists `--ttl-minutes` and states that it adds to `--ttl-hours`; a sub-hour lease is
   `--ttl-hours 0 --ttl-minutes <n>`.
 
+## [0.40.32] - 2026-09-27
+
+### Changed
+
+- The `work_dispatch_concurrency_cap` description, the README, and `work` name what the cap bounds:
+  the worker rows of one plan phase that `/implementation:implement-dispatch` runs at once, one
+  dispatch wave, in place of "concurrent dispatch waves". Rows that share a worktree under the
+  default `worker` commit authority still run one at a time, per implementation 0.19.1 (#4262).
+
 ## [0.40.31] - 2026-09-27
 
 ### Fixed
