@@ -2,6 +2,14 @@
 
 ## [0.6.0] - 2026-09-27
 
+### Added
+
+- `retirements.yaml` records the two pre-rename repo config files: `attribution-r001` for
+  `.claude/provenance.json` and `attribution-r002` for `.claude/provenance.local.json`, both
+  `migrate`. `/attribution:setup check` runs the bundled `lib/check-retirements.sh` and reports
+  each leftover as FAIL. `apply` carries its keys into the `attribution` file (keys the new file
+  already sets are kept), and cleans the old file once the operator confirms.
+
 ### Changed
 
 - **Breaking: the plugin is renamed from `provenance` to `attribution`.** Install it as

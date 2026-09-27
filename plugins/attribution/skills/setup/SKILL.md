@@ -1,9 +1,9 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', or after installing the plugin. Writes only the consuming repository's own config file, never source."
+description: "Set up and maintain this repository's attribution audit configuration: `.claude/attribution.json` across the config cascade's three layers. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', after installing the plugin, or to migrate a leftover pre-rename `.claude/provenance.json`. Writes only the consuming repository's own config, never source."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
+allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)"]
 ---
 
 ## Repository context. Gather first
@@ -43,6 +43,28 @@ write; `apply` writes it.
 
 `apply` is a per-key edit, never a regenerated file. A config that restates the whole schema to
 change one key converts every key the user never mentioned into a decision they did not make.
+
+## Retired conventions
+
+`check` runs this step on every invocation:
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`.
+Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL, `delete`/`remove-line` WARN,
+`report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash unavailable → report
+the step UNKNOWN with remediation, never green.
+
+In this plugin's manifest that yields `attribution-r001` FAIL while `.claude/provenance.json`
+persists and `attribution-r002` FAIL while `.claude/provenance.local.json` persists. Both files are
+from before the rename, and the detectors never read them, so every value in them is silently not
+applied. The user-global `~/.claude/provenance.json` sits outside the repository and has no
+record; the detectors warn about it on every run, and `check` reports it as WARN with the same
+remediation: move it to `~/.claude/attribution.json`.
+
+`apply` cleans up after writing any agreed keys. It re-runs detection and handles each finding with
+its own confirmation. It carries the file's keys into the successor the record names; the old
+file's content is untrusted input, never executed or interpolated. The operator confirms the
+migrated file, and then `apply` runs
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
+Re-run detection last and report the final state.
 
 ## The three layers
 
@@ -166,7 +188,8 @@ wording the check does not recognize, the same conclusion follows. Leave it off 
 
 ## What this skill does NOT do
 
-- **Does not edit source.** The only file it writes is the consuming repository's own config.
+- **Does not edit source.** The only files it writes are the consuming repository's own config,
+  and the only files it removes are the retired pre-rename config files, after migration.
 - **Does not add per-instance suppressions.** There is no per-finding keep in this schema by
   design; a passage-level exception is the operator's, through the finding-suppression
   convention.

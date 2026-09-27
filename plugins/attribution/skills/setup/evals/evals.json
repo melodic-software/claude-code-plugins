@@ -78,6 +78,31 @@
         "Offers excluded_paths as the honest lever when a class of surface genuinely should not be scanned",
         "Sets the key anyway if the user confirms they want the fix-eligibility change itself"
       ]
+    },
+    {
+      "id": 7,
+      "name": "migrates-the-retired-team-config",
+      "prompt": "/attribution:setup check, then apply, in a repo whose .claude/provenance.json (the pre-rename team config, with excluded_paths and stamp_expiry_days) still exists and has no .claude/attribution.json beside it.",
+      "expected_output": "check runs check-retirements.sh and reports the attribution-r001 TSV row as FAIL (action migrate: the detectors never read the old file, so its values are silently not applied) with apply as the remediation. apply carries excluded_paths and stamp_expiry_days unchanged into .claude/attribution.json, gets the operator's confirmation of the migrated file, and only then runs --clean attribution-r001 --i-migrated. A final re-run of detection reports the leftover gone.",
+      "expectations": [
+        "Runs lib/check-retirements.sh against the plugin's retirements.yaml during check",
+        "Reports attribution-r001 as FAIL, not WARN or INFO",
+        "Writes .claude/attribution.json with the same keys and values before cleaning",
+        "Passes --i-migrated to --clean only after the operator confirms the migrated file",
+        "Re-runs detection last and reports no active leftover"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "migrates-the-retired-local-overlay",
+      "prompt": "/attribution:setup apply in a repo where both .claude/attribution.local.json (judge_samples 5) and the pre-rename .claude/provenance.local.json (judge_samples 3, trigger_less_stamp_check true) exist.",
+      "expected_output": "Detection reports attribution-r002 as FAIL. apply adds only trigger_less_stamp_check to .claude/attribution.local.json and keeps its judge_samples 5, because the new file wins where both set a key. It reports that per key, gets the operator's confirmation, then runs --clean attribution-r002 --i-migrated and re-runs detection.",
+      "expectations": [
+        "Reports attribution-r002 as FAIL",
+        "Keeps judge_samples at 5 in .claude/attribution.local.json rather than overwriting it with the retired file's 3",
+        "Adds trigger_less_stamp_check from the retired file",
+        "Does not run --clean without --i-migrated, and does not clean before the operator confirms"
+      ]
     }
   ]
 }
