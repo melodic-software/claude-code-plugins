@@ -121,7 +121,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Q5 reads Needs your answer and its group counts it open", /Needs your answer: whether the version must be pinned/.test(await text('.qbtn[data-q="Q5"] .chip.s-need')) && (await text('.sec[data-key="g:g2"] .cnt')) === "3 open / 3", await text('.sec[data-key="g:g2"] .cnt'));
     await pick("Q1"); await page.click("#qhead"); await page.keyboard.press("n"); const n1 = await sel(); await page.keyboard.press("n"); const n2 = await sel();
     ok("n visits Q4 then Q5 and skips Q3, pending research", n1 === "Q4" && n2 === "Q5", n1 + " " + n2);
-    ok("Q5 keeps its set-aside answer and offers Answer again", /Set aside/.test(await text("#cur")) && !!(await page.$("#cur [data-again]")), await text("#cur"));
+    ok("a long hold text wraps inside the rail: it never scrolls sideways", await page.$eval("#railList", el => el.scrollWidth <= el.clientWidth), await page.$eval("#railList", el => el.scrollWidth + " > " + el.clientWidth));
+    ok("Q5 offers one action, Answer again, with a one-line reason and no Reopen", /set your earlier answer \(Own answer: .*\) aside because it needs your decision\./.test(await text("#cur")) && (await page.$$("#cur [data-again]")).length === 1 && !(await page.$('[data-act="reopen"]')) && !/Set aside/.test(await text("#cur")), await text("#cur"));
+    await tap("#cur [data-again]", 150);
+    ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
     // set up the notice checks: a note for Claude to answer, then the summary with a hiding filter and a hidden rail
     await post({kind: "note", text: "Is the plan on track?"});
@@ -132,13 +135,13 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForTimeout(900); // SSE brings the research result, round 2 and the Notes reply
 
     // on the summary
-    ok("the notice shows on the summary: Claude replied in Notes, with Open", await sel() === "summary" && /Claude replied in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open", await text("#notice"));
+    ok("the notice shows on the summary: Claude replied in Notes, with Open Notes and All activity", await sel() === "summary" && /Claude replied in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open Notes" && (await text("#notice [data-allact]")) === "All activity", await text("#notice"));
     const acts = (await state()).questions.activity, newest = acts[acts.length - 1].text;
     ok("the hold and status are gone and the Claude line falls back to the newest entry", !/Pending research/.test(await text('.qbtn[data-q="Q3"]')) && await page.$eval("#pendBtn", el => el.hidden) && (await text("#claudeLine")).startsWith(newest), await text("#claudeLine"));
     ok("the header derives Interview round 2", (await text("#roundLbl")) === "Interview round 2", await text("#roundLbl"));
     await tap("#notice [data-go]", 300);
     ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText)));
-    ok("the notice moves on to Round 2 added, with Go", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go", await text("#notice"));
+    ok("the notice moves on to Round 2 added, and Go names the question it opens", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
@@ -151,8 +154,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     // commitments, page side
     await arm("a"); await tap("[data-save]", 700);
     ok("the header counts commitments on accepted questions only", (await text("#assumeCount")) === "5 to confirm", await text("#assumeCount"));
-    await tap("#assumeCount", 300);
+    const inView = s => page.$eval(s, el => { const r = el.getBoundingClientRect(), v = document.getElementById("dscroll").getBoundingClientRect(); return r.top >= v.top - 2 && r.top < v.bottom; }).catch(() => false);
+    await pick("Q6");
+    ok("an accepted card with unconfirmed commitments links to its To confirm entries", (await text('[data-toconfirm="Q6"]')) === "Open in To confirm");
+    await tap('[data-toconfirm="Q6"]', 400);
+    ok("the card link opens the summary scrolled to Q6's entries", await sel() === "summary" && await inView("#tc-Q6"));
+    await tap("#assumeCount", 400);
     ok("the link opens To confirm grouped by question", await sel() === "summary" && (await page.$$eval("#toConfirm .crows", els => els.length)) === 3 && /Things your answers commit you to/.test(await text("#toConfirm")), await text("#toConfirm"));
+    ok("the header link scrolls to the list and each group links to its question", await inView("#toConfirm") && await page.$$eval("#toConfirm .crows", els => els.every(e => !!e.querySelector('.ref[data-q="' + e.id.slice(3) + '"]'))));
     const n0 = (await events()).length;
     await tap('#toConfirm [data-cq="Q1"][data-confirm="0"]', 700);
     const ev = await events(), cf = ev[ev.length - 1];
@@ -269,6 +278,13 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForTimeout(900);
     ok("clearing the hold unlocks the dependent group", !(await page.$('.sec[data-key="g:g3"] .lock')) && !(await page.$eval('.sec[data-key="g:g3"]', el => el.classList.contains("locked"))));
     ok("the summary reads All answered once the research returns", (await text("#dscroll .done-h")) === "All answered", await text("#dscroll .done-h"));
+
+    // no watcher has polled since phase 1: calm while nothing waits on Claude, a prompt once something does
+    const calm = await until(() => document.getElementById("pill").textContent === "Idle", 40000);
+    ok("with nothing pending and no watcher the pill reads Idle, not an error", calm && await page.$eval("#pill", el => el.className === "pill rest" && el.getAttribute("aria-live") === "off"), await text("#pill"));
+    await post({kind: "note", text: "Anything else?"});
+    const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
+    ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));

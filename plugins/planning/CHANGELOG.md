@@ -21,7 +21,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview` surface:** `wait` takes `by`: `claude` (the default) holds a question as
   pending research, and `user` holds it as needing the user's answer and sets aside the
   decision recorded before it (`setAsideSeq` for a page decision, `setAsideAt` for a terminal
-  one), so only the user's next decision counts.
+  one), so only the user's next decision counts, including a `record-terminal` later in the
+  same `apply`. An imported ledger row stays open in the export while held and after.
+- **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
+  activity and reason fields, 20000 for thread text and each restatement section. A repeated
+  Confirm (the same commitment, or the same restatement revision) returns the first event's
+  seq and records nothing.
 - **`interview` surface:** a `confirm-commitments` op records commitments the user confirmed
   outside the page, with a reason; the page and `export-brief` count them as confirmed.
 - **`interview` surface:** the page runs the confirmation gate: a `restate` op posts the
@@ -33,14 +38,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `Needs your answer: <text>` on its rail row and card. Pending research has its own color, a
   header count and the Show: Pending filter, and can still be answered (Answer anyway, with a
   receipt saying it counts once the research returns); Needs your answer counts as open and in
-  the needs-you navigation.
+  the needs-you navigation. A question with a set-aside answer offers one action, Answer
+  again, with a line saying why the earlier answer no longer counts. A long hold text wraps
+  inside the rail.
 - **`interview` page:** a two-row header: the derived round label and eyebrow over the title,
   one progress cluster (answered, pending research, to confirm, each a link) beside Wrap up,
-  and a second row with the connection word (`Live`, `Offline`, `Not listening: type next`),
+  and a second row with the connection word (`Live`, `Offline`, `Idle` when no watcher polls
+  and nothing waits on Claude, `Not listening: type next` once an event does),
   the Claude line and the updated notice.
 - **`interview` page:** the summary shows the restatement with Confirm and Something's off,
   then Confirmed with its time or the flagged text, and a To confirm list of the commitments
-  the user's answers commit them to, with per-item ticks and Confirm all. Wrap up before the
+  the user's answers commit them to, with per-item ticks and Confirm all; each group links to
+  its question, and an accepted question's card links to its entries. Wrap up before the
   understanding is confirmed warns but is not blocked.
 - **`interview` page:** Claude's latest reply on a question is previewed on its rail item and
   shown above the recommendation.
@@ -54,8 +63,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview` surface:** the watcher waits for a 300 ms quiet window (capped at 2 s) so a
   burst of saves, such as an Accept all, arrives as one wake.
 - **`interview` page:** every Claude-side change (a new round, a reply, a Notes reply, a
-  revision) shows an in-page notice built from the unseen Activity entries, with a button that
-  goes to it (showing a hidden rail or clearing a hiding filter first), and the changed rail
+  revision) shows an in-page notice built from the unseen Activity entries, with a button
+  naming the newest entry's target (`Go to Q5`, `Open Notes`; it shows a hidden rail or clears
+  a hiding filter first) and All activity for the rest, and the changed rail
   rows are marked, with no reload. One per-browser seen marker drives the notice, the rail
   marks and the Activity badge.
 - **`interview` surface:** the event stream sends a `ping` every 15 seconds while idle, and the

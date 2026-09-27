@@ -139,7 +139,7 @@ A challenge to a commitment arrives as an `ask` whose text leads with the commit
 
 ## Receipts and handled state
 
-Each save shows Saved, then Delivered (the watcher took it), then Replied (a Claude line answering that seq) or Handled. Every event must end handled; until then the page reads "Claude is working on Qn". After ten minutes with no watcher waiting, it reads "Claude has not handled Qn yet" and the connection word reads "Not listening: type next", the rung 5 instruction to type `next` in the terminal. An unhandled event comes back once on the next arm; after that the watcher waits for a new event, so a forgotten `handle` costs a wake and then stalls the page's status.
+Each save shows Saved, then Delivered (the watcher took it), then Replied (a Claude line answering that seq) or Handled. Every event must end handled; until then the page reads "Claude is working on Qn". After ten minutes with no watcher waiting, it reads "Claude has not handled Qn yet" and the connection word reads "Not listening: type next", the rung 5 instruction to type `next` in the terminal. With no watcher polling and nothing waiting on Claude, the word reads "Idle". An unhandled event comes back once on the next arm; after that the watcher waits for a new event, so a forgotten `handle` costs a wake and then stalls the page's status.
 
 The event stream sends a `ping` every 15 seconds while idle. The page re-fetches its state and reconnects when a tab becomes visible again, when the stream reconnects, and when no ping arrives for two intervals, so a backgrounded tab catches up on everything that happened meanwhile.
 

@@ -112,14 +112,15 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .lock{font:500 11.5px var(--mono);color:var(--wait);margin:-2px 0 0 20px}
 .qlist{display:grid;gap:6px;list-style:none;margin:0;padding:0}
 .sec[data-collapsed="true"] .qlist,.sec[data-collapsed="true"] .sec-hint{display:none}
-.qbtn{width:100%;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;position:relative}
+.qbtn{width:100%;text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;position:relative}
 .qbtn:hover{border-color:var(--line-strong)}
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
 .qbtn.archived{opacity:.45;filter:grayscale(1)}
 .qid{font:600 13px var(--mono);grid-row:span 3;align-self:start;padding-top:1px}
 .qtitle{font-size:13.5px;line-height:1.35}
-.qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
+.qmeta .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3;max-width:100%}
 .needs{font:11.5px var(--mono);color:var(--faint);display:flex;gap:4px;align-items:center}
 .needs::before{content:"";width:9px;height:8px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;margin-top:-5px}
 .needs.unmet{color:var(--chg)}
@@ -130,7 +131,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .tree .qbtn.onpath .qtitle{font-weight:600}
 .tree .also{font:11px var(--mono);color:var(--faint)}
 .chip{display:inline-flex;align-items:center;gap:5px;font:500 11.5px/1 var(--mono);padding:4px 7px;border-radius:4px;white-space:nowrap}
-.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:currentColor}
 .s-open{color:var(--accent);background:var(--accent-soft)}
 .s-accept{color:var(--ok);background:var(--ok-soft)}
 .s-alt,.s-own{color:var(--chg);background:var(--chg-soft)}
@@ -220,6 +221,7 @@ section.answer[hidden]{display:none}
 .cur{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;min-height:22px}
 .cur q{color:var(--muted)}
 .cur .when{font-size:12.5px;color:var(--faint)}
+.cur .aside-why{flex:1 1 20em}
 .agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;align-items:start}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:6px 10px 8px;min-width:0}
 legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 4px}
@@ -620,7 +622,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function railItem(q, sec, carry, fresh){ // inside a button: esc only
     const st = stateOf(q), d = decisionOf(q), chips = [], up = q.state === "upstream-pending" && st !== "arch";
     if (st === "wait" || st === "need") {
-      chips.push('<span class="chip s-' + st + '">' + esc(trunc(waitText(q), 60)) + "</span>");
+      chips.push('<span class="chip s-' + st + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
       if (d && d.decision) chips.push('<span class="chip plain">' + (d.aside ? "Set aside" : LABEL[d.decision]) + "</span>");
     } else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
@@ -703,7 +705,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function conn(){ // the connection dot's one word
     if (!S.online) return ["offline", "Offline"];
-    if (deaf() || stalled()) return ["idle", "Not listening: type next"];
+    if (deaf() || stalled()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
     return ["listening", "Live"];
   }
   function working(){ // what Claude is doing with the user's events, else ""
@@ -733,9 +735,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
     const [cls, word] = conn(), pill = $("pill");
-    pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" ? "off" : "polite");
+    pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = cls === "idle" ? "Claude is not listening: type next in the terminal" : "";
+    pill.title = cls === "idle" ? "Claude is not listening: type next in the terminal" : cls === "rest" ? "Nothing is waiting on Claude" : "";
     const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
@@ -757,7 +759,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!e) { setHtml(box, ""); return; }
     const more = un.length > 1 ? " (+" + (un.length - 1) + " more)" : "", tgt = actTarget(e);
     setHtml(box, "<span>" + esc(e.notes ? "Claude replied in Notes" : e.text) + esc(more) + "</span>" +
-      (tgt ? '<button class="tbtn small" data-go="' + esc(tgt) + '">' + (e.notes ? "Open" : "Go") + "</button>" : "") +
+      (tgt ? '<button class="tbtn small" data-go="' + esc(tgt) + '">' + (e.notes ? "Open Notes" : tgt === SUMMARY ? "Go to the summary" : "Go to " + esc(tgt)) + "</button>" : "") +
       '<button class="tbtn small" data-allact="1">All activity</button>');
   }
   const isRestate = e => !!S.doc.restatement && e.restate === S.doc.restatement.rev;
@@ -849,7 +851,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) h += '<div class="banner"><b>Stale:</b> ' + staleBy(q).map(refHtml).join(" ") + " changed. " + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (a, choice 1) or pick again." : "Pick an answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". You can answer anyway; it counts once the research returns.</div>";
-    if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + (d && d.aside ? ". Claude set your earlier answer aside: answer again." : ".") + "</div>";
+    if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Claude is revising</b> after a change to a question this one needs. You can still answer.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
@@ -867,7 +869,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         return '<div class="crow' + (on ? " ok" : "") + '"><input type="checkbox" id="' + id + '" data-confirm="' + i + '" data-cq="' + esc(q.id) + '"' + (on ? " checked" : "") + (acc ? "" : " disabled") + '><label for="' + id + '">' + inline(c) +
           (by ? ' <span class="kbd">Confirmed by Claude: ' + esc(by.reason) + "</span>" : "") + "</label>" +
           '<button type="button" class="tbtn small" data-challenge="' + i + '" title="Ask Claude about this commitment">Challenge</button></div>';
-      }).join("") + "</div></section>";
+      }).join("") + "</div>" + (acc && q.commits.some((c, i) => !cf.has(String(i))) ? '<div class="arow"><button type="button" class="tbtn small" data-toconfirm="' + esc(q.id) + '">Open in To confirm</button></div>' : "") + "</section>";
     }
     let more = "";
     if (q.facts) more += '<section class="blk"><h4>What we know</h4>' + md(q.facts) + "</section>";
@@ -895,10 +897,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = decisionOf(q), text = note.value.trim(), can = !S.busy;
     const last = lastEventSeq(q.id);
     const st = stateOf(q);
-    $("cur").innerHTML = d && d.decision
-      ? (d.aside ? '<span class="chip plain">Set aside</span>' : "") + '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" + (d.text ? "<q>" + esc(trunc(d.text, 120)) + "</q>" : "") +
+    $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
+      ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
+        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
+      : d && d.decision
+      ? '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" + (d.text ? "<q>" + esc(trunc(d.text, 120)) + "</q>" : "") +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
-        (d.aside ? '<button class="tbtn small" data-again="1">Answer again</button>' : st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
+        (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : "";
@@ -910,7 +915,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const asks = armed && armed.kind === "own" && /\?$/.test(text);
     $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? "Own answer needs a note" : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
-      (d && d.decision ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
+      (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>';
     renderConflict();
@@ -1003,7 +1008,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const all = commitRows(); if (!all.length) return "";
     const rows = all.filter(r => !r.on), ids = [...new Set(rows.map(r => r.q.id))];
     const claude = [...new Set(all.filter(r => byClaude(r.q, r.i)).map(r => r.q))];
-    return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows"><div>' + refHtml(id) + "</div>" +
+    return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows" id="tc-' + esc(id) + '"><div>' + refHtml(id) + "</div>" +
       rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i;
         return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + inline(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
       (rows.length ? '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + rows.length + ")</button></div>" : '<p class="empty">All confirmed.</p>') + "</section>" +
@@ -1532,7 +1537,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
     if (t.closest("#pendBtn")) { S.filter = "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
-    if (t.closest("#assumeCount")) { select(SUMMARY, {animate: true}); const c = $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
+    const tc = t.closest("#assumeCount, [data-toconfirm]"); // the list, or one question's entries in it
+    if (tc) { select(SUMMARY, {animate: true}); const c = $("tc-" + (tc.dataset.toconfirm || "")) || $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
     if (t.closest("[data-again]")) { const r = document.querySelector('#choices input[type="radio"]'); if (r) r.focus(); return; }
     const ar = t.closest("[data-acceptround]"); if (ar) { const s = sections().secs.find(x => x.round === ar.dataset.acceptround); if (s) acceptAllDialog(s.items, s.title); return; }
     const ch = t.closest("[data-challenge]"); if (ch) { challenge(+ch.dataset.challenge); return; }
@@ -1616,7 +1622,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const k = e.key, q = Q[S.sel];
     if (/^[1-9]$/.test(k)) arm(+k);
     else if (k === "a") armKind("accept"); else if (k === "d") armKind("defer"); else if (k === "o") armKind("own");
-    else if (k === "r") { const d = q && decisionOf(q); if (d && d.decision) send("reopen"); }
+    else if (k === "r") { const d = q && decisionOf(q); if (d && d.decision && !d.aside) send("reopen"); }
     else if (k === "j") step(1); else if (k === "k") step(-1);
     else if (k === "n" || k === "N") { const n = nextNeeding(k === "N" ? -1 : 1); if (n) select(n, {animate: true}); else if (k === "n" && allDone()) select(SUMMARY, {animate: true}); }
     else if (k === "i") $("note").focus();

@@ -37,9 +37,9 @@ async page => {
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
 
-    // AC26: no watcher has ever polled, so the rung 5 message shows 30 s after load
-    const rung5 = await page.waitForFunction(() => /^Not listening: type next$/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
-    ok("AC26: rung 5 message with no watcher", rung5, await page.textContent("#pill"));
+    // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows 30 s after load
+    const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
+    ok("AC26: with no watcher and nothing pending the pill reads Idle", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
 
     // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
