@@ -12,7 +12,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - Only the merge lane enables auto-merge: a `babysit-loop` lane-pinned invocation passes `--auto`, so it applies only to PRs the rung partition admitted as C2 mechanical or C3 scoped; C4 structural and C5 PRs still wait for the user. Workers, standalone babysit-prs runs, and `/source-control:pull-request` never enable it (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
-- `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. The orchestrator does the same before dispatching a fix worker to an armed PR, and every lane push in `babysit-prs/reference/loop.md` goes through `lane_push`, which disarms immediately before and again right after the push.
+- `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. Every other push path disarms before and again right after pushing: each lane push in `babysit-prs/reference/loop.md` (through `lane_push`), the fix worker's push (`orchestration.md` Worker Contract and prompt template), and the orchestrator's conflict-resolution push.
 - The merge lane retries an AI review check that failed on a rate limit with a full `gh run rerun <run-id>`, never `--failed`: a `--failed` rerun reruns only the `-status` job, which re-reads the cached rate-limit output of the successful `review` job and fails again.
 
 ## [0.59.1] - 2026-09-26

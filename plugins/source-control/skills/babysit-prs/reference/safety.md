@@ -676,10 +676,11 @@ Verified 2026-09-26 against GitHub's [Automatically merging a pull request](http
 which disables auto-merge only when "someone without write permissions pushes new changes to the
 head branch or switches the base branch". Recheck when that page names another event that disables
 auto-merge, or a GitHub changelog entry changes auto-merge behavior on push.
-`refresh_pr_branch.py` therefore disarms it before updating the branch, before dispatching a
-fix worker to an armed PR the orchestrator runs `gh pr merge <N> -R <owner/repo> --disable-auto`,
-and every lane push in [loop.md](loop.md) disarms before and after pushing. The lane re-arms once
-both review checks pass on the new head.
+So every push path disarms it: `refresh_pr_branch.py` before updating the branch, `lane_push`
+before and after each lane push in [loop.md](loop.md), and in
+[orchestration.md](orchestration.md) the fix worker (Worker Contract and Worker Prompt Template)
+and the orchestrator's conflict-resolution push (Orchestrator Contract) before and after pushing.
+The lane re-arms once both review checks pass on the new head.
 
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
