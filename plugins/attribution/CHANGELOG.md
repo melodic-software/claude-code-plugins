@@ -28,8 +28,16 @@
 - **Breaking: findings file name.** The persisted findings file is `${TS}-attribution.md`.
 - The README marker example is now `attribution:source`. An existing `provenance:source` fence is
   still recognized, because the breadcrumb extractor reads any URL-carrying HTML comment fence.
+- The README's scope list routes doc-vs-code drift to the `review` plugin's `doc-drift-detector`
+  agent and AI-writing style to `ai-slop:audit`, matching the skill's line since 0.5.16.
 - The `Action` cells `emit-findings.sh` writes now open `Not auto-applicable:`, with a colon in
   place of the dash, on all three rules; the copy row names `/attribution:audit fix`.
+
+## [0.5.16] - 2026-09-27
+
+### Fixed
+
+- `audit`'s "Does not scan" line routes doc-vs-code drift to the `review` plugin's `doc-drift-detector` agent (no skill by that name exists) and AI-writing style to `ai-slop:audit` instead of the bare `ai-slop` (#4119).
 
 ## [0.5.15] - 2026-09-25
 

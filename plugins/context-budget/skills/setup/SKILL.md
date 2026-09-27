@@ -3,7 +3,25 @@ description: "Verify context-budget's external prerequisites on this machine: `n
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(node --version*)"
+  - "Bash(claude --version*)"
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `node` and Claude Code CLI probes ran at load time. Read these rows instead of
+re-issuing them. A path row shows the resolved path, or `absent` when missing; a version row
+shows what the first `PATH` match reports, or `unavailable` when none resolves or it fails to run:
+
+- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
+- `node --version`: !`{ node --version 2>/dev/null || echo "unavailable"; }`
+- `claude`: !`{ command -v claude 2>/dev/null || echo "absent"; }`
+- `claude --version`: !`{ claude --version 2>/dev/null || echo "unavailable"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
+Bash instead.
 
 ## Purpose
 
@@ -25,13 +43,14 @@ The audit skill and its engine are the single source of truth for what this plug
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header of
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the pre-computed
+`node` and `claude` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
+one remediation line per FAIL. Do not modify anything.
 
 Install nothing.
 
-1. **`node` on `PATH`**. `command -v node`, and report the resolved path and version. This is the
-   plugin's one hard prerequisite, and it carries *two* dependents. Report both:
+1. **`node` on `PATH`**. From the pre-computed `node` rows, report the resolved path and version.
+   This is the plugin's one hard prerequisite, and it carries *two* dependents. Report both:
    - The measurement engine is a Node script, so without `node` `/context-budget:audit` cannot
      produce a number and correctly stops rather than estimating.
    - The PreToolUse checkpoint in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` registers in **exec
@@ -43,11 +62,11 @@ Install nothing.
 
    FAIL when absent. The checkpoint is a checkpoint either way, never a guarantee. A
    `PermissionRequest` hook can allow the call and `disableAllHooks` removes non-managed hooks.
-2. **The Claude Code CLI**. `command -v claude` and its `--version`. The engine measures a pinned
-   binary. PASS when one resolves; report the absolute path and version, because that stamp is what
-   makes a report a claim. INFO when two installs are present. The audit asks which to pin. FAIL
-   when none resolves *and* the operator has no `--binary` path to name, since the engine then has
-   nothing to measure.
+2. **The Claude Code CLI**. The pre-computed `claude` rows (path and `--version`). The engine
+   measures a pinned binary. PASS when one resolves; report the absolute path and version, because
+   that stamp is what makes a report a claim. INFO when two installs are present. The audit asks
+   which to pin. FAIL when none resolves *and* the operator has no `--binary` path to name, since
+   the engine then has nothing to measure.
 3. **`@anthropic-ai/claude-agent-sdk`** (optional). Probe whether it resolves under
    `${CLAUDE_PLUGIN_DATA}/sdk`. Present: INFO, exact mode is available. Absent: INFO, not a
    defect. The engine degrades to parsing headless `/context` output (display-rounded, resting on

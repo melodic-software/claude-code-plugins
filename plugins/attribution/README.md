@@ -137,10 +137,10 @@ This plugin owns one axis: tracked prose restating an externally-owned fact with
 a conforming stamped record, plus finding the authoritative source and condensing the copy.
 
 - In-repo duplication belongs to `docs-hygiene:extract-ssot` and the reference-dont-duplicate rule.
-- Documentation that disagrees with the code belongs to `review:doc-drift-detector` and
-  `codebase-health:audit`.
+- Documentation that disagrees with the code belongs to the `review` plugin's `doc-drift-detector`
+  agent and `codebase-health:audit`.
 - Whether a document earns its existence belongs to `docs-hygiene:audit-derivability`.
-- AI-writing style over the same corpus belongs to `ai-slop`.
+- AI-writing style over the same corpus belongs to `ai-slop:audit`.
 - Not copying while writing, in the current session, belongs to `discipline:point-dont-copy`.
 - Code comments are out of scope in v1; comment-shaped residue belongs to
   `code-tidying:audit-comment-residue`.

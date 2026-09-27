@@ -3,9 +3,14 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.66] - 2026-09-27
+## [0.11.67] - 2026-09-27
 
-### Changed
+- **`setup` probes `jq` at load time.** The `command -v jq` check runs as pre-computed context, so
+  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
+  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
+  still probes live.
+
+## [0.11.66] - 2026-09-27
 
 - README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
 - README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.

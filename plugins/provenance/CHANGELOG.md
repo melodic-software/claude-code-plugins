@@ -11,6 +11,12 @@
   remove `provenance@melodic-software` from `enabledPlugins`, and rename `.claude/provenance.json`
   to `.claude/attribution.json`. The shim is removed in a later release.
 
+## [0.5.16] - 2026-09-27
+
+### Fixed
+
+- `audit`'s "Does not scan" line routes doc-vs-code drift to the `review` plugin's `doc-drift-detector` agent (no skill by that name exists) and AI-writing style to `ai-slop:audit` instead of the bare `ai-slop` (#4119).
+
 ## [0.5.15] - 2026-09-25
 
 ### Changed
