@@ -136,20 +136,34 @@ fi
 # become systems.
 #
 # The origin's path on github.com, `owner/repo...`, when the remote's host IS
-# github.com. The host is read from the authority, after any scheme and user
-# info, so `evilgithub.com`, `github.com.evil.example` and a `/github.com/`
-# path segment on another server all fail.
+# github.com. The host is the authority with the scheme, user info and port
+# removed, compared case-insensitively, with `www.` allowed. So
+# `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a
+# `/github.com/` path on another server, a `file://` path and a relative path
+# all fail. A URL without a scheme counts only in the scp form `host:path`.
 github_remote_path() {
-  local url
+  local url host rest scheme=0 result=1 had_nocase=0
   url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
   url="${url%/}"
   url="${url%.git}"
-  url="${url#*://}"
+  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
   [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  case "$url" in
-  github.com/* | github.com:*) printf '%s' "${url#github.com?}" ;;
-  *) return 1 ;;
-  esac
+  host="${url%%[:/]*}"
+  rest="${url#"$host"}"
+  if [[ $scheme -eq 1 ]]; then
+    [[ "$rest" =~ ^:[0-9]+/ ]] && rest="${rest#:*/}"
+    rest="${rest#/}"
+  else
+    [[ "$rest" == :* ]] || return 1
+    rest="${rest#:}"
+    rest="${rest#/}"
+  fi
+  shopt -q nocasematch && had_nocase=1
+  shopt -s nocasematch
+  [[ "$host" == github.com || "$host" == www.github.com ]] && result=0
+  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
+  [[ $result -eq 0 && -n "$rest" ]] || return 1
+  printf '%s' "$rest"
 }
 
 remote_owner_segment() {
