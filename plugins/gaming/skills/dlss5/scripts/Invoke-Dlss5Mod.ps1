@@ -1880,12 +1880,14 @@ function Do-Selftest {
         $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
         try { $vf = Find-Games } finally { $vlock.Dispose() }
         Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
-        # A library folder that cannot be listed is reported, not read as empty
+        # A library folder that cannot be listed is reported, not read as empty.
         # A user-only Deny written with Set-Acl does not stop an elevated runner: Administrators
         # still list the folder, so the unreadable-folder cases never record an error. Deny list
-        # access for the user, Administrators, and Everyone, and write the ACL with SetAccessControl.
+        # access for the user, Administrators, and Everyone. pwsh 7 has no
+        # DirectoryInfo.SetAccessControl; that method is FileSystemAclExtensions.SetAccessControl.
         $SetDeny = {
             param([string]$LiteralPath, [switch]$Clear)
+            $item = Get-Item -LiteralPath $LiteralPath -Force
             $acl = Get-Acl -LiteralPath $LiteralPath
             foreach ($id in @(
                     [Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -1898,7 +1900,7 @@ function Do-Selftest {
                     [Security.AccessControl.AccessControlType]::Deny)
                 if ($Clear) { [void]$acl.RemoveAccessRule($rule) } else { [void]$acl.AddAccessRule($rule) }
             }
-            (Get-Item -LiteralPath $LiteralPath -Force).SetAccessControl($acl)
+            [System.IO.FileSystemAclExtensions]::SetAccessControl($item, $acl)
         }
         & $SetDeny "$l2\steamapps"
         $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
