@@ -1367,8 +1367,8 @@ $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
 # The live report: a stdin heredoc on the Bash tool printed the scratch-root
 # advice and the whole Bash scope note.
-guard_invoke --command $'python3 - <<\'EOF\'\nopen("/tmp/claude-0/x/scratchpad/f","w").write("a")\nEOF' \
-  -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+MSG_PY_HEREDOC=$(printf 'python3 - <<\x27EOF\x27\nopen("/tmp/claude-0/x/scratchpad/f","w").write("a")\nEOF')
+guard_invoke --command "$MSG_PY_HEREDOC" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_exit "message: Bash python heredoc write blocks" 2 "$GUARD_RC"
 assert_eq "message: Bash python heredoc stderr is verdict, remedy, pointer" \
   "BLOCKED: python inline-code file write bypasses Write/Edit hooks
