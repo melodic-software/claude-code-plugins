@@ -1,5 +1,15 @@
 # Changelog: discovery plugin
 
+## [0.24.1] - 2026-09-27
+
+### Fixed
+
+- **Worker models:** `explorer` now pins `model: sonnet`, and `researcher` and `intent-tracer` pin
+  `model: opus`. A dispatch that passes no `model` runs on that floor instead of falling through to
+  `CLAUDE_CODE_SUBAGENT_MODEL` and then the orchestrator's own model. The parent contract states
+  the pin as the floor a parent raises per run with the per-call `model`, and its dated record is
+  re-verified.
+
 ## [0.24.0] - 2026-09-26
 
 ### Added

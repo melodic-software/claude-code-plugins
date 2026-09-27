@@ -72,12 +72,19 @@ Dispatch rules:
 5. **For rounds:** name what made the strongest write of a round work, then carry that as the
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
 6. **Set the model explicitly on every agent call, never let the fleet inherit the session's.** The
-   `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model unset
-   runs the whole fleet on whatever the session happens to run on, a tier picked for the
-   orchestrator's work, not the writers'. Unset is not a default; it is the bug. A global
-   `CLAUDE_CODE_SUBAGENT_MODEL` override outranks every per-call `model` argument and agent
-   frontmatter when set to anything but `inherit`. Keep it unset for fleet dispatches, and stop to
-   ask if the consumer's settings export a tier above the fleet default before spawning.
+   `object-writer` agent's frontmatter pins `opus` as a fail-safe floor, so a call that forgets the
+   model never lands on whatever the session happens to run on, a tier picked for the
+   orchestrator's work, not the writers'. The floor is not the fleet tier: every call still names
+   the fleet default below explicitly. A subagent's model resolves in this order: the per-call
+   `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's
+   model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` ignores both the per-call `model` and the frontmatter,
+   so keep it off for fleet dispatches, and stop to ask before spawning if the consumer's settings
+   set it to a tier above the fleet default.
+
+   *Record.* Claim: the resolution order above, and that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+   overrides it (the order took this shape in v2.1.251; before that the environment variable came
+   first). Basis: <https://code.claude.com/docs/en/subagents>. Verified 2026-09-27. Recheck: the
+   page changes the order, or a release note names subagent model resolution.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Resolve it from the consuming project's own

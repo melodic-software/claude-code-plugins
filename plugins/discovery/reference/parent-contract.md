@@ -90,12 +90,13 @@ the drift this file exists to close.
 
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
-named here rather than in the template above. None of the three worker definitions pins one, so the
-default is to **pass nothing**: the consumer's own `CLAUDE_CODE_SUBAGENT_MODEL` then decides, which
-is the whole point of carrying no pin. Supply the parameter only as a deliberate per-run change,
-because it outranks that setting and would otherwise replace the consumer's cost choice on this
-plugin's most expensive lane, `maxTurns: 40` at `effort: high`, spent almost entirely on reading.
-Under `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` it cannot be passed at all. Dated record:
+named here rather than in the template above. Each worker definition pins a model as a floor:
+`explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
+**pass nothing**, and then the pin applies. Supply the parameter only to raise the model for a run
+whose scope earns it, since every worker spends `maxTurns: 40` at `effort: high`, and the
+explorer's are spent almost entirely on reading. The pin outranks the consumer's
+`CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still overrides both the pin and
+the per-call parameter, which it blocks outright. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -228,8 +229,8 @@ instead of an undated restatement at every site that relies on it. A skill, cont
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
 named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
-fetched 2026-09-08. Records 8-9 were verified against Claude Code 2.1.278 with the subagents
-page fetched 2026-09-19.
+fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
+fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 
 **One shared recheck trigger covers all nine:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
@@ -348,11 +349,13 @@ verbatim; "Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this orde
 the per-invocation parameter and the frontmatter, including `model: inherit`"; "While
 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
 definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
-it starts a subagent." *Why the plugin cares.* This is the plugin's cost knob and it belongs to the
-parent, not the agent definition: a worker pinned in frontmatter is a floor the dispatching session
-raises per run when the scope earns it. `model: inherit` in a worker definition is therefore a cost
-defect, not a neutral default. It outranks the environment variable, so a session on an expensive
-model pays that rate for every turn the worker spends reading files.
+it starts a subagent."; "When you omit it, Claude Code picks the model in the subagent model
+order". *Why the plugin cares.* Each worker's frontmatter pin is the floor, and the dispatching
+session raises it per run when the scope earns it. An omitted `model` is not a neutral default: it
+falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to the main conversation's model, so on a machine
+without the variable an unpinned worker runs on the orchestrator's model and pays that rate for
+every turn it spends reading files. `model: inherit` selects the same model and outranks the
+environment variable, so it is a cost defect in a worker definition.
 
 ## Running the acceptance gate
 
