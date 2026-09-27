@@ -4,7 +4,8 @@
 #
 # Proves: (a) RESOLUTION — on a miss the install record's installPath ranks
 # first, then dotted-number version names compare by value (0.10.0 over 0.9.0,
-# and the higher of two equal-mtime copies), then mtime for any other pair;
+# and the higher of two equal-mtime copies), then mtime for any other pair,
+# and the record is read only when two live candidates need ranking;
 # transient temp_* marketplace clones are skipped, version directories marked
 # orphaned by an update or an uninstall are skipped even when they are the
 # newest, the marketplace directory name is never assumed, and other plugins'
@@ -775,6 +776,17 @@ assert_eq "" "$(printf '%s' "$ERR" | grep -v '^TEE:')" "an unparseable record pr
 T37="$WORK/trace37"
 trace_run "$H24" "$T37" bash "$H24/render.sh"
 assert_not_contains "$(<"$T37")" "installed_plugins.json" "a cache hit never reads the install record"
+
+# --- 38. one live candidate: a miss never reads the record -----------------
+# With a single non-orphaned tee there is nothing to rank, so a miss reads no
+# record at all.
+H30="$WORK/h30"
+plant_tee "$H30" "mkt" "rate-limit-guard" "0.1.0" "solo" >/dev/null
+write_record "$H30/.claude" "mkt" "$H30/.claude/plugins/cache/mkt/rate-limit-guard/0.1.0"
+T38="$WORK/trace38"
+trace_run "$H30" "$T38"
+assert_not_contains "$(<"$T38")" "read -r -d" "a miss with a single live candidate never reads the install record"
+assert_contains "$(<"$T38")" "exec bash $H30/.claude/plugins/cache/mkt/rate-limit-guard/0.1.0/scripts/statusline-tee.sh" "the single live candidate is the one exec'd"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

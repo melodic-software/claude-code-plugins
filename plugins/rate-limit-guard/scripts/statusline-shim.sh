@@ -132,9 +132,9 @@
 # install with its `scope`, `installPath`, and `version`" (plugins loading
 # reference, "Check which stage a plugin reached",
 # https://code.claude.com/docs/en/plugins/loading, fetched 2026-09-27). Only a
-# MISS reads it, as one builtin `read`, and the test is a substring match on
-# the installPath's last four segments, never a JSON parse: no jq spawn, and
-# the hit path never touches it. Its schema is not documented beyond those
+# MISS that finds a second live candidate reads it, as one builtin `read`, and
+# the test is a substring match on the installPath's last four segments, never
+# a JSON parse: no jq spawn, and the hit path never touches it. Its schema is not documented beyond those
 # three fields, so a record the match cannot read ranks every candidate the
 # same and the version and mtime rules decide, exactly as with no record. The
 # orphan marker stays the hit path's invalidator: that test is a stat.
@@ -200,6 +200,21 @@ newer_candidate() {
   [[ "$cand" -nt "$best" ]]
 }
 
+# Set the variable named $1 to 2 when the install record (the caller's
+# `record`) names marketplace $2's version directory $3 of this plugin as an
+# installPath, spelled with `/` or with the JSON-escaped `\\` a Windows path
+# carries, and to 1 otherwise. The quoted operands match literally, whatever
+# the names contain.
+recorded_tier() {
+  local _t=1
+  if [[ -n "$record" ]] &&
+    [[ "$record" == *"cache/$2/$PLUGIN_NAME/$3\""* ||
+      "$record" == *"cache\\\\$2\\\\$PLUGIN_NAME\\\\$3\""* ]]; then
+    _t=2
+  fi
+  printf -v "$1" '%s' "$_t"
+}
+
 resolve_tee() {
   # The effective config dir anchors the cache path. CLAUDE_CONFIG_DIR wins when
   # set and non-empty; otherwise $HOME/.claude. With neither there is nothing to
@@ -260,14 +275,12 @@ resolve_tee() {
     fi
   fi
 
-  # The install record, read whole with a builtin. `read -d ''` returns 1 at
-  # end of file, which is the normal case here, so its status is ignored; an
-  # absent or unreadable record leaves it empty and every candidate unrecorded.
-  local record="" record_file="$config_dir/plugins/installed_plugins.json"
-  if [[ -f "$record_file" ]]; then
-    IFS= read -r -d '' record 2>/dev/null <"$record_file" || true
-  fi
-
+  # The install record ranks candidates, so it is read only once a second one
+  # turns up: with a single non-orphaned tee, the common case, there is nothing
+  # to rank. It is read whole with a builtin. `read -d ''` returns 1 at end of
+  # file, which is the normal case here, so its status is ignored; an absent or
+  # unreadable record leaves it empty and every candidate unrecorded.
+  local record="" record_read=0 record_file="$config_dir/plugins/installed_plugins.json"
   local cand mkt rest ver cdir tier best_tier=0 best_ver=""
   for cand in "$cache"/*/"$PLUGIN_NAME"/*/scripts/statusline-tee.sh; do
     # An unmatched glob expands to the literal pattern; -f rejects it.
@@ -280,16 +293,21 @@ resolve_tee() {
     # lingers ~14 days. Running it would keep an uninstalled plugin writing.
     [[ -e "$cdir/.orphaned_at" ]] && continue
     ver="${cdir##*/}"
-    # Tier 2: an installPath in the record ends in this version directory,
-    # spelled with `/` or with the JSON-escaped `\\` a Windows path carries.
-    # The quoted operands match literally, whatever the names contain.
-    tier=1
-    if [[ -n "$record" ]] &&
-      [[ "$record" == *"cache/$mkt/$PLUGIN_NAME/$ver\""* ||
-        "$record" == *"cache\\\\$mkt\\\\$PLUGIN_NAME\\\\$ver\""* ]]; then
-      tier=2
+    if [[ -z "$RESOLVED" ]]; then
+      RESOLVED="$cand"
+      best_ver="$ver"
+      continue
     fi
-    if [[ -z "$RESOLVED" ]] || ((tier > best_tier)) ||
+    if ((!record_read)); then
+      record_read=1
+      if [[ -f "$record_file" ]]; then
+        IFS= read -r -d '' record 2>/dev/null <"$record_file" || true
+      fi
+      rest="${RESOLVED#"$cache"/}"
+      recorded_tier best_tier "${rest%%/*}" "$best_ver"
+    fi
+    recorded_tier tier "$mkt" "$ver"
+    if ((tier > best_tier)) ||
       { ((tier == best_tier)) && newer_candidate "$cand" "$ver" "$RESOLVED" "$best_ver"; }; then
       RESOLVED="$cand"
       best_tier=$tier
