@@ -15,6 +15,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   cannot load a 64-bit DLL. `PE32+` passes whatever the machine, so ARM64 is not refused. A managed
   `PE32` reads `unknown`, since an AnyCPU exe runs as a 64-bit process where it can, and `mixed` is
   not refused.
+- The DLSS 5 selftest runs on the hosted `windows-2025` lane (`test-windows.yml`). It is
+  Windows-only, so it had run in no CI before.
 
 ### Changed
 
