@@ -57,7 +57,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §3 + §8 (+ §2 when rewriting) before output.
+- **Pre-flight:** run response-filter §3 + §8 (+ §2 when rewriting) before output.
 - Name the dominant problem; offer one focused revision. Do not list every issue.
 - Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip. A
   writer may skip any box, but a skip names a reason; silent skips are not OK.

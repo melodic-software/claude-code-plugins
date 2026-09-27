@@ -144,7 +144,7 @@ Eyebrow text is small uppercase periwinkle. The presenter sees the tier, and aud
 
 ### URL rendering rule
 
-**EVERY bullet renders ALL its source URLs.** Never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
+Every bullet renders all its source URLs. Never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
 
 `validate.js` enforces this at gate time. Every URL in `slides-data.js` `bullets[].urls[]` must appear in DOM as `.news-url` anchor.
 

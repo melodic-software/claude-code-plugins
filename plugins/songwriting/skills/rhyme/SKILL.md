@@ -41,7 +41,7 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §1 before any rhyme output.
+- **Pre-flight:** run response-filter §1 before any rhyme output.
 - Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) FIRST for any
   rhyme request. Apply the discipline. Identity check (pre-vowel consonants MUST differ; identity
   is NOT rhyme), vowel-FIELD walk (Step 1b, the source word's own coda is ONE row of the field,
