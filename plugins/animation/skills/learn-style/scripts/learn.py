@@ -152,8 +152,10 @@ def main(argv=None):
             need = max(need, *(outside(v, min(others), max(others)) for j, v in cv if j == i))
         raw[s] = lo, hi, need, {n: v for n, nm in negs.items() if (v := inkstats.film_value(nm, s)) is not None}
     # A control caps only the checked row that rejects it most (largest distance under the raw bands), so that row
-    # keeps rejecting it by a clear margin while the other rows keep full held-out coverage.
-    best = {n: max((s for s in CHECK if s in raw and n in raw[s][3]),
+    # keeps rejecting it by a clear margin while the other rows keep full held-out coverage. Only a row defined in
+    # at least two parts is checked, so only such a row may carry a cap.
+    check = [s for s in CHECK if s in raw and sum(value([p], s, a.base_fps) is not None for p in parts) >= 2]
+    best = {n: max((s for s in check if n in raw[s][3]),
                    key=lambda s: inkstats.distance(raw[s][3][n], ref[s], *raw[s][:2]), default=None) for n in negs}
     for s, (lo, hi, need, nv) in raw.items():
         margins = {n: outside(v, lo, hi) for n, v in nv.items()}
@@ -169,7 +171,6 @@ def main(argv=None):
                        capped_by=sorted(n for n in margins if best[n] == s and margins[n] > 0),
                        calibration_pass=rate(calib), evaluation_pass=rate(evals))
         ref[s] = round(ref[s], 4)
-    check = [s for s in CHECK if s in bands and sum(value([p], s, a.base_fps) is not None for p in parts) >= 2]
 
     def whole(group):   # excerpts passing every checked row
         sides = [side for pair in group for side in pair]
