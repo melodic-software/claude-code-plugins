@@ -3,11 +3,27 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.9] - 2026-09-27
+## [0.31.1] - 2026-09-27
 
 ### Fixed
 
 - **A reviewer no longer reviews an empty diff when it cannot find a base.** The change-set block in `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` ended its merge-base chain in `|| echo HEAD`. With no `origin` remote, or in a shallow clone (the `actions/checkout` default) whose history shares no ancestor with the base, the chain resolved to `HEAD` and `git diff HEAD` printed nothing on a clean branch, which read as a clean review of an unreviewed change. The block now prints `UNRESOLVED-BASE` with whether the clone is shallow, lists only uncommitted changes under it, and the agent names the base as unresolved and declines to grade when nothing is listed. `fanout`'s run-everything script placeholder is `'<UNRESOLVED>'` instead of `'HEAD'`, so a missed substitution fails the leaf's `git diff` instead of reviewing nothing. The `fanout` and `quality-gate` base ladders no longer end in `HEAD`.
+
+## [0.31.0] - 2026-09-27
+
+### Changed
+
+- **The confidence rank order puts an absent score last: `high` > `medium` > `low` > `unscored`.**
+  `context/severity.md` ranked `unscored` above `low` and told emitters to "emit `high` or omit the
+  field", while the `code-reviewer` agent and fanout's coverage clause told every reviewer to label
+  each finding high, medium, or low. A reviewer that honestly labeled an uncertain finding `low` saw
+  it ranked below one nobody scored. With the new order, "label every finding" is the one rule, and
+  fanout's ranking and cross-surface MAX merge, which both read the order from `severity.md`, now
+  keep a `low` label above a missing one.
+- **`code-reviewer` keeps its `Confidence:` field inside a caller-supplied finding shape.** When the
+  dispatching prompt dictates its own layout (for example `path:line: severity: problem. fix.`),
+  the agent uses that layout and still carries a confidence value per finding. The agent body now
+  cites the severity baseline for the rank order instead of restating it.
 
 ## [0.30.8] - 2026-09-27
 
