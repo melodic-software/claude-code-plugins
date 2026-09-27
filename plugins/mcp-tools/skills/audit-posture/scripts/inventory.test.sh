@@ -580,7 +580,7 @@ check_row env npx p@1.0.0 exact unscoped
 check_row 'redacted-name(18)' npx p@1.0.0 exact unscoped
 check_row 'redacted-name(36)' npx long@1.0.0 exact unscoped
 check_row argsecret npx - unparsed -
-check_row argsecret2 npx pkg@1.0.0 exact unscoped
+check_row argsecret2 npx - unparsed -
 check_row unicode npx - unparsed -
 check_row pwsh npx pkg@1.0.0 exact unscoped
 check_row pwsh-bare local - unparsed -
@@ -937,7 +937,8 @@ assert_eq "UUID name redacted" "uuidname@1.0.0" "$(cell file 'redacted-name(36)'
 check_row u-ok npx pkg@1.2.3 exact unscoped
 # PowerShell env assignments, -Command, cmd /C and SET are matched case-insensitively.
 check_row pw-Env npx pkg@1.0.0 exact unscoped
-check_row pw-ENV npx pkg@1.0.0 exact unscoped
+# An unquoted pwsh value runs as a command, so the unquoted form is unparsed.
+check_row pw-ENV local - unparsed -
 check_row pw-brace local - unparsed -
 check_row cmd-upper npx pkg@1.0.0 exact unscoped
 
@@ -1262,8 +1263,18 @@ cat >"$FIX/gate5 adv5.json" <<'JSON'
  "d13": {"command":"cmd","args":["/c","set K=zq)&& npx zqgleak13"]},
  "d14": {"command":"cmd","args":["/c","set K=zq!&& npx zqgleak14"]},
  "d15": {"command":"bash","args":["-c","K=zqgtilde~ npx okpkg"]},
+ "c73": {"command":"bash","args":["-c","npx --token -- zqgc73tok"]},
+ "u-uvx": {"command":"uvx","args":["--frob=zqgc73uv","tool==1.0"]},
+ "dd-ok": {"command":"npx","args":["-y","--","pkg@1.0.0"]},
  "v-pw-tab": {"command":"pwsh","args":["-c","$env:K='zq\tzqgtab';npx zqgleak16"]},
- "v-pw-ok": {"command":"pwsh","args":["-c","$env:K=a.b/c:d+e~f@g,h-i;$env:L='x y';npx -y pkg@1.0.0"]},
+ "v-pw-ok": {"command":"pwsh","args":["-c","$env:K='a.b/c:d+e~f@g,h-i';$env:L='x y';npx -y pkg@1.0.0"]},
+ "c001": {"command":"pwsh","args":["-c","$env:K=zqh001; npx pkg@1.0.0"]},
+ "c082": {"command":"pwsh","args":["-c","$env:K=zqh082; 5+zqh083"]},
+ "c090": {"command":"pwsh","args":["-c","$env:K=@zqh090; npx pkg@1.0.0"]},
+ "c091": {"command":"pwsh","args":["-c","$env:K=zqh091,x; npx pkg@1.0.0"]},
+ "c092": {"command":"pwsh","args":["-c","$env:K=-zqh092; npx pkg@1.0.0"]},
+ "pp-digit": {"command":"pwsh","args":["-c","$env:K='a'; 5+zqh084"]},
+ "pp-plus": {"command":"pwsh","args":["-c","a+zqh085 x"]},
  "v-cmd-ok": {"command":"cmd","args":["/c","set K=a.b/c:d+e~f@g,h-i&& npx -y pkg@1.0.0"]},
  "w-tag": {"command":"bash","args":["-c","K=zqgwtag\udb40\udc41 npx zqgleak17"]},
  "w-alm": {"command":"pwsh","args":["-c","$env:K='zqgwalm\u061c';npx zqgleak18"]},
@@ -1305,6 +1316,15 @@ for wrapped in d01 d02 d03 d04 d05 d06 d07 d08 d09 d10 d11 d12 d13 d14 v-pw-tab 
   check_row "$wrapped" local - unparsed -
 done
 check_row d15 npx okpkg floating-unversioned unscoped
+# An unknown runner flag before the package leaves the row unparsed, even when -- follows it.
+check_row c73 npx - unparsed -
+check_row u-uvx uvx - unparsed -
+check_row dd-ok npx pkg@1.0.0 exact unscoped
+# pwsh accepts only the single-quoted $env:NAME='value'; form (an unquoted right-hand side
+# runs as a command), and a pwsh program must start with a letter, . or / and hold no +.
+for wrapped in c001 c082 c090 c091 c092 pp-digit pp-plus; do
+  check_row "$wrapped" local - unparsed -
+done
 check_row v-pw-ok npx pkg@1.0.0 exact unscoped
 check_row v-cmd-ok npx pkg@1.0.0 exact unscoped
 assert_eq "tag character in a name redacts it" "tagname@1.0.0" "$(cell file 'redacted-name(7)' 6)"
@@ -1390,8 +1410,8 @@ assert_eq "all 85 re-attack ids were collected" 85 "$(printf '%s\n' "$planted" |
 second="$(grep -hoE 'ZQX[A-Za-z0-9]*' "$FIX/reattack2 cases.cfg" | LC_ALL=C sort -u)"
 assert_eq "second re-attack tokens were collected" "yes" "$([[ -n "$second" ]] && echo yes)"
 planted+=$'\n'"$second"
-third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}|zqy[0-9]{3}|zqg[a-z0-9]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
-assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* && "$third" == *zqy220* && "$third" == *zqgleak1* && "$third" == *zqgtilde* ]] && echo yes)"
+third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}|zqy[0-9]{3}|zqg[a-z0-9]*|zqh[a-z0-9]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
+assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* && "$third" == *zqy220* && "$third" == *zqgleak1* && "$third" == *zqgtilde* && "$third" == *zqh083* ]] && echo yes)"
 planted+=$'\n'"$third"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
