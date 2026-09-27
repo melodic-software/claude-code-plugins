@@ -1887,14 +1887,31 @@ function Do-Selftest {
         # A library folder that cannot be listed is reported, not read as empty.
         # A Deny ACE does not stop an elevated runner from listing, even a Deny for Everyone.
         # Hold the directory open with no sharing so the next listing fails with a sharing violation.
+        # pwsh on the runner has no FileOptions.BackupSemantics, so open the directory with CreateFileW.
         $LockDir = {
             param([string]$LiteralPath)
-            $opts = [System.IO.FileStreamOptions]::new()
-            $opts.Mode = [System.IO.FileMode]::Open
-            $opts.Access = [System.IO.FileAccess]::Read
-            $opts.Share = [System.IO.FileShare]::None
-            $opts.Options = [System.IO.FileOptions]::BackupSemantics
-            [System.IO.FileStream]::new($LiteralPath, $opts)
+            if (-not ('Dlss5DirHandle' -as [type])) {
+                Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public sealed class Dlss5DirHandle : IDisposable {
+    IntPtr handle;
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr sec, uint disp, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr handle);
+    public Dlss5DirHandle(string path) {
+        handle = CreateFileW(path, 0x80000000, 0, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    public void Dispose() {
+        if (handle != IntPtr.Zero && handle != new IntPtr(-1)) { CloseHandle(handle); handle = IntPtr.Zero; }
+    }
+}
+'@
+            }
+            [Dlss5DirHandle]::new($LiteralPath)
         }
         $lockSteam = & $LockDir "$l2\steamapps"
         $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
