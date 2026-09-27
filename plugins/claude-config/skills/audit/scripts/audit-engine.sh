@@ -386,6 +386,13 @@ probe_scope project "$SETTINGS"
 probe_scope local "$LOCAL"
 probe_scope mcp "$MCP"
 [[ -n "$USER_SETTINGS" ]] && probe_scope user "$USER_SETTINGS"
+# The user dir's settings.local.json is no audited scope, but category G reads
+# its skillOverrides whatever the project root, so the read is listed here. In
+# a home-rooted run it is the local scope, already listed (file identity, since
+# the two roots can be spelled differently on Windows).
+if [[ -n "$USER_DIR" ]] && ! [[ -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
+  probe_scope user-local "$USER_DIR/settings.local.json"
+fi
 
 if [[ "${SCOPE_STATE[project]}" == "absent" ]]; then
   echo "ERROR: no project settings at $SETTINGS" >&2
@@ -1709,17 +1716,21 @@ g_overrides "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
 # The user dir's settings.local.json is the project-local file of a session
 # started in the home directory only (settings: Project local is
 # `.claude/settings.local.json`, "You, in this one project only"), so overrides
-# there reach no other project. Read whatever the project root; when it is the
-# local scope (file identity, since the two roots are spelled differently on
-# Windows), category A already reported it unreadable or invalid.
-if [[ -n "$USER_DIR" && -f "$USER_DIR/settings.local.json" ]]; then
+# there reach no other project. Read whatever the project root, as the
+# user-local scope; when it is the local scope instead, category A already
+# reported it unreadable or invalid.
+G_UL_STATE="${SCOPE_STATE[user-local]:-}"
+if [[ -z "$G_UL_STATE" && -n "$USER_DIR" && -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
+  G_UL_STATE=local
+fi
+if [[ -n "$G_UL_STATE" && "$G_UL_STATE" != absent ]]; then
   G_UL="$USER_DIR/settings.local.json"
   g_ul_ok=0
   g_ul_report=1
-  if [[ -f "$LOCAL" && "$LOCAL" -ef "$G_UL" ]]; then
+  if [[ "$G_UL_STATE" == local ]]; then
     g_ul_ok=$LOCAL_OK
     g_ul_report=0
-  elif : 2>/dev/null <"$G_UL" && tr -d '\r' <"$G_UL" | jq empty 2>/dev/null; then
+  elif [[ "$G_UL_STATE" == ok ]]; then
     g_ul_ok=1
   fi
   if [[ $g_ul_ok -eq 1 ]]; then

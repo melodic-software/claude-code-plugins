@@ -1140,17 +1140,25 @@ assert_eq "case 48: a key with a newline is one row" "1" "$(jq '[.rows[] | selec
 assert_eq "case 48: its claim carries the escaped key" "1" "$(jq '[.findings[] | select(.identity.claim == "skill-override-plugin:tools:a\\nb")] | length' <<<"$out")" # portability-ok: the literal two-character escape in the claim
 assert_eq "case 48: no override value reaches a row" "0" "$(jq '[.rows[] | select(.check | contains("/G/skill-override")) | select(.detail | test("name-only"))] | length' <<<"$out")"
 assert_eq "case 48: an ordinary project with no user-dir local file has no home-local row" "0" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-home-local"))] | length' <<<"$out")"
+ul_scope() { jq -r '[.scopes[] | select(.label == "user-local") | "\(.state) \(.path | sub(".*/"; ""))"] | join(",")' <<<"$1"; }
+assert_eq "case 48: the user-dir local file is listed as a scope even when absent" "absent settings.local.json" "$(ul_scope "$out")"
 # The user dir's own settings.local.json is read whatever the project root.
 printf '%s\n' '{"skillOverrides":{"mine":"off"}}' >"$m/user/settings.local.json"
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 48: a user-dir local file with overrides is an info finding" "finding info user:settings.local.json" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | "\(.status) \(.severity) \(.surface)"' <<<"$out")"
 assert_contains "case 48: and says a user-wide override belongs in settings.json" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | .detail' <<<"$out")" "settings.json"
+assert_eq "case 48: the read is disclosed in scopes" "ok settings.local.json" "$(ul_scope "$out")"
+assert_eq "case 48: the disclosed path is the user dir's file" "1" "$(jq --arg p "$m/user/settings.local.json" '[.scopes[] | select(.label == "user-local" and .path == $p)] | length' <<<"$out")"
 printf '%s\n' '{"skillOverrides":{}}' >"$m/user/settings.local.json"
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 48: an empty skillOverrides object has no home-local row" "0" "$(jq '[.rows[] | select(.check | endswith("/G/skill-override-home-local"))] | length' <<<"$out")"
+assert_eq "case 48: a clean user-dir local file is still disclosed as read" "ok settings.local.json" "$(ul_scope "$out")"
 printf '%s\n' '{not json' >"$m/user/settings.local.json"
 out=$(run "$m" --json 2>&1) || true
 assert_eq "case 48: an invalid user-dir local file is not inspectable, never clean" "not-inspectable" "$(jq -r '.rows[] | select(.check | endswith("/G/skill-override-home-local")) | .status' <<<"$out")"
+assert_eq "case 48: and its scope state says invalid" "invalid settings.local.json" "$(ul_scope "$out")"
+out=$(run "$m" --table 2>&1) || true
+assert_contains "case 48: the table report lists the user-local scope" "$out" "user-local: invalid"
 
 # A home-rooted run: the project's .claude is the user dir, so settings.json is
 # one file under two labels and is scanned once, and the local file is the
@@ -1171,6 +1179,7 @@ for ud in "$m/home/.claude" "${spellings[@]}"; do
     bash "$SCRIPT" --json 2>&1) || rc=$?
   assert_exit "case 48 ($ud): home-rooted run exits 0" 0 "$rc"
   assert_eq "case 48 ($ud): the user file is read" "ok" "$(jq -r '.scopes[] | select(.label == "user") | .state' <<<"$out")"
+  assert_eq "case 48 ($ud): the local scope is the user-dir local file, listed once" "" "$(ul_scope "$out")"
   assert_eq "case 48 ($ud): one finding per settings.json key, on the user surface" "user:settings.json user:settings.json" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-plugin")) | select(.identity.claim | test("lint|fmt")) | .identity.sites[0].surface] | join(" ")' <<<"$out")"
   assert_eq "case 48 ($ud): the local file's plugin key is one finding" "1" "$(jq '[.findings[] | select(.identity.claim == "skill-override-plugin:tools:x")] | length' <<<"$out")"
   assert_eq "case 48 ($ud): one home-local info finding" "info" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-home-local")) | .severity] | join(" ")' <<<"$out")"

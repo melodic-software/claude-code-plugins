@@ -286,7 +286,9 @@ budget". What governs the category:
     sessions started in the home directory only (settings scope table: Project local is
     `.claude/settings.local.json`, "You, in this one project only"), so its entries reach no other
     project; a user-wide override belongs in `settings.json`. The `/skills` menu saves there from a
-    home-rooted session, so the entry may be intended
+    home-rooted session, so the entry may be intended. The engine lists that read in its `scopes`
+    block as `user-local` (absent, unreadable, invalid or ok), except in a home-rooted run, where
+    the file is the local scope
   - Not detected, by design: a key naming no skill at all, since bundled and claude.ai-synced skill
     names are not enumerable from files and the check would flag working keys
 
