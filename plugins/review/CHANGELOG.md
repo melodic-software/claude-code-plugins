@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1] - 2026-09-27
+
+### Fixed
+
+- **A reviewer no longer reviews an empty diff when it cannot find a base.** The change-set block in `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` ended its merge-base chain in `|| echo HEAD`. With no `origin` remote, or in a shallow clone (the `actions/checkout` default) whose history shares no ancestor with the base, the chain resolved to `HEAD` and `git diff HEAD` printed nothing on a clean branch, which read as a clean review of an unreviewed change. The block now prints `UNRESOLVED-BASE` with whether the clone is shallow, lists only uncommitted changes under it, and the agent names the base as unresolved and declines to grade when nothing is listed. `fanout`'s run-everything script placeholder is `'<UNRESOLVED>'` instead of `'HEAD'`, so a missed substitution fails the leaf's `git diff` instead of reviewing nothing. The `fanout` and `quality-gate` base ladders no longer end in `HEAD`.
+
 ## [0.31.0] - 2026-09-27
 
 ### Changed
