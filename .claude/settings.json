@@ -33,6 +33,7 @@
   "enabledPlugins": {
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
+    "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false
   },
   "extraKnownMarketplaces": {

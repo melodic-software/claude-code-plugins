@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "pixel-art",
+  "version": "0.1.0",
+  "description": "Creates pixel art with no external tools: static sprites, animation cycles laid out as sprite sheets for the target engine (RPG Maker MZ, Godot, PICO-8, plain strips) with Aseprite-shaped frame data and GIF previews, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, a bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional backends such as the Aseprite CLI or hosted pixel-art generators are documented behind the same artifact contract; the skills select and detect them, and no adapter code ships yet.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pixel-art",
+    "sprites",
+    "sprite-sheet",
+    "animation",
+    "rpg-maker",
+    "cutscene",
+    "game-assets",
+    "skill"
+  ],
+  "userConfig": {
+    "output_dir": {
+      "type": "directory",
+      "title": "Output directory",
+      "description": "Where rendered sprites, sheets and scenes go when neither the request nor the project names a location. Leave unset to be asked."
+    },
+    "backend": {
+      "type": "string",
+      "title": "Rendering backend",
+      "description": "native (default, no external tools), aseprite, pixellab, or retrodiffusion. A named backend that is not present falls back to native with a notice.",
+      "default": "native"
+    }
+  }
+}

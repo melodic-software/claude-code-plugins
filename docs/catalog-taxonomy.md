@@ -55,6 +55,7 @@ Domain-and-cross-cutting tier, filed by subject:
 | `project-management` | Tracking, triaging, and decomposing the work backlog. |
 | `operations` | Workstation day-2 operations: monitoring and remediation. |
 | `learning` | Coaching the human through a subject. |
+| `visual-arts` | Visual-medium craft: pixel art, illustration, animation, and moving images. |
 | `music` | Songwriting and music craft. |
 | `personal` | The owner's personal-life tooling, outside the software-delivery lifecycle. |
 
@@ -80,7 +81,9 @@ Category-level:
 | Trigger | Action |
 |---|---|
 | First deployment plugin lands | Populate the `deployment` category (already reserved above). |
-| A non-music creative plugin lands | Broaden `music`, by renaming it to `creative` or adding a sibling creative category, rather than filing the newcomer under `music`. |
+| A non-music audio plugin lands (sound effects, sound design) | Rename `music` to `audio`, so the label predicts both music and non-music sound. |
+| A literary plugin lands (fiction, plays, screenplays, poetry) | Add a `literature` medium category beside `visual-arts` and `music`. |
+| A plugin whose subject is making games lands (engine, level editor, game build tooling) | Add a `game-development` category; games combine media, so no medium category owns them. |
 | A broader automation plugin lands (automation that is not governed-autonomy-scoped) | Broaden `autonomy` or add a sibling category rather than filing the newcomer under `autonomy`. |
 
 Plugin-scoped (owned by the named plugin's README):
