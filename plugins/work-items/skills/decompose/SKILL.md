@@ -80,7 +80,7 @@ The human-gated label (default `needs-human`) is what keeps a slice out of auton
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
 | research | External unknown (best practice, library choice, API behavior) | `/discovery:research` |
-| prototype | Feasibility or design-feel unknown | `/prototype` |
+| prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel), when that plugin is installed |
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 
 Build slices blocked on an unresolved decision list the investigation ticket in "Blocked by". Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
