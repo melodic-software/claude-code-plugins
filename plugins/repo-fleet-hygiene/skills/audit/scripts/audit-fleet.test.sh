@@ -1233,6 +1233,38 @@ else
   failures=$((failures + 1))
 fi
 
+# A .git marker that is not a working tree under --root is a discovery-skip, not a run abort
+# (#4207). uv writes a zero-byte .git into its sdists cache; git answers "invalid gitfile format".
+mkdir -p "$TMP/husk-root/packages/uv/sdists-v9" "$TMP/husk-root/repo-b/.git"
+: >"$TMP/husk-root/packages/uv/sdists-v9/.git"
+husk_out="$TMP/husk-root-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/husk-root" --detail >"$husk_out" 2>&1
+husk_status=$?
+if [[ "$husk_status" -ne 2 ]] &&
+  grep -Fq "Finding: discovery-skip" "$husk_out" &&
+  grep -Fq "Target: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out" &&
+  grep -Fq "discovered path is not a Git working tree" "$husk_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$husk_out" &&
+  grep -Fq "Discovery skips: 1 non-repository" "$husk_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$husk_out"; then
+  printf 'PASS: a non-working-tree .git under --root is a discovery-skip and the fleet is audited\n'
+else
+  printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
+  sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+# The operator named this path directly, so the typo-stops-the-run rule still holds.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/husk-root/packages/uv/sdists-v9" \
+  >"$husk_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "Error: not a Git working tree: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out"; then
+  printf 'PASS: explicit --repo on a non-working-tree .git marker still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker failed without the rejection\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A pure bare hub (no checkout debris, no linked worktrees) is still not this finding.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-pure" >"$bare_out" 2>&1; then
   printf 'FAIL: pure bare hub unexpectedly succeeded\n' >&2
