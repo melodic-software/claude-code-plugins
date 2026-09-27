@@ -14,13 +14,14 @@ skipped and counted. The value is searched in these forms, each a `form` tag:
   doubled  the backslash spelling with each `\\` doubled (JSON, string escapes)
   msys     `/x/p` for a drive-plus-path value `X:\\p` or `X:/p`
   wsl      `/mnt/x/p` for the same
-  case     any form above matched only with case folded, where no exact-case
-           form matched
+  case:T   form T above matched only with case folded, reported only where no
+           exact-case match took the span
 
 A value starting (ending) with a word character does not match after (before)
 another word character; an msys or wsl form does not match after a word
-character or one of `/.-~`, so a URL path is not a drive path. Filename
-rules ignore case. Overlapping matches resolve longest first, once.
+character or one of `/.-~`, so a URL path is not a drive path. Every filename
+and path-segment rule compares case-insensitively. Overlapping matches resolve
+longest first, once.
 
 tsv rows: class, path, line, col, form, reason, text (tab separated; tabs in
 text written as `\\t`). Class, first rule wins: generated (marker in the first
@@ -28,23 +29,30 @@ text written as `\\t`). Class, first rule wins: generated (marker in the first
 summary lines: `file<TAB>path<TAB>n`, `class<TAB>name<TAB>n`, `sites: n`,
 `skipped-binary: n`.
 
-apply takes SITE as `path:line`. For each listed line it re-reads the file,
-re-derives class and matches, and replaces every match on the line with W in
-that match's form (a `case` match gets W as given). Bytes outside the matches,
-CRLF and a BOM included, are kept. Refusals are all-or-nothing: if any site is
-refused (line no longer carries the value; class record, contract or
-generated; fixture without --allow-fixture; W has no spelling for a matched
-form; the file's control-byte count would change) nothing is written. Prints
-one row per replaced site: `applied<TAB>path<TAB>line<TAB>forms<TAB>text`.
+apply takes SITE as `path:line`. A SITE must name a tracked file inside the
+root that is not a symlink; sites naming one file two ways (`./`, `..`, or a
+different case on a case-insensitive filesystem) are one file and one write.
+For each listed line it re-reads the file, re-derives class and matches, and
+replaces every match on the line with W in that match's form (a `case:T` match
+gets W in form T). Bytes outside the matches, CRLF and a BOM included, are
+kept. Refusals are all-or-nothing: if any site is refused (outside the root,
+untracked, missing, or a symlink; line past the end or no longer carrying the
+value; class record, contract or generated; fixture without --allow-fixture;
+W has no spelling for a matched form; the file's control-byte count would
+change) nothing is written. Prints one row per replaced site:
+`applied<TAB>path<TAB>line<TAB>forms<TAB>text`.
 
 Exit: 0 sites found or applied, 1 no sites (find), 2 usage or environment
-(bad arguments, non-git root, unreadable file), 3 apply refused.
+(bad arguments, non-git root, unreadable file), 3 apply refused (a SITE path
+that does not exist is refused as untracked, not exit 2).
 """
 
 from __future__ import annotations
 
 import argparse
 import fnmatch
+import io
+import os
 import re
 import subprocess
 import sys
@@ -102,7 +110,8 @@ def forms(value: str) -> list[tuple[str, str]]:
 
 def render(tag: str, new: str) -> str | None:
     """new spelled in the form tag names; None when it has no such spelling."""
-    if tag in ("exact", "case"):
+    tag = tag.removeprefix("case:")
+    if tag == "exact":
         return new
     if tag == "swap":
         return swap(new)
@@ -149,7 +158,7 @@ def matches(line: str, spellings: list[tuple[str, str]]) -> list[tuple[int, int,
             for m in re.finditer(f"(?=({re.escape(text)}))", line, flags):
                 start, end = m.start(1), m.end(1)
                 if bounded(line, start, end, tag):
-                    bucket.append((start, end, tag if flags == 0 else "case"))
+                    bucket.append((start, end, tag if flags == 0 else f"case:{tag}"))
     taken: list[tuple[int, int]] = []
     kept = resolve(exact, taken)
     kept += resolve(folded, taken)
@@ -161,33 +170,33 @@ def classify(rel: str, head: str) -> tuple[str, str]:
     for marker in GENERATED_MARKERS:
         if marker in first5:
             return "generated", f"marker:{marker}"
-    parts = rel.split("/")
+    parts = rel.lower().split("/")
     dirs, name = parts[:-1], parts[-1]
     for seg in FIXTURE_SEGMENTS:
         if seg in dirs:
             return "fixture", f"segment:{seg}"
     for pat in FIXTURE_NAMES:
-        if fnmatch.fnmatchcase(name, pat):
+        if fnmatch.fnmatchcase(name, pat.lower()):
             return "fixture", f"name:{pat}"
     for prefix in RECORD_PREFIXES:
-        if name.upper().startswith(prefix):
+        if name.startswith(prefix.lower()):
             return "record", f"name:{prefix}*"
     for seg in RECORD_SEGMENTS:
         if seg in dirs:
             return "record", f"segment:{seg}"
-    if name.lower().endswith(".log"):
+    if name.endswith(".log"):
         return "record", "name:*.log"
-    if name == "PLAN.md":
+    if name == "plan.md":
         return "contract", "name:PLAN.md"
     for prefix in ("BRIEF", "PRD"):
-        if name.upper().startswith(prefix):
+        if name.startswith(prefix.lower()):
             return "contract", f"name:{prefix}*"
     for seg in CONTRACT_SEGMENTS:
         if seg in dirs:
             return "contract", f"segment:{seg}"
     if name.endswith(".schema.json"):
         return "contract", "name:*.schema.json"
-    if name.lower().startswith("openapi"):
+    if name.startswith("openapi"):
         return "contract", "name:openapi*"
     return "setup", "default"
 
@@ -225,6 +234,13 @@ def control_count(data: bytes) -> int:
     return sum(1 for b in data if b < 0x20 and b not in (9, 10, 13))
 
 
+def read(root: Path, rel: str) -> bytes:
+    try:
+        return (root / rel).read_bytes()
+    except OSError as exc:
+        raise UsageError(f"cannot read {rel}: {exc.strerror}") from exc
+
+
 def shown(line: str) -> str:
     return line.rstrip("\r").replace("\t", "\\t")
 
@@ -235,7 +251,7 @@ def cmd_find(args: argparse.Namespace) -> int:
     rows = []
     skipped = 0
     for rel in tracked(root, args.paths):
-        data = (root / rel).read_bytes()
+        data = read(root, rel)
         if b"\0" in data[:8192]:
             skipped += 1
             continue
@@ -272,20 +288,26 @@ def parse_site(site: str) -> tuple[str, int]:
 def cmd_apply(args: argparse.Namespace) -> int:
     root = Path(args.root)
     spellings = forms(args.old)
+    base = root.resolve()
+    known = {os.path.normcase(str(base / t)): t for t in tracked(root, [])}
+    refusals = []
     by_file: dict[str, list[int]] = {}
     for site in args.sites:
-        rel, num = parse_site(site)
-        by_file.setdefault(rel, [])
-        if num not in by_file[rel]:
+        given, num = parse_site(site)
+        path = root / given
+        rel = known.get(os.path.normcase(str(path.resolve())))
+        if path.is_symlink():
+            refusals.append(f"{given}:{num}: a symlink is not editable")
+        elif not path.resolve().is_relative_to(base):
+            refusals.append(f"{given}:{num}: outside the root")
+        elif rel is None:
+            refusals.append(f"{given}:{num}: not a tracked file")
+        elif num not in by_file.setdefault(rel, []):
             by_file[rel].append(num)
-    refusals = []
     writes = []
     printed = []
     for rel, nums in by_file.items():
-        try:
-            data = (root / rel).read_bytes()
-        except OSError as exc:
-            raise UsageError(f"cannot read {rel}: {exc.strerror}") from exc
+        data = read(root, rel)
         bom, text = decode(data)
         cls, reason = classify(rel, text)
         if cls in LOCKED or (cls == "fixture" and not args.allow_fixture):
@@ -342,8 +364,11 @@ def cmd_apply(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8", errors="backslashreplace", newline="\n")
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(
+                encoding="utf-8", errors="backslashreplace", newline="\n"
+            )
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     find = sub.add_parser(
         "find", help="list every site that states the value (read-only)"

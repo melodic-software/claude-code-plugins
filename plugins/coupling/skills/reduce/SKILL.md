@@ -162,7 +162,9 @@ path, not phases B to D. Read [`reference/change-mode.md`](reference/change-mode
    each site; do not repeat that work by hand.
 2. **Review the classes.** Read each non-setup row and any setup row whose file says otherwise;
    reclassify with a stated reason. Setup sites change; records stay; contracts get a proposal;
-   fixtures and generated files go to the human.
+   fixtures go to the human; generated files go to the human with the recommendation to change the
+   generator's input and regenerate. A site reclassified away from its path class, in either
+   direction, is edited with the Edit tool after confirmation, never forced through `apply`.
 3. **Propose.** For each setup site, name the reference form it converts to. Report the counts,
    every non-setup row, and the proposals. `change` without `apply` stops here.
 4. **Apply** (`change apply` only). Wait for the human to confirm the site list and each
@@ -203,7 +205,7 @@ is invoked via the Skill tool.
 | Batch needs build/test verification | `/toolchain:check` when installed; else the project's own commands |
 | Shipping a PR | `/source-control:pull-request create` when installed; else the repo's own PR convention |
 | A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when installed owns the extraction; else apply per the remediation catalog |
-| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when installed owns the sweep; else run `change` and treat every row as setup after review |
+| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when installed owns the sweep; else run `change` and review each row; records still stay |
 
 ## Gotchas
 

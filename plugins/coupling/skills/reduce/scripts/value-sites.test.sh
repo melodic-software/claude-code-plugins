@@ -76,7 +76,8 @@ assert_not_contains "longest overlap wins: WSL site not also an MSYS row" "$OUT"
 assert_not_contains "token boundary: no match inside a longer word" "$OUT" "other.md"
 assert_not_contains "MSYS form not matched inside a URL path" "$OUT" "url.md"
 assert_eq "exactly five sites" "5" "$(row_count "$OUT")"
-assert_contains "row text is the line without its newline" "$OUT" $'cd /mnt/d/data/cfg'
+WSL_ROW=$(printf '%s\n' "$OUT" | grep -F $'\twsl.sh\t')
+assert_eq "row text is the line without its newline" $'setup\twsl.sh\t1\t4\twsl\tdefault\tcd /mnt/d/data/cfg' "$WSL_ROW"
 
 # find is read-only
 BEFORE=$(git -C "$FX" status --porcelain)
@@ -101,7 +102,7 @@ assert_contains "bare D: found as a word" "$OUT" $'setup\tnotes.md\t1\t7\texact'
 assert_not_contains "bare D: not inside ID:" "$OUT" $'notes.md\t2'
 assert_not_contains "bare D: not in a URL /d/ segment" "$OUT" $'notes.md\t3'
 assert_not_contains "bare D: creates no MSYS form" "$OUT" "run.sh"
-assert_contains "YAML d: key only as a case row" "$OUT" $'setup\tconf.yaml\t1\t1\tcase\tdefault'
+assert_contains "YAML d: key only as a case row" "$OUT" $'setup\tconf.yaml\t1\t1\tcase:exact\tdefault'
 assert_eq "bare D: yields exactly two sites" "2" "$(row_count "$OUT")"
 
 # --- classes -------------------------------------------------------------------
@@ -140,6 +141,27 @@ assert_contains "summary fixture count" "$SUM" $'class\tfixture\t2'
 assert_contains "summary generated count" "$SUM" $'class\tgenerated\t1'
 assert_contains "summary total" "$SUM" "sites: 9"
 
+# --- filename rules ignore case --------------------------------------------------
+FX=$(new_fixture casenames)
+put "$FX" plan.md 'v Q:\vol\one'
+put "$FX" Tests/x.sh 'v Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(slashes "$(vs find --old 'Q:\vol\one' --root "$ROOT")")
+assert_contains "plan.md is a contract" "$OUT" $'contract\tplan.md\t1\t3\texact\tname:PLAN.md'
+assert_contains "Tests/ is a fixture" "$OUT" $'fixture\tTests/x.sh\t1\t3\texact\tsegment:tests'
+
+# --- overlapping forms -------------------------------------------------------------
+FX=$(new_fixture overlap)
+put "$FX" app.json '{"dir": "D:\\data"}'
+put "$FX" cfg.json '{"dir": "cfg\\"}'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:\data' --root "$ROOT")
+assert_eq "doubled spelling yields one row" $'setup\tapp.json\t1\t10\tdoubled\tdefault\t{"dir": "D:\\\\data"}' "$OUT"
+OUT=$(vs find --old $'cfg\\' --root "$ROOT")
+assert_eq "exact and doubled overlap at one start: one row, the longer form" $'setup\tcfg.json\t1\t10\tdoubled\tdefault\t{"dir": "cfg\\\\"}' "$OUT"
+
 # --- exits ---------------------------------------------------------------------
 rc=0
 vs find --old 'Z:\absent' --root "$ROOT" >/dev/null || rc=$?
@@ -153,6 +175,9 @@ assert_contains "non-git root names the problem" "$ERR" "not a git"
 rc=0
 vs find >/dev/null 2>&1 || rc=$?
 assert_exit "missing --old exits 2" 2 "$rc"
+rc=0
+vs --help >/dev/null 2>&1 || rc=$?
+assert_exit "--help exits 0" 0 "$rc"
 
 # --- apply: backslash value, no control bytes --------------------------------
 FX=$(new_fixture apply)
@@ -239,6 +264,68 @@ rc=0
 vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" --allow-fixture tests/x.sh:1 >/dev/null || rc=$?
 assert_exit "fixture site applied with --allow-fixture" 0 "$rc"
 assert_eq "fixture file changed" 'v Q:\vol\two' "$(cat "$FX/tests/x.sh")"
+
+# --- apply: every form keeps its spelling ------------------------------------------
+FX=$(new_fixture forms-apply)
+put "$FX" README.md 'Data lives in D:\data\cfg for now.'
+put "$FX" run.sh 'cd /d/data/cfg'
+put "$FX" wsl.sh 'cd /mnt/d/data/cfg'
+put "$FX" case.json '{"dir": "d:\\data\\cfg"}'
+put "$FX" case.sh 'cd /D/data/cfg'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT")
+assert_contains "case-folded doubled match is tagged case:doubled" "$OUT" $'case.json\t1\t10\tcase:doubled'
+assert_contains "case-folded MSYS match is tagged case:msys" "$OUT" $'case.sh\t1\t4\tcase:msys'
+rc=0
+ERR=$(vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" README.md:99 2>&1 >/dev/null) || rc=$?
+assert_exit "a line past the end of the file is refused" 3 "$rc"
+assert_contains "past-EOF refusal names the site" "$ERR" "README.md:99"
+rc=0
+vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" run.sh:1 wsl.sh:1 case.json:1 case.sh:1 >/dev/null || rc=$?
+assert_exit "apply on msys, wsl and case sites exits 0" 0 "$rc"
+assert_eq "MSYS site gets the MSYS spelling" 'cd /e/data/new' "$(cat "$FX/run.sh")"
+assert_eq "WSL site gets the WSL spelling" 'cd /mnt/e/data/new' "$(cat "$FX/wsl.sh")"
+assert_eq "case:doubled site gets doubled backslashes" '{"dir": "E:\\data\\new"}' "$(cat "$FX/case.json")"
+assert_eq "case:msys site gets the MSYS spelling" 'cd /e/data/new' "$(cat "$FX/case.sh")"
+
+# --- apply: sites are confined to tracked files under the root ---------------------
+FX=$(new_fixture confine)
+put "$FX" README.md 'v Q:\vol\one'
+stage "$FX"
+put "$FX" notes.md 'v Q:\vol\one'
+printf '%s\n' 'v Q:\vol\one' >"$TEST_TMPDIR/outside.txt"
+ROOT=$(host_path "$FX")
+rc=0
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 ../outside.txt:1 2>&1 >/dev/null) || rc=$?
+assert_exit "a site outside the root is refused" 3 "$rc"
+assert_contains "outside refusal names the site" "$ERR" "outside.txt"
+assert_eq "the outside file is unchanged" 'v Q:\vol\one' "$(cat "$TEST_TMPDIR/outside.txt")"
+assert_eq "confinement refusal writes nothing in the root" 'v Q:\vol\one' "$(cat "$FX/README.md")"
+rc=0
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 notes.md:1 2>&1 >/dev/null) || rc=$?
+assert_exit "an untracked file inside the root is refused" 3 "$rc"
+assert_contains "untracked refusal names the site" "$ERR" "notes.md:1"
+assert_eq "the untracked file is unchanged" 'v Q:\vol\one' "$(cat "$FX/notes.md")"
+assert_eq "untracked refusal writes nothing else" 'v Q:\vol\one' "$(cat "$FX/README.md")"
+
+# --- apply: one file named two ways is one write -----------------------------------
+FX=$(new_fixture dedup)
+put "$FX" dup.md 'one Q:\vol\one' 'two Q:\vol\one'
+put "$FX" docs/keep.md 'kept'
+put "$FX" A.md 'one Q:\vol\one' 'two Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+rc=0
+OUT=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" dup.md:1 docs/../dup.md:2) || rc=$?
+assert_exit "apply with two spellings of one file exits 0" 0 "$rc"
+assert_eq "both edits land in one write" $'one Q:\\vol\\two\ntwo Q:\\vol\\two' "$(cat "$FX/dup.md")"
+if [[ -e "$FX/a.md" ]]; then
+  rc=0
+  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" A.md:1 a.md:2 >/dev/null || rc=$?
+  assert_exit "apply with two casings of one file exits 0" 0 "$rc"
+  assert_eq "both casings' edits land in one write" $'one Q:\\vol\\two\ntwo Q:\\vol\\two' "$(cat "$FX/A.md")"
+fi
 
 echo
 if [[ "$FAILED" -gt 0 ]]; then

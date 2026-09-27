@@ -23,7 +23,9 @@ the change.
   searches every form: the value as given, with `/` and `\` swapped, and with each `\` doubled (JSON
   and string escapes). A drive followed by a path, such as `D:\data`, is also searched in its MSYS
   `/d/data` and WSL `/mnt/d/data` spellings; a bare drive is not, since `/d/` alone is any URL
-  segment. A second, case-insensitive pass reports what only matches with case folded, tagged `case`.
+  segment. A second, case-insensitive pass reports what only matches with case folded, tagged
+  `case:` plus the form it matched (`case:exact`, `case:doubled`, `case:msys`), and `apply` writes
+  the new value in that form.
 - **Token boundary.** A value that starts or ends with a word character does not match inside a
   longer word: `D:` is not found inside `ID:`. An MSYS or WSL spelling does not match after a word
   character, `/`, `.`, `-`, or `~`, so a URL path segment is not read as a drive path.
@@ -35,6 +37,8 @@ the change.
 Each row is `class<TAB>path<TAB>line<TAB>col<TAB>form<TAB>reason<TAB>text`. The class comes from
 path rules and the `reason` column says which rule fired. The rules are a default, not a verdict:
 read the row, and reclassify it in the report with a stated reason when the file says otherwise.
+A site reclassified away from its path class, in either direction, is edited with the Edit tool
+after confirmation, never forced through `apply`. Filename and path-segment rules ignore case.
 A repository without a record or contract convention lands mostly in `setup`, which is safe only
 because `find` never writes.
 
@@ -97,13 +101,16 @@ Only `change apply` edits, and only after the human confirms the classified site
    never truncate it. A value change is its own pull request, never mixed into a structure-only
    coupling pass.
 4. Substitute the value with `value-sites.py apply`, which changes the value only, on the listed
-   `path:line` sites only. It refuses record, contract, and generated sites, fixture sites unless
-   `--allow-fixture` is given, a line that no longer carries the value, and any write that changes
-   a file's control-byte count; one refusal means no file is written. Then make the confirmed
+   `path:line` sites only. It refuses a site that is not a tracked file inside the root (or is a
+   symlink), record, contract, and generated sites, fixture sites unless `--allow-fixture` is
+   given, a line that no longer carries the value, and any write that changes a file's
+   control-byte count; one refusal means no file is written. Then make the confirmed
    reference-form conversions with the Edit tool.
 5. Write contract corrections to the proposal file; never edit the contract.
 6. Re-run `find` for the old value. Every remaining row must be a record, a contract, a generated
    file, or a fixture the human chose to leave; a remaining setup row means the change is not done.
+   When `<new>` contains `<old>`, a re-run matches the new value too; check the rows' text for the
+   new value instead of counting them.
 7. Record each converted site and each flagged contract or fixture in the ledger as a
    connascence-of-value entry.
 
@@ -116,6 +123,8 @@ Only `change apply` edits, and only after the human confirms the classified site
   shorter rewrites part of it. `find` resolves overlapping forms longest first, and the token
   boundary keeps `D:\data` from matching inside `D:\data2`; when two different values are changing
   together, run the longer one first.
+- **Token ends.** `-` and `.` end a token, so `D:\data` also matches the start of `D:\data-old` and
+  `D:\data.bak`; read those rows before confirming.
 - **Moving anchors.** A contract under concurrent edit shifts its line numbers. `apply` re-reads each
   listed line at write time and refuses a site whose line no longer carries the value; cite
   contract anchors from a fresh read.

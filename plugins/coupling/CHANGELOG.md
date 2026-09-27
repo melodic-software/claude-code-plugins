@@ -15,8 +15,9 @@ All notable changes to the `coupling` plugin are documented here. Format follows
   ledger. A confirmed site set is not capped by the per-run budget.
 - `skills/reduce/scripts/value-sites.py`: the deterministic inventory (every separator, escape,
   drive, and case spelling of the value, token boundaries, longest form first, path-based classes)
-  and a byte-level `apply` that refuses stale line anchors, non-setup sites, and any write that
-  adds a control byte. Covered by `value-sites.test.sh`.
+  and a byte-level `apply` that refuses stale line anchors, non-setup sites, sites that are not
+  tracked files inside the root, and any write that changes a file's control-byte count. Covered
+  by `value-sites.test.sh`.
 - `skills/reduce/reference/change-mode.md`: site classes, reference forms, the apply sequence, and
   pitfalls.
 
