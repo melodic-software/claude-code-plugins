@@ -124,7 +124,7 @@ it clean in `git status --porcelain`; a target carrying pre-existing local modif
 defers its finding with the reason recorded. Foreign edits are never mixed into the batch.
 Budget per run: target ≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays
 `proposed` in the ledger for the next run. A confirmed `change apply` site set is the one
-exception (see Change mode below). Use the Edit tool; one atomic commit per logical
+exception (see the Apply sequence in [`reference/change-mode.md`](reference/change-mode.md)). Use the Edit tool; one atomic commit per logical
 reduction; stage listed paths only and inspect the staged diff before each commit. Never
 touch CI workflow files, hook or settings surfaces, lint configs, database migrations, or
 any published contract surface (API shapes, message schemas, tool schemas). Those are route
@@ -161,14 +161,11 @@ path, not phases B to D. Read [`reference/change-mode.md`](reference/change-mode
    with `--format tsv` for the rows. The script finds every spelling of the value and classifies
    each site; do not repeat that work by hand.
 2. **Review the classes.** Read each non-setup row and any setup row whose file says otherwise;
-   reclassify with a stated reason. Setup sites change; records stay; contracts get a proposal;
-   fixtures go to the human; generated files go to the human with the recommendation to change the
-   generator's input and regenerate. A site reclassified away from its path class, in either
-   direction, is edited with the Edit tool after confirmation, never forced through `apply`.
+   reclassify with a stated reason. Handle each class per the spoke's Site classes table.
 3. **Propose.** For each setup site, name the reference form it converts to. Report the counts,
    every non-setup row, and the proposals. `change` without `apply` stops here.
 4. **Apply** (`change apply` only). Wait for the human to confirm the site list and each
-   conversion, then follow the apply sequence in the spoke under phases E and F.
+   conversion, then follow the spoke's Apply sequence, which runs phases E and F.
 5. **Ledger and report.** Record converted and flagged sites in the ledger and report what waits
    on the human first.
 
@@ -228,8 +225,8 @@ The counterweights this skill exists to hold. Add here when a new one surfaces.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
 - **A record that states the old value is correct.** Changelogs, evidence, and decision logs
-  record what was true then; rewriting them to the new value falsifies them. Only setup sites
-  change, and contracts change only through a proposal.
+  record what was true then; rewriting them to the new value falsifies them. Setup sites change,
+  fixtures only when the human chooses, and contracts only through a proposal.
 - **The ledger records what a re-scan currently finds; it never replays.** Re-emitting stale
   findings re-injects problems that may already be fixed. Statuses advance, evidence gets
   re-checked, and a finding that no longer reproduces is closed, not repeated.

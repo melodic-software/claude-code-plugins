@@ -39,8 +39,8 @@ path rules and the `reason` column says which rule fired. The rules are a defaul
 read the row, and reclassify it in the report with a stated reason when the file says otherwise.
 A site reclassified away from its path class, in either direction, is edited with the Edit tool
 after confirmation, never forced through `apply`. Filename and path-segment rules ignore case.
-A repository without a record or contract convention lands mostly in `setup`, which is safe only
-because `find` never writes.
+A repository without a record or contract convention lands mostly in `setup`, so review setup
+rows before confirming: `apply` edits any listed setup site.
 
 ## Site classes
 
@@ -48,9 +48,9 @@ because `find` never writes.
 |---|---|---|
 | setup | Examples, help text, runbooks, script defaults, install and configuration docs, templates | Change the value and convert the site to a reference form so the next change does not reach it |
 | record | Changelogs, decision records, evidence, measurements, logs | Leave. They record what was true then |
-| contract | Approved plans, briefs, specs, published schemas | Never edit. Stage the correction through the repository's own correction mechanism, citing each site by path and line |
+| contract | Approved plans, briefs, specs, published schemas | Never edit. Write a correction entry to the proposal file below, citing path and line |
 | fixture | Test inputs and expected outputs | Flag for a person. Change only when a test pins a value the source of truth now owns |
-| generated | Files whose header says they are generated or not to be edited | Never edit. Change the generator's input and regenerate |
+| generated | Files whose header says they are generated or not to be edited | Never edit. Flag for a person with the generator input to change |
 
 The script cannot see a vendored copy (a file synced from another location); reclassify it as
 `generated` and change the source it is copied from.
