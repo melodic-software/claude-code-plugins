@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.7] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: the `hygiene` catalog's `overengineering` entry passes
+  `agent-instructions repo-hooks vcs-hooks ci-lanes gate-scripts satellite-workflows` to the audit
+  and to realign, so a single-repo sweep no longer walks all ten layers. A new note sends
+  `agent-hooks`, `branch-protection`, `forge-apps`, and `external-integrations` to a separate org- or
+  machine-level pass (#4597).
+
 ## [0.13.6] - 2026-09-27
 
 ### Fixed
