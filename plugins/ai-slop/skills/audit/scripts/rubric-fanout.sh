@@ -3,11 +3,15 @@
 #
 #   plan     order a `detect.sh --list-targets` file, pack it into batches by
 #            `wc -w`, write batch-NN.txt lists and batch-NN.paths sidecars,
-#            print each batch's digest (list plus listed files' contents)
+#            print each batch's digest (list plus listed files' contents),
+#            and write cues.txt: whole-scope and per-batch counts of the
+#            saturation cues (load-bearing, seam) with a saturated verdict
 #   extract  the catalog's `v1: rubric` entries plus "Signs of human writing"
 #   status   per batch: complete, or missing or stale (with the failed check)
 #            plus the batch's current digest
-#   merge    one merged rubric file, written only when every batch is complete
+#   merge    one merged rubric file, written only when every batch is complete;
+#            totals `declined:` result lines, and with cues.txt flags batches
+#            whose cue verdicts disagree on `consistency:` lines
 #
 # Exit: 0 ok; 1 when status or merge finds a batch that is not complete;
 # 2 on usage errors and refusals.
@@ -33,9 +37,42 @@ Usage:
 <targets-file> is `detect.sh --list-targets` output: <key><TAB><path> per line.
 Order repo: impact class (CLAUDE.md, AGENTS.md, SKILL.md, README.md, .claude/rules/),
 then 90-day change count, then key. Order mtime: newest first, then key.
+
+plan also writes <dir>/cues.txt:
+  scope_files=<S>                                   readable regular listed files
+  cue=<c> occurrences=<O> files=<F> saturated=yes|no  whole scope; yes when
+                                                    F >= 10 and F*10 >= S
+  batch=<NN> cue=<c> occurrences=<O> files=<F>      per batch, when O > 0
+Cues: load-bearing (load-bearing, load bearing) and seam (seam, seams), any
+case, bounded by [^a-z0-9_] or the line edge, every match counted, fenced
+code blocks skipped.
+
+A result may carry `declined: <rule-id> <cue> reason=saturated|boundary` lines.
+merge strips them from the bodies, totals them on `declined_total:` lines, and,
+when cues.txt exists, prints `consistency:` lines for a saturated cue quoted in
+a rule-abstract-metaphor-jargon finding, a reason=saturated decline of a cue
+that is not saturated, and a batch holding a cue it neither reported nor
+declined; each rule named there gets ` consistency=flagged` on its rule_total.
 Exit: 0 ok, 1 a batch is not complete, 2 usage error or refusal.
 EOF
 }
+
+# The saturation cues and cue_hits(s, c): the matches of cue c in s, compared
+# lowercase and bounded by [^a-z0-9_] or the string's edge. POSIX awk only.
+# shellcheck disable=SC2016  # an awk program, not a shell expansion
+CUE_AWK='
+function cue_hits(s, c,   re, n, off, st, pre, post) {
+  s = tolower(s); n = 0; off = 0
+  re = (c == "seam") ? "seams?" : "load[- ]bearing"
+  while (match(substr(s, off + 1), re)) {
+    st = off + RSTART
+    pre = (st > 1) ? substr(s, st - 1, 1) : ""
+    post = substr(s, st + RLENGTH, 1)
+    if (pre !~ /[a-z0-9_]/ && post !~ /[a-z0-9_]/) { n++; off = st + RLENGTH - 1 } else off = st
+  }
+  return n
+}
+BEGIN { nc = split("load-bearing seam", C, " ") }'
 
 die() {
   echo "$ME: $*" >&2
@@ -221,7 +258,7 @@ cmd_plan() {
   done
   lists+=("$cur"); plists+=("$cur_p"); words+=("$cur_w"); counts+=("$cur_n")
 
-  local width=${#lists[@]} b nn list
+  local width=${#lists[@]} b nn list scope=""
   width=${#width}
   [[ "$width" -lt 2 ]] && width=2
   for b in "${!lists[@]}"; do
@@ -231,7 +268,36 @@ cmd_plan() {
     printf '%s' "${plists[$b]}" >"$out/batch-$nn.paths" || die "plan: cannot write $out/batch-$nn.paths"
     printf 'batch=%s list=%s files=%d words=%d digest=%s\n' \
       "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$(batch_digest "$list")"
+    while IFS= read -r ap; do
+      [[ -n "$ap" && -f "$ap" && -r "$ap" ]] && scope+="$nn"$'\t'"$ap"$'\n'
+    done <<<"${plists[$b]}"
   done
+
+  # Cue counts over the whole scope, one `<NN><TAB><path>` line per readable
+  # regular file on stdin; awk opens each with getline, so no path is parsed
+  # as an argument and a FIFO never reaches it.
+  # shellcheck disable=SC2016  # an awk program, not a shell expansion
+  printf '%s' "$scope" | awk "$CUE_AWK"'
+    {
+      t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
+      if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
+      S++; fence = 0
+      for (i = 1; i <= nc; i++) h[i] = 0
+      while ((getline line < f) > 0) {
+        sub(/\r$/, "", line)
+        if (line ~ /^ ? ? ?(```|~~~)/) { fence = !fence; continue }
+        if (!fence) for (i = 1; i <= nc; i++) h[i] += cue_hits(line, C[i])
+      }
+      close(f)
+      for (i = 1; i <= nc; i++) if (h[i]) { O[i] += h[i]; F[i]++; BO[b, i] += h[i]; BF[b, i]++ }
+    }
+    END {
+      printf "scope_files=%d\n", S
+      for (i = 1; i <= nc; i++)
+        printf "cue=%s occurrences=%d files=%d saturated=%s\n", C[i], O[i], F[i], (F[i] >= 10 && F[i] * 10 >= S) ? "yes" : "no"
+      for (k = 1; k <= nb; k++) for (i = 1; i <= nc; i++) if (BO[order[k], i])
+        printf "batch=%s cue=%s occurrences=%d files=%d\n", order[k], C[i], BO[order[k], i], BF[order[k], i]
+    }' >"$out/cues.txt" || die "plan: cannot write $out/cues.txt"
 }
 
 cmd_extract() {
@@ -347,11 +413,14 @@ cmd_merge() {
     return 1
   fi
   local -a files=()
-  local nn
+  local nn scope="" cues=""
   while IFS= read -r nn; do
     nn="${nn#batch=}"
-    files+=("$RESULTS/rubric-batch-${nn%% *}.md")
+    nn="${nn%% *}"
+    files+=("$RESULTS/rubric-batch-$nn.md")
+    scope+="$nn"$'\t'"$RESULTS/rubric-batch-$nn.md"$'\n'
   done <<<"$rows"
+  [[ -f "$BATCHES/cues.txt" && -r "$BATCHES/cues.txt" ]] && cues="$BATCHES/cues.txt"
   local f
   {
     awk '
@@ -359,12 +428,71 @@ cmd_merge() {
       /^files_reviewed:/ { fr += $2 }
       /^files_with_findings:/ { fw += $2 }
       END { printf "files_reviewed: %d\nfiles_with_findings: %d\nbatches: %d\n", fr, fw, ARGC - 1 }' "${files[@]}"
-    awk '
-      /^- L[0-9]+ rule-[a-z0-9-]+:/ { r = $3; sub(/:$/, "", r); t[r]++ }
-      END { for (r in t) printf "rule_total: %s=%d\n", r, t[r] }' "${files[@]}" | sort
+    # Totals, then consistency flags, then decline totals, each group sorted.
+    # Results come as `<NN><TAB><path>` lines on stdin; cues.txt by ENVIRON.
+    # shellcheck disable=SC2016  # an awk program, not a shell expansion
+    printf '%s' "$scope" | RF_CUES="$cues" awk "$CUE_AWK"'
+      function add(list, b) { return list == "" ? b : list "," b }
+      function quoted(s,   i) {
+        i = index(s, "\""); if (!i) return ""
+        s = substr(s, i + 1); i = index(s, "\"")
+        return i ? substr(s, 1, i - 1) : s
+      }
+      BEGIN {
+        MJ = "rule-abstract-metaphor-jargon"; cf = ENVIRON["RF_CUES"]
+        if (cf != "") {
+          have = 1
+          while ((getline line < cf) > 0) {
+            sub(/\r$/, "", line); split(line, a, " ")
+            if (line ~ /^cue=/) sat[substr(a[1], 5)] = (a[4] == "saturated=yes")
+            else if (line ~ /^batch=/) occ[substr(a[1], 7), substr(a[2], 5)] = substr(a[3], 13) + 0
+          }
+          close(cf)
+        }
+      }
+      {
+        t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
+        B[++nb] = b
+        while ((getline line < f) > 0) {
+          sub(/\r$/, "", line)
+          if (line ~ /^- L[0-9]+ rule-[a-z0-9-]+:/) {
+            split(line, a, " "); r = a[3]; sub(/:$/, "", r); total[r]++
+            if (r == MJ) for (i = 1; i <= nc; i++) if (cue_hits(quoted(line), C[i])) rep[b, C[i]] = 1
+          } else if (line ~ /^declined:/ && split(line, a, " ") >= 4 && a[4] ~ /^reason=/) {
+            dec[b, a[2], a[3]] = 1
+            k = a[2] " " a[3] " " a[4]
+            if ((b, k) in once) continue
+            once[b, k] = 1
+            dl[k] = add(dl[k], b)
+          }
+        }
+        close(f)
+      }
+      END {
+        if (have) {
+          for (i = 1; i <= nc; i++) {
+            c = C[i]; r1 = r3 = ""
+            for (j = 1; j <= nb; j++) {
+              b = B[j]
+              if (sat[c] && rep[b, c]) r1 = add(r1, b)
+              if (occ[b, c] > 0 && !rep[b, c] && !((b, MJ, c) in dec)) r3 = add(r3, b)
+            }
+            if (r1 != "") { print "2\tconsistency: " MJ " cue=" c " saturated=yes reported_in=" r1; flag[MJ] = 1 }
+            if (r3 != "") { print "2\tconsistency: " MJ " cue=" c " unaccounted_in=" r3; flag[MJ] = 1 }
+          }
+          for (k in dl) {
+            split(k, a, " ")
+            if (a[3] == "reason=saturated" && (a[2] in sat) && !sat[a[2]]) {
+              print "2\tconsistency: " a[1] " cue=" a[2] " saturated=no declined_in=" dl[k]; flag[a[1]] = 1
+            }
+          }
+        }
+        for (r in total) print "1\trule_total: " r "=" total[r] ((r in flag) ? " consistency=flagged" : "")
+        for (k in dl) print "3\tdeclined_total: " k " batches=" dl[k]
+      }' | sort | cut -f2-
     for f in "${files[@]}"; do
       echo
-      tr -d '\r' <"$f" | grep -Ev '^(batch|files_reviewed|files_with_findings):' || true
+      tr -d '\r' <"$f" | grep -Ev '^(batch|files_reviewed|files_with_findings|declined):' || true
     done
   } >"$OUT" || die "merge: cannot write $OUT"
   echo "$ME: merged ${#files[@]} batch result(s) into $OUT"

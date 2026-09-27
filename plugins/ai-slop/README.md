@@ -130,5 +130,6 @@ gate stayed quiet on all 61 files containing it) and ships in the default list.
 
 The metaphor word-cues this layer added to the judgment rubric ("load-bearing", "seam") have
 no config lever. The rubric reads no config, and its findings reach the human report only.
-The catalog entry's literal-sense boundary is the suppression surface; saturation-level house
-usage of either word is a fix-pass decision for that repo, not a per-audit re-report.
+The catalog entry's literal-sense boundary and its definition of saturation (in
+`rule-abstract-metaphor-jargon`) are the suppression surface; a saturated cue is a fix-pass
+decision for that repo, not a per-audit re-report.

@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=86
+EXPECTED_CASES=114
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -287,16 +287,19 @@ assert_eq "paths: status from another cwd still reads a relative plan complete" 
 if command -v cygpath >/dev/null 2>&1; then
   WP="$TEST_TMPDIR/winpaths"
   mkdir -p "$WP/docs" "$WP/results"
-  printf 'one two\n' >"$WP/docs/x.md"
+  printf 'one load-bearing\n' >"$WP/docs/x.md"
   wx="$(cygpath -m "$WP/docs/x.md")"
   printf 'x.md\t%s\n' "$wx" >"$WP/targets.tsv"
   out="$(bash "$FANOUT" plan --out "$WP/batches" --order mtime "$WP/targets.tsv" 2>&1)"
   assert_eq "paths: a C:/ absolute path is kept unchanged" "$(cat "$WP/batches/batch-01.paths")" "$wx"
+  assert_line_in "paths: cues.txt counts a C:/ path's cue" "$WP/batches/cues.txt" \
+    "cue=load-bearing occurrences=1 files=1 saturated=no"
   printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$out" 01)" >"$WP/results/rubric-batch-01.md"
   out="$(bash "$FANOUT" status --batches "$WP/batches" --results "$WP/results" 2>&1)"
   assert_eq "paths: a C:/ path plan reads complete" "$out" "batch=01 status=complete"
 else
   skip "paths: a C:/ absolute path is kept unchanged" "no cygpath"
+  skip "paths: cues.txt counts a C:/ path's cue" "no cygpath"
   skip "paths: a C:/ path plan reads complete" "no cygpath"
 fi
 
@@ -412,6 +415,7 @@ fifo_cases=(
   "fifo: plan with a FIFO target exits 0 within the timeout"
   "fifo: plan counts the FIFO target as 0 words, with a warning"
   "fifo: plan still names the FIFO path in the sidecar"
+  "fifo: cues.txt leaves the FIFO target out of scope_files"
   "fifo: plan with a FIFO targets file exits 2 within the timeout"
 )
 if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
@@ -442,11 +446,12 @@ if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
   assert_exit "${fifo_cases[5]}" 0 "$rc"
   assert_contains "${fifo_cases[6]}" "$(cat "$FF/out4")" "cannot read $FF/docs/p.md; counted as 0 words"
   assert_line_in "${fifo_cases[7]}" "$FF/planned/batch-01.paths" "$FF/docs/p.md"
+  assert_line_in "${fifo_cases[8]}" "$FF/planned/cues.txt" "scope_files=1"
   mkfifo "$FF/targets-fifo.tsv"
   timeout 10 bash "$FANOUT" plan --out "$FF/planned-2" "$FF/targets-fifo.tsv" >/dev/null 2>&1
   rc=$?
   release "$FF/targets-fifo.tsv"
-  assert_exit "${fifo_cases[8]}" 2 "$rc"
+  assert_exit "${fifo_cases[9]}" 2 "$rc"
 else
   for c in "${fifo_cases[@]}"; do skip "$c" "no mkfifo or timeout"; done
 fi
@@ -496,6 +501,115 @@ assert_contains "merge: per-rule total across batches" "$merged" "rule_total: ru
 assert_contains "merge: per-rule total for a single hit" "$merged" "rule_total: rule-promotional-language=1"
 assert_eq "merge: one files_reviewed line, the summed one" "$(grep -c '^files_reviewed:' "$TEST_TMPDIR/merged.md")" "1"
 assert_eq "merge: bodies in batch order" "$(grep '^## ' "$TEST_TMPDIR/merged.md" | tr '\n' ' ')" "## a.md ## c.md "
+assert_not_contains "merge: no cues.txt and no declines prints no consistency line" "$merged" "consistency"
+
+# --- plan: cues.txt counts saturation cues over the whole scope ---------------------
+
+K="$TEST_TMPDIR/cues"
+mkdir -p "$K/docs"
+printf 'This is load-bearing.\n' >"$K/docs/k01.md"
+for n in 02 03 04 05 06 07 08 09 10; do printf 'load-bearing text\n' >"$K/docs/k$n.md"; done
+printf 'A Load-Bearing wall, a load bearing beam, non-load-bearing trim.\r\n' >"$K/docs/k11.md"
+cat >"$K/docs/k12.md" <<'EOF'
+```
+load-bearing in code
+```
+~~~
+load-bearing
+~~~
+The seamless seam and seams.
+  ```sh
+seam
+  ```
+EOF
+for n in 01 02 03 04 05 06 07 08 09 10 11 12; do printf 'k%s.md\t%s\n' "$n" "$K/docs/k$n.md"; done >"$K/targets.tsv"
+out="$(bash "$FANOUT" plan --out "$K/batches" --order mtime "$K/targets.tsv" 2>/dev/null)"
+assert_eq "cues: plan stdout is still one row per batch" "$out" "$(printf '%s\n' "$out" | grep '^batch=[0-9]* list=')"
+assert_line_in "cues: scope_files counts the listed files" "$K/batches/cues.txt" "scope_files=12"
+assert_line_in "cues: every match counts, fences skipped, saturated at 11 of 12 files" "$K/batches/cues.txt" \
+  "cue=load-bearing occurrences=13 files=11 saturated=yes"
+assert_line_in "cues: seamless is not seam, seams is, fenced seam is not" "$K/batches/cues.txt" \
+  "cue=seam occurrences=2 files=1 saturated=no"
+assert_line_in "cues: a per-batch line carries the batch's own counts" "$K/batches/cues.txt" \
+  "batch=01 cue=load-bearing occurrences=13 files=11"
+
+K2="$TEST_TMPDIR/cues-small"
+mkdir -p "$K2"
+printf 'load-bearing\n' >"$K2/a.md"
+printf 'the load-bearing seam\n' >"$K2/b.md"
+printf '%s\t%s\n' a.md "$K2/a.md" b.md "$K2/b.md" >"$K2/targets.tsv"
+bash "$FANOUT" plan --out "$K2/batches" --order mtime "$K2/targets.tsv" >/dev/null 2>&1
+assert_line_in "cues: two files in two are not saturated" "$K2/batches/cues.txt" \
+  "cue=load-bearing occurrences=2 files=2 saturated=no"
+
+: >"$K2/empty.tsv"
+bash "$FANOUT" plan --out "$K2/empty" "$K2/empty.tsv" >/dev/null 2>&1
+assert_eq "cues: an empty targets file writes no cues.txt" \
+  "$([[ -e "$K2/empty/cues.txt" ]] && echo present || echo absent)" "absent"
+
+# --- merge: cross-batch consistency over cues.txt ------------------------------------
+
+# Replay: twelve files in three batches of four; load-bearing sits in ten of
+# them (saturated), seam in one (not). Batch 01 reports load-bearing, batch 02
+# declines it and seam as saturated, batch 03 holds load-bearing and says nothing.
+X="$TEST_TMPDIR/replay"
+mkdir -p "$X/docs" "$X/results" "$X/clean" "$X/old"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12; do
+  case "$n" in
+  05) printf 'a seam b c\n' ;;
+  12) printf 'a b c d\n' ;;
+  *) printf 'a load-bearing b c\n' ;;
+  esac >"$X/docs/r$n.md"
+  touch -t 202601010000 "$X/docs/r$n.md"
+  printf 'r%s.md\t%s\n' "$n" "$X/docs/r$n.md"
+done >"$X/targets.tsv"
+plan="$(bash "$FANOUT" plan --out "$X/batches" --budget 16 --order mtime "$X/targets.tsv" 2>/dev/null)"
+assert_eq "replay: plan packs three batches" "$(printf '%s\n' "$plan" | grep -c '^batch=')" "3"
+assert_line_in "replay: load-bearing is saturated" "$X/batches/cues.txt" "cue=load-bearing occurrences=10 files=10 saturated=yes"
+assert_line_in "replay: batch 03 holds load-bearing" "$X/batches/cues.txt" "batch=03 cue=load-bearing occurrences=3 files=3"
+res() { # res <dir> <nn> <files_with_findings> <body>
+  printf 'batch: %s\nfiles_reviewed: 4\nfiles_with_findings: %s\n%s\n' "$(digest_of "$plan" "$2")" "$3" "$4" >"$1/rubric-batch-$2.md"
+}
+res "$X/results" 01 1 $'\n## r01.md\n\n- L1 rule-abstract-metaphor-jargon: "a load-bearing b" -- metaphor jargon'
+res "$X/results" 02 0 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\ndeclined: rule-abstract-metaphor-jargon seam reason=saturated'
+res "$X/results" 03 0 ""
+out="$(bash "$FANOUT" status --batches "$X/batches" --results "$X/results" 2>&1)"
+rc=$?
+assert_exit "replay: status exits 0 with declined lines" 0 "$rc"
+assert_contains "replay: a result with declined lines is complete" "$out" "batch=02 status=complete"
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/results" --out "$X/merged.md" >/dev/null 2>&1
+rc=$?
+assert_exit "replay: merge exits 0" 0 "$rc"
+assert_line_in "replay: a saturated cue reported is flagged" "$X/merged.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=load-bearing saturated=yes reported_in=01"
+assert_line_in "replay: a saturated decline of an unsaturated cue is flagged" "$X/merged.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=seam saturated=no declined_in=02"
+assert_line_in "replay: a silent batch holding the cue is flagged" "$X/merged.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=load-bearing unaccounted_in=03"
+assert_line_in "replay: the flagged rule's total says so" "$X/merged.md" \
+  "rule_total: rule-abstract-metaphor-jargon=1 consistency=flagged"
+assert_line_in "replay: declines are totalled per rule, cue and reason" "$X/merged.md" \
+  "declined_total: rule-abstract-metaphor-jargon load-bearing reason=saturated batches=02"
+assert_eq "replay: declined lines are stripped from the bodies" "$(grep -c '^declined:' "$X/merged.md")" "0"
+assert_eq "replay: exactly three consistency lines" "$(grep -c '^consistency:' "$X/merged.md")" "3"
+
+# Clean: every batch holding load-bearing declines it as saturated, and seam
+# is reported. A cue named only outside the quote does not count as reported.
+res "$X/clean" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+res "$X/clean" 02 1 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a seam b" -- load-bearing style jargon'
+res "$X/clean" 03 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/clean" --out "$X/clean.md" >/dev/null 2>&1
+assert_eq "clean: no consistency line" "$(grep -c 'consistency' "$X/clean.md")" "0"
+assert_line_in "clean: the rule total is unflagged" "$X/clean.md" "rule_total: rule-abstract-metaphor-jargon=1"
+assert_line_in "clean: declines from three batches total on one line" "$X/clean.md" \
+  "declined_total: rule-abstract-metaphor-jargon load-bearing reason=saturated batches=01,02,03"
+
+# A batch directory planned before cues.txt existed gets no consistency checks.
+cp "$X"/batches/batch-* "$X/old/"
+bash "$FANOUT" merge --batches "$X/old" --results "$X/results" --out "$X/old.md" >/dev/null 2>&1
+rc=$?
+assert_exit "no cues.txt: merge exits 0" 0 "$rc"
+assert_eq "no cues.txt: no consistency line" "$(grep -c 'consistency' "$X/old.md")" "0"
 
 # --- Result ---------------------------------------------------------------------
 

@@ -20,12 +20,20 @@ by hand.
    batch), and writes `batch-NN.txt`, one key per line, beside `batch-NN.paths`, each listed
    file's absolute path in the same order. It prints one line per batch:
    `batch=NN list=<path> files=N words=W digest=<digest>`, where the digest covers the list
-   and the contents of the files its `.paths` sidecar names.
+   and the contents of the files its `.paths` sidecar names. It also writes `cues.txt` in the
+   batch directory, the corpus-wide counts for the saturation cues: `scope_files=<S>`, one
+   `cue=<c> occurrences=<O> files=<F> saturated=yes|no` line per cue over the whole scope,
+   and one `batch=NN cue=<c> occurrences=<O> files=<F>` line per batch and cue with
+   occurrences. The catalog entry `rule-abstract-metaphor-jargon` defines the cues, the unit
+   and the threshold.
 3. The batch directory is `<findings home>/rubric-lists-<TS>/`, so a later session can resume
    from it; a non-repository target puts it in the session scratchpad. `plan` refuses a
    directory that already holds batch lists, so a new scope gets a new batch directory. A
    resume keeps the existing one and skips `plan`: re-planning can reorder the files (a new
-   commit moves the change counts), which changes every list's digest.
+   commit moves the change counts), which changes every list's digest. A batch directory
+   planned before `plan` wrote `cues.txt` has none: a resume from it dispatches without the
+   cue counts, its batches treat both cues as unsaturated, and `merge` runs no consistency
+   check.
 
 ## Dispatch
 
@@ -46,7 +54,14 @@ receives:
 - the path of the extracted rubric file, and nothing else from the catalog;
 - the path of its batch list and the digest the batch's `status` row printed (`status` runs
   before every dispatch, below), which the subagent copies verbatim into its result;
+- the path of `<batch dir>/cues.txt`, whose `saturated=` verdicts the subagent applies instead
+  of judging saturation from its own batch, and whose `batch=NN` lines give its own cue
+  counts;
 - the result path it must write to (below);
+- the declined-line shape, `declined: <rule-id> <cue> reason=saturated|boundary`, zero or
+  more header lines, one per rule, cue and reason in the batch, and the rule that every
+  occurrence of a `cues.txt` cue in its batch ends as a finding or is covered by a
+  `declined:` line, never dropped without a trace;
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
   findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
@@ -103,7 +118,26 @@ spot-check a sample of its findings against the cited file and line, and dispatc
 when a quoted span is not there. Then run `rubric-fanout.sh merge --batches <batch dir>
 --results <findings home> --out <findings home>/<TS>-ai-slop-rubric.md`. It refuses while any
 batch is incomplete, and otherwise writes summed `files_reviewed` and `files_with_findings`,
-one `rule_total:` line per rule, and each result body in batch order. That file is the rubric
+one `rule_total:` line per rule, and each result body in batch order, with `declined:` lines
+stripped from the bodies and summed into
+`declined_total: <rule-id> <cue> reason=<r> batches=<NN,...>` lines.
+
+When `cues.txt` is present, `merge` also checks that the batches agreed and prints, after the
+`rule_total:` lines, one `consistency:` line per disagreement:
+
+- `consistency: rule-abstract-metaphor-jargon cue=<c> saturated=yes reported_in=<NN,...>`: a
+  batch quoted a saturated cue in a finding of that rule.
+- `consistency: <rule-id> cue=<c> saturated=no declined_in=<NN,...>`: a batch declined an
+  unsaturated cue with `reason=saturated`.
+- `consistency: rule-abstract-metaphor-jargon cue=<c> unaccounted_in=<NN,...>`: a batch whose
+  `cues.txt` line shows occurrences neither quoted the cue in a finding of that rule nor
+  declined it.
+
+The `rule_total:` line of any rule named on a `consistency:` line gains ` consistency=flagged`.
+A flagged rule's total is an artifact of batch assignment until the named batches are
+dispatched again. With no `cues.txt`, `merge` runs none of these checks and prints nothing
+extra. `rule-colon-crutch` and the other rules without cue words get no merge check; their
+consistency rests on the catalog's reported and declined examples. The merged file is the rubric
 half of the human report. Rubric findings never enter the detector's findings file: they have
 no crosswalk row and no relay.
 
