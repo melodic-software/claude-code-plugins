@@ -3,9 +3,7 @@
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_LINEAR_CURL, so
-# no test in this adapter touches the network. That is not merely convenient: no Linear
-# workspace is reachable from the environment this adapter was built in, and the
-# alternative to mocked coverage is no coverage — see README.md "Recorded deferrals".
+# no test in this adapter touches the network (README.md "Recorded deferrals").
 #
 # Linear has ONE endpoint, so unlike a REST mock this cannot route on the URL. It routes
 # on a substring of the GraphQL DOCUMENT instead (`viewer`, `issueCreate`, `comments(`),

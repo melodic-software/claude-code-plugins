@@ -14,12 +14,7 @@
 # about the repository -- "bundling fourteen skills", "the other thirteen skills
 # are zero-config" -- and nothing recomputes them when a skill is added. Adding
 # one skill silently falsifies every sentence that counted the old set, in files
-# nobody opens during that change. The measured record: a single PR (#3011) went
-# stale on six such counts, each caught by a different human or automated
-# reviewer rather than by anything mechanical; session-flow's own CHANGELOG
-# records an "other eleven skills" line that had already been off by one BEFORE
-# that PR touched it. A reviewer catch is not a control -- it is a coin flip
-# that happened to land right.
+# nobody opens during that change.
 #
 # This is the numeric half of a defect the fleet already names on the prose
 # side: `/docs-hygiene:audit-noise`'s `enum-list` shape flags "tables/lists
@@ -40,8 +35,8 @@
 # moved into three new plugins"), and a gate that fires on those trains people
 # to route around it. One form was evaluated and REJECTED: a definite-article
 # reference (`the two skills ...`). It reads as a whole-set claim about as often
-# as it reads as a claim about a named pair -- `discipline`, which has 17 skills,
-# says "the two skills this must not be confused with" -- so gating it would
+# as it reads as a claim about a named pair -- "the two skills this must not be
+# confused with" -- so gating it would
 # flag correct prose in a plugin whose count is right.
 #
 # WHAT THIS GATE DOES NOT COVER, said out loud so the coverage is not mistaken
@@ -53,20 +48,15 @@
 #     to define five. The denominator is the document's own structure, and which
 #     structure a given count refers to is not mechanically recoverable -- a
 #     prose count sits near headings, tables and lists that each have a different
-#     cardinality, and picking the wrong one flags correct prose. That same PR
-#     (#3011) hit this class too (a "four buckets" line surviving a fifth),
-#     so it is a real class, not a hypothetical. No script in this repo parses a
-#     document's structure to validate a claim the same document makes; building
-#     that is a materially larger job than this one and is deliberately not
-#     attempted here.
+#     cardinality, and picking the wrong one flags correct prose. No script in
+#     this repo parses a document's structure to validate a claim the same
+#     document makes; building that is a materially larger job than this one
+#     and is deliberately not attempted here.
 #
 # SURFACES, not just classes: this gate reads FILES IN THE REPO. A count written
 # anywhere else is class A -- derivable from the tree -- and still unguarded,
-# because nothing here can see it. A pull-request description is the case that
-# actually bit: the PR that introduced this gate carried a hand-written
-# version-and-assertion table in its body, and that table went stale within the
-# hour when a merge with main renumbered two plugins. A reviewer caught it. So
-# when prose describing the CURRENT repo lives on GitHub rather than on disk --
+# because nothing here can see it. A pull-request description is the usual
+# case. So when prose describing the CURRENT repo lives on GitHub rather than on disk --
 # a PR or issue body, a wiki page -- derive its counts at write time or expect
 # them to drift, and do not read a green gate as covering them.
 #

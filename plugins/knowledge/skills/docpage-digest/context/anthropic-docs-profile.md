@@ -42,17 +42,20 @@ extraction waits for the third (Rule of Three).
   **archived snapshot** this pipeline captured are
   unaffected: that file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
-  extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
+  extract. Record the channel used. **Three extraction artifacts reproduce on this channel; record
   them, never repair them.** `source.*` is immutable, so the fix belongs in whatever reads the
   snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
-  Reconstruct the title from the canonical URL slug, which the checklist already records. The
-  slug recovers word boundaries only, never punctuation or casing
+  Read the exact title from the `<title>`/`<h1>` of the `source.html` that (c) keeps. When that
+  file is missing, reconstruct the title from the canonical URL slug, which the checklist already
+  records. The slug recovers word boundaries only, never punctuation or casing
   (`claude-models-explained-choosing-the-best-model-for-your-use-case` cannot yield the colon in
   "Claude models explained: choosing the best model for your use case"), so a title recovered that
-  way is labeled reconstructed. When the run also retained the rendered HTML, that file's
-  `<title>`/`<h1>` carries the exact form, but nothing in the pipeline contracts such a file, so
-  it is a bonus, not the method. (b) The reading-time widget splits its value and its unit onto
-  separate physical lines, so neither line reads as a duration on its own.
+  way is labeled reconstructed. (b) The reading-time widget splits its value and its unit onto
+  separate physical lines, so neither line reads as a duration on its own. (c) Text inside charts and diagrams
+  (inline SVG `<text>`, image alt text, video captions) is dropped by a text extraction, so
+  `source.md` is silent wherever a figure carries a claim. Keep the raw HTML as `source.html`
+  beside `source.md`, a second immutable original, and recover that text from it; a row quoting
+  such text cites `source.html`.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -90,7 +93,7 @@ archive wrong in a way its own verification cannot catch:
   reading the markup.
 - **Note a source artifact at the row; never silently repair it.** Typos, escaped markup and
   malformed auto-links are reproduced byte-exact so a verifier can tell faithful reproduction from
-  digest transcription error. The two blog-channel extraction artifacts under **Fetch channel**
+  digest transcription error. The three blog-channel extraction artifacts under **Fetch channel**
   above, and the `code.claude.com` raw-md register (Documentation-Index banner, `theme={null}`
   fences, hard-tab expansion, `\&`-escaped URLs), are this rule's standing instances. One
   exception, and it runs the other way: a downstream artifact reproducing a known-corrupt entry
@@ -155,6 +158,9 @@ asserts:
   - **`consumer-surface` is a documented-subject test, not a hosting test.** It fires only when
     claude.ai-the-product is what the page documents, not because a page is served from a
     claude.ai host, and not because a harness page mentions the consumer product in passing.
+  - **Claude Tag product mechanics are `tag-exempt (consumer-surface)`.** The Slack channel,
+    standing instructions, and threads a page describes are that product's surface, not the
+    harness's. Guidance the page states beyond those mechanics is tagged on its own terms.
   - **Pointer convention:** a bare "See X" is `navigation-pointer`. A directive pointer, one
     that tells the operator to do something or that asserts a fact about the target, is
     guidance and takes a vocabulary tag, not the exempt disposition.

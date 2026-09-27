@@ -1,8 +1,8 @@
 """Procedural RPG Maker MZ '$' single-character sheet: 3 patterns x 4 directions (down, left, right, up), 48x48.
 
 Writes hero_mz.json beside this file; render it with scripts/render.py, and build scene.html with
-scripts/embed.py. Pattern shown: materials with colour ramps, one draw(direction, step) function,
-a shading pass lit from the top-left, and a selective outline taken from each material's line colour.
+scripts/embed.py. Pattern shown: materials with color ramps, one draw(direction, step) function,
+a shading pass lit from the top-left, and a selective outline taken from each material's line color.
 """
 import json
 import pathlib
@@ -51,7 +51,7 @@ class Canvas:
         return c
 
     def to_rows(self, char_of):
-        """Shade (light from top-left), then sel-out outline from the neighbouring material's line colour."""
+        """Shade (light from top-left), then sel-out outline from the neighboring material's line color."""
         m = self.m
 
         def get(x, y):
@@ -65,7 +65,7 @@ class Canvas:
                     nb = [get(x + dx, y + dy) for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1))]
                     nb = [n for n in nb if n]
                     if nb:
-                        # bottom-heavy: prefer the material above (we are below it) for its line colour
+                        # bottom-heavy: prefer the material above (we are below it) for its line color
                         out[y][x] = char_of[(nb[0], 3)]
                     continue
                 if mat in ("eye", "white"):
@@ -140,10 +140,10 @@ def build():
     palette, char_of = {}, {}
     letters = iter("abcdefghijmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
     for mat in MATS:
-        for i, colour in enumerate(RAMPS[mat]):
-            if colour not in palette.values():
-                palette[next(letters)] = colour
-            char_of[(mat, i)] = next(k for k, v in palette.items() if v == colour)
+        for i, color in enumerate(RAMPS[mat]):
+            if color not in palette.values():
+                palette[next(letters)] = color
+            char_of[(mat, i)] = next(k for k, v in palette.items() if v == color)
     frames, order = {}, []
     for direction in ("down", "left", "right", "up"):
         for pattern, step in enumerate((-1, 0, 1)):

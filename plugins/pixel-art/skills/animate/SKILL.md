@@ -69,7 +69,9 @@ Fix the generator, re-render, re-read; typically 2 to 4 rounds.
 
 Report `sheet.png` (the engine asset, at 1x), `sheet.json` (frame rects, durations, tags), the GIFs,
 and the gallery `index.html`, with the viewing path as in `/pixel-art:sprite`. For an engine
-target, name the file-naming rule the engine needs (MZ: `$` prefix for a single-character sheet).
+target, deliver the sheet under the filename the engine needs: for an RPG Maker MZ single
+character, copy `sheet.png` to `$<name>.png` (without the `$` prefix MZ reads the image as an
+eight-character sheet).
 
 ## Next
 
@@ -80,5 +82,5 @@ target, name the file-naming rule the engine needs (MZ: `$` prefix for a single-
 - GIF delays are whole hundredths of a second; `render.py` rounds each duration and floors at 20 ms.
 - The Read tool shows a GIF's first frame only. Review motion from `preview.png`, or from browser
   screenshots when a browser automation tool is present.
-- Sub-pixel animation and smear frames depend on palette shades between colours; plan ramps before
+- Sub-pixel animation and smear frames depend on palette shades between colors; plan ramps before
   animating.

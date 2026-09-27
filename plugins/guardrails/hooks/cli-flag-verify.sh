@@ -65,8 +65,8 @@ VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 # or timed-out stdin skips this advisory hook. Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
 # runs before the jq gate below — hook::require_jq needs the buffered input
-# for its once-per-session notice scoping, and hook::read_file_path (next)
-# itself parses with jq.
+# for its once-per-session notice scoping, and hook::read_file_path_to (next)
+# falls back to jq for a payload its builtin parse cannot prove.
 hook::buffer_stdin_to INPUT || exit 0
 
 # jq is required to parse the tool payload. hook::require_jq fails OPEN
@@ -75,7 +75,8 @@ hook::buffer_stdin_to INPUT || exit 0
 # see docs/conventions/hook-observability/.
 hook::require_jq "PostToolUse" "guardrails-cli-flag-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
 IS_MD=false
 case "$FILE" in
 *.md) IS_MD=true ;;

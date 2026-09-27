@@ -29,8 +29,6 @@ $knownSafePaths = @(
     '*\Visual Studio\Packages*'
 )
 
-# Admin-gated detail fields. Declared once and reused across the three
-# UNKNOWN result paths so adding a field updates one list, not three.
 $adminFieldList = @(
     'exclusion_path_count'
     'exclusion_extension_count'

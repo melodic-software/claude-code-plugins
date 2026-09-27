@@ -111,9 +111,8 @@ dc_find_nonempty_node_modules() {
 # start directory to the repo root so a monorepo workspace install is visible,
 # follow symlinks with a hop cap, and require the PHYSICAL target to stay inside
 # the repository. That rejects a checked-in or replaced .bin symlink escaping
-# the repository trust boundary. Modeled on resolve_repo_markdownlint() in
-# plugins/markdown-format/hooks/markdown-format.sh, widened from node_modules to
-# the repo root because a .venv shim resolves into .venv/lib, not node_modules.
+# the repository trust boundary. The walk reaches the repo root, not just
+# node_modules, because a .venv shim resolves into .venv/lib.
 #
 # This is a LOCATOR only. Measured: `command -v rust-analyzer` succeeds while
 # invocation fails (a rustup shim), so presence is proven by dc_binary_invocable.

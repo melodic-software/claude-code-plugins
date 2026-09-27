@@ -970,9 +970,10 @@ verified 2026-08-10).
 
 The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
 above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
-explicit: an agent definition that omits `model` defaults to `inherit`, the main conversation's
-model ([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-verified 2026-08-10; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
+explicit: an agent definition that omits `model` falls through to `CLAUDE_CODE_SUBAGENT_MODEL` and,
+where that is unset, to the main conversation's model, the same model `inherit` selects
+([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model): "When
+you omit it, Claude Code picks the model in the subagent model order", verified 2026-09-27; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
 `inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
 settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
 frontmatter, so it decides only where neither is set; setting it to `inherit` is the same as leaving

@@ -215,9 +215,8 @@ none
         self.assertIn(b"PASS", proc.stdout)
 
     def test_longer_outer_fence_keeps_inner_backtick_run(self):
-        # CommonMark: a 3-tick line inside a 4-tick wrapper is payload.
-        # Closing on any 3+ tick-only line truncated this to "" or to the
-        # prose prefix — a false empty-payload FAIL or a false PASS.
+        # CommonMark: a 3-tick line inside a 4-tick wrapper is payload; closing
+        # on it gives a false empty-payload FAIL or a false PASS.
         inner = "Wrap code like this:\n```\nprint(1)\n```"
         source = write(self.dir, "src-nested.md", inner + "\n")
         text = f"""## Key claims (verbatim)

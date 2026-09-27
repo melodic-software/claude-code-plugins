@@ -68,9 +68,8 @@ function ConvertFrom-WingetTextOutput {
             } elseif ($line.Length -gt $idxVer) {
                 $line.Substring($idxVer).Trim()
             } else { '' }
-            # Length-guard every later column: a row past idxVer but short of
-            # idxAvail would throw in Substring($idxAvail), and the row-level
-            # catch would swallow the package.
+            # Length-guard every later column: a short row would throw in Substring
+            # and the row-level catch would silently drop the package.
             $avail = if ($idxSource -gt $idxAvail -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
                 $line.Substring($idxAvail, $idxSource - $idxAvail).Trim()
             } elseif ($idxAvail -ge 0 -and $line.Length -gt $idxAvail) {
@@ -118,9 +117,8 @@ function Get-WingetPackageUpdate {
     if ($module) {
         try {
             Import-Module Microsoft.WinGet.Client -ErrorAction Stop
-            # Get-WinGetPackage returns installed packages; IsUpdateAvailable
-            # is the boolean gate for "upgrade is pending". AvailableVersions
-            # is an array ordered newest-first.
+            # IsUpdateAvailable gates "upgrade is pending"; AvailableVersions is
+            # ordered newest-first.
             $candidates = @(Get-WinGetPackage -ErrorAction Stop |
                     Where-Object { $_.IsUpdateAvailable })
             $mapped = @($candidates | ForEach-Object {

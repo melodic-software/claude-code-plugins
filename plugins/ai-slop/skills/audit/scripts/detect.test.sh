@@ -40,7 +40,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=247
+EXPECTED_CASES=262
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -187,7 +187,7 @@ EOF
 # form on the same line. The guard mirrors the line-marker pattern exactly rather
 # than matching any string starting with the marker prefix: when it matched the
 # prefix, this line's genuine suppression was rejected and the operator's own
-# marker was quoted back in the excerpt (reported by review, reproduced here).
+# marker was quoted back in the excerpt.
 MIXEDMARK="$TEST_TMPDIR/mixedmark.md"
 cat >"$MIXEDMARK" <<EOF
 # Mentions one form, uses another
@@ -233,9 +233,8 @@ keep diffs stable.
 EOF
 
 # Prefix-match false positives: ordinary prose whose words merely BEGIN with a
-# listed phrase. Reported in review against rule-chatbot-artifacts and
-# reproduced before fixing — an IMPORTANT-tier finding on prose containing no
-# chat residue at all. The fix is the registry's whole-word flag; these cases
+# listed phrase, which drew an IMPORTANT-tier rule-chatbot-artifacts finding on
+# prose containing no chat residue at all. The fix is the registry's whole-word flag; these cases
 # are what keeps it.
 WORDBOUND="$TEST_TMPDIR/wordbound.md"
 cat >"$WORDBOUND" <<'EOF'
@@ -375,6 +374,46 @@ out="$(bash "$DETECT" "$QUOTED" 2>&1)"
 assert_contains "quote exemption: unquoted filler still fires" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1"
 assert_contains "quote exemption: blockquote and quoted-span hits declined" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2"
 assert_contains "quote exemption: typography rule still fires inside the blockquote" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+
+# A verbatim quote carrying a typography tell needs a block marker, and the
+# marker lines must sit outside the blockquote: a `> `-prefixed start or end line
+# matches neither marker form. Characterization of existing behavior.
+QUOTEDBLOCK="$TEST_TMPDIR/quotedblock.md"
+cat >"$QUOTEDBLOCK" <<EOF
+# Quoted block markers
+
+> <!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+> <!-- ai-slop-ignore-end: end of quote -->
+EOF
+out="$(bash "$DETECT" "$QUOTEDBLOCK" 2>&1)"
+assert_contains "quote markers: a quoted start/end pair does not suppress the em dash" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 declined=0"
+
+OUTSIDEBLOCK="$TEST_TMPDIR/outsideblock.md"
+cat >"$OUTSIDEBLOCK" <<EOF
+# Outside block markers
+
+<!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+<!-- ai-slop-ignore-end: end of quote -->
+EOF
+out="$(bash "$DETECT" "$OUTSIDEBLOCK" 2>&1)"
+assert_contains "quote markers: a start/end pair outside the blockquote suppresses the em dash" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1"
+
+# The dangerous direction: a start outside and a quoted end never closes, so the
+# block runs to the end of the file and a later unquoted em dash is declined.
+UNCLOSED="$TEST_TMPDIR/unclosed.md"
+cat >"$UNCLOSED" <<EOF
+# Unclosed block
+
+<!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+> <!-- ai-slop-ignore-end: end of quote -->
+
+Later prose ${EM} after the quote.
+EOF
+out="$(bash "$DETECT" "$UNCLOSED" 2>&1)"
+assert_contains "quote markers: a quoted end does not close, declining later prose" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=2 declined_marker=2"
 
 # Extended knowledge-cutoff families (source section words-to-watch): the
 # original ERE missed even the wiki's own example "as of my last knowledge
@@ -620,6 +659,56 @@ pf="$TEST_TMPDIR/paths.txt"
 printf '%s\n%s\n' "$SLOP" "$CLEAN" >"$pf"
 out="$(bash "$DETECT" --paths-file "$pf" --offset 0 --limit 1 2>&1)"
 assert_contains "chunking: limit 1 scans one file" "$out" "across 1 files scanned"
+
+# --list-targets prints the exact list a scan reads, one `<key><TAB><path>` row
+# per file, after directory expansion and excluded_paths; the key is the file=
+# spelling. Chunk options are ignored so a caller plans over the whole list.
+LT="$TEST_TMPDIR/list-targets"
+mkdir -p "$LT/sub" "$LT/vendor" "$LT/.claude"
+printf 'one\n' >"$LT/a.md"
+printf 'two\n' >"$LT/sub/b.md"
+printf 'three\n' >"$LT/vendor/c.md"
+printf '%s\n' '{ "excluded_paths": ["vendor/**"] }' >"$LT/.claude/ai-slop.json"
+TAB=$'\t'
+out="$(CLAUDE_PROJECT_DIR="$LT" bash "$DETECT" --list-targets --offset 0 --limit 1 "$LT" "$LT/missing.md" 2>/dev/null)"
+rc=$?
+assert_exit "list-targets: exit 0" 0 "$rc"
+assert_contains "list-targets: key is the file= spelling, then the path" "$out" "a.md${TAB}$LT/a.md"
+assert_contains "list-targets: a directory target expands" "$out" "sub/b.md${TAB}$LT/sub/b.md"
+assert_not_contains "list-targets: excluded_paths drops the file" "$out" "vendor/c.md"
+assert_not_contains "list-targets: a missing file is dropped" "$out" "missing.md"
+assert_eq "list-targets: offset and limit are ignored, no Summary rows" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "2"
+out="$(bash "$DETECT" --list-targets --show-config 2>&1)"
+assert_contains "list-targets: --show-config wins" "$out" "Config layers"
+printf '%s\t%s\n' slop.md "$SLOP" >"$TEST_TMPDIR/listed.tsv"
+out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/listed.tsv" 2>&1)"
+assert_contains "list-targets: its output is a valid --paths-file" "$out" "across 1 files scanned"
+# Only a line with exactly one tab is read as `<key><TAB><path>`; any other line
+# is the path itself, tabs included.
+TABF="$TEST_TMPDIR/tab${TAB}in${TAB}name.md"
+if printf 'x\n' >"$TABF" 2>/dev/null && [[ -f "$TABF" ]]; then
+  printf '%s\n' "$TABF" >"$TEST_TMPDIR/tabpath.txt"
+  out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/tabpath.txt" 2>&1)"
+  assert_contains "paths-file: a line with two tabs is the whole path" "$out" "across 1 files scanned"
+else
+  skip "paths-file: a line with two tabs is the whole path" "no tab in file names"
+fi
+
+# A --paths-file with no non-blank line scans nothing, rather than the
+# repository listing a bare invocation reads.
+EPREPO="$TEST_TMPDIR/empty-pf-repo"
+mkdir -p "$EPREPO"
+printf 'Tracked %s here.\n' "$EM" >"$EPREPO/tracked.md"
+(
+  cd "$EPREPO" || exit 1
+  git init -q .
+  git add tracked.md 2>/dev/null
+)
+printf '\n\n' >"$TEST_TMPDIR/empty-paths.txt"
+out="$(CLAUDE_PROJECT_DIR="$EPREPO" bash "$DETECT" --paths-file "$TEST_TMPDIR/empty-paths.txt" 2>&1)"
+assert_not_contains "empty paths-file: the repository listing is not scanned" "$out" "tracked.md"
+assert_contains "empty paths-file: stderr says the list is empty" "$out" "lists no paths"
+assert_contains "empty paths-file: zero-file Summary" "$out" "0 findings across 0 files scanned"
 
 # --- Config cascade --------------------------------------------------------------
 
@@ -1367,7 +1456,7 @@ assert_tier() {
 for slug in $EXPECTED_IMPORTANT; do assert_tier "$slug" IMPORTANT; done
 for slug in $EXPECTED_SUGGESTION; do assert_tier "$slug" SUGGESTION; done
 
-# F5 regression guard: both owner docs say this producer omits `tier:`.
+# Both owner docs say this producer omits `tier:`.
 assert_not_contains "frontmatter: no uncomputed tier: field" "$tier_content" "tier:"
 assert_contains "action: filler-phrases carries its substitution, not the generic judgment string" \
   "$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TIEROUT")" 'in order to'
@@ -1434,9 +1523,8 @@ out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" 2>&1)"
 assert_contains "split declined: a rule_allowed_paths exemption counts under config" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1"
 
 # --- Marker declines are charged per rule ------------------------------------------
-# Every rule used to be charged the raw count of exempted prose lines, so a rule
-# whose expression cannot match the exempted text still reported a decline it
-# never had a candidate for. A rule is now charged only what its own expression
+# A rule whose expression cannot match the exempted text must not report a
+# decline it never had a candidate for. A rule is charged only what its own expression
 # matches: a pattern rule counts exempted LINES, the unit it emits findings in,
 # and a density rule counts OCCURRENCES, the unit its quote accounting already
 # uses.

@@ -26,6 +26,10 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   flag-shaped) and pass the flag's ``pattern`` or ``choices``. A flag whose
   value the guard can only judge with context it alone holds names an
   ``external_check``; the guard supplies that callable to ``match_invocation``.
+  ``--data-root`` is the one such flag, and the guard also requires it to be
+  present: the parser keeps it optional, but an invocation without it is not
+  admitted, because the engine would then read the data root from the
+  environment instead of the value the guard authorized.
 * ``requires`` names another flag that must also be present.
 * ``example`` is one literal the flag admits, carried beside the ``pattern``
   that enforces it so an invocation of any subcommand can be built from this
@@ -47,6 +51,9 @@ TIERS = frozenset({"high", "medium", "low"})
 # A literal that only the guard can validate, because the answer depends on the
 # authorized data root it resolved for this session.
 AUTHORIZED_DATA_ROOT = "authorized-data-root"
+
+# The flag carrying that value. The guard requires it on every engine call.
+DATA_ROOT_FLAG = "--data-root"
 
 
 class Flag:
@@ -120,7 +127,7 @@ class Subcommand:
 
 
 def _data_root_flag() -> Flag:
-    return Flag("--data-root", external_check=AUTHORIZED_DATA_ROOT)
+    return Flag(DATA_ROOT_FLAG, external_check=AUTHORIZED_DATA_ROOT)
 
 
 # A directory basename with no separator and no self/parent reference.

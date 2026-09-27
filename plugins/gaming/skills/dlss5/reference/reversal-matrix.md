@@ -17,7 +17,7 @@ snapshot. A clean diff deletes the manifest and keeps the snapshot.
 | File | What it is |
 |---|---|
 | `<proxy>` (default `dxgi.dll`) | The fork's `OptiScaler.dll`, installed under the proxy name |
-| `OptiScaler.ini` | Fork config, edited on install: `[DlssNr] Enabled=true`, `AutoCapture=false`; `[Log] LogToFile=true`, `LogLevel=2`; `RestoreComputeSignature=true` when requested; a preset's allow-listed keys (`reference/presets.md`). Deleted whole by `remove`, so no key needs reverting |
+| `OptiScaler.ini` | Fork config, edited on install: `[DlssNr] Enabled=true`, `AutoCapture=false`; `[Log] LogToFile=true`, `LogLevel=2`; `RestoreComputeSignature=true` when requested; a preset's allow-listed keys (`reference/presets.md`). Deleted whole by `remove`, so no key needs reverting. `reset` rewrites it to the same content apply wrote and records its new hash in the manifest; it is the only game file `reset` writes |
 | `OptiScaler\*` | The fork's support tree |
 | `Licenses\*` | The fork's license files |
 | `nvngx.dll_dlssnr.dll` | Dagherbou build only: the forwarder the runtime's caller gate requires |
@@ -53,6 +53,22 @@ prints the drift with a pointer to Steam's "Verify integrity of game files". Aft
 `remove` again. When the drift is a game update that landed after `apply`, the snapshot is simply
 older than the game: `remove -Finish` prints the drift and drops the manifest anyway. Use it only
 on the user's explicit request after they have seen the drift.
+
+A launcher update is recognized when `apply` recorded the launcher's build (Steam: the
+appmanifest's `buildid` and `LastUpdated`, in `launcherBuild` of the snapshot and the manifest),
+the build id differs now, no manifest file changed, and none is missing unless all are (a
+`remove` that kept the manifest deleted them). `status` and `remove` then print
+`game updated by Steam (build X -> Y) since the apply` in place of the Verify integrity line, with
+a `-ConfirmRefresh <token>`. The exit codes and the kept manifest do not change. `remove
+-ConfirmRefresh <token>` removes the mod, drops the manifest, and applies again on a fresh snapshot
+with the manifest's build, proxy and preset; its refusals all come before any deletion. The token
+covers the build ids and each drifted file's hash, so drift that changed since the user saw it
+refuses.
+
+The case that prompted it: RV There Yet? (Steam app 3949040) auto-updated to build 25458807 on
+2026-09-24 with the mod applied, and the update replaced `Ride-Win64-Shipping.exe`. `remove`
+deleted every mod file, then kept the manifest over the changed exe and pointed at Verify
+integrity, which was the wrong advice for an update.
 
 An interrupted `apply` leaves `pending.json` listing the files it started copying; `status` and
 `remove` treat it as the manifest, so `remove` rolls a half-finished install back.

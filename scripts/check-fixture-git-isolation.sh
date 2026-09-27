@@ -8,7 +8,7 @@
 #
 # Exit: 0 clean, 1 a violation or a stale baseline entry, 2 usage.
 #
-# WHY (#2840). The repo's fixture idiom is `git -C "$fixture" ...`. It is a good
+# WHY. The repo's fixture idiom is `git -C "$fixture" ...`. It is a good
 # readability and copy-paste guard. It is NOT an isolation guarantee: `-C` only
 # changes directory, while an exported ABSOLUTE GIT_DIR overrides repository
 # DISCOVERY outright, and `git config` writes its default --local scope to
@@ -18,12 +18,9 @@
 # `cd`-scoped-subshell form and the `git -C` form leak this way; only clearing
 # the inherited environment isolates.
 #
-# What EXPORTED it is not part of the mechanism. The GIT_DIR behind the real
-# incident came from an ad-hoc tool invocation; this repository has no git hook
-# at any scope and core.hooksPath is unset everywhere, so "git hands GIT_DIR to
-# every hook" is not what fired here and a narrower harden-the-hooks fix would
-# not have caught it. The invariant this gate enforces is that a fixture never
-# inherits ambient git environment, however that environment got exported.
+# What EXPORTED it is not part of the mechanism. The invariant this gate
+# enforces is that a fixture never inherits ambient git environment, however
+# that environment got exported.
 #
 # The blast radius is why this is a gate and not a lint. Worktrees share the
 # main clone's .git/config, so one leak poisons every worktree of the repo at
@@ -53,11 +50,9 @@
 # counting for every suite that sources it.
 #
 # PYTHON SUITES ARE IN SCOPE, and are the reason this gate is not a class inside
-# scripts/check-shell-portability.sh: that gate is scoped to *.sh, and the file
-# that actually caused the #2827 incident is
-# plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py. A gate that cannot
-# see the file that fired is not a gate. A Python suite passes if it clears the
-# variables from os.environ, e.g.
+# scripts/check-shell-portability.sh: that gate is scoped to *.sh, and a Python
+# suite leaks the same way. A Python suite passes if it clears the variables
+# from os.environ, e.g.
 #
 #     for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", ...):
 #         os.environ.pop(_leaked_git_var, None)
@@ -140,9 +135,8 @@ case "${1:-}" in
   ;;
 esac
 
-# Git Bash pays ~140ms per process spawn and this corpus is ~550 shell files, so
-# every classification below is ONE bulk awk pass over the whole tracked set
-# rather than a grep per file. Three passes total, not eleven hundred.
+# Git Bash pays a high per-process spawn cost, so every classification below is
+# ONE bulk awk pass over the whole tracked set rather than a grep per file.
 #
 # CLEARS: a shell file that unsets every load-bearing variable (GIT_DIR,
 #   GIT_WORK_TREE, GIT_CONFIG) on one logical line via `unset` (process-wide),

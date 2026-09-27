@@ -28,8 +28,7 @@
 #
 # Every local carries the `_mpg_` prefix: a bash nameref resolves in the scope
 # where it is USED, so an unprefixed local sharing the caller's out-var name
-# would shadow that caller's variable (scripts/lib/read-list.sh records the
-# measurement).
+# would shadow that caller's variable.
 
 # manifest_path_guard::resolve_to <out-var> <gate> <manifest> <plugin> <rel>
 manifest_path_guard::resolve_to() {

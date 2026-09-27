@@ -3,6 +3,116 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.3] - 2026-09-26
+
+### Changed
+
+- The per-session event log no longer registers producer rows on `PreToolUse` and `PostToolUse`. Both fire on every tool call, so a disabled install paid one process creation per call for them; it now pays none. An enabled log loses its per-tool `PreToolUse` and `PostToolUse` lines and still records tool activity through `PostToolBatch` (one line per batch) and `PostToolUseFailure`. The generated registry marks both events excluded with that reason, and the log now covers 28 events.
+- The `SessionEnd` retention row reads the `session_event_log_enabled` switch in shell form before it starts bash, so a disabled install starts no bash at session end. Behavior with the log on is unchanged.
+
+## [0.62.2] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.62.1] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.62.0] - 2026-09-24
+
+### Added
+
+- `/claude-ops:observability latency` (`scripts/hook-latency.sh`, `otel/hook-latency.sql`) reports hook latency per lane and hook event from `hook_execution_complete` in the OTEL store: p50/p95 against a p95 budget (defaults Stop 2000 ms; PostToolBatch, UserPromptSubmit and SubagentStop 1500 ms; judgment, derived from the hook-budget convention's 'after at S=80 ms' table) and a within-session slope flag for latency that grows across a session. It reads the hot store only and warns when the window reaches past the oldest hot fire. Flags `--days` (default 7), `--since`, `--budget EVENT=MS`, `--min-fires`, `--min-sessions`; exit 0 none flagged, 1 flagged, 2 cannot evaluate (#4443).
+
+## [0.61.0] - 2026-09-24
+
+### Removed
+
+- `skill-usage.jsonl` rows no longer carry `sha` or `pr`. Their only reader, source-control's skill-evidence script, is removed. The branch read is one `git rev-parse --abbrev-ref HEAD` again, and the `git config --get branch.<name>.pr-number` spawn is gone, so the store write costs 3 git processes inside a work tree instead of 4.
+
+## [0.60.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/audit-event-emitter.sh`, `hooks/skill-usage-audit.sh`,
+  `hooks/hook-failure-audit.sh` and `hooks/session-retention.sh` through `bash` with
+  `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
+  `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
+- The session event log's opt-in rows run `exec bash` on `hooks/session-event-log.sh`, so an enabled
+  fire no longer execs `/usr/bin/env` before bash; `scripts/gen-hook-event-registry.sh` generates
+  the new rows.
+- `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
+## [0.60.1] - 2026-09-24
+
+### Changed
+
+- `hooks/hook-failure-audit.test.sh` and the README's `hook-failure-audit` section no longer say
+  `docs/conventions/hook-budget/README.md` sets a 500 ms per-turn ceiling. That doc states each
+  always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's
+  time). Prose only; the test and the hook are
+  unchanged.
+
+## [0.60.0] - 2026-09-24
+
+### Fixed
+
+- **`plugins` no longer reports a `directory` marketplace as `current` while its checkout is
+  behind upstream.** `claude plugin marketplace update` on a `directory` source validates the
+  directory as it is and fetches nothing, so the catalog is only as fresh as that checkout. For a
+  `directory` source, `sync-run.sh` now reads the checkout's branch, upstream, ahead/behind counts
+  as of its last fetch, and whether tracked files are modified, into the digest's new
+  `source_checkout` field. It never fetches, pulls, or writes (`git --no-optional-locks`). The
+  report adds a `source:` row under the `Marketplace:` line, reads
+  `source checkout behind <upstream>` instead of `current` when the checkout is behind, and adds an
+  `Action needed` bullet naming `git -C '<path>' pull --ff-only` and `/claude-ops:plugins sync <marketplace>`. A path that is not a git work
+  tree, a branch with no upstream, and a detached HEAD each render as "freshness not checked".
+  Other source kinds carry `source_checkout: null` and render as before (#4456).
+
+### Added
+
+- **`plugins` accepts `update` as an alias for `sync`.**
+
+## [0.59.4] - 2026-09-24
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
+## [0.59.3] - 2026-09-23
+
+### Changed
+
+- **`hook-failure-audit` reads only the bytes appended since the last Stop.** The per-session cursor
+  now holds a byte offset (`b<offset>`) instead of a line count, and the warm path reads past it
+  with one `tail -c +N` instead of `mapfile -s`, which read and discarded every earlier line. A
+  warm Stop on a 10 MB transcript drops from a 15.5 s p50 (past the hook's 10 s timeout) to under
+  0.2 s, independent of transcript size, at the cost of one `tail` process per Stop. Two bytes
+  before the offset are read as an anchor, so a transcript that shrank or was replaced resets to
+  the cold scan; a partial final line is scanned but not counted; a line-count cursor from an
+  earlier version reads as malformed and takes the cold scan once, without re-warning.
+
+### Fixed
+
+- **`hook-failure-audit` no longer drops the completed-non-zero sentence under a CRLF jq.** A
+  Windows jq build ends its `@tsv` line with a carriage return, which made the last class flag read
+  `true\r` and skipped the sentence for a hook that ran and exited non-zero.
+
 ## [0.59.2] - 2026-09-23
 
 ### Changed

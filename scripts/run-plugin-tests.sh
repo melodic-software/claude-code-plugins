@@ -56,13 +56,12 @@
 # an error -- "this selection had nothing to run" is a real answer.
 set -uo pipefail
 
-# Fixture isolation (#2840). `-C` only changes directory, while an exported
+# Fixture isolation. `-C` only changes directory, while an exported
 # ABSOLUTE GIT_DIR overrides repository DISCOVERY, and `git config`'s default
 # --local scope follows whatever gitdir that resolves to. A suite spawned with
 # those inherited writes its throwaway fixture identity into the CALLER's
 # .git/config — shared by every worktree of the clone — instead of into its
-# fixture. What exported them does not matter: the real incident came from an
-# ad-hoc tool invocation rather than from a git hook, so this runner clears them
+# fixture. What exported them does not matter, so this runner clears them
 # unconditionally and isolates every suite it spawns, whatever idiom that suite
 # uses internally.
 #

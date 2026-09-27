@@ -58,10 +58,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
@@ -83,7 +81,6 @@ from babysit_classify import (
 from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
     GraphQLUnavailableError,
-    fetch_commit_ancestry,
     fetch_issue_comments,
     fetch_pull_request_commits,
     fetch_pull_request_review_comments,
@@ -109,7 +106,6 @@ from babysit_util import (
     json_array,
     parse_allowed_owners,
     parse_csv_set,
-    parse_skill_evidence_block,
     split_owner,
 )
 
@@ -122,29 +118,16 @@ HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
-# The mandatory map: which skills a pull request owes evidence for, and which
-# one of them is terminal. It is consumer configuration, so it is read from the
-# checkout the gate runs in when there is one, and defaulted otherwise -- a
-# fleet loop watching a repository it has no checkout of still reports the
-# record, it just reads the default terminal skill.
-SKILL_EVIDENCE_CONFIG_RELATIVE_PATH = Path(".claude") / "source-control.md"
-SKILL_EVIDENCE_CONFIG_HEADING = "## pr_skill_evidence"
-# The pre-PR order places the verification step last, so its skill is the seal
-# every map marks terminal. Used when no map is readable.
-DEFAULT_TERMINAL_SKILLS = frozenset({"verification:confirm"})
-# One `compare` call per non-terminal row. The cap bounds a body that lists
-# hundreds of rows (hand-edited or rendered by a misconfigured map) to a fixed
-# request budget per PR; rows past it report unproven freshness rather than
-# silently passing.
-MAX_SKILL_EVIDENCE_COMPARES = 20
-# `compare/{base}...{head}` statuses that put the base commit ON the head's
-# history, which is what the freshness rule asks of a non-terminal row.
-ANCESTRY_FRESH_STATUSES = {"identical", "ahead"}
-
 # GitHub's own fixed enum contract. MergeStateStatus values meaning "mergeable,
 # all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+
+# The two AI review status checks `--auto` waits for. `ci-status` is the only
+# required check and does not wait on these separate workflows, so auto-merge
+# armed before both pass on the live head could merge ahead of their review.
+# Matched on the job segment of the check name (`review / claude-review-status`).
+AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
 
 
 @dataclass(frozen=True)
@@ -940,149 +923,6 @@ def evaluate_review_settle(
     return [], result
 
 
-def read_terminal_skills(
-    start: Path | None = None,
-) -> tuple[frozenset[str], str | None]:
-    """The terminal skill(s) of the mandatory map, and where they were read.
-
-    Walks up from `start` (the working directory by default) for
-    `.claude/source-control.md` and reads its `## pr_skill_evidence` section:
-    one bullet per class, `- <class> | <patterns> | <skills>`, each field
-    optionally wrapped in one pair of backticks. A skill token carrying a
-    trailing `!` is terminal; `a,b` is an any-of pair, so a terminal token may
-    name alternatives. Patterns are never evaluated here: this gate does not
-    classify a diff, it only reads what the body's own block claims, so the
-    only field it needs is which skill seals the set.
-
-    Returns the default terminal skill and a None source when no map is
-    readable, which is what a run outside any checkout gets.
-    """
-    current = (start or Path.cwd()).resolve()
-    for directory in (current, *current.parents):
-        candidate = directory / SKILL_EVIDENCE_CONFIG_RELATIVE_PATH
-        try:
-            text = candidate.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        terminal: set[str] = set()
-        in_section = False
-        for line in text.replace("\r\n", "\n").split("\n"):
-            if line.startswith("## "):
-                in_section = line.strip() == SKILL_EVIDENCE_CONFIG_HEADING
-                continue
-            if not in_section or not line.lstrip().startswith("- "):
-                continue
-            fields = [field.strip().strip("`").strip() for field in line.split("|")]
-            if len(fields) < 3:
-                continue
-            for token in fields[2].split():
-                if token.endswith("!"):
-                    terminal.update(name for name in token[:-1].split(",") if name)
-        if terminal:
-            return frozenset(terminal), str(candidate)
-        return DEFAULT_TERMINAL_SKILLS, str(candidate)
-    return DEFAULT_TERMINAL_SKILLS, None
-
-
-def evaluate_skill_evidence(
-    repo: str,
-    body: Any,
-    head_sha: str | None,
-    *,
-    compare: Callable[[str, str, str], str | None] | None = None,
-    max_compares: int = MAX_SKILL_EVIDENCE_COMPARES,
-) -> dict[str, Any]:
-    """What the pull-request body claims about the skills that ran, and whether
-    the claim is fresh for the live head.
-
-    Deliberately small: it checks the block against the head, never the diff
-    against the map. Classifying the diff is `skill-evidence.sh`'s job on the
-    seat that owns a checkout; here the block itself is the only input, so the
-    gate asks two questions of it. The terminal row must equal the head exactly
-    (it is the seal the pre-PR order places last, and it is non-mutating, so
-    the sequence terminates). Every other row must sit on the head's history,
-    because a row is stamped when its skill is INVOKED, before the edits that
-    skill goes on to make, so demanding HEAD from a mutating skill would mark
-    every one of them stale by construction.
-
-    `gap` is true when the block is absent, when the terminal row is missing or
-    is not at the head, or when any row is proven off the head's history. An
-    unreadable comparison is unproven, not stale, and never makes a gap on its
-    own; it is reported in `notes`. No blocker is ever raised from this record:
-    during the advisory window it routes a worker, it does not hold a merge.
-    """
-    parsed = parse_skill_evidence_block(body)
-    terminal_skills, map_source = read_terminal_skills()
-    resolve = compare or fetch_commit_ancestry
-    head = (head_sha or "").lower()
-    notes: list[str] = []
-    if parsed["blocks"] > 1:
-        notes.append(
-            f"{parsed['blocks']} skill-evidence blocks in the body; the first is read"
-        )
-    if parsed["present"] and not parsed["parsed"]:
-        notes.append("the skill-evidence block does not parse as evidence rows")
-    if not head:
-        notes.append("no head SHA to compare rows against")
-
-    rows: list[dict[str, Any]] = []
-    compares = 0
-    capped = False
-    terminal_fresh = False
-    terminal_present = False
-    stale = False
-    for row in parsed["rows"]:
-        terminal = row["skill"] in terminal_skills
-        fresh: bool | None
-        if terminal:
-            terminal_present = True
-            fresh = bool(head) and row["sha"] == head
-            terminal_fresh = terminal_fresh or bool(fresh)
-        elif not head:
-            fresh = None
-        elif row["sha"] == head:
-            fresh = True
-        elif compares >= max_compares:
-            capped = True
-            fresh = None
-        else:
-            compares += 1
-            status = resolve(repo, row["sha"], head)
-            fresh = None if status is None else status in ANCESTRY_FRESH_STATUSES
-            if fresh is None:
-                notes.append(f"ancestry for {row['skill']} could not be read; unproven")
-        if fresh is False and not terminal:
-            stale = True
-        rows.append(
-            {
-                "skill": row["skill"],
-                "sha": row["sha"],
-                "timestamp": row["timestamp"],
-                "terminal": terminal,
-                "fresh": fresh,
-            }
-        )
-    if capped:
-        notes.append(
-            f"more than {max_compares} non-terminal rows; the rest are unproven"
-        )
-    return {
-        "present": parsed["present"],
-        "parsed": parsed["parsed"],
-        "blocks": parsed["blocks"],
-        "terminalSkills": sorted(terminal_skills),
-        "terminalPresent": terminal_present,
-        "terminalFresh": terminal_fresh,
-        "rows": rows,
-        "mapSource": map_source,
-        "notes": notes,
-        "gap": not parsed["present"]
-        or not terminal_present
-        or not terminal_fresh
-        or stale,
-    }
-
-
 def evaluate(
     repo: str,
     number: int,
@@ -1112,7 +952,6 @@ def evaluate(
         "url",
         "title",
         "labels",
-        "body",
         "statusCheckRollup",
     ]
     if tier is not None:
@@ -1142,13 +981,6 @@ def evaluate(
     ]
     author = pr.get("author")
     author_login = author.get("login") if is_json_object(author) else None
-    # Read for every tier, and for none of them a blocker: the record says
-    # which mandatory skills the body claims ran and whether those claims are
-    # fresh for the live head. The safe tier reports it; the worker tier routes
-    # a gap to a worker whose brief is `/source-control:pull-request ready`.
-    skill_evidence = evaluate_skill_evidence(
-        repo, pr.get("body"), str(head) if head else None
-    )
 
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
@@ -1179,8 +1011,17 @@ def evaluate(
 
     required_reviews = rules.get("requiredApprovingReviews") or 0
     base_is_unprotected = not required_reviews and not required_context_list
+    unmet = [r for r in required_check_status if not r["satisfied"]]
+    unmet_required = [r["context"] for r in unmet]
+    # A required context that is pending or not yet reported is still running.
+    unmet_only_running = all(r["category"] in (None, "pending") for r in unmet)
 
     blockers: list[str] = []
+    # Blockers that only mean "a check is still running". `--auto` may arm over
+    # them and nothing else: GitHub's auto-merge waits out a running required
+    # check, the AI review checks are gated separately below, and any other
+    # running check is advisory and does not hold a merge.
+    waiting: list[str] = []
     if owner not in allowed:
         blockers.append(f"owner {owner!r} out of scope")
     if pr.get("state") != "OPEN":
@@ -1197,6 +1038,8 @@ def evaluate(
             + "(need CLEAN/HAS_HOOKS: integrates required checks, up-to-date, "
             + "approvals, conversation resolution, signatures)"
         )
+        if unmet_only_running and pr.get("mergeStateStatus") in ("BLOCKED", "UNSTABLE"):
+            waiting.append(blockers[-1])
     if review_decision == "CHANGES_REQUESTED":
         blockers.append(
             "reviewDecision=CHANGES_REQUESTED -- a reviewer requested changes (human stop)"
@@ -1229,12 +1072,14 @@ def evaluate(
         blockers.append("failing checks: " + ", ".join(str(name) for name in failing))
     if pending:
         blockers.append("pending checks: " + ", ".join(str(name) for name in pending))
-    unmet_required = [r["context"] for r in required_check_status if not r["satisfied"]]
+        waiting.append(blockers[-1])
     if unmet_required:
         blockers.append(
             "required checks not satisfied: "
             + ", ".join(str(c) for c in unmet_required)
         )
+        if unmet_only_running:
+            waiting.append(blockers[-1])
     if rules.get("mergeQueueRequired"):
         blockers.append(
             "base branch requires a merge queue -- a direct merge is not allowed; "
@@ -1348,6 +1193,22 @@ def evaluate(
             )
 
     ready = not blockers
+    # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
+    # live head's. A draft skips both lanes, so neither an absent nor a SKIPPED
+    # check (which the check buckets count as success) passes.
+    ai_review_holds = [
+        f"AI review check {lane!r} has not succeeded on the live head"
+        for lane in AI_REVIEW_CHECKS
+        if not (
+            matches := [
+                c
+                for c in checks["checks"]
+                if c["name"].rsplit("/", 1)[-1].strip() == lane
+            ]
+        )
+        or any(c["effective_state"] != "SUCCESS" for c in matches)
+    ]
+    auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds
     return {
         "pr": f"{repo}#{number}",
         "autopilotMergeTier": tier_result,
@@ -1366,9 +1227,6 @@ def evaluate(
         "reviewDecision": review_decision,
         "headRefOid": head,
         "labels": labels,  # surfaced for agent reasoning; no hardcoded hold-label list
-        # Surfaced the same way `labels` is: a record to reason from, not a
-        # merge input. Nothing in `blockers` comes from it.
-        "skillEvidence": skill_evidence,
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
@@ -1384,6 +1242,7 @@ def evaluate(
         "pendingChecks": pending,
         "ready": ready,
         "blockers": blockers,
+        "autoMerge": {"ready": not auto_blockers, "blockers": auto_blockers},
     }
 
 
@@ -1448,6 +1307,16 @@ def main() -> int:
         help=(
             "require the live head SHA to match this hex SHA (or a prefix of at "
             f"least {MIN_HEAD_SHA_PREFIX_LENGTH} chars) before merging"
+        ),
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help=(
+            "merge lane only, with --merge and --expected-head: when the PR is "
+            "ready except for running checks and both AI review lanes have "
+            "completed on the live head, arm GitHub auto-merge (squash) instead "
+            "of holding"
         ),
     )
     parser.add_argument(
@@ -1669,6 +1538,11 @@ def main() -> int:
             2,
         )
 
+    if args.auto and not (args.merge and args.expected_head):
+        return _refuse("--auto requires --merge and --expected-head", 2)
+    if args.auto and args.method not in (None, "squash"):
+        return _refuse("--auto arms a squash merge; --method must be squash", 2)
+
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed
     # input is rejected before any network access.
@@ -1729,13 +1603,19 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         return 10
 
-    if not result["ready"]:
+    # Under --auto the AI-review holds bind a synchronous merge too.
+    go = result["autoMerge"]["ready"] if args.auto else result["ready"]
+    arm_auto = go and args.auto and not result["ready"]
+    if not go:
         result["merge"] = {"attempted": False, "reason": "not ready"}
         print(json.dumps(result, indent=2))
         return 10
+    if arm_auto:
+        # Consumers treat `action: merge` as a performed merge; an arm is not one.
+        result["action"] = "auto-merge"
 
     try:
-        method = allowed_method(repo, args.method)
+        method = allowed_method(repo, "squash" if arm_auto else args.method)
     except (RuntimeError, json.JSONDecodeError) as exc:
         # A method-lookup failure is reported, not raised, so output stays JSON.
         result["error"] = f"{type(exc).__name__}: {exc}"
@@ -1744,6 +1624,8 @@ def main() -> int:
 
     result["mergeMethod"] = method
     merge_cmd = ["pr", "merge", str(number), "-R", repo, f"--{method}"]
+    if arm_auto:
+        merge_cmd.append("--auto")
     # Atomic head pin: GitHub refuses the merge unless the head still equals the
     # exact full SHA we vetted, closing the preflight-to-merge TOCTOU window.
     vetted_head = result.get("headRefOid")
@@ -1752,11 +1634,13 @@ def main() -> int:
     proc = gh_capture(merge_cmd)
     result["merge"] = {
         "attempted": True,
+        "auto": arm_auto,
         "success": proc.returncode == 0,
         "stdout": proc.stdout.strip(),
         "stderr": proc.stderr.strip(),
     }
-    result["merged"] = proc.returncode == 0
+    result["merged"] = proc.returncode == 0 and not arm_auto
+    result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
     print(json.dumps(result, indent=2))
     return 0 if proc.returncode == 0 else 10
 

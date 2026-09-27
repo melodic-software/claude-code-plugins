@@ -31,12 +31,8 @@ $commands = @(
     'winget upgrade --include-unknown --accept-source-agreements  # fallback'
 )
 
-# KEV correlation is ID-based, not display-name-based. A substring match on
-# display names floods the result with false positives ("Windows Subsystem
-# for Linux" / id Microsoft.WSL matches every Microsoft/Windows CVE because
-# the name contains "Windows"). The winget Id is already a structured
-# "<vendor>.<product>" token assigned by the package manifest author, so
-# matching on Id is both precise and cheap.
+# Correlate KEV on the structured winget Id, never display names: a name substring match
+# floods false positives (Microsoft.WSL's "Windows" name matches every Windows CVE).
 
 try {
     $wrapperResult = Get-WingetPackageUpdate
@@ -72,9 +68,8 @@ try {
             }
             $kevPath = Join-Path $cacheRoot 'cisa-kev.json'
 
-            # Seed the cache on first run by copying the checked-in stub.
-            # Get-CisaKevCache will detect the empty vulnerabilities array
-            # and fetch live data to replace it.
+            # Seed from the checked-in stub; Get-CisaKevCache sees its empty
+            # vulnerabilities array and fetches live data to replace it.
             if (-not (Test-Path -LiteralPath $kevPath)) {
                 $seedPath = Join-Path (Resolve-SkillRoot) 'catalog\cisa-kev.json'
                 if (Test-Path -LiteralPath $seedPath) {
@@ -84,11 +79,7 @@ try {
 
             $kev = Get-CisaKevCache -CachePath $kevPath -LogPath $LogPath -MaxAgeDays 7
             if ($kev -and $kev.vulnerabilities) {
-                # Index KEV entries by lowercase "vendor.product" key so each
-                # upgrade Id can be matched in O(1) instead of scanning every
-                # vuln. KEV has ~1300 entries and a typical machine reports
-                # ~30 upgrades, so the prior nested loop did ~40k comparisons
-                # per run.
+                # Index KEV by lowercase "vendor.product" so each upgrade Id is an O(1) lookup.
                 $kevIndex = @{}
                 foreach ($vuln in $kev.vulnerabilities) {
                     if ([string]::IsNullOrWhiteSpace($vuln.vendorProject) -or
@@ -107,10 +98,8 @@ try {
                     if ([string]::IsNullOrWhiteSpace($upgradeId)) { continue }
                     $idLower = $upgradeId.ToLowerInvariant()
 
-                    # Test idLower against exact key, then progressively
-                    # shorter prefixes (split on '.') so "Microsoft.WSL.Foo"
-                    # also matches "microsoft.wsl". Bounded by Id segment
-                    # count, typically 2-4.
+                    # Exact Id first, then shorter '.'-prefixes, so "Microsoft.WSL.Foo"
+                    # also matches "microsoft.wsl".
                     $segments = $idLower.Split('.')
                     for ($i = $segments.Length; $i -ge 2; $i--) {
                         $candidate = ($segments[0..($i - 1)] -join '.')
@@ -141,7 +130,6 @@ try {
             $severity = 'CRIT'
             $summary = "$($kevMatches.Count) upgrade(s) match CISA KEV."
         } elseif ($upgrades.Count -gt 0) {
-            # >10 behind is the WARN threshold; anything behind at all is INFO.
             $severity = $upgrades.Count -gt 10 ? 'WARN' : 'INFO'
             $summary = "$($upgrades.Count) apps behind on winget upgrades."
         }

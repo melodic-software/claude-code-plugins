@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.24] - 2026-09-27
+
+### Fixed
+
+- The `auditor` agent pins `model: opus`, so a dispatch that passes no `model` no longer runs on the orchestrator's model. The agent audit checklist's Model check now asks that a definition name its model explicitly and that `inherit` carry a stated reason on the model line. `audit` Step 2 passes the session's own model as the per-call `model` when the session resolves above `opus`, so the verdict never runs below the session's tier.
+
+## [0.7.23] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.7.22] - 2026-09-21
 
 ### Changed

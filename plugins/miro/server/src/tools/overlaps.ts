@@ -6,9 +6,8 @@ import { z } from "zod";
 import { jsonResponse } from "../response.js";
 
 /**
- * Default sticky note dimensions in Miro.
- * Square stickies are ~199x199px. Rectangles are wider (~350x199px).
- * Two items overlap when their centers are closer than the item width on both axes.
+ * Miro square stickies are ~199x199px, rectangles ~350x199px. Two items overlap when
+ * their centers are closer than this on both axes.
  */
 const DEFAULT_OVERLAP_THRESHOLD = 195;
 const TRUNCATE_LENGTH = 60;

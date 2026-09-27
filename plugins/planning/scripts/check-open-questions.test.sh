@@ -607,6 +607,42 @@ cat >"$longer_closer" <<'EOF'
 EOF
 expect_exit "a longer closing fence closes the shorter opener -> 0" 0 --ledger "$longer_closer"
 
+# 41. `superseded-by-plan` is NOT terminal: a plan displaced the user's answer
+#     and the user has not reconfirmed it, so the register is unresolved.
+superseded_only="$(
+  mkledger <<'EOF'
+- Q1 | superseded-by-plan | round 1 | Who writes? | plan proposes: admin only; was: any enrolled user
+EOF
+)"
+expect_exit "superseded-by-plan only -> 1" 1 --ledger "$superseded_only"
+expect_stdout "superseded row is counted" "superseded=1" --ledger "$superseded_only"
+expect_stdout "superseded row grades status=open" "status=open" --ledger "$superseded_only"
+
+# 42. A superseded row blocks even when every other row is terminal.
+superseded_mixed="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | superseded-by-plan | round 1 | What format? | plan proposes: html; was: markdown
+EOF
+)"
+expect_exit "answered + superseded-by-plan -> 1" 1 --ledger "$superseded_mixed"
+expect_stdout "mixed verdict counts open and superseded apart" "open=0 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=1" --ledger "$superseded_mixed"
+
+# 43. The status is case-insensitive like the others.
+superseded_case="$(
+  mkledger <<'EOF'
+- Q1 | Superseded-By-Plan | round 1 | Who writes? | plan proposes: x; was: y
+EOF
+)"
+expect_exit "Superseded-By-Plan casing -> 1" 1 --ledger "$superseded_case"
+expect_stdout "Superseded-By-Plan casing is counted" "superseded=1" --ledger "$superseded_case"
+
+# 44. A clean register reports the field at zero, right after `answered=`.
+expect_stdout "clean verdict places superseded after answered" "answered=1 superseded=0 brief=" --ledger "$clean"
+
+# 45. The ungradeable line carries the field too, in the same position.
+expect_stdout "ungradeable verdict carries superseded=0" "answered=0 superseded=0 brief=unchecked status=ungradeable" --ledger "$noreg"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1

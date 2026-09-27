@@ -181,7 +181,10 @@ loop's own escalation contract is not outside it.
   this PR introduced. Provenance decides (c), never severity. <!-- contract-restatement-begin: D4.6-deferral-provenance -->
 - Fix (c) like any other in-scope defect, but count it. It is never deferrable, because it is a
   defect this change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`,
-  D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A second consecutive **advisory** round whose findings are *all* (c) means incremental
+  D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A (b) finding follows D4.6's
+  scope test: a small or medium one is fixed in this PR in a review-fix commit, even when unrelated
+  to the task, and only a structural, urgent-but-cannot-land, or fix-blocked-on-research one is filed and
+  deferred. A second consecutive **advisory** round whose findings are *all* (c) means incremental
   patching is injecting defects about as fast as it removes them; that is the non-convergence
   signal a round count only approximates. The test is scoped to advisory rounds because those are
   the rounds the ledger records. A blocking-defect round in between neither counts nor resets it.
@@ -278,37 +281,6 @@ only from the merge gate's `ready` field.
 The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
 reports merge-readiness as **unchecked**. An unavailable merge gate is never grounds to promote
 `READINESS_OK` into a merge-ready claim.
-
-## Skill-Evidence Record
-
-The merge gate reads one more thing off the PR it is judging, and judges nothing by it. A pull
-request carries a fenced `skill-evidence` block in its body, one `<skill> <sha> <utc-timestamp>`
-row per mandatory skill that ran. `evaluate()` parses that block for every tier and reports a
-`skillEvidence` record beside `labels`, on the same footing: a fact to reason from, never a merge
-input. Nothing in `blockers` comes from it.
-
-The record answers what the block itself claims, not what the diff owes. The terminal skill is the
-one the `## pr_skill_evidence` map marks with a trailing `!`, read from `.claude/source-control.md`
-in the checkout the gate runs from and defaulted to `verification:confirm` when no map is readable;
-the record names the file it read in `mapSource`, so a fleet pass over a repository this checkout
-is not of shows which map answered. The terminal row needs a SHA that equals the live head exactly; it is the seal the
-pre-PR order places last, and it is non-mutating, so the sequence terminates. Every other row
-needs only to sit on the head's history, read over one REST `compare/{row}...{head}` call each,
-because a row is stamped when its skill is invoked, before the edits that skill goes on to make.
-An ancestry call that cannot be read is unproven, never stale, and makes no gap on its own.
-Classifying the diff against the map is `skill-evidence.sh`'s job on the seat that owns a
-checkout; this gate needs no checkout and does none of it.
-
-`gap` is true when the block is absent, when the terminal row is missing or is not at the head, or
-when a row is proven off the head's history. A gap **routes**, it does not hold: the snapshot
-carries it as the `skill_evidence_gap` worker reason, and the worker tier dispatches a worker
-whose brief is to run `/source-control:pull-request ready` on that PR, which merges the base
-branch, runs the skills the diff owes, and re-renders the block. The routing reason stands down
-where head-branch writes are disallowed, an external fork head, because that worker could neither
-commit nor edit the body; the record still reports the gap, and only the trust boundary decides
-whether a worker is routed at it. The safe tier reports the record and dispatches nothing. A PR
-the gate otherwise proves ready still merges with a gap outstanding, in every tier. An unparsable block is reported with `parsed: false` and is never fatal; a second
-block in the same body is counted and noted, and only the first is read.
 
 ## Review-Settle Hold
 
@@ -592,7 +564,9 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
     commit**, resolved through the head repository so a fork PR compares correctly. Existence
     elsewhere in the repository is not evidence that this PR carries the fix.
   - `deferred` + `--tracker-item <owner/repo#N|#N|N>`: the item must exist and still be **open**.
-    A closed follow-up is not a deferral; it is the finding disappearing.
+    A closed follow-up is not a deferral; it is the finding disappearing. The script cannot check
+    D4.6's scope test, so claim `deferred` only for a structural, urgent-but-cannot-land, or
+    fix-blocked-on-research finding; a small or medium one is `fixed` in this PR.
   - `incorrect` + `--counter-evidence <text>`: the text must already appear in a **reply** on the
     thread, posted by **someone other than the thread's opener**. Excluding the opening comment
     alone is not enough: the mandated classification reply restates the finding's own text, so a
@@ -645,7 +619,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   failed), but exit `0` is not by itself proof of success for a given thread. It also covers
   list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
-  performed only when the merge output's `action` field says so. The resolve action vocabulary is
+  performed only when the merge output's `action` field says so and `merged` is true;
+  `"action": "auto-merge"` means armed, not merged. The resolve action vocabulary is
   `resolved` against `skipped-*`, the `refused-*` family (`refused-stale-pin` and the evidence
   refusals above), and `resolve-failed`; read the run's `resolvedCount`/`eligibleCount` summary
   alongside the per-thread entries before reporting or re-checking the merge gate.
@@ -664,6 +639,48 @@ stops, and the lane reruns its partition on the post-push diff before any merge-
 re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authorizes a head SHA, not
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
 Autopilot step 3 describes.
+
+### Merge-lane auto-merge
+
+Only a lane-pinned invocation (above) adds `--auto` to its merge gate command. The lane's
+partition is the only class check, so the PR is already C2 (mechanical) or C3 (scoped); a C4
+(structural) or C5 PR never reaches a merge-capable invocation and waits for the user. With
+`--auto`, a PR that is ready except for running checks gets
+`gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
+
+- both AI review checks, `review / claude-review-status` and
+  `security-review / claude-security-review-status`, report success on the live head, which is
+  the pinned head (a missing, skipped, failed, or running check holds, and so does a head that
+  moved off the pin);
+- no review thread is unresolved, and every other gate blocker is clear.
+
+Any other running check does not hold the arm: GitHub waits out a running required check
+(`ci-status`) itself, and a non-required check never holds a merge.
+
+To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
+with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns only the failed
+`-status` job, which re-reads the cached rate-limit output of the `review` job that succeeded and
+fails again.
+
+The reason: `ci-status` is the only required check and does not wait on the review workflows, so
+auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
+synchronously. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
+arm exits `0` with `"action": "auto-merge"`, `autoMergeEnabled: true` and `merged: false`, so it
+is reported as armed, not merged, and the PR stays in the queue with its worktree kept. Nothing
+else enables auto-merge: not a Worker Contract subagent (`orchestration.md`), not a work-items
+worker lane, not a standalone invocation, not `/source-control:pull-request`. The `worker` tier
+name is unrelated: a lane-pinned invocation at that tier is the merge lane.
+
+A push by a writer leaves auto-merge armed, and the new head would merge on `ci-status` alone.
+Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
+which disables auto-merge only when "someone without write permissions pushes new changes to the
+head branch or switches the base branch". Recheck when that page names another event that disables
+auto-merge, or a GitHub changelog entry changes auto-merge behavior on push.
+So every push path disarms it: `refresh_pr_branch.py` before updating the branch, `lane_push`
+before and after each lane push in [loop.md](loop.md), and in
+[orchestration.md](orchestration.md) the fix worker (Worker Contract and Worker Prompt Template)
+and the orchestrator's conflict-resolution push (Orchestrator Contract) before and after pushing.
+The lane re-arms once both review checks pass on the new head.
 
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
@@ -925,7 +942,8 @@ as done and re-running the gate.
 ## Never Do Automatically
 
 - Merge in default (safe) mode, or merge through any path other than the pinned merge wrapper's
-  gate. Worker and autopilot merge only a PR that gate proves 100% ready.
+  gate. Worker and autopilot merge only a PR that gate proves 100% ready, or arm auto-merge
+  through it under Merge-lane auto-merge.
 - Generate an approving review to satisfy a required-review ruleset, or merge on a review the
   fleet produced itself, **except** under the autopilot merge tier, a deliberate, config-gated
   opt-in that is off by default. It engages only when the operator sets
@@ -963,11 +981,10 @@ as done and re-running the gate.
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
   review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
   tier does not exist and the first bullet governs unchanged.
-- Enable auto-merge. Under a base whose ruleset requires review-thread resolution, plus a
-  reviewer that re-reviews each pushed head, a review round landing after `--auto` is armed
-  leaves the PR permanently unmergeable while the lane has already reported success and moved
-  on. Merge synchronously against a `ready: true` merge-gate run, or report the PR as
-  merge-ready and leave it in the queue.
+- Enable auto-merge outside Merge-lane auto-merge above. Armed earlier, a review round landing
+  after `--auto` can merge ahead of AI review or leave the PR unmergeable while the lane has
+  already moved on. Otherwise merge synchronously against a `ready: true` merge-gate run, or
+  report the PR as merge-ready and leave it in the queue.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.
 - Change GitHub settings by hand.

@@ -1,9 +1,9 @@
 # playbooks
 
 A Claude Code plugin that bundles three doctrine and knowledge playbooks as
-on-demand skills, plus one maintainer-facing update skill. Each pack is a pure
-knowledge or navigation skill: invoking it serves distilled guidance and performs
-no work of its own.
+on-demand skills, one playbook runner (`repo-sweep`), and one maintainer-facing
+update skill. Each pack is a pure knowledge or navigation skill: invoking it
+serves distilled guidance and performs no work of its own.
 
 ## Skills
 
@@ -12,6 +12,7 @@ no work of its own.
 | `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com). 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering, routed through a hub + topic reference files. |
 | `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook. 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
 | `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine. Twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries) plus per-model-version adaptation chapters. Bare arms the session; `full` preloads every common chapter plus only the adaptation chapter routed to the session's model version (sibling versions' chapters carry deliberately reversed counter-steers, so they never co-load); a chapter name reads one. |
+| `repo-sweep` | `/playbooks:repo-sweep` | Runs the `hygiene` catalog of skills through one repository per sweep: one branch, one draft PR holding the step checklist, one commit per step with `Playbook-Step` trailers, resumable after `/clear`. `plan` recommends and opens a selection page, `next` runs the first unticked step, `review` files defects after approval. |
 | `update` | `/playbooks:update` | Maintainer-facing drift-check and upstream sync for the vendored packs. `--check` (default) reports drift read-only; `--apply` refreshes the vendored baselines. Not for consumers. |
 
 ## Updating the packs
@@ -48,7 +49,9 @@ mechanics are `/playbooks:update` and `/plugin marketplace update`.
 ## Configuration
 
 This plugin has no `userConfig`. The pack skills are pure knowledge/navigation
-skills with no state; only the maintainer-facing `update` skill touches the
+skills with no state. `repo-sweep` keeps its state in the sweep PR body and
+commit trailers, and pushes, opens draft PRs, and edits PR bodies in the repository
+it sweeps. The maintainer-facing `update` skill touches the
 network (fetching the upstream source for the vendored packs), and only from a
 working-tree checkout.
 

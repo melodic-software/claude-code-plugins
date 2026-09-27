@@ -5,18 +5,13 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-ScheduledTasks' `
         -AsObject 'Invoke-ScheduledTasksAsObject'
 
-    # Dot-source the check script to expose Test-IsNeverRunScheduledTask in
-    # this scope. The script's own dot-source guard (InvocationName -eq '.')
-    # skips the main block, so this only defines the helper -- no orchestrator
-    # code path runs.
+    # Dot-source the check script to define Test-IsNeverRunScheduledTask here; its
+    # dot-source guard skips the main block.
     . $script:ScriptPath
 }
 
-# NOTE: deeper severity-rubric coverage for this check is limited by Pester 5
-# mock propagation into `&`-invoked child scripts for cmdlets from the
-# ScheduledTasks module. Baseline + no-tasks paths are deterministic; the
-# never-run filter is covered via the extracted Test-IsNeverRunScheduledTask
-# helper below.
+# Pester 5 mocks do not reach ScheduledTasks cmdlets inside `&`-invoked scripts, so the
+# never-run filter is covered through the extracted Test-IsNeverRunScheduledTask helper.
 
 Describe 'Test-ScheduledTasks -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult when Get-ScheduledTask returns no tasks' {
@@ -82,9 +77,8 @@ Describe 'Test-IsNeverRunScheduledTask -- helper' -Tag 'check' {
     }
 
     It 'returns $false for SCHED_S_TASK_TERMINATED (267014) with real LastRunTime' {
-        # 267014 = terminated by user. Intentionally NOT filtered -- termination
-        # is a real event worth surfacing. If found noisy in practice, a
-        # separate filter can be added.
+        # 267014 = terminated by user. Intentionally NOT filtered: termination
+        # is a real event worth surfacing.
         $info = [pscustomobject]@{
             LastTaskResult = 267014
             LastRunTime    = (Get-Date).AddDays(-2)

@@ -9,9 +9,8 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
         -LibScript 'Write-ElevationBanner.ps1', 'Get-ElevationMatrix.ps1'
 
-    # Write-ElevationBanner writes via [Console]::Error.WriteLine, which
-    # bypasses PowerShell's error stream, so `2>&1` captures nothing.
-    # Swap in a StringWriter around the call to capture real stderr text.
+    # [Console]::Error.WriteLine bypasses the error stream, so `2>&1` captures nothing;
+    # swap in a StringWriter to capture real stderr text.
     function Invoke-BannerCapture {
         param([Parameter(Mandatory)] [bool] $Elevated, [switch] $Quiet)
         $writer = [System.IO.StringWriter]::new()

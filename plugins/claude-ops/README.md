@@ -56,7 +56,7 @@ boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 
 Three scripts serve those nine rows. `hooks/audit-event-emitter.sh` carries
 seven of them and picks the row from the payload's `hook_event_name`, the way
-`session-event-log.sh` next to it serves about thirty events from one file; the
+`session-event-log.sh` next to it serves 28 events from one file; the
 seven events are distinct, so the event alone selects the row. Each row still
 reads its own `<name>_enabled` switch and emits the same telemetry `hook` id,
 `hook_event`, `status` and `data` fields it emitted as a standalone script, so
@@ -91,17 +91,11 @@ One row per Skill call, with these fields:
 | `event` | always | `SkillUse`, the key readers filter this store on |
 | `skill` | always | the skill name, leading slash stripped |
 | `branch` | always | the checked-out branch, `unknown` outside a git work tree |
-| `sha` | in a git work tree | the 40-hex commit HEAD pointed at when the call returned, so a reader can join the row to the commit the skill ran against |
-| `pr` | when the branch carries one | the pull-request number from `branch.<name>.pr-number` in git config, written by the pull-request skill at create time |
 | `project` | always | the project root's basename, for display |
 | `project_id` | always | basename plus a digest, collision-resistant across checkouts in the user and data-dir scopes |
 | `hook` | always | `skill-usage-audit` |
 | `source` | always | `tool` (the Skill tool) or `expansion` (a user-typed slash command) |
 | `expansion_type` | expansion path only | `slash_command` or `mcp_prompt` |
-
-`sha` and `pr` are absent, never empty or null, when nothing resolves them: an
-unborn HEAD and a directory outside any repository both write the row without
-them. Readers name the keys they read, so both fields are additive.
 
 `hook-failure-audit` is the other exception. Its user-facing `systemMessage`
 warning fires regardless of sink wiring (only its envelope needs a sink),
@@ -120,8 +114,8 @@ exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 
 Its budget share is stated as a **process count**, not a duration, and the host
 is the reason. The [hook-budget
-convention](../../docs/conventions/hook-budget/README.md) gives the whole
-always-on per-turn set 500 ms of parallel wall, and on the host in #3508 one
+convention](../../docs/conventions/hook-budget/README.md) states each
+always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's time), not a fixed millisecond figure, and on the host in #3508 one
 process creation costs 180-2,841 ms (median 1,108 ms at 501 concurrent
 processes), so the count is what decides whether the set fits and a duration
 measured anywhere else does not transfer. On a turn with **no** hook failure
@@ -134,8 +128,8 @@ was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
 whose command carries its own redirection forks a subshell that xtrace cannot
 see, and those forks were most of the cost. `hook-failure-audit.test.sh`
 asserts both ceilings. Windows Git Bash, the host the convention binds to,
-stays unmeasured for this row, so the parallel-wall figure there and the
-comparison against 500 ms it feeds are still owed.
+stays unmeasured for this row, so its spawn-equivalents there (hook wall
+divided by the same-run S) are still owed.
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
@@ -144,15 +138,9 @@ tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
 tell the paths apart; both share the same telemetry `hook` id and second store.
 
 Its share of the budget is stated as a **git process count**, the part of the
-row's cost that varies with the store's contents. Inside a git work tree the
-store write spawns **4 git processes**: the repo-root read, the
-`.git/info/exclude` hygiene read (repo scope only), one
-`git rev-parse HEAD --abbrev-ref HEAD` that answers the SHA and the branch
-together, and one `git config --get branch.<name>.pr-number`. The `rev-parse`
-count is unchanged by the `sha` field: `--abbrev-ref` applies only to the
-arguments after it, so the one call that used to answer the branch alone now
-answers both. The `git config` read is the single added spawn, and it is
-charged only inside a work tree: outside one the count stays at 3, as it was.
+row's cost that varies with the store's contents. The store write spawns
+**3 git processes**: the repo-root read, the `.git/info/exclude` hygiene read
+(repo scope only), and one `git rev-parse --abbrev-ref HEAD` for the branch.
 Measured with `strace -ff -e trace=execve` on a throwaway fixture repository,
 the same method the `hook-failure-audit` counts above use. This row is not in
 the always-on per-tool-call set: its matcher is `Skill`, so an ordinary tool
@@ -271,9 +259,14 @@ audit-of-record.
 ### The per-session hook event log (off by default)
 
 Independently of any sink, `session_event_log_enabled=true` turns on one
-producer row per observable hook event (30 events; the generated
+producer row per observable hook event (28 events; the generated
 `hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
-`MessageDisplay` and `FileChanged` are left out). Each fire appends one line to
+`MessageDisplay` and `FileChanged` are left out). `PreToolUse` and
+`PostToolUse` are left out too: they fire on every tool call, so even a
+disabled row would cost a process creation per call. Tool activity is still
+recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is one line,
+not a per-call record: it carries the first `tool_name` and `tool_use_id` the
+payload text holds, normally the first call's. Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
 and a repo-relative file path when present. Each row is SHELL FORM and reads
@@ -287,13 +280,13 @@ the same three creations as before (median 117 ms); a 2 KB payload costs about
 5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
 hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
 is still owed, and the default stays off until it is taken.
-`session_event_log_categories` narrows the set. At
-`SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
-or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
-hands an archiver the files about to go. The root carries its own `*`
-`.gitignore`, so nothing under it reaches `git status`; `/claude-ops:setup`
-reports the toggles and the guard, `/claude-ops:observability session` reads
-the result.
+`session_event_log_categories` narrows the set. At `SessionEnd` the retention
+hook, gated by the same switch in shell form, keeps the newest
+`session_log_keep_sessions` or the last `session_log_keep_days` days, and
+`session_log_pre_prune_command` hands an archiver the files about to go. The
+root carries its own `*` `.gitignore`, so nothing under it reaches
+`git status`; `/claude-ops:setup` reports the toggles and the guard,
+`/claude-ops:observability session` reads the result.
 
 ## Install
 

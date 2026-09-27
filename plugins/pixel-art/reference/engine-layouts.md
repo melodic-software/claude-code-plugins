@@ -85,12 +85,12 @@ stated by the source.
 | File | Layout | Spec |
 |---|---|---|
 | `IconSet.png` | 32x32 icons, 16 per row; icon n at column n % 16, row floor(n / 16) | `columns: 16`, 32x32 |
-| `Window.png` | 192x192 skin: background 0,0 (95x95, stretched); pattern 0,96 (96x96, tiled); frame 96,0 (96x96, 24px corners, 9-slice); cursor 96,96 (48x48); arrows near 120,24; pause sign 144,96 (24x24); 32 text colours in 12px cells from 96,144 | one 192x192 frame; place regions by hand |
+| `Window.png` | 192x192 skin: background 0,0 (95x95, stretched); pattern 0,96 (96x96, tiled); frame 96,0 (96x96, 24px corners, 9-slice); cursor 96,96 (48x48); arrows near 120,24; pause sign 144,96 (24x24); 32 text colors in 12px cells from 96,144 | one 192x192 frame; place regions by hand |
 | `Balloon.png` | 48x48 frames, 8 per row, one row per balloon | `columns: 8`, 48x48 |
 | `States.png` | 96x96 frames, one row per state overlay | 96x96 frames |
 | `Weapons1-3.png` | 96x64 cells, 12 weapon types per sheet, 3 frames each | 96x64 frames |
 
-- Name the balloon file `Balloon.png`: the core loads `Balloon` (the help page spells `Baloon`).
+- Name the balloon file `Balloon.png`: the core loads `Balloon` (the help page misspells the name).
 
 ### Other folders
 
@@ -146,18 +146,18 @@ recheck trigger: the store page showing a release date or U2U publishing its own
 
 ## PICO-8
 
-- 128x128 screen, fixed 16-colour palette, 8x8 sprites on one 128x128 sheet (256 sprites; 128-255
+- 128x128 screen, fixed 16-color palette, 8x8 sprites on one 128x128 sheet (256 sprites; 128-255
   share memory with the lower map half), 8 flags per sprite.
-- Spec: `columns: 16`, frames 8x8, palette = the 16 PICO-8 colours only. The renderer writes PNG,
+- Spec: `columns: 16`, frames 8x8, palette = the 16 PICO-8 colors only. The renderer writes PNG,
   not a cart; importing into a cart is outside this reference.
 - Verification record: basis = [PICO-8 manual](https://www.lexaloffle.com/dl/docs/pico-8_manual.html)
   (states v0.2.7); as-of 2026-09-23; recheck trigger: the manual's version line moving past 0.2.7.
 
 ## Pyxel
 
-- Customizable screen, 16-colour palette (extensible), 3 image banks of 256x256, 8 tilemaps of
+- Customizable screen, 16-color palette (extensible), 3 image banks of 256x256, 8 tilemaps of
   256x256. Images load from palette-ready PNG/GIF/JPEG or `Image.set` string lists.
-- Spec: any frame size whose sheet fits 256x256 per bank; keep the palette to the target's colours.
+- Spec: any frame size whose sheet fits 256x256 per bank; keep the palette to the target's colors.
 - Verification record: basis = [Pyxel user guide](https://github.com/kitao/pyxel/blob/main/docs/user-guide.md)
   at v2.9.9; as-of 2026-09-23; recheck trigger: a Pyxel release past 2.9.9 on
   [releases](https://github.com/kitao/pyxel/releases).

@@ -66,7 +66,7 @@ test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
 if out="$(run_check "$f" 2>&1)"; then
   fail "copy-pairing skip_case should fail the gate, got success: $out"
 else
-  if echo "$out" | grep -q "DISCRIMINATING TEST SKIP: plugins/alpha/skills/demo/scripts/demo.test.sh:"; then
+  if grep -q "DISCRIMINATING TEST SKIP: plugins/alpha/skills/demo/scripts/demo.test.sh:" <<<"$out"; then
     ok "copy-pairing skip_case fails the static gate with file:line"
   else
     fail "expected DISCRIMINATING TEST SKIP with file:line, got: $out"
@@ -103,7 +103,7 @@ write_runtime_suite "$tmp_test" \
   'fail_discriminating_skip "synthetic: git diff --cached --name-status has 0 C record(s), expected 1"'
 if out="$(bash "$tmp_test" 2>&1)"; then
   fail "fail_discriminating_skip should fail the suite, got success: $out"
-elif echo "$out" | grep -q '^DISCRIMINATING SKIP:'; then
+elif grep -q '^DISCRIMINATING SKIP:' <<<"$out"; then
   ok "fail_discriminating_skip fails the suite with DISCRIMINATING SKIP marker"
 else
   fail "expected DISCRIMINATING SKIP marker, got: $out"
@@ -118,7 +118,7 @@ if [[ "$x" == "1" ]]; then :; else skip_case "feature unavailable"; fi'
 if out="$(run_check "$f" 2>&1)"; then
   fail "discriminating-skip-required skip_case should fail the gate, got success: $out"
 else
-  if echo "$out" | grep -q "discriminating-skip-required branch uses skip_case"; then
+  if grep -q "discriminating-skip-required branch uses skip_case" <<<"$out"; then
     ok "discriminating-skip-required rejects skip_case regardless of reason"
   else
     fail "expected discriminating-skip-required violation, got: $out"
@@ -134,7 +134,7 @@ if [[ "$x" == "1" ]]; then :; else skip_case "this git did not pair the fixture 
 if out="$(run_check "$f" 2>&1)"; then
   fail "multi-line violation after one-line if/fi should fail, got success: $out"
 else
-  if echo "$out" | grep -q "DISCRIMINATING TEST SKIP: plugins/alpha/skills/demo/scripts/demo.test.sh:2:"; then
+  if grep -q "DISCRIMINATING TEST SKIP: plugins/alpha/skills/demo/scripts/demo.test.sh:2:" <<<"$out"; then
     ok "one-line if/fi does not suppress a later multi-line discriminating skip"
   else
     fail "expected line-2 violation after one-line if/fi, got: $out"
@@ -146,7 +146,7 @@ rm -rf "$f"
 tmp_test="$(mktemp --suffix=.test.sh)"
 write_runtime_suite "$tmp_test" 'skip_case "symlinks unsupported on this platform"'
 if out="$(bash "$tmp_test" 2>&1)"; then
-  if echo "$out" | grep -q '^SKIP:' && ! echo "$out" | grep -q '^DISCRIMINATING SKIP:'; then
+  if grep -q '^SKIP:' <<<"$out" && ! grep -q '^DISCRIMINATING SKIP:' <<<"$out"; then
     ok "optional skip_case still passes the suite"
   else
     fail "optional skip_case output unexpected: $out"

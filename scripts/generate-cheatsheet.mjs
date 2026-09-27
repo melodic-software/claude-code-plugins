@@ -20,7 +20,7 @@
 // here rather than a value to unwrap. skill-quality's
 // skill_frontmatter::metadata_field reads the same way, and
 // scripts/check-summary-reader-parity.test.sh holds the two readers to one
-// value on a shared case table and on every SKILL.md in the tree (#3189).
+// value on a shared case table and on every SKILL.md in the tree.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -78,10 +78,9 @@ for (const plugin of listDirs(join(root, "plugins"))) {
   }
 }
 
-// Minimal frontmatter reader (native, no deps — repo precedent: the catalog
-// generator uses JSON.parse only). Frontmatter is the block between a line-1
-// `---` fence and the next `---` fence; `metadata:` sits at column 0 with its
-// keys indented one level.
+// Minimal frontmatter reader with no dependencies. Frontmatter is the block
+// between a line-1 `---` fence and the next `---` fence; `metadata:` sits at
+// column 0 with its keys indented one level.
 function readCheatsheetMeta(path) {
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return {};

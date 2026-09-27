@@ -149,10 +149,7 @@ assert_eq "archived repo → exit 7" "7" "$rc"
 
 # --- ORGANIZATION-WIDE labels resolve ---
 # `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org label
-# never appears there — yet `NewIssueWithIndex` accepts any label whose OrgID == repo.OwnerID.
-# The old lookup therefore refused a label that would have applied, and the asymmetry was
-# user-visible and backwards: get-item and list-items DO report org labels in `.labels[]`,
-# so the tracker returned a name it would then refuse to write back.
+# never appears there, yet `NewIssueWithIndex` accepts any label whose OrgID == repo.OwnerID.
 gitea_reset_routes
 gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
 gitea_seed_total "/orgs/acme/labels" 200 '[{"id":9,"name":"priority: high"}]' 1
@@ -161,13 +158,8 @@ rc="$(gitea_run "$S" --title "t" --labels "priority: high")"
 assert_eq "an org-wide label resolves → exit 0" "0" "$rc"
 assert_contains "the org label endpoint was consulted" "$(gitea_requests)" "/orgs/acme/labels"
 
-# The same run also settles the org walk's end-of-list signal: it must honor
-# X-Total-Count like the repo walk above it, not a largest-page-seen heuristic. Two
-# things that heuristic got wrong, both asserted here: it always spent one extra request
-# (the page that sets the baseline can never be shorter than it), and because this mock
-# answers by URL substring rather than by call count, a same-sized second page kept it
-# walking to the ceiling — reporting a truncation that had not happened and turning a
-# genuinely-missing label into a misleading message.
+# The org walk must honor X-Total-Count like the repo walk above: no extra request, and
+# no false truncation on a same-sized second page.
 assert_eq "the count is satisfied on page 1 → exit 0" "0" "$rc"
 assert_eq "and exactly one org-label request was made" "1" \
   "$(grep -c '/orgs/acme/labels' <<<"$(gitea_requests)")"

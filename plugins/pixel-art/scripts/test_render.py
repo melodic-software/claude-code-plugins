@@ -107,12 +107,28 @@ class RenderTest(unittest.TestCase):
         body = render.lzw_encode(indices, 4)
         self.assertEqual(lzw_decode(body, 4), indices)
 
-    def test_rejects_unknown_colour_and_ragged_frame(self):
+    def test_rejects_unknown_color_and_ragged_frame(self):
         bad = dict(SPEC, frames={"a": ["kx", "rg"], "b": ["gr", ".k"]})
         with self.assertRaisesRegex(ValueError, "not in the palette"):
             render.validate(bad)
         with self.assertRaisesRegex(ValueError, "is not 2x2"):
             render.validate(dict(SPEC, frames={"a": ["k.", "r"], "b": ["gr", ".k"]}))
+        with self.assertRaisesRegex(ValueError, "empty"):
+            render.validate(dict(SPEC, frames={"a": []}))
+
+    def test_rerender_drops_gif_of_removed_animation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            (out / "mine.gif").write_bytes(b"GIF89a")
+            render.render(SPEC, out, scale=1)
+            written = render.render(dict(SPEC, animations={"wink": {"frames": ["a"], "fps": 4}}), out, scale=1)
+            self.assertFalse((out / "blink.gif").exists())
+            self.assertTrue((out / "mine.gif").exists())
+            self.assertEqual(written, ["preview.png", "sheet.json", "sheet.png", "wink.gif"])
+
+    def test_rejects_animation_name_that_leaves_out_dir(self):
+        with self.assertRaisesRegex(ValueError, "names the GIF file"):
+            render.validate(dict(SPEC, animations={"../x": {"frames": ["a"], "fps": 4}}))
 
     def test_cli_exit_code_on_bad_spec(self):
         with tempfile.TemporaryDirectory() as tmp:

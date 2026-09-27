@@ -522,8 +522,8 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
     """
 
     def test_bot_opened_with_self_reply_is_bot_only(self) -> None:
-        # The stranding fix this PR exists for: a self-reply UNDER a bot
-        # opener must stay botOnly, or the thread falls out of every scope.
+        # A self-reply UNDER a bot opener must stay botOnly, or the thread
+        # falls out of every scope.
         record = {
             "id": "T1",
             "comments": [_comment("codex[bot]", "Bot"), _comment("worker-bot", "User")],
@@ -635,7 +635,7 @@ class HumanThreadsActedExtraBotLogins(unittest.TestCase):
 
     def test_configured_login_excluded_from_human_count(self) -> None:
         # A non-structural bot account, pre-classified botOnly=True (as
-        # project_thread would produce once site 1 is fixed) so it is
+        # project_thread produces) so it is
         # eligible without --include-human. With --extra-bot-logins naming
         # it, the opening-author is_bot check must also recognize it as a
         # bot and exclude it from humanThreadsActed.

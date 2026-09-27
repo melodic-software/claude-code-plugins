@@ -14,8 +14,6 @@
 #
 # docs/conventions/topic-docs/README.md specifies a required check that the net
 # PR diff carries no path under the resolved contract dir (default docs/topics/).
-# The convention was written but never wired, and 19 slices reached main as a
-# result (#1417).
 #
 # Deletion is the exemption, not an oversight. The convention's own step 4 is a
 # final commit that PRUNES the slice, so a literal "no path under docs/topics/
@@ -37,8 +35,8 @@
 # scripts/orphaned-fixtures-baseline.txt): --check-diff exempts a listed slug so
 # the gate can land without red-lining the open PRs that already carry those
 # paths, and --check fails on a STALE entry — one whose slice no longer exists —
-# so an exemption cannot outlive the debt it covers. Graduating a slice is
-# tracked as #1419; each slice's prune PR drops its own baseline line.
+# so an exemption cannot outlive the debt it covers. Each slice's prune PR drops
+# its own baseline line.
 #
 # The exemption set is read from the BASE revision, never from the working tree.
 # A baseline read at head would let one PR add docs/topics/<slug>/ AND add <slug>
@@ -220,7 +218,7 @@ CONTRACT_DIR="${CONTRACT_DIRS[0]}"
 # Grandfathered slice slugs (directory names directly under a contract dir).
 # Explicitly emptied: under `set -u`, a bare `declare -A` leaves the variable
 # unset, so `${#grandfathered[@]}` aborts when the baseline holds no slugs — the
-# exact END state this gate's debt burn-down is driving toward (#1419).
+# exact END state this gate's debt burn-down is driving toward.
 declare -A grandfathered=()
 baseline_slugs=()
 if baseline_content="$(read_at_rev "$baseline_rev" "$BASELINE")"; then

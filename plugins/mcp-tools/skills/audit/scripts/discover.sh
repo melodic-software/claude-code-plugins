@@ -99,10 +99,8 @@ if [[ -n "$SCAN_PATH" ]]; then
   if [[ ! -d "$SCAN_PATH" ]]; then
     report_not_a_directory "$SCAN_PATH"
   fi
-  # Canonicalize the scan path and the project boundary the same way (cd + pwd -P,
-  # portable — no realpath/readlink dependency) so the prefix comparison is valid
-  # regardless of symlinks, '..', or Git-Bash path form. Refuse a path that
-  # resolves outside the boundary.
+  # Canonicalize both sides the same way (cd + pwd -P, no realpath dependency) so the
+  # prefix comparison holds across symlinks, '..', and Git Bash path forms.
   scan_canon="$(cd "$SCAN_PATH" 2>/dev/null && pwd -P)"
   boundary="${CLAUDE_PROJECT_DIR:-}"
   [[ -z "$boundary" ]] && boundary="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"

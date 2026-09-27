@@ -58,10 +58,12 @@ pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean,
 
 Spawns, syscalls, queries, allocations, round trips. The counter is the headline; the duration is
 context. A counter also catches harness bugs immediately, because a counter that does not move when
-it should is an unambiguous signal, while a duration that does not move is ambiguous.
+it should is an unambiguous signal, while a duration that does not move is ambiguous. Re-measure it
+after **every** change.
 
-Re-measure the counter after **every** change. A self-inflicted harness bug surfaces first as a
-counter that fails to move when it should.
+A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
+fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
+average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
 
 ### 3. Capture durations, only if step 1 allowed it
 
@@ -70,6 +72,20 @@ needs `1/(1-p)` samples to be expressible at all (`percentile_floor()` in `lib/s
 Report **no** percentile the sample count cannot support; report the raw samples instead.
 
 Never a single sample. Never a bare mean.
+
+Every duration carries a rig line, because a number without its rig cannot be reproduced:
+
+```text
+Rig:  <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
+```
+
+### 4. Evidence for the goal's `Correlation:` line
+
+Run the same benchmark on two rigs: the counter under the deterministic rig, the duration under
+the normal warm runtime. Drive the counter down on at least two independent hot paths (two is this
+plugin's judgment) and check that the duration moved with it. A count cut and a time cut differ in
+size, so report both and never infer one from the other. No evidence yet means `unproven`, not a
+guess. See [prove the proxy](../../reference/techniques.md#d-prove-the-proxy).
 
 ## Comparing before and after
 
@@ -120,6 +136,9 @@ Discard N warmup iterations if the target has a warm path. Do **not** claim this
 state: Barrett et al. (OOPSLA 2017) found *"at most 43.5% of ⟨VM, benchmark⟩ pairs consistently
 reach a steady state of peak performance."* No source justifies any particular N.
 
+Report the first pass and later passes as separate numbers. A cold first execution folded into warm
+repeats hides the cost a first-time user pays.
+
 ## The override
 
 Gates here hard-block. A named per-gate override exists, and using it **records itself in the
@@ -144,6 +163,9 @@ report that the capture was unassisted. The dependency is a preference for reuse
 requirement: this skill's own gates (host qualification, interleaving, the counter, the refusal)
 work either way, and refusing to measure because a sibling plugin is missing would be a worse
 failure than the duplication it avoids.
+
+A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a
+deterministic count, and no duration is ever committed.
 
 A committed baseline is a number that outlives the conditions that made it true. No source states
 "a stored baseline is invalid on another machine" outright, but four independent Tier 1/2 strands

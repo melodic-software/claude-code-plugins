@@ -48,7 +48,7 @@ readonly EX_NOT_FOUND=5
 readonly EX_CONFLICT=7
 # The default namespace and the verb-referenced exit codes are consumed by the
 # sourcing verb scripts; export so a standalone lint of this sourced-only file sees
-# them as intentionally external (mirrors lib/json.sh exporting WIT_SCHEMA_VERSION).
+# them as intentionally external.
 export WIT_LOCAL_DEFAULT_NS EX_NOT_FOUND EX_CONFLICT
 
 wit_usage_error() {

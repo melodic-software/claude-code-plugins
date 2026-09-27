@@ -1,47 +1,8 @@
 #!/usr/bin/env bash
 # discover-instruction-surfaces.sh — enumerate the CLAUDE.md, AGENTS.md and rules files in
 # audit scope, each tagged with the scope it loads from.
-#
-# Why this exists: this script enumerates BOTH project and user-global surfaces. Bare
-# `find` commands rooted at the current directory (`find . -maxdepth 1 -name CLAUDE.md`,
-# `find .claude/rules ...`) can only ever see PROJECT-scope files, while the user-global
-# surfaces — `~/.claude/CLAUDE.md` and `~/.claude/rules/*.md` — load in every session and
-# must be in this population for `claude-config:audit-instructions` to reach them (I15
-# defers to C6 once both anchors are here, including user↔project).
-#
-# Scope tagging is not cosmetic. Several criteria are project-scoped (C9 is the live case),
-# and widening discovery WITHOUT a scope field would make them fire on personal files that
-# are out of their remit — trading under-coverage for false positives. The caller routes on
-# the emitted scope rather than guessing from the path shape.
-#
-# Config root honors CLAUDE_CONFIG_DIR the same way the sibling resolver does: per the
-# official .claude-directory doc, setting it relocates every `~/.claude` path.
-#
-# Advisory: prints what it finds, ALWAYS exits 0. A missing surface is not an error —
-# most repos have no CLAUDE.local.md and many machines have no user-scope CLAUDE.md.
-#
-# Usage:
-#   discover-instruction-surfaces.sh              # TAB-separated: <scope> <kind> <path>
-#   discover-instruction-surfaces.sh --scope user # only the user-scope surfaces
-#   discover-instruction-surfaces.sh --help
-#
-# Output columns:
-#   scope  project | user | both
-#   kind   claude-md | claude-local-md | agents-md | rule
-#   path   absolute for user scope, as-found for project scope
-#
-# `agents-md` is the project root's `AGENTS.md` and `.claude/AGENTS.md` (both load; the doc
-# states no precedence), and only where Claude Code reads them as the project instructions:
-# see lib/agents-md.sh for the condition and its doc basis. A repo whose CLAUDE.md is a
-# one-line `@AGENTS.md` shim emits the CLAUDE.md row alone, because the import already
-# carries that content into it and a second row would count one file twice.
-#
-# `both` means one PHYSICAL file that both layers reach. Two dotfiles layouts do this,
-# each colliding exactly one surface: a repo rooted at `~` collides the RULES dir
-# (`.claude/rules` IS `~/.claude/rules`), and a repo rooted at `~/.claude` itself
-# collides CLAUDE.md (the depth-1 `CLAUDE.md` IS `~/.claude/CLAUDE.md`). Such a file is
-# emitted once, never twice under two path spellings, so it cannot produce a duplicate
-# finding or be compared against itself in the cross-scope pass.
+# Exists because a bare `find` from the current directory never sees the user-global
+# surfaces, which load in every session; the scope tag keeps project-only criteria off them.
 
 set -uo pipefail
 
@@ -114,16 +75,12 @@ emit_rules() {
   done < <(find "$rules_dir" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
 }
 
-# Canonical physical path of a directory, or empty when it does not resolve.
-# `pwd -P` because two dirs can be the SAME directory reached by two different
-# strings — see the overlap note below.
 canon_dir() {
   [[ -d "$1" ]] || return 0
   (cd "$1" 2>/dev/null && pwd -P) || true
 }
 
-# Canonical physical path of a FILE, or empty. Resolves the containing directory and
-# re-appends the basename, so it works without readlink -f (absent on some platforms).
+# Avoids readlink -f, which is absent on some platforms.
 canon_file() {
   [[ -f "$1" ]] || return 0
   local d b
@@ -133,25 +90,8 @@ canon_file() {
   printf '%s/%s' "$d" "$b"
 }
 
-# --- scope overlap -----------------------------------------------------------
-# Two dotfiles layouts make a project-scope path and a user-scope path the SAME physical
-# file. Emitting such a file twice under two path strings would produce a duplicate
-# finding and a cross-scope comparison of a file against itself, so wherever the
-# canonical paths coincide the file is emitted ONCE with scope `both`.
-#
-# Each layout collides exactly ONE of the two surfaces, which is why both guards below
-# are needed and neither can be argued away from the other:
-#
-#   1. Project root IS the home directory (a `~`-rooted dotfiles repo — the shape the
-#      sibling audit-pass contract calls an ordinary target).
-#        rules:     `.claude/rules` == `<config_root>/rules`          -> COLLIDES
-#        CLAUDE.md: `./CLAUDE.md` vs `<config_root>/CLAUDE.md`        -> distinct
-#   2. Project root IS the config root (`~/.claude` itself tracked as the repo).
-#        CLAUDE.md: `./CLAUDE.md` == `<config_root>/CLAUDE.md`        -> COLLIDES
-#        rules:     `.claude/rules` resolves to `<config_root>/.claude/rules`,
-#                   which is NOT `<config_root>/rules`                -> distinct
-#
-# So the two comparisons are computed independently rather than from one flag.
+# A file both scopes reach is emitted once as `both`. A `~`-rooted repo collides only the
+# rules dir and a `~/.claude`-rooted repo only CLAUDE.md, so each comparison is independent.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 proj_rules_canon="$(canon_dir ".claude/rules")"
@@ -170,7 +110,6 @@ if [[ -n "$proj_md_canon" && "$proj_md_canon" == "$user_md_canon" ]]; then
   md_overlap=1
 fi
 
-# --- project scope -----------------------------------------------------------
 # Depth 1 by design: CLAUDE.md files nested deeper are subtree memory that loads only
 # on demand, and are not this checklist's subject.
 
@@ -190,19 +129,12 @@ if [[ -d ".claude/rules" ]]; then
   emit_rules ".claude/rules" "$proj_rule_scope"
 fi
 
-# --- user scope --------------------------------------------------------------
-# Same resolution as resolve-memory-dir.sh: CLAUDE_CONFIG_DIR relocates the whole
-# `~/.claude` tree when set, so the instruction surfaces move with it.
-
 if [[ -d "$config_root" ]]; then
-  # Suppressed when it is the same physical file as the project one, already emitted
-  # above as `both`.
+  # An overlapping file or rules dir was already emitted above as `both`.
   if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then
     emit user claude-md "$config_root/CLAUDE.md"
   fi
 
-  # Suppressed entirely when the two rules dirs coincide — those files were already
-  # emitted above, once, as `both`.
   if [[ -d "$config_root/rules" && "$rules_overlap" -eq 0 ]]; then
     emit_rules "$config_root/rules" user
   fi

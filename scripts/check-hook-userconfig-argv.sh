@@ -7,8 +7,7 @@
 # Why: the declared userConfig `default` is unimplemented upstream (#46477 —
 # closed not-planned), so an unset-but-defaulted ${user_config.*} argv token
 # silently drops the ENTIRE hook entry instead of substituting. On a default
-# install the hook never fires — the exact regression disk-hygiene shipped
-# through 0.8.x and #1242 fixed. The channel decision matrix
+# install the hook never fires. The channel decision matrix
 # (docs/conventions/hook-config-delivery/) rules argv out for hooks until
 # upstream implements `default`; this gate pins that rule.
 #
@@ -104,7 +103,7 @@ scan_file() {
     while IFS= read -r line; do
       flag "$file" "${line%%:*}"
     done <<<"$hits"
-  elif jq -c . "$file" 2>/dev/null | grep -qF "$TOKEN"; then
+  elif grep -qF "$TOKEN" < <(jq -c . "$file" 2>/dev/null); then
     flag "$file" "escaped token in decoded JSON"
   fi
 }
@@ -130,7 +129,7 @@ for plugin in plugins/*/; do
     done < <(jq -r '.hooks[] | select(type == "string")' "$manifest" 2>/dev/null || true)
     ;;
   object)
-    if jq -c '.hooks' "$manifest" 2>/dev/null | grep -qF "$TOKEN"; then
+    if grep -qF "$TOKEN" < <(jq -c '.hooks' "$manifest" 2>/dev/null); then
       flag "$manifest" "inline hooks object"
     fi
     ;;

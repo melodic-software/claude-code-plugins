@@ -95,7 +95,7 @@ assert_staged() {
 f="$(tmpfile 'Base the diff on origin/main for the review.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "bare origin/main should fail, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "bare origin/main fails with file:line"
 else
   fail "expected COUPLING with file:line, got: $out"
@@ -124,7 +124,7 @@ rm -f "$f"
 f="$(tmpfile 'If using a rebase workflow, diff origin/main first.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "generic 'if using' prose must not guard a bare branch default: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "generic optional-dependency prose does not guard the active branch token"
 else
   fail "expected line 1 flagged for bare origin/main under 'if using' prose, got: $out"
@@ -135,7 +135,7 @@ rm -f "$f"
 f="$(tmpfile 'As a fallback for a network timeout, run git diff origin/main.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "standalone 'fallback' prose must not guard a bare branch default: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "standalone 'fallback' prose does not guard the active branch token"
 else
   fail "expected line 1 flagged for bare origin/main under 'fallback' prose, got: $out"
@@ -157,10 +157,8 @@ rm -f "$f" "$BAD_TOKENS"
 # --- a token list with NO active patterns fails closed (#3161) --------------
 #
 # An all-comments list loads zero patterns, so every file scans clean and awk
-# exits 0 — the gate passing while gating nothing, the #1513 shape.
-# check-shell-portability.sh has refused this since #1513; this scanner did not,
-# and was measured returning exit 0 on a file carrying a real violation. Third
-# instance of the same twin asymmetry.
+# exits 0 — the gate passing while gating nothing, the #1513 shape, which
+# check-shell-portability.sh refuses too.
 EMPTY_TOKENS="$(mktemp)"
 printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpfile 'diff against origin/main here')"
@@ -190,7 +188,7 @@ rm -f "$f"
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: -->')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "empty portability-ok should not exempt the hit, got success: $out"
-elif echo "$out" | grep -q "COUPLING:"; then
+elif grep -q "COUPLING:" <<<"$out"; then
   ok "empty portability-ok does not exempt"
 else
   fail "expected COUPLING for empty portability-ok, got: $out"
@@ -214,7 +212,7 @@ now a plain line
 diff against origin/main again')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "annotation should not sanction a later hit, got success: $out"
-elif echo "$out" | grep -q ":4:" && ! echo "$out" | grep -q ":2:"; then
+elif grep -q ":4:" <<<"$out" && ! grep -q ":2:" <<<"$out"; then
   ok "annotation covers line 2 only and does not leak past intervening code"
 else
   fail "expected line 4 flagged and line 2 clean, got: $out"
@@ -235,7 +233,7 @@ diff against origin/main here <!-- unrelated inline note, not an annotation -->
 diff against origin/main again, unannotated')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "content line with inline HTML comment must not carry annotation to line 3, got success: $out"
-elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":2:"; then
+elif grep -q ":3:" <<<"$out" && ! grep -q ":2:" <<<"$out"; then
   ok "content line with inline HTML comment does not extend pending_annot to the next line"
 else
   fail "expected line 3 flagged and line 2 excused (annotated above), got: $out"
@@ -265,7 +263,7 @@ f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
 - diff against origin/main again, unannotated')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "list-item content line with inline comment must not carry annotation to line 3, got success: $out"
-elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":2:"; then
+elif grep -q ":3:" <<<"$out" && ! grep -q ":2:" <<<"$out"; then
   ok "list-item content line with inline HTML comment does not extend pending_annot"
 else
   fail "expected line 3 flagged and line 2 excused (annotated above), got: $out"
@@ -299,7 +297,7 @@ f="$(tmpfile 'This gate supports a whole-file portability-scope: <reason> declar
 Base the diff on origin/main for the review.')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "prose merely mentioning portability-scope: should not exempt the file, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:2:"; then
+elif grep -q "COUPLING: ${f}:2:" <<<"$out"; then
   ok "prose mentioning portability-scope: (not a genuine declaration) does not exempt the file"
 else
   fail "expected line 2 flagged (not exempted), got: $out"
@@ -326,7 +324,7 @@ fixture_tree::build fx --sut "$SCRIPT"
 printf 'diff against origin/main\n' >"$fx/FOO=bar.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --paths "FOO=bar.md" 2>&1)"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'COUPLING: FOO=bar\.md:1:'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'COUPLING: FOO=bar\.md:1:' <<<"$out"; then
   ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
 else
   fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
@@ -334,9 +332,9 @@ fi
 rm -rf "$fx"
 
 # =============================================================================
-# ...and the same for the TOKEN LIST operand, which is the worse half of #1513
-# and the half this gate was missing until #2914 (finding 2). A token path
-# shaped like identifier=value parses as an awk variable assignment, so the
+# ...and the same for the TOKEN LIST operand, the worse half of #1513 (#2914).
+# A token path shaped like identifier=value parses as an awk variable
+# assignment, so the
 # `FNR == NR` loading pass never runs: NO patterns are active, every file
 # reports clean, and awk exits 0. The gate passes while gating nothing, and the
 # scanner-fault check cannot see it because nothing faulted.
@@ -349,7 +347,7 @@ cp "$TEST_TOKENS" "$fx/t=custom.txt"
 printf 'diff against origin/main\n' >"$fx/plain.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="t=custom.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
 rc=$?
-if [[ "$rc" -eq 1 ]] && echo "$out" | grep -q 'COUPLING: plain\.md:1:'; then
+if [[ "$rc" -eq 1 ]] && grep -q 'COUPLING: plain\.md:1:' <<<"$out"; then
   ok "a token list shaped like identifier=value still loads its patterns"
 else
   fail "an identifier=value-shaped token list must not silently disable the gate (rc=$rc): $out"
@@ -358,7 +356,7 @@ fi
 # token path, so a green assertion above cannot come from the file being clean.
 cp "$TEST_TOKENS" "$fx/plain-tokens.txt"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="plain-tokens.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
-if [[ "$?" -eq 1 ]] && echo "$out" | grep -q 'COUPLING: plain\.md:1:'; then
+if [[ "$?" -eq 1 ]] && grep -q 'COUPLING: plain\.md:1:' <<<"$out"; then
   ok "the same fixture flags through an ordinary token path (guard is discriminating)"
 else
   fail "control case did not flag; the token-list assertion above is not discriminating"
@@ -397,7 +395,7 @@ rt="$(tokenfile "$REMOTE_TOKEN")"
 f="$(tmpfile 'Publish the branch with `git push origin HEAD` when the work is ready.')"
 if out="$(scan_with "$rt" "$f" 2>&1)"; then
   fail "a bare 'git push origin' should fail, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "remote class: a bare origin remote argument fails with file:line"
 else
   fail "expected line 1 flagged for a bare origin remote argument, got: $out"
@@ -420,7 +418,7 @@ rm -f "$f"
 f="$(tmpfile 'Re-fetch the base ref (`git -C <worktree> fetch origin <base>`) before merging.')"
 if out="$(scan_with "$rt" "$f" 2>&1)"; then
   fail "a global option before the subcommand must not hide the hardcoded remote: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "remote class: a global option before the subcommand still flags the remote"
 else
   fail "expected line 1 flagged for 'git -C <path> fetch origin', got: $out"
@@ -508,7 +506,7 @@ gt="$(tokenfile "$GRAMMAR_TOKEN")"
 f="$(tmpfile 'Derive the type from the change: `feat/`, `fix/`, `refactor/`, `chore/`.')"
 if out="$(scan_with "$gt" "$f" 2>&1)"; then
   fail "a shipped Conventional-Commits type list should fail, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "branch-grammar class: a shipped type enumeration fails with file:line"
 else
   fail "expected line 1 flagged for a shipped type enumeration, got: $out"
@@ -545,7 +543,7 @@ st="$(tokenfile "$SHAPE_TOKEN")"
 f="$(tmpfile 'Suggest `git checkout -b <type>/<topic-slug>` derived from the plan.')"
 if out="$(scan_with "$st" "$f" 2>&1)"; then
   fail "a shipped <type>/<slug> branch shape should fail, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "branch-shape class: a shipped <type>/<slug> placeholder fails with file:line"
 else
   fail "expected line 1 flagged for a shipped branch shape, got: $out"
@@ -570,7 +568,7 @@ ft="$(tokenfile "$FORGE_TOKEN")"
 f="$(tmpfile 'Apply the contract at <https://raw.githubusercontent.com/acme/plugins/main/docs/README.md> as written.')"
 if out="$(scan_with "$ft" "$f" 2>&1)"; then
   fail "a runtime raw.githubusercontent fetch should fail, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "forge class: a hardcoded raw content URL fails with file:line"
 else
   fail "expected line 1 flagged for a hardcoded raw content URL, got: $out"
@@ -610,7 +608,7 @@ fi
 
 if out="$(scan_with "$rt" "$undeclared" 2>&1)"; then
   fail "the undeclared twin of a scope-declared file must still flag, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${undeclared}:1:"; then
+elif grep -q "COUPLING: ${undeclared}:1:" <<<"$out"; then
   ok "declared-scope: the otherwise identical undeclared file is still flagged"
 else
   fail "expected the undeclared twin flagged on line 1, got: $out"
@@ -626,7 +624,7 @@ Then review the result.
 Finally run `git push origin HEAD` with no annotation at all.')"
 if out="$(scan_with "$rt" "$f" 2>&1)"; then
   fail "a per-site portability-ok must not exempt the whole file, got success: $out"
-elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":1:"; then
+elif grep -q ":3:" <<<"$out" && ! grep -q ":1:" <<<"$out"; then
   ok "declared-scope: a per-site portability-ok covers its site only, not the file"
 else
   fail "expected line 3 flagged and line 1 excused, got: $out"
@@ -648,14 +646,12 @@ printf '%s\n%s\n' 'origin/(main|master)' "$REMOTE_TOKEN" >"$BOTH_TOKENS"
 # One line, both couplings. `merge-base` is a branch-class guard marker, so
 # the co-located `origin/main` is legitimately excused as a detection-ladder
 # fallback. The `git fetch origin` on the same line is a DIFFERENT coupling
-# with no guard of its own and must still be reported. Before the guard was
-# class-scoped, the branch marker excused the whole line and this hit
-# vanished — a real remote hardcode reported clean.
+# with no guard of its own and must still be reported.
 f="$(tmpfile 'Use `git merge-base origin/main HEAD` for the base, then `git fetch origin` to refresh.')"
 out="$(scan_with "$BOTH_TOKENS" "$f" 2>&1)"
-if echo "$out" | grep -q 'origin/(main|master)'; then
+if grep -q 'origin/(main|master)' <<<"$out"; then
   fail "branch-detection evidence must still guard the BRANCH class on its own line: $out"
-elif echo "$out" | grep -q 'ls-remote'; then
+elif grep -q 'ls-remote' <<<"$out"; then
   ok "class-scoped guards: branch evidence guards the branch class but not the remote class"
 else
   fail "expected the remote class flagged while the branch class stayed guarded, got: $out"
@@ -690,8 +686,8 @@ printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/gen.test.sh"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --all 2>&1)"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
-  echo "$out" | grep -q 'skills/x/SKILL.md' &&
-  ! echo "$out" | grep -qE 'vendor/|evals/|test\.sh'; then
+  grep -q 'skills/x/SKILL.md' <<<"$out" &&
+  ! grep -qE 'vendor/|evals/|test\.sh' <<<"$out"; then
   ok "--all scans SKILL.md but excludes vendor/, evals/, and *.test.sh"
 else
   fail "--all exclusion set wrong (rc=$rc): $out"
@@ -733,7 +729,7 @@ out="$(
 )"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
-  echo "$out" | grep -q 'plain.md:1:' &&
+  grep -q 'plain.md:1:' <<<"$out" &&
   [[ "$(echo "$out" | grep -c 'COUPLING:')" -eq 2 ]]; then
   ok "diff-mode gates a Git-quoted (non-ASCII) changed path (not silently dropped)"
 else
@@ -758,7 +754,7 @@ et="$(tokenfile "$ECO_TOKEN")"
 f="$(tmpfile 'Build the project with `dotnet build` before running the tests.')"
 if out="$(scan_with "$et" "$f" 2>&1)"; then
   fail "a bare 'dotnet build' should fail in an agnostic skill, got success: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "ecosystem class: a bare stack default fails with file:line"
 else
   fail "expected line 1 flagged for a bare stack default, got: $out"
@@ -921,7 +917,7 @@ done
 f="$(tmpfile 'Place the handler in the Application layer per Clean Architecture.')"
 if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
   fail "Clean Architecture vocabulary should be enforced by the shipped list: $out"
-elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+elif grep -q "COUPLING: ${f}:1:" <<<"$out"; then
   ok "Clean-Architecture vocabulary is ACTIVE in the shipped token list"
 else
   fail "expected line 1 flagged for Clean-Architecture vocabulary, got: $out"
@@ -1003,7 +999,7 @@ done
 # backslash-b in a shell regex for exactly the POSIX reason under test. Spelling
 # the needle as a bracketed literal keeps this assertion from tripping the gate
 # that agrees with it.
-if grep -vE '^[[:space:]]*(#|$)' "$REAL_TOKENS" | grep -q '[\]b'; then
+if grep -q '[\]b' < <(grep -vE '^[[:space:]]*(#|$)' "$REAL_TOKENS"); then
   fail "a backslash-b word-boundary escape reached an ACTIVE token — POSIX ERE does not define it"
 else
   ok "no ACTIVE token carries a backslash-b word-boundary escape"

@@ -120,14 +120,6 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   suppressed, even on an otherwise clean, zero-blocker PR: `SKILL.md` requires a worker to assess
   draft completeness on every draft-to-ready transition, and the merge gate only re-validates
   mergeability, never completeness.
-- **`skill_evidence_gap`** (unsuppressible): the PR body's `skill-evidence` block is missing, the
-  merge gate's record reports it stale for the live head, or, where the snapshot holds only the
-  parsed block, it does not parse or carries no row at the live head. The worker's brief is to run
-  `/source-control:pull-request ready` on that PR: the merge gate can neither run a skill nor edit
-  a body, so a clean, zero-blocker PR is exactly the case that needs the worker, which is why this
-  arm is never suppressed by the direct-gate path. It fires at most once per head: a worker that
-  has already checked in at this exact head was given the chance, and a new head re-arms it.
-  Drafts are out of scope, and the gap never holds a merge, it only routes.
 - **`worker_checkin_head_unconfirmed`** (suppressible, except see below): the most recent durable
   worker check-in is missing a head SHA or names a different head. This closes the
   snapshot-then-dispatch crash gap: only a check-in for the exact current head suppresses another
@@ -539,6 +531,9 @@ re-verify anyway.
   compose-by-default, evidence-gated side-dropping, and the post-resolution semantic-conflict sweep.
 - **Resolve mechanical conflicts.** A textual/mechanical conflict is fixed, not escalated:
   formatting, adjacent unrelated changes, both sides adding different items to the same list.
+  A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical:
+  run `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first, per
+  `/source-control:resolve-conflicts` step 3.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
   conclude the operation (`git merge --continue`) so the worktree is left with no unmerged paths, a
   `git status --porcelain` clean of tracked-file changes, and `HEAD` at the merge commit whose first
@@ -703,6 +698,9 @@ On the conflict worker's return, and before pushing anything:
      in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
      fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
      not the fork head). Given the first-parent assertion this is a fast-forward.
+
+  Disarm auto-merge before step 1 and again right after step 3, never between 2 and 3, per the
+  Worker Contract's auto-merge rule below.
      Never force, in any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
@@ -822,6 +820,10 @@ Each worker must:
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
+- disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
+  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+  `gh pr merge <N> --disable-auto`, and do not push if either command fails; never re-arm
+  (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
@@ -905,6 +907,9 @@ pr comment); any gh call that mutates the local checkout, such as gh pr checkout
 same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
+Before that pre-push re-check and again right after the push, when
+`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+`gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and

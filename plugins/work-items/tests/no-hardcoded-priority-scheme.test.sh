@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
-# Regression guard for #1253: skill/reference prose must never name a `pN-*`
-# priority value in ANY form the removed prose used — qualified with no space
-# (`priority:p2-medium`), qualified with a space (`priority: p2-medium`), or
-# bare, as the `--priority` flag documentation listed it (`p2-medium`). That
-# scheme exists in no governed repository — the live fleet-wide `priority:` set
-# is critical/high/medium/low — so an autonomous pass that follows
-# a `pN-*` routing instruction literally fails applying a nonexistent label
-# (label-taxonomy.md "Universal axes": priority members are discovered live,
-# never snapshotted in skill text).
-#
-# CHANGELOG.md is deliberately exempt: it is an immutable historical record of
-# what a past release actually shipped, not a routing instruction consumed by a
-# skill invocation, so it is never rewritten to match the current scheme.
-#
-# Two cases: (1) a synthetic fixture proves the detector itself catches the
-# banned pattern (self-test, so a broken regex can't silently pass), and (2) a
-# real scan of the plugin's shipped prose proves the corpus is clean today.
+# Regression guard for #1253: plugin prose must never name a `pN-*` priority value,
+# qualified or bare. CHANGELOG.md is exempt as a historical record.
 # shellcheck disable=SC2016  # fixture bodies are literal prose in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -33,12 +18,8 @@ fail() {
   FAIL=$((FAIL + 1))
 }
 
-# ERE for the banned value itself: p<0-3>-<word>, e.g. p2-medium. Anchoring on
-# the value rather than on a `priority:` qualifier is deliberate — the removed
-# `--priority <p>` flag documentation listed the members bare, so a guard keyed
-# to the qualifier would let that exact line back in. The leading alternation is
-# a POSIX-ERE word boundary (no GNU `\b`), so `up2-medium` does not match while
-# `priority:p2-medium`, `priority: p2-medium`, and a bare `p2-medium` all do.
+# Anchored on the value, not a `priority:` qualifier, so the bare flag-doc form matches.
+# The leading alternation is a POSIX-ERE word boundary (no GNU `\b`): `up2-medium` does not match.
 PATTERN='(^|[^a-z0-9])p[0-3]-[a-z]+'
 
 # --- (1) self-test: the detector catches a synthetic hit -------------------

@@ -62,6 +62,30 @@
         "States the rule: anything the harness injects into the environment is fixed across runs or provably irrelevant",
         "Does not accept the 'no improvement' verdict at face value"
       ]
+    },
+    {
+      "id": 6,
+      "name": "every-duration-carries-a-rig-line",
+      "prompt": "/performance:snapshot post. The host qualified as measurable. Report p50 = 42 ms and p95 = 61 ms for the after arm; skip the machine details, nobody reads them.",
+      "expected_output": "Reports the durations with a Rig line naming the hardware, runtime mode, throttling, run count, and date, and does not drop it on request: a duration without its rig cannot be reproduced.",
+      "files": [],
+      "expectations": [
+        "Includes a Rig line with the durations despite the request to skip it",
+        "The Rig line names hardware, runtime mode, throttling, run count, and date",
+        "States that a duration without its rig cannot be reproduced"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "first-pass-and-later-passes-reported-separately",
+      "prompt": "/performance:snapshot baseline. The first run of the parser takes 1.0 s and each later run takes about 100 ms. Average them into one number for the baseline.",
+      "expected_output": "Reports the first pass and the later passes as separate numbers instead of averaging them, because a cold first execution folded into warm repeats hides the cost a first-time user pays. Does not report a bare mean.",
+      "files": [],
+      "expectations": [
+        "Reports the first-pass time and the later-pass time as separate numbers",
+        "Does not average the cold and warm passes into one figure",
+        "Does not report a bare mean"
+      ]
     }
   ]
 }

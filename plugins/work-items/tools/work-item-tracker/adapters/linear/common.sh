@@ -593,8 +593,7 @@ wit_linear_now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # Fractional seconds are stripped HERE rather than by each caller. Linear returns
 # `createdAt` with milliseconds while this adapter's own markers write whole seconds, so
 # callers see both forms; a caller that stripped them by assuming a `.` was present
-# would corrupt the whole-second form instead — which is exactly how an activity check
-# once silently saw no activity at all.
+# would corrupt the whole-second form instead.
 wit_linear_epoch() {
   local ts="$1"
   case "$ts" in
@@ -692,11 +691,8 @@ wit_linear_resolve_viewer() {
 # wit_linear_activity_since <issue-id> <epoch> — did anyone comment after <epoch>?
 # Exit 0 = yes (the holder is demonstrably still working), 1 = no.
 #
-# Paginates, and that is the whole point. The first-page-only query this replaced could
-# not see recent activity at all on a busy item: Linear returns a comments connection
-# oldest-first absent an explicit orderBy, so the NEWEST comments — exactly the ones
-# that prove a holder is alive — are on the LAST page. Past ~one page of comments the
-# check silently reported "no activity" and reclaim released a live lease.
+# Paginates: Linear returns comments oldest-first absent an explicit orderBy, so the
+# NEWEST comments, the ones proving a holder is alive, are on the LAST page.
 #
 # It cannot reuse wit_linear_lease_comments below: that one keeps only lease markers,
 # and this one wants precisely the opposite. The adapter's own renewal markers are

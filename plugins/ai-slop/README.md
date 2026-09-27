@@ -7,6 +7,9 @@ Detects and removes AI-writing tells ("slop") in checked-in markdown prose.
 - `/ai-slop:audit [target]` reports AI-writing tells in the target (default: the whole repo's
   tracked markdown). Read-only. `fix` as an explicit argument applies rewrites behind a
   semantic-diff guard.
+- `/ai-slop:audit user-scope [memory]` audits the user-level Claude Code markdown
+  (`CLAUDE.md`, rules, skills, commands, agents, output styles) under `CLAUDE_CONFIG_DIR`,
+  else `~/.claude`; `memory` adds auto memory and agent memory.
 - `/ai-slop:setup` configures the consumer repo: exemption paths, word-list tuning, thresholds.
 
 Plugin commands are namespaced, so a bare `/ai-slop` is not a command; the audit is

@@ -81,8 +81,7 @@ assert_eq "and reports zero blockers" "0" "$(jq -r '.blocked_by_count' <<<"$(git
 # A dependencies request that fails for any OTHER reason is not "no visible edges": the
 # count is unknown, and reporting 0 would put a blocked item on the frontier. The status
 # cases below fail the ISSUE fetch and never reach the count, so these seed a healthy
-# issue and break only the second request — the shape that once let the failure exit
-# inside $( ) and the verb carry on.
+# issue and break only the second request.
 gitea_reset_routes
 gitea_seed "/dependencies" 401 '{"message":"token required"}'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps refused')"

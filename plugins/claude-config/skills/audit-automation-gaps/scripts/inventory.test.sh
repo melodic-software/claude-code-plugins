@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # Tests for inventory.sh (self-contained, ships with the plugin).
 #
-# The behavior under test is the one the previous revision got wrong: a location
-# the script could not read must report WHY, never 0. A silent zero is
-# indistinguishable from a real absence, which is what made the old output
-# misleading rather than merely incomplete.
+# The behavior under test: a location the script could not read must report
+# WHY, never 0. A silent zero is indistinguishable from a real absence.
 #
-# WHY THIS SUITE PINS EXACT NUMBERS. An earlier revision of this file asserted
-# only status words and banner text, so mutation testing walked straight through
-# it: pinning jq_num to 7, forcing every counting helper to find nothing, leaving
-# plugin_roots empty, setting hook_scripts to 999 and skills_total to 0 all left
-# the suite green. A suite that cannot fail on a wrong number does not protect
+# WHY THIS SUITE PINS EXACT NUMBERS. A suite asserting only status words and
+# banner text stays green when jq_num is pinned to 7, every counting helper finds
+# nothing, plugin_roots is empty, hook_scripts is 999 or skills_total is 0. A suite that cannot fail on a wrong number does not protect
 # the one property this script exists for. Every count below is therefore
 # asserted against a fixture built to a known size, as an exact value and never
 # as "more than zero", and each hook-location row is pinned across all five of

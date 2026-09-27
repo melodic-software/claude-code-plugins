@@ -25,9 +25,9 @@ So this skill ranks by evidence, and says so when there is none.
 
 | Source | What to do |
 |---|---|
-| The current session's own pain | Name the operation that felt slow and what was observed. Anecdote is a valid *candidate source* and an invalid *ranking basis*. |
+| The current session's own pain | Name the operation that felt slow and what was observed. A screenshot or recording counts. Anecdote is a valid *candidate source* and an invalid *ranking basis*. |
 | A named path or component | Enumerate the layers it spans before choosing one (see "Measure the layers first"). |
-| A telemetry store | `/claude-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source. |
+| A telemetry store | `/claude-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
 | Open-ended "what is slow here" | Widest scope, weakest evidence. Expect the output to be "instrument this first". |
 
 ## Evidence tiers
@@ -45,6 +45,10 @@ how compelling the mechanism sounds.
 **Nothing above E3 exists means the top recommendation is "instrument this first"**, naming the
 cheapest instrument that would reach E2. That IS the answer; do not substitute a ranked guess.
 
+Cheap instruments: a [census](../../reference/techniques.md#a-choose-the-target) of what runs on
+the hot interaction, and events tagged with the
+[region and phase](../../reference/techniques.md#c-lab-measurement-and-rigs) the symptom hits.
+
 ## Measure the layers before choosing one
 
 When a candidate spans layers (a shell wrapper around a Python program; a route through an ORM
@@ -55,13 +59,18 @@ wrapper that execs it. Measurement routinely inverts that, and a wrapper this si
 88% of the cost while the body it wraps is not the bottleneck. Layer attribution is cheap and
 reorders the candidate list.
 
+Trace past the headline event too: work no metric covers (background reloads, idle-state work)
+still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
+See [diagnose](../../reference/techniques.md#e-diagnose).
+
 ## Name the counter, not just the duration
 
 For each ranked candidate, name the **drift-immune counter** that would settle it: process spawns,
 syscalls, queries, allocations, bytes, round trips. A counter is reproducible on a host whose wall
 clock is not.
 
-If no counter exists for a candidate, say so explicitly. That is a real property of the target and
+The [counter catalog](../../reference/techniques.md#c-lab-measurement-and-rigs) lists
+deterministic counters to try before timing. If no counter exists for a candidate, say so explicitly. That is a real property of the target and
 it changes what `/performance:goal` can promise.
 
 Grounding: the counts-over-wall-clock rationale is stated in the literature for **instruction
@@ -79,6 +88,8 @@ A ranked table, highest evidence tier first:
 
 Then one line naming the recommended target and the tier it rests on. If that tier is E3 or E4, the
 recommendation is to instrument, not to optimize.
+
+On a re-scan after a MET result, look first for the next slow spot in the same journey or path.
 
 ## Boundary
 

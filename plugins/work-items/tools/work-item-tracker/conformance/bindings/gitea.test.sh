@@ -5,11 +5,8 @@
 # cb_setup/cb_teardown contract, and refuses to run without an explicitly named
 # throwaway target, all without touching the network.
 #
-# Unlike the jira binding, this file does NOT run the suite: the gitea manifest
-# declares create-item true, so the abstract suite seeds a real item and every
-# subsequent case is a live call. That makes gitea an on-demand binding like github's,
-# and a live conformance pass is recorded as deferred in the adapter's README rather
-# than quietly skipped here.
+# It does NOT run the suite: create-item is true, so every case would be a live call.
+# The live pass is recorded as deferred in the adapter's README.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,10 +19,8 @@ for fn in cb_setup cb_teardown; do
   assert_succeeds "gitea binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
-# No retained default for either half of the target. Conformance creates, claims, and
-# closes items, so a binding that fell back to some default host or scope could point a
-# destructive suite at a coordination instance. Both guards fire before any network
-# call, so these cases stay offline.
+# No default for either half of the target: a destructive suite must never fall back to a
+# coordination instance. Both guards fire before any network call.
 if (
   unset WIT_CONFORMANCE_GITEA_HOST
   export WIT_CONFORMANCE_GITEA_SCOPE="throwaway/sandbox"

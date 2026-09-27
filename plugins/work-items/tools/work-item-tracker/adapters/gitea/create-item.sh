@@ -157,10 +157,7 @@ if [[ -n "$LABELS" ]]; then
   # ORGANIZATION-WIDE labels are usable on this repo's issues and are NOT in the repo label
   # list. `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org
   # label never appears there — but `NewIssueWithIndex` accepts any label whose
-  # `OrgID == repo.OwnerID`. The asymmetry was user-visible and backwards: get-item and
-  # list-items DO report an org label in `.labels[]` (it is on the issue), so the tracker
-  # returned a label name it would then refuse to write back, telling the operator to create
-  # a label that already exists. A user-owned repo has no org and answers 404 here, which is
+  # `OrgID == repo.OwnerID`, and get-item reports org labels in `.labels[]`. A user-owned repo has no org and answers 404 here, which is
   # not an error — it just means there are no org labels to merge.
   wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
   if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
@@ -252,8 +249,7 @@ done
 
 # The count is a READ-BACK: by here the issue EXISTS and its blocker edges are written.
 # The helper exits on transport/HTTP failure, but inside $( ) that only ends the
-# subshell, and continuing with "" fed jq an empty --argjson — the item was created and
-# the caller was told exit 2, "usage".
+# subshell, so its code is propagated here.
 #
 # The read still has to fail the verb: the contract's item object requires
 # blocked_by_count, and there is no honest value to substitute — 0 is the frontier lie

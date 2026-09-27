@@ -31,11 +31,11 @@
       "id": 3,
       "name": "procedural-generator-for-large-variant-family",
       "prompt": "pixel art of a set of 64x64 sword item icons: bronze, iron, gold and crystal variants",
-      "expected_output": "Fires /pixel-art:sprite and chooses the procedural-generator mode because the sprites are large and form a family of variants: a short Python script draws with primitives onto a material grid, maps materials to colour ramps, and emits the spec, so each variant is a ramp swap rather than a redrawn grid. The generator is kept beside the output.",
+      "expected_output": "Fires /pixel-art:sprite and chooses the procedural-generator mode because the sprites are large and form a family of variants: a short Python script draws with primitives onto a material grid, maps materials to color ramps, and emits the spec, so each variant is a ramp swap rather than a redrawn grid. The generator is kept beside the output.",
       "files": [],
       "expectations": [
         "Uses a procedural generator rather than hand-writing 64x64 rows",
-        "Makes the variants recolours of one design through material colour ramps",
+        "Makes the variants recolors of one design through material color ramps",
         "Keeps the spec and generator beside the output"
       ]
     },

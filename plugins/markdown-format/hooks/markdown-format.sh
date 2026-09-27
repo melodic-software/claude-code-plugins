@@ -474,13 +474,20 @@ resolve_repo_markdownlint() {
 }
 
 # Strip a trailing slash; on Git Bash, fold a drive-letter spelling to POSIX
-# so $HOME and PATH entries compare as the same directory.
+# so $HOME and PATH entries compare as the same directory. cygpath is looked up
+# only on a Windows bash: elsewhere a miss probes every PATH directory, once
+# per PATH entry here.
 normalize_path_entry() {
   local p="${1%/}" n
-  if command -v cygpath >/dev/null 2>&1; then
-    n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
-    p="${n%/}"
-  fi
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    if command -v cygpath >/dev/null 2>&1; then
+      n="$(cygpath -u "$p" 2>/dev/null)" || n="$p"
+      p="${n%/}"
+    fi
+    ;;
+  *) ;;
+  esac
   printf '%s' "$p"
 }
 
@@ -1050,7 +1057,7 @@ resolve_trust_dir() {
   [[ -n "$state_base" ]] || return 1
   ((RISK_UNVERIFIABLE == 0)) || return 1
   ((RISK_UNPINNABLE == 0)) || return 1
-  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
+  if [[ "$state_base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
     state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
   fi
   MODULE_FILES=()

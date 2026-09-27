@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/ops",
+  "title": "Interview surface ops file",
+  "description": "Input to `round.py apply --file`: every op runs against one loaded questions.json and the result is written once, or nothing is written when any op is refused. `affects` is a list of question ids, the string `none`, or ids joined by commas.",
+  "type": "object",
+  "required": ["ops"],
+  "additionalProperties": false,
+  "properties": {
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/reply"},
+          {"$ref": "#/$defs/revise"},
+          {"$ref": "#/$defs/add"},
+          {"$ref": "#/$defs/add-round"},
+          {"$ref": "#/$defs/group"},
+          {"$ref": "#/$defs/meta"},
+          {"$ref": "#/$defs/note-reply"},
+          {"$ref": "#/$defs/handle"},
+          {"$ref": "#/$defs/archive"},
+          {"$ref": "#/$defs/record-terminal"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "affects": {"type": ["array", "string"], "items": {"type": "string"}},
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "required": ["key", "text"],
+            "additionalProperties": false,
+            "properties": {"key": {"type": "string"}, "text": {"type": "string"}}
+          }
+        ]
+      }
+    },
+    "reply": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["reply"]},
+        "id": {"type": "string"},
+        "text": {"type": "string"},
+        "seq": {"type": "integer"},
+        "kind": {"enum": ["reply", "rephrase", "note"]},
+        "rec": {"type": "string"},
+        "why": {"type": "string"},
+        "affects": {"$ref": "#/$defs/affects"},
+        "handled": {"type": "integer"},
+        "force": {"type": "boolean"}
+      }
+    },
+    "revise": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["revise"]},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "short": {"type": "string"},
+        "facts": {"type": "string"},
+        "basis": {"type": "string"},
+        "rec": {"type": "string"},
+        "why": {"type": "string"},
+        "text": {"type": "string"},
+        "alternatives": {"$ref": "#/$defs/alternatives"},
+        "seq": {"type": "integer"},
+        "affects": {"$ref": "#/$defs/affects"},
+        "force": {"type": "boolean"}
+      }
+    },
+    "add": {
+      "type": "object",
+      "required": ["op", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add"]},
+        "question": {"type": "object"}
+      }
+    },
+    "add-round": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add-round"]},
+        "round": {"type": "integer"},
+        "meta": {"$ref": "#/$defs/metaSet"},
+        "groups": {"type": "array", "items": {"type": "object"}},
+        "questions": {"type": "array", "items": {"type": "object"}},
+        "visuals": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["group"]},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "dependsOn": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "metaSet": {
+      "description": "questions.json meta keys an op may set; each merges over the current value, and every other meta key stays as it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "eyebrow": {"type": "string"},
+        "stages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "next": {"type": "string"}
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["op", "set"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["meta"]},
+        "set": {"$ref": "#/$defs/metaSet"}
+      }
+    },
+    "note-reply": {
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["note-reply"]},
+        "seq": {"type": "integer"},
+        "text": {"type": "string"}
+      }
+    },
+    "handle": {
+      "type": "object",
+      "required": ["op", "seqs"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["handle"]},
+        "seqs": {"type": "array", "minItems": 1, "items": {"type": "integer"}}
+      }
+    },
+    "archive": {
+      "type": "object",
+      "required": ["op", "ids", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["archive"]},
+        "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "why": {"type": "string"}
+      }
+    },
+    "record-terminal": {
+      "type": "object",
+      "required": ["op", "id", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["record-terminal"]},
+        "id": {"type": "string"},
+        "decision": {"enum": ["accept", "alt", "own", "defer"]},
+        "alt": {"type": "string"},
+        "text": {"type": "string"}
+      }
+    }
+  }
+}

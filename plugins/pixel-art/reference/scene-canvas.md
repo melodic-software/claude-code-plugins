@@ -8,7 +8,7 @@ brackets; "(judgment)" marks a rule no source states.
 - Draw at a fixed logical resolution; common choices: 128x96, 160x144, 240x160, 320x180
   (judgment; 320x180 scales by exactly 6 to 1920x1080).
 - Upscale by an integer factor only: `scale = floor(min(innerWidth / W, innerHeight / H))`,
-  minimum 1; letterbox the rest with a palette colour (judgment).
+  minimum 1; letterbox the rest with a palette color (judgment).
 - Draw to a W x H canvas and scale it with CSS, or draw scaled with `drawImage` from an offscreen
   W x H canvas (judgment).
 - Set `ctx.imageSmoothingEnabled = false` on every context that draws scaled images
@@ -20,13 +20,13 @@ brackets; "(judgment)" marks a rule no source states.
 - Draw at integer coordinates only: `Math.floor` every x and y before `fillRect` or `drawImage`
   (judgment; fractional coordinates blend edges).
 
-## Colour
+## Color
 
-- Lock the palette: one `PAL` object of hex colours; every draw call uses a `PAL` entry (judgment).
+- Lock the palette: one `PAL` object of hex colors; every draw call uses a `PAL` entry (judgment).
 - No gradients, no alpha blending, no blur, no shadowBlur, no filters: each breaks the palette
   (judgment).
 - Fake gradients and fades with dithering instead (see Transitions).
-- Light a tile or surface with one flat colour plus a highlight edge and a shadow edge, not
+- Light a tile or surface with one flat color plus a highlight edge and a shadow edge, not
   per-pixel lighting (judgment: in a public example session, per-pixel dithered relighting of
   every tile read as washed-out noise; flat tiles with edge accents read cleanly).
 - Dither only large areas (sky bands, ground glow), never small sprites
@@ -56,7 +56,7 @@ brackets; "(judgment)" marks a rule no source states.
 ## Transitions
 
 - Fade by ordered dithering: a 4x4 Bayer threshold matrix; at fade level t, fill every pixel whose
-  threshold is below t with the fade colour (judgment; the 4x4 Bayer matrix is the standard
+  threshold is below t with the fade color (judgment; the 4x4 Bayer matrix is the standard
   ordered-dither matrix).
 - Wipes and iris transitions snap to whole pixels (judgment).
 
@@ -86,5 +86,5 @@ brackets; "(judgment)" marks a rule no source states.
 
 - One file, no network requests, opens from disk.
 - Crisp at 1x and at every integer scale; no blurred edges.
-- Every rendered colour is in `PAL`.
+- Every rendered color is in `PAL`.
 - Loops seamlessly if it loops: last frame flows into the first.

@@ -47,18 +47,15 @@ function New-HealthResult {
         [string[]] $AdminFields
     )
 
-    # List[string] over [string[]] because ConvertTo-Json + pscustomobject conversions
-    # auto-enumerate empty and single-element arrays into $null / scalar strings, producing
-    # schema-invalid JSON. A generic List is preserved verbatim at every pipeline step.
+    # List[string], not [string[]]: ConvertTo-Json collapses empty and single-element
+    # arrays into $null or a scalar string, producing schema-invalid JSON.
     $commandsNormalized = [System.Collections.Generic.List[string]]::new()
     if ($null -ne $Commands) { $commandsNormalized.AddRange($Commands) }
     $detailNormalized = if ($null -ne $Detail) { $Detail } else { @{} }
 
     if ($AdminFields -and $AdminFields.Count -gt 0) {
-        # Admin-gated detail keys the check would populate only when elevated.
-        # Consumed by the report's elevation-coverage block and by tests asserting
-        # the admin_fields contract. Never mutates existing detail data --
-        # additive only.
+        # Admin-gated detail keys the check populates only when elevated; read by the
+        # report's elevation-coverage block and the admin_fields contract tests.
         $detailNormalized['admin_fields'] = @($AdminFields)
     }
 

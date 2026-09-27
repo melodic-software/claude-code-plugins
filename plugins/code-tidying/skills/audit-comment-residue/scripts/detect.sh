@@ -95,17 +95,12 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted files: modified/added/renamed/untracked, per git status. Read the NUL-delimited
-    # -z form, which git documents as performing no quoting or backslash-escaping: the default v1
-    # output wraps any path holding a space, a non-ASCII byte, or a control character in quotes and
-    # C-style-escapes it (an é becomes \303\251), and splitting that back apart cannot be done reliably.
-    # Porcelain paths are repo-relative and the cd to repo_root above already ran, so they need no
-    # anchoring.
+    # Read the -z form, which git documents as unquoted and unescaped; the default output
+    # C-escapes unusual paths beyond reliable splitting. Paths are already repo-relative.
     while IFS= read -r -d '' record; do
       [[ -z "$record" ]] && continue
-      # Each record is XY + space + path. A rename/copy emits the NEW path here and the ORIGINAL
-      # as the next record (the reverse of v1's "old -> new" display order), so consume that
-      # second record and drop it rather than auditing a path that no longer exists.
+      # A rename/copy emits the NEW path here and the ORIGINAL as the next record, so consume
+      # and drop that second record rather than audit a path that no longer exists.
       case "${record:0:2}" in
       [RC]? | ?[RC]) IFS= read -r -d '' _ || true ;;
       *) ;;
@@ -147,9 +142,8 @@ audit_file() {
   local t1=0 t2=0 t3=0
   local prev_line="" line_num=0 shapes shape tier excerpt
 
-  # One pre-pass marks every line of a comment run that carries a license cue, so an
-  # attribution line inside a NOTICE header is exempt from origin-note even though the
-  # cue sits on a different line of the same block.
+  # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
+  # even when the cue sits on another line of the same NOTICE block.
   local -A license_block=()
   local n
   while IFS= read -r n; do

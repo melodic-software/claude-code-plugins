@@ -21,8 +21,7 @@
 # change.
 #
 # It is a contract tripwire, not a semantic proof, and it gates in three layers because
-# each outer layer catches an attack the inner one is blind to. Every layer was added after
-# a fresh-context verifier demonstrated the shape it closes.
+# each outer layer catches an attack the inner one is blind to.
 #
 #   1. Phrase pins (`pin`, `pin_once`, `within`) anchor on a phrase carrying the rule's
 #      MEANING — the halt, the prohibition, the arbiter tag — never on incidental wording,
@@ -42,39 +41,7 @@
 #
 #   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
 #      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
-#      BESIDE a pinned line rather than to it. FOURTEEN such shapes were demonstrated against
-#      earlier revisions of this suite, each passing at FAIL=0:
-#        - a new adjacent paragraph inside Step 1.5 ("**Applying the two rules above.** In
-#          practice a gap counts as \"real\" only when …");
-#        - the same, four lines below the router row inside the Action Router section;
-#        - a criterion ADDED to an eval case contradicting one already pinned ("Recording
-#          the residue under `### Captured assumptions` … is an equally acceptable
-#          outcome");
-#        - a rewritten fixture, so case A's planted gap IS answered by the codebase and
-#          the case grades nothing;
-#        - a SIBLING eval case ADDED, saying the captured assumption is preferred, leaving
-#          15 and 16 byte-identical;
-#        - an existing sibling REWRITTEN in place to say the same, keeping its name and so
-#          the roster hash too;
-#        - a crafted heading that MOVED a digested region's own boundary, so an override
-#          appended after it fell outside the hash (see `section_digest`);
-#        - the adjacent paragraph shifted one line UP, to the end of Step 1, where it reads
-#          as the preamble governing both rules below it;
-#        - a qualifier added to the frontmatter `description`, the always-loaded routing
-#          surface a reader meets before any section;
-#        - a qualifier added to a DIFFERENT frontmatter key (`metadata.summary`), short
-#          enough to clear the cheatsheet's length cap, which pinning `description` alone
-#          did not reach;
-#        - an in-place rewrite of a NON-pinned sibling case that nonetheless rests on the
-#          same fact-vs-decision line (case 8, `facts-looked-up-decisions-asked`);
-#        - an append-only inversion of a defense line carrying only a PHRASE pin, in an
-#          undigested section — the in-round no-silent-resolve rule in Stance, and the
-#          register-binding lines in loop.md's register section;
-#        - a governing preamble in the `## The interview loop` intro, three lines above the
-#          digested Step 1 region;
-#        - an append-only inversion of loop.md's TWIN of a byte-pinned SKILL.md line — the
-#          confirmation-gate exemption in its Step 3, and the `USER-RESERVED` arbiter
-#          guidance in its Step 4 — leaving the pinned original standing.
+#      BESIDE a pinned line rather than to it.
 #      Digests cover thirteen sections, the whole YAML frontmatter, the eight cases that speak
 #      to these rules, the case roster, and the four fixtures. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
@@ -470,20 +437,8 @@ declares_both_fixtures B "$CASE_B"
 #
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
-# Re-pinned when follow-up F12 dropped the inert `shell: bash` key (planning 0.36.5).
-# That key selects the shell for a `!`-injection in a pre-compute block; this file has no
-# injection and no pre-compute block, so it selected nothing. Both defenses are body
-# prose — the STOP-on-gap halt in Step 1.5 and Step 3, the auto-guard in Step 1.5 and
-# "What this skill does NOT do" — each covered by its own section digest below, and
-# neither is stated or qualified in any frontmatter key. Removing a key adds no qualifier
-# to any other.
-#
-# Re-pinned a second time when this branch merged origin/main, which had rewritten
-# `description:` to add the always-on unwanted-behavior coverage prompt's trigger
-# phrases ("acceptance criteria", "how will we know this is done"). Both changes land in
-# the digested block, and the value below is recomputed over the merged file so each side
-# is graded, not one of them. Added triggers widen when the skill fires; they state no
-# rule and qualify no defense, and every defense stays covered by its section digest.
+# Both defenses are body prose, each covered by its own section digest below; no
+# frontmatter key states or qualifies either.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "4b5a32a41e797942dd400feb1a0f45d136de8d1ab5f0ceb490d8455ce04c6cd5"
@@ -494,21 +449,36 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # into the register. Both were phrase-pinned only, so an appended `**Exception:**` on
 # either inverted it at FAIL=0. Their sections are digested, which covers the lines and any
 # paragraph placed beside them.
+#
+# The digest also covers the `Commits you to:` template block, the bundle paragraph
+# (every part of a bundled recommendation is its own row; on the page, its own `commits`
+# entry), the hedged paragraph (a hedged reply resolves only the headline), and the
+# sentence naming both question-surface rules. The first three narrow what an answer or an
+# accept-shorthand resolves; the surface sentence only names where a round is asked. None
+# qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
+# also covers `superseded-by-plan` rows, which it restates and never resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "c7237c317c82adeb84f181f498d88d40ec6b72ca613c9ad6b898021dd44f1158"
+  "23d3d27238c34ac5e687167b3cf19efbd47838c0d8d0cd6fa1b727e283b0955c"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
   "### Step 1. Survey before you ask" \
   "c84a3506c3410b64938b898238a53f502e5e411522ea61e7444f3ad382a21860"
+# The digest also covers the "Commitment rows", "Commitment parts on the page" and
+# "Hedged flag" paragraphs. Each narrows what a reply or an accept-shorthand resolves,
+# never widens it: commitment rows add rows the gate grades, a page accept confirms only
+# ticked parts and sends unticked ones to the Brief as named risks, and a hedged reply
+# resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
+# the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
+# drift-check line add a non-terminal status the gate blocks on; they widen nothing.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "99f82d225f43dae2fdce380557ad4a69ae19a274b5df40e9a95f31dc8b8f8135"
+  "637901f5c261faee632a201620295afca03c1c29fe7800394431428185193f75"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -557,12 +527,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "0ec0dbeb055639ed4c8dd6e3a9d8a0208db23f0734ac26325a521afc8cd86a06"
+  "176a8702fc9f218acfd0d6a4ea6ef61d0292de5f4730840f3e81fd470dcdf6b5"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "70a31635b8c538f3f3838b56d7f731c9a73f61f452c43a9f9d8d3815ab772b83"
+  "2d102b7a9f56349e6f105d5eab1e31581d577b06fd39834ad1a01a899784e4c3"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -702,6 +672,54 @@ pin "loop.md processes queued out-of-band output before the same-turn reply" "$L
   "When a user reply and queued out-of-band output share a turn, process the queued output first."
 pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
   "**Out-of-band output gets the same check, keyed on relevance.**"
+
+# A7c. A recommendation can fix decisions the user never saw. These pins hold the rules
+#      that stop an answer from locking more than it names: every part of a bundled
+#      recommendation is its own register row (on the page, its own `commits` entry), and
+#      a hedged reply resolves at most one headline. Each narrows what an answer or an
+#      accept-shorthand resolves; none of them relaxes a defense above.
+pin "SKILL.md lists every part of a bundled recommendation" "$SKILL" \
+  "**A recommendation that fixes more than one decision lists every part.**"
+pin "SKILL.md per-question template carries the commitment block" "$SKILL" \
+  "[Commits you to: <ONLY when the recommendation fixes more than one decision"
+pin "SKILL.md: an unlisted sub-decision is not decided by the headline" "$SKILL" \
+  "is not decided by any answer to the headline"
+pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$SKILL" \
+  "When an accept-shorthand resolves commitment rows, name their \`Q<N>\` ids in one line."
+pin "SKILL.md: a page accept resolves only ticked parts" "$SKILL" \
+  "(on the page, only the parts the user ticks)"
+pin "loop.md: parts of a page question answered with an alternative leave the risks" "$LOOP" \
+  "move those risks to the Brief's \`### Out-of-scope\` as withdrawn"
+pin "loop.md defines commitment rows" "$LOOP" \
+  "**Commitment rows.**"
+pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \
+  "sets each to \`withdrawn\` with \`pruned by Q5 = <answer>\`"
+pin "loop.md: unattended, each part takes the ladder on its own" "$LOOP" \
+  "a codebase-resolvable headline does not make its parts resolvable"
+pin "SKILL.md: a hedged reply resolves only the headline" "$SKILL" \
+  "**A hedged reply resolves only the headline.**"
+pin "SKILL.md: a hedged accept-shorthand is not an accept-shorthand" "$SKILL" \
+  "A hedged accept-shorthand (\"accept all?\") is not an accept-shorthand."
+pin "loop.md defines the hedged flag" "$LOOP" \
+  "resolves to \`answered\` with \`hedged: <answer>\`"
+pin "loop.md: the confirmation restate lists every hedged row" "$LOOP" \
+  "lists every row carrying \`hedged:\`, and every \`free-text:\` row whose answer is hedged, for explicit confirmation"
+pin "loop.md: a hedged own answer typed on the page gets the same echo" "$LOOP" \
+  "A hedged \"Own answer\" typed on the page gets the same echo on its wake"
+pin "SKILL.md: the Stance names both question-surface rules" "$SKILL" \
+  "The surface follows the two \"Question surface\" rules above"
+pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
+  "on the page, its parts are the question's \`commits\` entries"
+pin "loop.md defines commitment parts on the page" "$LOOP" \
+  "**Commitment parts on the page.**"
+pin "loop.md: the register gate does not grade page parts" "$LOOP" \
+  "The register gate does not grade parts."
+pin "loop.md: a mirrored terminal answer ticks no part" "$LOOP" \
+  "a terminal answer mirrored with \`record-terminal\` ticks none"
+pin "loop.md: a hedged reply is never mirrored as accept" "$LOOP" \
+  "never as \`accept\`, which records accept-all"
+pin "loop.md: the read-only decision table numbers each part" "$LOOP" \
+  "The read-only decision table gives each part its own row number"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

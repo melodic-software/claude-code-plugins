@@ -22,10 +22,8 @@ BeforeAll {
     }
 
     function Set-KevFetchMock {
-        # Mocks Invoke-WebRequest to write a one-vulnerability KEV payload to
-        # the .download temp file the atomic-rename fetch path requests. The
-        # payload rides in a script-scope variable because a GetNewClosure
-        # body would hide the $OutFile parameter Pester injects at call time.
+        # Mocks Invoke-WebRequest to write the payload to the .download temp file; it rides in
+        # a script-scope variable because GetNewClosure would hide the injected $OutFile.
         param([Parameter(Mandatory)] [string] $CveId)
         $script:KevFetchPayload = ConvertTo-KevCacheJson -CveId $CveId
         Mock Invoke-WebRequest {
@@ -185,9 +183,8 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
 
             Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath | Out-Null
 
-            # The bug: a self-prepended timestamp produced "<ts> <ts> egress GET ..."
-            # which Read-EgressLog could not parse, so the CISA fetch escaped
-            # urls_called despite the allowlist-audit guarantee.
+            # A self-prepended timestamp ("<ts> <ts> egress GET ...") is unparsable by
+            # Read-EgressLog and drops the fetch from urls_called.
             $get = @(Read-EgressLog -LogPath $script:logPath | Where-Object { $_.kind -eq 'GET' })
             $get.Count | Should -BeGreaterOrEqual 1
             $get[0].uri | Should -Match 'cisa\.gov'

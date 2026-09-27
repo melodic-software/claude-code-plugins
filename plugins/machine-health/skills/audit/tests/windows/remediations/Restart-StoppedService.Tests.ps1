@@ -22,19 +22,13 @@ Pins three behaviors of the service-restart remediation:
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Remediation 'Restart-StoppedService'
 
-    # Get-Service/Start-Service are Windows-only cmdlets, absent in Linux
-    # pwsh, and Pester cannot mock a nonexistent command. Define stubs so
-    # Mock can attach; the remediation resolves them from this (parent)
-    # scope when invoked via `& $ScriptPath`. Every test mocks both, so
-    # the stub bodies never run.
+    # Stub the Windows-only Get-Service/Start-Service so Mock can attach off Windows; the
+    # remediation resolves them from this parent scope. Every test mocks both.
     function Get-Service { }
     function Start-Service { }
 
-    # Get-Service mock body reporting the queried service Stopped for its
-    # first $StoppedCalls calls and Running afterwards, so the remediation's
-    # before/after reads straddle the restart. Pester mock bodies execute in
-    # a scope where $script:* from the test file isn't visible under strict
-    # mode, so the call counter rides along in a closure.
+    # Reports Stopped for the first $StoppedCalls calls, then Running, so before/after reads
+    # straddle the restart. The counter rides in a closure: mock bodies cannot see $script:.
     function Get-StoppedThenRunningMock {
         param([Parameter(Mandatory)] [int] $StoppedCalls)
         $state = @{ count = 0; stopped = $StoppedCalls }
@@ -166,9 +160,8 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
     It 'handles structurally-malformed finding (empty object) under strict mode' {
         Mock Get-Service {}
 
-        # Valid JSON, no .detail property -- under Set-StrictMode 3.0 a
-        # bare property access throws. Defensive Get-PropertyValue must
-        # return an empty target list instead.
+        # Valid JSON, no .detail: a bare access throws under StrictMode 3.0, so
+        # Get-PropertyValue must return an empty target list instead.
         $attempts = @(Invoke-RestartAsObject -FindingJson '{}')
         @($attempts).Count | Should -Be 0
     }

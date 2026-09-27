@@ -17,6 +17,7 @@ from babysit_gh import (
     find_open_prs_for_head_ref,
     gh_json,
     parse_repo_number,
+    run_gh,
     view_pr,
 )
 from babysit_state import (
@@ -77,6 +78,17 @@ def validate_current_candidate(
             "head branch is shared or its uniqueness could not be verified"
         )
     return current
+
+
+def disarm_auto_merge(repo: str, number: int) -> None:
+    """Disable an armed auto-merge before the branch moves; a failure raises.
+
+    A push by a writer keeps GitHub auto-merge armed, so the new head could merge
+    on `ci-status` before the AI review lanes re-review it. The merge lane
+    re-arms once both lanes finish on the new head.
+    """
+    if json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"])).get("auto_merge"):
+        run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])
 
 
 def require_worker_lease(
@@ -171,6 +183,7 @@ def run_locked(
     try:
         validate_current_candidate(repo, number, expected_head_sha, allowed_owners)
         require_worker_lease(args, state_dir, repo, number, renew=True)
+        disarm_auto_merge(repo, number)
         response = gh_json(
             [
                 "api",

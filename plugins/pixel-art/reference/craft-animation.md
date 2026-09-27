@@ -103,15 +103,15 @@ Sources: Saint11 tutorial images at `https://saint11.art/img/pixel-tutorials/<Na
 ## Smears
 
 - Few and fast: a non-keyframe blurred to show motion. [Slynyrd 9]
-- Connect the smear to the previous frame; lighter colours bleed over darker. [Saint11 MotionBlur]
+- Connect the smear to the previous frame; lighter colors bleed over darker. [Saint11 MotionBlur]
 - With limited palettes, lines work as smears. [Pixel Logic]
 - Show a smear for one frame at the cycle's fastest timing (judgment).
 
 ## Sub-pixel animation
 
-- Fake sub-pixel motion by shifting colour and value: fade colours, slide line-break points, move
+- Fake sub-pixel motion by shifting color and value: fade colors, slide line-break points, move
   the interior not the silhouette. [Saint11 Subpixel]
-- Too many colours make it blurry. [Saint11 Subpixel]
+- Too many colors make it blurry. [Saint11 Subpixel]
 - Advanced and not always necessary. [Pixel Logic]
 
 ## Directions

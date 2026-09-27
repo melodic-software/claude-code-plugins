@@ -59,10 +59,7 @@ granularity*; fresh-branch-per-item is its default *provisioning*, not part of t
 single agent working a container end-to-end in one session line legitimately keeps one long-lived
 branch and opens a PR per item off it, merging each before the next: same per-item granularity,
 same per-item `Closes #N`, same close-out basis (the set of per-item squash commits), but the
-branch is provisioned once rather than per item. Recorded because container #2933 shipped exactly
-this way, eleven PRs all with the same head ref, and an earlier version of this document
-described only the fresh-branch provisioning, so no container using the variant could record a
-truthful shape line.
+branch is provisioned once rather than per item.
 
 What the variant forfeits, and why it is not the default: parallelism is gone (one branch cannot
 host two concurrent items), so the seam claim stops being a collision signal between lanes and
@@ -110,11 +107,9 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
 
 ## Vocabulary
 
-Canonical journey terms (resolved 2026-08-17). The marketplace-wide glossary write is **no longer
-deferred**. `docs/glossary.md` landed 2026-08-20 (#3062) and declares itself repo-wide. Of the
-three terms below, **`phase boundary` has been promoted there and this file no longer defines it**;
-`work item` and `checkpoint` stay reference-local, because both are specific to this plugin's
-execution shapes rather than repo-wide vocabulary.
+Canonical journey terms. `work item` and `checkpoint` are defined here because both are specific
+to this plugin's execution shapes; `phase boundary` is repo-wide vocabulary, defined in
+`docs/glossary.md`.
 
 **Work item** (short: **item**)
 
@@ -130,12 +125,9 @@ An item is always a graph node; it is a checkpoint only in a shared-branch flow.
 
 **Phase boundary** is defined repo-wide in [`docs/glossary.md`](../../../docs/glossary.md), not here.
 
-This file used to carry its own definition ("the session-level decision moment between phases of
-work"), which diverged from the glossary's once that landed. Two definitions of one term, one of
-them in a file claiming repo-wide authority, is worse than either alone, so the definition is
-ceded and only the plugin-specific relation is kept: a checkpoint is a phase boundary with durable
-progress, and not every phase boundary is a checkpoint (a mid-item pause that hands off
-uncommitted context is a phase boundary and no checkpoint).
+A checkpoint is a phase boundary with durable progress, and not every phase boundary is a
+checkpoint (a mid-item pause that hands off uncommitted context is a phase boundary and no
+checkpoint).
 
 Avoid: *milestone* (untracked, no graph node), *stage* / *step* (ambiguous between item and phase
 boundary), *sub-issue* as a distinct concept (it is an item that happens to have a parent).

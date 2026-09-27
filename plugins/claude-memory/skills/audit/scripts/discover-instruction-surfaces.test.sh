@@ -112,9 +112,8 @@ else
 fi
 
 # --- the dotfiles case: project root IS the config root's parent -------------
-# `.claude/rules` relative to cwd and $CONFIG/rules are then the SAME directory.
-# Emitting each file twice under two path spellings would produce a duplicate
-# finding per rule and a cross-scope comparison of a file against itself.
+# `.claude/rules` from cwd and $CONFIG/rules are then the SAME directory; each
+# file must be emitted once, not twice under two path spellings.
 
 HOMEREPO="$TEST_TMPDIR/homerepo"
 mkdir -p "$HOMEREPO/.claude/rules"
@@ -170,11 +169,7 @@ assert_contains "--scope user shows the both-tagged CLAUDE.md" "$OUT_CONF_USER" 
 assert_not_contains "distinct roots never produce a both-tagged CLAUDE.md" "$OUT" "$(printf 'both\tclaude-md\t')"
 
 # --- each layout collides exactly ONE surface, not both ----------------------
-# This asymmetry is why the two comparisons are computed independently rather than
-# from one flag, so pin it in both directions.
-#
-# Layout 1 (repo at ~): rules collide, CLAUDE.md does not — asserted above via
-# OUT_HOME (both-tagged rule, and project/user CLAUDE.md rows still separate).
+# Pins the asymmetry in both directions; layout 1 (repo at ~) is OUT_HOME above.
 assert_contains "layout 1 collides rules" "$OUT_HOME" "$(printf 'both\trule\t')"
 assert_not_contains "layout 1 leaves CLAUDE.md distinct" "$OUT_HOME" "$(printf 'both\tclaude-md\t')"
 
@@ -193,7 +188,6 @@ assert_not_contains "layout 2 leaves the rules dirs distinct" "$OUT_CONF2" "$(pr
 assert_contains "layout 2 emits the project-layer rule as project" "$OUT_CONF2" "$(printf 'project\trule\t.claude/rules/project-layer.md')"
 assert_contains "layout 2 emits the user-layer rule as user" "$OUT_CONF2" "$(printf 'user\trule\t%s/rules/user-layer.md' "$CONFREPO2")"
 
-# A `both` record satisfies either filter — the file really is reachable by each layer.
 OUT_HOME_USER="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope user)"
 assert_contains "--scope user still shows the both-tagged rule" "$OUT_HOME_USER" "shared-rule.md"
 OUT_HOME_PROJ="$(run_in "$HOMEREPO" "$HOMEREPO/.claude" --scope project)"
@@ -203,9 +197,8 @@ assert_contains "--scope project still shows the both-tagged rule" "$OUT_HOME_PR
 assert_not_contains "distinct rules dirs never produce a both tag" "$OUT" "$(printf 'both\t')"
 
 # --- a repository whose project instructions live in AGENTS.md ---------------
-# Claude Code reads a root AGENTS.md as the project instructions when no
-# CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md displaces it. Without a row for
-# that file, a repo that has dropped its CLAUDE.md shim has nothing to audit.
+# A root AGENTS.md nothing displaces is the project instructions; without its row
+# a repo that dropped its CLAUDE.md shim has nothing to audit.
 
 AGENTS_PROJ="$TEST_TMPDIR/agents-proj"
 mkdir -p "$AGENTS_PROJ"
@@ -232,9 +225,8 @@ OUT_AGENTS_EMPTY="$(run_in "$EMPTY_AGENTS" "$EMPTY_CONF")"
 assert_contains "a 0-byte AGENTS.md is still a surface" "$OUT_AGENTS_EMPTY" "$(printf 'project\tagents-md\tAGENTS.md')"
 
 # --- the shim: a CLAUDE.md that imports AGENTS.md ----------------------------
-# The import already carries the AGENTS.md into the CLAUDE.md row, so emitting a
-# second row for it would double-count one file. This fixture must keep emitting
-# exactly what it emitted before the kind existed.
+# The import already carries AGENTS.md into the CLAUDE.md row; a second row would
+# double-count it.
 
 SHIM_PROJ="$TEST_TMPDIR/shim-proj"
 mkdir -p "$SHIM_PROJ"
@@ -274,9 +266,8 @@ assert_not_contains "--scope user suppresses the agents-md row" "$OUT_AGENTS_USE
 assert_not_contains "no agents-md row without an AGENTS.md" "$OUT" "$(printf 'agents-md\t')"
 
 # --- .claude/AGENTS.md loads at session start too -----------------------------
-# "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
-# directory and the directories above it" (memory doc). The doc states no
-# precedence between the two names, so each file that exists gets its own row.
+# Both AGENTS.md names load at session start with no stated precedence (memory
+# doc), so each existing file gets its own row.
 
 DOTAGENTS="$TEST_TMPDIR/agents-dot"
 mkdir -p "$DOTAGENTS/.claude"
@@ -300,10 +291,8 @@ OUT_DOTBLOCKED="$(run_in "$DOTBLOCKED" "$EMPTY_CONF")"
 assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCKED" "$(printf 'agents-md\t')"
 
 # --- a displacer ABOVE the repository root ------------------------------------
-# "Count, so Claude reads them instead of `AGENTS.md`: a `CLAUDE.md`,
-# `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
-# directory above it" (memory doc). A check that stops at the root reports a
-# surface the session never reads.
+# A CLAUDE.md above the repository root displaces AGENTS.md too (memory doc); a
+# check that stops at the root reports a surface the session never reads.
 
 ABOVE="$TEST_TMPDIR/anc"
 mkdir -p "$ABOVE/proj"
@@ -326,9 +315,8 @@ printf '# project instructions\n' >"$ABOVE_DOT/proj/AGENTS.md"
 OUT_ABOVE_DOT="$(run_in "$ABOVE_DOT/proj" "$EMPTY_CONF")"
 assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ABOVE_DOT" "$(printf 'agents-md\t')"
 
-# The one ancestor `.claude/CLAUDE.md` that does NOT count is the user root:
-# "Don't count, and keep loading alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`".
-# A bare `CLAUDE.md` in that same directory is not the user root file and counts.
+# The user root's own `.claude/CLAUDE.md` does not displace (memory doc); a bare
+# `CLAUDE.md` in that same directory does.
 HOMEY="$TEST_TMPDIR/homey"
 mkdir -p "$HOMEY/.claude" "$HOMEY/proj"
 printf '# user memory\n' >"$HOMEY/.claude/CLAUDE.md"
@@ -340,9 +328,8 @@ printf '# a bare home CLAUDE.md\n' >"$HOMEY/CLAUDE.md"
 OUT_HOMEY_BARE="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
 assert_not_contains "a bare CLAUDE.md beside the user root still displaces it" "$OUT_HOMEY_BARE" "$(printf 'agents-md\t')"
 
-# `$HOME/.claude` is the user root whether or not CLAUDE_CONFIG_DIR names it. A suite that
-# pins only CLAUDE_CONFIG_DIR would otherwise read the machine's own `~/.claude/CLAUDE.md`
-# as an ancestor displacer wherever the fixtures sit inside the real profile.
+# `$HOME/.claude` is the user root even when CLAUDE_CONFIG_DIR names another dir;
+# otherwise fixtures inside the real profile would see its CLAUDE.md as a displacer.
 HOMEONLY="$TEST_TMPDIR/home-only"
 mkdir -p "$HOMEONLY/.claude" "$HOMEONLY/proj"
 printf '# user memory\n' >"$HOMEONLY/.claude/CLAUDE.md"

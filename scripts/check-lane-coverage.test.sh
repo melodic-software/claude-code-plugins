@@ -5,8 +5,7 @@
 # cds to the git toplevel, so an absolute fixture path resolves from anywhere and
 # no scratch git repo is needed. That is deliberate — a fixture repo would need
 # `git -C <dir> config user.*`, and the un-scoped form of that command writes the
-# test identity into the CALLER's repo config (claude-code-plugins#2839). No git
-# state means the class cannot recur here.
+# test identity into the CALLER's repo config.
 #
 # Every fixture run passes its OWN step opt-out list. The repository's real list
 # names steps of the real ci.yml, and an entry naming a step no fixture defines
@@ -305,7 +304,7 @@ expect "unknown aggregate job exits 2" 2 "is not defined" \
 
 # --- STEP level: the gate set and the feed set must be equal ----------------
 #
-# This is the half that survived the six-job collapse. A lane is now a step
+# A lane is a step
 # carrying `continue-on-error: true`; the flag absorbs its failure, so the only
 # thing that turns anything red is the aggregator reading `steps.<id>.outcome`
 # back. A gate the feed does not read is decoration, and the job-level check

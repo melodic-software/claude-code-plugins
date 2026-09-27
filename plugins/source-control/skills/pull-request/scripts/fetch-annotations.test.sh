@@ -27,7 +27,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Skip suite if jq missing — script depends on it.
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 # ---- Build fixtures ---------------------------------------------------------
@@ -325,6 +324,5 @@ if [[ "${INTEGRATION:-0}" == "1" ]]; then
   fi
 fi
 
-# Final
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

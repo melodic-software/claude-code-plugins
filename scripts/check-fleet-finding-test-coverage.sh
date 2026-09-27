@@ -10,10 +10,9 @@
 #                                                          Finding: assertion, or a
 #                                                          baseline entry is stale
 #
-# Why this lives outside audit-fleet.test.sh: #2633/#2640 rewrote the test file
-# alongside the collector, so the suite stayed self-consistent while dropping
-# coverage. A check that only runs inside the deleted file cannot defend it
-# (claude-code-plugins#2656).
+# Why this lives outside audit-fleet.test.sh: a rewrite of the test file
+# alongside the collector keeps the suite self-consistent while dropping
+# coverage. A check that only runs inside the rewritten file cannot defend it.
 #
 # Substring / setup-only mentions (comments, F_KIND injection arrays) do not
 # count. Existing coverage debt is grandfathered in
@@ -86,7 +85,7 @@ fi
 kind_asserted() {
   # True only when the suite asserts collector output for this exact kind.
   # Anchor the trailing boundary so Finding: worktree-root-conformance does not
-  # false-cover via Finding: worktree-root-conformance-summary (#2656 review).
+  # false-cover via Finding: worktree-root-conformance-summary.
   local kind="$1"
   grep -Eq -- "Finding: ${kind}([^a-z-]|$)" "$TEST"
 }

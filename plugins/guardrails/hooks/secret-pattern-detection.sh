@@ -15,7 +15,9 @@
 #
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
 # repo's concern) only when that root is a git work tree that is not home or an
-# ancestor of home; any other root scans every write, as if unset. A generic
+# ancestor of home; any other root scans every write, as if unset. A file under
+# a host temp tree is declined when a set root lies outside that tree, no wider
+# than block-hook-bypass's temp default (see spd_temp_declines). A generic
 # allowlist exempts dependency caches, .env examples, test fixtures, and
 # machine-local CC state. Disable entirely with the
 # secret_pattern_detection_enabled userConfig option set to false.
@@ -86,17 +88,18 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
-# runs on every Write/Edit/NotebookEdit. All three per-tool content fields are
-# fetched together because selecting between them would cost a second process;
+# runs on every Write/Edit/NotebookEdit. Every per-tool target and content field
+# is fetched together because selecting between them would cost a second process;
 # jq reads the same envelope either way, and the tool-specific choice happens
-# below in the shell. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
-# case did — hook::require_jq above has already made the degraded state visible
-# once per session.
+# below in the shell. NotebookEdit's target is `notebook_path`, appended last so
+# the MCP lane's indices (2, 5) do not move. Failure semantics are unchanged: a
+# missing jq or an unparsable payload yields rc 1 here, which exits 0 exactly as
+# the empty-TOOL case did; hook::require_jq above has already made the degraded
+# state visible once per session.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
-  '.tool_input.path' || exit 0
+  '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
 # text across the byte, so a clean scan would not reflect the bytes carried. One
@@ -276,7 +279,10 @@ if ((IS_MCP)); then
   exit 0
 fi
 
+# NotebookEdit sends its target as notebook_path; file_path is read only when
+# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
+[[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
 
 NORM_FILE=""
@@ -310,6 +316,9 @@ ALLOW_FILE="${FILE//\\//}"
 #     checkout on the machine. The ancestors walked are those of home as
 #     spelled, not of a symlinked home's resolved target.
 # Every test is a builtin, so the check stays fork-free.
+# The temp-tree decline below reads CLAUDE_PROJECT_DIR directly, so a root
+# cleared here (home, non-git) still declines a temp-tree file outside it,
+# as block-hook-bypass exempts the same redirect.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
@@ -374,6 +383,152 @@ fi
 #   - tests/fixtures, tests/testdata: scoped to test trees only
 #   - CC skill context/completed: research notes; code review is the backstop
 secret_path_allowlisted "$ALLOW_FILE" && exit 0
+
+# --- Temp-tree decline, no wider than block-hook-bypass's temp default ---
+# block-hook-bypass exempts a Bash redirect into a host temp tree when the
+# project root is known and outside that tree. The gate below is never wider than that exemption: root set, spelled as its _norm_path
+# accepts, and under temp neither lexically nor physically; target under temp
+# both as spelled and once its nearest existing ancestor is physically resolved,
+# so a link under temp pointing elsewhere is still scanned. Everything up to
+# the resolve step is a builtin, so a target with no temp-looking component
+# spawns no resolver process.
+
+spd_win=0
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) spd_win=1 ;;
+*) ;; # POSIX host
+esac
+
+# spd_lower_to <var> <text>: <text> lowercased into <var>. Defined through eval
+# and only on Bash 4+, so a 3.2 shell never parses the `,,` expansion.
+if ((BASH_VERSINFO[0] >= 4)); then
+  eval 'spd_lower_to() { printf -v "$1" "%s" "${2,,}"; }'
+fi
+
+# spd_under_temp <path>: hook::under_temp_root, and on a POSIX host also on the
+# lowercased spelling, because block-hook-bypass compares a lowercased target
+# with candidates that keep their case. On Windows the library's normalization
+# already folds case. Below Bash 4 a spelling with a capital is refused instead.
+spd_under_temp() {
+  local lower
+  hook::under_temp_root "$1" || return 1
+  ((spd_win)) && return 0
+  if ((BASH_VERSINFO[0] < 4)); then
+    [[ "$1" != *[[:upper:]]* ]]
+    return
+  fi
+  spd_lower_to lower "$1"
+  hook::under_temp_root "$lower"
+}
+
+# spd_nearest_existing <absolute path>: its nearest existing ancestor in
+# spd_ancestor and the components below it in spd_sfx; returns 1 when none exists.
+# A strip that does not shorten the string ends the walk, so a spelling such as
+# `Z:` terminates. `-e` on a disconnected mapped drive may stall; it is reached
+# only after the lexical pre-match hit.
+spd_ancestor=""
+spd_sfx=""
+spd_nearest_existing() {
+  local p="$1" prev=""
+  spd_ancestor=""
+  spd_sfx=""
+  while [[ -n "$p" && "$p" != "$prev" ]]; do
+    if [[ -e "$p" || -L "$p" ]]; then
+      spd_ancestor="$p"
+      return 0
+    fi
+    prev="$p"
+    spd_sfx="/${p##*/}$spd_sfx"
+    p="${p%/*}"
+  done
+  spd_sfx=""
+  return 1
+}
+
+# spd_temp_declines <file_path>: 0 when the write is declined.
+spd_temp_declines() {
+  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
+  # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
+  # and `/c/x` to other places than Git Bash does, so only a drive spelling may
+  # decline there. On POSIX `\` is a filename byte, never a separator, and below
+  # Bash 4 a capital cannot be folded to compare as block-hook-bypass does.
+  if ((spd_win)); then
+    t="${t//\\//}"
+    r="${r//\\//}"
+    [[ "$t" == [A-Za-z]:/?* ]] || return 1
+  else
+    [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
+    ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
+  fi
+  # Only a spelling a Bash redirect could carry as a BARE operand may decline:
+  # block-hook-bypass never exempts a quoted, escaped or opaque target, so a
+  # character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`, `>`,
+  # parens, `#`, `$`, a backtick, a glob character) refuses here. An allowlist,
+  # so an unlisted character scans. `~` is refused as block-hook-bypass's
+  # _norm_path refuses it, and unnormalized segments are refused below.
+  [[ "$t" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
+  case "$t" in
+  *//* | */./* | */../* | */. | */..) return 1 ;;
+  *) ;; # a normalized spelling
+  esac
+  # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
+  # temp candidate's spelling. It may over-match (costing resolver processes)
+  # and never decides alone.
+  hook::_temp_root_candidates
+  shopt -q nocasematch && nocase=1
+  shopt -s nocasematch
+  case "$t" in
+  */tmp/* | */temp/*) hit=1 ;;
+  *) ;; # try the candidates' spellings below
+  esac
+  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+    ((hit)) && break
+    hook::normalize_path_to norm "$cand"
+    norm="${norm%/}"
+    [[ -n "$norm" && "$t" == "$norm"/* ]] && hit=1
+  done
+  ((nocase)) || shopt -u nocasematch
+  ((hit)) || return 1
+  # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
+  # unnormalized ones and a filesystem or drive root.
+  [[ -n "$r" ]] || return 1
+  case "$r" in
+  *'$'* | *'`'* | *~* | *'*'* | *'?'* | *'['* | *//* | */./* | */../* | */. | */..) return 1 ;;
+  *) ;; # a normalized spelling
+  esac
+  if ((spd_win)); then
+    [[ "$r" == /?* || "$r" == [A-Za-z]:/?* ]] || return 1
+  else
+    [[ "$r" == /?* ]] || return 1
+  fi
+  r="${r%/}"
+  ((spd_win)) && [[ "$r" == /[A-Za-z] ]] && return 1
+  # 4-5. Root not under temp, as spelled or physically. Only directories enter
+  # the resolver cache: the root's existing ancestor and the temp candidates.
+  spd_nearest_existing "$r" && ranc="$spd_ancestor"
+  rsfx="$spd_sfx"
+  hook::_physical_prime ${ranc:+"$ranc"} ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+  hook::under_temp_root "$r" && return 1
+  if [[ -n "$ranc" ]]; then
+    hook::_physical_cached_to phys "$ranc" || return 1
+    hook::under_temp_root "${phys%/}$rsfx" && return 1
+  fi
+  # 6. Target under temp as spelled.
+  spd_under_temp "$t" || return 1
+  # A hard link resolves to itself, so a temp-tree name for a file stored
+  # elsewhere passes every path test: an existing file with a second link, or
+  # whose link count cannot be read, is scanned.
+  if [[ -f "$t" ]]; then
+    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
+    [[ "$links" == 1 ]] || return 1
+  fi
+  # 7. Target under temp physically, resolved without the cache so the file's
+  # own path never enters it.
+  spd_nearest_existing "$t" || return 1
+  hook::physical_path_to phys "$spd_ancestor" || return 1
+  spd_under_temp "${phys%/}$spd_sfx"
+}
+spd_temp_declines "$FILE" && exit 0
 
 # --- Extract content to check ---
 case "$TOOL" in

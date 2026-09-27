@@ -79,9 +79,17 @@ agent surface that ignores inbound context does
 not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
 the session's own native emissions attach query-side through the Pillar 2 attribute, which
 both surfaces carry. Where a native surface honors inbound context its spans join the tree
-directly; relying on that is a recorded migration trigger, not an assumption. Interactive contexts are explicitly excluded. The
+directly, but the contract's join stays the Pillar 2 attribute. Interactive contexts are explicitly excluded. The
 contract does not promise inbound trace joining for an interactive session, which
 deliberately ignores ambient context.
+
+**Native trace-context joining, dated record.** *Claim:* relying on native inbound trace context
+was evaluated on 2026-09-25 and not adopted. The agent surface the setup skill wires reads inbound
+trace context only in its headless and SDK sessions; its interactive sessions ignore it, and its
+tracing is beta and off by default. So the contract keeps the Pillar 2 attribute join as its join.
+*Basis:* the setup skill's agent-session wiring records "Inbound trace context in headless
+sessions" and "Traces stay beta", whose vendor page was re-read as raw markdown on 2026-09-25.
+*Verified:* 2026-09-25. *Recheck trigger:* either of those records' recheck triggers fires.
 
 ## Sink binding: out of contract
 

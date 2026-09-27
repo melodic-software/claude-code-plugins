@@ -188,8 +188,17 @@ hook cost is `map(select(.source == "envelope") | .duration_ms) | add`. Per-hook
 available only for producers that emit `data.session_id` (the nine claude-ops audit hooks
 today); a hook that does not still appears in the whole-root §2 tables through the shared file.
 
-**Event timeline** (the per-session event log, opt-in): every hook event the session saw, in
-order, with the correlation keys that were present.
+**Event timeline** (the per-session event log, opt-in): every registered hook event the session
+saw, in order, with the correlation keys that were present. The log registers no `PreToolUse` or
+`PostToolUse` row (both fire on every tool call); tool activity arrives as one
+`PostToolUseFailure` line per failed call and one `PostToolBatch` line per batch. The batch line
+is not a per-call record: it carries the first `tool_name` and `tool_use_id` the payload text
+holds, normally the first call's. Claim: `PostToolBatch` fires once after every call in a batch
+resolves, with a `tool_calls` array whose entries carry `tool_name`, `tool_input`, `tool_use_id`
+and `tool_response` in that order. Basis: <https://code.claude.com/docs/en/hooks#posttoolbatch>
+("PostToolBatch input"). Verified 2026-09-26 against that page as fetched that day; recheck on
+each `/claude-ops:changelog` ingest whose notes touch hooks, or when a batch line's `tool_name`
+stops matching the transcript's first call of that batch.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")
@@ -201,9 +210,12 @@ Every block above slurps (`-s`): the prelude's `map` and the `.[]` walk need one
 JSONL file read without `-s` hands jq one object at a time.
 
 Group by `agent_id` to separate subagent fires from the main thread; group by `prompt_id` for
-per-turn counts; `tool_use_id` joins a `PreToolUse` row to its `PostToolUse` (and to the OTEL
-`tool_result` event). Empty when `session_event_log_enabled` is off: say so, and point at
-`/claude-ops:setup` rather than at the shared file.
+per-turn counts. `tool_use_id` joins a `PostToolUseFailure` row to the OTEL `tool_result` event
+for that call. A `PostToolBatch` row joins only for the batch's first call, and only when that
+call's input carries no `tool_use_id` key of its own and the key falls inside the first 64 KB the
+logger reads; the other calls in the batch have no row to join. Empty when
+`session_event_log_enabled` is off: say so, and point at `/claude-ops:setup` rather than at the
+shared file.
 
 ## 2.6 Toggles and retention in effect
 

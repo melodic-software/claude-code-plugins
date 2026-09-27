@@ -129,9 +129,8 @@ Describe 'Test-Battery -- locale robustness' -Tag 'check' {
         )
 
         $result = Invoke-BatteryAsObject -ReportPath $reportPath
-        # Previous code regex-matched English labels only -- full_capacity_pct
-        # would be null on this input. New parser reads first two mWh values
-        # from the report, which is locale-neutral.
+        # Localized labels must still parse: the parser reads the first two mWh values,
+        # which is locale-neutral.
         $result.detail.full_capacity_pct | Should -Be 85.0
     }
 

@@ -49,17 +49,9 @@ assert_not_contains() {
   esac
 }
 
-# Several cases below deliberately name a file with a byte git's v1 porcelain
-# escapes. Windows reserves `"`, `>` and a tab in a filename, and MSYS hides
-# that: it substitutes each reserved byte with the private-use code point at
-# U+F000 plus the byte, so the file exists to THIS shell under the name asked for
-# while every native tool sees the substitute. A backslash is not substituted at
-# all, it is a separator, and the create simply fails.
-#
-# Either way the fixture the case needs is absent, and the assertion would report
-# a detector defect that does not exist. Ask through git, the native tool the
-# case is really about: `--porcelain -z` emits the raw bytes with no C-quoting,
-# so a name that survives to git matches exactly and one that does not, does not.
+# Several cases name a file with a byte v1 porcelain escapes. Windows reserves `"`, `>` and
+# a tab (MSYS substitutes them silently) and a backslash is a separator, so ask git itself
+# whether the host can hold the name: `--porcelain -z` emits raw bytes with no C-quoting.
 NAME_PROBE_REPO="$TEST_TMPDIR/nameprobe"
 mkdir -p "$NAME_PROBE_REPO"
 git -C "$NAME_PROBE_REPO" init -q
@@ -213,14 +205,9 @@ relpf_out="$(cd "$SUBDIR" && bash "$DETECT" --paths-file rel-paths.txt)"
 assert_contains "relative --paths-file target audited from subdir cwd" "$relpf_out" "Finding shape: history-narration"
 
 # --- 9. Default-target discovery parses porcelain, not whitespace fields (#3126) --------
-# With no arguments the audit discovers targets from `git status --porcelain`. A path
-# containing a space arrives C-quoted ("my helper.sh"); splitting on whitespace kept the
-# closing quote and dropped everything before the space, so the file resolved to nothing and
-# vanished from the run — reported as a reassuring files=0 rather than as an error. A plain
-# path passes either implementation, so the fixture name must contain a space.
-
-# The two arms live in separate repos on purpose: sharing one would let a correctly-parsed
-# file keep the run's files= count above zero and mask the other arm's disappearance.
+# A spaced path arrives C-quoted, and whitespace splitting made it vanish behind a
+# reassuring files=0, so the fixture name must contain a space. The arms use separate
+# repos so one correctly parsed file cannot keep files= above zero and mask the other.
 
 # 9a. Spaced path is the whole tree — the broken parse reports the misleading files=0.
 REPO9="$TEST_TMPDIR/repo9"
@@ -280,14 +267,9 @@ assert_not_contains "worktree-column rename is not reported as files=0" "$worktr
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
 # --- 10. SKILL.md pre-computed-context preview stays at parity with detect.sh (#3126) ----
-# SKILL.md's `Uncommitted code files (…):` line previews targets to the model through the
-# shared plugins/code-tidying/scripts/changed-code-files.sh (the porcelain parse moved out of
-# SKILL.md so skill argument substitution cannot rewrite `$0` in the awk body). A divergence
-# between preview and audit is a false negative on the same surface, so the parity check runs
-# the shared script itself, and first asserts the SKILL.md line still calls it — running a
-# script the line no longer references would pass while the real line rotted. Fixture names
-# force C-quoting through an embedded quote and backslash, not just a space, since
-# quote-stripping alone passes a spaced name.
+# A divergence between the SKILL.md preview and the audit is a false negative, so this
+# runs the shared script itself after asserting the line still calls it. Fixture names
+# force C-quoting with a quote and backslash, since quote-stripping alone passes a space.
 
 SKILL_MD="$SCRIPT_DIR/../SKILL.md"
 PREVIEW_SCRIPT="$SCRIPT_DIR/../../../scripts/changed-code-files.sh"
@@ -295,13 +277,8 @@ if [[ ! -f "$SKILL_MD" || ! -f "$PREVIEW_SCRIPT" ]]; then
   fail "preview surfaces located for parity check" "SKILL.md and scripts/changed-code-files.sh" "missing"
 else
   # shellcheck disable=SC2016  # fixed-string match for the literal ${CLAUDE_SKILL_DIR} in SKILL.md; no expansion wanted.
-  # The line goes through the skill-local exec wrapper rather than the shared
-  # path directly. This is a repo convention, not a platform limit:
-  # ${CLAUDE_PLUGIN_ROOT} does substitute in a plugin skill's `allowed-tools`,
-  # but the docs establish substitution rather than runtime matching on every
-  # host, so the exercised shape is the ${CLAUDE_SKILL_DIR} grant. An injection
-  # no grant can match aborts under default permissions. The wrapper execs the
-  # same shared script this parity check runs, so parity is unchanged.
+  # The line goes through the skill-local exec wrapper (repo grant convention, see
+  # allowed-tools-pairing.test.sh); it execs the same shared script, so parity holds.
   if ! grep -qF '!`${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh' "$SKILL_MD"; then
     fail "SKILL.md preview line calls the shared script" "a call through \${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh" "line shape changed"
   else
@@ -349,15 +326,9 @@ else
     assert_not_contains "preview script leaves no rename arrow" "$skill_out" ' -> '
     assert_not_contains "preview script leaves no escaped quote" "$skill_out" '\"'
 
-    # Parity with detect.sh over the same tree, checked in BOTH directions. Forward: every code
-    # file detect.sh audits must also appear in the preview, or the model is shown a tree the
-    # audit does not agree with. Reverse: every path the preview emits must be one detect.sh
-    # audited, or the model is shown a target that does not exist. A forward-only check cannot
-    # see an over-reporting preview: drop the awk rename skip and the src record is printed
-    # offset by the status prefix ("...amed-src.py"), a path naming no file, while every forward
-    # assertion still passes. REPO13 holds only code files, so the two sets must match exactly;
-    # the preview script applies its own extension filter, so a non-code fixture added here
-    # breaks forward parity only if detect.sh audits it.
+    # Parity in BOTH directions: a forward-only check misses an over-reporting preview (drop
+    # the awk rename skip and a prefix-offset path naming no file still passes forward). REPO13
+    # holds only code files, so the two sets must match exactly.
     detect_out="$(cd "$REPO13" && bash "$DETECT")"
     mapfile -t audited_paths < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
     parity_ok=1

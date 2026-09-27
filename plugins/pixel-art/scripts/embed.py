@@ -17,7 +17,8 @@ def embed(template, out):
 
     def load(match):
         path = (template.parent / match.group(1).strip()).resolve()
-        return json.dumps(json.loads(path.read_text()), separators=(",", ":"))
+        # Escape "<" so a string holding "</script>" cannot close the inline script.
+        return json.dumps(json.loads(path.read_text()), separators=(",", ":")).replace("<", "\\u003c")
 
     text, count = TOKEN.subn(load, template.read_text())
     pathlib.Path(out).parent.mkdir(parents=True, exist_ok=True)

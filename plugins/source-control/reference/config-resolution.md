@@ -59,29 +59,6 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
   still falls through to the portable default.
 
-- `pr_skill_evidence`: the mandatory map, naming which skills a pull request owes evidence for and
-  what makes a diff owe them, or the literal keyword `none`. The section body is a flat Markdown
-  bullet list, one rule per bullet, three fields separated by ` | `:
-
-  ```text
-  - <class> | <patterns> | <skills>
-  ```
-
-  `<class>` is a label used in messages. `<patterns>` is a whitespace-separated list of
-  gitignore-style patterns; `@file:<path>` reads patterns from a repo-relative file (`#` comments
-  and blank lines ignored) and `@renamed` matches any path the diff reports as renamed.
-  `<skills>` is a whitespace-separated list of required skills, where a token `a,b` means "any one
-  of a or b" and a trailing `!` marks the terminal skill, of which a map holds at most one. Any
-  field may be wrapped in one pair of backticks, which is how a glob list survives a Markdown
-  formatter (`**/*.sh **/*.py` is a pair of emphasis markers otherwise); the reader strips them.
-  Like `pr_body_required_sections` this is a **closed list**: the winning layer's rules are taken
-  whole, never unioned with a lower layer's. Absent from every layer, or `none`, both mean no rules
-  and the mechanism is inert, the lane-1 portable default: nothing is required of any pull request.
-  A local overlay declaring `none` disables the drafting-side check on that machine only, the same
-  drafting-versus-enforcement split this document already documents, since CI reads the tracked
-  layer. `scripts/skill-evidence.sh` is the one reader of the resolved value, and it reads exactly
-  one file: the layer merge above is performed by the calling skill, never inside that script.
-
 Absent sections are absent, never empty.
 
 - `convention_source`: optional, **honored in the team-tracked layer only**. A repo-relative
@@ -206,7 +183,7 @@ merge-capable tier supplied by an invocation keyword or any other layer never su
 tracked adoption: with the tier merge-capable but no tracked adoption, merges stay `human-only` and
 the lane reports why.
 
-**Promotion-evidence gate (#1695).** A tracked rung is a ceiling, not autonomous-merge permission:
+**Promotion-evidence gate.** A tracked rung is a ceiling, not autonomous-merge permission:
 before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
 `C3-auto-merge` effective state through the trusted promotion-evidence gate, fail-closing to
 unpromoted when evidence is unavailable or unqualified

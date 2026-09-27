@@ -49,14 +49,17 @@ count_records() {
 # Runner: fresh-HOME-scoped hook invocation with the kill switch enabled unless
 # the caller overrides it. Output and exit code are captured even though the
 # harness ignores them — the hook must still be silent and exit 0.
+#
+# Stdin comes from a file, not a pipe: with the kill switch off the hook exits
+# before it reads, and a writer still feeding a pipe would take EPIPE.
 run() {
   local home="$1" input="$2"
   shift 2
-  printf '%s' "$input" |
-    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
-      HOME="$home" \
-      "$@" \
-      bash "$HOOK" 2>&1
+  printf '%s' "$input" >"$WORK/stdin.json"
+  env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+    HOME="$home" \
+    "$@" \
+    bash "$HOOK" <"$WORK/stdin.json" 2>&1
 }
 
 # --- Case 1: kill switch false → silent exit 0, nothing written --------------

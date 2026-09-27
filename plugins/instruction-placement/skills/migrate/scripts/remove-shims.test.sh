@@ -43,9 +43,8 @@ assert_not_contains() {
   esac
 }
 
-# A helper this suite never defined used to print "command not found" to stderr
-# and move on, so the run reported every other check passing while silently
-# skipping that one. An unknown command is a failed check.
+# An unknown command is a failed check, not a "command not found" on stderr that
+# the run moves past while every other check reports passing.
 #
 # The count goes through a FILE, not the FAILED variable: bash runs this
 # handler wherever the unknown command was, which is often a subshell, and a

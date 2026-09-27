@@ -135,7 +135,7 @@ Follow the selected context file. Two hard rules:
 ## Step 4: Handoff
 
 - **All clear**. Suggest the project's next verification step (build/test, outcome verification, PR creation)
-- **Fixes needed**. List specific actions; after fixes, suggest a quick re-run of `self` mode
+- **Fixes needed**. List specific actions; after fixes, suggest a quick re-run of `self` mode. In a review-fix round, change exactly the lines each finding names; any other edit needs its own finding first. Unscoped edits made while fixing are where later rounds' defects come from, so the round stays bounded by its findings
 - **Design fundamentally flawed**. Suggest revisiting the plan/design before more code lands
 
 ## What this skill does NOT do

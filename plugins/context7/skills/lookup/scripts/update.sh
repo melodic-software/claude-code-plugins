@@ -20,8 +20,6 @@ set -uo pipefail
 
 MODE="${1:-report}"
 
-# All paths resolve relative to this script's own location, so the script works
-# both in the installed plugin cache and in a working clone of the marketplace repo.
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SNAPSHOT_DIR="$SKILL_DIR/vendor"
 SKILL_MD="$SKILL_DIR/SKILL.md"
@@ -118,7 +116,6 @@ check_skill_drift() {
   tmpfile=$(mktemp)
   baseline_lf=$(mktemp)
   tmpfile_lf=$(mktemp)
-  # RETURN trap removes every temp file on all exit paths.
   trap 'rm -f "$tmpfile" "$baseline_lf" "$tmpfile_lf"' RETURN
 
   if ! curl -fsSL "$url" -o "$tmpfile" 2>/dev/null; then
@@ -141,9 +138,8 @@ check_skill_drift() {
     return 2
   fi
 
-  # Normalize line endings before comparing — baseline may be CRLF on Windows
-  # checkouts, upstream is always LF. Without this, every Windows run reports
-  # false-positive drift.
+  # Baseline may be CRLF on a Windows checkout and upstream is always LF;
+  # comparing unnormalized reports false drift on every Windows run.
   tr -d '\r' <"$baseline" >"$baseline_lf"
   tr -d '\r' <"$tmpfile" >"$tmpfile_lf"
 
