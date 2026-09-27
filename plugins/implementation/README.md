@@ -18,7 +18,7 @@ orchestrator root's model:
 | Agent | What it does |
 |---|---|
 | `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
-| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash remains for inspection), and it is bound never weaker than the implementer it checks. |
+| `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash remains for inspection; to narrow it, see Configuration), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
 
@@ -97,6 +97,36 @@ Use tests-after for implementation work; do not use test-first TDD.
 ```
 
 `/implementation:implement` follows that project instruction in every execution mode.
+
+### Narrowing the phase-verifier's Bash
+
+`implementation:phase-verifier` keeps `Bash` for diffs, greps, and read-only checks, so its
+read-only contract is enforced by its prompt, not by its tool list. The only instrument that keeps
+`Bash` while blocking specific commands is a Bash deny rule in `permissions.deny`. A
+`disallowedTools` entry with a specifier removes the whole tool, and a plugin agent's own `hooks`
+and `permissionMode` frontmatter are ignored. A deny rule applies to the whole session, the main
+conversation and every subagent, so deny only commands no one in the session should run. For
+example, in the project's `.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "deny": ["Bash(git push *)", "Bash(git reset --hard *)"]
+  }
+}
+```
+
+A Bash rule matches the command text, not the program: `Bash(git push *)` does not stop
+`git -C . push`, and `Bash(rm *)` does not stop `bash -c 'rm ...'`. Treat it as a guard against
+the usual invocation, not a security boundary; use sandboxing for enforcement that does not depend
+on command text.
+
+Basis: the Claude Code sub-agents page ("Control subagent capabilities": `disallowedTools`
+specifiers and Bash deny rules; "Choose the subagent scope": fields ignored for plugin
+subagents) and the permissions page ("What a Bash rule doesn't match"), at
+<https://code.claude.com/docs/en/sub-agents> and
+<https://code.claude.com/docs/en/permissions>, verified 2026-09-27. Recheck when a release note
+touches subagent tool restrictions or Bash permission-rule matching.
 
 ## License
 
