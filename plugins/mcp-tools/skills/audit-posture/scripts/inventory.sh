@@ -603,7 +603,9 @@ def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
 | $rows[]
 | . as $r
 | ($r.scope | rank) as $rk
-| ([$rows[] | select((.rejected | not) and .name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank)) as $w
+| (if $r.scope == "file" then null
+   else [$rows[] | select((.rejected | not) and .name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank)
+   end) as $w
 | (if $r.rejected then "rejected-by-client"
    elif $managed and ($r.scope | overridable) then "suppressed-by-managed"
    elif ($r.scope | opt_out) and any($meta.disabled[]; . == $r.name) then "disabled"
