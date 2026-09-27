@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.30] - 2026-09-27
+
+### Fixed
+
+- `work-loop`'s admission gate now drops a frontier candidate that already has an open closing PR
+  (drafts included) before classifying it, using `/work-items:work`'s in-flight exclusion rule and
+  the adapter's "Open linked PRs" operation. Such an item is no longer ratify-queued, escalated,
+  or dispatched, its labels are left alone, and the cycle report lists it as in flight. A failed
+  check excludes the item for that cycle (#4610).
+
 ## [0.40.29] - 2026-09-27
 
 ### Fixed

@@ -22,7 +22,7 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 
 # The builder assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-vars here is what tells it (SC2154) the names are written.
-repo="" repo_renamed="" repo2="" repo3="" shimdir=""
+repo="" repo_renamed="" repo2="" repo3="" repo_merge="" shimdir=""
 
 # write_print_manifest <dest> <src> <copies-glob>
 # A fixture sync script that publishes via --print-manifest. The glob is
@@ -458,6 +458,35 @@ if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/alpha-extra.test.sh;
   ok "diff mode includes untracked files"
 else
   fail "untracked file missed by diff mode (rc=$RC): $out"
+fi
+
+# --- a merge in progress diffs against the incoming side, not the fork -----
+# Merging the base branch in leaves HEAD at the pre-merge commit while the
+# working tree already carries the incoming side. A file changed only there is
+# not this change's work and must not be selected; the branch's own edit, left
+# conflicted, still is.
+mk_repo repo_merge
+fork="$(git -C "$repo_merge" rev-parse HEAD)"
+git_test_config "$repo_merge" checkout -q -b incoming
+printf '# incoming\n' >>"$repo_merge/plugins/alpha/hooks/alpha-hook.sh"
+printf '# incoming only\n' >>"$repo_merge/plugins/beta/hooks/beta-hook.sh"
+git_test_config "$repo_merge" commit -qam incoming >/dev/null
+git_test_config "$repo_merge" checkout -q -b feature "$fork"
+printf '# feature\n' >>"$repo_merge/plugins/alpha/hooks/alpha-hook.sh"
+git_test_config "$repo_merge" commit -qam feature >/dev/null
+git_test_config "$repo_merge" merge -q incoming >/dev/null 2>&1
+if [[ ! -f "$repo_merge/.git/MERGE_HEAD" ]]; then
+  fail "fixture: the conflicting merge did not leave MERGE_HEAD behind"
+else
+  run_sel "$repo_merge" --base incoming
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] &&
+    has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh &&
+    ! has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
+    ok "mid-merge, a file changed only on the incoming side is not selected"
+  else
+    fail "mid-merge selection charged the incoming side's files (rc=$RC): $out"
+  fi
 fi
 
 # --- a broken diff is fatal, never an empty selection ----------------------
