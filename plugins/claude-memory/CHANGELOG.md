@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- `audit` routes MCP, agent, and skill coverage to `claude-config`'s `audit-automation-gaps` skill instead of the nonexistent `automation-gaps` (scope paragraph and Scope table). The `claude-md-management` references in "Complementary workflows" and `official-guidance.md` now say the plugin comes from Anthropic's `claude-plugins-official` marketplace, and call `revise-claude-md` a command (#4119).
+
 ## [0.13.3] - 2026-09-25
 
 ### Changed

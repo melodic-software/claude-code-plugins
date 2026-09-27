@@ -3,7 +3,21 @@ description: "Verify claude-config's readiness for this repository: the external
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
+tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `curl`: !`{ command -v curl 2>/dev/null || echo "absent"; }`
+- `awk`: !`{ command -v awk 2>/dev/null || echo "absent"; }`
+- `sort`: !`{ command -v sort 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -23,8 +37,8 @@ Both are non-interactive, so never prompt when the action is given.
 
 The bundled scripts are the single source of truth for what this plugin requires.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 The runtime scripts and their tools:
 
@@ -42,15 +56,15 @@ Only `conflict-scan.sh` and `permission-state.sh` probe for their tools; the res
 guard, so read each script's actual calls rather than trusting a single script's prerequisite block to
 speak for the plugin.
 
-1. **`jq`**, via `command -v jq`. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
+1. **`jq`**, from the pre-computed `jq` row. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
    to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks every
    skill whose scripts parse JSON (`audit`, `audit-automation-gaps`, `audit-permission-grants`,
    `audit-permission-state`, `draft-auto-mode-rules`, and `audit-pass`'s run-state and retirement
    helpers); `audit-instructions` scans markdown and is unaffected.
-2. **`curl`**, via `command -v curl`. FAIL if absent, but scoped: only the plugin-drift check
+2. **`curl`**, from the pre-computed `curl` row. FAIL if absent, but scoped: only the plugin-drift check
    (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and every other
    skill still run; say so in the remediation line.
-3. **`awk` and `sort`**, via `command -v awk` and `command -v sort`. FAIL if either is absent, and **not**
+3. **`awk` and `sort`**, from the pre-computed `awk` and `sort` rows. FAIL if either is absent, and **not**
    scoped to one skill: `conflict-scan.sh` executes both and `exit 2`s naming the missing one, while
    `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
    (`sort`) reach them with no prerequisite check at all, so `audit` and `audit-permission-grants`
@@ -125,7 +139,8 @@ This skill never installs system packages:
 The network row stays INFO and has no `apply` entry on purpose: a failed fetch degrades to SKIP by
 design, so there is nothing to remediate.
 
-After any install, re-run the relevant `check` probe and report its actual result. Never claim resolved
+After any install, re-run the relevant probe via Bash (`command -v <tool>`; the pre-computed rows
+predate the install) and report its actual result. Never claim resolved
 on the install command's exit code alone. Re-running `apply` once every probe passes changes nothing and
 reports "already configured".
 

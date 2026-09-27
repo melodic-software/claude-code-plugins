@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-27
+
+### Fixed
+
+- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked (#4119).
+
 ## [0.11.2] - 2026-09-27
 
 ### Fixed

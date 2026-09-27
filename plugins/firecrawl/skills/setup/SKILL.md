@@ -3,7 +3,18 @@ description: "Verify the firecrawl plugin's runtime prerequisites for this machi
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `firecrawl` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `firecrawl`: !`{ command -v firecrawl 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -27,14 +38,15 @@ The main skill is the single source of truth for what the CLI requires and how a
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/context/configuration.md` (the exact env vars the CLI
 reads).
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed `firecrawl` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 1. **`firecrawl-cli` binary**, the installed binary is `firecrawl` (the npm package is
-   `firecrawl-cli`). `command -v firecrawl`. INFO when absent (lazy-install design): report
-   that the CLI installs on first need and the main skill self-flags it; remediation is the
-   `apply` guidance below. When present, report the version (`firecrawl --version`) and the
-   auth line from `firecrawl --status` (which states authenticated/unauthenticated).
+   `firecrawl-cli`). The pre-computed `firecrawl` row. INFO when absent (lazy-install design):
+   report that the CLI installs on first need and the main skill self-flags it; remediation is the
+   `apply` guidance below. When present, report the version (`firecrawl --version`) and the auth
+   line from `firecrawl --status` (which states authenticated/unauthenticated).
 2. **Authentication**, the verdict comes from the CLI itself when present: the
    `firecrawl --status` auth line is authoritative, because `firecrawl login`/`config` state
    in the user-level config dir authenticates without any env var. Alongside it, report
@@ -81,10 +93,10 @@ writes nothing, so every remediation is a pointer the user acts on:
   replacement was exported into it; a persistent-only change follows the fresh-session rule
   above).
 
-After the user reports acting on any remediation, re-run the relevant `check` probe (for the
-key, re-check `firecrawl --status` / presence, never the value) and report its actual result.
-Re-running `apply` when everything already passes changes nothing and reports "already
-configured".
+After the user reports acting on any remediation, re-run the relevant `check` probe via Bash, never
+the pre-computed row (for the key, re-check `firecrawl --status` / presence, never the value) and
+report its actual result. Re-running `apply` when everything already passes changes nothing and
+reports "already configured".
 
 ## What this skill does NOT do
 

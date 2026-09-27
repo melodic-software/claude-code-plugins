@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq`, `curl`, `awk`, and `sort` at load time.** The four `command -v` checks run as
+  pre-computed context, so `check` reads their results instead of making four Bash calls. The FAIL
+  rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
 ## [0.49.0] - 2026-09-26
 
 ### Added

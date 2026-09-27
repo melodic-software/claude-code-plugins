@@ -79,6 +79,8 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
   branch/worktree classification stops at `UNKNOWN`.
 - Repository/config/worktree-derived report values containing newlines or control/ANSI bytes are
   rendered as a single `%q`-encoded field, so they cannot forge report labels or terminal controls.
+  The same holds for C1 controls, U+2028/U+2029, bidi override and isolate controls, and malformed
+  UTF-8. Other printable UTF-8, such as an accented path or branch name, renders as itself.
 - A worktree-looking directory cannot become a finding without Git porcelain membership.
 - `git status --porcelain` at a registered work-tree root is read-only local metadata; it never
   transmits content and cannot mutate. A failed status probe cannot be mistaken for a clean tree.
