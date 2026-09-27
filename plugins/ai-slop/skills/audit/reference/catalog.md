@@ -968,8 +968,8 @@ either layer, and those rows say so.
   load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
   architecture prose are all terms of art, not tells. The tell is the reflexive metaphor where
   a plainer word served ("this comment is load-bearing" for "this comment matters"). These cues
-  carry no config lever (the rubric layer reads no config): the boundary text here and the
-  saturation rule below are the suppression surface.
+  carry no config lever, because the rubric layer reads no config. The boundary text here and
+  the saturation rule below are the only way to suppress a finding.
 - **Seam examples.** Declined as a term of art: "introduce a seam at the constructor so the
   test can substitute the clock", a Feathers seam in testing prose. Reported: "the seam
   between the billing service and the account service", a system boundary described by
@@ -985,9 +985,8 @@ either layer, and those rows say so.
   is recorded with `reason=cap`. Unsaturated hits are judged per instance: a reflexive
   metaphor is reported, and a term-of-art use is declined with
   `declined: rule-abstract-metaphor-jargon <cue> reason=boundary`. Counts cover only
-  "load-bearing" and "seam" because only they carry this saturation clause; the other cues
-  were left out on purpose, since counting them would add suppression this entry never
-  granted. An audit with no `cues.txt` (a single file, no fan-out) treats both cues as
+  "load-bearing" and "seam" because only they carry this saturation clause. Other cues are
+  not counted, since counting them would add suppression this entry never grants. An audit with no `cues.txt` (a single file, no fan-out) treats both cues as
   unsaturated.
 
 ### rule-mechanism-free-claims: Feeling-words instead of mechanism

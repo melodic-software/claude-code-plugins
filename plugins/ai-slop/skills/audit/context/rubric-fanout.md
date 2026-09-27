@@ -61,7 +61,7 @@ receives:
 - the declined-line shape, `declined: <rule-id> <cue> reason=saturated|boundary|cap`, zero or
   more header lines, one per rule, cue and reason in the batch (`cap` marks a hit dropped by
   the finding caps below), and the rule that every occurrence of a `cues.txt` cue in its
-  batch ends as a finding or is covered by a `declined:` line, never dropped without a trace;
+  batch ends as a finding or is covered by a `declined:` line, never silently dropped;
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
   findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
