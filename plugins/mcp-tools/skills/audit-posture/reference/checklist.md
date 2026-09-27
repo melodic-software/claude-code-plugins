@@ -64,9 +64,11 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
   republish a version.
 - `unparsed` means the script could not isolate a package spec without risking printing an
   argument that may be a secret, so the package column reads `-`. It also covers a `command`
-  field holding a whole command line, and a URL whose userinfo cannot be separated from the host
-  unambiguously. It is WARN because the pin is
-  unknown; ask the operator to check that entry by hand.
+  field holding a whole command line, a URL whose userinfo cannot be separated from the host
+  unambiguously, and any wrapper string (`bash -c`, `env -S`, `cmd /c`, `pwsh -Command`) that
+  holds quotes, escapes, shell operators, or anything beyond plain words and simple leading
+  `NAME=value` assignments: the script reads such strings conservatively rather than emulating
+  the shell. It is WARN because the pin is unknown; ask the operator to check that entry by hand.
 - `wrapped` appears on a `local` row whose arguments still name a package runner or container
   tool after the script unwrapped the shells it knows (`bash -c`, `cmd /c`, `env`,
   `pwsh -Command`). It is WARN because a floating runner may sit behind the wrapper.
