@@ -14,7 +14,13 @@ is asked, stated, or blocked before the confirmation gate.
 ## Dispatch
 
 A fresh-context (non-fork) sub-agent, so it does not inherit the reasoning that produced the
-recommendations. Hand it:
+recommendations. Request any subagent type but `fork`. Verified 2026-09-27 against
+[the subagents doc](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+"How forks differ from other subagents" and "Turn fork mode on or off": a non-fork subagent
+starts from "Fresh context with the prompt you pass", a fork from the "Full conversation
+history", and a fork is spawned only when the `fork` subagent type is requested. Recheck when
+that table changes what a non-fork subagent starts from, or when a request that names no type
+can yield a fork. Hand it:
 
 - the ledger: `## Constraint ledger`, `## Open-question register`, and the decision tree;
 - every recommendation as asked, with its `Checked against:` line and `Commits you to:` parts;

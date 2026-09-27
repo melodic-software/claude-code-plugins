@@ -23,8 +23,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   now-or-at-planning question; "at planning" defers open mechanism rows, "now" is recorded in
   the Brief's Constraints.
 - **`interview`:** a fresh-context assumption sweep runs in `me` and `auto` once the frontier
-  is empty and before Step 3. Its items become register rows or stated facts, and an `open`
-  row returns the run to Step 2 (`context/assumption-sweep.md`).
+  is empty and before Step 3. It is dispatched as any subagent type but `fork`, with a dated
+  verification record against the subagents doc. Its items become register rows or stated
+  facts, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`).
 - **`interview`:** eval cases 19 to 22 cover the tripwire, the sweep, evidence currency, and
   inherited constraints.
 - **`audit-answers`:** a `hedged:` row never closes on a CONFIRMED verdict and always reaches

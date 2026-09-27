@@ -563,7 +563,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "a5778c4a818943d961c25a184d9b4f73e94a7559b560e04d3178abe86a22e3f0"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "8fc79a42c43884b0332c42340c80bbc99b9f2833b37998fbb6b57dd4bd8d5240"
+  "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -805,6 +805,8 @@ pin "loop.md defines a process change" "$LOOP" \
   "(a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out"
 pin "loop.md: a late commitment row takes the next free id" "$LOOP" \
   "takes the next free \`Q<N>\` and names its headline in the question field"
+pin "assumption-sweep.md: the sweep never dispatches a fork" "$SWEEP" \
+  "Request any subagent type but \`fork\`."
 pin "assumption-sweep.md: sweep ids never reach the register" "$SWEEP" \
   "\`S<N>\` never reaches the register"
 pin "assumption-sweep.md: an open row returns the run to Step 2" "$SWEEP" \
