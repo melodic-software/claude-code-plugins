@@ -22,8 +22,14 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
+# skip LABEL REASON: a case this host cannot exercise; counted apart from CASE_NUM.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP: %s\n  reason: %s\n' "$1" "$2"
+}
 
 if ! python3 -c '' >/dev/null 2>&1; then
   echo "SKIP: python3 not installed" >&2
@@ -49,8 +55,24 @@ put() {
 }
 stage() { git -C "$1" add -A; }
 row_count() { if [[ -z "$1" ]]; then echo 0; else printf '%s\n' "$1" | wc -l | tr -d ' '; fi; }
+# site_rows OUT: find output without its skip rows; site_count counts them.
+site_rows() { printf '%s\n' "$1" | grep -v $'^skip\t' || true; }
+site_count() { row_count "$(site_rows "$1")"; }
+# anchor TEXT: the content anchor value-sites.py gives a line with this text.
+anchor() { printf '%s' "$1" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
+# sites OUT PATH:LINE...: the apply SITE of every find row on each listed line.
+sites() {
+  local out="$1" pl
+  shift
+  for pl in "$@"; do
+    printf '%s\n' "$out" | awk -F'\t' -v p="${pl%:*}" -v l="${pl##*:}" \
+      '$1 != "skip" && $2 == p && $3 == l { print $2 ":" $3 ":" $4 ":" $7 }'
+  done
+}
 # control_bytes FILE: count bytes below 0x20 other than tab, LF, CR.
 control_bytes() { LC_ALL=C tr -d '\t\n\r\040-\377' <"$1" | wc -c | tr -d ' '; }
+# untracked FX: untracked paths git sees (a temp file left behind shows here).
+untracked() { git -C "$1" status --porcelain --untracked-files=all | grep '^??' || true; }
 
 # --- forms -------------------------------------------------------------------
 FX=$(new_fixture forms)
@@ -75,9 +97,10 @@ assert_contains "WSL form found" "$OUT" $'setup\twsl.sh\t1\t4\twsl\tdefault'
 assert_not_contains "longest overlap wins: WSL site not also an MSYS row" "$OUT" $'wsl.sh\t1\t8'
 assert_not_contains "token boundary: no match inside a longer word" "$OUT" "other.md"
 assert_not_contains "MSYS form not matched inside a URL path" "$OUT" "url.md"
-assert_eq "exactly five sites" "5" "$(row_count "$OUT")"
+assert_eq "exactly five sites" "5" "$(site_count "$OUT")"
 WSL_ROW=$(printf '%s\n' "$OUT" | grep -F $'\twsl.sh\t')
-assert_eq "row text is the line without its newline" $'setup\twsl.sh\t1\t4\twsl\tdefault\tcd /mnt/d/data/cfg' "$WSL_ROW"
+assert_eq "row carries the line's anchor, then the line without its newline" \
+  $'setup\twsl.sh\t1\t4\twsl\tdefault\t'"$(anchor 'cd /mnt/d/data/cfg')"$'\tcd /mnt/d/data/cfg' "$WSL_ROW"
 
 # find is read-only
 BEFORE=$(git -C "$FX" status --porcelain)
@@ -88,7 +111,7 @@ assert_eq "find leaves the tree unchanged" "$BEFORE" "$AFTER"
 
 # PATH restriction
 OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT" run.sh)
-assert_eq "a PATH argument restricts the file set" "1" "$(row_count "$OUT")"
+assert_eq "a PATH argument restricts the file set" "1" "$(site_count "$OUT")"
 
 # --- bare drive letter ---------------------------------------------------------
 FX=$(new_fixture bare)
@@ -103,7 +126,7 @@ assert_not_contains "bare D: not inside ID:" "$OUT" $'notes.md\t2'
 assert_not_contains "bare D: not in a URL /d/ segment" "$OUT" $'notes.md\t3'
 assert_not_contains "bare D: creates no MSYS form" "$OUT" "run.sh"
 assert_contains "YAML d: key only as a case row" "$OUT" $'setup\tconf.yaml\t1\t1\tcase:exact\tdefault'
-assert_eq "bare D: yields exactly two sites" "2" "$(row_count "$OUT")"
+assert_eq "bare D: yields exactly two sites" "2" "$(site_count "$OUT")"
 
 # --- classes -------------------------------------------------------------------
 FX=$(new_fixture classes)
@@ -129,10 +152,11 @@ assert_contains "*.test.sh is a fixture" "$OUT" $'fixture\tlib/run.test.sh\t1\t3
 assert_contains "DO NOT EDIT header is generated" "$OUT" $'generated\tgen/out.txt\t2\t3\texact\tmarker:do not edit'
 assert_contains "latest/notes.md stays setup" "$OUT" $'setup\tlatest/notes.md\t1\t3\texact\tdefault'
 assert_contains "a lowercase changelog is a record" "$OUT" $'record\tdocs/changelog.md\t1\t3\texact\tname:CHANGELOG*'
-assert_not_contains "binary file is skipped" "$OUT" "blob.bin"
+assert_contains "F3: binary file is a skip row" "$OUT" $'skip\tblob.bin\tbinary'
+assert_not_contains "binary file has no site row" "$(site_rows "$OUT")" "blob.bin"
 
 SUM=$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)
-assert_contains "summary counts skipped binaries" "$SUM" "skipped-binary: 1"
+assert_contains "F3: summary counts skipped files" "$SUM" "skipped: 1"
 assert_contains "summary per-file count" "$SUM" $'file\tREADME.md\t1'
 assert_contains "summary setup count" "$SUM" $'class\tsetup\t2'
 assert_contains "summary record count" "$SUM" $'class\trecord\t2'
@@ -158,9 +182,11 @@ put "$FX" cfg.json '{"dir": "cfg\\"}'
 stage "$FX"
 ROOT=$(host_path "$FX")
 OUT=$(vs find --old 'D:\data' --root "$ROOT")
-assert_eq "doubled spelling yields one row" $'setup\tapp.json\t1\t10\tdoubled\tdefault\t{"dir": "D:\\\\data"}' "$OUT"
+assert_eq "doubled spelling yields one row" \
+  $'setup\tapp.json\t1\t10\tdoubled\tdefault\t'"$(anchor '{"dir": "D:\\data"}')"$'\t{"dir": "D:\\\\data"}' "$OUT"
 OUT=$(vs find --old $'cfg\\' --root "$ROOT")
-assert_eq "exact and doubled overlap at one start: one row, the longer form" $'setup\tcfg.json\t1\t10\tdoubled\tdefault\t{"dir": "cfg\\\\"}' "$OUT"
+assert_eq "exact and doubled overlap at one start: one row, the longer form" \
+  $'setup\tcfg.json\t1\t10\tdoubled\tdefault\t'"$(anchor '{"dir": "cfg\\"}')"$'\t{"dir": "cfg\\\\"}' "$OUT"
 
 # --- exits ---------------------------------------------------------------------
 rc=0
@@ -186,8 +212,10 @@ put "$FX" app.json '{"dir": "D:\\data\\cfg"}'
 put "$FX" setup.sh 'DATA=D:/data/cfg'
 stage "$FX"
 ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT")
+mapfile -t S < <(sites "$OUT" README.md:1 app.json:1 setup.sh:1)
 rc=0
-OUT=$(vs apply --old 'D:\data\cfg' --new 'E:\data\cfg\current' --root "$ROOT" README.md:1 app.json:1 setup.sh:1) || rc=$?
+OUT=$(vs apply --old 'D:\data\cfg' --new 'E:\data\cfg\current' --root "$ROOT" "${S[@]}") || rc=$?
 assert_exit "apply exits 0" 0 "$rc"
 assert_eq "one printed row per site" "3" "$(row_count "$OUT")"
 assert_eq "backslash value written literally" 'Data lives in E:\data\cfg\current for now.' "$(sed -n 1p "$FX/README.md")"
@@ -195,6 +223,7 @@ assert_eq "apply writes no control bytes" "0" "$(control_bytes "$FX/README.md")"
 assert_eq "unlisted matching line keeps the old value" 'Second copy D:\data\cfg stays.' "$(sed -n 2p "$FX/README.md")"
 assert_eq "JSON gets the doubled-backslash form" '{"dir": "E:\\data\\cfg\\current"}' "$(cat "$FX/app.json")"
 assert_eq "shell file gets the slash form" 'DATA=E:/data/cfg/current' "$(cat "$FX/setup.sh")"
+assert_eq "F5: a successful apply leaves no temp file" "" "$(untracked "$FX")"
 
 # --- apply: CRLF and BOM -------------------------------------------------------
 FX=$(new_fixture crlf)
@@ -211,8 +240,10 @@ ROOT=$(host_path "$FX")
 OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT")
 assert_contains "BOM does not shift the column" "$OUT" $'win.txt\t1\t6\texact'
 assert_not_contains "row text carries no CR" "$OUT" $'\r'
+assert_contains "F1: the anchor hashes the line without BOM or CR" "$OUT" $'\t'"$(anchor 'root D:\data\cfg')"$'\t'
+mapfile -t S < <(sites "$OUT" win.txt:1)
 rc=0
-vs apply --old 'D:\data\cfg' --new 'E:\data\cfg\current' --root "$ROOT" win.txt:1 >/dev/null || rc=$?
+vs apply --old 'D:\data\cfg' --new 'E:\data\cfg\current' --root "$ROOT" "${S[@]}" >/dev/null || rc=$?
 assert_exit "apply on CRLF+BOM exits 0" 0 "$rc"
 if cmp -s "$FX/win.txt" "$TEST_TMPDIR/win.expected"; then
   pass "apply keeps CRLF and the UTF-8 BOM"
@@ -230,38 +261,48 @@ put "$FX" tests/x.sh 'v Q:\vol\one'
 stage "$FX"
 ROOT=$(host_path "$FX")
 BEFORE=$(git -C "$FX" diff --no-ext-diff)
+OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
+A1=$(anchor 'v Q:\vol\one')
 
 rc=0
-ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:2 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "README.md:2:3:$A1" 2>&1 >/dev/null) || rc=$?
 assert_exit "stale line anchor exits 3" 3 "$rc"
 assert_contains "stale anchor names the site" "$ERR" "README.md:2"
 rc=0
-ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" CHANGELOG.md:1 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "$(sites "$OUT" CHANGELOG.md:1)" 2>&1 >/dev/null) || rc=$?
 assert_exit "record site refused" 3 "$rc"
 assert_contains "record refusal names the site" "$ERR" "CHANGELOG.md:1"
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" PLAN.md:1 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "$(sites "$OUT" PLAN.md:1)" >/dev/null 2>&1 || rc=$?
 assert_exit "contract site refused" 3 "$rc"
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" gen/out.txt:2 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "$(sites "$OUT" gen/out.txt:2)" >/dev/null 2>&1 || rc=$?
 assert_exit "generated site refused" 3 "$rc"
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" tests/x.sh:1 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "$(sites "$OUT" tests/x.sh:1)" >/dev/null 2>&1 || rc=$?
 assert_exit "fixture site refused without --allow-fixture" 3 "$rc"
+mapfile -t S < <(sites "$OUT" README.md:1 PLAN.md:1)
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 PLAN.md:1 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
 assert_exit "one refused site refuses the whole run" 3 "$rc"
 assert_eq "refusals write nothing" "$BEFORE" "$(git -C "$FX" diff --no-ext-diff)"
 rc=0
 vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md >/dev/null 2>&1 || rc=$?
 assert_exit "a site without :line exits 2" 2 "$rc"
 rc=0
-vs apply --old 'Q:\vol\one' --new $'Q:\\vol\x01' --root "$ROOT" README.md:1 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 >/dev/null 2>&1 || rc=$?
+assert_exit "F1: a bare path:line site exits 2" 2 "$rc"
+rc=0
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1:3:xyz >/dev/null 2>&1 || rc=$?
+assert_exit "F1: a malformed anchor exits 2" 2 "$rc"
+assert_eq "F1: usage errors write nothing" "$BEFORE" "$(git -C "$FX" diff --no-ext-diff)"
+rc=0
+vs apply --old 'Q:\vol\one' --new $'Q:\\vol\x01' --root "$ROOT" "$(sites "$OUT" README.md:1)" >/dev/null 2>&1 || rc=$?
 assert_exit "a write that changes the control-byte count is refused" 3 "$rc"
 assert_eq "control-byte refusal writes nothing" "$BEFORE" "$(git -C "$FX" diff --no-ext-diff)"
 
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" --allow-fixture tests/x.sh:1 >/dev/null || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" --allow-fixture "$(sites "$OUT" tests/x.sh:1)" >/dev/null || rc=$?
 assert_exit "fixture site applied with --allow-fixture" 0 "$rc"
 assert_eq "fixture file changed" 'v Q:\vol\two' "$(cat "$FX/tests/x.sh")"
 
@@ -278,11 +319,12 @@ OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT")
 assert_contains "case-folded doubled match is tagged case:doubled" "$OUT" $'case.json\t1\t10\tcase:doubled'
 assert_contains "case-folded MSYS match is tagged case:msys" "$OUT" $'case.sh\t1\t4\tcase:msys'
 rc=0
-ERR=$(vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" README.md:99 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" "README.md:99:15:$(anchor 'Data lives in D:\data\cfg for now.')" 2>&1 >/dev/null) || rc=$?
 assert_exit "a line past the end of the file is refused" 3 "$rc"
 assert_contains "past-EOF refusal names the site" "$ERR" "README.md:99"
+mapfile -t S < <(sites "$OUT" run.sh:1 wsl.sh:1 case.json:1 case.sh:1)
 rc=0
-vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" run.sh:1 wsl.sh:1 case.json:1 case.sh:1 >/dev/null || rc=$?
+vs apply --old 'D:\data\cfg' --new 'E:\data\new' --root "$ROOT" "${S[@]}" >/dev/null || rc=$?
 assert_exit "apply on msys, wsl and case sites exits 0" 0 "$rc"
 assert_eq "MSYS site gets the MSYS spelling" 'cd /e/data/new' "$(cat "$FX/run.sh")"
 assert_eq "WSL site gets the WSL spelling" 'cd /mnt/e/data/new' "$(cat "$FX/wsl.sh")"
@@ -296,14 +338,15 @@ stage "$FX"
 put "$FX" notes.md 'v Q:\vol\one'
 printf '%s\n' 'v Q:\vol\one' >"$TEST_TMPDIR/outside.txt"
 ROOT=$(host_path "$FX")
+A1=$(anchor 'v Q:\vol\one')
 rc=0
-ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 ../outside.txt:1 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "README.md:1:3:$A1" "../outside.txt:1:3:$A1" 2>&1 >/dev/null) || rc=$?
 assert_exit "a site outside the root is refused" 3 "$rc"
 assert_contains "outside refusal names the site" "$ERR" "outside.txt"
 assert_eq "the outside file is unchanged" 'v Q:\vol\one' "$(cat "$TEST_TMPDIR/outside.txt")"
 assert_eq "confinement refusal writes nothing in the root" 'v Q:\vol\one' "$(cat "$FX/README.md")"
 rc=0
-ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 notes.md:1 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "README.md:1:3:$A1" "notes.md:1:3:$A1" 2>&1 >/dev/null) || rc=$?
 assert_exit "an untracked file inside the root is refused" 3 "$rc"
 assert_contains "untracked refusal names the site" "$ERR" "notes.md:1"
 assert_eq "the untracked file is unchanged" 'v Q:\vol\one' "$(cat "$FX/notes.md")"
@@ -316,15 +359,19 @@ put "$FX" docs/keep.md 'kept'
 put "$FX" A.md 'one Q:\vol\one' 'two Q:\vol\one'
 stage "$FX"
 ROOT=$(host_path "$FX")
+L1="1:5:$(anchor 'one Q:\vol\one')"
+L2="2:5:$(anchor 'two Q:\vol\one')"
 rc=0
-OUT=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" dup.md:1 docs/../dup.md:2) || rc=$?
+OUT=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "dup.md:$L1" "docs/../dup.md:$L2") || rc=$?
 assert_exit "apply with two spellings of one file exits 0" 0 "$rc"
 assert_eq "both edits land in one write" $'one Q:\\vol\\two\ntwo Q:\\vol\\two' "$(cat "$FX/dup.md")"
 if [[ -e "$FX/a.md" ]]; then
   rc=0
-  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" A.md:1 a.md:2 >/dev/null || rc=$?
+  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "A.md:$L1" "a.md:$L2" >/dev/null || rc=$?
   assert_exit "apply with two casings of one file exits 0" 0 "$rc"
   assert_eq "both casings' edits land in one write" $'one Q:\\vol\\two\ntwo Q:\\vol\\two' "$(cat "$FX/A.md")"
+else
+  skip "apply with two casings of one file" "case-sensitive filesystem"
 fi
 
 # --- a dot scope means the whole repository -----------------------------------------
@@ -333,8 +380,8 @@ put "$FX" README.md 'v Q:\vol\one'
 put "$FX" docs/guide.md 'v Q:\vol\one'
 stage "$FX"
 ROOT=$(host_path "$FX")
-assert_eq "scope . finds every site" "2" "$(row_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" .)")"
-assert_eq "scope ./ finds every site" "2" "$(row_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" ./)")"
+assert_eq "scope . finds every site" "2" "$(site_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" .)")"
+assert_eq "scope ./ finds every site" "2" "$(site_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" ./)")"
 
 # --- protected surfaces: CI, agent settings, hooks, lint configs, migrations ---------
 FX=$(new_fixture protected)
@@ -366,8 +413,9 @@ assert_contains "pre-commit config is protected" "$OUT" $'protected\t.pre-commit
 assert_contains "migration is protected" "$OUT" $'protected\tdb/migrations/001.sql\t1\t4\texact\tsegment:migrations'
 assert_contains "README stays setup" "$OUT" $'setup\tREADME.md'
 assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t10'
+mapfile -t S < <(sites "$OUT" README.md:1 .github/workflows/ci.yml:1)
 rc=0
-vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 .github/workflows/ci.yml:1 >/dev/null 2>&1 || rc=$?
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
 assert_exit "apply refuses a protected site" 3 "$rc"
 assert_eq "protected refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/README.md")"
 
@@ -379,14 +427,197 @@ if [[ "$(id -u 2>/dev/null)" != "0" ]]; then
   stage "$FX"
   chmod a-w "$FX/b.md"
   ROOT=$(host_path "$FX")
+  A1=$(anchor 'v Q:\vol\one')
   rc=0
-  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" a.md:1 b.md:1 >/dev/null 2>&1 || rc=$?
+  vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "a.md:1:3:$A1" "b.md:1:3:$A1" >/dev/null 2>&1 || rc=$?
   chmod u+w "$FX/b.md"
   assert_exit "an unwritable target is refused" 3 "$rc"
   assert_eq "no earlier target is written" 'v Q:\vol\one' "$(cat "$FX/a.md")"
+else
+  skip "an unwritable target is refused" "running as root"
 fi
 
+# --- F1: a site is path:line:col:anchor, checked at write time -----------------------
+FX=$(new_fixture swap)
+put "$FX" README.md 'Install to D:/data' 'We once used D:/data (keep)'
+put "$FX" same.md 'new: D:/data' 'old: D:/data (keep)'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+mapfile -t S < <(sites "$OUT" README.md:1)
+assert_eq "F1: line 1 carries one site" "1" "${#S[@]}"
+put "$FX" README.md 'We once used D:/data (keep)' 'Install to D:/data'
+rc=0
+ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[@]}" 2>&1 >/dev/null) || rc=$?
+assert_exit "F1: a confirmed site whose lines swapped is refused" 3 "$rc"
+assert_eq "F1: neither swapped line changes" $'We once used D:/data (keep)\nInstall to D:/data' "$(cat "$FX/README.md")"
+mapfile -t S < <(sites "$OUT" same.md:1)
+put "$FX" same.md 'old: D:/data (keep)' 'new: D:/data'
+rc=0
+ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[@]}" 2>&1 >/dev/null) || rc=$?
+assert_exit "F1: same column, different line text: the anchor refuses" 3 "$rc"
+assert_contains "F1: the refusal names the anchor" "$ERR" "anchor"
+assert_eq "F1: the same-column swap writes nothing" $'old: D:/data (keep)\nnew: D:/data' "$(cat "$FX/same.md")"
+rc=0
+ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "same.md:2:3:$(anchor 'new: D:/data')" 2>&1 >/dev/null) || rc=$?
+assert_exit "F1: the right anchor at a column with no match is refused" 3 "$rc"
+assert_contains "F1: the column refusal names the column" "$ERR" "col 3"
+
+FX=$(new_fixture mixed)
+put "$FX" README.md 'D:/data to D:/data-archive and D:/data.old'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+mapfile -t S < <(sites "$OUT" README.md:1)
+assert_eq "F1: three matches on one line are three sites" "3" "${#S[@]}"
+rc=0
+OUT=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[0]}") || rc=$?
+assert_exit "F1: applying the first column exits 0" 0 "$rc"
+assert_eq "F1: only the confirmed column changes" 'E:/work to D:/data-archive and D:/data.old' "$(cat "$FX/README.md")"
+assert_eq "F1: one applied row for one site" "1" "$(row_count "$OUT")"
+
+# --- F2: classification additions and default-deny for unknown kinds -----------------
+FX=$(new_fixture classes2)
+PROT=(azure-pipelines.yaml .drone.yml AppVeyor.yml .woodpecker.yml cloudbuild.yaml
+  .azure-pipelines/build.yml .gitlab/ci/build.yml
+  .prettierrc .prettierrc.json prettier.config.js .flake8 .pylintrc .stylelintrc.json biome.json
+  .yamllint .rubocop.yml lefthook.yml .lintstagedrc mypy.ini
+  src/main/resources/db/migration/V1__init.sql db/migrate/2020_create.rb alembic/versions/abc_init.py)
+for p in "${PROT[@]}"; do put "$FX" "$p" 'v Q:\vol\one'; done
+for p in CHANGES.md NEWS.md changelog.d/123.feature.md LICENSE notes.xyz tests/data.xyz Makefile Dockerfile .env docs/setup.md; do
+  put "$FX" "$p" 'v Q:\vol\one'
+done
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(slashes "$(vs find --old 'Q:\vol\one' --root "$ROOT")")
+for p in "${PROT[@]}"; do
+  assert_contains "F2: $p is protected" "$OUT" $'protected\t'"$p"$'\t'
+done
+assert_contains "F2: CI name compared case-insensitively" "$OUT" $'protected\tAppVeyor.yml\t1\t3\texact\tname:appveyor.yml'
+assert_contains "F2: .gitlab segment reason" "$OUT" $'\t.gitlab/ci/build.yml\t1\t3\texact\tsegment:.gitlab'
+assert_contains "F2: db/migration segment reason" "$OUT" $'\tsegment:migration\t'
+assert_contains "F2: db/migrate segment reason" "$OUT" $'\tsegment:migrate\t'
+assert_contains "F2: alembic segment reason" "$OUT" $'\tsegment:alembic\t'
+assert_contains "F2: CHANGES is a record" "$OUT" $'record\tCHANGES.md\t1\t3\texact\tname:CHANGES*'
+assert_contains "F2: NEWS is a record" "$OUT" $'record\tNEWS.md\t1\t3\texact\tname:NEWS*'
+assert_contains "F2: changelog.d is a record" "$OUT" $'record\tchangelog.d/123.feature.md\t1\t3\texact\tsegment:changelog.d'
+assert_contains "F2: an extensionless unknown kind is unknown" "$OUT" $'unknown\tLICENSE\t1\t3\texact\tdefault:unknown-kind'
+assert_contains "F2: an unknown extension is unknown" "$OUT" $'unknown\tnotes.xyz\t1\t3\texact\tdefault:unknown-kind'
+assert_contains "F2: a fixture rule fires before unknown" "$OUT" $'fixture\ttests/data.xyz'
+assert_contains "F2: Makefile is setup" "$OUT" $'setup\tMakefile\t'
+assert_contains "F2: Dockerfile is setup" "$OUT" $'setup\tDockerfile\t'
+assert_contains "F2: .env is setup" "$OUT" $'setup\t.env\t'
+assert_contains "F2: a markdown doc is setup" "$OUT" $'setup\tdocs/setup.md\t'
+assert_contains "F2: summary counts unknown" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tunknown\t2'
+mapfile -t S < <(sites "$OUT" docs/setup.md:1 notes.xyz:1)
+rc=0
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
+assert_exit "F2: apply refuses an unknown-kind site" 3 "$rc"
+assert_eq "F2: the unknown refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/docs/setup.md")"
+mapfile -t S < <(sites "$OUT" .gitlab/ci/build.yml:1 db/migrate/2020_create.rb:1 .prettierrc:1)
+rc=0
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
+assert_exit "F2: apply refuses the added protected kinds" 3 "$rc"
+
+# --- F3: binary and UTF-16/UTF-32 files are skip rows and never written --------------
+FX=$(new_fixture unreadable)
+put "$FX" README.md 'v Q:\vol\one'
+printf '\xff\xfe%s\n' 'v Q:\vol\one' >"$FX/u16.md"
+printf '\xff\xfe\x00\x00%s\n' 'v Q:\vol\one' >"$FX/u32.md"
+printf 'v Q:\\vol\\one\n\000\001' >"$FX/blob.md"
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
+assert_contains "F3: a UTF-16 BOM file is a skip row" "$OUT" $'skip\tu16.md\tutf-16'
+assert_contains "F3: a UTF-32 BOM file is a skip row" "$OUT" $'skip\tu32.md\tutf-32'
+assert_contains "F3: a NUL-bearing file is a binary skip row" "$OUT" $'skip\tblob.md\tbinary'
+assert_eq "F3: skip rows are not sites" "1" "$(site_count "$OUT")"
+assert_contains "F3: summary counts every skip" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" "skipped: 3"
+A1=$(anchor 'v Q:\vol\one')
+for f in u16.md blob.md; do
+  BEFORE_BYTES=$(od -An -tx1 "$FX/$f")
+  rc=0
+  ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "$f:1:3:$A1" 2>&1 >/dev/null) || rc=$?
+  assert_exit "F3: apply refuses $f" 3 "$rc"
+  assert_eq "F3: $f is unchanged" "$BEFORE_BYTES" "$(od -An -tx1 "$FX/$f")"
+done
+
+# --- F4: a match does not end before ~digit (8.3 short names) -------------------------
+FX=$(new_fixture tilde)
+put "$FX" README.md 'short D:/data~1 name' 'plain D:/data here'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+assert_not_contains "F4: D:/data~1 is a different directory" "$OUT" $'README.md\t1\t'
+assert_eq "F4: only the plain line is a site" "1" "$(site_count "$OUT")"
+
+# --- F5: hardlinks, resolved paths, and atomic writes ---------------------------------
+FX=$(new_fixture hardlink)
+put "$FX" linked.md 'v Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+if ln "$FX/linked.md" "$TEST_TMPDIR/hardlink-outside.md" 2>/dev/null &&
+  [[ "$(python3 -c 'import os, sys; print(os.stat(sys.argv[1]).st_nlink)' "$(host_path "$FX/linked.md")")" == "2" ]]; then
+  rc=0
+  ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "linked.md:1:3:$(anchor 'v Q:\vol\one')" 2>&1 >/dev/null) || rc=$?
+  assert_exit "F5: a hardlinked target is refused" 3 "$rc"
+  assert_contains "F5: the refusal names the hardlink" "$ERR" "hardlink"
+  assert_eq "F5: the linked file outside the root is unchanged" 'v Q:\vol\one' "$(cat "$TEST_TMPDIR/hardlink-outside.md")"
+else
+  skip "F5: a hardlinked target is refused" "ln cannot make a hard link here"
+fi
+
+FX=$(new_fixture outside)
+put "$FX" README.md 'v Q:\vol\one'
+printf '%s\n' 'v Q:\vol\one' >"$TEST_TMPDIR/outside-target.md"
+if MSYS=winsymlinks:nativestrict ln -s "$TEST_TMPDIR/outside-target.md" "$FX/out.md" 2>/dev/null && [[ -L "$FX/out.md" ]]; then
+  stage "$FX"
+  if [[ "$(git -C "$FX" ls-files -s out.md)" == 120000* ]]; then
+    OUT=$(vs find --old 'Q:\vol\one' --root "$(host_path "$FX")")
+    assert_contains "F5: a tracked path resolving outside the root is a skip row" "$OUT" $'skip\tout.md\toutside-root'
+    assert_eq "F5: the outside path is not a site" "1" "$(site_count "$OUT")"
+  else
+    skip "F5: a tracked path resolving outside the root is a skip row" "git does not track symlinks here"
+  fi
+else
+  skip "F5: a tracked path resolving outside the root is a skip row" "cannot create a symlink here"
+fi
+
+FX=$(new_fixture atomic)
+put "$FX" a.md 'v Q:\vol\one'
+put "$FX" locked/b.md 'v Q:\vol\one'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
+mapfile -t S < <(sites "$OUT" a.md:1 locked/b.md:1)
+chmod a-w "$FX/locked"
+if touch "$FX/locked/probe" 2>/dev/null; then
+  rm -f "$FX/locked/probe"
+  chmod u+w "$FX/locked"
+  skip "F5: a write that fails midway restores every file" "a read-only directory still accepts new files here"
+else
+  rc=0
+  ERR=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" 2>&1 >/dev/null) || rc=$?
+  chmod u+w "$FX/locked"
+  assert_exit "F5: a write that fails midway exits 2" 2 "$rc"
+  assert_eq "F5: the file written first is restored" 'v Q:\vol\one' "$(cat "$FX/a.md")"
+  assert_eq "F5: the failing file is unchanged" 'v Q:\vol\one' "$(cat "$FX/locked/b.md")"
+  assert_eq "F5: no temp file is left after the failure" "" "$(untracked "$FX")"
+fi
+
+FX=$(new_fixture mode)
+put "$FX" run.sh 'cd D:/data'
+chmod +x "$FX/run.sh"
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+rc=0
+vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "$(sites "$OUT" run.sh:1)" >/dev/null || rc=$?
+assert_exit "F5: apply on an executable script exits 0" 0 "$rc"
+assert_not_contains "F5: the atomic write keeps the file mode" "$(git -C "$FX" diff --summary)" "mode change"
+
 echo
+echo "value-sites.test.sh: $((CASE_NUM - FAILED)) passed, $FAILED failed, $SKIPPED skipped"
 if [[ "$FAILED" -gt 0 ]]; then
   echo "value-sites.test.sh: $FAILED of $CASE_NUM FAILED" >&2
   exit 1

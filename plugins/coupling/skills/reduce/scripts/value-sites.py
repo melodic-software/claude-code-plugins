@@ -6,8 +6,11 @@ Usage:
   value-sites.py apply --old V --new W [--root DIR] [--allow-fixture] SITE...
 
 find reads tracked files (`git -C DIR ls-files`, optionally restricted to PATH
-prefixes; `.` means the whole root) and never writes. Files with a NUL byte in the first 8 KiB are
-skipped and counted. The value is searched in these forms, each a `form` tag:
+prefixes; `.` means the whole root) and never writes. A file is skipped, not
+read, when it has a NUL byte in the first 8 KiB (`binary`), starts with a
+UTF-16 or UTF-32 byte-order mark (`utf-16`, `utf-32`), or resolves to a
+location outside the root (`outside-root`). The value is searched in these
+forms, each a `form` tag:
 
   exact    the value as given
   swap     `/` and `\\` swapped
@@ -18,51 +21,74 @@ skipped and counted. The value is searched in these forms, each a `form` tag:
            exact-case match took the span
 
 A value starting (ending) with a word character does not match after (before)
-another word character; an msys or wsl form does not match after a word
-character or one of `/.-~`, so a URL path is not a drive path. Every filename
-and path-segment rule compares case-insensitively. Overlapping matches resolve
-longest first, once.
+another word character, and no match ends before `~` and a digit (`DATA~1`
+is an 8.3 short name, another directory); an msys or wsl form does not match
+after a word character or one of `/.-~`, so a URL path is not a drive path.
+Every filename and path-segment rule compares case-insensitively. Overlapping
+matches resolve longest first, once.
 
-tsv rows: class, path, line, col, form, reason, text (tab separated; tabs in
-text written as `\\t`). Class, first rule wins: generated (marker in the first
-5 lines), protected (CI, agent settings, hooks, lint configs, migrations),
-fixture, record, contract, else setup; `reason` names the rule.
+tsv rows: class, path, line, col, form, reason, anchor, text (tab separated;
+tabs in text written as `\\t`). anchor is the first 12 hex digits of the
+SHA-256 of the line's bytes without its terminator or a trailing CR (and
+without a UTF-8 BOM on line 1). A skipped file is a row `skip<TAB>path<TAB>reason`.
+Class is decided on the path resolved relative to the resolved root, first
+rule wins: generated (marker in the first 5 lines), protected (CI, agent
+settings, hooks, lint configs, migrations), fixture, record, contract, unknown
+(an extension, or an extensionless name, outside the text allow-list), else
+setup; `reason` names the rule. The protected and locked lists are a deny-list;
+a file kind the script does not know is denied by default rather than treated
+as setup.
 summary lines: `file<TAB>path<TAB>n`, `class<TAB>name<TAB>n`, `sites: n`,
-`skipped-binary: n`.
+`skipped: n`.
 
-apply takes SITE as `path:line`. A SITE must name a tracked file inside the
-root that is not a symlink; sites naming one file two ways (`./`, `..`, or a
-different case on a case-insensitive filesystem) are one file and one write.
-For each listed line it re-reads the file, re-derives class and matches, and
-replaces every match on the line with W in that match's form (a `case:T` match
-gets W in form T). Bytes outside the matches, CRLF and a BOM included, are
-kept. Refusals are all-or-nothing: if any site is refused (outside the root,
-untracked, missing, or a symlink; line past the end or no longer carrying the
-value; class record, contract, generated or protected; fixture without --allow-fixture;
-W has no spelling for a matched form; the file's control-byte count would
-change; a target not writable) nothing is written. If a write still fails,
-the files already written get their original bytes back and the exit is 2. Prints one row per replaced site:
-`applied<TAB>path<TAB>line<TAB>forms<TAB>text`.
+apply takes SITE as `path:line:col:anchor`, copied from a find row; a bare
+`path:line` is a usage error. A SITE must name a tracked file inside the root
+that is not a symlink or a hardlink; sites naming one file two ways (`./`,
+`..`, or a different case on a case-insensitive filesystem) are one file and
+one write. For each site it re-reads the file, re-derives class and matches,
+requires the line's anchor to equal the given one and a match of the value to
+start at col, and replaces that one match with W in its form (a `case:T` match
+gets W in form T). Several matches on one line are several sites. Bytes outside
+the matches, CRLF and a BOM included, are kept. Refusals are all-or-nothing: if
+any site is refused (outside the root, untracked, missing, a symlink or
+hardlink; a binary, UTF-16 or UTF-32 file; line past the end, anchor mismatch
+or no match at col; class record, contract, generated, protected or unknown;
+fixture without --allow-fixture; W has no spelling for a matched form; the
+file's control-byte count would change; a target not writable) nothing is
+written. Each file is written to a temp file in its own directory and moved
+over the original; if any write fails, this run's temp files are removed, every
+file already replaced gets its original bytes back, and the exit is 2. Prints
+one row per replaced site: `applied<TAB>path<TAB>line<TAB>col<TAB>form<TAB>text`.
 
 Exit: 0 sites found or applied, 1 no sites (find), 2 usage or environment
-(bad arguments, non-git root, unreadable file), 3 apply refused (a SITE path
-that does not exist is refused as untracked, not exit 2).
+(bad arguments, non-git root, unreadable file, failed write), 3 apply refused
+(a SITE path that does not exist is refused as untracked, not exit 2).
 """
 
 from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import io
 import os
 import posixpath
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 BOM = "\ufeff"
 DRIVE_PATH = re.compile(r"^([A-Za-z]):[\\/](.+)$")
+ANCHOR = re.compile(r"^[0-9a-f]{12}$")
+WIDE_BOMS = (
+    (b"\xff\xfe\x00\x00", "utf-32"),
+    (b"\x00\x00\xfe\xff", "utf-32"),
+    (b"\xff\xfe", "utf-16"),
+    (b"\xfe\xff", "utf-16"),
+)
 GENERATED_MARKERS = (
     "@generated",
     "do not edit",
@@ -72,25 +98,50 @@ GENERATED_MARKERS = (
 )
 FIXTURE_SEGMENTS = ("test", "tests", "__tests__", "fixtures", "testdata", "evals")
 FIXTURE_NAMES = ("*.test.*", "test_*.py", "*_test.*", "*.Tests.ps1")
-RECORD_PREFIXES = ("CHANGELOG", "HISTORY", "RELEASE-NOTES", "RELEASENOTES")
-RECORD_SEGMENTS = ("adr", "decisions", "evidence", "records", "postmortems", "retros")
+RECORD_PREFIXES = (
+    "CHANGELOG",
+    "CHANGES",
+    "NEWS",
+    "HISTORY",
+    "RELEASE-NOTES",
+    "RELEASENOTES",
+)
+RECORD_SEGMENTS = (
+    "adr",
+    "decisions",
+    "evidence",
+    "records",
+    "postmortems",
+    "retros",
+    "changelog.d",
+)
 CONTRACT_SEGMENTS = ("specs", "rfcs", "proposals")
 PROTECTED_SEGMENTS = (
     ".github",
+    ".gitlab",
+    ".azure-pipelines",
     ".claude",
     ".husky",
     ".githooks",
     ".circleci",
     ".buildkite",
     "migrations",
+    "migration",
+    "migrate",
+    "alembic",
 )
 PROTECTED_NAMES = (
     "hooks.json",
     ".gitlab-ci.yml",
     "azure-pipelines.yml",
+    "azure-pipelines.yaml",
     "jenkinsfile",
     ".travis.yml",
     "bitbucket-pipelines.yml",
+    ".drone.yml",
+    "appveyor.yml",
+    ".woodpecker.yml",
+    "cloudbuild.yaml",
     "ruff.toml",
     ".ruff.toml",
     "_typos.toml",
@@ -104,9 +155,34 @@ PROTECTED_NAMES = (
     ".eslintrc*",
     "eslint.config.*",
     ".markdownlint*",
+    ".prettierrc*",
+    "prettier.config.*",
+    ".flake8",
+    ".pylintrc",
+    ".stylelintrc*",
+    "biome.json",
+    ".yamllint*",
+    ".rubocop.yml",
+    "lefthook.yml",
+    ".lintstagedrc*",
+    "mypy.ini",
 )
-CLASSES = ("setup", "record", "contract", "fixture", "generated", "protected")
-LOCKED = ("record", "contract", "generated", "protected")
+TEXT_EXTENSIONS = frozenset(
+    "md markdown rst txt adoc sh bash zsh ps1 psm1 psd1 bat cmd py js mjs cjs ts"
+    " tsx jsx json jsonc yaml yml toml ini cfg conf xml html htm css scss go rs cs"
+    " java kt rb php tf hcl sql env example tmpl template j2 properties gradle".split()
+)
+TEXT_NAMES = frozenset(("readme", "makefile", "dockerfile"))
+CLASSES = (
+    "setup",
+    "record",
+    "contract",
+    "fixture",
+    "generated",
+    "protected",
+    "unknown",
+)
+LOCKED = ("record", "contract", "generated", "protected", "unknown")
 
 
 class UsageError(Exception):
@@ -167,6 +243,8 @@ def bounded(line: str, start: int, end: int, tag: str = "exact") -> bool:
         return False
     if is_word(line[start]) and start > 0 and is_word(line[start - 1]):
         return False
+    if line[end : end + 1] == "~" and line[end + 1 : end + 2].isdigit():
+        return False
     return not (is_word(line[end - 1]) and end < len(line) and is_word(line[end]))
 
 
@@ -196,6 +274,14 @@ def matches(line: str, spellings: list[tuple[str, str]]) -> list[tuple[int, int,
     kept = resolve(exact, taken)
     kept += resolve(folded, taken)
     return sorted(kept)
+
+
+def text_kind(name: str) -> bool:
+    """True when the file name's extension (or extensionless name) is known text."""
+    stem, dot, ext = name.rpartition(".")
+    if not dot:
+        return name in TEXT_NAMES
+    return ext in TEXT_EXTENSIONS or (not stem and ext in TEXT_NAMES)
 
 
 def classify(rel: str, head: str) -> tuple[str, str]:
@@ -237,6 +323,8 @@ def classify(rel: str, head: str) -> tuple[str, str]:
         return "contract", "name:*.schema.json"
     if name.startswith("openapi"):
         return "contract", "name:openapi*"
+    if not text_kind(name):
+        return "unknown", "default:unknown-kind"
     return "setup", "default"
 
 
@@ -259,6 +347,16 @@ def tracked(root: Path, prefixes: list[str]) -> list[str]:
     return files
 
 
+def unreadable(data: bytes) -> str | None:
+    """Why the bytes are not UTF-8-compatible text, or None when they are."""
+    for bom, reason in WIDE_BOMS:
+        if data.startswith(bom):
+            return reason
+    if b"\0" in data[:8192]:
+        return "binary"
+    return None
+
+
 def decode(data: bytes) -> tuple[str, str]:
     """(bom, text) with every byte recoverable by encode()."""
     text = data.decode("utf-8", "surrogateescape")
@@ -269,6 +367,11 @@ def decode(data: bytes) -> tuple[str, str]:
 
 def encode(bom: str, text: str) -> bytes:
     return (bom + text).encode("utf-8", "surrogateescape")
+
+
+def anchor(line: str) -> str:
+    raw = line.removesuffix("\r").encode("utf-8", "surrogateescape")
+    return hashlib.sha256(raw).hexdigest()[:12]
 
 
 def control_count(data: bytes) -> int:
@@ -288,19 +391,30 @@ def shown(line: str) -> str:
 
 def cmd_find(args: argparse.Namespace) -> int:
     root = Path(args.root)
+    base = root.resolve()
     spellings = forms(args.old)
     rows = []
-    skipped = 0
+    skips = []
     for rel in tracked(root, args.paths):
+        where = (root / rel).resolve()
+        if not where.is_relative_to(base):
+            skips.append((rel, "outside-root"))
+            continue
         data = read(root, rel)
-        if b"\0" in data[:8192]:
-            skipped += 1
+        why = unreadable(data)
+        if why:
+            skips.append((rel, why))
             continue
         _, text = decode(data)
-        cls, reason = classify(rel, text)
+        cls, reason = classify(where.relative_to(base).as_posix(), text)
         for num, line in enumerate(text.split("\n"), 1):
-            for start, _, tag in matches(line, spellings):
-                rows.append((cls, rel, num, start + 1, tag, reason, shown(line)))
+            found = matches(line, spellings)
+            if found:
+                mark = anchor(line)
+                rows += [
+                    (cls, rel, num, start + 1, tag, reason, mark, shown(line))
+                    for start, _, tag in found
+                ]
     if args.format == "summary":
         per_file: dict[str, int] = {}
         per_class = dict.fromkeys(CLASSES, 0)
@@ -312,103 +426,154 @@ def cmd_find(args: argparse.Namespace) -> int:
         for cls, n in per_class.items():
             print(f"class\t{cls}\t{n}")
         print(f"sites: {len(rows)}")
-        print(f"skipped-binary: {skipped}")
+        print(f"skipped: {len(skips)}")
     else:
+        for rel, why in skips:
+            print(f"skip\t{rel}\t{why}")
         for row in rows:
             print("\t".join(str(c) for c in row))
     return 0 if rows else 1
 
 
-def parse_site(site: str) -> tuple[str, int]:
-    path, sep, num = site.rpartition(":")
-    if not sep or not path or not num.isdigit() or int(num) < 1:
-        raise UsageError(f"site must be path:line, got {site!r}")
-    return path.replace("\\", "/").removeprefix("./"), int(num)
+def parse_site(site: str) -> tuple[str, int, int, str]:
+    parts = site.rsplit(":", 3)
+    if (
+        len(parts) != 4
+        or not parts[0]
+        or not all(p.isdigit() and int(p) >= 1 for p in parts[1:3])
+        or not ANCHOR.match(parts[3])
+    ):
+        raise UsageError(f"site must be path:line:col:anchor, got {site!r}")
+    path = parts[0].replace("\\", "/").removeprefix("./")
+    return path, int(parts[1]), int(parts[2]), parts[3]
+
+
+def plan_file(
+    root: Path, rel: str, sites: list[tuple[int, int, str]], args: argparse.Namespace
+) -> tuple[list[str], bytes, bytes, list[str]]:
+    """(refusals, old bytes, new bytes, applied rows) for one file's sites."""
+    data = read(root, rel)
+    tags = [f"{rel}:{n}:{c}" for n, c, _ in sites]
+    why = unreadable(data)
+    if why:
+        return [f"{t}: {why} file is not editable" for t in tags], data, data, []
+    if os.stat(root / rel).st_nlink > 1:
+        return [f"{t}: a hardlink is not editable" for t in tags], data, data, []
+    bom, text = decode(data)
+    cls, reason = classify(rel, text)
+    if cls in LOCKED or (cls == "fixture" and not args.allow_fixture):
+        return (
+            [f"{t}: class {cls} ({reason}) is not editable" for t in tags],
+            data,
+            data,
+            [],
+        )
+    spellings = forms(args.old)
+    lines = text.split("\n")
+    refusals = []
+    edits: dict[int, list[tuple[int, int, str, str]]] = {}
+    for num, col, mark in sites:
+        tag = f"{rel}:{num}:{col}"
+        if num > len(lines):
+            refusals.append(f"{tag}: line past the end of the file")
+            continue
+        line = lines[num - 1]
+        if anchor(line) != mark:
+            refusals.append(f"{tag}: line text changed since find (anchor {mark})")
+            continue
+        hit = [m for m in matches(line, spellings) if m[0] == col - 1]
+        if not hit:
+            refusals.append(f"{tag}: no match of the value at col {col}")
+            continue
+        start, end, form = hit[0]
+        spelled = render(form, args.new)
+        if spelled is None:
+            refusals.append(f"{tag}: new value has no {form} spelling")
+            continue
+        edits.setdefault(num, []).append((start, end, form, spelled))
+    rows = []
+    for num, spans in sorted(edits.items()):
+        line = lines[num - 1]
+        for start, end, _, spelled in sorted(spans, reverse=True):
+            line = line[:start] + spelled + line[end:]
+        lines[num - 1] = line
+        rows += [
+            f"applied\t{rel}\t{num}\t{start + 1}\t{form}\t{shown(line)}"
+            for start, _, form, _ in sorted(spans)
+        ]
+    new_data = encode(bom, "\n".join(lines))
+    if not refusals and control_count(new_data) != control_count(data):
+        refusals = [f"{t}: write would change the control-byte count" for t in tags]
+    return refusals, data, new_data, rows
+
+
+def write_all(writes: list[tuple[Path, bytes, bytes]]) -> None:
+    """Replace each file through a temp file beside it; on failure undo the run."""
+    temps: list[str] = []
+    replaced: list[tuple[Path, bytes]] = []
+    try:
+        for path, old, new in writes:
+            fd, tmp = tempfile.mkstemp(
+                dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+            )
+            temps.append(tmp)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(new)
+            os.chmod(tmp, stat.S_IMODE(os.stat(path).st_mode))
+            os.replace(tmp, path)
+            replaced.append((path, old))
+    except OSError as exc:
+        lost = []
+        for tmp in temps:
+            if os.path.lexists(tmp):
+                os.remove(tmp)
+        for path, old in replaced:
+            try:
+                path.write_bytes(old)
+            except OSError:
+                lost.append(str(path))
+        if lost:
+            raise UsageError(
+                f"write failed ({exc}); NOT restored: {', '.join(lost)}"
+            ) from exc
+        raise UsageError(f"write failed, every file restored: {exc}") from exc
 
 
 def cmd_apply(args: argparse.Namespace) -> int:
     root = Path(args.root)
-    spellings = forms(args.old)
     base = root.resolve()
     known = {os.path.normcase(str(base / t)): t for t in tracked(root, [])}
     refusals = []
-    by_file: dict[str, list[int]] = {}
+    by_file: dict[str, list[tuple[int, int, str]]] = {}
     for site in args.sites:
-        given, num = parse_site(site)
+        given, num, col, mark = parse_site(site)
         path = root / given
         rel = known.get(os.path.normcase(str(path.resolve())))
+        where = f"{given}:{num}:{col}"
         if path.is_symlink():
-            refusals.append(f"{given}:{num}: a symlink is not editable")
+            refusals.append(f"{where}: a symlink is not editable")
         elif not path.resolve().is_relative_to(base):
-            refusals.append(f"{given}:{num}: outside the root")
+            refusals.append(f"{where}: outside the root")
         elif rel is None:
-            refusals.append(f"{given}:{num}: not a tracked file")
-        elif num not in by_file.setdefault(rel, []):
-            by_file[rel].append(num)
+            refusals.append(f"{where}: not a tracked file")
+        elif (num, col, mark) not in by_file.setdefault(rel, []):
+            by_file[rel].append((num, col, mark))
     writes = []
     printed = []
-    for rel, nums in by_file.items():
-        data = read(root, rel)
-        bom, text = decode(data)
-        cls, reason = classify(rel, text)
-        if cls in LOCKED or (cls == "fixture" and not args.allow_fixture):
-            refusals += [
-                f"{rel}:{n}: class {cls} ({reason}) is not editable" for n in nums
-            ]
-            continue
-        lines = text.split("\n")
-        file_ok = True
-        file_rows = []
-        for num in sorted(nums):
-            line = lines[num - 1] if num <= len(lines) else ""
-            found = matches(line, spellings)
-            if not found:
-                refusals.append(f"{rel}:{num}: line no longer carries the value")
-                file_ok = False
-                continue
-            out = []
-            pos = 0
-            for start, end, tag in found:
-                spelled = render(tag, args.new)
-                if spelled is None:
-                    refusals.append(f"{rel}:{num}: new value has no {tag} spelling")
-                    file_ok = False
-                    break
-                out += [line[pos:start], spelled]
-                pos = end
-            else:
-                lines[num - 1] = "".join(out) + line[pos:]
-                tags = ",".join(sorted({t for _, _, t in found}))
-                file_rows.append(
-                    f"applied\t{rel}\t{num}\t{tags}\t{shown(lines[num - 1])}"
-                )
-        if not file_ok:
-            continue
-        new_data = encode(bom, "\n".join(lines))
-        if control_count(new_data) != control_count(data):
-            refusals += [
-                f"{rel}:{n}: write would change the control-byte count" for n in nums
-            ]
-            continue
-        writes.append((root / rel, new_data))
-        printed += file_rows
-    for path, _ in writes:
+    for rel, sites in by_file.items():
+        file_refusals, old, new, rows = plan_file(root, rel, sites, args)
+        refusals += file_refusals
+        if not file_refusals:
+            writes.append((root / rel, old, new))
+            printed += rows
+    for path, _, _ in writes:
         if not os.access(path, os.W_OK):
             refusals.append(f"{path.relative_to(root)}: not writable")
     if refusals:
         for msg in refusals:
             print(f"refused: {msg}", file=sys.stderr)
         return 3
-    done: list[tuple[Path, bytes]] = []
-    try:
-        for path, new_data in writes:
-            old = path.read_bytes()
-            path.write_bytes(new_data)
-            done.append((path, old))
-    except OSError as exc:
-        for path, old in done:
-            path.write_bytes(old)
-        raise UsageError(f"write failed, earlier writes restored: {exc}") from exc
+    write_all(writes)
     for row in printed:
         print(row)
     return 0
@@ -430,7 +595,7 @@ def main(argv: list[str] | None = None) -> int:
     find.add_argument("--format", choices=("tsv", "summary"), default="tsv")
     find.add_argument("paths", nargs="*", metavar="PATH")
     apply = sub.add_parser(
-        "apply", help="substitute the value on listed path:line sites"
+        "apply", help="substitute the value on listed path:line:col:anchor sites"
     )
     apply.add_argument("--old", required=True)
     apply.add_argument("--new", required=True)
