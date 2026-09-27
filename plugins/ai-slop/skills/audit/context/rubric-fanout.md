@@ -24,8 +24,9 @@ by hand.
    batch directory, the corpus-wide counts for the saturation cues: `scope_files=<S>`, one
    `cue=<c> occurrences=<O> files=<F> saturated=yes|no` line per cue over the whole scope,
    and one `batch=NN cue=<c> occurrences=<O> files=<F>` line per batch and cue with
-   occurrences. The catalog entry `rule-abstract-metaphor-jargon` defines the cues, the unit
-   and the threshold.
+   occurrences, plus a `scope_digest=<sha>` line over the batch digests it was counted from.
+   The catalog entry `rule-abstract-metaphor-jargon` defines the cues, the unit and the
+   threshold.
 3. The batch directory is `<findings home>/rubric-lists-<TS>/`, so a later session can resume
    from it; a non-repository target puts it in the session scratchpad. `plan` refuses a
    directory that already holds batch lists, so a new scope gets a new batch directory. A
@@ -137,7 +138,9 @@ When `cues.txt` is present, `merge` also checks that the batches agreed and prin
 The `rule_total:` line of any rule named on a `consistency:` line ends with `consistency=flagged`.
 A flagged rule's total is an artifact of batch assignment until the named batches are
 dispatched again. With no `cues.txt`, `merge` runs none of these checks and prints nothing
-extra. `rule-colon-crutch` and the other rules without cue words get no merge check; their
+extra. When a listed file changed after `plan`, the counts no longer describe the scope, so
+`merge` prints `consistency: cues.txt stale reason=digest` instead of the cue checks; plan
+the scope again into a fresh directory to get current verdicts. `rule-colon-crutch` and the other rules without cue words get no merge check; their
 consistency rests on the catalog's reported and declined examples. The merged file is the rubric
 half of the human report. Rubric findings never enter the detector's findings file: they have
 no crosswalk row and no relay.

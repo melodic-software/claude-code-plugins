@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=129
+EXPECTED_CASES=140
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -579,10 +579,30 @@ still fenced load-bearing
 ````
 After the fences load-bearing.
 EOF
+# Fences opened after list-item markers, nested, closed at an indent: the seam
+# inside is code, the load-bearing after is prose.
+cat >"$K3/s4.md" <<'EOF'
+- ```sh
+    seam inside a list fence
+  ```
+Prose after load-bearing.
+1. - ~~~
+     seam in a nested list fence
+     ~~~
+Then load-bearing again.
+EOF
+# A double-quoted span soft-wrapped onto the next line: its load-bearing is
+# quoted, the seam after the closing quote is prose.
+cat >"$K3/s5.md" <<'EOF'
+He wrote "this passage wraps across
+a load-bearing line" and then a seam here.
+EOF
 touch -t 202603010000 "$K3/s1.md"
 touch -t 202602010000 "$K3/s2.md"
 touch -t 202601010000 "$K3/s3.md"
-printf '%s\t%s\n' s1.md "$K3/s1.md" s2.md "$K3/s2.md" s3.md "$K3/s3.md" >"$K3/targets.tsv"
+touch -t 202512010000 "$K3/s4.md"
+touch -t 202511010000 "$K3/s5.md"
+printf '%s\t%s\n' s1.md "$K3/s1.md" s2.md "$K3/s2.md" s3.md "$K3/s3.md" s4.md "$K3/s4.md" s5.md "$K3/s5.md" >"$K3/targets.tsv"
 bash "$FANOUT" plan --out "$K3/batches" --budget 1 --order mtime "$K3/targets.tsv" >/dev/null 2>&1
 assert_line_in "cues: frontmatter, blockquotes, code and quoted spans are skipped" "$K3/batches/cues.txt" \
   "batch=01 cue=load-bearing occurrences=1 files=1"
@@ -592,6 +612,12 @@ assert_line_in "cues: a --- pair after line 1 is not frontmatter" "$K3/batches/c
   "batch=02 cue=load-bearing occurrences=1 files=1"
 assert_line_in "cues: fences need a same-character closer at least as long, at any indent" "$K3/batches/cues.txt" \
   "batch=03 cue=load-bearing occurrences=1 files=1"
+assert_line_in "cues: prose after a list-item fence counts" "$K3/batches/cues.txt" \
+  "batch=04 cue=load-bearing occurrences=2 files=1"
+assert_not_contains "cues: a cue inside a list-item fence does not" "$(cat "$K3/batches/cues.txt")" "batch=04 cue=seam"
+assert_line_in "cues: a cue after a wrapped quote's close counts" "$K3/batches/cues.txt" \
+  "batch=05 cue=seam occurrences=1 files=1"
+assert_not_contains "cues: a cue inside a wrapped quote does not" "$(cat "$K3/batches/cues.txt")" "batch=05 cue=load-bearing"
 
 : >"$K2/empty.tsv"
 bash "$FANOUT" plan --out "$K2/empty" "$K2/empty.tsv" >/dev/null 2>&1
@@ -683,6 +709,35 @@ assert_line_in "reasons: cap declines are totaled" "$X/reasons.md" \
 assert_line_in "reasons: a declined: line with another reason stays in the body" "$X/reasons.md" \
   "declined: rule-abstract-metaphor-jargon seam reason=whatever"
 assert_not_contains "reasons: and is not totaled" "$merged" "reason=whatever batches"
+
+# cues.txt binds to the contents plan counted: after a listed file changes, and
+# the stale batch is rerun to complete, merge says cues.txt is stale and skips
+# the cue checks. A cues.txt without scope_digest is stale the same way.
+SD="$TEST_TMPDIR/stale-cues"
+mkdir -p "$SD/docs" "$SD/results" "$SD/old"
+printf 'a load-bearing b\n' >"$SD/docs/a.md"
+printf 'c d\n' >"$SD/docs/b.md"
+printf '%s\t%s\n' a.md "$SD/docs/a.md" b.md "$SD/docs/b.md" >"$SD/targets.tsv"
+plan="$(bash "$FANOUT" plan --out "$SD/batches" --order mtime "$SD/targets.tsv" 2>/dev/null)"
+sres() { printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 1\n\n## b.md\n\n- L1 rule-abstract-metaphor-jargon: "c d" -- x\n' "$1" >"$SD/results/rubric-batch-01.md"; }
+sres "$(digest_of "$plan" 01)"
+bash "$FANOUT" merge --batches "$SD/batches" --results "$SD/results" --out "$SD/fresh.md" >/dev/null 2>&1
+assert_not_contains "stale cues: an untouched plan prints no stale line" "$(cat "$SD/fresh.md")" "cues.txt stale"
+assert_line_in "stale cues: and still runs the cue checks" "$SD/fresh.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=load-bearing unaccounted_in=01"
+cp "$SD"/batches/batch-* "$SD/old/"
+grep -v '^scope_digest=' "$SD/batches/cues.txt" >"$SD/old/cues.txt"
+bash "$FANOUT" merge --batches "$SD/old" --results "$SD/results" --out "$SD/old.md" >/dev/null 2>&1
+assert_line_in "stale cues: a cues.txt with no scope_digest is stale" "$SD/old.md" "consistency: cues.txt stale reason=digest"
+printf 'more\n' >>"$SD/docs/b.md"
+out="$(bash "$FANOUT" status --batches "$SD/batches" --results "$SD/results" 2>&1)"
+sres "$(digest_of "$out" 01)"
+bash "$FANOUT" merge --batches "$SD/batches" --results "$SD/results" --out "$SD/stale.md" >/dev/null 2>&1
+rc=$?
+assert_exit "stale cues: merge of the rerun batch exits 0" 0 "$rc"
+assert_line_in "stale cues: an edited listed file makes cues.txt stale" "$SD/stale.md" "consistency: cues.txt stale reason=digest"
+assert_eq "stale cues: and no cue check runs" "$(grep -c '^consistency:' "$SD/stale.md")" "1"
+assert_line_in "stale cues: nor flags the rule total" "$SD/stale.md" "rule_total: rule-abstract-metaphor-jargon=1"
 
 # --- Result ---------------------------------------------------------------------
 

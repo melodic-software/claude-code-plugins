@@ -39,6 +39,8 @@ Order repo: impact class (CLAUDE.md, AGENTS.md, SKILL.md, README.md, .claude/rul
 then 90-day change count, then key. Order mtime: newest first, then key.
 
 plan also writes <dir>/cues.txt:
+  scope_digest=<sha>                                sha256 over the printed batch
+                                                    digests, one per line
   scope_files=<S>                                   readable regular listed files
   cue=<c> occurrences=<O> files=<F> saturated=yes|no  whole scope; yes when
                                                     F >= 10 and F*10 >= S
@@ -47,9 +49,11 @@ Cues: load-bearing (load-bearing, load bearing) and seam (seam, seams), any
 case, bounded by [^a-z0-9_] or the line edge, so non-load-bearing counts and
 seamless does not; every match on a line counts, and a cue split across a line
 break is not counted. Skipped, as the rubric skips them: YAML frontmatter (a
---- first line through the next ---), fenced code (any indent, closed by a run
-of the opener's character at least as long), blockquote lines, `code` spans
-and "double-quoted" spans.
+--- first line through the next ---), fenced code (any indent, the opener
+possibly after list-item or blockquote markers, closed by a run of the opener's
+character at least as long or by the end of its list item or blockquote),
+blockquote lines, `code` spans and "double-quoted" spans, which may wrap onto
+later lines of the same paragraph.
 
 A result may carry `declined: <rule-id> <cue> reason=saturated|boundary|cap`
 lines (cap: dropped by the per-file or per-batch finding cap). merge strips
@@ -59,7 +63,10 @@ other `declined:` line in the body. When cues.txt exists it prints
 rule-abstract-metaphor-jargon finding, a reason=saturated decline of a cue that
 is not saturated (or not a cue at all), and a batch holding a cue it neither
 reported nor declined; each rule named there gets ` consistency=flagged` on its
-rule_total.
+rule_total. When the batch digests no longer match cues.txt's scope_digest (a
+listed file changed after plan), or cues.txt has no scope_digest line, merge
+prints `consistency: cues.txt stale reason=digest` instead of those checks;
+plan again to restore them.
 Exit: 0 ok, 1 a batch is not complete, 2 usage error or refusal.
 EOF
 }
@@ -82,11 +89,36 @@ function cue_hits(s, c,   re, n, off, st, pre, post) {
   }
   return n
 }
-# prose(s): s with `code` spans and "double-quoted" spans blanked out.
-function prose(s) {
+# prose(s): s with `code` spans and "double-quoted" spans blanked out. A quote
+# left open at the line end sets qopen, and the next line is blanked through
+# its closing quote; the caller clears qopen at a paragraph boundary. As in
+# detect.sh, a lone quote opens a span only after a space or opening bracket
+# and before a non-space, so an inch mark (6") is dropped instead.
+function prose(s,   q, pre, post) {
   gsub(/`[^`]*`/, " ", s)
+  if (qopen) {
+    if (!(q = index(s, "\""))) return ""
+    s = substr(s, q + 1); qopen = 0
+  }
   gsub(/"[^"]*"/, " ", s)
+  if ((q = index(s, "\""))) {
+    pre = (q > 1) ? substr(s, q - 1, 1) : " "; post = substr(s, q + 1, 1)
+    if (pre ~ /[ \t([{]/ && post ~ /[^ \t]/) { s = substr(s, 1, q - 1); qopen = 1 }
+    else s = substr(s, 1, q - 1) " " substr(s, q + 1)
+  }
   return s
+}
+# lead(s, bq, lists): the length of s up to its content: whitespace, then `>`
+# markers when bq, then list-item markers (-, *, +, 1. or 1) and a space) when
+# lists, in any order and nesting.
+function lead(s, bq, lists,   p, r) {
+  p = 0
+  for (;;) {
+    r = substr(s, p + 1)
+    if (match(r, /^[ \t]+/) || (bq && match(r, /^>/)) ||
+      (lists && match(r, /^([-*+]|[0-9]+[.)])[ \t]/))) p += RLENGTH
+    else return p
+  }
 }
 BEGIN { nc = split("load-bearing seam", C, " ") }'
 
@@ -274,7 +306,7 @@ cmd_plan() {
   done
   lists+=("$cur"); plists+=("$cur_p"); words+=("$cur_w"); counts+=("$cur_n")
 
-  local width=${#lists[@]} b nn list scope=""
+  local width=${#lists[@]} b nn list scope="" digest digests=""
   width=${#width}
   [[ "$width" -lt 2 ]] && width=2
   for b in "${!lists[@]}"; do
@@ -282,8 +314,10 @@ cmd_plan() {
     list="$out/batch-$nn.txt"
     printf '%s' "${lists[$b]}" >"$list" || die "plan: cannot write $list"
     printf '%s' "${plists[$b]}" >"$out/batch-$nn.paths" || die "plan: cannot write $out/batch-$nn.paths"
+    digest="$(batch_digest "$list")"
+    digests+="$digest"$'\n'
     printf 'batch=%s list=%s files=%d words=%d digest=%s\n' \
-      "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$(batch_digest "$list")"
+      "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$digest"
     while IFS= read -r ap; do
       [[ -n "$ap" && -f "$ap" && -r "$ap" ]] && scope+="$nn"$'\t'"$ap"$'\n'
     done <<<"${plists[$b]}"
@@ -291,34 +325,50 @@ cmd_plan() {
 
   # Cue counts over the whole scope, one `<NN><TAB><path>` line per readable
   # regular file on stdin; awk opens each with getline, so no path is parsed
-  # as an argument and a FIFO never reaches it.
+  # as an argument and a FIFO never reaches it. scope_digest binds these counts
+  # to the batch digests just printed, so merge can tell when they went stale.
   # shellcheck disable=SC2016  # an awk program, not a shell expansion
-  printf '%s' "$scope" | awk "$CUE_AWK"'
+  printf '%s' "$scope" | RF_SCOPE="$(printf '%s' "$digests" | sha256 | cut -d' ' -f1)" awk "$CUE_AWK"'
     {
       t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
       if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
-      S++; fence = ""; fm = 0; ln = 0
+      S++; fence = ""; fm = 0; ln = 0; qopen = 0
       for (i = 1; i <= nc; i++) h[i] = 0
       while ((getline line < f) > 0) {
         sub(/\r$/, "", line); ln++
         if (ln == 1 && line ~ /^---[ \t]*$/) { fm = 1; continue }
         if (fm) { if (line ~ /^---[ \t]*$/) fm = 0; continue }
-        run = line; sub(/^[ \t]*/, "", run); sub(/[ \t]*$/, "", run)
         if (fence != "") {
-          # A closer is a run of the opener character alone, at least as long.
-          t = run; gsub(substr(fence, 1, 1), "", t)
-          if (t == "" && length(run) >= length(fence)) fence = ""
+          # The container ends the fence: a blockquote fence at a line with no
+          # `>`, a list-item fence at a non-blank line indented less than the
+          # item content. That line is then read on its own.
+          match(line, /^[ \t]*/)
+          if (fbq ? line !~ /^[ \t]*>/ : (fcol && line ~ /[^ \t]/ && RLENGTH < fcol)) fence = ""
+          else {
+            # A closer, at any indent, is a run of the opener character alone,
+            # at least as long.
+            run = substr(line, lead(line, fbq, 0) + 1); sub(/[ \t]*$/, "", run)
+            t = run; gsub(substr(fence, 1, 1), "", t)
+            if (t == "" && length(run) >= length(fence)) fence = ""
+            continue
+          }
+        }
+        p = lead(line, 1, 1); run = substr(line, p + 1)
+        if (match(run, /^(```+|~~~+)/)) {
+          fence = substr(run, 1, RLENGTH); t = substr(line, 1, p)
+          fbq = (t ~ />/); gsub(/[ \t>]/, "", t); fcol = (t != "") ? p : 0; qopen = 0
           continue
         }
-        if (match(run, /^(```+|~~~+)/)) { fence = substr(run, 1, RLENGTH); continue }
-        if (run ~ /^>/) continue
-        for (i = 1; i <= nc; i++) h[i] += cue_hits(prose(line), C[i])
+        if (line ~ /^[ \t]*>/) continue
+        if (line !~ /[^ \t]/ || line ~ /^[ \t]*(#|[-*+] |[0-9]+[.)] |\|)/) qopen = 0
+        s = prose(line)
+        for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
       }
       close(f)
       for (i = 1; i <= nc; i++) if (h[i]) { O[i] += h[i]; F[i]++; BO[b, i] += h[i]; BF[b, i]++ }
     }
     END {
-      printf "scope_files=%d\n", S
+      printf "scope_digest=%s\nscope_files=%d\n", ENVIRON["RF_SCOPE"], S
       for (i = 1; i <= nc; i++)
         printf "cue=%s occurrences=%d files=%d saturated=%s\n", C[i], O[i], F[i], (F[i] >= 10 && F[i] * 10 >= S) ? "yes" : "no"
       for (k = 1; k <= nb; k++) for (i = 1; i <= nc; i++) if (BO[order[k], i])
@@ -446,7 +496,17 @@ cmd_merge() {
     files+=("$RESULTS/rubric-batch-$nn.md")
     scope+="$nn"$'\t'"$RESULTS/rubric-batch-$nn.md"$'\n'
   done <<<"$rows"
-  [[ -f "$BATCHES/cues.txt" && -r "$BATCHES/cues.txt" ]] && cues="$BATCHES/cues.txt"
+  # cues.txt counts the contents plan saw: its scope_digest must still equal
+  # the sha256 over every list's current digest, else its verdicts are stale.
+  local list stale=""
+  if [[ -f "$BATCHES/cues.txt" && -r "$BATCHES/cues.txt" ]]; then
+    cues="$BATCHES/cues.txt"
+    if [[ "$(tr -d '\r' <"$cues" | sed -n 's/^scope_digest=//p')" != "$(
+      for list in "$BATCHES"/batch-*.txt; do batch_digest "$list"; done | sha256 | cut -d' ' -f1
+    )" ]]; then
+      cues="" stale=1
+    fi
+  fi
   local f
   {
     awk '
@@ -457,7 +517,7 @@ cmd_merge() {
     # Totals, then consistency flags, then decline totals, each group sorted.
     # Results come as `<NN><TAB><path>` lines on stdin; cues.txt by ENVIRON.
     # shellcheck disable=SC2016  # an awk program, not a shell expansion
-    printf '%s' "$scope" | RF_CUES="$cues" RF_DECLINED="$DECLINED_RE" awk "$CUE_AWK"'
+    printf '%s' "$scope" | RF_CUES="$cues" RF_STALE="$stale" RF_DECLINED="$DECLINED_RE" awk "$CUE_AWK"'
       function add(list, b) { return list == "" ? b : list "," b }
       # last(s, t): the position of the last t in s, or 0.
       function last(s, t,   p, k) {
@@ -474,6 +534,7 @@ cmd_merge() {
       }
       BEGIN {
         MJ = "rule-abstract-metaphor-jargon"; cf = ENVIRON["RF_CUES"]; DECLINED = ENVIRON["RF_DECLINED"]
+        if (ENVIRON["RF_STALE"] != "") print "2\tconsistency: cues.txt stale reason=digest"
         if (cf != "") {
           have = 1
           while ((getline line < cf) > 0) {

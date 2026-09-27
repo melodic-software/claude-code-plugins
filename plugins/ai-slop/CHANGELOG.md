@@ -16,7 +16,9 @@
   prints a `consistency:` line when a saturated cue is still reported, when a word is declined
   as saturated while `cues.txt` does not mark it so, or when a batch has occurrences of a cue and
   neither reports nor declines it. The `rule_total:` line of a flagged rule gains
-  `consistency=flagged`.
+  `consistency=flagged`. `cues.txt` carries a `scope_digest=` line; when a listed file
+  changed after `plan`, `merge` prints `consistency: cues.txt stale reason=digest` instead of
+  the cue checks.
 - Eval case `cross-batch-verdicts-agree` with two fixtures sharing one passage.
 
 ### Changed
