@@ -18,7 +18,9 @@ skipped and counted. The value is searched in these forms, each a `form` tag:
            form matched
 
 A value starting (ending) with a word character does not match after (before)
-another word character. Overlapping matches resolve longest first, once.
+another word character; an msys or wsl form does not match after a word
+character or one of `/.-~`, so a URL path is not a drive path. Filename
+rules ignore case. Overlapping matches resolve longest first, once.
 
 tsv rows: class, path, line, col, form, reason, text (tab separated; tabs in
 text written as `\\t`). Class, first rule wins: generated (marker in the first
@@ -114,7 +116,13 @@ def render(tag: str, new: str) -> str | None:
     return f"{prefix}{m.group(1).lower()}/{rest}"
 
 
-def bounded(line: str, start: int, end: int) -> bool:
+def bounded(line: str, start: int, end: int, tag: str = "exact") -> bool:
+    if (
+        tag in ("msys", "wsl")
+        and start > 0
+        and (is_word(line[start - 1]) or line[start - 1] in "/.-~")
+    ):
+        return False
     if is_word(line[start]) and start > 0 and is_word(line[start - 1]):
         return False
     return not (is_word(line[end - 1]) and end < len(line) and is_word(line[end]))
@@ -140,7 +148,7 @@ def matches(line: str, spellings: list[tuple[str, str]]) -> list[tuple[int, int,
         for flags, bucket in ((0, exact), (re.IGNORECASE, folded)):
             for m in re.finditer(f"(?=({re.escape(text)}))", line, flags):
                 start, end = m.start(1), m.end(1)
-                if bounded(line, start, end):
+                if bounded(line, start, end, tag):
                     bucket.append((start, end, tag if flags == 0 else "case"))
     taken: list[tuple[int, int]] = []
     kept = resolve(exact, taken)
@@ -162,24 +170,24 @@ def classify(rel: str, head: str) -> tuple[str, str]:
         if fnmatch.fnmatchcase(name, pat):
             return "fixture", f"name:{pat}"
     for prefix in RECORD_PREFIXES:
-        if name.startswith(prefix):
+        if name.upper().startswith(prefix):
             return "record", f"name:{prefix}*"
     for seg in RECORD_SEGMENTS:
         if seg in dirs:
             return "record", f"segment:{seg}"
-    if name.endswith(".log"):
+    if name.lower().endswith(".log"):
         return "record", "name:*.log"
     if name == "PLAN.md":
         return "contract", "name:PLAN.md"
     for prefix in ("BRIEF", "PRD"):
-        if name.startswith(prefix):
+        if name.upper().startswith(prefix):
             return "contract", f"name:{prefix}*"
     for seg in CONTRACT_SEGMENTS:
         if seg in dirs:
             return "contract", f"segment:{seg}"
     if name.endswith(".schema.json"):
         return "contract", "name:*.schema.json"
-    if name.startswith("openapi"):
+    if name.lower().startswith("openapi"):
         return "contract", "name:openapi*"
     return "setup", "default"
 

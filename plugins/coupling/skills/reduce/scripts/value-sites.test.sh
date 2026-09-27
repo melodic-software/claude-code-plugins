@@ -60,6 +60,7 @@ put "$FX" app.json '{"dir": "D:\\data\\cfg"}'
 put "$FX" run.sh 'cd /d/data/cfg'
 put "$FX" wsl.sh 'cd /mnt/d/data/cfg'
 put "$FX" other.md 'Unrelated D:\data\cfgx and XD:\data\cfg stay out.'
+put "$FX" url.md 'See https://example.com/x/d/data/cfg and https://example.com/d/data/cfg'
 stage "$FX"
 ROOT=$(host_path "$FX")
 
@@ -73,6 +74,7 @@ assert_contains "MSYS form found" "$OUT" $'setup\trun.sh\t1\t4\tmsys\tdefault'
 assert_contains "WSL form found" "$OUT" $'setup\twsl.sh\t1\t4\twsl\tdefault'
 assert_not_contains "longest overlap wins: WSL site not also an MSYS row" "$OUT" $'wsl.sh\t1\t8'
 assert_not_contains "token boundary: no match inside a longer word" "$OUT" "other.md"
+assert_not_contains "MSYS form not matched inside a URL path" "$OUT" "url.md"
 assert_eq "exactly five sites" "5" "$(row_count "$OUT")"
 assert_contains "row text is the line without its newline" "$OUT" $'cd /mnt/d/data/cfg'
 
@@ -112,6 +114,7 @@ put "$FX" tests/x.sh 'v Q:\vol\one'
 put "$FX" lib/run.test.sh 'v Q:\vol\one'
 put "$FX" gen/out.txt '# DO NOT EDIT: built by a tool' 'v Q:\vol\one'
 put "$FX" latest/notes.md 'v Q:\vol\one'
+put "$FX" docs/changelog.md 'v Q:\vol\one'
 printf 'v Q:\\vol\\one\000\001binary\n' >"$FX/blob.bin"
 stage "$FX"
 ROOT=$(host_path "$FX")
@@ -124,17 +127,18 @@ assert_contains "tests/ is a fixture" "$OUT" $'fixture\ttests/x.sh\t1\t3\texact\
 assert_contains "*.test.sh is a fixture" "$OUT" $'fixture\tlib/run.test.sh\t1\t3\texact\tname:*.test.*'
 assert_contains "DO NOT EDIT header is generated" "$OUT" $'generated\tgen/out.txt\t2\t3\texact\tmarker:do not edit'
 assert_contains "latest/notes.md stays setup" "$OUT" $'setup\tlatest/notes.md\t1\t3\texact\tdefault'
+assert_contains "a lowercase changelog is a record" "$OUT" $'record\tdocs/changelog.md\t1\t3\texact\tname:CHANGELOG*'
 assert_not_contains "binary file is skipped" "$OUT" "blob.bin"
 
 SUM=$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)
 assert_contains "summary counts skipped binaries" "$SUM" "skipped-binary: 1"
 assert_contains "summary per-file count" "$SUM" $'file\tREADME.md\t1'
 assert_contains "summary setup count" "$SUM" $'class\tsetup\t2'
-assert_contains "summary record count" "$SUM" $'class\trecord\t1'
+assert_contains "summary record count" "$SUM" $'class\trecord\t2'
 assert_contains "summary contract count" "$SUM" $'class\tcontract\t2'
 assert_contains "summary fixture count" "$SUM" $'class\tfixture\t2'
 assert_contains "summary generated count" "$SUM" $'class\tgenerated\t1'
-assert_contains "summary total" "$SUM" "sites: 8"
+assert_contains "summary total" "$SUM" "sites: 9"
 
 # --- exits ---------------------------------------------------------------------
 rc=0

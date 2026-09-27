@@ -3,6 +3,23 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-27
+
+### Added
+
+- `reduce change <old> <new>`: when one value changes, find every site that states it and
+  classify each as setup, record, contract, fixture, or generated. Read-only; it reports the sites
+  and proposes a reference form for each setup site.
+- `reduce change apply <old> <new>`: after the human confirms the site list, change the setup sites,
+  convert them to a reference form, and write contract corrections to a proposal file beside the
+  ledger. A confirmed site set is not capped by the per-run budget.
+- `skills/reduce/scripts/value-sites.py`: the deterministic inventory (every separator, escape,
+  drive, and case spelling of the value, token boundaries, longest form first, path-based classes)
+  and a byte-level `apply` that refuses stale line anchors, non-setup sites, and any write that
+  adds a control byte. Covered by `value-sites.test.sh`.
+- `skills/reduce/reference/change-mode.md`: site classes, reference forms, the apply sequence, and
+  pitfalls.
+
 ## [0.2.0] - 2026-09-23
 
 ### Changed
