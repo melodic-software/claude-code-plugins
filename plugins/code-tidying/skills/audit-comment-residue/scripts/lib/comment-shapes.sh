@@ -157,7 +157,7 @@ cr_detect_shapes() {
   # origin-note (tier 1): the comment names where the block came from or when it was
   # added. The cue must open the comment or a clause, be whole words, and carry an origin
   # VERB, so a description ("bytes copied from the buffer") or a bare date is not a finding;
-  # provenance:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
+  # attribution:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
   # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
   # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then

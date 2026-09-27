@@ -10,6 +10,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - The PR-body linkage gates (`pr-body-linkage-gate.sh`, `pr-linkage-mcp-gate.sh`) agree with the `pr-contract` step again (melodic-software/ci-workflows#544). A `Refs: #N` or `Relates to: #N` line of its own (optional `owner/repo`, up to three spaces of indent) counts as linkage, so a PR that references an issue it must not close is no longer told to add a closing keyword. A closing keyword with a disclaimer among the five words before it (`not`, `never`, `no`, `without`, `deliberately`, `intentionally`, or an `n't` contraction, after the last `.!?;,`) is blocked as a negated closing reference, even beside valid linkage, because GitHub's parser still closes the issue on merge. The closing keyword is matched one line at a time, as CI does. The block messages use CI's wording and the remedy names the `Refs:` marker.
 - A body line starting with a lowercase `t` is no longer masked as indented code, and a tab-indented line now is. The validator's regex spelled the tab as `\t`, which a bash regex reads as a literal `t`, so a line such as "this PR closes #5", or a `## Fix` section whose text began with "t", was dropped from the scan.
 
+## [0.61.1] - 2026-09-27
+
+### Fixed
+
+- `worktree`: the nesting-invariant stamp is marked **expired, pending re-probe**. Its 2.1.244 version arm has passed (2.1.278 and 2.1.280 seen), and the 2026-09-27 re-probe could not run because that CLI was unauthenticated. `nesting-invariant-ssot.test.sh` now compares the installed `claude --version` (or `NESTING_INVARIANT_INSTALLED_VERSION`) against the version arm and fails when the arm has passed and the owner is not marked expired; the date arm is held to the same rule.
+- `worktree`: the isolation paragraph quotes the worktrees page's current four checks, including the command-shape check that refuses a compound git command, re-fetched 2026-09-27.
+- `worktree` create: the "raw text, not shell-escaped" reading of `${user_config.worktree_root}` is labeled as this plugin's reading and cited to the two plugins-reference spans it rests on, instead of being attributed to the page.
+
 ## [0.61.0] - 2026-09-27
 
 ### Added
