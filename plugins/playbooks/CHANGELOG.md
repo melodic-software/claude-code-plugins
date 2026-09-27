@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `review` routes a defect in repo-sweep itself (its SKILL.md, reference files,
+  or scripts) through `/plugin-quality:audit` on `playbooks:repo-sweep` to a `playbooks` issue,
+  and a defect in a skill bundled with Claude Code to Anthropic through `/bug`, not to this
+  repository (#4604).
+
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `next` shows the deliverables each invoked skill's procedure names, produced by
+  running that procedure in full; a summary or a skipped procedure step does not complete the
+  step (#4602). Before fixing, it lists findings on files synced from another repository (the
+  README or file inventory says so, or `git blame` names a `-sync[bot]` author) separately, never
+  edits them, and asks whether to draft an issue in the source repository (#4603).
+
 ## [0.13.2] - 2026-09-27
 
 ### Fixed

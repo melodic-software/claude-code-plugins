@@ -3,7 +3,22 @@ description: "Verify the desktop-notification hook's runtime prerequisites and p
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(uname -s*)"
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe and OS-family detection ran at load time. Read these rows instead of
+re-issuing them. The `jq` row shows the tool's path, or `absent` when missing; the `uname -s` row
+shows the kernel name, or `unknown` when it fails to run:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `uname -s`: !`{ uname -s 2>/dev/null || echo "unknown"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
+Bash instead.
 
 ## Purpose
 
@@ -24,8 +39,9 @@ The hook script and the shared library it sources are the single source of truth
 plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and
 `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the pre-computed
+`jq` and `uname -s` rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO table with
+one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -36,11 +52,11 @@ restores the FAIL semantics.
    Requirements: Bash 3.2+). INFO when below 5.0: `EPOCHREALTIME` is unset there, so the
    opt-in telemetry envelope is skipped while notifications still fire, a degrade, not a
    failure.
-2. **`jq`**. `command -v jq`. FAIL if absent: without it the hook can neither classify the
+2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
    notification nor emit its terminal sequence, so it surfaces a once-per-session
    `systemMessage` notice and drops every notification for the session.
-3. **Per-OS `os_toast` dependency**. Detect the current OS family with `uname -s` and probe
-   ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
+3. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
+   and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
      enabled and it is absent; otherwise INFO. Absent → the `os_toast` channel is a
      documented silent no-op; remediation is the README's install hint (`libnotify-bin` on
@@ -90,7 +106,8 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   unobserved change.
 
 After the user reports acting on any system-tool remediation, re-run the relevant `check`
-probe and report its actual result. Never claim resolved on the user's say-so alone.
+probe live via Bash (a pre-computed row predates the remediation) and report its actual
+result. Never claim resolved on the user's say-so alone.
 Re-running `apply` when everything already passes changes nothing and reports "already
 configured".
 

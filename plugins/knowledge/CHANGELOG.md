@@ -4,11 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.4] - 2026-09-27
+## [0.14.5] - 2026-09-27
 
 ### Changed
 
 - `book-distill`'s one-chapter-at-a-time rule, `course-digest`'s gather-before-Phase-3 rule and storage rules, and the Dometrain adapter's instructor rule drop their all-caps and "Critical rule" markers. The rules themselves are unchanged (#4120).
+
+## [0.14.4] - 2026-09-27
+
+### Changed
+
+- **`video-digest` and `course-digest` gather their four dependency probes in one fenced
+  pre-compute block each.** The rows and their labels are unchanged. Each `node -e` probe gains
+  the fallback it lacked, so a host without `node` renders `MISSING - node not found` instead of
+  failing the skill load.
 
 ## [0.14.3] - 2026-09-27
 

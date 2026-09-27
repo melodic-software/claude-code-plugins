@@ -781,6 +781,15 @@ jobs:
         run: scripts/check-skill-leaf-names.sh --check
 
       # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run conformance-registry tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-conformance-registry.test.sh
+      - name: Check the conformance registry resolves
+        id: conformance_registry
+        continue-on-error: true
+        run: scripts/check-conformance-registry.sh --check
+
+      # Self-test first, so a broken checker cannot mask a regression.
       - name: Run docs-naming tests
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-docs-naming.test.sh
@@ -1445,6 +1454,7 @@ jobs:
             detector-eval-coverage=${{ steps.detector_eval_coverage.outcome }}
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
+            conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}

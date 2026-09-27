@@ -52,10 +52,17 @@ every branch name, step id, and playbook name you put in a command.
    Follow the notes the same way.
 2. Invoke each skill in the entry's `skill` list, in order, via the Skill tool, passing only the
    entry's `args`. Skills in one entry share the session: the first one's findings feed the next.
-3. Show the findings. The user reviews them for accuracy before anything is fixed.
+3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
+   produced by running that procedure in full as the skill states it. A summary of them, or a
+   skipped procedure step, does not complete the step. The user reviews them for accuracy before
+   anything is fixed.
 4. Ask the scope questions the findings raise as one short numbered list in chat (which
-   findings to fix, how far to go). Do not run `/planning:interview` for this. Record each
-   question and answer for the commit.
+   findings to fix, how far to go). A file synced from another repository is overwritten by the
+   next sync: the repository's README or file inventory says it is synced, or `git blame` names
+   a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
+   edit them here, and ask whether to draft an issue in the source repository, filed only when
+   the user asks. Do not run `/planning:interview` for this. Record each question and answer for
+   the commit.
 5. Apply the agreed fixes, through the skill's own fix path when it has one.
 
 ## 4. Guard, commit, tick
