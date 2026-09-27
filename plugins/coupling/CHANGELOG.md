@@ -19,7 +19,7 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 - `skills/reduce/scripts/value-sites.py`: the deterministic inventory (every separator, escape,
   drive, and case spelling of the value, token boundaries, longest form first, path-based classes
   with a default-deny for unknown file kinds, a content anchor per row covering the line and its two
-  neighbours, control bytes escaped in the row text, and a skip row for each
+  neighbors, control bytes escaped in the row text, and a skip row for each
   binary, UTF-16, UTF-32, or outside-root file) and a byte-level `apply` that takes
   `path:line:col:anchor` sites and replaces only the match at that column. It refuses a site whose
   line changed since `find`, record, contract, generated, protected, and unknown sites, fixture

@@ -59,7 +59,7 @@ row_count() { if [[ -z "$1" ]]; then echo 0; else printf '%s\n' "$1" | wc -l | t
 site_rows() { printf '%s\n' "$1" | grep -v $'^skip\t' || true; }
 site_count() { row_count "$(site_rows "$1")"; }
 # anchor TEXT [PREV] [NEXT]: the anchor value-sites.py gives a line with this
-# text between these neighbours (empty for a first or last line).
+# text between these neighbors (empty for a first or last line).
 anchor() { printf '%s\n%s\n%s' "${2:-}" "$1" "${3:-}" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
 # sites OUT PATH:LINE...: the apply SITE of every find row on each listed line.
 sites() {
@@ -681,7 +681,7 @@ UNENF=$(LC_ALL=C comm -13 <(printf '%s\n' "$RULES_OUT") <(printf '%s\n' "$DOC_RU
 assert_eq "G1: every enforced rule is in change-mode.md (first missing shown)" "" "${UNDOC%%$'\n'*}"
 assert_eq "G1: every documented rule is enforced (first missing shown)" "" "${UNENF%%$'\n'*}"
 
-# --- G2: the anchor covers the line and its two neighbours ---------------------------
+# --- G2: the anchor covers the line and its two neighbors ---------------------------
 FX=$(new_fixture moved)
 put "$FX" README.md 'p D:/data' '> historical, keep:' 'p D:/data'
 put "$FX" other.md 'o D:/data'

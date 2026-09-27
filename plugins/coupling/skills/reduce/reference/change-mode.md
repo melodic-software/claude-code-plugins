@@ -42,7 +42,7 @@ the change.
 Each row is `class<TAB>path<TAB>line<TAB>col<TAB>form<TAB>reason<TAB>anchor<TAB>text`. The
 `anchor` is the first 12 hex digits of the SHA-256 of the line together with the line before and
 the line after it (each without its terminator or a trailing CR), so it identifies the line's
-content and its neighbours rather than its position; `path:line:col:anchor`
+content and its neighbors rather than its position; `path:line:col:anchor`
 from a row is the site `apply` takes. The class comes from path rules applied to the path as
 resolved inside the root, and the `reason` column says which rule fired. The rules are a default, not a verdict:
 read the row, and reclassify it in the report with a stated reason when the file says otherwise.
@@ -149,7 +149,7 @@ Only `change apply` edits, and only after the human confirms the classified site
 4. Substitute the value with `value-sites.py apply`, which takes each confirmed site as
    `path:line:col:anchor` copied from its `find` row and replaces only the match that starts at
    that column; several matches on one line are several sites, and a bare `path:line` is a usage
-   error. At write time it re-reads the line and its neighbours and refuses the run when the anchor
+   error. At write time it re-reads the line and its neighbors and refuses the run when the anchor
    differs from the given one or no match of the value starts at the column, so a line that moved or changed
    since `find` is never edited. It also refuses a site that is not a tracked file inside the root,
    a symlink or hardlink, a binary, UTF-16, or UTF-32 file, record, contract, generated, protected,
@@ -180,7 +180,7 @@ Only `change apply` edits, and only after the human confirms the classified site
   `D:\data~1` is an 8.3 short name for a different directory, and `find` does not report it.
 - **Moving lines.** A file under concurrent edit shifts its line numbers, and an identical line can
   move into a confirmed line number. `apply` checks each site's anchor, which covers the line and
-  its two neighbours, and its column at write time and refuses the whole run when either no longer
+  its two neighbors, and its column at write time and refuses the whole run when either no longer
   holds; run `find` again and confirm the new rows. Cite contract lines from a fresh read.
 - **Write-time guards.** When a hook blocks heredoc writes, inline interpreter writes, or a temp
   path, write the script with the Write tool into the session scratchpad and run it from there.

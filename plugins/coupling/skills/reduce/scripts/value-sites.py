@@ -31,7 +31,7 @@ matches resolve longest first, once.
 tsv rows: class, path, line, col, form, reason, anchor, text (tab separated;
 in text, a trailing CR is dropped, a tab is written `\\t`, and every other
 byte below 0x20 and DEL as `\\xNN`). anchor is the first 12 hex digits of the
-SHA-256 of prev, line and next joined by LF: the line and its two neighbours,
+SHA-256 of prev, line and next joined by LF: the line and its two neighbors,
 each without a trailing CR, an empty string past either end of the file, and
 no UTF-8 BOM on line 1. A skipped file is a row `skip<TAB>path<TAB>reason`.
 Class is decided on the path resolved relative to the resolved root by the
@@ -422,7 +422,7 @@ def encode(bom: str, text: str) -> bytes:
 
 
 def anchor(lines: list[str], i: int) -> str:
-    """Hash of line i and its neighbours ("" past either end), each without a CR."""
+    """Hash of line i and its neighbors ("" past either end), each without a CR."""
     near = (
         lines[i - 1] if i else "",
         lines[i],
