@@ -970,7 +970,7 @@ class HygieneTests(unittest.TestCase):
             code, payload = self._scan_target(
                 target, data_root, self._non_os_volume_root_patches()
             )
-            self.assertEqual(5, code)
+            self.assertEqual(0, code)
             self.assertEqual("large-target-confirmation-required", payload["status"])
             self.assertIn("non-os-volume-root", payload["large_target_reasons"])
             self.assertFalse((data_root / "snapshot.json").exists())
@@ -1094,7 +1094,7 @@ class HygieneTests(unittest.TestCase):
                 self._os_managed_volume_root_patches(target),
                 extra_args=["--root-children"],
             )
-            self.assertEqual(5, code)
+            self.assertEqual(0, code)
             self.assertEqual("root-children-selection-required", payload["status"])
             admitted = {item["name"] for item in payload["admitted_children"]}
             self.assertEqual({"builds", "tmp"}, admitted)
@@ -1229,6 +1229,36 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("immediate basename", payload["error"])
 
+    def test_root_children_large_selected_child_is_a_next_step_not_a_failure(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    *self._os_managed_volume_root_patches(target),
+                    mock.patch.object(
+                        hygiene,
+                        "large_scan_reasons",
+                        side_effect=lambda path: (
+                            ["user-home"] if Path(path).name == "builds" else []
+                        ),
+                    ),
+                ],
+                extra_args=["--root-children", "--root-child", "builds"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertEqual(["builds:user-home"], payload["large_target_reasons"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
     def test_linux_volume_root_os_owned_includes_conventional_roots(self) -> None:
         owned = hygiene.volume_root_os_owned_names("linux")
         for name in (
@@ -1275,7 +1305,7 @@ class HygieneTests(unittest.TestCase):
                 patches,
                 extra_args=["--root-children"],
             )
-            self.assertEqual(5, code)
+            self.assertEqual(0, code)
             admitted = {item["name"] for item in payload["admitted_children"]}
             self.assertEqual({"builds"}, admitted)
             skipped = {
@@ -2346,7 +2376,7 @@ class HygieneTests(unittest.TestCase):
                 ]
             )
         payload = json.loads(stdout_io.getvalue())
-        self.assertEqual(5, code)
+        self.assertEqual(0, code)
         self.assertEqual("large-target-confirmation-required", payload["status"])
         self.assertEqual(["user-home"], payload["large_target_reasons"])
         self.assertEqual(2, payload["immediate_entries"])
