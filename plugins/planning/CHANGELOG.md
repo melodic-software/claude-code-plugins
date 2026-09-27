@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-09-27
+
+### Fixed
+
+- **`surface` tests:** the AC35 skill-token check no longer reads a CSS declaration such as
+  `{animation:pulse ...}` as a `<plugin>:<skill>` token.
+
 ## [0.42.0] - 2026-09-25
 
 ### Added
