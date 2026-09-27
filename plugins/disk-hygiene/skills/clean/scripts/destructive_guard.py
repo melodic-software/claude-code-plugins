@@ -1122,6 +1122,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     ``--data-root``: only the authorized root this hook resolved is admitted, and
     the flag is mandatory here although the grammar keeps it optional, because
     an engine call without it falls back to the raw ``CLAUDE_PLUGIN_DATA`` value.
+    A token check proves presence: the grammar reads flag names only at flag
+    positions and refuses any flag-shaped value, so a matched invocation that
+    contains the token carries it as a flag.
     """
     tokens = _literal_shell_words(command)
     if tokens is None:
@@ -1133,18 +1136,14 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     subcommand = tokens[2]
     if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
-    admitted_data_roots: list[str] = []
-
-    def data_root_ok(value: str) -> bool:
-        if not _is_authorized_data_root(value, authority):
-            return False
-        admitted_data_roots.append(value)
-        return True
-
-    external_checks = {engine_grammar.AUTHORIZED_DATA_ROOT: data_root_ok}
-    if (
-        engine_grammar.match_invocation(subcommand, tokens[3:], external_checks)
-        and admitted_data_roots
+    external_checks = {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+    }
+    words = tokens[3:]
+    if engine_grammar.DATA_ROOT_FLAG in words and engine_grammar.match_invocation(
+        subcommand, words, external_checks
     ):
         return subcommand
     return None

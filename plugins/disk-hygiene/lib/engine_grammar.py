@@ -52,6 +52,9 @@ TIERS = frozenset({"high", "medium", "low"})
 # authorized data root it resolved for this session.
 AUTHORIZED_DATA_ROOT = "authorized-data-root"
 
+# The flag carrying that value. The guard requires it on every engine call.
+DATA_ROOT_FLAG = "--data-root"
+
 
 class Flag:
     """One command-line flag, as the parser declares it and the guard admits it."""
@@ -124,7 +127,7 @@ class Subcommand:
 
 
 def _data_root_flag() -> Flag:
-    return Flag("--data-root", external_check=AUTHORIZED_DATA_ROOT)
+    return Flag(DATA_ROOT_FLAG, external_check=AUTHORIZED_DATA_ROOT)
 
 
 # A directory basename with no separator and no self/parent reference.
