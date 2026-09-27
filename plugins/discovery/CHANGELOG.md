@@ -12,6 +12,9 @@
   `maxTurns: 40` with no payload; resuming it by agent ID with `SendMessage` recovers the run.
 - **Agents:** each worker states why it keeps re-emitting its payload block: the docs do not say
   which text a partial return carries, and the block rides on a turn already spent on a write.
+- **Depth-limit quote:** the parent contract marks "Claude Code withholds the `Agent` tool from
+  every subagent except a fork" as quoted with link markup removed, re-dated against the
+  sub-agents page fetched 2026-09-27.
 
 ## [0.24.1] - 2026-09-27
 
