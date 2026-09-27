@@ -1,5 +1,5 @@
 ---
-description: "Escalate upstream-conformance discipline to a heavy fan-out: dispatch fresh-context subagents doc-by-doc over a whole subsystem, framework, or repo, comparing each surface against its CURRENT official upstream docs, then report an inline divergence ledger. Use when: 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', 'check the entire framework config against upstream', 'we depend on a lot of upstream surfaces and they may have drifted'. For a single inline recheck of the surface in play, use the sibling recheck-against-upstream."
+description: "Escalate upstream-conformance discipline: fan fresh-context subagents doc-by-doc over a whole subsystem, framework, or repo against CURRENT official upstream docs, and report a divergence ledger. Use when: 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', 'check the entire framework config against upstream', 'we depend on a lot of upstream surfaces and they may have drifted'. For one recheck, use recheck-against-upstream."
 user-invocable: true
 disable-model-invocation: false
 metadata:
