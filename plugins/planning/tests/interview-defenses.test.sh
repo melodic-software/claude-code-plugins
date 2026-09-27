@@ -42,8 +42,9 @@
 #   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
 #      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
 #      BESIDE a pinned line rather than to it.
-#      Digests cover eighteen sections, the whole YAML frontmatter, the eight cases that speak
-#      to these rules, the case roster, the four fixtures, and context/assumption-sweep.md. Inside those regions, an
+#      Digests cover eighteen sections (two of them audit-answers Step 1 and Step 4), the
+#      whole YAML frontmatter, the eight cases that speak to these rules, the case roster, the
+#      four fixtures, and context/assumption-sweep.md. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
 #      defense, and every loop.md TWIN of a byte-pinned SKILL.md line, now sits inside a
 #      digested region — that is the invariant to preserve when adding a pin: a phrase pin
@@ -549,20 +550,20 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "59495d3b2e640489f7f866ebc88c633a4fca7c950c5787c04f9669f0ffa011f2"
-pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, candidates, currency labels)" \
+  "c9c990435000b0c93df474b957c428e35181bea32b5c67314cf8feb82372e5c6"
+pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "6e100d215715fc766a0796ebdf7e9f355ad74cde2f6332cf962a5a4087c439c8"
+  "f675fb01cbe606ef803328410364db1f840742b754f9c42c9e3f3a360257642d"
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "ef6106326f8d2765e546048b6b51d24eb0e61ccd531ff4fc567ea6e2e8648579"
+  "a5778c4a818943d961c25a184d9b4f73e94a7559b560e04d3178abe86a22e3f0"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "576d70978472cf719da7862dda4f6c79848a5afaf0763a331bf68fa51b019d25"
+  "8fc79a42c43884b0332c42340c80bbc99b9f2833b37998fbb6b57dd4bd8d5240"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -772,8 +773,12 @@ pin "SKILL.md: an upstream constraint is inherited" "$SKILL" \
   "a constraint taken from an upstream artifact is \`inherited\`"
 pin "SKILL.md: every recommendation names the constraints it was checked against" "$SKILL" \
   "\`Checked against: C1, C3\` or \`Checked against: none\`"
-pin "SKILL.md: a relied-on inherited constraint is asked in every mode" "$SKILL" \
-  "An \`inherited\` constraint the contract relies on is asked as a register row at ask-time, in every mode, including \`lock\` and \`auto\` synthesis"
+pin "SKILL.md: a relied-on inherited constraint is asked as a register row" "$SKILL" \
+  "An \`inherited\` constraint the contract relies on is asked as a register row at ask-time"
+pin "SKILL.md: in lock a relied-on inherited constraint is a gap that STOPs" "$SKILL" \
+  "In \`lock\` a relied-on inherited constraint is a gap: STOP and surface it (Step 1.5)"
+pin "SKILL.md: in auto synthesis a relied-on inherited constraint makes the path Mixed" "$SKILL" \
+  "in \`auto\` direct synthesis it makes the path Mixed and is asked in the residue round"
 pin "SKILL.md: composed artifacts are candidates" "$SKILL" \
   "is a candidate, never a recommendation, until re-derived against the constraint ledger"
 pin "SKILL.md: a mid-interview research brief carries the constraint ledger" "$SKILL" \
@@ -796,10 +801,8 @@ pin "SKILL.md: a sweep that adds an open row returns the run to Step 2" "$SKILL"
   "Step 3 is reached when a sweep adds no \`open\` row"
 pin "loop.md defines the constraint ledger row shape" "$LOOP" \
   "\`- C<N> | confirmed|inherited | <constraint> | <source>\`"
-pin "loop.md: composed artifacts are candidates" "$LOOP" \
-  "is a candidate, never a recommendation, until re-derived against the constraint ledger"
-pin "loop.md: past-only evidence never alone grounds a recommendation" "$LOOP" \
-  "Past-only evidence never alone grounds a recommendation"
+pin "loop.md defines a process change" "$LOOP" \
+  "(a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out"
 pin "loop.md: a late commitment row takes the next free id" "$LOOP" \
   "takes the next free \`Q<N>\` and names its headline in the question field"
 pin "assumption-sweep.md: sweep ids never reach the register" "$SWEEP" \

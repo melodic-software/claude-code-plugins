@@ -1,8 +1,7 @@
 # Assumption sweep
 
-Loaded from `/planning:interview` SKILL.md Step 2 "Sweep for assumptions before Step 3". The sweep
-inventories what the contract would lock without the user having seen it, so each item is asked,
-stated, or blocked before the confirmation gate.
+The sweep inventories what the contract would lock without the user having seen it, so each item
+is asked, stated, or blocked before the confirmation gate.
 
 ## When
 
@@ -68,8 +67,9 @@ You write the results, not the sub-agent, so register ids stay contiguous.
 
 - **fact:** resolve it from the environment and state it. No row.
 - **decision, tenant, person:** a register row at the next contiguous `Q<N>`, written `open` and
-  asked in the next round with a recommendation. A `person` item the user cannot answer is
-  `deferred` to the Brief's `### Deferred questions` with its arbiter tag.
+  asked in the next round with a recommendation. A `person` item the user cannot answer, and a
+  `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
+  `### Deferred questions` with its arbiter tag.
 - **contradiction:** one row naming both sides, asked as a choice between them.
 - **hedged:** no new row. The rows go to the confirmation restate.
 - **Unattended:** an item that is the user's decision is `blocked` with **arbiter:

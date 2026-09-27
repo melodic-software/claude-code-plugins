@@ -14,7 +14,7 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 
 ## Constraint ledger
 
-One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously: `confirmed` the moment the user states it, `inherited` when read from an upstream artifact. An `inherited` row the contract relies on is also asked as a register row. Every recommendation says `Checked against: C<N>, ...` or `Checked against: none` (`context/loop.md` "Constraint ledger").
+One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously. Rules: `context/loop.md` "Constraint ledger". Replace the example rows with this run's constraints.
 
 - C1 | confirmed | V1 ships without SSO | user, round 1
 - C2 | inherited | no new runtime dependencies | prior Brief

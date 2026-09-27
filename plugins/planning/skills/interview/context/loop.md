@@ -80,15 +80,13 @@ The ledger's `## Constraint ledger` section sits above `## Open-question registe
 ```
 
 - **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
-- **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time in every mode; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path".
+- **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
 - **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line.
 - **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
 
 ### Composed artifacts and historical evidence
 
-- **Candidates, not recommendations.** A design from explore or research output, or read from an existing implementation, is a candidate, never a recommendation, until re-derived against the constraint ledger. A research or exploration brief dispatched mid-interview carries the constraint ledger verbatim, so the returned design is checked against the same rows.
-- **Currency labels.** When evidence is historical and the survey finds a recent process change, or cannot tell, label each finding `past`, `current`, or `intended` before a recommendation rests on it. A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out. State or ask any currency you cannot establish. Past-only evidence never alone grounds a recommendation.
-- **Mechanisms.** The first question that names a mechanism brings the now-or-at-planning question with it (SKILL.md Step 2 "What, not how: the mechanism tripwire").
+Rules: SKILL.md Step 2 "Composed artifacts are candidates", "Label evidence by when it was true", and "What, not how: the mechanism tripwire". A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out.
 
 ### Where a round may fire
 
@@ -195,7 +193,7 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 
 Tick on resolve. Surface the open set periodically (every few questions, or on request), not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
 
-**Commitment rows written after later ids exist.** When a commitment row is registered after rows with higher ids already exist (the page degrading to the terminal, a sweep item that turns out to be a part), it takes the next free `Q<N>` and names its headline in the question field: `- Q14 | open | round 4 | (part of Q5) token scope for the review step |`. "Numbered after their headline" in "Commitment rows" means this: the next free id, naming the headline, never an id squeezed in beside the headline, which would duplicate or gap the register and halt the gate.
+**Commitment rows written after later ids exist.** When a commitment row is registered after rows with higher ids already exist (the page degrading to the terminal, a sweep item that turns out to be a part), it takes the next free `Q<N>` and names its headline in the question field: `- Q14 | open | round 4 | (part of Q5) token scope for the review step |`. For a late row, "numbered after their headline" in "Commitment rows" means the next free id, naming the headline, never an id squeezed in beside the headline, which would duplicate or gap the register and halt the gate.
 
 ### Incremental persistence + branch-out
 
