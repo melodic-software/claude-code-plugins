@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-27
+
+### Added
+
+- Tracker seam `release <id> --lease-comment-id <n>` verb. It ends the caller's own live lease
+  early by setting `superseded_at`. It acts only on the item's active lease, held by the
+  authenticated login, and refuses anything else with exit `7`. An already-superseded or expired
+  lease is a no-op (`released: false`). Assignees are left alone. The GitHub adapter implements
+  it. The linear, local-markdown, gitea, and jira manifests declare it `false` (exit `6`), and a
+  manifest with no `release` key degrades the same way (#4609).
+- Conformance and GitHub lease-coordination cases for `release`, including attended claim, flip,
+  release, and then a same-login claim that succeeds where it previously backed off.
+
+### Changed
+
+- `attend-queue` releases the row's lease right after the flip and the `@me` clear (and after a
+  human-gated disposition), so worker lanes running as the same login can claim a just-flipped
+  item at once instead of waiting out the 24-hour TTL.
+
+### Fixed
+
+- `claim` usage (dispatcher, `CONTRACT.md`, and the github, linear, and local-markdown adapters)
+  now lists `--ttl-minutes` and states that it adds to `--ttl-hours`; a sub-hour lease is
+  `--ttl-hours 0 --ttl-minutes <n>`.
+
 ## [0.40.31] - 2026-09-27
 
 ### Fixed

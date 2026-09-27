@@ -66,6 +66,7 @@ adapter's guards:
 | `get-item` | `true` | scaffold, provider mapping to write |
 | `claim` | `true` | scaffold, provider mapping to write |
 | `renew-lease` | `true` | scaffold, provider mapping to write |
+| `release` | `false` | exit `6` at the capability gate (not yet mapped) |
 | `reclaim` | `true` | scaffold, provider mapping to write |
 | `link-blocks` | `true` | scaffold, provider mapping to write |
 | `add-sub-item` | `true` | scaffold, provider mapping to write |

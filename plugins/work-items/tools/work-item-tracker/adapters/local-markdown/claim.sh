@@ -8,7 +8,8 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]'
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0'
 wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
