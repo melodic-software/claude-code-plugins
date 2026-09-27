@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=114
+EXPECTED_CASES=129
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -172,6 +172,11 @@ assert_eq "extract: one rule section per catalog v1: rubric marker, plus the hum
 assert_eq "extract: every marker comes through" "$(printf '%s\n' "$out" | grep -c '^- v1: rubric')" "$want"
 assert_contains "extract: the human-writing section is included" "$out" "## Signs of human writing"
 assert_not_contains "extract: a script rule is left out" "$out" "### rule-em-dash"
+assert_contains "extract: the saturation clause names the saturated decline" "$out" "reason=saturated"
+assert_contains "extract: and the cap decline" "$out" "reason=cap"
+assert_contains "extract: the U+26A0 counter-sign ruling rides along" "$out" "U+26A0"
+# shellcheck disable=SC2016  # literal backticks, not a command substitution
+assert_contains "extract: the terse rule: reason ruling rides along" "$out" 'A terse `rule: reason` line'
 bash "$FANOUT" extract --out "$TEST_TMPDIR/rubric.md"
 assert_eq "extract --out: writes the same text" "$(cat "$TEST_TMPDIR/rubric.md")" "$out"
 
@@ -542,6 +547,52 @@ bash "$FANOUT" plan --out "$K2/batches" --order mtime "$K2/targets.tsv" >/dev/nu
 assert_line_in "cues: two files in two are not saturated" "$K2/batches/cues.txt" \
   "cue=load-bearing occurrences=2 files=2 saturated=no"
 
+# Counted only where the rubric reads: not frontmatter, blockquotes, code spans,
+# double-quoted spans, or fences (any indent, closed only by a same-character
+# run at least as long). One file per batch, newest first.
+K3="$TEST_TMPDIR/cues-prose"
+mkdir -p "$K3"
+cat >"$K3/s1.md" <<'EOF'
+---
+title: load-bearing seam
+---
+Prose load-bearing here.
+> quoted load-bearing
+  > nested load-bearing
+Code `load-bearing` and "load-bearing seam" and a seam.
+EOF
+printf 'intro\n---\nload-bearing\n---\n' >"$K3/s2.md"
+cat >"$K3/s3.md" <<'EOF'
+~~~~
+```
+load-bearing inside a long fence
+```
+~~~~
+- item
+    ```sh
+    load-bearing in a list fence
+    ```
+````
+load-bearing
+```
+still fenced load-bearing
+````
+After the fences load-bearing.
+EOF
+touch -t 202603010000 "$K3/s1.md"
+touch -t 202602010000 "$K3/s2.md"
+touch -t 202601010000 "$K3/s3.md"
+printf '%s\t%s\n' s1.md "$K3/s1.md" s2.md "$K3/s2.md" s3.md "$K3/s3.md" >"$K3/targets.tsv"
+bash "$FANOUT" plan --out "$K3/batches" --budget 1 --order mtime "$K3/targets.tsv" >/dev/null 2>&1
+assert_line_in "cues: frontmatter, blockquotes, code and quoted spans are skipped" "$K3/batches/cues.txt" \
+  "batch=01 cue=load-bearing occurrences=1 files=1"
+assert_line_in "cues: a seam outside the quoted span still counts" "$K3/batches/cues.txt" \
+  "batch=01 cue=seam occurrences=1 files=1"
+assert_line_in "cues: a --- pair after line 1 is not frontmatter" "$K3/batches/cues.txt" \
+  "batch=02 cue=load-bearing occurrences=1 files=1"
+assert_line_in "cues: fences need a same-character closer at least as long, at any indent" "$K3/batches/cues.txt" \
+  "batch=03 cue=load-bearing occurrences=1 files=1"
+
 : >"$K2/empty.tsv"
 bash "$FANOUT" plan --out "$K2/empty" "$K2/empty.tsv" >/dev/null 2>&1
 assert_eq "cues: an empty targets file writes no cues.txt" \
@@ -610,6 +661,28 @@ bash "$FANOUT" merge --batches "$X/old" --results "$X/results" --out "$X/old.md"
 rc=$?
 assert_exit "no cues.txt: merge exits 0" 0 "$rc"
 assert_eq "no cues.txt: no consistency line" "$(grep -c 'consistency' "$X/old.md")" "0"
+
+# Decline reasons and quote parsing: boundary and cap account for a cue; a
+# saturated decline of a cue cues.txt does not list is flagged; a declined:
+# line with another reason stays in the body; an inner quote does not cut the
+# quoted span short.
+mkdir -p "$X/reasons"
+res "$X/reasons" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+res "$X/reasons" 02 1 $'declined: rule-abstract-metaphor-jargon seam reason=boundary\ndeclined: rule-abstract-metaphor-jargon keystone reason=saturated\ndeclined: rule-abstract-metaphor-jargon seam reason=whatever\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a "b" load-bearing c" -- jargon'
+res "$X/reasons" 03 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=cap'
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/reasons" --out "$X/reasons.md" >/dev/null 2>&1
+merged="$(cat "$X/reasons.md")"
+assert_line_in "reasons: a cue after an inner quote is still in the quoted span" "$X/reasons.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=load-bearing saturated=yes reported_in=02"
+assert_line_in "reasons: a saturated decline of a cue cues.txt does not list is flagged" "$X/reasons.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=keystone saturated=no declined_in=02"
+assert_not_contains "reasons: a cap decline accounts for the cue" "$merged" "unaccounted_in=03"
+assert_not_contains "reasons: a boundary decline accounts for the cue" "$merged" "cue=seam unaccounted_in"
+assert_line_in "reasons: cap declines are totalled" "$X/reasons.md" \
+  "declined_total: rule-abstract-metaphor-jargon load-bearing reason=cap batches=03"
+assert_line_in "reasons: a declined: line with another reason stays in the body" "$X/reasons.md" \
+  "declined: rule-abstract-metaphor-jargon seam reason=whatever"
+assert_not_contains "reasons: and is not totalled" "$merged" "reason=whatever batches"
 
 # --- Result ---------------------------------------------------------------------
 

@@ -44,18 +44,28 @@ plan also writes <dir>/cues.txt:
                                                     F >= 10 and F*10 >= S
   batch=<NN> cue=<c> occurrences=<O> files=<F>      per batch, when O > 0
 Cues: load-bearing (load-bearing, load bearing) and seam (seam, seams), any
-case, bounded by [^a-z0-9_] or the line edge, every match counted, fenced
-code blocks skipped.
+case, bounded by [^a-z0-9_] or the line edge, so non-load-bearing counts and
+seamless does not; every match on a line counts, and a cue split across a line
+break is not counted. Skipped, as the rubric skips them: YAML frontmatter (a
+--- first line through the next ---), fenced code (any indent, closed by a run
+of the opener's character at least as long), blockquote lines, `code` spans
+and "double-quoted" spans.
 
-A result may carry `declined: <rule-id> <cue> reason=saturated|boundary` lines.
-merge strips them from the bodies, totals them on `declined_total:` lines, and,
-when cues.txt exists, prints `consistency:` lines for a saturated cue quoted in
-a rule-abstract-metaphor-jargon finding, a reason=saturated decline of a cue
-that is not saturated, and a batch holding a cue it neither reported nor
-declined; each rule named there gets ` consistency=flagged` on its rule_total.
+A result may carry `declined: <rule-id> <cue> reason=saturated|boundary|cap`
+lines (cap: dropped by the per-file or per-batch finding cap). merge strips
+those from the bodies, totals them on `declined_total:` lines, and leaves any
+other `declined:` line in the body. When cues.txt exists it prints
+`consistency:` lines for a saturated cue quoted in a
+rule-abstract-metaphor-jargon finding, a reason=saturated decline of a cue that
+is not saturated (or not a cue at all), and a batch holding a cue it neither
+reported nor declined; each rule named there gets ` consistency=flagged` on its
+rule_total.
 Exit: 0 ok, 1 a batch is not complete, 2 usage error or refusal.
 EOF
 }
+
+# A well-formed decline line; merge strips and totals only these.
+DECLINED_RE='^declined: rule-[a-z0-9-]+ [^ ]+ reason=(saturated|boundary|cap) *$'
 
 # The saturation cues and cue_hits(s, c): the matches of cue c in s, compared
 # lowercase and bounded by [^a-z0-9_] or the string's edge. POSIX awk only.
@@ -71,6 +81,12 @@ function cue_hits(s, c,   re, n, off, st, pre, post) {
     if (pre !~ /[a-z0-9_]/ && post !~ /[a-z0-9_]/) { n++; off = st + RLENGTH - 1 } else off = st
   }
   return n
+}
+# prose(s): s with `code` spans and "double-quoted" spans blanked out.
+function prose(s) {
+  gsub(/`[^`]*`/, " ", s)
+  gsub(/"[^"]*"/, " ", s)
+  return s
 }
 BEGIN { nc = split("load-bearing seam", C, " ") }'
 
@@ -281,12 +297,22 @@ cmd_plan() {
     {
       t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
       if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
-      S++; fence = 0
+      S++; fence = ""; fm = 0; ln = 0
       for (i = 1; i <= nc; i++) h[i] = 0
       while ((getline line < f) > 0) {
-        sub(/\r$/, "", line)
-        if (line ~ /^ ? ? ?(```|~~~)/) { fence = !fence; continue }
-        if (!fence) for (i = 1; i <= nc; i++) h[i] += cue_hits(line, C[i])
+        sub(/\r$/, "", line); ln++
+        if (ln == 1 && line ~ /^---[ \t]*$/) { fm = 1; continue }
+        if (fm) { if (line ~ /^---[ \t]*$/) fm = 0; continue }
+        run = line; sub(/^[ \t]*/, "", run); sub(/[ \t]*$/, "", run)
+        if (fence != "") {
+          # A closer is a run of the opener character alone, at least as long.
+          t = run; gsub(substr(fence, 1, 1), "", t)
+          if (t == "" && length(run) >= length(fence)) fence = ""
+          continue
+        }
+        if (match(run, /^(```+|~~~+)/)) { fence = substr(run, 1, RLENGTH); continue }
+        if (run ~ /^>/) continue
+        for (i = 1; i <= nc; i++) h[i] += cue_hits(prose(line), C[i])
       }
       close(f)
       for (i = 1; i <= nc; i++) if (h[i]) { O[i] += h[i]; F[i]++; BO[b, i] += h[i]; BF[b, i]++ }
@@ -431,15 +457,23 @@ cmd_merge() {
     # Totals, then consistency flags, then decline totals, each group sorted.
     # Results come as `<NN><TAB><path>` lines on stdin; cues.txt by ENVIRON.
     # shellcheck disable=SC2016  # an awk program, not a shell expansion
-    printf '%s' "$scope" | RF_CUES="$cues" awk "$CUE_AWK"'
+    printf '%s' "$scope" | RF_CUES="$cues" RF_DECLINED="$DECLINED_RE" awk "$CUE_AWK"'
       function add(list, b) { return list == "" ? b : list "," b }
+      # last(s, t): the position of the last t in s, or 0.
+      function last(s, t,   p, k) {
+        p = 0
+        while ((k = index(substr(s, p + 1), t)) > 0) p += k
+        return p
+      }
+      # quoted(s): from the first `"` to the last `" --`, else the last `"`.
       function quoted(s,   i) {
         i = index(s, "\""); if (!i) return ""
-        s = substr(s, i + 1); i = index(s, "\"")
+        s = substr(s, i + 1)
+        i = last(s, "\" --"); if (!i) i = last(s, "\"")
         return i ? substr(s, 1, i - 1) : s
       }
       BEGIN {
-        MJ = "rule-abstract-metaphor-jargon"; cf = ENVIRON["RF_CUES"]
+        MJ = "rule-abstract-metaphor-jargon"; cf = ENVIRON["RF_CUES"]; DECLINED = ENVIRON["RF_DECLINED"]
         if (cf != "") {
           have = 1
           while ((getline line < cf) > 0) {
@@ -458,7 +492,8 @@ cmd_merge() {
           if (line ~ /^- L[0-9]+ rule-[a-z0-9-]+:/) {
             split(line, a, " "); r = a[3]; sub(/:$/, "", r); total[r]++
             if (r == MJ) for (i = 1; i <= nc; i++) if (cue_hits(quoted(line), C[i])) rep[b, C[i]] = 1
-          } else if (line ~ /^declined:/ && split(line, a, " ") >= 4 && a[4] ~ /^reason=/) {
+          } else if (line ~ DECLINED) {
+            split(line, a, " ")
             dec[b, a[2], a[3]] = 1
             k = a[2] " " a[3] " " a[4]
             if ((b, k) in once) continue
@@ -482,7 +517,7 @@ cmd_merge() {
           }
           for (k in dl) {
             split(k, a, " ")
-            if (a[3] == "reason=saturated" && (a[2] in sat) && !sat[a[2]]) {
+            if (a[3] == "reason=saturated" && !((a[2] in sat) && sat[a[2]])) {
               print "2\tconsistency: " a[1] " cue=" a[2] " saturated=no declined_in=" dl[k]; flag[a[1]] = 1
             }
           }
@@ -492,7 +527,7 @@ cmd_merge() {
       }' | sort | cut -f2-
     for f in "${files[@]}"; do
       echo
-      tr -d '\r' <"$f" | grep -Ev '^(batch|files_reviewed|files_with_findings|declined):' || true
+      tr -d '\r' <"$f" | grep -Ev "^(batch|files_reviewed|files_with_findings):|$DECLINED_RE" || true
     done
   } >"$OUT" || die "merge: cannot write $OUT"
   echo "$ME: merged ${#files[@]} batch result(s) into $OUT"

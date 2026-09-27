@@ -31,7 +31,7 @@ by hand.
    directory that already holds batch lists, so a new scope gets a new batch directory. A
    resume keeps the existing one and skips `plan`: re-planning can reorder the files (a new
    commit moves the change counts), which changes every list's digest. A batch directory
-   planned before `plan` wrote `cues.txt` has none: a resume from it dispatches without the
+   planned before `plan` wrote `cues.txt` has none. A resume from it dispatches without the
    cue counts, its batches treat both cues as unsaturated, and `merge` runs no consistency
    check.
 
@@ -58,10 +58,10 @@ receives:
   of judging saturation from its own batch, and whose `batch=NN` lines give its own cue
   counts;
 - the result path it must write to (below);
-- the declined-line shape, `declined: <rule-id> <cue> reason=saturated|boundary`, zero or
-  more header lines, one per rule, cue and reason in the batch, and the rule that every
-  occurrence of a `cues.txt` cue in its batch ends as a finding or is covered by a
-  `declined:` line, never dropped without a trace;
+- the declined-line shape, `declined: <rule-id> <cue> reason=saturated|boundary|cap`, zero or
+  more header lines, one per rule, cue and reason in the batch (`cap` marks a hit dropped by
+  the finding caps below), and the rule that every occurrence of a `cues.txt` cue in its
+  batch ends as a finding or is covered by a `declined:` line, never dropped without a trace;
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
   findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
@@ -118,9 +118,10 @@ spot-check a sample of its findings against the cited file and line, and dispatc
 when a quoted span is not there. Then run `rubric-fanout.sh merge --batches <batch dir>
 --results <findings home> --out <findings home>/<TS>-ai-slop-rubric.md`. It refuses while any
 batch is incomplete, and otherwise writes summed `files_reviewed` and `files_with_findings`,
-one `rule_total:` line per rule, and each result body in batch order, with `declined:` lines
-stripped from the bodies and summed into
-`declined_total: <rule-id> <cue> reason=<r> batches=<NN,...>` lines.
+one `rule_total:` line per rule, and each result body in batch order. Well-formed `declined:`
+lines are stripped from the bodies and summed into
+`declined_total: <rule-id> <cue> reason=<r> batches=<NN,...>` lines; a `declined:` line with
+any other shape stays in its body where a reader sees it.
 
 When `cues.txt` is present, `merge` also checks that the batches agreed and prints, after the
 `rule_total:` lines, one `consistency:` line per disagreement:
@@ -128,7 +129,7 @@ When `cues.txt` is present, `merge` also checks that the batches agreed and prin
 - `consistency: rule-abstract-metaphor-jargon cue=<c> saturated=yes reported_in=<NN,...>`: a
   batch quoted a saturated cue in a finding of that rule.
 - `consistency: <rule-id> cue=<c> saturated=no declined_in=<NN,...>`: a batch declined an
-  unsaturated cue with `reason=saturated`.
+  unsaturated cue, or a word `cues.txt` does not count, with `reason=saturated`.
 - `consistency: rule-abstract-metaphor-jargon cue=<c> unaccounted_in=<NN,...>`: a batch whose
   `cues.txt` line shows occurrences neither quoted the cue in a finding of that rule nor
   declined it.

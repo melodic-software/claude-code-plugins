@@ -945,10 +945,10 @@ either layer, and those rows say so.
   a skipped list leaves the rubric nothing to read." Nothing is listed or exemplified, and the
   colon stages a reveal where "because" or a full stop would serve.
 - Declined, from a CLAUDE.md rule list: "Never push from a worktree you did not create:
-  another session may own it." A terse `rule: reason` line in operative instructions
-  (CLAUDE.md, AGENTS.md, `.claude/rules/` files, skill steps) is out of scope: the colon there
-  is the house form for pairing a rule with its reason, and reporting it would flood every
-  instruction file.
+  another session may own it." A terse `rule: reason` line in a list of operative rules is out
+  of scope in any file, whether CLAUDE.md, AGENTS.md, a `.claude/rules/` file, a skill step, or
+  a "Rules" list inside ordinary docs. There the colon is the usual way to pair a rule with its
+  reason, and reporting it would flood every instruction file.
 
 ### rule-abstract-metaphor-jargon: Abstract metaphor nouns
 
@@ -972,15 +972,17 @@ either layer, and those rows say so.
   saturation rule below are the suppression surface.
 - **Seam examples.** Declined as a term of art: "introduce a seam at the constructor so the
   test can substitute the clock", a Feathers seam in testing prose. Reported: "the seam
-  between IdentityServer identities and tenant users", a system boundary described by
+  between the billing service and the account service", a system boundary described by
   metaphor, where "boundary" is the plainer word.
-- **Saturation.** Counted per audit scope, over prose only (fenced code excluded): a cue is
-  saturated when it appears in at least 10 files AND in at least 10% of the readable files in
-  scope. `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the
-  batch directory; a batch reads the verdict there and never judges saturation from its own
-  batch. Saturated hits are not reported per finding: the batch records one
-  `declined: rule-abstract-metaphor-jargon <cue> reason=saturated` line, and cleanup is a
-  fix-pass decision for that repo. Unsaturated hits are judged per instance: a reflexive
+- **Saturation.** Counted per audit scope, over the prose the rubric reads (fenced code, inline
+  code, double-quoted spans, blockquotes and YAML frontmatter excluded). A cue is saturated
+  when it appears in at least 10 files AND in at least 10% of the readable files in scope.
+  `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch
+  directory; a batch reads the verdict there and never judges saturation from its own batch.
+  Saturated hits are not reported per finding. The batch records one
+  `declined: rule-abstract-metaphor-jargon <cue> reason=saturated` line instead, and cleanup
+  is a fix-pass decision for that repo. A hit dropped by the per-file or per-batch finding cap
+  is recorded with `reason=cap`. Unsaturated hits are judged per instance: a reflexive
   metaphor is reported, and a term-of-art use is declined with
   `declined: rule-abstract-metaphor-jargon <cue> reason=boundary`. Counts cover only
   "load-bearing" and "seam" because only they carry this saturation clause; the other cues
