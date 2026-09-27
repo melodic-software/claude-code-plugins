@@ -980,6 +980,33 @@ for (const path of pluginFiles) {
   }
 }
 
+// Every agent definition names its model. A subagent's model resolves as the
+// per-call `model`, then the definition's `model`, then CLAUDE_CODE_SUBAGENT_MODEL,
+// then the main conversation's model, so an omitted field lands on the
+// orchestrator's model wherever the variable is unset. `inherit` picks that
+// model on purpose and outranks the variable, so it must carry a stated reason
+// on its own line. Basis: https://code.claude.com/docs/en/subagents
+const agentDefinitions = pluginFiles.filter((path) => {
+  const parts = pluginPathParts(path);
+  return parts.length === 3 && parts[1] === "agents" && parts[2].endsWith(".md");
+});
+for (const path of agentDefinitions) {
+  const lines = read(path).split(/\r?\n/);
+  const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
+  const frontmatter = close === -1 ? [] : lines.slice(1, close);
+  const modelLine = frontmatter.find((line) => /^model:/.test(line));
+  const value = modelLine
+    ?.slice("model:".length)
+    .replace(/#.*$/, "")
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2");
+  if (!value) {
+    fail(path, "agent definitions must name a model in frontmatter (model: <alias or id>)");
+  } else if (value === "inherit" && !/#\s*reason:\s*\S/.test(modelLine)) {
+    fail(path, "model: inherit needs a trailing `# reason: <why>` comment on the same line");
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

@@ -837,6 +837,98 @@ else
 fi
 rm -rf "$TMP/.git"
 
+# ===========================================================================
+# Agent definitions name a model (plugins/<plugin>/agents/*.md).
+#
+# Each case asserts on a failure line that names the one agent file under
+# test, so an unrelated fixture failure can neither satisfy nor mask it.
+# ===========================================================================
+
+A_NO_MODEL='agent definitions must name a model'
+A_BARE_INHERIT='model: inherit needs a trailing'
+
+# make_agent <plugin> <name> <frontmatter-model-line-or-empty> -- an empty
+# third argument writes no model line at all.
+make_agent() {
+  local plugin="$1" name="$2" model_line="$3"
+  mkdir -p "$TMP/plugins/$plugin/agents"
+  {
+    echo '---'
+    printf 'name: %s\n' "$name"
+    printf 'description: "Fixture agent %s."\n' "$name"
+    echo 'tools: "Read"'
+    if [[ -n "$model_line" ]]; then printf '%s\n' "$model_line"; fi
+    echo 'effort: high'
+    echo '---'
+    echo
+    echo 'Fixture body.'
+  } >"$TMP/plugins/$plugin/agents/$name.md"
+}
+
+# agent_fail_line <name> <needle> -- a failure line for that agent file.
+agent_fail_line() {
+  grep -qE "^- .*agents[/\\\\]$1\.md: .*$2" <<<"$out"
+}
+
+# agent_any_fail <name> -- any model failure line for that agent file.
+agent_any_fail() {
+  agent_fail_line "$1" "$A_NO_MODEL" || agent_fail_line "$1" "$A_BARE_INHERIT"
+}
+
+reset_fixture
+make_plugin alpha ''
+make_agent alpha no-model ''
+make_agent alpha bare-inherit 'model: inherit'
+make_agent alpha reasoned-inherit "model: inherit  # reason: must match the orchestrator's model"
+make_agent alpha named-alias 'model: sonnet'
+make_agent alpha crlf-opus 'model: opus'
+sed -i 's/$/\r/' "$TMP/plugins/alpha/agents/crlf-opus.md"
+{
+  echo '---'
+  echo 'name: body-model'
+  echo 'description: "Fixture agent whose model line sits in the body."'
+  echo '---'
+  echo
+  echo 'model: opus'
+} >"$TMP/plugins/alpha/agents/body-model.md"
+out="$(run_fixture)"
+
+if agent_fail_line no-model "$A_NO_MODEL"; then
+  ok "an agent definition with no model line fails the gate"
+else
+  fail "an agent with no model line should fail: $out"
+fi
+
+if agent_fail_line bare-inherit "$A_BARE_INHERIT"; then
+  ok "model: inherit with no stated reason fails the gate"
+else
+  fail "a bare model: inherit should fail: $out"
+fi
+
+if agent_any_fail reasoned-inherit; then
+  fail "model: inherit with a trailing reason comment should pass: $out"
+else
+  ok "model: inherit with a trailing # reason: comment passes"
+fi
+
+if agent_any_fail named-alias; then
+  fail "an explicit model alias should pass: $out"
+else
+  ok "an agent naming an explicit model alias passes"
+fi
+
+if agent_any_fail crlf-opus; then
+  fail "a CRLF-terminated agent naming a model should pass: $out"
+else
+  ok "a CRLF-terminated agent definition naming a model passes"
+fi
+
+if agent_fail_line body-model "$A_NO_MODEL"; then
+  ok "a model line outside the frontmatter does not count"
+else
+  fail "a model line in the body only should fail as missing: $out"
+fi
+
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?
