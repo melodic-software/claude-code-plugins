@@ -232,9 +232,10 @@ function scan(file,   x, y, y2, w, gl, text) {
     if (o[y] == "&") y++
     y = skipws(y, 1)
     # Skip what may stand before the command name: assignments, a wrapper, its
-    # options, a negation, a brace group.
+    # options, a negation, a brace group or subshell.
     for (;;) {
       gl = ol[y]; y2 = readword(y); w = W
+      if (w == "" && o[y] == "(") { y = skipws(y + 1, 1); continue }
       if (w !~ /^([A-Za-z_][A-Za-z0-9_]*=|-)/ && w != "command" && w != "env" && w != "!" && w != "{") break
       y = skipws(y2, 0)
     }

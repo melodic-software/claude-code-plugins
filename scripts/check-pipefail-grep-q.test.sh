@@ -118,6 +118,12 @@ EOF
 expect_flag "a grep in a brace group" 1 <<'EOF'
 echo "$x" | { grep -q foo; }
 EOF
+expect_flag "a grep in a subshell" 1 <<'EOF'
+echo "$x" | ( grep -q foo )
+EOF
+expect_flag "a grep in a nested subshell" 1 <<'EOF'
+echo "$x" | ( (grep -q foo) )
+EOF
 expect_flag "-q after --color" 1 <<'EOF'
 echo "$x" | grep --color -q foo
 EOF
