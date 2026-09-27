@@ -212,8 +212,9 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
-   interpolate names from one batch member. Triage of the entry is done when all five questions have
-   an evidence-backed answer; any question left unanswered caps the entry at Low.
+   interpolate names from one batch member. Triage of the entry is done when each of the five
+   questions has an evidence-backed answer or is recorded as unknown; an unknown answer counts
+   against the entry's tier in step 3.
 
 ## 3. Classify and report
 
