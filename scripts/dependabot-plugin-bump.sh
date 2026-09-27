@@ -13,7 +13,7 @@
 #     over bot commits (docs.github.com/.../managing-pull-requests-for-dependency-updates)
 #   - Claude Code plugin version delivery (code.claude.com/docs/en/plugins/loading)
 #   - scripts/check-changelog-parity.sh --check-bump (never relaxes for bots)
-#   - Issue 4144 consensus: keep the gate; generalize dependabot-miro-bundle.yml
+#   - Tracker consensus: keep the gate; generalize dependabot-miro-bundle.yml
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,6 +81,7 @@ if ! merge_base="$(git merge-base "$base" "$head_commit")"; then
 fi
 
 diff_paths=()
+# shellcheck disable=SC2310  # the non-zero return IS the handled case; the branch exits 2
 if ! changed_files::into diff_paths "$merge_base..$head_commit" --include-deleted; then
   echo "dependabot-plugin-bump: diff $merge_base..$head_commit failed" >&2
   exit 2
@@ -98,6 +99,7 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
       shipped_changed["$name"]=1
     fi
     ;;
+  *) ;;
   esac
 done
 
@@ -187,6 +189,7 @@ if ((${#shipped_changed[@]} > 0)); then
     [[ -n "$base_ver" && -n "$head_ver" ]] || continue
 
     # Idempotent: head already above base tip and heading present for head version.
+    # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
     if [[ "$head_ver" != "$base_ver" ]] && has_heading "$changelog" "$head_ver"; then
       continue
     fi
@@ -194,15 +197,18 @@ if ((${#shipped_changed[@]} > 0)); then
     # If head equals base but we touched shipped files, we need a new patch.
     # If head already moved without a heading, keep that number when present.
     if [[ "$head_ver" == "$base_ver" ]]; then
+      # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
       new_ver="$(bump_patch "$base_ver")" || exit 1
     else
       new_ver=$head_ver
+      # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
       if has_heading "$changelog" "$new_ver"; then
         continue
       fi
     fi
 
     if [[ "$new_ver" == "$base_ver" ]]; then
+      # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
       new_ver="$(bump_patch "$base_ver")" || exit 1
     fi
 
