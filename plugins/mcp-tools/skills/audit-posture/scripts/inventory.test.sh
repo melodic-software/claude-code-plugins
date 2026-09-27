@@ -355,7 +355,7 @@ check_row h-bash-lc npx floaty@latest floating-tag unscoped
 check_row i-cmd-dsc npx floaty@latest floating-tag unscoped
 check_row j-env npx floaty floating-unversioned unscoped
 check_row k-docker-mem docker mcp/x floating-unversioned mcp
-check_row l-bash-quoted npx q@1.0.0 exact unscoped
+check_row l-bash-quoted local - unparsed -
 check_row m-args-obj npx - unparsed -
 check_row n-bidi npx - unparsed -
 check_row o-pwsh npx floaty floating-unversioned unscoped
@@ -583,10 +583,10 @@ check_row argsecret npx - unparsed -
 check_row argsecret2 npx pkg@1.0.0 exact unscoped
 check_row unicode npx - unparsed -
 check_row pwsh npx pkg@1.0.0 exact unscoped
-check_row pwsh-bare npx pkg@1.0.0 exact unscoped
+check_row pwsh-bare local - unparsed -
 check_row cmdc npx pkg@1.0.0 exact unscoped
-check_row cmdc-space npx pkg@1.0.0 exact unscoped
-check_row cmdc-quoted npx pkg@1.0.0 exact unscoped
+check_row cmdc-space local - unparsed -
+check_row cmdc-quoted local - unparsed -
 check_row wrapped-unsafe local - unparsed -
 check_row latest npx @scope/pkg@latest floating-tag @scope
 check_row scoped npx @scope/pkg floating-unversioned @scope
@@ -711,13 +711,13 @@ check_row r001 remote https://h.example.com n/a h.example.com
 check_row r002 remote 'https://[::1]:8443' n/a '[::1]'
 check_row r003 remote - unparsed -
 check_row r004 npx git+ssh://github.com/o/r.git git-ref github.com
-check_row r018 npx pkg floating-unversioned unscoped
+check_row r018 local - unparsed -
 check_row r022 local - unparsed -
-check_row r029 local server not-a-package local
+check_row r029 local - unparsed -
 check_row r030 local - unparsed -
 check_row r047 npx - unparsed -
 check_row r061 - - unparsed -
-check_row r074 npx pkg floating-unversioned unscoped
+check_row r074 local - unparsed -
 check_row r081 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
 assert_eq "unknown type prints transport unknown" "unknown" "$(cell file r061 4)"
 assert_eq "valid drop-in managedMcpServers entry loads" "yes" "$(cell managed-settings s 3)"
@@ -938,7 +938,7 @@ check_row u-ok npx pkg@1.2.3 exact unscoped
 # PowerShell env assignments, -Command, cmd /C and SET are matched case-insensitively.
 check_row pw-Env npx pkg@1.0.0 exact unscoped
 check_row pw-ENV npx pkg@1.0.0 exact unscoped
-check_row pw-brace npx pkg@1.0.0 exact unscoped
+check_row pw-brace local - unparsed -
 check_row cmd-upper npx pkg@1.0.0 exact unscoped
 
 mkdir -p "$FIX/managed seven/managed-settings.d"

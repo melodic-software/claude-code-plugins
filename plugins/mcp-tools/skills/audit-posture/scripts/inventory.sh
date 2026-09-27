@@ -123,7 +123,8 @@ SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 # exactly a 64-hex digest or 40-hex commit passes. AWS key prefixes (AKIA, ASIA) match only
 # in upper case, since AWS key ids are upper case and lower-case "asia" is an ordinary word.
 # A UUID anywhere, or a run of 32+ hex digits other than a trailing #<40 hex> git commit or
-# @sha256:<64 hex> digest, is also rejected.
+# @sha256:<64 hex> digest, is also rejected, as is a value with three or more segments that
+# are each 6+ characters holding at least two digits and two letters.
 # shellcheck disable=SC2016
 JQ_VF='def vf:
   (length <= 100)
@@ -131,6 +132,10 @@ JQ_VF='def vf:
   and (test("(^|[^A-Za-z0-9])(AKIA|ASIA)") | not)
   and (test("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") | not)
   and (sub("#[0-9a-f]{40}$"; "") | sub("@sha256:[0-9a-f]{64}$"; "") | test("[0-9a-fA-F]{32,}") | not)
+  and ([splits("[/@:=#._\\[\\] -]")
+        | select((test("^([0-9a-f]{64}|[0-9a-f]{40})$") | not) and length >= 6
+                 and ([scan("[0-9]")] | length) >= 2 and ([scan("[A-Za-z]")] | length) >= 2)]
+       | length) < 3
   and ([splits("[/@:=#._\\[\\] -]")]
        | all(.[]; test("^([0-9a-f]{64}|[0-9a-f]{40})$")
                   or (length <= 40
@@ -240,9 +245,9 @@ done
 # Classification. Output is allowlisted: a package, image, URL, path, or host reaches stdout
 # only when the raw value fully matches one of the grammars below, with nothing stripped
 # first except URL userinfo. Anything else prints package "-", pin "unparsed", publisher "-".
-# Wrapper strings (bash -c, cmd /c, pwsh -Command, env -S) are split with a quote-aware
-# tokenizer after known assignment prefixes are dropped; a remaining shell metacharacter or
-# an unbalanced quote makes the row unparsed.
+# Wrapper strings (bash -c, cmd /c, pwsh -Command, env -S) are parsed conservatively: exact
+# assignment prefixes are dropped from the start, and any quote, escape, or shell operator
+# left over makes the row unparsed.
 # shellcheck disable=SC2016
 CLASSIFY='
 def clean: tostring | gsub("[[:cntrl:]]"; "");
@@ -253,69 +258,85 @@ def runners: ["npx", "npm", "pnpm", "pnpx", "yarn", "bunx", "bun", "uvx", "uv", 
 def basename_of: gsub("\\\\"; "/") | (split("/") | last) // "";
 def lc_base: basename_of | ascii_downcase | sub("\\.(cmd|exe)$"; "");
 def is_assign: test("^[A-Za-z_][A-Za-z0-9_]*=([^=]|$)");
-def drop_assign: until(length == 0 or (.[0] | is_assign | not); .[1:]);
 def shell_split: [splits("[ \t\r\n]+")] | map(select(length > 0));
-def metachar: test("[;&|$`(){}<>\\\\\n\r]");
-def quoted_re: SQ + "[^" + SQ + "]*" + SQ + "|" + DQ + "[^" + DQ + "]*" + DQ;
-def qsplit:
-  if (gsub(quoted_re; "") | test("[" + SQ + DQ + "]")) then null
-  else [scan("(?:[^[:space:]" + SQ + DQ + "]+|" + quoted_re + ")+")] end;
-def unquote:
-  gsub(SQ + "(?<a>[^" + SQ + "]*)" + SQ; "\(.a)") | gsub(DQ + "(?<a>[^" + DQ + "]*)" + DQ; "\(.a)");
-# A wrapper string holding a backslash, or any character other than printable ASCII, space,
-# and tab (NBSP, U+2028, VT, FF, CR, LF, ...), splits differently in the real shell than here,
-# so it is unparsed before any assignment is dropped.
-def wrap_bad: contains("\\") or test("[^ -~\t]");
-def wrap_tokens:
-  if length > 4096 or wrap_bad then [unparsed_mark]
-  else qsplit as $raw
-  | if $raw == null then [unparsed_mark]
-    else ($raw | drop_assign) as $rest
-    | if any($rest[]; metachar) then [unparsed_mark] else ($rest | map(unquote)) end
+# Wrapper parsing is conservative: it never emulates shell quoting or escaping.
+# Shell builtins and command wrappers whose operands are not a program.
+def odd_programs: ["exec", "eval", "set", "export", "source", ".", "command", "builtin", "unset", "alias",
+  "declare", "typeset", "local", "readonly", "let", "time", "nohup", "sudo", "doas", "xargs", "call",
+  "start", "cd", "trap", "shift", "read", "test", "[", "true", "false", ":"];
+def program_ok:
+  (startswith("-") | not) and (contains("=") | not) and (lc_base | IN(odd_programs[]) | not)
+  and ((lc_base | IN(runners[])) or (basename_of | test("^[A-Za-z0-9._+-]+$")));
+# Assignment prefixes dropped only at the very start of a wrapper string, repeatedly:
+# POSIX NAME=value (no quotes), pwsh $env:NAME=value; or $env:NAME=<single-quoted value>;
+# (the ; is required), and cmd set NAME=value&& or set NAME=value && (no ^ & % " | in the value).
+def posix_prefix: "^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/:+~@,-]*[ \t]+";
+def pwsh_prefix:
+  "^\\$env:[A-Za-z_][A-Za-z0-9_]*=([^" + SQ + DQ + ";$ \t]*|" + SQ + "[^" + SQ + DQ + ";$]*" + SQ + ");[ \t]*";
+def cmd_prefix: "^set[ \t]+[A-Za-z_][A-Za-z0-9_]*=[^\\^&%" + DQ + "| \t]*[ \t]?&&[ \t]*";
+def drop_prefix($re; $flags): sub($re; ""; $flags) as $n | if $n == . then . else ($n | drop_prefix($re; $flags)) end;
+# wrap_tokens($kind): after the prefixes, the string may hold only [A-Za-z0-9 \t._/@:=+~,-]
+# and its first token must be a program name; anything else is unparsed.
+def wrap_tokens($kind):
+  if length > 4096 or contains("\\") or test("[^ -~\t]") then [unparsed_mark]
+  else sub("^[ \t]+"; "")
+  | (if $kind == "pwsh" then drop_prefix(pwsh_prefix; "i")
+     elif $kind == "cmd" then drop_prefix(cmd_prefix; "i")
+     else drop_prefix(posix_prefix; "") end)
+  | if (test("^[A-Za-z0-9 \t._/@:=+~,-]*$") | not) then [unparsed_mark]
+    else [splits("[ \t]+")] | map(select(length > 0))
+    | if length > 0 and (.[0] | program_ok) then . else [unparsed_mark] end
     end
   end;
-# PowerShell drive and variable names are case-insensitive: $env:X, $Env:X, ${env:X}.
-def drop_pwsh_env:
-  sub("^[[:space:]]*\\$(env:[A-Za-z_][A-Za-z0-9_]*|\\{env:[A-Za-z_][A-Za-z0-9_]*\\})[[:space:]]*=[[:space:]]*(" + quoted_re + "|[^;]*);?"; ""; "i") as $n
-  | if $n == . then . else ($n | drop_pwsh_env) end;
-def drop_cmd_set:
-  sub("^[[:space:]]*set[[:space:]]+(\"[A-Za-z_][A-Za-z0-9_]*=[^\"]*\"|[A-Za-z_][A-Za-z0-9_]*=[^&]*)[[:space:]]*(&&?)?"; ""; "i") as $n
-  | if $n == . then . else ($n | drop_cmd_set) end;
 def shell_c_string:
   if length == 0 then null
   elif (.[0] | test("^-[A-Za-z]*c$")) then (.[1] // null)
   elif (.[0] | startswith("-")) then (.[1:] | shell_c_string)
   else null end;
+# env: options only until the first assignment or operand; after an assignment, the next
+# non-assignment token must be the program.
+def env_program: if length == 0 then . elif (.[0] | program_ok) then . else [unparsed_mark] end;
+def env_after_assign:
+  if length == 0 then .
+  elif (.[0] | is_assign) then (.[1:] | env_after_assign)
+  else env_program end;
 def env_rest:
   if length == 0 then .
-  elif (.[0] | is_assign) then (.[1:] | env_rest)
+  elif (.[0] | is_assign) then (.[1:] | env_after_assign)
   elif IN(.[0]; "-u", "--unset", "-C", "--chdir", "-P", "-a", "--argv0") then (.[2:] | env_rest)
   elif (.[0] | test("^--(unset|chdir|argv0)=")) then (.[1:] | env_rest)
-  elif IN(.[0]; "-S", "--split-string") then (((.[1] // "") | wrap_tokens) + .[2:])
-  elif (.[0] | startswith("--split-string=")) then ((.[0] | sub("^--split-string="; "") | wrap_tokens) + .[1:])
+  elif IN(.[0]; "-S", "--split-string") then (((.[1] // "") | wrap_tokens("sh")) + .[2:])
+  elif (.[0] | startswith("--split-string=")) then ((.[0] | sub("^--split-string="; "") | wrap_tokens("sh")) + .[1:])
   elif IN(.[0]; "-i", "--ignore-environment", "-0", "--null", "-v", "--debug", "-", "--") then (.[1:] | env_rest)
   elif (.[0] | startswith("-")) then [unparsed_mark]
-  else . end;
-def rest_after($opts):
-  ([to_entries[] | select(.value | ascii_downcase | IN(.; $opts[])) | .key] | first) as $i
-  | if $i == null then null else .[$i + 1:] end;
+  else env_program end;
+# cmd accepts only /d /s /q /v:off before /c or /k; pwsh only -NoProfile, -NonInteractive,
+# -NoLogo, and -ExecutionPolicy <word> before -Command or -c. Anything else is unparsed.
+def cmd_rest:
+  if length == 0 then null
+  elif (.[0] | ascii_downcase | IN(.; "/c", "/k")) then (.[1:] | join(" "))
+  elif (.[0] | ascii_downcase | IN(.; "/d", "/s", "/q", "/v:off")) then (.[1:] | cmd_rest)
+  else unparsed_mark end;
+def pwsh_rest:
+  if length == 0 then null
+  elif (.[0] | ascii_downcase | IN(.; "-command", "-c")) then (.[1:] | join(" "))
+  elif (.[0] | ascii_downcase | IN(.; "-noprofile", "-noninteractive", "-nologo")) then (.[1:] | pwsh_rest)
+  elif (.[0] | ascii_downcase) == "-executionpolicy" and ((.[1] // "") | test("^[A-Za-z]+$")) then (.[2:] | pwsh_rest)
+  else unparsed_mark end;
 def unwrap:
-  drop_assign
-  | if length == 0 or .[0] == unparsed_mark then .
-    else (.[0] | lc_base) as $b
-    | .[1:] as $a
-    | if IN($b; "cmd", "pwsh", "powershell") then
-        (($a | rest_after(if $b == "cmd" then ["/c", "/k"] else ["-command", "-c", "-commandwithargs", "-cwa"] end)) as $r
-         | if $r == null then .
-           else ($r | join(" ")
-                 | if length > 4096 or wrap_bad then [unparsed_mark]
-                   else (if $b == "cmd" then drop_cmd_set else drop_pwsh_env end | wrap_tokens) end
-                 | unwrap) end)
-      elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
-        (($a | shell_c_string) as $s | if $s == null then . else ($s | wrap_tokens | unwrap) end)
-      elif $b == "env" then ($a | env_rest | unwrap)
-      else . end
-    end;
+  if length == 0 or .[0] == unparsed_mark then .
+  else (.[0] | lc_base) as $b
+  | .[1:] as $a
+  | if IN($b; "cmd", "pwsh", "powershell") then
+      (($a | if $b == "cmd" then cmd_rest else pwsh_rest end) as $r
+       | if $r == null then .
+         elif $r == unparsed_mark then [unparsed_mark]
+         else ($r | wrap_tokens(if $b == "cmd" then "cmd" else "pwsh" end) | unwrap) end)
+    elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
+      (($a | shell_c_string) as $s | if $s == null then . else ($s | wrap_tokens("sh") | unwrap) end)
+    elif $b == "env" then ($a | env_rest | unwrap)
+    else . end
+  end;
 # $tail is what may follow the path: a 40-hex commit for package specs, or any query or
 # fragment for remote rows, which print only scheme://host[:port].
 # Any backslash in a URL means unparsed: parsers disagree on whether it separates the host.
@@ -520,7 +541,7 @@ def classify:
       ($c.command // "") as $cmd0
       | ($c.args // []) as $args
       | ($cmd0 | if type == "string" then sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "") else "" end) as $cmd
-      | if ($cmd | test("[[:cntrl:]]")) or ($cmd | basename_of | test("[[:space:]]")) then
+      | if ($cmd | test("[[:cntrl:]]")) or ($cmd | basename_of | test("[[:space:]]")) or ($cmd | contains("=")) then
           {launcher: "local", package: "-", pin: "unparsed", publisher: "-", sandboxed: "no"}
         elif ($cmd0 | type) != "string" or ($args | type) != "array" or ($args | length) > 256
           or any($args[]; type != "string") then
