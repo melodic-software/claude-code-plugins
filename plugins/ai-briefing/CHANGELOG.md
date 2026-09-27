@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.40] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `node --version` and `npm --version` at load time.** The build-preflight
+  versions run as pre-computed context, so `check` reads two rows instead of making two Bash
+  calls. Both probes are pre-approved in `allowed-tools`, since a load-time command that is not
+  allowed aborts the skill outside auto mode. `apply install-build-deps` keeps its live guards,
+  and a policy-disabled injection falls back to the Bash probe.
+
 ## [0.7.39] - 2026-09-27
 
 ### Fixed

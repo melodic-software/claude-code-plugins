@@ -3,6 +3,15 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `playwright-cli` at load time.** The `command -v playwright-cli` check runs as
+  pre-computed context, so `check` reads the result instead of making a Bash call. The FAIL rules
+  are unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
 ## [0.7.1] - 2026-09-25
 
 ### Changed
