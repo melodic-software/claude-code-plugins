@@ -1,5 +1,23 @@
 # Changelog: discovery plugin
 
+## [0.24.6] - 2026-09-27
+
+### Changed
+
+- **`maxTurns: 40` has a recorded basis and one owner.** The raise to 40 was recorded "on parity
+  grounds only". The parent contract's harness facts now carry an eleventh dated record: a
+  subagent's `maxTurns` comes from its definition, the Agent tool documents no per-invocation
+  `maxTurns`, and `--agents` JSON defines a session-wide agent at launch, so a parent cannot widen
+  one dispatch. 40 stays as a checkpoint and runaway guard, not a completion budget: each agent
+  stops gathering at its stop turn (30, from 0.23.0's "Write early; reserve your last turns"
+  rule), and a run that reaches the limit returns output marked partial that the parent resumes
+  with `SendMessage`. The number
+  changes only when the Agent tool documents a per-invocation `maxTurns`, a resume fails to
+  recover a limit stop, or a turns-to-complete distribution is measured after the explorer's
+  redundant re-reads are fixed (#4258). `contract.test.sh` section 7 no longer asserts only
+  `explorer maxTurns >= researcher maxTurns`; it asserts all three definitions equal the value the
+  record names (#4257).
+
 ## [0.24.5] - 2026-09-27
 
 ### Changed
