@@ -28,8 +28,8 @@ audit does not enumerate, so it is never cited here as a cause. Verified 2026-09
 whose listing resolver returns `on` for every plugin-sourced skill before it reads the
 override map; recheck when that section changes or a release note says plugin skills
 honor `skillOverrides`. A `skillOverrides` entry already in an operator's settings
-that names a plugin skill therefore never takes effect; `claude-config:audit`
-reports those entries.
+that names a plugin skill therefore never takes effect; `claude-config:audit`,
+when installed, reports those entries.
 
 Claude Code budgets the model-visible skill listing in characters, at
 `window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,
