@@ -10,7 +10,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview`:** a running constraint ledger (`## Constraint ledger` in the checklist, rows
   `- C<N> | confirmed|inherited | <constraint> | <source>`). A constraint the user states is
   written at once as `confirmed`; one from an upstream artifact is `inherited`, and one the
-  contract relies on is asked as a register row in every mode. Every recommendation carries a
+  contract relies on is asked as a register row (in `lock` it is a gap that stops synthesis; in
+  `auto` direct synthesis it makes the path Mixed). Every recommendation carries a
   `Checked against:` line.
 - **`interview`:** a design from explore or research output, or from an existing
   implementation, is a candidate until re-derived against the constraint ledger; a research
