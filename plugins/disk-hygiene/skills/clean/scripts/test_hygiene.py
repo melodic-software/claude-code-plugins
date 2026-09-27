@@ -9833,7 +9833,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
         self.assertEqual("disk-hygiene-------evil", Path(derived).name)
 
-    # --- #4464 remainder: a conflicting env value never outranks a proof -----
+    # --- a conflicting env value never outranks a proof ----------------------
 
     def set_env_data_root(self) -> Path:
         env_root = self.base / "from-env"
@@ -9898,7 +9898,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.assert_fails_closed()
                 self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
                 # With env set, a format change falls through to the env value,
-                # the pre-#4464 behavior rather than a widening.
+                # the behavior before the directory channel, not a widening.
                 env_root = self.set_env_data_root()
                 self.assertEqual(os.fspath(env_root), self.resolve())
 
