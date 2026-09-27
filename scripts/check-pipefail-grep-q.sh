@@ -61,8 +61,9 @@ fi
 
 # shellcheck disable=SC2016  # awk program text; the shell must not expand it
 LEXER='
-function emit(ch) { o[++k] = ch; ol[k] = line }
-function push(t, d) { ft[++sp] = t; fd[sp] = d }
+# o[] is the masked view; si[] maps each masked char back to its source index.
+function emit(ch) { o[++k] = ch; ol[k] = line; si[k] = EP++ }
+function push(t, d) { ft[++sp] = t; fd[sp] = d; cd[sp] = 0 }
 function wordstart(p,   c) {
   if (p <= 1) return 1
   c = substr(S, p - 1, 1)
@@ -119,7 +120,7 @@ function lex(   i, c, t, nc, r) {
   push("C", 0)
   len = length(S)
   for (i = 1; i <= len; i++) {
-    c = substr(S, i, 1); t = ft[sp]
+    c = substr(S, i, 1); t = ft[sp]; EP = i
     if (c == "\n") {
       emit("\n"); line++; incomment = 0
       if (hn > 0 && (t == "C" || t == "T")) i = heredoc_bodies(i)
@@ -171,9 +172,13 @@ function lex(   i, c, t, nc, r) {
       if ((r = subst_open(i))) { i = r; continue }
       emit("$"); continue
     }
+    # Inside `case ... esac`, a `)` at the depth the frame opened at ends a pattern, not the frame.
+    if (wordstart(i) && substr(S, i, 4) == "case" && index(" \t", substr(S, i + 4, 1))) cd[sp]++
+    if (wordstart(i) && substr(S, i, 4) == "esac" && (i + 4 > len || index(" \t\n;&|)", substr(S, i + 4, 1))) && cd[sp] > 0) cd[sp]--
     if (c == "(") { fd[sp]++; emit(c); continue }
     if (c == ")") {
       emit(c)
+      if (cd[sp] > 0 && fd[sp] == (sp > 1 && t == "C")) continue
       if (fd[sp] > 0) fd[sp]--
       if (sp > 1 && t == "C" && fd[sp] == 0) sp--
       continue
@@ -194,13 +199,22 @@ function readword(y) {
   while (y <= k && index(" \t\n;|&()", o[y]) == 0) { W = W o[y]; y++ }
   return y
 }
-function early_exit(z,   w, ch, ci, name) {
+# unquoted(a, b): the source text of masked chars a..b-1 with quoting removed,
+# which is what grep receives as the argument.
+function unquoted(a, b,   y, r) {
+  r = ""
+  for (y = a; y < b; y++) r = r substr(S, si[y], 1)
+  gsub(/\$["\047]/, "", r); gsub(/["\047\\]/, "", r)
+  return r
+}
+function early_exit(z,   w, zs, ch, ci, name) {
   # z is just past the grep word; parse its arguments up to the command end.
   while (1) {
     z = skipws(z, 0)
     if (z > k || index("\n;|&)", o[z])) return 0
-    z = readword(z); w = W
-    if (w == "") { z++; continue }
+    zs = z; z = readword(z)
+    if (W == "") { z++; continue }
+    w = unquoted(zs, z)
     if (w == "--") return 0
     if (substr(w, 1, 2) == "--") {
       name = w; sub(/=.*/, "", name)

@@ -162,6 +162,19 @@ echo "$mask" | grep -q 8
 EOF
 
 # --- quoting that must not hide a real pipe ----------------------------------
+expect_flag "a quoted -q option" 1 <<'EOF'
+echo x | grep "-q" foo
+EOF
+expect_flag "a single-quoted --quiet option" 1 <<'EOF'
+echo x | grep '--quiet' foo
+EOF
+expect_flag "a case pattern ) inside \$( ) before the pipe" 1 <<'EOF'
+v="$(case $y in a) echo a;; esac | grep -q x)"
+EOF
+expect_flag "a pipe after a case inside \$( ) closes" 2 <<'EOF'
+v=$(case $y in (a) echo a;; b|c) echo b;; esac)
+echo "$v" | grep -q a
+EOF
 expect_flag "a # inside double quotes before the pipe" 1 <<'EOF'
 echo "a#b" | grep -q a
 EOF
@@ -216,6 +229,15 @@ if [[ $x -eq 1 ]]; then echo "$x" | grep -c foo; fi
 EOF
 expect_clean "grep -q on a file with no pipe" <<'EOF'
 grep -q foo file
+EOF
+expect_clean "a quoted pattern that is not an option" <<'EOF'
+echo "$x" | grep "a -q b" file
+EOF
+expect_clean "a quoted -q given as the -e argument" <<'EOF'
+echo "$x" | grep -e "-q"
+EOF
+expect_clean "a case pattern pipe inside \$( )" <<'EOF'
+v="$(case $y in a|b) grep -c x f;; esac)"
 EOF
 expect_clean "an option after --" <<'EOF'
 echo "$x" | grep -- -q
