@@ -5,9 +5,10 @@
 
 ## Context
 
-source-control declares 17 `userConfig` keys for `/source-control:babysit-prs` and
-`/source-control:pull-request`: who the operator is, which owners the loop watches, which bots it
-trusts, and how a repository merges and reviews. `userConfig` values live in `pluginConfigs`, which
+This ruling covers 17 of source-control's `userConfig` keys, used by `/source-control:babysit-prs`
+and `/source-control:pull-request`: who the operator is, which owners the loop watches, which bots
+it trusts, and how a repository merges and reviews. The plugin's other `userConfig` keys (engine
+thresholds, tiers, caps) are outside it. `userConfig` values live in `pluginConfigs`, which
 Claude Code reads from user settings, the `--settings` flag, and managed settings only; a project's
 `.claude/settings.json` is ignored
 ([hook-config-delivery](../conventions/hook-config-delivery/README.md), fact 5). A sandbox probe on
@@ -67,4 +68,4 @@ verdict HYBRID, which this record adopts.
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain
   consequence, and cites this record.
-- The ten deferred keys keep today's behaviour until #4572 ships.
+- The ten deferred keys keep today's behavior until #4572 ships.

@@ -8,7 +8,7 @@ contract. Refreshing a pin or recheck date without a verdict change is no bump.
 ## [1.3.0] - 2026-09-27
 
 Additive facts and recheck triggers, no verdict change. Facts 9-12 pin four `claude plugin install
---config` behaviours measured by a sandbox probe on Claude Code 2.1.283: the value always lands in
+--config` behaviors measured by a sandbox probe on Claude Code 2.1.283: the value always lands in
 user settings whatever `-s` says (9); write-time validation warns but exits 0, stores unvalidated
 strings and non-existent directories, and enforces a declared `options` fixed list (10); no CLI
 path unsets a key (11); a same-scope rerun is a pure config write, owned by

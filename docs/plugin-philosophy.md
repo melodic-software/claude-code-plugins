@@ -359,7 +359,7 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
 - `claude plugin install --config` documented in the plugin's setup skill for headless use,
   following the short form in the
   [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md), which owns
-  the rerun behaviour, its caveats, and the verified-version record; and
+  the rerun behavior, its caveats, and the verified-version record; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E:
