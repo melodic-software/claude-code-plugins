@@ -202,7 +202,7 @@ if [[ ! -f "$CORPUS" ]]; then
   exit 2
 fi
 if ! jq -R -c --arg cwd "$NEUTRAL" '
-    select(test("^\\s*(#|$)") | not)
+    select(test("^\\s*(#|$)") | not) # portability-ok: jq regex class, not a GNU grep word boundary
     | fromjson
     | if type == "string" then . else error("corpus line is not a JSON string") end
     | {hook_event_name: "PreToolUse", tool_name: "PowerShell", tool_input: {command: .}, cwd: $cwd}' \

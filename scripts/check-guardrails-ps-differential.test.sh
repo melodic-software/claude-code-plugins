@@ -164,7 +164,7 @@ if git -C "$f" diff --quiet; then
 else
   fail "harvest modified the working tree: $(git -C "$f" diff --stat)"
 fi
-sed -i 's/"\$__hu_input"$/"$__hu_input" /' "$f/plugins/guardrails/hooks/hook-utils.sh"
+sed -i 's/"\$__hu_input"$/"$__hu_input" /' "$f/plugins/guardrails/hooks/hook-utils.sh" # portability-ok: fixture rewrite on the Linux CI runner
 run_check "$f" -- --harvest
 expect "harvest: a moved anchor is an environment error" 2 "anchor in hook-utils.sh moved"
 

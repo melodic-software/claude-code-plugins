@@ -137,7 +137,10 @@
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
 #      `](#` in-page anchor links WARNs (advisory heuristic)
 #  27. `## Next` successor section: absent is INFO (a terminal skill has
-#      none); present but after `## Gotchas`, last in the file, neither
+#      none), except on a stage-bearing skill (metadata.workflow-stage explore
+#      through retro, not contract) with no Handoff/Routing/Integration/Skill
+#      chaining heading either, where it is WARN (27b); present but after
+#      `## Gotchas`, last in the file, neither
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
 #      carrying operative-chain phrasing (Skill tool, installed, fallback,
 #      otherwise) anywhere in the block is WARN
@@ -2077,10 +2080,26 @@ done < <(
 # fleet are terminal or not yet wired, and a WARN on each would drown the
 # gate. A section that is present but misplaced or malformed is a WARN,
 # because that is a shape the rule names and the author did not intend.
+#
+# 27b. A stage-bearing skill is the exception to "absence is the author's
+# call": its `metadata.workflow-stage` puts it mid-sequence, so it has a
+# successor by construction. When it has no `## Next` and no older routing
+# heading either (Handoff, Routing, Integration, Skill chaining, each matched
+# as a prefix because the fleet titles them several ways), the absence is a
+# WARN. `contract` is left out of the stage list on purpose: interview, prd,
+# and design route through the contract slice they write, not through a
+# successor section. `anytime`, `operator`, and `session` are not stages.
+NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
+NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
 
 NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
 if [[ -z "$NEXT_LINE" ]]; then
-  note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+  NEXT_STAGE="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field workflow-stage <<<"$FRONTMATTER")")"
+  if [[ "$NEXT_STAGE" =~ $NEXT_STAGE_BEARING ]] && ! grep -qiE "$NEXT_ROUTING_HEADING" "$SKILL_MD"; then
+    warn "no '## Next' section on a stage-bearing skill (workflow-stage: $NEXT_STAGE): a mid-sequence skill names its successor in one, before '## Gotchas' (skill-bodies rule)"
+  else
+    note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+  fi
 else
   NEXT_GOTCHAS_LINE="$(grep -nEi '^##[[:space:]]+(gotchas|quirks)' "$SKILL_MD" | head -1 | cut -d: -f1)"
   NEXT_LAST_H2="$(grep -nE '^## ' "$SKILL_MD" | tail -1 | cut -d: -f1)"

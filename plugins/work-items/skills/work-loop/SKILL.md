@@ -233,8 +233,13 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    exits terminate against automated intake). Applied together with a machine-marked
    `kind=routed-advisory` escalation comment (step 5's marker shape and record write), so the
    routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
-   label.
-3. **Admission gate.** Classify each frontier candidate and admit per the gate below. Fail-closed.
+   label. When the launch prompt bars this lane from writing `work-class:` labels, a delegable or
+   decision-defaulted outcome takes triage's "Lane barred from recording a class" branch (human-gated
+   role plus a `kind=escalated` marker carrying the proposed class), and that marker carries
+   step 5's record write the same way.
+3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
+   in-flight precondition below), then classify each remaining candidate and admit per the gate.
+   Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
    `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
@@ -309,6 +314,19 @@ dispositions bind:
 | C3 scoped, feature-shaped | Human-gated (operator tightening, permitted without justification) |
 | C4 structural/contract, C5 untrusted-provenance | Human-gated / per-contract floors |
 | Unclassified | **Fail-closed human-gated** |
+
+**In-flight precondition (before any classification).** A frontier candidate that already has an
+open closing PR is work in flight, not a candidate. Apply `/work-items:work`'s "Exclude in-flight
+frontier candidates (open linked PR)" rule in
+[`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
+as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
+the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
+binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
+nor escalated, and this cycle changes none of its labels. The cycle report lists it as
+`in flight: #<item> (PR #<pr>)`, the PR number read from the same query's `number` field, or as
+`in-flight check failed: #<item>` when the query errored. `/work-items:work`'s own dispatch-time
+staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
+queued or escalated item never reaches it.
 
 Hard gates that override any classification:
 
@@ -385,7 +403,9 @@ citation. This lane's specifics:
   execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
-  candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds. A cycle
+  candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
+  excluded is waiting on its PR, not on this lane, so it does not count. Otherwise the cycle is
+  idle and the counter holds. A cycle
   in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap
