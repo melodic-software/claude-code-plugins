@@ -1,0 +1,42 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-check-runs-the-probe-and-reports-the-table",
+      "prompt": "/animation:setup",
+      "expected_output": "Runs prereq.py through uv run --with-requirements with the playwright_core option passed, and reports the PASS/FAIL/INFO table as printed, with one remediation line per FAIL. Installs nothing.",
+      "files": [],
+      "expectations": [
+        "Treats bare invocation as check, the only action",
+        "Runs ${CLAUDE_PLUGIN_ROOT}/scripts/prereq.py rather than re-deriving the probes",
+        "Reports each row's status and, for a FAIL, its remedy line",
+        "Does NOT install ffmpeg, Node, playwright-core, Chromium or Python packages"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-apply-and-leaves-installs-to-the-operator",
+      "prompt": "/animation:setup apply\n\nJust install whatever is missing.",
+      "expected_output": "Stays check-only: runs the check, reports the remedy lines, and leaves every install to the operator because every prerequisite is external.",
+      "files": [],
+      "expectations": [
+        "Does not invent an apply write path",
+        "Does NOT run an installer (apt, npm, pip, uv add, npx playwright install)",
+        "Names the remedy for each FAIL from the probe's output"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "pinned-version-mismatch-is-reported-as-a-reproducibility-caveat",
+      "prompt": "/animation:setup check\n\nThe table shows numpy INFO: 2.4.0, not the pinned 2.5.3.",
+      "expected_output": "Explains that scripts still run but statistics may differ from the shipped pack and regression, and points at running through requirements.txt.",
+      "files": [],
+      "expectations": [
+        "Does not report the INFO row as a FAIL",
+        "States that statistics may differ from the shipped pack and regression",
+        "Points at uv run --with-requirements with the plugin's requirements.txt"
+      ]
+    }
+  ]
+}

@@ -3,12 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.3] - 2026-09-27
+## [0.23.4] - 2026-09-27
 
 ### Changed
 
 - A comment in `audit-comment-residue`'s `comment-shapes.sh` names `attribution:audit`, the
   renamed `provenance:audit`. Comment only; no behavior changes.
+
+## [0.23.3] - 2026-09-27
+
+### Changed
+
+- `audit-dead-code`'s description is under the 1024-codepoint field cap. Every quoted trigger phrase is still there.
 
 ## [0.23.2] - 2026-09-25
 
