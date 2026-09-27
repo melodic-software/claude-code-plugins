@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.33] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` renders a value raw only when it is well-formed UTF-8 (RFC 3629)
+  made of printable characters, so em dashes and accented text stay readable. A C1 control
+  such as the 8-bit CSI U+009B, an invalid byte such as 0xFF, an overlong or surrogate
+  encoding, a Unicode bidi control such as U+202E, or a U+2028/U+2029 separator now takes
+  the `%q` path. Before this, only C0 controls and DEL were escaped.
+
 ## [0.23.32] - 2026-09-27
 
 ### Fixed

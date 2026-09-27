@@ -131,17 +131,66 @@ to_native_path() {
   printf '%s' "$text"
 }
 
+# True when $1 is well-formed UTF-8 (the RFC 3629 section 4 grammar: no overlong form, surrogate,
+# code point above U+10FFFF, or stray/truncated continuation byte) made only of printable
+# characters. Rejected even when well-formed: C0 controls and DEL, C1 controls U+0080..U+009F (U+009B
+# is the 8-bit CSI that terminals act on like ESC [), the Unicode Bidi_Control characters that
+# reorder displayed text, and U+2028/U+2029, which Unicode line breaking treats as mandatory breaks.
+# Decoded byte by byte under LC_ALL=C, where the POSIX locale's [[:cntrl:]] covers only C0 and DEL
+# and every byte above 0x7F is one opaque character, so the verdict ignores the operator's locale.
+utf8_printable() {
+  local value="$1" LC_ALL=C
+  local i=0 n=${#value} byte cp need lo hi
+  while ((i < n)); do
+    printf -v byte '%d' "'${value:i:1}"
+    # bash 3.2 (macOS system bash) returns a byte above 0x7F as a signed char: 0xFF reads as -1.
+    ((byte < 0)) && byte=$((byte + 256))
+    i=$((i + 1))
+    lo=0x80 hi=0xBF
+    if ((byte <= 0x7F)); then
+      ((byte >= 0x20 && byte <= 0x7E)) || return 1
+      continue
+    elif ((byte >= 0xC2 && byte <= 0xDF)); then
+      need=1 cp=$((byte & 0x1F))
+    elif ((byte >= 0xE0 && byte <= 0xEF)); then
+      need=2 cp=$((byte & 0x0F))
+      ((byte == 0xE0)) && lo=0xA0
+      ((byte == 0xED)) && hi=0x9F
+    elif ((byte >= 0xF0 && byte <= 0xF4)); then
+      need=3 cp=$((byte & 0x07))
+      ((byte == 0xF0)) && lo=0x90
+      ((byte == 0xF4)) && hi=0x8F
+    else
+      return 1
+    fi
+    while ((need > 0)); do
+      ((i < n)) || return 1
+      printf -v byte '%d' "'${value:i:1}"
+      ((byte < 0)) && byte=$((byte + 256))
+      ((byte >= lo && byte <= hi)) || return 1
+      cp=$(((cp << 6) | (byte & 0x3F)))
+      i=$((i + 1)) need=$((need - 1)) lo=0x80 hi=0xBF
+    done
+    # C1 controls; Bidi_Control U+061C, U+200E..U+200F, U+202A..U+202E, U+2066..U+2069; and
+    # U+2028..U+2029, which share the U+2028..U+202E run with the embedding/override controls.
+    ((cp <= 0x9F || cp == 0x61C)) && return 1
+    ((cp >= 0x200E && cp <= 0x200F)) && return 1
+    ((cp >= 0x2028 && cp <= 0x202E)) && return 1
+    ((cp >= 0x2066 && cp <= 0x2069)) && return 1
+  done
+  return 0
+}
+
 # Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
 # %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
 # let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
 display_value() {
-  # LC_ALL=C keeps %q and byte-wise path handling stable (bash(1) / POSIX C
-  # locale: bytes, not multibyte characters). Reject control bytes with
-  # [[:cntrl:]] instead of requiring [[:print:]]: under C locale, every byte
-  # above 0x7F fails [[:print:]], so UTF-8 punctuation was %q-escaped.
+  # LC_ALL=C keeps %q byte-wise: an escaped value renders every byte above 0x7F as \ooo. The
+  # [[:print:]] test is only the printable-ASCII fast path, since under C locale every byte above
+  # 0x7F fails it; anything else must pass utf8_printable to render raw.
   local value="$1" escaped
   local LC_ALL=C
-  if [[ "$value" != *[[:cntrl:]]* ]]; then
+  if [[ "$value" != *[![:print:]]* ]] || utf8_printable "$value"; then
     to_native_path "$value"
   else
     printf -v escaped '%q' "$value"

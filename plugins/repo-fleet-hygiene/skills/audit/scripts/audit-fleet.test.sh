@@ -1075,6 +1075,50 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
+# display_value renders raw only well-formed printable UTF-8 (#4208). The invalid --canonical error
+# echoes its operand through display_value before any Git probe, so each case pins the exact line.
+# Every rendering is checked under C and, when the host has one, a UTF-8 operator locale: the
+# verdict must not follow the caller's locale.
+display_locales=(C)
+display_utf8_locale="$(locale -a 2>/dev/null | grep -Ei -m1 '^(C|en_US)\.utf-?8$' || true)"
+[[ -n "$display_utf8_locale" ]] && display_locales+=("$display_utf8_locale")
+display_err="$TMP/display-value.err"
+assert_display_value() {
+  local label="$1" value="$2" expected="$3" loc
+  for loc in "${display_locales[@]}"; do
+    LC_ALL="$loc" bash "$SCRIPT" --canonical "$value" >/dev/null 2>"$display_err"
+    if [[ "$(cat "$display_err")" == "Error: $expected" ]]; then
+      printf 'PASS: %s (LC_ALL=%s)\n' "$label" "$loc"
+    else
+      printf 'FAIL: %s (LC_ALL=%s)\n  expected: %s\n  actual:   %s\n' "$label" "$loc" \
+        "Error: $expected" "$(LC_ALL=C od -An -c "$display_err")" >&2
+      failures=$((failures + 1))
+    fi
+  done
+}
+assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
+  $'invalid --canonical value: em\xe2\x80\x94dash'
+assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
+  $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
+assert_display_value "C0 ESC stays escaped" $'esc\x1b[31m' \
+  "\$'invalid --canonical value: esc\\E[31m'"
+assert_display_value "C1 CSI U+009B is escaped" $'csi\xc2\x9b31m' \
+  "\$'invalid --canonical value: csi\\302\\23331m'"
+assert_display_value "invalid UTF-8 byte 0xFF is escaped" $'bad\xff' \
+  "\$'invalid --canonical value: bad\\377'"
+assert_display_value "RTL override U+202E is escaped" $'rtl\xe2\x80\xaeexe.txt' \
+  "\$'invalid --canonical value: rtl\\342\\200\\256exe.txt'"
+assert_display_value "bidi isolate U+2066 is escaped" $'lri\xe2\x81\xa6x' \
+  "\$'invalid --canonical value: lri\\342\\201\\246x'"
+assert_display_value "line separator U+2028 is escaped" $'ls\xe2\x80\xa8x' \
+  "\$'invalid --canonical value: ls\\342\\200\\250x'"
+assert_display_value "overlong UTF-8 is escaped" $'over\xc0\xaf' \
+  "\$'invalid --canonical value: over\\300\\257'"
+assert_display_value "UTF-8-encoded surrogate is escaped" $'surr\xed\xa0\x80' \
+  "\$'invalid --canonical value: surr\\355\\240\\200'"
+assert_display_value "truncated UTF-8 sequence is escaped" $'cut\xe2\x80' \
+  "\$'invalid --canonical value: cut\\342\\200'"
+
 # Config resolution ladder: explicit --config > project-scoped > user-global > none,
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
