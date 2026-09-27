@@ -68,6 +68,25 @@ Run rounds until the stop condition is met. Each round:
 5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7"); a hedged reply is not an accept-shorthand (see "Hedged flag")
 6. **Recompute the tree.** What subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check:** when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes, since a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+8. **Frontier empty: sweep.** In `me` and `auto` with a register, run the assumption sweep before Step 3 ([`assumption-sweep.md`](assumption-sweep.md)); an `open` row it adds starts another round
+
+### Constraint ledger
+
+The ledger's `## Constraint ledger` section sits above `## Open-question register` in `interview-checklist.md`. One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously:
+
+```text
+- C1 | confirmed | V1 ships without SSO | user, round 1
+- C2 | inherited | no new runtime dependencies | docs/topics/exports/PLAN.md Brief
+```
+
+- **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
+- **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
+- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
+- **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
+
+### Composed artifacts and historical evidence
+
+Rules: SKILL.md Step 2 "Composed artifacts are candidates", "Label evidence by when it was true", and "What, not how: the mechanism tripwire". A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out.
 
 ### Where a round may fire
 
@@ -173,6 +192,8 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 ```
 
 Tick on resolve. Surface the open set periodically (every few questions, or on request), not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
+
+**Commitment rows written after later ids exist.** When a commitment row is registered after rows with higher ids already exist (the page degrading to the terminal, a sweep item that turns out to be a part), it takes the next free `Q<N>` and names its headline in the question field: `- Q14 | open | round 4 | (part of Q5) token scope for the review step |`. For a late row, "numbered after their headline" in "Commitment rows" means the next free id, naming the headline, never an id squeezed in beside the headline, which would duplicate or gap the register and halt the gate.
 
 ### Incremental persistence + branch-out
 

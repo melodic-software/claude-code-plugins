@@ -224,18 +224,20 @@ claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Nine harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Ten harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
 named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
 fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
+Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
 
-**One shared recheck trigger covers all nine:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all ten:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
-subagent spawn permissions, effort substitution, built-in subagent capabilities, or subagent
-model resolution, or the CLI major version moves. On any of those, re-fetch the page before
+subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
+model resolution, turn-limit output or partial marking, or `SendMessage` resume, or the CLI major
+version moves. On any of those, re-fetch the page before
 restating the record, and re-date this section rather than editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
@@ -357,6 +359,26 @@ the main conversation's model, so on a machine without the variable an unpinned 
 orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
 environment variable, so it is a cost defect in a worker definition.
 
+### A turn-limit stop returns partial output, and the parent can resume the agent
+
+*Claim.* A subagent that reaches `maxTurns` returns its output marked as partial, and the parent
+can resume it with `SendMessage` addressed by agent ID; the resumed run keeps its full history and
+continues where it stopped. The marking needs Claude Code v2.1.246 or later, and an older harness
+may return nothing at all. *Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents),
+quoted with link markup removed: the `maxTurns` field row, "When the subagent reaches the limit,
+Claude Code returns its output marked as partial, and Claude can resume it to continue. The
+partial marking requires Claude Code v2.1.246 or later"; the resume section, "When a subagent
+stops at its `maxTurns` limit, Claude Code marks the returned output as partial. For subagents
+that return an agent ID, Claude Code also notes in the result that Claude can message the subagent
+to continue from where it stopped.", "Claude uses the `SendMessage` tool with the agent's ID or
+name as the `to` field to resume it.", "Resumed subagents retain their full conversation history,
+including all previous tool calls, results, and reasoning.", and "The subagent picks up exactly
+where it stopped rather than starting fresh." *Why the plugin cares.* It is what makes
+[Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice) the first
+rung rather than a hope. *Not verified:* which text the partial output carries. The page says the
+output is "marked as partial" and does not say whether a payload block the agent emitted mid-run
+is part of it, which is why the agents keep the disk marker as the primary stop signal.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
@@ -471,17 +493,10 @@ slice. Both also usually leave a **live agent**. The order is:
 > worth keeping. A resume has recovered a complete artifact set from retained context, and the
 > discard-first reading would have re-dispatched a finished run at full cost.
 
-The harness supports this, verified against <https://code.claude.com/docs/en/sub-agents> (raw
-markdown, fetched 2026-09-25):
-
-- "When the subagent reaches the limit, Claude Code returns its output marked as partial, and
-  Claude can resume it to continue. The partial marking requires Claude Code v2.1.246 or later".
-- "Resumed subagents retain their full conversation history, including all previous tool calls,
-  results, and reasoning." and "The subagent picks up exactly where it stopped rather than starting
-  fresh."
-- "When Claude sends a completed subagent a message with the `SendMessage` tool, the subagent
-  resumes in the background without a new `Agent` invocation."
-- "When a subagent completes, Claude receives its agent ID". Address it by ID, not by name.
+The harness supports this: a subagent that reaches `maxTurns` returns its output marked as
+partial, and `SendMessage` to its agent ID resumes it with its history intact. Address it by ID,
+not by name. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"A turn-limit stop returns partial output, and the parent can resume the agent".
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or
 assigning a fresh sub-slice, when the resume is refused, is unavailable, or comes back without a

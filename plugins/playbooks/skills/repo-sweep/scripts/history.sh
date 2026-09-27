@@ -15,7 +15,7 @@
 #   run             a skill of the entry never ran
 #   rerun           a skill ran at another version than the current one
 #   rerun-optional  every skill ran at its current version, or its current version is
-#                   @builtin or @unknown (not comparable, so never rerun)
+#                   @unknown (not comparable, so never rerun)
 # not-applicable is the caller's applies-when judgment; history.sh never prints it.
 # Exit: 0 ok; 1 catalog error; 2 usage.
 set -euo pipefail
@@ -73,7 +73,7 @@ BEGIN {
     k = s[i]; c = cur[k]
     if (!(k in last)) run = add(run, k)
     else if (c == "unknown") same = add(same, k "@" last[k] " (current version unknown)")
-    else if (c == "builtin" || c == last[k]) same = add(same, k "@" last[k])
+    else if (c == last[k]) same = add(same, k "@" last[k])
     else rerun = add(rerun, k " " last[k] " -> " c)
   }
   if (run != "") print $1, "run", "never ran: " run

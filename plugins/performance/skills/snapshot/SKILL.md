@@ -156,13 +156,29 @@ top, not in a footnote.
 Baselines live in the memory tier, `.work/<topic-slug>/baselines/`, machine-bound, **never
 committed**.
 
-That layout matches `/verification:measure`, which owns baseline capture and storage mechanics.
-Invoke it via the Skill tool **when the `verification` plugin is installed**, so the two never keep
-two different baseline stores. When it is absent, capture into the same path directly and say in the
-report that the capture was unassisted. The dependency is a preference for reuse, not a hard
-requirement: this skill's own gates (host qualification, interleaving, the counter, the refusal)
-work either way, and refusing to measure because a sibling plugin is missing would be a worse
-failure than the duplication it avoids.
+That layout matches `/verification:measure`, which owns baseline capture and storage mechanics, so
+the two never keep two different baseline stores. Before capturing, in order:
+
+1. **Check for the seam.** Look for `/verification:measure` in this session's skill list. Record
+   whether it resolves; do not assume either answer.
+2. **Invoke it, or name why not.** When it resolves, invoke it via the Skill tool. When it resolves
+   and you capture directly anyway, the reason goes in the report.
+3. **Land the capture under `.work/<topic-slug>/baselines/`.** The path is the gate: a capture
+   written anywhere else says so at the top of the report, with the path it used, because a second
+   store is the outcome this seam exists to prevent.
+
+The report's header carries exactly one of these lines, so a reader can tell a missing dependency
+from a deliberate skip:
+
+```text
+Capture: assisted by /verification:measure
+Capture: unassisted, verification absent
+Capture: unassisted, verification present and skipped because <reason>
+```
+
+The dependency is a preference for reuse, not a hard requirement: this skill's own gates (host
+qualification, interleaving, the counter, the refusal) work either way, and refusing to measure
+because a sibling plugin is missing would be a worse failure than the duplication it avoids.
 
 A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a
 deterministic count, and no duration is ever committed.
