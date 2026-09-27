@@ -1449,9 +1449,11 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    instead.
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
-   install rather than an uninstall/reinstall. That was verified for a **non-sensitive option at `user`
-   scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
-   stored value back rather than assuming the write landed. For a non-sensitive option, read it
+   install rather than an uninstall/reinstall. The verified-version record, which covers a
+   same-scope `--scope project` rerun of a `string` option, lives in the
+   [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
+   A rejected value still exits 0, so read the stored value back rather than assuming the write
+   landed. For a non-sensitive option, read it
    from the **user** `settings.json` `pluginConfigs` per the storage rule above, not from the project
    settings this command names; a `sensitive` value is absent from settings entirely (smoke-test A)
    and cannot be verified this way. Interactively, `/plugin configure` owns personal
@@ -1504,9 +1506,11 @@ surface to a published plugin for a single consumer's low-value nicety.
    project --config KEY=VALUE …`, seeding every
    non-default `userConfig` toggle on that install command. Re-running it later against an
    already-installed plugin prints `already installed` **and still writes the value** (smoke-test C),
-   so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. That was
-   verified for a **non-sensitive option at `user` scope** on Claude Code 2.1.240 and is **untested at
-   the `project` scope this step uses**, so read the stored value back before reporting a
+   so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. The
+   verified-version record, which covers a same-scope `project` rerun of a `string` option (the
+   scope this step uses), lives in the
+   [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
+   A rejected value still exits 0, so read the stored value back before reporting a
    project-scope reconfiguration as applied. For a non-sensitive option, read it from the **user**
    `settings.json` `pluginConfigs`, where such options land regardless of enable scope (seam 1 above
    records that they **store** there), not from the project settings this command names; a

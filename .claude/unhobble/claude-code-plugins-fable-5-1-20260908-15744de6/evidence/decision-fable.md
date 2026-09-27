@@ -17,7 +17,7 @@ hook-wiring plugins classify as keep, and the 53 skill-only plugins need a class
 
 - The in-container `~/.claude/settings.json` is environment-synthesized, not a human's standing
   instructions: D1 §3 (cloud-environments "fresh VM", "user-scoped enabledPlugins ... not read"),
-  D1 §4 (`docs/CLOUD-SESSIONS.md` ~372-388; `.claude/cloud-bootstrap.sh` 205-210). Ablating it measures
+  D1 §4 (`docs/cloud-sessions.md` ~372-388; `.claude/cloud-bootstrap.sh` 205-210). Ablating it measures
   provisioning, not instructions, and edits there do not survive reclaim (D3 §1.3-1.4, U1/U2).
 - Project `false` is documented per-project opt-out: D1 §2 (plugins-reference "Synced plugins";
   "`enabledPlugins` still honors project and local settings"). The catalog gate passes an explicit `false`
@@ -29,9 +29,9 @@ hook-wiring plugins classify as keep, and the 53 skill-only plugins need a class
   only uninstall path (~340-360) is the same-version refresh. So a project `false` on a fleet-enabled
   plugin leaves user `true` in place and relies on Claude Code precedence (project over user), which no
   doc states for this exact pair (D1 Unverified #1). Registry is built at process start and not re-read
-  (`docs/CLOUD-SESSIONS.md` 287), so any effect lands in the next session only (D1 Unverified #3).
+  (`docs/cloud-sessions.md` 287), so any effect lands in the next session only (D1 Unverified #3).
 - Classification of the 20 hook plugins, from `plugins/<name>/hooks/hooks.json` + hook headers, against
-  `docs/PLUGIN-PHILOSOPHY.md` "Classifying a hook" (782-815):
+  `docs/plugin-philosophy.md` "Classifying a hook" (782-815):
   - policy / keep whole: `guardrails` (secret-pattern, hardcoded-path, block-no-verify, block-dangerous-git
     = secret-handling / irreversible-action; cli-flag-verify, skill-reference-verify, stale-path-verify are
     the rubric's named ground-truth-oracle keeps), `source-control` (pr-body-linkage-gate, worktree gates),
@@ -95,7 +95,7 @@ and (d) `ruff-pin.md`.
   on the test and two AI-review lanes; `external-publication` names "opening PRs" literally
   (`plugins/instruction-placement/context/routing-rubric.md` 38). Thin evidence, so prefer the reversible,
   contract-intact default (kept).
-- (d) keep: non-derivable ground-truth carve-out (`docs/PLUGIN-PHILOSOPHY.md` 801-805, D2 §3.3): a bare
+- (d) keep: non-derivable ground-truth carve-out (`docs/plugin-philosophy.md` 801-805, D2 §3.3): a bare
   `ruff` returns a clean-looking wrong answer; `scripts/run-ruff.sh` exits 2/127 only when invoked; CI lint
   is one subtree and fail-open (D2 §4d). Path-scoped to `**/*.py`, so its context cost is near zero and a
   strip measures little.

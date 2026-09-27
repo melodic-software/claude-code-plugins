@@ -79,8 +79,10 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the install scope `claude plugin list`
-  reports for this plugin, and run from that project's directory for a `project`/`local` scope,
-  or the write lands at a scope that does not load. These options are personal `userConfig`
+  reports for this plugin, and run from that project's directory for a `project`/`local` scope.
+  A rerun at another scope adds an install record at that scope and enables the plugin there
+  (measured in both directions); the value itself always lands in user settings. A rejected value prints a warning yet
+  exits 0, so read the output. These options are personal `userConfig`
   values, so this skill never writes user settings or `pluginConfigs`. Afterwards rerun `check`
   in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and each
   hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a

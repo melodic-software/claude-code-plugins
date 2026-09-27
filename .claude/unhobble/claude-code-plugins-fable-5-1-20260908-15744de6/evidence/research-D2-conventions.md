@@ -110,12 +110,12 @@ knowledge, or best practices that are particular to you, your team, or product."
 
 **2.4** Same blog, precedent for aggressive subtraction, as cited by this repo's own philosophy
 doc: Anthropic removed "over 80%" of Claude Code's system prompt for the Opus 5 / Fable 5
-generation with no measurable loss on coding evals (`docs/PLUGIN-PHILOSOPHY.md` § "Instruction
+generation with no measurable loss on coding evals (`docs/plugin-philosophy.md` § "Instruction
 economy", which cites the blog, verified there 2026-08-08).
 
 ### 3. Repo doctrine (second tier)
 
-**3.1** `docs/PLUGIN-PHILOSOPHY.md` § "Instruction economy" — the **durable-tier exemption**, which
+**3.1** `docs/plugin-philosophy.md` § "Instruction economy" — the **durable-tier exemption**, which
 is where the unhobble `convention` class comes from:
 
 > "**The durable tier is exempt.** Deterministic policy hooks (gates that enforce team or safety
@@ -203,7 +203,7 @@ with them) carries `pr_body_required_sections` = Summary / Fix / Verification / 
 
 **(d) ruff pin.** `scripts/run-ruff.sh` resolves the pin from `.github/requirements-ci.txt`
 (`ruff==0.16.5`) and **exits 2** when a PATH ruff drifts and `uvx` is absent, printing "ruff on PATH
-is ${got}, but CI pins ruff==${pin}". Rationale is owned by `docs/CI-RUNNER-ROUTING.md` § "Local /
+is ${got}, but CI pins ruff==${pin}". Rationale is owned by `docs/ci-runner-routing.md` § "Local /
 workstation ruff": "Do **not** trust a bare `ruff` on `PATH` for verification in this repository."
 CI reaches ruff only through `plugins/source-control/skills/babysit-prs/scripts/engine.test.sh`
 (lines 42-53), which lints `. tests` **in that one subtree** and **SKIPs on exit 127** ("pinned ruff
@@ -218,7 +218,7 @@ hit is `ruff.toml` in the `changes` path filter). Nothing detects a *local* bare
 | (a) AGENTS.md "Validate a change" | No | `scripts/affected-tests.sh` run by `ci.yml` job `test-linux`; script header + `README.md` § "Validate a change" | **Gating** (via `ci-status.needs`), but suppressed while the PR is a draft | The script exists and self-documents (usage block, `--explain`, `--run` Linux-gate note); README owns the contract. Derivation requires the model to look — nothing prompts it, and a bare model may run the whole corpus, one suite, or none. Selector existence is not inferable from source layout alone. |
 | (b) AGENTS.md "Open a pull request as a draft" | **Contested**: `external-publication` names "opening PRs" literally; by consequence the miss is bounded and reversible (`gh pr ready --undo`) | **None** | n/a — no detector | Inferable only by reading `ci.yml` lines 133-137 plus both `claude-*-review.yml` draft guards and reasoning backwards about cost. No repo file states the rule outside AGENTS.md. Low derivability, zero feedback: a violation is silent and self-inflicted spend. |
 | (c) `.claude/rules/pr-body-contract.md` | **Contested (weak)**: governs PR body content leaving the machine; failure is a comment + `needs-issue-linkage` label | `pr-contract` composite step inside `ci-status`; plus `.claude/source-control.md` `pr_body_required_sections` (survives this strip) | **Advisory** for body/linkage (the rule says so); the composite's title and `do-not-merge` checks are gating | Section list is recoverable from `.claude/source-control.md` and from any recent merged PR body; the composite is named in `ci.yml`. The advisory comment is a real feedback loop — a violation announces itself on the PR within one CI run, so the bare model gets a correction signal the other three units lack. |
-| (d) `.claude/rules/ruff-pin.md` | No | `scripts/run-ruff.sh` (exit 2 on drift, 127 when unavailable); `engine.test.sh` lints one subtree in CI; `docs/CI-RUNNER-ROUTING.md` owns rationale | Wrapper exit code is deterministic but **only when invoked**; the CI lint is gating for `plugins/source-control/skills/babysit-prs/**` only and **fail-open** (SKIP) otherwise | The wrapper exists at `scripts/run-ruff.sh` with a full rationale header, and `ruff.toml` sits at the root. But the pin's existence and the "bare ruff disagrees in both directions" fact are **non-derivable ground truth** (a release moving 18 E/F rules into defaults) — the exact shape §3.3 calls a keep. A bare model typing `ruff check` gets a clean-looking wrong answer with no error. |
+| (d) `.claude/rules/ruff-pin.md` | No | `scripts/run-ruff.sh` (exit 2 on drift, 127 when unavailable); `engine.test.sh` lints one subtree in CI; `docs/ci-runner-routing.md` owns rationale | Wrapper exit code is deterministic but **only when invoked**; the CI lint is gating for `plugins/source-control/skills/babysit-prs/**` only and **fail-open** (SKIP) otherwise | The wrapper exists at `scripts/run-ruff.sh` with a full rationale header, and `ruff.toml` sits at the root. But the pin's existence and the "bare ruff disagrees in both directions" fact are **non-derivable ground truth** (a release moving 18 E/F rules into defaults) — the exact shape §3.3 calls a keep. A bare model typing `ruff check` gets a clean-looking wrong answer with no error. |
 
 ## Consensus table
 
@@ -263,7 +263,7 @@ hit is `ruff.toml` in the `changes` path filter). Nothing detects a *local* bare
    ground truth is non-derivable per 3.3.
 4. **Invert on derivability rather than on oracle.** Strip (a) and (d), whose rationale is fully
    written down in files the model can read (`README.md` § "Validate a change"; `run-ruff.sh`
-   header + `docs/CI-RUNNER-ROUTING.md`), on the theory that the experiment tests whether the model
+   header + `docs/ci-runner-routing.md`), on the theory that the experiment tests whether the model
    *finds* them. Keep (b) and (c), whose content is stated nowhere outside the instruction surface.
 5. **Strip (b) under a named Gate 0 hold.** Treat (b) as `external-publication`, strip it anyway
    (3.4 permits it), and pre-commit to restoring it at Phase 4 as a register hold regardless of the
