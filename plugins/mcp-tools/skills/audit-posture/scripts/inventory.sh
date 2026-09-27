@@ -269,18 +269,18 @@ def program_ok:
   (startswith("-") | not) and (contains("=") | not) and (lc_base | IN(odd_programs[]) | not)
   and ((lc_base | IN(runners[])) or (basename_of | test("^[A-Za-z0-9._+-]+$")));
 # Assignment prefixes dropped only at the very start of a wrapper string, repeatedly:
-# POSIX NAME=value, pwsh $env:NAME=value; or $env:NAME=<single-quoted value>; (the ; is
-# required), and cmd set NAME=value&& or set NAME=value &&. Every value holds only VALUE_CHARS,
-# plus space inside the pwsh single quotes; anything else (escapes, comments, grouping) is
-# unparsed.
+# POSIX NAME=value, pwsh $env:NAME=<single-quoted value>; (an unquoted pwsh value runs as a
+# command, and the ; is required), and cmd set NAME=value&& or set NAME=value &&. Every value
+# holds only VALUE_CHARS, plus space inside the pwsh single quotes; anything else (escapes,
+# comments, grouping) is unparsed.
 def VALUE_CHARS: "[A-Za-z0-9._/:+~@,-]";
 def posix_prefix: "^[A-Za-z_][A-Za-z0-9_]*=" + VALUE_CHARS + "*[ \t]+";
-def pwsh_prefix:
-  "^\\$env:[A-Za-z_][A-Za-z0-9_]*=(" + VALUE_CHARS + "*|" + SQ + "(" + VALUE_CHARS + "| )*" + SQ + ");[ \t]*";
+def pwsh_prefix: "^\\$env:[A-Za-z_][A-Za-z0-9_]*=" + SQ + "(" + VALUE_CHARS + "| )*" + SQ + ";[ \t]*";
 def cmd_prefix: "^set[ \t]+[A-Za-z_][A-Za-z0-9_]*=" + VALUE_CHARS + "*[ \t]?&&[ \t]*";
 def drop_prefix($re; $flags): sub($re; ""; $flags) as $n | if $n == . then . else ($n | drop_prefix($re; $flags)) end;
 # wrap_tokens($kind): after the prefixes, the string may hold only [A-Za-z0-9 \t._/@:=+~,-]
-# and its first token must be a program name; anything else is unparsed.
+# and its first token must be a program name (for pwsh, starting with a letter, . or / and
+# holding no +, since pwsh reads 5+x as an expression); anything else is unparsed.
 def wrap_tokens($kind):
   if length > 4096 or contains("\\") or test("[^ -~\t]") then [unparsed_mark]
   else sub("^[ \t]+"; "")
@@ -289,7 +289,8 @@ def wrap_tokens($kind):
      else drop_prefix(posix_prefix; "") end)
   | if (test("^[A-Za-z0-9 \t._/@:=+~,-]*$") | not) then [unparsed_mark]
     else [splits("[ \t]+")] | map(select(length > 0))
-    | if length > 0 and (.[0] | program_ok) then . else [unparsed_mark] end
+    | if length > 0 and (.[0] | program_ok)
+         and ($kind != "pwsh" or (.[0] | test("^[A-Za-z./][^+]*$"))) then . else [unparsed_mark] end
     end
   end;
 def shell_c_string:
@@ -420,7 +421,9 @@ def img_spec:
                (if ($p | last | split(":") | .[1]) == "latest" then "floating-tag" else "mutable-tag" end)
              else "floating-unversioned" end)}
   else null end;
-def parse_args($pkgflags; $vals; $bools):
+# $strict (every package runner; not docker): an unknown flag before the package is found
+# makes the row unparsed, even before --, since "--token --" may pass -- as the flag value.
+def parse_args($pkgflags; $vals; $bools; $strict):
   def go($p):
     if length == 0 then $p
     else .[0] as $t
@@ -428,10 +431,12 @@ def parse_args($pkgflags; $vals; $bools):
       elif any($pkgflags[]; . as $f | $t | startswith($f + "=")) then (($t | sub("^[^=]*="; "")) as $v | .[1:] | go($v))
       elif IN($t; $vals[]) then (.[2:] | go($p))
       elif $t == "--" or IN($t; $bools[]) then (.[1:] | go($p))
+      elif ($t | test("^--[^=]+=")) and ($t | sub("=.*$"; "") | IN($vals[])) then (.[1:] | go($p))
       elif ($t | test("^-[A-Za-z].")) and any($vals[]; test("^-[A-Za-z]$") and (. as $v | $t | startswith($v)))
         then (.[1:] | go($p))
       elif ($t | startswith("-")) then
-        (if ($t | test("^--[^=]+=")) or ((.[1] // "-") | startswith("-")) then (.[1:] | go($p))
+        (if $strict and $p == null then unparsed_mark
+         elif ($t | test("^--[^=]+=")) or ((.[1] // "-") | startswith("-")) then (.[1:] | go($p))
          elif $p != null then $p
          else unparsed_mark end)
       else ($p // $t) end
@@ -441,7 +446,7 @@ def npm_pkg:
   parse_args(["-p", "--package"];
     ["--registry", "--cache", "--userconfig", "-c", "--call", "-w", "--workspace", "--node-options", "--script-shell"];
     ["-y", "--yes", "-q", "--quiet", "--no-install", "--prefer-offline", "--prefer-online", "--ignore-existing",
-     "--silent", "--no", "--offline", "--workspaces", "--include-workspace-root"]);
+     "--silent", "--no", "--offline", "--workspaces", "--include-workspace-root"]; true);
 def py_pkg:
   parse_args(["--from"];
     ["--with", "--python", "-p", "--index-url", "-i", "--extra-index-url", "--index", "--default-index",
@@ -449,11 +454,11 @@ def py_pkg:
      "--cache-dir", "--directory", "--project", "--config-file", "--prerelease", "--resolution"];
     ["--isolated", "--offline", "--no-cache", "-n", "-q", "--quiet", "-v", "--verbose", "--refresh",
      "--no-progress", "--native-tls", "--no-config", "--no-python-downloads", "--managed-python",
-     "--no-managed-python"]);
+     "--no-managed-python"]; true);
 def pipx_pkg:
   parse_args(["--spec"];
     ["--python", "--index-url", "--pip-args", "--suffix"];
-    ["--verbose", "--quiet", "--no-cache", "--include-deps", "--system-site-packages", "-v", "-q"]);
+    ["--verbose", "--quiet", "--no-cache", "--include-deps", "--system-site-packages", "-v", "-q"]; true);
 def img_of:
   parse_args([];
     ["-e", "--env", "--env-file", "-v", "--volume", "--mount", "--name", "--network", "-p", "--publish",
@@ -467,7 +472,7 @@ def img_of:
      "--detach-keys", "--pids-limit", "--oom-score-adj", "--blkio-weight"];
     ["-i", "-t", "-d", "-it", "-ti", "-itd", "-dit", "--rm", "--init", "--privileged", "--read-only",
      "--interactive", "--tty", "--detach", "-P", "--publish-all", "--no-healthcheck", "--oom-kill-disable",
-     "-q", "--quiet"]);
+     "-q", "--quiet"]; false);
 # pkgrow: allow maps the raw spec to {package, pin, pub} when it fits a grammar, else null.
 def pkgrow($l; $spec; allow):
   if $spec == null or $spec == "" then {launcher: $l, package: "-", pin: "not-a-package", publisher: "-"}
