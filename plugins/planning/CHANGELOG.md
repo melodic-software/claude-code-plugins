@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1] - 2026-09-27
+
+### Fixed
+
+- `wayfind` and its map-anatomy context route buildable work to `/work-items:track add` (or `/work-items:decompose` for a plan-shaped chunk) and claims to `/work-items:track start`, instead of the bare `/work-items` plugin token (#4119).
+
 ## [0.43.0] - 2026-09-27
 
 ### Added
