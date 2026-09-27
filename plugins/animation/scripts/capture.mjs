@@ -11,7 +11,7 @@
 // node_modules/playwright-core), then the working directory, then a playwright-cli install on PATH.
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
-import { delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 
 const REMEDY = 'pass --playwright-core <dir> (the animation plugin\'s playwright_core option), run `npm i playwright-core` '
   + 'in the working directory, or install @playwright/cli (the playwright plugin\'s setup installs it, when that plugin '
@@ -25,11 +25,14 @@ function onPath(name) {
 }
 
 function chromium(dir) {
+  if (dir) dir = resolve(dir);
   const tries = [
     ...(dir ? [() => createRequire(import.meta.url)(dir), () => createRequire(join(dir, 'x.js'))('playwright-core')] : []),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright-core'),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright'),
-    () => createRequire(realpathSync(join(dirname(onPath('playwright-cli')), '..', '@playwright', 'cli', 'package.json')))('playwright-core'),
+    // playwright-cli's own package, in the node_modules/.bin, POSIX npm -g and Windows npm -g layouts
+    ...[['..'], ['..', 'lib', 'node_modules'], ['node_modules']].map(up => () =>
+      createRequire(realpathSync(join(dirname(onPath('playwright-cli')), ...up, '@playwright', 'cli', 'package.json')))('playwright-core')),
   ];
   for (const t of tries) { try { const m = t(); if (m?.chromium) return m.chromium; } catch { /* next */ } }
   console.error(`capture.mjs: playwright-core not found; ${REMEDY}.`);
