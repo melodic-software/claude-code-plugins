@@ -123,6 +123,12 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
+# The two AI review status checks `--auto` waits for. `ci-status` is the only
+# required check and does not wait on these separate workflows, so auto-merge
+# armed before both pass on the live head could merge ahead of their review.
+# Matched on the job segment of the check name (`review / claude-review-status`).
+AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
+
 
 @dataclass(frozen=True)
 class ReviewSettleConfig:
@@ -1005,8 +1011,17 @@ def evaluate(
 
     required_reviews = rules.get("requiredApprovingReviews") or 0
     base_is_unprotected = not required_reviews and not required_context_list
+    unmet = [r for r in required_check_status if not r["satisfied"]]
+    unmet_required = [r["context"] for r in unmet]
+    # A required context that is pending or not yet reported is still running.
+    unmet_only_running = all(r["category"] in (None, "pending") for r in unmet)
 
     blockers: list[str] = []
+    # Blockers that only mean "a check is still running". `--auto` may arm over
+    # them and nothing else: GitHub's auto-merge waits out a running required
+    # check, the AI review checks are gated separately below, and any other
+    # running check is advisory and does not hold a merge.
+    waiting: list[str] = []
     if owner not in allowed:
         blockers.append(f"owner {owner!r} out of scope")
     if pr.get("state") != "OPEN":
@@ -1023,6 +1038,8 @@ def evaluate(
             + "(need CLEAN/HAS_HOOKS: integrates required checks, up-to-date, "
             + "approvals, conversation resolution, signatures)"
         )
+        if unmet_only_running and pr.get("mergeStateStatus") in ("BLOCKED", "UNSTABLE"):
+            waiting.append(blockers[-1])
     if review_decision == "CHANGES_REQUESTED":
         blockers.append(
             "reviewDecision=CHANGES_REQUESTED -- a reviewer requested changes (human stop)"
@@ -1055,12 +1072,14 @@ def evaluate(
         blockers.append("failing checks: " + ", ".join(str(name) for name in failing))
     if pending:
         blockers.append("pending checks: " + ", ".join(str(name) for name in pending))
-    unmet_required = [r["context"] for r in required_check_status if not r["satisfied"]]
+        waiting.append(blockers[-1])
     if unmet_required:
         blockers.append(
             "required checks not satisfied: "
             + ", ".join(str(c) for c in unmet_required)
         )
+        if unmet_only_running:
+            waiting.append(blockers[-1])
     if rules.get("mergeQueueRequired"):
         blockers.append(
             "base branch requires a merge queue -- a direct merge is not allowed; "
@@ -1174,6 +1193,22 @@ def evaluate(
             )
 
     ready = not blockers
+    # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
+    # live head's. A draft skips both lanes, so neither an absent nor a SKIPPED
+    # check (which the check buckets count as success) passes.
+    ai_review_holds = [
+        f"AI review check {lane!r} has not succeeded on the live head"
+        for lane in AI_REVIEW_CHECKS
+        if not (
+            matches := [
+                c
+                for c in checks["checks"]
+                if c["name"].rsplit("/", 1)[-1].strip() == lane
+            ]
+        )
+        or any(c["effective_state"] != "SUCCESS" for c in matches)
+    ]
+    auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds
     return {
         "pr": f"{repo}#{number}",
         "autopilotMergeTier": tier_result,
@@ -1207,6 +1242,7 @@ def evaluate(
         "pendingChecks": pending,
         "ready": ready,
         "blockers": blockers,
+        "autoMerge": {"ready": not auto_blockers, "blockers": auto_blockers},
     }
 
 
@@ -1271,6 +1307,16 @@ def main() -> int:
         help=(
             "require the live head SHA to match this hex SHA (or a prefix of at "
             f"least {MIN_HEAD_SHA_PREFIX_LENGTH} chars) before merging"
+        ),
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help=(
+            "merge lane only, with --merge and --expected-head: when the PR is "
+            "ready except for running checks and both AI review lanes have "
+            "completed on the live head, arm GitHub auto-merge (squash) instead "
+            "of holding"
         ),
     )
     parser.add_argument(
@@ -1492,6 +1538,11 @@ def main() -> int:
             2,
         )
 
+    if args.auto and not (args.merge and args.expected_head):
+        return _refuse("--auto requires --merge and --expected-head", 2)
+    if args.auto and args.method not in (None, "squash"):
+        return _refuse("--auto arms a squash merge; --method must be squash", 2)
+
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed
     # input is rejected before any network access.
@@ -1552,13 +1603,19 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         return 10
 
-    if not result["ready"]:
+    # Under --auto the AI-review holds bind a synchronous merge too.
+    go = result["autoMerge"]["ready"] if args.auto else result["ready"]
+    arm_auto = go and args.auto and not result["ready"]
+    if not go:
         result["merge"] = {"attempted": False, "reason": "not ready"}
         print(json.dumps(result, indent=2))
         return 10
+    if arm_auto:
+        # Consumers treat `action: merge` as a performed merge; an arm is not one.
+        result["action"] = "auto-merge"
 
     try:
-        method = allowed_method(repo, args.method)
+        method = allowed_method(repo, "squash" if arm_auto else args.method)
     except (RuntimeError, json.JSONDecodeError) as exc:
         # A method-lookup failure is reported, not raised, so output stays JSON.
         result["error"] = f"{type(exc).__name__}: {exc}"
@@ -1567,6 +1624,8 @@ def main() -> int:
 
     result["mergeMethod"] = method
     merge_cmd = ["pr", "merge", str(number), "-R", repo, f"--{method}"]
+    if arm_auto:
+        merge_cmd.append("--auto")
     # Atomic head pin: GitHub refuses the merge unless the head still equals the
     # exact full SHA we vetted, closing the preflight-to-merge TOCTOU window.
     vetted_head = result.get("headRefOid")
@@ -1575,11 +1634,13 @@ def main() -> int:
     proc = gh_capture(merge_cmd)
     result["merge"] = {
         "attempted": True,
+        "auto": arm_auto,
         "success": proc.returncode == 0,
         "stdout": proc.stdout.strip(),
         "stderr": proc.stderr.strip(),
     }
-    result["merged"] = proc.returncode == 0
+    result["merged"] = proc.returncode == 0 and not arm_auto
+    result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
     print(json.dumps(result, indent=2))
     return 0 if proc.returncode == 0 else 10
 

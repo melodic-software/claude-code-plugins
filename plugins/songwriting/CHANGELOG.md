@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.33] - 2026-09-27
+
+### Fixed
+
+- `object-writing` rule 6 now also stops to ask when only `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, since that runs every subagent on the session's model and puts the fleet on the orchestrator's tier.
+
+## [1.4.32] - 2026-09-27
+
+### Fixed
+
+- The `object-writer` agent pins `model: opus` instead of `inherit`, a fail-safe default so a call that forgets the model never runs the fleet on the session's model. `object-writing` rule 6 still requires every call to name the fleet tier, and now states the current model resolution order (per-call `model`, frontmatter, `CLAUDE_CODE_SUBAGENT_MODEL`, main model) with a dated record.
+
 ## [1.4.31] - 2026-09-25
 
 ### Changed

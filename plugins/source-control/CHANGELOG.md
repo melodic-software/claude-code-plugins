@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.1] - 2026-09-27
+
+### Fixed
+
+- The babysit stuck-check route for a wrong `runs-on` label points at the branch's own workflow YAML. An organization-owned label is resolved by reading the vendored standards `runner-policy` component and `docs/ci-runner-routing.md`.
+
+## [0.60.0] - 2026-09-26
+
+### Added
+
+- The babysit merge gate takes `--auto` (with `--merge` and `--expected-head`). When both AI review checks (`claude-review-status`, `claude-security-review-status`) report success on the pinned live head, no review thread is open, and every other gate blocker is clear, it runs `gh pr merge --auto --squash --match-head-commit <pin>` instead of holding. Other checks still running do not hold the arm: GitHub waits out `ci-status` itself, and a non-required check never holds a merge. A missing, skipped, failed, or running AI review check holds, as does a head that moved off the pin. Its JSON gains `autoMerge.ready`, `autoMerge.blockers`, and `autoMergeEnabled`; an arm reports `"action": "auto-merge"` with `merged: false`, so the PR stays queued. `ci-status` is the only required check and does not wait on the review workflows, so auto-merge armed earlier could merge before AI review posts.
+
+### Changed
+
+- Only the merge lane enables auto-merge: a `babysit-loop` lane-pinned invocation passes `--auto`, so it applies only to PRs the rung partition admitted as C2 mechanical or C3 scoped; C4 structural and C5 PRs still wait for the user. Workers, standalone babysit-prs runs, and `/source-control:pull-request` never enable it (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
+- `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. Every other push path disarms before and again right after pushing: each lane push in `babysit-prs/reference/loop.md` (through `lane_push`), the fix worker's push (`orchestration.md` Worker Contract and prompt template), and the orchestrator's conflict-resolution push.
+- The merge lane retries an AI review check that failed on a rate limit with a full `gh run rerun <run-id>`, never `--failed`: a `--failed` rerun reruns only the `-status` job, which re-reads the cached rate-limit output of the successful `review` job and fails again.
+
 ## [0.59.1] - 2026-09-26
 
 ### Changed

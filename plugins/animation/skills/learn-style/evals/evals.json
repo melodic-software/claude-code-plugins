@@ -1,0 +1,67 @@
+{
+  "skill_name": "learn-style",
+  "evals": [
+    {
+      "id": 1,
+      "name": "learn-a-style-pack-from-a-rotoscope-work-dir",
+      "prompt": "Learn the style of the clip I rotoscoped in ~/roto/ink-short into a pack called ink-short. Shots start at 0, 4.2 and 9.8 s.",
+      "expected_output": "Reads reference/statistics.md, runs controls.py measure, then learn.py with --cuts and --negative over the calibration controls, then controls.py check and selftest, and fills the judgment knobs and STYLE.md.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs controls.py measure before learn.py",
+        "Passes the shot starts as --cuts and the calibration controls as --negative to learn.py",
+        "Runs controls.py check and requires every control to fail and the source and replica to pass",
+        "Runs controls.py selftest <pack dir>",
+        "Does NOT copy traced geometry, source frames or the clip into the pack"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "check-a-new-scene-against-the-woodcut-pack",
+      "prompt": "Does my new scene match the woodcut pack? The scene is ~/scenes/harbor.js.",
+      "expected_output": "Renders the scene through render.py at the pack's base_fps with --encode mp4 and runs inkstats.py <frames>.mp4 --cuts <shot starts> --pack <woodcut-ink dir>, reporting each row's distance and the film margin, then reviews crops at 1:1.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Renders through ${CLAUDE_PLUGIN_ROOT}/scripts/render.py with --encode mp4",
+        "Runs inkstats.py with --pack pointing at the pack directory",
+        "Tunes the scene against the check, never the check against the scene",
+        "Reads crops at 1:1 before calling it a match"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "a-passing-control-is-recorded-not-hidden",
+      "prompt": "controls.py check shows the blurred near-miss control passing. Narrow that band so it fails.",
+      "expected_output": "Refuses to narrow the band until the control fails; records the passing control under what the check cannot say in reference/statistics.md.",
+      "files": [],
+      "expectations": [
+        "Does NOT narrow a band just to make a control fail",
+        "Records the passing control under what the check cannot say"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "near-miss-pixel-art-sprite-animation-does-not-trigger",
+      "prompt": "Animate my pixel-art slime with an idle and a hop cycle and export a Godot sprite sheet.",
+      "expected_output": "Does not use learn-style: there is no rotoscoped clip or style pack; this is pixel-art sprite animation.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke learn-style or run learn.py",
+        "Treats the request as pixel-art sprite animation"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "near-miss-generic-video-editing-does-not-trigger",
+      "prompt": "Color-grade my travel video warmer and add a title card at the start.",
+      "expected_output": "Does not use learn-style: this is general video editing, not measuring a drawn style into a pack.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke learn-style or run learn.py or inkstats.py",
+        "Does NOT create a style pack"
+      ]
+    }
+  ]
+}

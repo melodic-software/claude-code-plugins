@@ -68,12 +68,12 @@
       "id": 6,
       "name": "plugin-orphan-fix-policy-asymmetry",
       "prompt": "/audit plugins",
-      "expected_output": "A plugins-scoped audit that applies the drift auto-fix policy asymmetrically: an orphan plugin set to false (absent upstream) is auto-removable, while an orphan plugin set to true is report-only and never auto-removed because the user explicitly enabled it.",
+      "expected_output": "A plugins-scoped audit that applies the drift auto-fix policy asymmetrically: an orphan plugin set to false (absent upstream) is a removal candidate, removed unless a lower-precedence scope holds true for it or cannot be read, while an orphan plugin set to true is report-only and never auto-removed because the user explicitly enabled it.",
       "files": [],
       "expectations": [
-        "Treats an orphan plugin set to false (absent upstream) as auto-removable",
+        "Treats an orphan plugin set to false (absent upstream) as a removal candidate, moved to manual review when a lower-precedence scope holds true for the key",
         "Treats an orphan plugin set to true (absent upstream) as report-only, never auto-removed",
-        "Records a newly-discovered upstream plugin as an explicit enabledPlugins false entry rather than silently enabling it"
+        "Reports a newly-discovered upstream plugin without writing any enabledPlugins entry for it"
       ]
     },
     {

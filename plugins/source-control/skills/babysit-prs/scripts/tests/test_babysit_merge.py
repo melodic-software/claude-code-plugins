@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import pathlib
 import sys
 import unittest
@@ -25,6 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
 import babysit_merge as merge
+import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
 STALE = "b" * 40
@@ -640,7 +642,7 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         match = merge.find_distinct_bot_approval(
             reviews, LANE, HEAD, frozenset({APPROVER})
         )
-        self.assertIsNotNone(match)
+        assert match is not None
         self.assertEqual(match["commit"]["oid"], HEAD)
 
     def test_approver_matched_by_configured_login_without_bot_suffix(self) -> None:
@@ -1156,6 +1158,229 @@ class UnreadableThreadResolutionHoldsTheGate(GraphQLRestrictionHarness):
             [b for b in result["blockers"] if "unresolved review threads" not in b],
             [],
         )
+
+
+def _check(name: str, conclusion: str | None) -> dict[str, Any]:
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "status": "COMPLETED" if conclusion else "IN_PROGRESS",
+        "conclusion": conclusion or "",
+    }
+
+
+class AutoMergeArming(unittest.TestCase):
+    """`--auto` arms auto-merge only when running checks are the sole hold and
+    both AI review lanes have finished on the live head."""
+
+    CI_RULES = [
+        {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "ci-status"}]},
+        }
+    ]
+
+    def _evaluate(self, rollup: list[dict[str, Any]], **pr: Any) -> dict[str, Any]:
+        view = _pr(statusCheckRollup=rollup, reviewDecision="", **pr)
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return view
+            if args[0] == "api":
+                return self.CI_RULES
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        with (
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+        ):
+            return merge.evaluate(
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset({LANE}),
+                False,
+                False,
+            )
+
+    def test_only_ci_running_with_ai_lanes_done_is_auto_ready(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("claude-review-status", "SUCCESS"),
+                _check("claude-security-review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_running_ai_lane_holds(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("claude-review-status", None),
+                _check("claude-security-review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"])
+
+    def test_missing_or_skipped_ai_lane_holds(self) -> None:
+        result = self._evaluate(
+            [_check("ci-status", None), _check("claude-review-status", "SKIPPED")],
+            mergeStateStatus="BLOCKED",
+        )
+        holds = result["autoMerge"]["blockers"]
+        self.assertEqual(len(holds), 2, holds)
+
+    def test_gate_arms_on_ai_checks_not_on_advisory_checks(self) -> None:
+        def rollup(review: str | None) -> list[dict[str, Any]]:
+            return [
+                _check("ci-status", "SUCCESS"),
+                _check("test-windows", None),  # advisory, still running
+                _check("review / claude-review-status", review),
+                _check("security-review / claude-security-review-status", "SUCCESS"),
+            ]
+
+        # An AI review check still running holds.
+        pending_ai = self._evaluate(rollup(None), mergeStateStatus="UNSTABLE")
+        self.assertFalse(pending_ai["autoMerge"]["ready"], pending_ai["autoMerge"])
+        # Both AI checks green: a running advisory check does not hold.
+        green = self._evaluate(rollup("SUCCESS"), mergeStateStatus="UNSTABLE")
+        self.assertTrue(green["autoMerge"]["ready"], green["autoMerge"])
+        # The head moved since those checks passed: the pin no longer matches.
+        moved = self._evaluate(
+            rollup("SUCCESS"), mergeStateStatus="UNSTABLE", headRefOid=STALE
+        )
+        self.assertFalse(moved["autoMerge"]["ready"], moved["autoMerge"])
+
+    def test_unresolved_thread_holds(self) -> None:
+        rollup = [
+            _check("ci-status", None),
+            _check("claude-review-status", "SUCCESS"),
+            _check("claude-security-review-status", "SUCCESS"),
+        ]
+        view = _pr(
+            statusCheckRollup=rollup, reviewDecision="", mergeStateStatus="BLOCKED"
+        )
+        with (
+            mock.patch.object(
+                merge,
+                "gh_json",
+                side_effect=lambda a: (
+                    view if a[:2] == ["pr", "view"] else self.CI_RULES
+                ),
+            ),
+            mock.patch.object(
+                merge, "unresolved_threads", return_value=[{"author": "reviewer"}]
+            ),
+        ):
+            result = merge.evaluate(
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset({LANE}),
+                False,
+                False,
+            )
+        self.assertFalse(result["autoMerge"]["ready"])
+
+    def _main(
+        self, auto_ready: bool, *extra: str, ready: bool = False
+    ) -> tuple[int, list[list[str]]]:
+        result = {
+            "ready": ready,
+            "blockers": ["pending checks: ci-status"],
+            "headRefOid": HEAD,
+            "autoMerge": {"ready": auto_ready, "blockers": []},
+        }
+        calls: list[list[str]] = []
+
+        def capture(cmd: list[str]) -> Any:
+            calls.append(cmd)
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner", *extra]
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", return_value=result),
+            mock.patch.object(merge, "allowed_method", return_value="squash"),
+            mock.patch.object(merge, "gh_capture", side_effect=capture),
+            contextlib.redirect_stdout(io.StringIO()) as out,
+        ):
+            code = merge.main()
+        self.output = json.loads(out.getvalue()) if out.getvalue() else {}
+        return code, calls
+
+    def test_auto_arms_squash_pinned_to_head(self) -> None:
+        code, calls = self._main(True, "--merge", "--expected-head", HEAD, "--auto")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.output["action"], "auto-merge")
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self.output["autoMergeEnabled"])
+        [cmd] = calls
+        self.assertIn("--auto", cmd)
+        self.assertIn("--squash", cmd)
+        self.assertEqual(cmd[cmd.index("--match-head-commit") + 1], HEAD)
+
+    def test_without_auto_flag_nothing_is_armed(self) -> None:
+        code, calls = self._main(True, "--merge", "--expected-head", HEAD)
+        self.assertEqual((code, calls), (10, []))
+
+    def test_auto_not_ready_arms_nothing(self) -> None:
+        code, calls = self._main(False, "--merge", "--expected-head", HEAD, "--auto")
+        self.assertEqual((code, calls), (10, []))
+
+    def test_auto_holds_a_ready_merge_until_ai_lanes_finish(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(False, *args, ready=True)
+        self.assertEqual((code, calls), (10, []))
+
+    def test_auto_merges_a_ready_pr_synchronously(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(True, *args, ready=True)
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertNotIn("--auto", calls[0])
+
+    def test_auto_without_merge_and_pin_is_refused(self) -> None:
+        self.assertEqual(self._main(True, "--auto")[0], 2)
+        self.assertEqual(self._main(True, "--merge", "--auto")[0], 2)
+
+
+class RefreshDisarmsAutoMerge(unittest.TestCase):
+    """A branch refresh disables an armed auto-merge first, and fails closed."""
+
+    def _disarm(self, armed: bool, disable_error: bool = False) -> list[list[str]]:
+        calls: list[list[str]] = []
+
+        def run_gh(cmd: list[str]) -> str:
+            calls.append(cmd)
+            if disable_error:
+                raise RuntimeError("gh failed")
+            return ""
+
+        pull = {"auto_merge": {"merge_method": "squash"} if armed else None}
+        with (
+            mock.patch.object(refresh, "gh_json", return_value=pull),
+            mock.patch.object(refresh, "run_gh", side_effect=run_gh),
+        ):
+            refresh.disarm_auto_merge("owner/repo", PR_NUMBER)
+        return calls
+
+    def test_armed_pr_is_disarmed(self) -> None:
+        [cmd] = self._disarm(armed=True)
+        self.assertIn("--disable-auto", cmd)
+
+    def test_unarmed_pr_makes_no_call(self) -> None:
+        self.assertEqual(self._disarm(armed=False), [])
+
+    def test_disarm_failure_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self._disarm(armed=True, disable_error=True)
 
 
 if __name__ == "__main__":

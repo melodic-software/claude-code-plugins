@@ -51,8 +51,9 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 | Add new settings from docs | No | Yes (evaluate relevance) |
 | Restructure permissions | No | Yes (evaluate scope) |
 | Fix MCP server config | No | Yes (may need env vars) |
-| Remove orphan plugins (`false`) | Yes (`scripts/fix-plugin-drift.sh --yes`) | No |
-| Add new upstream plugins as `false` | Yes (`scripts/fix-plugin-drift.sh --yes`) | No |
+| Remove orphan plugins (`false`) | Yes (`scripts/fix-plugin-drift.sh --yes`), unless a lower-precedence scope holds `true` for the key or cannot be read | Yes, for a removal the script moved to manual review |
+| New upstream plugins | No (report only; nothing adds a key) | Yes (whether to enable, disable, or leave the key absent) |
+| Disabled dependency of an enabled plugin | No | Yes (enable the dependency, or disable the plugins that need it) |
 | Remove orphan plugins (`true`) | No | Yes (user enabled a now-removed plugin, so investigate intent) |
 | Rename plugins (heuristic match) | No | Yes (verify upstream rename, update key, preserve `enabled` value) |
 

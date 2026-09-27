@@ -1,5 +1,16 @@
 # Changelog: discovery plugin
 
+## [0.24.1] - 2026-09-27
+
+### Changed
+
+- **Worker models:** `explorer` now pins `model: sonnet`, and `researcher` and `intent-tracer` pin
+  `model: opus`. For these three workers the pin now outranks a consumer's
+  `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` or a per-call `model` still
+  overrides it. A dispatch that passes no `model` runs on the pin instead of falling through to the
+  orchestrator's own model. The parent contract states the pin as the default a parent overrides
+  per run with the per-call `model`, and its dated record is re-verified.
+
 ## [0.24.0] - 2026-09-26
 
 ### Added

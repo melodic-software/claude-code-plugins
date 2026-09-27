@@ -1,6 +1,6 @@
 ---
-description: "Iteratively reduce coupling at any altitude, whether documents, code modules, applications, or repositories: scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos'. Skip when: reviewing a diff before merge (review tools), deep-designing one already-chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise/dedup pass with no cross-artifact coupling angle (docs-hygiene)."
-argument-hint: "[<scope> | dry-run [<scope>] | status | help]"
+description: "Iteratively reduce coupling at any altitude (documents, code modules, applications, repositories): scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped; after a value changes, find and classify every site stating it. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos', 'I changed this value everywhere'. Skip when: reviewing a diff before merge (review tools), designing one chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise or dedup pass (docs-hygiene)."
+argument-hint: "[<scope> | dry-run [<scope>] | change [apply] <old> <new> [<scope>] | status | help]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -60,6 +60,8 @@ pass. See "What this skill does NOT do".
 | *(empty)* | Full pass over an inferred scope: scan → verify → apply lane → route lane → ledger |
 | `<scope>` | Same pass narrowed to a path, module, or altitude keyword (`docs`, `code`, `app`, `repo`) |
 | `dry-run [<scope>]` | Scan, verify, rank, and ledger only. Do NOT edit, branch, push, or file tracker items |
+| `change <old> <new> [<scope>]` | Change mode, read-only: find every site that states `<old>`, classify each, and propose what happens to it. No edits |
+| `change apply <old> <new> [<scope>]` | Change mode with edits: the same inventory, then, once the human confirms the site list, change the setup sites and convert them to a reference form |
 | `status` | Read the ledger and report open candidates, applied reductions, and what the next run should take |
 | `help` | Print this table with one worked example per action |
 
@@ -75,6 +77,9 @@ Hub-and-spoke; read the spoke before the phase that needs it:
   Read before applying or routing anything.
 - [`reference/ledger.md`](reference/ledger.md). Ledger entry schema, status lifecycle, and
   re-run semantics. Read at phase A and phase H.
+- [`reference/change-mode.md`](reference/change-mode.md). The `change` action: how the inventory
+  finds every form of a value, the site classes and what happens to each, reference forms, the
+  apply sequence, and its pitfalls. Read before any `change` run.
 
 ## Workflow
 
@@ -118,7 +123,8 @@ invariant. Never commit directly on the default branch. Before editing any targe
 it clean in `git status --porcelain`; a target carrying pre-existing local modifications
 defers its finding with the reason recorded. Foreign edits are never mixed into the batch.
 Budget per run: target ≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays
-`proposed` in the ledger for the next run. Use the Edit tool; one atomic commit per logical
+`proposed` in the ledger for the next run. A confirmed `change apply` site set is the one
+exception (see the Apply sequence in [`reference/change-mode.md`](reference/change-mode.md)). Use the Edit tool; one atomic commit per logical
 reduction; stage listed paths only and inspect the staged diff before each commit. Never
 touch CI workflow files, hook or settings surfaces, lint configs, database migrations, or
 any published contract surface (API shapes, message schemas, tool schemas). Those are route
@@ -144,6 +150,28 @@ installed, else the repo's own tracker, else present the list to the user. Close
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
 
+## Change mode
+
+The `change` action starts from a value, not a scan: `<old>` changed or must become `<new>`, and
+every place that states it has to be found and handled by what kind of place it is. It runs its own
+path, not phases B to D. Read [`reference/change-mode.md`](reference/change-mode.md) first.
+
+1. **Inventory.** Run `python3 "${CLAUDE_SKILL_DIR}/scripts/value-sites.py" find --old '<old>'
+   --format summary` from the repository root (add scope paths after the flags), then the same
+   with `--format tsv` for the rows: `class, path, line, col, form, reason, anchor, text`, plus a
+   `skip, path, reason` row for each file it did not read. The script finds every spelling of the
+   value and classifies each site; do not repeat that work by hand.
+2. **Review the classes.** Read each non-setup row and any setup row whose file says otherwise;
+   reclassify with a stated reason. Handle each class per the spoke's Site classes table.
+3. **Propose.** For each setup site, name the reference form it converts to. Report the counts,
+   every non-setup row, and the proposals. `change` without `apply` stops here.
+4. **Apply** (`change apply` only). Wait for the human to confirm the site list and each
+   conversion, then follow the spoke's Apply sequence, which runs phases E and F. `apply` takes
+   each confirmed site as `path:line:col:anchor` from its row and refuses the run if that line
+   changed since `find`.
+5. **Ledger and report.** Record converted and flagged sites in the ledger and report what waits
+   on the human first.
+
 ## Fresh-eyes note
 
 Phase B/C findings are judged against artifacts this session did not author, and phase F's
@@ -159,6 +187,8 @@ skill is ever extended to judge work its own session produced outside those gate
   exploration goes to `/architecture:improve` (when installed) or a design session.
 - **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
   `/code-tidying:tidy` territory.
+- **Does not enforce.** Blocking a new literal for a value that already has an owner is a
+  write-time guard's job; `change` cleans up after a change, it does not prevent the next copy.
 - **Does not chase decoupling for its own sake.** A dependency on something stable and owned
   is not a finding; see the not-a-finding list in the model.
 
@@ -175,6 +205,7 @@ is invoked via the Skill tool.
 | Batch needs build/test verification | `/toolchain:check` when installed; else the project's own commands |
 | Shipping a PR | `/source-control:pull-request create` when installed; else the repo's own PR convention |
 | A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when installed owns the extraction; else apply per the remediation catalog |
+| A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when installed owns the sweep; else run `change` and review each row; records still stay |
 
 ## Gotchas
 
@@ -196,6 +227,9 @@ The counterweights this skill exists to hold. Add here when a new one surfaces.
   user.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
+- **A record that states the old value is correct.** Changelogs, evidence, and decision logs
+  record what was true then; rewriting them to the new value falsifies them. Setup sites change,
+  fixtures only when the human chooses, and contracts only through a proposal.
 - **The ledger records what a re-scan currently finds; it never replays.** Re-emitting stale
   findings re-injects problems that may already be fixed. Statuses advance, evidence gets
   re-checked, and a finding that no longer reproduces is closed, not repeated.

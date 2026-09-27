@@ -698,6 +698,9 @@ On the conflict worker's return, and before pushing anything:
      in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
      fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
      not the fork head). Given the first-parent assertion this is a fast-forward.
+
+  Disarm auto-merge before step 1 and again right after step 3, never between 2 and 3, per the
+  Worker Contract's auto-merge rule below.
      Never force, in any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
@@ -817,6 +820,10 @@ Each worker must:
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
+- disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
+  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+  `gh pr merge <N> --disable-auto`, and do not push if either command fails; never re-arm
+  (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
@@ -900,6 +907,9 @@ pr comment); any gh call that mutates the local checkout, such as gh pr checkout
 same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
+Before that pre-push re-check and again right after the push, when
+`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+`gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and

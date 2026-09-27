@@ -3,6 +3,42 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-09-27
+
+### Changed
+
+- `improve`'s description is under the 1024-codepoint field cap. Every quoted trigger phrase is still there.
+
+## [0.11.0] - 2026-09-26
+
+### Added
+
+- `render-landscape.sh` prints one summary line on stdout after writing the artifacts:
+  `landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d>
+  unresolved_edges=<u> thin=<yes|no>`. A landscape is thin when it draws at most two systems or no
+  edges. The artifacts are unchanged byte for byte.
+- `map-landscape`'s closing report gains a `Thin result` line that says why a thin landscape came
+  back thin and names the remedy that fits: the edge-supplying repository first in `--repos`, a
+  larger `--top-external`, `--root` for more nodes, or `/architecture:improve` and
+  `/discovery:explore` when the question was how one repository is built inside.
+- `## Next` routes a thin result to `/discovery:explore`.
+
+### Fixed
+
+- `reference-edges.sh` treats the `owner/repo` of a github.com origin remote as a self-reference,
+  not only `<owner>/<directory name>`. A worktree or a renamed clone of a github.com repository no
+  longer charts its own citations as an edge to a phantom second system.
+- `reference-edges.sh` reads the subject owner and slug only from a remote whose host is
+  github.com. A host that merely contains the string (`evilgithub.com`, or a `/github.com/` path
+  on another server), a `file://` URL, and a local or relative path no longer supply an owner or a
+  self-reference, and neither does a non-numeric `:` after the host (`github.com:abc/`).
+- `reference-edges.sh` resolves the owner of a github.com remote that carries a port
+  (`https://github.com:443/`, `ssh://git@github.com:22/`), where the port used to become the owner,
+  and of an uppercase host (`https://GITHUB.COM/`), which used to give no owner. `www.github.com`,
+  `git@github.com:/owner/repo` and an empty port (`https://github.com:/`) resolve as in 0.10.1.
+- `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
+  path.
+
 ## [0.10.1] - 2026-09-25
 
 ### Fixed
