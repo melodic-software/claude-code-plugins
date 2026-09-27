@@ -478,6 +478,17 @@ for file in skills/explore/reference/dispatch.md skills/research/context/dispatc
   assert_present "$file quotes the current partial-marking behavior" \
     "$file" 'returns its output marked as partial'
 done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md skills/research/context/gotchas.md; do
+  assert_present "$file points at the turn-limit harness-facts record" \
+    "$file" 'A turn-limit stop returns partial output, and the parent can resume the agent'
+  assert_absent_in "$file carries no copy of the turn-limit basis" \
+    "$file" 'The partial marking requires'
+done
+assert_present 'parent-contract holds the turn-limit harness-facts record' \
+  'reference/parent-contract.md' '^### A turn-limit stop returns partial output, and the parent can resume the agent$'
+assert_present 'the research gotchas describe resume by SendMessage' \
+  'skills/research/context/gotchas.md' '`SendMessage` addressed by'
 
 assert_absent 'no file says a half-written artifact set cannot be told apart without the marker' \
   'half-written artifact set cannot be told apart'
