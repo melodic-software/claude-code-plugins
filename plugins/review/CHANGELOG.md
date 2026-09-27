@@ -19,6 +19,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   the agent uses that layout and still carries a confidence value per finding. The agent body now
   cites the severity baseline for the rank order instead of restating it.
 
+## [0.30.8] - 2026-09-27
+
+### Changed
+
+- `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
+
 ## [0.30.7] - 2026-09-27
 
 ### Changed
