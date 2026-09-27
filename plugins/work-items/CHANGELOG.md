@@ -7,9 +7,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
-- `work` turns auto-merge off (`gh pr merge <N> --disable-auto`) before a fix or rebase pushes to an
-  open PR that has it armed, so the new head cannot merge before the AI reviews re-run. It never
-  re-arms; that stays with the merge lane.
+- `work`'s fix worker turns auto-merge off (`gh pr merge <N> --disable-auto`) immediately before and
+  again right after a fix or rebase pushes to an open PR that has it armed, so the new head cannot
+  merge before the AI reviews re-run. It never re-arms; that stays with the merge lane.
 
 ## [0.40.26] - 2026-09-25
 
