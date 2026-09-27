@@ -19,8 +19,11 @@ config has chosen no Markdown style, so the hook does not run there at all
   rule is never matched. A `.txt` Write therefore never starts the process.
   It does not reach the script's in-script extension skip, and it cannot
   produce a `hook_non_blocking_error` for work this hook does not do (#2867).
-  The script still checks the extension itself, because an `if` filter is one
-  rule per handler and fails open on an unparsable payload.
+  The script still checks the extension itself, because the hooks reference
+  calls the `if` filter best-effort. Its one documented fail-open is for Bash
+  input it cannot parse, and it documents no file-tool equivalent
+  ([hooks reference](https://code.claude.com/docs/en/hooks), common fields,
+  checked 2026-09-27).
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
   `.markdownlint.json`, …, any of the ten documented names) exists between the
@@ -52,6 +55,15 @@ config has chosen no Markdown style, so the hook does not run there at all
 - **Advisory, never blocking.** The hook always exits `0`. Unfixable findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
+- **Silence does not mean it ran.** A clean run prints nothing, and so do the
+  policy skips: no markdownlint config, a gitignored path, and (when
+  `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
+  the session, a hook that linted a clean file and a hook that never linted
+  look the same. Only missing prerequisites and the trust gate announce
+  themselves, and only once per session. To tell the cases apart, wire a
+  [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
+  `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
+  that ran and `skipped` for every skip arm.
 - **Bounded reporting.** Every run reports the total finding count and the rules
   that dominate it. Individual violation lines are capped (20 by default,
   `markdown_format_max_findings`), and an unchanged finding set on a re-edited
@@ -66,7 +78,7 @@ config has chosen no Markdown style, so the hook does not run there at all
   A configuration that can execute code is gated on explicit approval. See
   [Configuration trust boundary](#configuration-trust-boundary).
 
-## Known limitation
+## Known limitations
 
 Claude Code runs every matching `PostToolUse` hook in parallel, with no
 locking/ordering primitive. In an opted-in repo this hook is the single
@@ -74,6 +86,31 @@ in-place rewriter for `.md`/`.mdc` by default; a consumer who ALSO opts
 `typos-format`'s write mode on accepts **last-writer-wins** ordering between
 the two on every Markdown edit. The residual overlap class across scoped
 writer hooks is tracked fleet-wide in #875.
+
+**Write paths the hook does not see.** The matcher is `Write|Edit`, so only
+those two tools reach it. A Markdown file written through the `Bash` tool (a
+heredoc, a redirect, `sed -i`), through `PowerShell`, or through an MCP
+filesystem server's write tool is never formatted or linted. `guardrails`'
+`block-hook-bypass`, when installed, blocks the common Bash redirect and
+heredoc forms and the PowerShell write cmdlets; `sed -i` and other
+inline-interpreter writes are outside what it detects, and it does not see MCP
+tools. CI is the only gate that sees every path. The matcher does not list
+`MultiEdit`: the [tools reference](https://code.claude.com/docs/en/tools-reference)
+does not list it among the built-in tools, and
+[permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
+`MultiEdit` tool" (both checked 2026-09-27; recheck if `MultiEdit` returns to
+the tools reference).
+
+**Timeout tail.** Each handler sets `"timeout": 15`, well under the 600-second
+default for a command hook, and Claude Code discards the output of a hook it
+cancels at its timeout ([hooks reference](https://code.claude.com/docs/en/hooks),
+"Timeouts", checked 2026-09-27). `markdownlint-cli2 --fix` rewrites the file in
+place before the hook composes its report, so a cancel between the two leaves
+your file rewritten with no disclosure on either channel. This window has not
+been reproduced; a clean run costs about 2.6 s of reference-host work in
+the cost table below, well inside 15 s. If you see a
+Markdown file change after an edit with no `markdown-format rewrote` notice,
+this is the likely cause.
 
 ## Requirements
 

@@ -3,14 +3,18 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.64] - 2026-09-27
-
-### Changed
+## [0.6.65] - 2026-09-27
 
 - **`setup` probes `jq` and `typos` at load time.** The two `command -v` checks run as pre-computed
   context, so `check` reads the result instead of making two Bash calls. The FAIL rules are
   unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
   re-check still probes live.
+
+## [0.6.64] - 2026-09-27
+
+- README: documents that a gitignored path is still scanned, because the hook names the file explicitly and `--force-exclude` covers only typos' own excludes; `[files] extend-exclude` is the lever.
+- README: documents the write paths the `Write|Edit|NotebookEdit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README: documents the write-mode timeout tail. The second typos pass rewrites the file before the hook discloses it, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
 
 ## [0.6.63] - 2026-09-27
 
