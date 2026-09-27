@@ -433,7 +433,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-for hook_name in destructive_guard.py guard_launch_monitor.py; do
+for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py; do
   entry="$(jq -c --arg target "$hook_name" '
     .hooks | to_entries[] | .value[]? | .hooks[]? |
     select(.command | contains($target))
