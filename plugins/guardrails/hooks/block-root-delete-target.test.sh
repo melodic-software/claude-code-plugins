@@ -1158,6 +1158,20 @@ chmod +x "$TEST_TMPDIR/bin-to/timeout"
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-to:$PATH"
 assert_exit 'a resolver that runs out of time refuses' 2 "$GUARD_RC"
 assert_contains 'the timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
+# With no `timeout` (stock macOS) the batch call cannot be cut short. An
+# exported `command` that reports `timeout` missing sends the guard down that
+# branch, with the 124 stand-in above still first on PATH: the if-branch would
+# refuse, so an allow here proves the no-timeout branch ran and judged. That
+# branch must also check the deadline AFTER the call, which is pinned in the
+# source because a real call cannot be made to hang on demand.
+rdt_nocmd="BASH_FUNC_command%%=() { [[ \"\${1-} \${2-}\" == \"-v timeout\" ]] && return 1; builtin command \"\$@\"; }"
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-to:$PATH" "$rdt_nocmd"
+assert_exit 'with no timeout an ordinary delete in the tree is allowed' 0 "$GUARD_RC"
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ../../x' -- "PATH=$TEST_TMPDIR/bin-to:$PATH" "$rdt_nocmd"
+assert_exit 'with no timeout an escape from the tree still blocks' 2 "$GUARD_RC"
+rdt_nt="$(sed -n '/^rdt_lines_to() {/,/^}/p' "$HOOK")"
+assert_contains 'with no timeout the deadline is checked after the batch call' \
+  "$(grep -A1 -F '__rb_out=$("$@" 2>/dev/null) || __rb_rc=$?' <<<"$rdt_nt")" "rdt_deadline"
 rdt_sys=""
 for rdt_t in C:/Windows /usr; do
   [[ -d "$rdt_t" ]] && rdt_sys="$rdt_t" && break
