@@ -768,6 +768,18 @@ RC=0
 bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
 assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
+# --- a plugin-bundled GitHub server names its tools with a scoped segment
+# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME} && ls" | scoped create_or_update_file)" 2>&1)
+RC=$?
+assert_exit "MCP scoped create_or_update_file: Linux user path → exit 2" 2 "$RC"
+assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "cd ${LINUX_HOME}" | scoped push_files)" 2>&1)
+RC=$?
+assert_exit "MCP scoped push_files: bad path in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
+
 # --- the allowlist is the SAME list, asked of a repo-relative path
 RC=0
 bash "$HOOK" <<<"$(mcp_single_json ".claude/hooks/guard.sh" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
