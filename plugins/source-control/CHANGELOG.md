@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-09-26
+
+### Changed
+
+- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR in a review-fix commit, separate from the original work, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or whose fix is blocked on research the lane cannot do (a claim research cannot confirm stays `UNCERTAIN`); no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule as #4541 for work-items.
+
+## [0.59.0] - 2026-09-26
+
+### Added
+
+- `scripts/resolve-version-bump-conflict.sh` resolves the conflict two concurrent PRs create when both bump one plugin's `.claude-plugin/plugin.json` version and add a `CHANGELOG.md` entry. Run during a merge of the default branch into a PR branch, or a rebase or cherry-pick of the PR onto it, it sets the version to the default branch's current version plus one bump at the PR's level (so no version is skipped), keeps the default branch's changelog entries, re-heads the PR's entry under the new version above them, three-way merges any other edit to the two files, and stages both. A plugin whose files do not fit that shape, or whose other edits conflict, is left untouched and named (exit 1). `scripts/resolve-version-bump-conflict.test.sh` covers the same-number collision, mixed bump levels, the rebase orientation, and the left-for-manual path.
+- `/source-control:resolve-conflicts` step 3, the babysit-prs inline freshness merge (`reference/loop.md`), the conflict-worker contract (`reference/orchestration.md`), and `/source-control:babysit-loop` run the resolver before hand-resolving these two files, so a version-bump collision no longer aborts the lane's merge as needing intent judgment.
+
 ## [0.58.5] - 2026-09-25
 
 ### Changed

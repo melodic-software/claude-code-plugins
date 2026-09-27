@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4] - 2026-09-26
+
+### Changed
+
+- `/review:quality-gate` architecture follow-up: a small or medium pattern issue is fixed in the current change as its own commit, even when unrelated to the task; only a structural one is filed.
+
 ## [0.30.3] - 2026-09-25
 
 ### Changed

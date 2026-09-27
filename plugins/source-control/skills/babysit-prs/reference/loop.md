@@ -314,7 +314,10 @@ Then:
   → `integrated`; if ANY file requires intent judgment, abort the merge → `conflict-aborted`.
   Never proceed to comment processing, parking, or the next PR with an integration in progress.
   Resolve via `/source-control:resolve-conflicts` discipline (understand both sides' intent;
-  compose, don't side-pick)
+  compose, don't side-pick). A plugin version-bump collision (`.claude-plugin/plugin.json`,
+  `CHANGELOG.md`) is mechanical, not intent judgment: run
+  `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first; exit 0 resolved and
+  staged every such pair
 - **Complex conflicts** (>3 files, `INTEGRATION_STATUS=conflict-aborted`): abort the merge,
   post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
   files). Manual resolution is required before CI will trigger."`. If an interactive terminal,
