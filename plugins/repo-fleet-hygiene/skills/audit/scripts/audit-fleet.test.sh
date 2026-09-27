@@ -2004,7 +2004,8 @@ fi
 
 # On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
 # a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
-# this a Windows host and a shimmed cygpath stands in for the mount table.
+# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
+# the <user> placeholder, which the machine-specific-paths gate treats as portable.
 WIN_BIN="$TMP/win-bin"
 WIN_TMP="$TMP/wintmp"
 mkdir -p "$WIN_BIN" "$WIN_TMP"
@@ -2013,12 +2014,12 @@ cat >"$WIN_BIN/cygpath" <<'EOF'
 #!/usr/bin/env bash
 [[ "$1" == "-m" && "$2" == "--" && $# -eq 3 ]] || exit 2
 case "$3" in
-"$MOCK_WIN_TMP"/*) printf 'C:/Users/t/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
+"$MOCK_WIN_TMP"/*) printf 'C:/Users/<user>/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
 *) printf '%s\n' "$3" ;;
 esac
 EOF
 chmod +x "$WIN_BIN/uname" "$WIN_BIN/cygpath"
-win_native="C:/Users/t/AppData/Local/Temp"
+win_native="C:/Users/<user>/AppData/Local/Temp"
 win_out="$TMP/win-plan-out.txt"
 PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" TMPDIR="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   bash "$SCRIPT" --repo "$TMP/repo-b" >"$win_out" 2>&1 || true
