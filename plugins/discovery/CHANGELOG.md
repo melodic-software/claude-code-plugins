@@ -1,10 +1,16 @@
 # Changelog: discovery plugin
 
-## [0.24.4] - 2026-09-27
+## [0.24.5] - 2026-09-27
 
 ### Changed
 
 - `research-deep` states two routing rules without bold caps: N ≥ 2 separable topics are not dispatched to an engine as one blob, and an engine's return is neither re-run inline nor surfaced as-is. Both rules and their reasons are unchanged (#4120).
+
+## [0.24.4] - 2026-09-27
+
+### Fixed
+
+- Parent contract: the depth-limit quote ("Claude Code withholds the `Agent` tool from every subagent except a fork") is marked as quoted with link markup removed and re-dated against the sub-agents page fetched 2026-09-27.
 
 ## [0.24.3] - 2026-09-27
 

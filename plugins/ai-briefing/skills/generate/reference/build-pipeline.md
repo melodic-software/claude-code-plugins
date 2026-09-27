@@ -326,7 +326,7 @@ Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js`
 9. AI Task Force Update
 10. Feedback / Review Q&A
 
-If `document-skills:pptx` is not available, follow the install steps in `slide-generation.md` "PPTX fallback".
+If the in-tree pipeline cannot run and no PPTX-generation skill is installed either, report the gap and emit markdown only; `slide-generation.md` "PPTX fallback" states the brand-token caveat for when one is.
 
 ### HTML slides (`--format html`)
 
@@ -334,7 +334,7 @@ If `document-skills:pptx` is not available, follow the install steps in `slide-g
 
 **Summary:** Collect items → emit/update `output/build/slides-data.js` → run `node build-html.js` → output lands at `output/meetings/ai-meeting-{N}.html`. Schema and full slide-type list: see "`slides-data.js` schema" earlier in this file.
 
-**Fallback path** (`/frontend-design:frontend-design` + `/ui-ux-pro-max:slides`): see `slide-generation.md` "Fallback skill paths".
+**Fallback path** (`/frontend-design:frontend-design`, plus a slide-layout skill when one is installed): see `slide-generation.md` "Fallback skill paths".
 
 ### PDF (post-generation)
 

@@ -1,10 +1,18 @@
 # Changelog: docs-hygiene plugin
 
-## [0.23.2] - 2026-09-27
+## [0.23.3] - 2026-09-27
 
 ### Changed
 
 - `compress`'s Phase A worker prompt writes its nine hard rules as "Never ..." instead of all-caps "NEVER ...". Every rule is unchanged, and the write-scope fence (`Touch ONLY <ABSOLUTE-PATH>. FORBIDDEN: ...`) keeps its emphasis (#4120).
+
+## [0.23.2] - 2026-09-27
+
+### Changed
+
+- `audit-noise` names `/attribution:audit` where it named `/provenance:audit`, since the
+  provenance plugin is now `attribution`. The skill body, one eval expectation, and comments in
+  `noise-shapes.sh` and `detect.test.sh` change; detection behavior does not.
 
 ## [0.23.1] - 2026-09-25
 

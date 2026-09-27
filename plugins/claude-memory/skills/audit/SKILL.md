@@ -21,7 +21,7 @@ whole always-loaded set and is an estimate, not a measurement.
 
 Deterministic health check for the Claude Code instruction/memory layer. Audits files YOU write that
 shape Claude's behavior, not the entire context window (MCP tools, agents, and skills are covered by
-the `audit` and `automation-gaps` skills in the `claude-config` plugin).
+the `audit` and `audit-automation-gaps` skills in the `claude-config` plugin).
 
 ## Scope
 
@@ -35,7 +35,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Nested `AGENTS.md` | `**/AGENTS.md` below the root | On a Read in that directory, unless a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on its path is read instead; then only through one that imports or symlinks it | Reachability only (N1); content is not audited |
-| Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
+| Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `audit-automation-gaps` |
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
 from a single scope: [`${CLAUDE_PLUGIN_ROOT}/skills/stateless/context/status.md`](../stateless/context/status.md),
@@ -164,7 +164,8 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 
 ## Complementary workflows
 
-If the `claude-md-management` plugin is installed, its `claude-md-improver` skill audits CLAUDE.md
-structure and content quality, complementary to this health check. Run this audit FIRST to identify
-issues. `revise-claude-md` captures session learnings after a fix pass. Absent that plugin, the
+If the `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace is
+installed, its `claude-md-improver` skill audits CLAUDE.md structure and content quality,
+complementary to this health check. Run this audit first to identify issues. Its
+`revise-claude-md` command captures session learnings after a fix pass. Absent that plugin, the
 fix mode here stands on its own.
