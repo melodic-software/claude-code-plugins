@@ -16,8 +16,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
     which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
     blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
-    Before, the dispatcher ran all nine guards after that block, and the four with no ceiling each tokenized
-    the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
+    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
+    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
+    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
     `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
     shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
   - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is

@@ -81,8 +81,8 @@
 #     characters ends the chain at the first guard that blocks, and the
 #     remaining guards do not run. <n> is the MAX_COMMAND_LEN ceiling the row's
 #     guards share (run-guards.test.sh holds the two equal), above which they
-#     refuse a command unread. The guards that carry no ceiling would each
-#     tokenize the whole command only to add a reason to a block already
+#     refuse a command unread. A guard with no ceiling that tokenizes would
+#     parse the whole command only to add a reason to a block already
 #     decided, and a row that runs past its hooks.json `timeout` is cancelled
 #     with its block discarded: Claude Code lets a timed-out PreToolUse command
 #     hook's tool call proceed (https://code.claude.com/docs/en/hooks,
