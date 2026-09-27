@@ -135,9 +135,14 @@ to_native_path() {
 # %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
 # let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
 display_value() {
+  # LC_ALL=C keeps %q and byte-wise path handling stable (bash(1) / POSIX C
+  # locale: bytes, not multibyte characters). Reject control bytes with
+  # [[:cntrl:]] instead of requiring [[:print:]]: under C locale, every byte
+  # above 0x7F fails [[:print:]], so UTF-8 punctuation (e.g. em dash) was
+  # %q-escaped as $'\342\200\224' (issue #4208).
   local value="$1" escaped
   local LC_ALL=C
-  if [[ "$value" =~ ^[[:print:]]*$ ]]; then
+  if [[ "$value" != *[[:cntrl:]]* ]]; then
     to_native_path "$value"
   else
     printf -v escaped '%q' "$value"
