@@ -118,6 +118,7 @@ plugins/ai-slop/skills/*/SKILL.md
 plugins/ai-slop/skills/audit/context/*.md
 plugins/ai-slop/skills/audit/reference/*.md
 plugins/architecture/README.md
+plugins/attribution/README.md
 # The autonomy plugin was purged whole. Its two setup fixture trees hold
 # markdown a script parses as input, so they are declared by directory rather
 # than by one recursive glob.

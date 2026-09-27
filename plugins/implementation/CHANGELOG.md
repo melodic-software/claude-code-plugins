@@ -3,6 +3,25 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0] - 2026-09-27
+
+### Changed
+
+- **`implement-dispatch`: a resident phase boundary runs a reduced ritual.** When the orchestrator
+  stays in the window and dispatches the next phase, the boundary runs the acceptance verdict,
+  plan marks, a `DEVIATIONS.md` entry, and mark-then-commit. The handoff entry, status summary,
+  and resume prompt now run only when the orchestrator clears, a model or domain switch is
+  pending, or the run ends: a resident orchestrator was their only reader, and it already held
+  their content.
+- **`implement-dispatch`: each worker-brief rule is stated once.** The brief step is a numbered
+  checklist. The worktree-anchoring, comment-hygiene, exec-bit ordering, and push-early rules
+  live only in Gotchas, and the checklist names them there instead of restating them in other
+  words.
+- **`phase-verifier`: its read-only contract names the concrete prohibition.** It never re-runs a
+  build, render, format, or lint script that writes files; it reads the committed output instead.
+  The README documents the `permissions.deny` Bash-rule recipe, the one instrument that narrows
+  its `Bash`, and that recipe's matching limits.
+
 ## [0.18.1] - 2026-09-27
 
 ### Fixed
