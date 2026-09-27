@@ -751,7 +751,7 @@ class TestImportLedger(SessionCase):
         self.apply({"op": "wait", "id": "Q1", "clear": True}, d=fresh)
         self.assertEqual(
             register_rows(self.export("ledger", d=fresh)),
-            ["- Q1 | open | round 1 | Question Q1? | confirmed: One writer only"],
+            ["- Q1 | open | round 1 | Question Q1? | confirmed:: One writer only"],
         )
 
     def test_a_legacy_held_row_is_read_without_unescaping(self):
@@ -795,15 +795,71 @@ class TestImportLedger(SessionCase):
         self.assertEqual(q["commits"], [""])
 
     def test_a_confirmed_row_with_a_leading_separator_still_imports(self):
-        row = "- Q1 | open | round 1 | Where? | ; confirmed: One"
+        rows = [
+            "- Q1 | open | round 1 | Where? | ; confirmed: One",
+            "- Q2 | open | round 1 | Who? | confirmed: A; C",
+        ]
         ledger = self.tmp / "seed-ledger.md"
         ledger.write_text(
-            "# Interview ledger\n\n## Open-question register\n\n" + row + "\n",
+            "# Interview ledger\n\n## Open-question register\n\n"
+            + "\n".join(rows)
+            + "\n",
             encoding="utf-8",
         )
         rc, out = self.rp("import-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 0, out)
-        self.assertEqual(register_rows(self.export("ledger")), [row])
+        self.assertEqual(register_rows(self.export("ledger")), rows)
+        qs = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
+        self.assertEqual(
+            [exporters.commitments(q, []) for q in qs],
+            [(["One"], []), (["A", "C"], [])],
+        )
+
+    def test_an_open_row_round_trips_its_confirmed_commitments(self):
+        self.session([question("Q1", commits=["A; b", "C|d  e\\", "Unticked"])], [])
+        self.apply(
+            {
+                "op": "confirm-commitments",
+                "id": "Q1",
+                "indices": [0, 1],
+                "reason": "chat",
+            }
+        )
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(
+            rows,
+            ["- Q1 | open | round 1 | Question Q1? | confirmed:: A\\; b; C\\|d  e\\\\"],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        [q] = doc["questions"]
+        self.assertEqual(exporters.commitments(q, []), (["A; b", "C|d  e\\"], []))
+        self.assertNotIn("Q1", doc["meta"]["seededFrom"]["rows"])
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+    def test_an_escaped_confirmed_row_keeps_empty_commitments(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | One? | confirmed::\n"
+            "- Q2 | open | round 1 | Two? | confirmed:: A;\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        qs = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
+        self.assertEqual([q["commits"] for q in qs], [[""], ["A", ""]])
 
     def test_a_set_aside_answer_round_trips_as_context(self):
         self.session([question("Q1")], [])
@@ -929,6 +985,59 @@ class TestSupersededByPlan(SessionCase):
                     "questions"
                 ]
                 self.assertEqual(q["recommendation"], new)
+
+    def test_a_cleared_hold_keeps_the_escaped_proposal(self):
+        esc = exporters.esc_field
+        for i, new in enumerate(["nl\nx", "x; was: y", "a | b", " lead", "plain"]):
+            with self.subTest(new=new):
+                old = new + " old"
+                d, fresh = self.tmp / f"cleared-{i}", self.tmp / f"cleared-re-{i}"
+                d.mkdir()
+                fresh.mkdir()
+                ledger = self.tmp / f"cleared-{i}.md"
+                ledger.write_text(
+                    "# Interview ledger\n\n## Open-question register\n\n"
+                    f"- Q1 | superseded-by-plan | round 1 | Which? | plan proposes: {esc(new)}; "
+                    f"was: {esc(old)}; awaiting user:: bench\n",
+                    encoding="utf-8",
+                )
+                rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=d)
+                self.assertEqual(rc, 0, out)
+                ops = self.tmp / f"clear-{i}.json"
+                ops.write_text(
+                    json.dumps({"ops": [{"op": "wait", "id": "Q1", "clear": True}]}),
+                    encoding="utf-8",
+                )
+                rc, out = self.rp("apply", "--file", str(ops), d=d)
+                self.assertEqual(rc, 0, out)
+                first = self.export("ledger", d=d)
+                res = (
+                    f"plan proposes: {new}; was: {old}"
+                    if new == "plain"
+                    else f"plan proposes:: {esc(new)}; was: {esc(old)}"
+                )
+                rows = [f"- Q1 | superseded-by-plan | round 1 | Which? | {res}"]
+                self.assertEqual(register_rows(first), rows)
+                rc, out = self.check("--ledger", first)
+                self.assertIn("superseded=1", out)
+                rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+                self.assertEqual(rc, 0, out)
+                doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+                seed = doc["meta"]["seededFrom"]["rows"]["Q1"]
+                self.assertEqual(exporters.seed_proposal(seed), (new, old))
+                self.assertEqual(doc["questions"][0]["recommendation"], new)
+                self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+    def test_an_unreadable_escaped_proposal_is_refused(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | superseded-by-plan | round 1 | Which? | plan proposes:: x; y\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("refused", out)
 
     def test_ledger_leaves_it_unticked_and_the_gate_blocks(self):
         self.seed()
@@ -1368,9 +1477,10 @@ for _name, (_ops, _seed) in corpus_cases().items():
 
 
 class TestHeldRowProperty(SessionCase):
-    """Random held rows over every hold shape: export -> import -> export is identical, the
-    imported state equals the original before and after the hold is cleared, no row spans
-    lines, and check-open-questions.sh counts every row."""
+    """Random held rows over every hold shape, plus a never-held open row with confirmed
+    commitments and a superseded-by-plan row whose hold was cleared: export -> import -> export
+    is identical, the imported state equals the original before and after the hold is cleared,
+    no row spans lines, and check-open-questions.sh counts every row."""
 
     PIECES = [
         ";",
@@ -1485,6 +1595,42 @@ class TestHeldRowProperty(SessionCase):
                     q["setAsideAt"] = rnd.choice([self.EARLIER, self.LATER])
             expect["superseded" if superseded else "open"] += 1
             qs.append(q)
+        n = len(self.SHAPES)
+        for i in (n + 1, n + 2):
+            qid = f"Q{i}" if seed % 2 == 0 else f"H{i}"
+            q = {
+                "id": qid,
+                "short": f"Short {qid}",
+                "title": f"Question {qid}?",
+                "round": 1,
+                "recommendation": self.text(rnd, 1),
+                "commits": [],
+                "alternatives": [],
+                "history": [],
+            }
+            if i == n + 1:
+                q["commits"] = [f"{self.text(rnd)}; {self.text(rnd)}"]
+                q["commits"] += [self.text(rnd) for _ in range(rnd.randint(0, 2))]
+                picks = rnd.sample(
+                    range(len(q["commits"])), rnd.randint(1, len(q["commits"]))
+                )
+                q["commitsConfirmed"] = [
+                    {"index": k, "reason": "chat", "at": AT} for k in sorted(picks)
+                ]
+                expect["open"] += 1
+            else:
+                new, old, structured = self.proposal(rnd)
+                q["recommendation"] = new
+                q["alternatives"] = [{"key": "was", "text": old}]
+                rows[qid] = {
+                    "status": "superseded-by-plan",
+                    "round": 1,
+                    "resolution": f"plan proposes: {new}; was: {old}",
+                }
+                if structured:
+                    rows[qid]["proposal"] = [new, old]
+                expect["superseded"] += 1
+            qs.append(q)
         meta = {"title": "Held rows"}
         if rows:
             meta["seededFrom"] = {"at": AT, "rows": rows}
@@ -1506,11 +1652,11 @@ class TestHeldRowProperty(SessionCase):
         for line in text.split("\n"):
             self.assertLessEqual(len(line.splitlines()), 1, f"seed {seed}: {line!r}")
         rows = register_rows(first)
-        self.assertEqual(len(rows), len(self.SHAPES), f"seed {seed}")
+        self.assertEqual(len(rows), len(doc["questions"]), f"seed {seed}")
         rc, out = self.check("--ledger", first)
         self.assertEqual(rc, 1, f"seed {seed}: {out}")
         self.assertIn(
-            f"registered={len(self.SHAPES)} open={expect['open']} deferred=0 blocked=0 "
+            f"registered={len(rows)} open={expect['open']} deferred=0 blocked=0 "
             f"withdrawn=0 answered=0 superseded={expect['superseded']} ",
             out,
             f"seed {seed}",

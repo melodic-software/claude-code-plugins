@@ -33,10 +33,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `import-ledger`, which restores the hold, the answer (accept, alternative, own or defer), the
   set-aside decision (still set aside, so the page shows it as set aside), the note, the
   confirmed commitments and the proposal. The double colon marks an escaped row; an older
-  `waits on: ...` row is read as before, without unescaping. A superseded-by-plan row whose page
-  answer a cleared hold set aside keeps its `plan proposes: ...; was: ...` resolution. An open
-  row with only confirmed commitments reads `confirmed: <c1>; <c2>`; an older `; confirmed: ...`
-  row still imports.
+  `waits on: ...` row is read as before, without unescaping. A superseded-by-plan row whose hold
+  was cleared, or whose page answer a cleared hold set aside, keeps its proposal: it reads
+  `plan proposes: <new>; was: <old>` when that reads back the same pair, else the escaped
+  `plan proposes:: <new>; was: <old>`. An open row with only confirmed commitments reads
+  `confirmed:: <c1>; <c2>`, escaped, and `import-ledger` restores them as confirmed
+  commitments; an older `confirmed: ...` or `; confirmed: ...` row still imports, split at each
+  semicolon and space without unescaping.
 - **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
   page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
