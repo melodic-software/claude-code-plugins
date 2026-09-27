@@ -3,11 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.61.3] - 2026-09-27
+## [0.61.4] - 2026-09-27
 
 ### Changed
 
 - hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.61.3] - 2026-09-27
+
+### Fixed
+
+- The PR-body linkage gates (`pr-body-linkage-gate.sh`, `pr-linkage-mcp-gate.sh`) agree with the `pr-contract` step again (melodic-software/ci-workflows#544). A `Refs: #N` or `Relates to: #N` line of its own (optional `owner/repo`, up to three spaces of indent) counts as linkage, so a PR that references an issue it must not close is no longer told to add a closing keyword. A closing keyword with a disclaimer among the five words before it (`not`, `never`, `no`, `without`, `deliberately`, `intentionally`, or an `n't` contraction, after the last `.!?;,`) is blocked as a negated closing reference, even beside valid linkage, because GitHub's parser still closes the issue on merge. The closing keyword is matched one line at a time, as CI does. The block messages use CI's wording and the remedy names the `Refs:` marker.
+- A body line starting with a lowercase `t` is no longer masked as indented code, and a tab-indented line now is. The validator's regex spelled the tab as `\t`, which a bash regex reads as a literal `t`, so a line such as "this PR closes #5", or a `## Fix` section whose text began with "t", was dropped from the scan.
 
 ## [0.61.2] - 2026-09-27
 
