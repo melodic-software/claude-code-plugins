@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.30] - 2026-09-27
+
+### Changed
+
+- The `work_dispatch_concurrency_cap` description, the README, and `work` name what the cap bounds:
+  the worker rows of one plan phase that `/implementation:implement-dispatch` runs at once, one
+  dispatch wave, in place of "concurrent dispatch waves". Rows that share a worktree under the
+  default `worker` commit authority still run one at a time, per implementation 0.18.2 (#4262).
+
 ## [0.40.29] - 2026-09-27
 
 ### Fixed
