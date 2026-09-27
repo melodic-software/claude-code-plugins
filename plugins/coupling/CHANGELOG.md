@@ -9,14 +9,17 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 
 - `reduce change <old> <new>`: when one value changes, find every site that states it and
   classify each as setup, record, contract, fixture, generated, protected (CI, agent settings,
-  hooks, lint configs, migrations), or unknown (a file kind the script does not recognize).
+  hooks, lint configs, lock files, migrations), or unknown (a file kind the script does not
+  recognize). `value-sites.py rules` prints every enforced pattern, and change-mode.md lists the
+  same patterns under a suite check that fails when the two differ.
   Read-only; it reports the sites and proposes a reference form for each setup site.
 - `reduce change apply <old> <new>`: after the human confirms the site list, change the setup sites,
   convert them to a reference form, and write contract corrections to a proposal file beside the
   ledger. A confirmed site set is not capped by the per-run budget.
 - `skills/reduce/scripts/value-sites.py`: the deterministic inventory (every separator, escape,
   drive, and case spelling of the value, token boundaries, longest form first, path-based classes
-  with a default-deny for unknown file kinds, a content anchor per row, and a skip row for each
+  with a default-deny for unknown file kinds, a content anchor per row covering the line and its two
+  neighbours, control bytes escaped in the row text, and a skip row for each
   binary, UTF-16, UTF-32, or outside-root file) and a byte-level `apply` that takes
   `path:line:col:anchor` sites and replaces only the match at that column. It refuses a site whose
   line changed since `find`, record, contract, generated, protected, and unknown sites, fixture

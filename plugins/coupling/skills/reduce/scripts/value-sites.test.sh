@@ -58,8 +58,9 @@ row_count() { if [[ -z "$1" ]]; then echo 0; else printf '%s\n' "$1" | wc -l | t
 # site_rows OUT: find output without its skip rows; site_count counts them.
 site_rows() { printf '%s\n' "$1" | grep -v $'^skip\t' || true; }
 site_count() { row_count "$(site_rows "$1")"; }
-# anchor TEXT: the content anchor value-sites.py gives a line with this text.
-anchor() { printf '%s' "$1" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
+# anchor TEXT [PREV] [NEXT]: the anchor value-sites.py gives a line with this
+# text between these neighbours (empty for a first or last line).
+anchor() { printf '%s\n%s\n%s' "${2:-}" "$1" "${3:-}" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])'; }
 # sites OUT PATH:LINE...: the apply SITE of every find row on each listed line.
 sites() {
   local out="$1" pl
@@ -240,7 +241,7 @@ ROOT=$(host_path "$FX")
 OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT")
 assert_contains "BOM does not shift the column" "$OUT" $'win.txt\t1\t6\texact'
 assert_not_contains "row text carries no CR" "$OUT" $'\r'
-assert_contains "F1: the anchor hashes the line without BOM or CR" "$OUT" $'\t'"$(anchor 'root D:\data\cfg')"$'\t'
+assert_contains "F1: the anchor hashes the line without BOM or CR" "$OUT" $'\t'"$(anchor 'root D:\data\cfg' '' 'plain line')"$'\t'
 mapfile -t S < <(sites "$OUT" win.txt:1)
 rc=0
 vs apply --old 'D:\data\cfg' --new 'E:\data\cfg\current' --root "$ROOT" "${S[@]}" >/dev/null || rc=$?
@@ -359,8 +360,8 @@ put "$FX" docs/keep.md 'kept'
 put "$FX" A.md 'one Q:\vol\one' 'two Q:\vol\one'
 stage "$FX"
 ROOT=$(host_path "$FX")
-L1="1:5:$(anchor 'one Q:\vol\one')"
-L2="2:5:$(anchor 'two Q:\vol\one')"
+L1="1:5:$(anchor 'one Q:\vol\one' '' 'two Q:\vol\one')"
+L2="2:5:$(anchor 'two Q:\vol\one' 'one Q:\vol\one')"
 rc=0
 OUT=$(vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "dup.md:$L1" "docs/../dup.md:$L2") || rc=$?
 assert_exit "apply with two spellings of one file exits 0" 0 "$rc"
@@ -459,7 +460,7 @@ assert_exit "F1: same column, different line text: the anchor refuses" 3 "$rc"
 assert_contains "F1: the refusal names the anchor" "$ERR" "anchor"
 assert_eq "F1: the same-column swap writes nothing" $'old: D:/data (keep)\nnew: D:/data' "$(cat "$FX/same.md")"
 rc=0
-ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "same.md:2:3:$(anchor 'new: D:/data')" 2>&1 >/dev/null) || rc=$?
+ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "same.md:2:3:$(anchor 'new: D:/data' 'old: D:/data (keep)')" 2>&1 >/dev/null) || rc=$?
 assert_exit "F1: the right anchor at a column with no match is refused" 3 "$rc"
 assert_contains "F1: the column refusal names the column" "$ERR" "col 3"
 
@@ -615,6 +616,108 @@ rc=0
 vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "$(sites "$OUT" run.sh:1)" >/dev/null || rc=$?
 assert_exit "F5: apply on an executable script exits 0" 0 "$rc"
 assert_not_contains "F5: the atomic write keeps the file mode" "$(git -C "$FX" diff --summary)" "mode change"
+
+# --- G1: tool default names, other forges, lock files, and records -------------------
+FX=$(new_fixture classes3)
+PROT3=(.appveyor.yml lefthook.yaml .lefthook.yml biome.jsonc .golangci.toml .golangci.json
+  stylelint.config.js lint-staged.config.js .mypy.ini .woodpecker.yaml .woodpecker/build.yml
+  .gitea/workflows/ci.yml .forgejo/workflows/ci.yml action.yml action.yaml
+  db/changelog/db.changelog-master.yaml drizzle/0000_init.sql
+  package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock Cargo.lock poetry.lock
+  composer.lock Gemfile.lock go.sum packages.lock.json gradle.lockfile)
+REC3=(.changeset/brave-cats.md docs/adrs/0001-x.md ADR-0002-y.md release-notes/v1.md incidents/2024-01.md)
+SETUP3=(sub/action.yml changelog/notes.md db/notes.md)
+for p in "${PROT3[@]}" "${REC3[@]}" "${SETUP3[@]}"; do put "$FX" "$p" 'v Q:\vol\one'; done
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(slashes "$(vs find --old 'Q:\vol\one' --root "$ROOT")")
+for p in "${PROT3[@]}"; do
+  assert_contains "G1: $p is protected" "$OUT" $'protected\t'"$p"$'\t'
+done
+for p in "${REC3[@]}"; do
+  assert_contains "G1: $p is a record" "$OUT" $'record\t'"$p"$'\t'
+done
+for p in "${SETUP3[@]}"; do
+  assert_contains "G1: $p stays setup" "$OUT" $'setup\t'"$p"$'\t'
+done
+assert_contains "G1: dotted AppVeyor name reason" "$OUT" $'\t.appveyor.yml\t1\t3\texact\tname:*appveyor.yml\t'
+assert_contains "G1: a root action is a root-name rule" "$OUT" $'\taction.yml\t1\t3\texact\troot-name:action.yml\t'
+assert_contains "G1: Liquibase changelog is a two-segment rule" "$OUT" $'\tsegments:db/changelog\t'
+assert_contains "G1: a lock file reason names its pattern" "$OUT" $'\tyarn.lock\t1\t3\texact\tname:*.lock\t'
+mapfile -t S < <(sites "$OUT" .appveyor.yml:1 package-lock.json:1 docs/adrs/0001-x.md:1 db/notes.md:1)
+rc=0
+vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
+assert_exit "G1: apply refuses the added protected and record kinds" 3 "$rc"
+assert_eq "G1: that refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/db/notes.md")"
+
+# --- G1: the documented rule table equals the enforced rules -------------------------
+DOC="$SCRIPT_DIR/../reference/change-mode.md"
+DOC_RULES=$(tr -d '\r' <"$DOC" | awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  /<!-- value-sites-rules:start -->/ { on = 1; next }
+  /<!-- value-sites-rules:end -->/ { on = 0 }
+  on && /^\|/ {
+    c = trim($2); k = trim($3)
+    if (c == "Class" || c ~ /^:?-+:?$/) next
+    n = split($4, parts, ",")
+    for (i = 1; i <= n; i++) { x = trim(parts[i]); gsub(/`/, "", x); print c "\t" k "\t" x }
+  }' | LC_ALL=C sort -u)
+rc=0
+RULES_RAW=$(vs rules) || rc=$?
+assert_exit "G1: rules exits 0" 0 "$rc"
+RULES_OUT=$(printf '%s\n' "$RULES_RAW" | tr -d '\r' | LC_ALL=C sort -u)
+assert_eq "G1: rules lists every class and kind in use" "" \
+  "$(printf '%s\n' "$RULES_RAW" | awk -F'\t' 'NF != 3 || $3 == "" || $2 !~ /^(marker|segment|segments|name|root-name|extension-allow)$/' || true)"
+if [[ -n "$RULES_OUT" && -n "$DOC_RULES" ]]; then
+  pass "G1: both rule sets are non-empty"
+else
+  fail "G1: both rule sets are non-empty" "rules: $(row_count "$RULES_OUT") rows, doc: $(row_count "$DOC_RULES") rows"
+fi
+UNDOC=$(LC_ALL=C comm -23 <(printf '%s\n' "$RULES_OUT") <(printf '%s\n' "$DOC_RULES"))
+UNENF=$(LC_ALL=C comm -13 <(printf '%s\n' "$RULES_OUT") <(printf '%s\n' "$DOC_RULES"))
+assert_eq "G1: every enforced rule is in change-mode.md (first missing shown)" "" "${UNDOC%%$'\n'*}"
+assert_eq "G1: every documented rule is enforced (first missing shown)" "" "${UNENF%%$'\n'*}"
+
+# --- G2: the anchor covers the line and its two neighbours ---------------------------
+FX=$(new_fixture moved)
+put "$FX" README.md 'p D:/data' '> historical, keep:' 'p D:/data'
+put "$FX" other.md 'o D:/data'
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+mapfile -t S < <(sites "$OUT" README.md:1 other.md:1)
+put "$FX" README.md 'p D:/data'
+rc=0
+ERR=$(vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[@]}" 2>&1 >/dev/null) || rc=$?
+assert_exit "G2: an identical line moved into the confirmed number refuses the run" 3 "$rc"
+assert_contains "G2: the refusal names the anchor" "$ERR" "anchor"
+assert_eq "G2: the moved line is unchanged" 'p D:/data' "$(cat "$FX/README.md")"
+assert_eq "G2: the other file in the run is unchanged" 'o D:/data' "$(cat "$FX/other.md")"
+
+FX=$(new_fixture eol)
+printf '%s\r\n' 'first' 'v D:/data' 'last' >"$FX/eol.md"
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+assert_contains "G2: the row anchor hashes prev, line, next without CR" "$OUT" \
+  $'\teol.md\t2\t3\texact\tdefault\t'"$(anchor 'v D:/data' 'first' 'last')"$'\t'
+mapfile -t S < <(sites "$OUT" eol.md:2)
+printf '%s\n' 'first' 'v D:/data' 'last' >"$FX/eol.md"
+rc=0
+vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[@]}" >/dev/null || rc=$?
+assert_exit "G2: a CRLF-to-LF conversion after find still applies" 0 "$rc"
+assert_eq "G2: the converted file gets the edit" $'first\nv E:/work\nlast' "$(cat "$FX/eol.md")"
+
+# --- G3: control bytes in the text column are escaped --------------------------------
+FX=$(new_fixture shown)
+printf 'a\rv D:/data \x1b[0m\x7f end\\x\tt\r\n' >"$FX/ctl.md"
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+assert_eq "G3: CR, ESC and DEL show as \\xNN, tab as \\t, a backslash as is" \
+  'a\x0dv D:/data \x1b[0m\x7f end\x\tt' "$(printf '%s\n' "$OUT" | awk -F'\t' '$2 == "ctl.md" { print $8 }')"
+assert_not_contains "G3: no raw CR in find output" "$OUT" $'\r'
+assert_not_contains "G3: no raw ESC in find output" "$OUT" $'\x1b'
 
 echo
 echo "value-sites.test.sh: $((CASE_NUM - FAILED)) passed, $FAILED failed, $SKIPPED skipped"
