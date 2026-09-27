@@ -22,12 +22,12 @@ trigger tag).
 | T9 | Concern registry: home and row shape | RESOLVED: `docs/conformance-dimensions.md` |
 | T10 | Verb-name check: gate or advisory | RESOLVED: CI gate with baseline |
 | T11 | Follow-up issue list | RESOLVED: #4582-#4586 filed; item 5 waits for the baseline run |
-| T12 | Remaining philosophy rule: dependency inventory classes | DIRECTIONAL |
-| T13 | Script shape: extend vs new, CI wiring | DIRECTIONAL |
-| T14 | Target scope, fan-out and findings persistence | DIRECTIONAL |
-| T15 | Judgment steps and the positions tier | DIRECTIONAL / DEFERRED |
-| T16 | Test-seam posture | DIRECTIONAL |
-| T17 | Sequencing against #4534 | DIRECTIONAL |
+| T12 | Remaining philosophy rule: dependency inventory classes | DIRECTIONAL, awaiting user agreement |
+| T13 | Script shape: extend vs new, CI wiring | DIRECTIONAL, awaiting user agreement |
+| T14 | Target scope, fan-out and findings persistence | DIRECTIONAL, awaiting user agreement |
+| T15 | Judgment steps and the positions tier | DIRECTIONAL, awaiting user agreement; positions tier DEFERRED |
+| T16 | Test-seam posture | DIRECTIONAL, awaiting user agreement |
+| T17 | Sequencing against #4534 | DIRECTIONAL, awaiting user agreement |
 
 ## Resolved (user decisions, 2026-09-24)
 
@@ -215,7 +215,7 @@ baseline run so the list is complete. Unblocks: nothing in this design; keeps T4
 was found before filing. Filed: 1 = #4582, 2 = #4583, 3 = #4584, 4 = #4585, 6 = #4586. Item 5 is filed
 by the build phase that produces the verb baseline.
 
-## Directional (recommended; details for `/planning:plan`)
+## Directional (recommended, not yet agreed by the user; details for `/planning:plan`)
 
 ### T12. Remaining philosophy rule: dependency inventory classes
 
