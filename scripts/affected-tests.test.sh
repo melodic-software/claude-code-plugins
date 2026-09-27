@@ -149,6 +149,16 @@ else
 fi
 unset big
 
+# --- no assertion in this file pipes output into an early-exit grep --------
+# The pin above covers the helpers; this keeps the piped shape from coming back
+# at any other site. Comment lines are skipped, so prose may still name it.
+piped_q="$(grep -nE '^[^#]*\|[[:space:]]*grep[^|]*-[a-zA-Z]*q' "$SELF_DIR/affected-tests.test.sh")"
+case $? in
+0) fail "non-comment lines pipe into grep -q, a SIGPIPE race under pipefail: $piped_q" ;;
+1) ok "no non-comment line in this suite pipes into grep -q" ;;
+*) fail "the piped grep -q guard could not read $SELF_DIR/affected-tests.test.sh" ;;
+esac
+
 # --- co-located mapping ----------------------------------------------------
 mk_repo repo
 run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh

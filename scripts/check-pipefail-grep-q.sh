@@ -25,6 +25,13 @@
 # (also inside double quotes), escapes, comments and heredoc bodies are masked,
 # `\`-newline continuations are joined, and what remains is searched for a
 # single `|` whose next command word is grep. Each finding names the grep's line.
+# Options are read with their quoting removed, so `grep "-q" x` counts as -q.
+#
+# Known gap: the lexer does not model `case`, so a pattern-ending `)` inside a
+# `$( )` closes that frame early. Inside double quotes the rest of the
+# substitution is then masked as quoted text, and a pipe there is missed:
+#   v="$(case $y in a) echo a;; esac | grep -q x)"
+# scripts/check-pipefail-grep-q.test.sh pins this as a known gap.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script
@@ -63,23 +70,7 @@ fi
 LEXER='
 # o[] is the masked view; si[] maps each masked char back to its source index.
 function emit(ch) { o[++k] = ch; ol[k] = line; si[k] = EP++ }
-function push(t, d) { ft[++sp] = t; fd[sp] = d; cd[sp] = 0; cw[sp] = 0 }
-# cmdpos(): whether the next word stands in command position, judged from what
-# was already emitted: an operator or newline before it, or a reserved word
-# that opens a command list. An argument word before it means it is data.
-function cmdpos(   j, w) {
-  j = k
-  while (j >= 1 && (o[j] == " " || o[j] == "\t")) j--
-  if (j < 1 || index(";&|()\n", o[j])) return 1
-  w = ""
-  while (j >= 1 && index(" \t\n;&|()", o[j]) == 0) { w = o[j] w; j-- }
-  return w ~ /^(then|do|else|elif|if|while|until|in|\{|!)$/
-}
-# keyword(p, kw): the word kw starts at p and ends at a delimiter.
-function keyword(p, kw,   n) {
-  n = length(kw)
-  return wordstart(p) && substr(S, p, n) == kw && (p + n > len || index(" \t\n;&|)", substr(S, p + n, 1)))
-}
+function push(t, d) { ft[++sp] = t; fd[sp] = d }
 function wordstart(p,   c) {
   if (p <= 1) return 1
   c = substr(S, p - 1, 1)
@@ -188,16 +179,9 @@ function lex(   i, c, t, nc, r) {
       if ((r = subst_open(i))) { i = r; continue }
       emit("$"); continue
     }
-    # Inside `case ... in ... esac`, a `)` at the depth the frame opened at ends a
-    # pattern, not the frame. cd counts open cases (keyword in command position),
-    # cw those still waiting for their `in`.
-    if (c == "c" && keyword(i, "case") && cmdpos()) { cd[sp]++; cw[sp]++ }
-    if (c == "i" && cw[sp] > 0 && keyword(i, "in")) cw[sp]--
-    if (c == "e" && cd[sp] > 0 && keyword(i, "esac") && cmdpos()) { cd[sp]--; if (cw[sp] > cd[sp]) cw[sp] = cd[sp] }
     if (c == "(") { fd[sp]++; emit(c); continue }
     if (c == ")") {
       emit(c)
-      if (cd[sp] > cw[sp] && fd[sp] == (sp > 1 && t == "C")) continue
       if (fd[sp] > 0) fd[sp]--
       if (sp > 1 && t == "C" && fd[sp] == 0) sp--
       continue
