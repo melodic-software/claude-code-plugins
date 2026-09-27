@@ -25,8 +25,10 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   over project over user), and, for `claude-code`, the binary search did not come back absent (a
   binary that was not searched labels with "binary not checked"). Otherwise the finding stays and
   its detail says which gate failed; a searched binary without the name reads "stale consent
-  receipt, recheck". The file is read only when an undocumented top-level key exists; a missing or
-  invalid one is then one `not-inspectable` row, and every key keeps its `undocumented-key` finding
+  receipt, recheck", and that stale `claude-code` verdict withholds every other owner's label for
+  the key. The file is read only when an undocumented top-level key exists; a missing or invalid one
+  (including one that lists a key under two owners) is then one `not-inspectable` row, and every
+  key keeps its `undocumented-key` finding
 
 ## Category B: Permissions
 

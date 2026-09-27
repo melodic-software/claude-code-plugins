@@ -857,8 +857,9 @@ check_keys() {
 # Consent receipts: reference/consent-receipts.json records, per owner (a
 # plugin@marketplace id, or `claude-code` for keys the CLI writes), the
 # undocumented top-level keys written when the user accepts a prompt. Read only
-# when an undocumented top-level key exists; a missing or invalid file is one
-# not-inspectable row and every key keeps its undocumented-key finding.
+# when an undocumented top-level key exists; a missing or invalid file (one that
+# lists a key under two owners is invalid) is one not-inspectable row and every
+# key keeps its undocumented-key finding.
 CR_STATE=unread CR_WHY=""
 CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
 cr_load() {
@@ -886,9 +887,12 @@ cr_load() {
         and all(("key", "meaning", "basis", "as_of", "recheck") as $f | .[$f]; plain)
         and (.scopes | type) == "array" and (.scopes | length) > 0
         and all(.scopes[]; . == "user" or . == "project" or . == "local");
+      # A key listed under two owners has no single owner, so the file is invalid.
       def valid: type == "object" and (.consentReceipt | type) == "object"
         and all(.consentReceipt | to_entries[]; (.key | plain) and (.key == "claude-code" or (.key | test("^[^@]+@[^@]+$")))
-          and (.value | type) == "array" and all(.value[]; rec));
+          and (.value | type) == "array" and all(.value[]; rec))
+        and ([.consentReceipt | to_entries[] | .key as $o | .value[] | {k: .key, $o}]
+          | group_by(.k) | all(map(.o) | unique | length == 1));
       # nkeys($s; $k): how many keys of scope $s read as $k once carriage
       # returns are removed, the way check_keys reads them.
       def nkeys($s; $k): [$s | obj | keys[] | select(gsub("\r"; "") == $k)] | length;
@@ -930,6 +934,16 @@ cr_match() {
   *) return 1 ;;
   esac
   has="${BIN_HAS[$leaf]:-}"
+  # A stale claude-code record is terminal for the key: no other owner labels a
+  # key the CLI record says the installed binary no longer carries.
+  if [[ "$BIN_SEARCH" == "searched" && "$has" == "no" ]]; then
+    for j in "${!CR_KEY[@]}"; do
+      [[ "${CR_KEY[$j]}" == "$k" && "${CR_OWNER[$j]}" == "claude-code" && ",${CR_AMB[$j]}," != *",$scope,"* &&
+        ",${CR_IN[$j]}," == *",$scope,"* && ",${CR_SCOPES[$j]}," == *",$scope,"* ]] || continue
+      CR_WHY="stale consent receipt, recheck: the claude-code record names $k but the installed claude binary does not carry it"
+      return 1
+    done
+  fi
   for j in "${!CR_KEY[@]}"; do
     # The file must hold the record's key exactly and no carriage-return
     # variant of it, compared in jq: a key read through check_keys has lost
@@ -944,9 +958,7 @@ cr_match() {
     if [[ ",${CR_SCOPES[$j]}," != *",$scope,"* ]]; then
       why="the $owner record declares scope ${CR_SCOPES[$j]//,/, }, not $scope"
     elif [[ "$owner" == "claude-code" ]]; then
-      if [[ "$BIN_SEARCH" == "searched" && "$has" == "no" ]]; then
-        why="stale consent receipt, recheck: the claude-code record names $k but the installed claude binary does not carry it"
-      elif [[ "$BIN_SEARCH" == "searched" && "$has" == "yes" ]]; then
+      if [[ "$BIN_SEARCH" == "searched" && "$has" == "yes" ]]; then
         note="the installed claude binary carries the name"
       else
         note="binary not checked"

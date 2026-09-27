@@ -1062,6 +1062,44 @@ for cc in '\u0000' '\n'; do
   out=$(CLI_BIN="$m/claude" SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-cc.json" run "$m" --json 2>&1) || true
   assert_eq "case 46: a control character ($cc) in a record is not-inspectable, no label" "1 0" "$(jq -r '"\([.rows[] | select(.claim=="consent-receipts-unread")] | length) \([.rows[] | select(.claim | startswith("consent-receipt:"))] | length)"' <<<"$out")"
 done
+# A key listed under two owners makes the record file invalid. With own@mkt
+# enabled and the binary lacking the name, own@mkt alone labels the key, so the
+# duplicate is what withholds the label.
+rec='{"key":"skipWorkflowUsageWarning","scopes":["user"],"meaning":"accepted","basis":"fixture","as_of":"2026-09-26","recheck":"never"}'
+printf '%s\n' "{\"consentReceipt\":{\"own@mkt\":[$rec]}}" >"$m/receipts-own.json"
+printf '%s\n' "{\"consentReceipt\":{\"claude-code\":[$rec],\"own@mkt\":[$rec]}}" >"$m/receipts-dup.json"
+out=$(CLI_BIN="$m/claude-lacks" SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-own.json" run "$m" --json 2>&1) || true
+assert_contains "case 46: an enabled owner alone labels the key" "$(jq -r "$cr | .detail" <<<"$out")" "owned by own@mkt"
+out=$(CLI_BIN="$m/claude-lacks" SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-dup.json" run "$m" --json 2>&1) || true
+assert_eq "case 46: a key under two owners is not-inspectable, no label" "1 0" "$(jq -r '"\([.rows[] | select(.claim=="consent-receipts-unread")] | length) \([.rows[] | select(.claim | startswith("consent-receipt:"))] | length)"' <<<"$out")"
+assert_eq "case 46: and the key stays an undocumented-key finding" "1" "$(jq "[$stale] | length" <<<"$out")"
+
+# --- Case 47: a stale claude-code record is terminal for its key -----------------
+# A valid record file cannot list the key under claude-code and a second owner
+# (case 46 proves that file is not-inspectable), so this guard is reached only
+# through cr_match itself: it runs here past the file check, in both owner orders.
+eval "$(sed -n '/^cr_match() {/,/^}/p' "$SCRIPT")"
+# shellcheck disable=SC2034  # read by the cr_match the eval above defined
+{
+  SURF_USER="user:settings.json" SURF_SETTINGS=".claude/settings.json" SURF_LOCAL=".claude/settings.local.json"
+  CR_STATE=ok BIN_SEARCH=searched CR_WHY=""
+  declare -A BIN_HAS=([skipWorkflowUsageWarning]=no)
+}
+# shellcheck disable=SC2329  # called by the cr_match the eval above defined
+row() { SEEN+=("$(printf '%s|' "$@")"); }
+for order in "claude-code own@mkt" "own@mkt claude-code"; do
+  CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
+  for o in $order; do
+    on=yes
+    [[ "$o" == claude-code ]] && on=-
+    CR_KEY+=(skipWorkflowUsageWarning) CR_OWNER+=("$o") CR_SCOPES+=(user) CR_MEANING+=(accepted) CR_ON+=("$on") CR_IN+=(user) CR_AMB+=("")
+  done
+  SEEN=() rc=0
+  cr_match "user:settings.json" skipWorkflowUsageWarning skipWorkflowUsageWarning || rc=$?
+  assert_eq "case 47: ($order) a stale claude-code record withholds every label" "1 0" "$rc ${#SEEN[@]}"
+  assert_contains "case 47: ($order) and names the stale receipt" "$CR_WHY" "stale consent receipt, recheck"
+done
+unset -f row cr_match
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
