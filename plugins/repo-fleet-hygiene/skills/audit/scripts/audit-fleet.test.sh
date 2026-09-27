@@ -1098,8 +1098,12 @@ assert_display_value() {
 }
 assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
   $'invalid --canonical value: em\xe2\x80\x94dash'
+# spellchecker:off
+# café (U+00E9) and U+1F600 stay $'...' byte escapes so the fixture stays ASCII.
+# typos splits on the backslash and would read the ASCII prefix as "calf".
 assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
   $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
+# spellchecker:on
 assert_display_value "C0 ESC stays escaped" $'esc\x1b[31m' \
   "\$'invalid --canonical value: esc\\E[31m'"
 assert_display_value "C1 CSI U+009B is escaped" $'csi\xc2\x9b31m' \
