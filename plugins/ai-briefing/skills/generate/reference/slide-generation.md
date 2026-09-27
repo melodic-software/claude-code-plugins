@@ -144,7 +144,7 @@ Eyebrow text is small uppercase periwinkle. The presenter sees the tier, and aud
 
 ### URL rendering rule
 
-**EVERY bullet renders ALL its source URLs.** Never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
+Every bullet renders all its source URLs. Never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
 
 `validate.js` enforces this at gate time. Every URL in `slides-data.js` `bullets[].urls[]` must appear in DOM as `.news-url` anchor.
 
@@ -207,7 +207,7 @@ Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-
 
 ### HTML fallback
 
-Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box. Reproduce those from `build-html.js`.
+Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with a slide-layout skill for slide layout patterns when one is installed. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box. Reproduce those from `build-html.js`.
 
 ### PDF fallback paths
 

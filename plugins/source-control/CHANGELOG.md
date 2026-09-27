@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.2] - 2026-09-27
+
+### Changed
+
+- `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+- `babysit-prs`'s loop reference points at the subagent dispatch for ≥3-finding comments without the "MANDATORY" marker; the rule in `review-discipline.md` §2 is unchanged (#4120).
+
+## [0.61.1] - 2026-09-27
+
+### Fixed
+
+- `worktree`: the nesting-invariant stamp is marked **expired, pending re-probe**. Its 2.1.244 version arm has passed (2.1.278 and 2.1.280 seen), and the 2026-09-27 re-probe could not run because that CLI was unauthenticated. `nesting-invariant-ssot.test.sh` now compares the installed `claude --version` (or `NESTING_INVARIANT_INSTALLED_VERSION`) against the version arm and fails when the arm has passed and the owner is not marked expired; the date arm is held to the same rule.
+- `worktree`: the isolation paragraph quotes the worktrees page's current four checks, including the command-shape check that refuses a compound git command, re-fetched 2026-09-27.
+- `worktree` create: the "raw text, not shell-escaped" reading of `${user_config.worktree_root}` is labeled as this plugin's reading and cited to the two plugins-reference spans it rests on, instead of being attributed to the page.
+
 ## [0.61.0] - 2026-09-27
 
 ### Added

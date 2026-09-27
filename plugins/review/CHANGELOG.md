@@ -3,6 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.8] - 2026-09-27
+
+### Changed
+
+- `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
+
+## [0.30.7] - 2026-09-27
+
+### Changed
+
+- `audit-enforceability`'s crosswalk maps the renamed producer: the rule-id rows and the family
+  row use `attribution/audit/` in place of `provenance/audit/`, and the owner column and
+  verification record name the `attribution:audit` detector, matching the ids the renamed plugin
+  now emits.
+
 ## [0.30.6] - 2026-09-27
 
 ### Fixed
