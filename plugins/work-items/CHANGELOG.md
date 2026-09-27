@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.28] - 2026-09-26
+
+### Changed
+
+- `work`'s fix worker turns auto-merge off (`gh pr merge <N> --disable-auto`) immediately before and
+  again right after a fix or rebase pushes to an open PR that has it armed, so the new head cannot
+  merge before the AI reviews re-run. It never re-arms; that stays with the merge lane.
+
 ## [0.40.27] - 2026-09-26
 
 ### Changed
