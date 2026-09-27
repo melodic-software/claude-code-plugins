@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.17] - 2026-09-27
+
+### Changed
+
+- `simulation`'s agentic-simulation reference states five rules in normal register: corrective instructions in every agent prompt, the Behavioral Rules heading, the beneficiary persona coming first, the sticky-note content rules heading, and the no-emoji rule. Every rule is unchanged (#4120).
+
 ## [0.6.16] - 2026-09-25
 
 ### Changed
