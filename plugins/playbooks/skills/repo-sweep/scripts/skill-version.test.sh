@@ -38,22 +38,46 @@ jq -n --arg main "$main" '{version: 2, plugins: {
   "delta@mkt": [{scope: "project", projectPath: "/elsewhere", version: "3.0.0"}]
 }}' >"$installed"
 
+mkdir -p "$TMP/bin" "$TMP/cfg"
+cat >"$TMP/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CLAUDE_LOG"
+[[ $* == --version ]] && printf '%s\n' "$CLAUDE_OUT"
+EOF
+chmod +x "$TMP/bin/claude"
+
 run_in() { # <dir> <args...>
   local dir=$1
   shift
-  (cd "$dir" && REPO_SWEEP_INSTALLED_PLUGINS="$installed" GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" "$@")
+  (cd "$dir" && PATH="$TMP/bin:$PATH" CLAUDE_LOG="$TMP/claude.log" CLAUDE_OUT="${CLAUDE_OUT-2.1.283 (Claude Code)}" \
+    CLAUDE_CONFIG_DIR="$TMP/cfg" REPO_SWEEP_INSTALLED_PLUGINS="$installed" GIT_CEILING_DIRECTORIES="$TMP" \
+    bash "$SCRIPT" "$@")
 }
 
 assert_eq "main checkout: its project-scope install wins" "alpha:x@0.9.0" "$(run_in "$repo" alpha:x)"
 assert_eq "linked worktree resolves to the main checkout's install" "alpha:x@0.9.0" "$(run_in "$TMP/wt" alpha:x)"
 assert_eq "outside a repo: user scope" "alpha:x@1.0.0" "$(run_in "$nonrepo" alpha:x)"
 assert_eq "SHA-style version kept verbatim" "beta:y@ca08d5e47d64" "$(run_in "$repo" beta:y)"
-assert_eq "no plugin prefix: builtin" "claude-api@builtin" "$(run_in "$repo" claude-api)"
+assert_eq "no plugin prefix: bundled, stamped with the Claude Code version" "claude-api@builtin-2.1.283" \
+  "$(run_in "$repo" claude-api)"
+assert_eq "no plugin prefix, claude prints no version: unknown" "claude-api@unknown" \
+  "$(CLAUDE_OUT="" run_in "$repo" claude-api)"
 assert_eq "not installed: unknown" "gamma:z@unknown" "$(run_in "$repo" gamma:z)"
 assert_eq "installed only for another project: unknown" "delta:z@unknown" "$(run_in "$repo" delta:z)"
+: >"$TMP/claude.log"
 assert_eq "one line per argument, in order" "beta:y@ca08d5e47d64
-claude-api@builtin
-alpha:x@0.9.0" "$(run_in "$repo" beta:y claude-api alpha:x)"
+claude-api@builtin-2.1.283
+alpha:x@0.9.0
+loop@builtin-2.1.283" "$(run_in "$repo" beta:y claude-api alpha:x loop)"
+assert_eq "claude --version runs once per call" "--version" "$(cat "$TMP/claude.log")"
+
+mkdir -p "$repo/.claude/skills/claude-api" "$repo/.claude/skills/loop" "$TMP/cfg/skills/loop"
+touch "$repo/.claude/skills/claude-api/SKILL.md" "$repo/.claude/skills/loop/SKILL.md" "$TMP/cfg/skills/loop/SKILL.md"
+mkdir -p "$repo/.claude/skills/debug"
+assert_eq "project skill replaces the bundled one: project" "claude-api@project" "$(run_in "$repo" claude-api)"
+assert_eq "personal beats project: personal" "loop@personal" "$(run_in "$repo" loop)"
+assert_eq "skill dir without SKILL.md: still bundled" "debug@builtin-2.1.283" "$(run_in "$repo" debug)"
+assert_eq "another checkout's project skill does not count" "claude-api@builtin-2.1.283" "$(run_in "$TMP/wt" claude-api)"
 assert_eq "missing installed_plugins.json: unknown" "alpha:x@unknown" \
   "$(cd "$repo" && REPO_SWEEP_INSTALLED_PLUGINS="$TMP/absent.json" bash "$SCRIPT" alpha:x)"
 
