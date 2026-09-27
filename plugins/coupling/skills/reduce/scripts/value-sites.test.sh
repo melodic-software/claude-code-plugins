@@ -340,7 +340,9 @@ assert_eq "scope ./ finds every site" "2" "$(row_count "$(vs find --old 'Q:\vol\
 FX=$(new_fixture protected)
 put "$FX" .github/workflows/ci.yml 'pin: Q:\vol\one'
 put "$FX" .claude/settings.json '{"dir": "Q:\\vol\\one"}'
-put "$FX" hooks/pre.sh 'v Q:\vol\one'
+put "$FX" .githooks/pre.sh 'v Q:\vol\one'
+put "$FX" plugins/x/hooks/hooks.json '{"dir": "Q:\\vol\\one"}'
+put "$FX" src/hooks/useConfig.ts 'const DIR = "Q:\vol\one"'
 put "$FX" ruff.toml 'v = "Q:\vol\one"'
 put "$FX" .pre-commit-config.yaml 'v: Q:\vol\one'
 put "$FX" db/migrations/001.sql '-- Q:\vol\one'
@@ -350,12 +352,14 @@ ROOT=$(host_path "$FX")
 OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
 assert_contains "workflow is protected" "$OUT" $'protected\t.github/workflows/ci.yml\t1\t6\texact\tsegment:.github'
 assert_contains "agent settings are protected" "$OUT" $'protected\t.claude/settings.json'
-assert_contains "hook script is protected" "$OUT" $'protected\thooks/pre.sh\t1\t3\texact\tsegment:hooks'
+assert_contains "git hook script is protected" "$OUT" $'protected\t.githooks/pre.sh\t1\t3\texact\tsegment:.githooks'
+assert_contains "hook manifest is protected" "$OUT" $'protected\tplugins/x/hooks/hooks.json\t1\t10\tdoubled\tname:hooks.json'
+assert_contains "an app's own hooks/ folder stays setup" "$OUT" $'setup\tsrc/hooks/useConfig.ts\t1\t14\texact\tdefault'
 assert_contains "lint config is protected" "$OUT" $'protected\truff.toml\t1\t6\texact\tname:ruff.toml'
 assert_contains "pre-commit config is protected" "$OUT" $'protected\t.pre-commit-config.yaml'
 assert_contains "migration is protected" "$OUT" $'protected\tdb/migrations/001.sql\t1\t4\texact\tsegment:migrations'
 assert_contains "README stays setup" "$OUT" $'setup\tREADME.md'
-assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t6'
+assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t7'
 rc=0
 vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 .github/workflows/ci.yml:1 >/dev/null 2>&1 || rc=$?
 assert_exit "apply refuses a protected site" 3 "$rc"

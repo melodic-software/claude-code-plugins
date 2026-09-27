@@ -80,10 +80,10 @@ PROTECTED_SEGMENTS = (
     ".claude",
     ".husky",
     ".githooks",
-    "hooks",
     "migrations",
 )
 PROTECTED_NAMES = (
+    "hooks.json",
     "ruff.toml",
     ".ruff.toml",
     "_typos.toml",
