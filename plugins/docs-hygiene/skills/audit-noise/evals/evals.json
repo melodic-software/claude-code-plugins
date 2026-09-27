@@ -185,7 +185,7 @@
         "The bare date line '2026-08-10' is NOT flagged: an origin verb is required",
         "The why-sentence 'Must stay ordered because the parser reads the first match' is NOT flagged",
         "'The data was copied from the upstream table before the join runs' is NOT flagged: the cue has to open a clause, and here it does not",
-        "'Adapted from [the upstream guide](https://example.com/guide)' is NOT flagged: a pointer is the artifact /provenance:audit asks for, and a line carrying a link or a bare URL stands the origin cues down",
+        "'Adapted from [the upstream guide](https://example.com/guide)' is NOT flagged: a pointer is the artifact /attribution:audit asks for, and a line carrying a link or a bare URL stands the origin cues down",
         "The copies under `## Sources` and `## History` are NOT flagged: both are exempt sections, and relocating there is the treatment"
       ]
     }

@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.2] - 2026-09-27
+
+### Changed
+
+- `repo-sweep`'s hygiene catalog runs `attribution:audit` in its `provenance` entry, since the
+  provenance plugin is now `attribution`. The entry id stays `provenance` so existing sweep
+  checklists still match it.
+
 ## [0.13.1] - 2026-09-27
 
 ### Changed
