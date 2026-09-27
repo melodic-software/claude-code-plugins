@@ -136,8 +136,10 @@ fi
 # become systems.
 #
 # The origin's path on github.com, `owner/repo...`, when the remote's host IS
-# github.com. The host is the authority with the scheme, user info and port
-# removed, compared case-insensitively, with `www.` allowed. So
+# github.com. The host is the authority with the scheme and user info removed,
+# compared case-insensitively, with `www.` allowed. With a scheme, a port of
+# digits (possibly empty, as RFC 3986 allows) is removed; any other `:` after
+# the host is not a port and the URL names no github.com path. So
 # `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a
 # `/github.com/` path on another server, a `file://` path and a relative path
 # all fail. A URL without a scheme counts only in the scp form `host:path`.
@@ -151,7 +153,8 @@ github_remote_path() {
   host="${url%%[:/]*}"
   rest="${url#"$host"}"
   if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]+/ ]] && rest="${rest#:*/}"
+    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
+    [[ "$rest" == :* ]] && return 1
     rest="${rest#/}"
   else
     [[ "$rest" == :* ]] || return 1

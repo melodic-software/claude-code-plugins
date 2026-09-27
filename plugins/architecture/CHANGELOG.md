@@ -25,10 +25,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - `reference-edges.sh` reads the subject owner and slug only from a remote whose host is
   github.com. A host that merely contains the string (`evilgithub.com`, or a `/github.com/` path
   on another server), a `file://` URL, and a local or relative path no longer supply an owner or a
-  self-reference. The host is compared case-insensitively and may carry `www.` or a port, and an
-  scp-form path may start with a slash, so `https://www.github.com/`, `https://github.com:443/`,
-  `ssh://git@github.com:22/` and `git@github.com:/owner/repo` now resolve the owner (a port
-  previously became the owner).
+  self-reference, and neither does a non-numeric `:` after the host (`github.com:abc/`).
+- `reference-edges.sh` resolves the owner of a github.com remote that carries a port
+  (`https://github.com:443/`, `ssh://git@github.com:22/`), where the port used to become the owner,
+  and of an uppercase host (`https://GITHUB.COM/`), which used to give no owner. `www.github.com`,
+  `git@github.com:/owner/repo` and an empty port (`https://github.com:/`) resolve as in 0.10.1.
 - `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
   path.
 

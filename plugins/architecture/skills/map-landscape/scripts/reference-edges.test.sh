@@ -266,7 +266,9 @@ for evil in "https://evilgithub.com/zorg/real-name.git" \
   "git@evilgithub.com:zorg/real-name.git" \
   "https://api.github.com/zorg/real-name.git" \
   "file:///srv/github.com/zorg/real-name.git" \
-  "../github.com/zorg/real-name.git"; do
+  "../github.com/zorg/real-name.git" \
+  "https://github.com:abc/zorg/real-name.git" \
+  "ssh://git@github.com:22:/zorg/real-name.git"; do
   git -C "$host_repo" remote set-url origin "$evil"
   out="$(bash "$SCRIPT" "$host_repo")"
   assert_contains "host: $evil is not self" "$out" '"to":"zorg/real-name"'
@@ -276,7 +278,7 @@ for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-na
   "ssh://git@github.com/zorg/real-name.git" "https://user@github.com/zorg/real-name.git" \
   "git@github.com:/zorg/real-name.git" "https://www.github.com/zorg/real-name.git" \
   "ssh://git@github.com:22/zorg/real-name.git" "https://github.com:443/zorg/real-name.git" \
-  "https://GitHub.COM/zorg/real-name.git"; do
+  "https://GitHub.COM/zorg/real-name.git" "https://github.com:/zorg/real-name.git"; do
   git -C "$host_repo" remote set-url origin "$good"
   out="$(bash "$SCRIPT" "$host_repo")"
   assert_not_contains "host: $good is self" "$out" '"to":"zorg/real-name"'
