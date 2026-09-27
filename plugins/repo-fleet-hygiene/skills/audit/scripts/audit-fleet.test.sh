@@ -1962,7 +1962,7 @@ print_field Branch "feature/café-über"
 print_field Target "/tmp/Ångström/日本語/😀"
 print_field "Kind counts" "$(repo_kind_counts_text 0)"
 for bad in $'a\nFinding: forged' $'a\033[31m' $'a\xc2\x9b[31m' $'a\xc2\x85b' $'a\xe2\x80\xa8b' \
-  $'a\xe2\x80\xaeb' $'a\xe2\x81\xa6b' $'a\x9bb' $'\x63\x61\x66\xc3' $'a\xed\xa0\x80'; do
+  $'a\xe2\x80\xaeb' $'a\xe2\x81\xa6b' $'a\x9bb' $'ab\xc3' $'a\xed\xa0\x80'; do
   print_field Bad "$bad"
 done
 EOF
