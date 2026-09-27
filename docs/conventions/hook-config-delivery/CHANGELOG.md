@@ -11,8 +11,9 @@ Additive facts and recheck triggers, no verdict change. Facts 9-12 pin four `cla
 --config` behaviors measured by a sandbox probe on Claude Code 2.1.283: the value always lands in
 user settings whatever `-s` says (9); write-time validation warns but exits 0, stores unvalidated
 strings and non-existent directories, and enforces a declared `options` fixed list (10); no CLI
-path unsets a key (11); a same-scope rerun is a pure config write, owned by
-[plugin-reconfiguration](../plugin-reconfiguration/README.md#verified-version-record) (12). The
+path unsets a key (11); a same-scope rerun is a pure config write (12), with the reconfigure
+guidance built on it owned by
+[plugin-reconfiguration](../plugin-reconfiguration/README.md#verified-version-record). The
 facts table gains a per-row **Verified** column, so the section header no longer claims one
 version for every row. Four recheck triggers cover the new rows.
 
