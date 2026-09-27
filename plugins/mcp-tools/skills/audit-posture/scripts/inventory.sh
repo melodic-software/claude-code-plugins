@@ -155,10 +155,11 @@ check_json() {
   jq empty <"$1" >/dev/null 2>&1 || die_json "unparsable JSON" "$2"
 }
 
-# dropin_shown <path>: the path to print for a managed-settings.d drop-in; a file name that
-# fails the value filter prints as redacted-file.
+# dropin_shown <path>: the path to print for a managed-settings.d drop-in; a file name holding
+# any byte outside printable ASCII (LC_ALL=C makes the match bytewise), or failing the value
+# filter, prints as redacted-file.
 dropin_shown() {
-  if jq -en --arg f "${1##*/}" "$JQ_VF"' $f | vf' >/dev/null 2>&1; then
+  if [[ "${1##*/}" != *[!\ -~]* ]] && jq -en --arg f "${1##*/}" "$JQ_VF"' $f | vf' >/dev/null 2>&1; then
     printf '%s' "$1"
   else
     printf '%s/redacted-file' "${1%/*}"
@@ -268,12 +269,15 @@ def program_ok:
   (startswith("-") | not) and (contains("=") | not) and (lc_base | IN(odd_programs[]) | not)
   and ((lc_base | IN(runners[])) or (basename_of | test("^[A-Za-z0-9._+-]+$")));
 # Assignment prefixes dropped only at the very start of a wrapper string, repeatedly:
-# POSIX NAME=value (no quotes), pwsh $env:NAME=value; or $env:NAME=<single-quoted value>;
-# (the ; is required), and cmd set NAME=value&& or set NAME=value && (no ^ & % " | in the value).
-def posix_prefix: "^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/:+~@,-]*[ \t]+";
+# POSIX NAME=value, pwsh $env:NAME=value; or $env:NAME=<single-quoted value>; (the ; is
+# required), and cmd set NAME=value&& or set NAME=value &&. Every value holds only VALUE_CHARS,
+# plus space inside the pwsh single quotes; anything else (escapes, comments, grouping) is
+# unparsed.
+def VALUE_CHARS: "[A-Za-z0-9._/:+~@,-]";
+def posix_prefix: "^[A-Za-z_][A-Za-z0-9_]*=" + VALUE_CHARS + "*[ \t]+";
 def pwsh_prefix:
-  "^\\$env:[A-Za-z_][A-Za-z0-9_]*=([^" + SQ + DQ + ";$ \t]*|" + SQ + "[^" + SQ + DQ + ";$]*" + SQ + ");[ \t]*";
-def cmd_prefix: "^set[ \t]+[A-Za-z_][A-Za-z0-9_]*=[^\\^&%" + DQ + "| \t]*[ \t]?&&[ \t]*";
+  "^\\$env:[A-Za-z_][A-Za-z0-9_]*=(" + VALUE_CHARS + "*|" + SQ + "(" + VALUE_CHARS + "| )*" + SQ + ");[ \t]*";
+def cmd_prefix: "^set[ \t]+[A-Za-z_][A-Za-z0-9_]*=" + VALUE_CHARS + "*[ \t]?&&[ \t]*";
 def drop_prefix($re; $flags): sub($re; ""; $flags) as $n | if $n == . then . else ($n | drop_prefix($re; $flags)) end;
 # wrap_tokens($kind): after the prefixes, the string may hold only [A-Za-z0-9 \t._/@:=+~,-]
 # and its first token must be a program name; anything else is unparsed.
@@ -564,14 +568,18 @@ def withhold:
   if (.package != "-" and (.package | vf | not))
      or ((.publisher | IN("-", "local", "unscoped", "pypi", "library") | not) and (.publisher | vf | not))
   then . + {package: "-", pin: "unparsed", publisher: "-"} else . end;
-# Control characters (C0, DEL, C1) and invisible formatting characters (soft hyphen, U+200B-
-# U+200F, U+202A-U+202E, U+2060-U+2064, U+2066-U+2069, U+FEFF), built from code points so
-# the script stays ASCII.
+# Control characters (C0, DEL, C1) and the Unicode default-ignorable and format-control set:
+# U+00AD, U+034F, U+061C, U+115F-U+1160, U+17B4-U+17B5, U+180B-U+180F, U+200B-U+200F,
+# U+2028-U+202E, U+2060-U+206F, U+3164, U+FE00-U+FE0F, U+FEFF, U+FFA0, U+FFF0-U+FFF8,
+# U+1BCA0-U+1BCA3, U+1D173-U+1D17A, U+E0000-U+E0FFF. Built from decimal code points so the
+# script stays ASCII. Names and wrapper strings need no separate check: their grammars
+# admit ASCII only.
 def invisible_re:
-  "[[:cntrl:]" + ([128] | implode) + "-" + ([159] | implode) + ([173] | implode)
-  + ([8203] | implode) + "-" + ([8207] | implode) + ([8234] | implode) + "-" + ([8238] | implode)
-  + ([8288] | implode) + "-" + ([8292] | implode) + ([8294] | implode) + "-" + ([8297] | implode)
-  + ([65279] | implode) + "]";
+  [[127, 159], [173, 173], [847, 847], [1564, 1564], [4447, 4448], [6068, 6069], [6155, 6159],
+   [8203, 8207], [8232, 8238], [8288, 8303], [12644, 12644], [65024, 65039], [65279, 65279],
+   [65440, 65440], [65520, 65528], [113824, 113827], [119155, 119162], [917504, 921599]]
+  | map(([.[0]] | implode) + "-" + ([.[1]] | implode))
+  | "[[:cntrl:]" + join("") + "]";
 def ms_valid:
   if (.cfg | type) != "object" then false
   else (.name | test("^[A-Za-z0-9_-]+$"))
