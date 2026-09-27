@@ -342,7 +342,9 @@ Dedicated resolution dispatches through babysit-prs's own fan-out. A merge confl
 its Merge Conflict Resolution contract, under which the dispatched conflict worker never pushes,
 the dispatching context does; every other blocker worker, the pre-escalation resolver included,
 runs the regular per-PR worker lifecycle and lands its own commit and refspec push (Escalation
-above). This loop adds two lane rules, per the convention: the subagent runs at the **frontier
+above). A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`), whether the
+conflict worker or the inline freshness merge meets it, is resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh`, per
+`/source-control:resolve-conflicts` step 3. This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
 model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is installed, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
