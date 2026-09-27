@@ -8,6 +8,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+<<<<<<< HEAD
+=======
+- `babysit-prs`'s loop reference points at the subagent dispatch for ≥3-finding comments without the "MANDATORY" marker; the rule in `review-discipline.md` §2 is unchanged (#4120).
+>>>>>>> origin/cursor/4120-forced-compliance-downgrade-37e9
 
 ## [0.61.0] - 2026-09-27
 
