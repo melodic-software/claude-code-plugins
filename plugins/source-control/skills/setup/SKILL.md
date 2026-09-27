@@ -26,9 +26,9 @@ convention; the safe babysit tier over your own PRs), so an unconfigured surface
 FAIL.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-remediation. When `apply` carries a `subject_pattern=` argument it writes the convention
-non-interactively; with no arguments in an interactive session it runs the convention interview
-(spoke below). `layer=` selects which config layer `apply` writes, defaulting to the tracked team
+remediation. When `apply` carries a `subject_pattern=` or `branch_issue_pattern=` argument (or
+both) it writes non-interactively; with no arguments in an interactive session it runs the
+convention interview (spoke below). `layer=` selects which config layer `apply` writes, defaulting to the tracked team
 file.
 
 ## `check` (read-only)
@@ -64,8 +64,10 @@ then the deprecated userConfig value `${user_config.branch_issue_pattern}` (a su
 token means unset), then the built-in `<type>/<N>-<slug>` convention. `won by` names the layer,
 `userConfig (deprecated)` with a WARN recommending `apply branch_issue_pattern=<ERE>`, or
 `plugin default`. Confirm the row by running
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch>` from
-`REPO_ROOT` and relaying any stderr note, which names a skipped layer and the reason.
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" <sample-branch> '${user_config.branch_issue_pattern}'`
+from `REPO_ROOT` and relaying any stderr note, which names a skipped layer and the reason. The
+single-quoted second argument passes the deprecated userConfig value, so a configuration set only
+there is reported correctly; the script ignores the literal placeholder when the key is unset.
 
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
@@ -265,9 +267,11 @@ In brief:
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
   non-machine-checkable value, and for an overlay omit requested keys the layers below already
   resolve identically.
-- **`branch_issue_pattern=`**: the same in-place update for the `## branch_issue_pattern` section,
-  value in backticks. Reject a value that is not a valid ERE, holds a backreference, or has no
-  capture group, then confirm `parse-branch-issue.sh <sample-branch>` prints the expected number.
+- **`branch_issue_pattern=`**: alone, it writes or replaces only the `## branch_issue_pattern`
+  section of the chosen layer, value in backticks, leaving every other section untouched; with
+  `subject_pattern=`, both are written in one pass. Reject a value that is not a valid ERE, holds a
+  backreference, or has no capture group, then confirm `parse-branch-issue.sh <sample-branch>`
+  prints the expected number.
 - **Interactive:** the interview. Anchor at `REPO_ROOT`, read all three layers first, infer before
   asking (declared prose, commit-msg hooks, commit-history consensus over the configurable
   `setup_inference_*` window), interview one decision at a time with a recommendation first, settle

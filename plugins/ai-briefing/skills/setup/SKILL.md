@@ -67,7 +67,8 @@ anything.
      `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
      run from that project's directory for a `project`/`local` scope, or the rerun adds a
      second install record at the scope passed and enables the plugin there; the value itself
-     always lands in user settings. Afterwards rerun `check` in a **fresh session**. The rendered
+     always lands in user settings. A rejected value prints a warning yet exits 0, so read the
+     output. Afterwards rerun `check` in a **fresh session**. The rendered
      `${user_config.*}` is injected at skill load, so a same-session `check` still reports the
      OLD value; report the observed effective value, never an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without

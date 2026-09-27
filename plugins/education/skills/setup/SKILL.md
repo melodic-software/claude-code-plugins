@@ -64,6 +64,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
    `project`/`local` writes from that project's directory, or the rerun adds a second install record at
    the scope passed and enables the plugin there; the value itself always lands in user settings.
+   A rejected value prints a warning yet exits 0, so read the output.
 7. Tell the user to rerun `check` after reconfiguration in a **fresh session**, because rendered values are
    injected at skill load and a same-session rerun still reports the OLD values. Then report the observed
    effective settings.

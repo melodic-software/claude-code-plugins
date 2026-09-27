@@ -89,7 +89,8 @@ command's exit code alone. For everything else `apply` only points:
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. This skill never writes user settings or
+  value itself always lands in user settings. A rejected value prints a warning yet exits 0,
+  so read the output. This skill never writes user settings or
   `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session

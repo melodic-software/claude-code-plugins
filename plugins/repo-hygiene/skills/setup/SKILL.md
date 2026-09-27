@@ -84,7 +84,8 @@ after everything passes changes nothing and reports "already configured":
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
   from that project's directory for a `project`/`local` scope, or the rerun adds a second
   install record at the scope passed and enables the plugin there; the value itself always
-  lands in user settings. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered token is injected at skill load, so a same-session
   `check` still reports the OLD value; report the observed effective toggle value, never an
   unobserved change.

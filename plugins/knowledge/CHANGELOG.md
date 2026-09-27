@@ -12,6 +12,7 @@ only after that version increases.
   `claude plugin list` reports: a rerun at another scope adds a second install record there and
   enables the plugin at that scope, while the value itself always lands in user settings. It no
   longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
 
 ## [0.14.2] - 2026-09-25
 
