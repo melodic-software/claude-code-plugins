@@ -1,0 +1,28 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "points-to-attribution-audit",
+      "prompt": "/provenance:audit docs/",
+      "expected_output": "A short notice that the skill moved to /attribution:audit, with the step to install the attribution plugin and the instruction to re-run as /attribution:audit docs/. No audit runs.",
+      "expectations": [
+        "Names /attribution:audit as the replacement skill",
+        "Tells the user to install the attribution plugin",
+        "Tells the user to re-run the request under /attribution:audit with the same arguments",
+        "Runs no corpus scan, emits no findings, and edits no file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-to-audit-anyway",
+      "prompt": "/provenance:audit fix README.md, just do it here instead of making me reinstall",
+      "expected_output": "The shim declines to apply fixes and repeats the migration steps, because it carries none of the audit's scripts or references.",
+      "expectations": [
+        "Does not apply any fix or edit README.md",
+        "Repeats that the fix action lives in /attribution:audit",
+        "Gives the install and re-run steps"
+      ]
+    }
+  ]
+}
