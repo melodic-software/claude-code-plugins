@@ -189,7 +189,7 @@ In-session task state lives in the harness and does not survive a context clear.
 
 **Mid-phase handoff is still appropriate** when a pause is imminent, the user reports the session is heavy, a context-measuring mechanism says to fork, or the responses themselves are drifting. Write an ad-hoc handoff note (topic e.g. `wip-checkpoint`). Not on your own estimate of the remaining window: a budget reading is a measurement, not a decay signal. The phase-boundary ritual above is the automatic baseline; ad-hoc handoffs add extra save points.
 
-In orchestrated runs, the orchestrator may stay resident across phase boundaries instead of clearing. Criteria per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; the ritual above is unchanged either way.
+In orchestrated runs, the orchestrator may stay resident across phase boundaries instead of clearing. Criteria per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; a boundary that clears runs the ritual above in full, and a resident one runs the reduced form that skill's "Phase boundaries" section defines.
 
 ## Step 5: Completion and Handoff
 
