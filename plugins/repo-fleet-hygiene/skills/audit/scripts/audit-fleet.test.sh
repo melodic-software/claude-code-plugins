@@ -1075,6 +1075,58 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
+# display_value renders raw only well-formed printable UTF-8 (#4208). The invalid --canonical error
+# echoes its operand through display_value before any Git probe, so each case pins the exact line.
+# Every rendering is checked under C and, when the host has one, a UTF-8 operator locale: the
+# verdict must not follow the caller's locale.
+display_locales=(C)
+display_utf8_locale="$(locale -a 2>/dev/null | grep -Ei -m1 '^(C|en_US)\.utf-?8$' || true)"
+[[ -n "$display_utf8_locale" ]] && display_locales+=("$display_utf8_locale")
+display_err="$TMP/display-value.err"
+assert_display_value() {
+  local label="$1" value="$2" expected="$3" loc
+  for loc in "${display_locales[@]}"; do
+    LC_ALL="$loc" bash "$SCRIPT" --canonical "$value" >/dev/null 2>"$display_err"
+    if [[ "$(cat "$display_err")" == "Error: $expected" ]]; then
+      printf 'PASS: %s (LC_ALL=%s)\n' "$label" "$loc"
+    else
+      printf 'FAIL: %s (LC_ALL=%s)\n  expected: %s\n  actual:   %s\n' "$label" "$loc" \
+        "Error: $expected" "$(LC_ALL=C od -An -c "$display_err")" >&2
+      failures=$((failures + 1))
+    fi
+  done
+}
+assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
+  $'invalid --canonical value: em\xe2\x80\x94dash'
+# spellchecker:off
+# café (U+00E9) and U+1F600 stay $'...' byte escapes so the fixture stays ASCII.
+# typos splits on the backslash and would read the ASCII prefix as "calf".
+assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
+  $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
+# spellchecker:on
+assert_display_value "C0 ESC stays escaped" $'esc\x1b[31m' \
+  "\$'invalid --canonical value: esc\\E[31m'"
+assert_display_value "C1 CSI U+009B is escaped" $'csi\xc2\x9b31m' \
+  "\$'invalid --canonical value: csi\\302\\23331m'"
+assert_display_value "invalid UTF-8 byte 0xFF is escaped" $'bad\xff' \
+  "\$'invalid --canonical value: bad\\377'"
+assert_display_value "RTL override U+202E is escaped" $'rtl\xe2\x80\xaeexe.txt' \
+  "\$'invalid --canonical value: rtl\\342\\200\\256exe.txt'"
+assert_display_value "bidi isolate U+2066 is escaped" $'lri\xe2\x81\xa6x' \
+  "\$'invalid --canonical value: lri\\342\\201\\246x'"
+assert_display_value "line separator U+2028 is escaped" $'ls\xe2\x80\xa8x' \
+  "\$'invalid --canonical value: ls\\342\\200\\250x'"
+assert_display_value "overlong UTF-8 is escaped" $'over\xc0\xaf' \
+  "\$'invalid --canonical value: over\\300\\257'"
+assert_display_value "UTF-8-encoded surrogate is escaped" $'surr\xed\xa0\x80' \
+  "\$'invalid --canonical value: surr\\355\\240\\200'"
+assert_display_value "truncated UTF-8 sequence is escaped" $'cut\xe2\x80' \
+  "\$'invalid --canonical value: cut\\342\\200'"
+assert_display_value "LRM U+200E is escaped" $'lrm\xe2\x80\x8ex' \
+  "\$'invalid --canonical value: lrm\\342\\200\\216x'"
+assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
+  "\$'invalid --canonical value: alm\\330\\234x'"
+
 # Config resolution ladder: explicit --config > project-scoped > user-global > none,
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
@@ -1947,6 +1999,64 @@ if [[ "$plan_fail_status" -ne 0 && ! -f "$missing_plan" ]] &&
   printf 'PASS: unwritable --plan-file fails closed\n'
 else
   printf 'FAIL: unwritable --plan-file did not fail closed (status=%s)\n' "$plan_fail_status" >&2
+  failures=$((failures + 1))
+fi
+
+# On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
+# a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
+# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
+# the <user> placeholder, which the machine-specific-paths gate treats as portable.
+WIN_BIN="$TMP/win-bin"
+WIN_TMP="$TMP/wintmp"
+mkdir -p "$WIN_BIN" "$WIN_TMP"
+printf '#!/usr/bin/env bash\nprintf "MINGW64_NT-10.0-26100\\n"\n' >"$WIN_BIN/uname"
+cat >"$WIN_BIN/cygpath" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "-m" && "$2" == "--" && $# -eq 3 ]] || exit 2
+case "$3" in
+"$MOCK_WIN_TMP"/*) printf 'C:/Users/<user>/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
+*) printf '%s\n' "$3" ;;
+esac
+EOF
+chmod +x "$WIN_BIN/uname" "$WIN_BIN/cygpath"
+win_native="C:/Users/<user>/AppData/Local/Temp"
+win_out="$TMP/win-plan-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" TMPDIR="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" >"$win_out" 2>&1 || true
+win_default_plan="$(compgen -G "$WIN_TMP/repo-fleet-hygiene-plan.*.json" | head -n 1)"
+win_default_native="$win_native/${win_default_plan#"$WIN_TMP"/}"
+if [[ -n "$win_default_plan" ]] &&
+  grep -Fxq "Action plan: $win_default_native" "$win_out" &&
+  grep -Fq -- "--apply-plan $win_default_native" "$win_out" &&
+  ! grep -Fq "$WIN_TMP" "$win_out"; then
+  printf 'PASS: Windows default plan path prints in native form on both plan lines\n'
+else
+  printf 'FAIL: Windows default plan path not native (plan=%s)\n' "$win_default_plan" >&2
+  sed -n '/^Action plan:/,/^Apply dry-run:/p' "$win_out" >&2
+  failures=$((failures + 1))
+fi
+win_explicit_out="$TMP/win-explicit-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/explicit.json" >"$win_explicit_out" 2>&1 || true
+if [[ -f "$WIN_TMP/explicit.json" ]] &&
+  grep -Fxq "Action plan: $win_native/explicit.json" "$win_explicit_out" &&
+  grep -Fq -- "--apply-plan $win_native/explicit.json" "$win_explicit_out"; then
+  printf 'PASS: Windows explicit --plan-file is written as given and printed in native form\n'
+else
+  printf 'FAIL: Windows explicit --plan-file path handling\n' >&2
+  failures=$((failures + 1))
+fi
+# Without cygpath the audit still reports, with the path as bash sees it.
+rm -f "$WIN_BIN/cygpath"
+win_nocyg_out="$TMP/win-nocygpath-out.txt"
+PATH="$WIN_BIN:$PATH" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/nocyg.json" >"$win_nocyg_out" 2>&1 || true
+if command -v cygpath >/dev/null 2>&1; then
+  printf 'SKIP: host cygpath present; cannot test its absence\n'
+elif grep -Fxq "Action plan: $WIN_TMP/nocyg.json" "$win_nocyg_out"; then
+  printf 'PASS: Windows host without cygpath prints the plan path unchanged\n'
+else
+  printf 'FAIL: Windows host without cygpath lost the plan path\n' >&2
   failures=$((failures + 1))
 fi
 

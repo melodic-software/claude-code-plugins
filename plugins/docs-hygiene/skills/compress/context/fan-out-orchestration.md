@@ -21,15 +21,15 @@ LATITUDE:
 - Batch fan-out does NOT delete sentence-level restatements (that latitude is Edit-fallback / single-file only; see SKILL.md Purpose).
 
 HARD RULES:
-- NEVER add words. EVER.
-- NEVER swap word X for synonym X' unless X' is strictly shorter AND same meaning
-- NEVER touch code blocks (fenced ``` or inline `...`), URLs, file paths, identifiers, env vars, slash commands, hook names
-- NEVER touch directive force ("must" vs "should" vs "may")
-- NEVER touch qualifiers narrowing scope (ONLY, NEVER, every, all, only, exact)
-- NEVER touch thresholds, version pins, SHAs (3+, 5+, ≥30s, 0.11.0)
-- NEVER touch examples, counter-examples, "X not Y" pairs
-- NEVER touch error messages, quoted text, citations
-- NEVER self-audit. NEVER re-read your own edits. NEVER "preserve clarity".
+- Never add words. Ever.
+- Never swap word X for synonym X' unless X' is strictly shorter AND same meaning
+- Never touch code blocks (fenced ``` or inline `...`), URLs, file paths, identifiers, env vars, slash commands, hook names
+- Never touch directive force ("must" vs "should" vs "may")
+- Never touch qualifiers narrowing scope (ONLY, NEVER, every, all, only, exact)
+- Never touch thresholds, version pins, SHAs (3+, 5+, ≥30s, 0.11.0)
+- Never touch examples, counter-examples, "X not Y" pairs
+- Never touch error messages, quoted text, citations
+- Never self-audit. Never re-read your own edits. Never "preserve clarity".
 - Touch ONLY <ABSOLUTE-PATH>. FORBIDDEN: any other file, any git operation, any other repo path.
 
 DELIVERABLE: apply Edit ops; return exactly one line:
