@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.1] - 2026-09-27
+## [0.38.2] - 2026-09-27
 
 ### Fixed
 
@@ -16,6 +16,33 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - `sudo -R /mnt rm -rf /`, `sudo --chroot /mnt rm -rf /`, `sudo -Eu bob rm -rf /` and `sudo --us bob rm -rf /`. These were declared gaps. Each is now judged both as a flag and as taking the next word, and blocks if either reading does, so `sudo -R rm -rf /` stays refused. sudo's `-a` and `-c` are read the same way.
 
   `sg root -c 'ls /'`, `setpriv --reuid=0 ls`, `prlimit --nofile=10 ls` and `systemd-run ls` stay allowed. Replaying the 989 Bash commands the guard suites send, plus these rows, through `main` and this version (without and with a git-checkout `cwd`) found no command `main` refuses that this version allows. The new launchers go through the same depth, reading and deadline budgets. A relative operand under `systemd-run` is still judged from the payload `cwd`, although a service unit runs from `/` unless `--scope`, `-d` or `--working-directory` says otherwise.
+
+## [0.38.1] - 2026-09-27
+
+### Fixed
+
+- **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
+  ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
+  command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
+  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)), so a long enough command passed every
+  guard on the row unchecked. On `main` the row took 7.23 s for a 10 KB heredoc and 12.6 s for 16 KB, and a
+  ~70 KB one was still running at 120 s. Now it takes 132 ms, 203 ms and 64 ms.
+  - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
+    which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
+    blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
+    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
+    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
+    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
+    `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
+    shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
+  - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is
+    recorded and replayed to the other five, `HOOK_SEG_*` arrays included. A parse that a guard cut short with
+    `exit` is not kept, and a callback's re-parse of a substring is never cached.
+  - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
 
 ## [0.38.0] - 2026-09-27
 
