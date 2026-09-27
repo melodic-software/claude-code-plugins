@@ -22,6 +22,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   The README documents the `permissions.deny` Bash-rule recipe, the one instrument that narrows
   its `Bash`, and that recipe's matching limits.
 
+## [0.18.1] - 2026-09-27
+
+### Fixed
+
+- `implement`'s feature context names .NET scaffolding skills by class (a C# MCP-server scaffold, a .NET project-template skill), resolved from what the session has installed, instead of routing to `dotnet-ai:mcp-csharp-create` and `dotnet-template-engine:template-instantiation`, which this marketplace does not ship (#4119).
+
 ## [0.18.0] - 2026-09-26
 
 ### Added

@@ -3,6 +3,63 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.2] - 2026-09-27
+
+### Fixed
+
+- `wayfind` and its map-anatomy context route buildable work to `/work-items:track add` (or `/work-items:decompose` for a plan-shaped chunk) and claims to `/work-items:track start`, instead of the bare `/work-items` plugin token (#4119).
+
+## [0.44.1] - 2026-09-27
+
+### Changed
+
+- **`setup` reads `.claude/topic-docs.yaml` at load time.** `check`'s read of the concern file
+  runs as pre-computed context from the session's working directory, so `check` reads it from the
+  skill instead of spending a call. The path is relative, with no `$` expansion, so the block also
+  loads from a worktree-isolated agent. When the working directory is not the repository root, or
+  the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
+  post-write verification still re-reads the file live.
+
+## [0.44.0] - 2026-09-27
+
+### Added
+
+- **`interview`:** a running constraint ledger (`## Constraint ledger` in the checklist, rows
+  `- C<N> | confirmed|inherited | <constraint> | <source>`). A constraint the user states is
+  written at once as `confirmed`; one from an upstream artifact is `inherited`, and one the
+  contract relies on is asked as a register row (in `lock` it is a gap that stops synthesis; in
+  `auto` direct synthesis it makes the path Mixed). Every recommendation carries a
+  `Checked against:` line; on the page it opens the question's `facts` field with each
+  constraint named in words, and a question that cites a constraint is asked in prose, never
+  on an `AskUserQuestion` card.
+- **`interview`:** a design from explore or research output, or from an existing
+  implementation, is a candidate until re-derived against the constraint ledger; a research
+  brief dispatched mid-interview carries the ledger verbatim.
+- **`interview`:** historical evidence is labeled `past`, `current`, or `intended` when the
+  survey finds a process change or cannot rule one out; past-only evidence never alone grounds
+  a recommendation.
+- **`interview`:** the mechanism tripwire. The first mechanism-naming question brings one
+  now-or-at-planning question; "at planning" defers open mechanism rows, "now" is recorded in
+  the Brief's Constraints.
+- **`interview`:** a fresh-context assumption sweep runs in `me` and `auto` once the frontier
+  is empty and before Step 3. It is dispatched as any subagent type but `fork`, with a dated
+  verification record against the subagents doc. Its items become register rows or stated
+  facts, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`).
+- **`interview`:** eval cases 20 to 23 cover the tripwire, the sweep, evidence currency, and
+  inherited constraints.
+- **`audit-answers`:** a `hedged:` row never closes on a CONFIRMED verdict and always reaches
+  the human; a `free-text:` row is validated and flagged.
+
+### Changed
+
+- **`interview`:** a commitment row registered after later ids exist takes the next free id
+  and names its headline in the question field.
+- `tests/interview-defenses.test.sh` adds digests over the interview `SKILL.md` Step 2
+  section, the `loop.md` Step 2 and relentless-mechanics sections,
+  `context/assumption-sweep.md`, and the `audit-answers` Step 1 and Step 4 sections, plus
+  phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 20 to
+  23, none of which contradicts case 15 or 16. No existing section digest changed.
+
 ## [0.43.0] - 2026-09-27
 
 ### Added

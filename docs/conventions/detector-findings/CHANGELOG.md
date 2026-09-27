@@ -4,6 +4,15 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.1.2] - 2026-09-27
+
+**Patch, docs-only.** The `provenance` plugin is renamed `attribution`, so its three crosswalk rows
+now carry the `attribution/audit/` plugin segment: `rule-verbatim-copy`, `rule-stamp-expired`, and
+`rule-trigger-less-stamp`, and the verbatim-copy row's remediation names `/attribution:audit fix`.
+The rule-id form `<plugin>/<skill>/rule-<slug>` is unchanged and only this producer's plugin
+segment follows its rename. No producer-owned field's rule, coexistence obligation, tier, or
+enforceability verdict moves.
+
 ## [3.1.1] - 2026-09-19
 
 **Patch, docs-only.** The `claude-config:audit-instructions` row described its Case 9b evidence as

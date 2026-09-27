@@ -1,5 +1,5 @@
 {
-  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, and detects the guard silently failing to launch.",
+  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, and hands /disk-hygiene:clean the guard's interpreter and data root when it expands.",
   "hooks": {
     "PreToolUse": [
       {
@@ -54,6 +54,20 @@
             "shell": "bash",
             "timeout": 20,
             "statusMessage": "Checking for silent destructive-guard failures..."
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "disk-hygiene:clean$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/engine_context.py --plugin-root \"${CLAUDE_PLUGIN_ROOT}\"",
+            "shell": "bash",
+            "timeout": 20,
+            "statusMessage": "Resolving the disk-hygiene guard's interpreter and data root..."
           }
         ]
       }

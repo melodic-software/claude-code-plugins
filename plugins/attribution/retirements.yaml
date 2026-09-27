@@ -1,0 +1,25 @@
+# Retired consumer-facing conventions for the attribution plugin.
+# Append-only: records are never deleted and their detection fields are never
+# edited once published (demote with `status: report-only` instead). Schema and
+# helper contract: docs/conventions/retired-conventions/README.md in the
+# consuming marketplace; evaluated by lib/check-retirements.sh from setup.
+---
+id: attribution-r001
+retired: 2026-09-27
+plugin_version: 0.6.0
+kind: file
+path: .claude/provenance.json
+content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_less_stamp_check|judge_samples|gates|accuracy)"'
+action: migrate
+successor: "the team layer is now .claude/attribution.json with the same schema: carry every key into it unchanged (when it already exists, add only the keys it lacks, so the new file wins), have the operator confirm the result, then clean"
+note: "retired team config name; the provenance plugin became attribution and never reads this file"
+---
+id: attribution-r002
+retired: 2026-09-27
+plugin_version: 0.6.0
+kind: file
+path: .claude/provenance.local.json
+content_match: '"(excluded_paths|budgets|separation|stamp_expiry_days|trigger_less_stamp_check|judge_samples|gates|accuracy)"'
+action: migrate
+successor: "the local overlay is now .claude/attribution.local.json with the same schema: carry every key into it unchanged (when it already exists, add only the keys it lacks, so the new file wins), have the operator confirm the result, then clean"
+note: "retired local overlay name; the provenance plugin became attribution and never reads this file"
