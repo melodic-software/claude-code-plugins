@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import html.parser
 import json
+import random
 import re
 import shutil
 import subprocess
@@ -178,9 +179,9 @@ class TestExportLedger(SessionCase):
         self.session(qs, [event(1, "Q1", "own", text="Yes if X holds.")])
         rows = register_rows(self.export("ledger"))
         self.assertRegex(
-            rows[0], r"^- Q1 \| open \| .*awaiting user: your confirmation of X"
+            rows[0], r"^- Q1 \| open \| .*awaiting user:: your confirmation of X"
         )
-        self.assertRegex(rows[1], r"^- Q2 \| open \| .*waits on: research")
+        self.assertRegex(rows[1], r"^- Q2 \| open \| .*waits on:: research")
 
     def test_a_decision_set_aside_by_a_user_hold_does_not_count(self):
         later = "2026-09-24T10:00:05Z"
@@ -611,9 +612,9 @@ class TestImportLedger(SessionCase):
         self.assertEqual(
             rows,
             [
-                "- Q1 | open | round 1 | Who reads? | waits on: the benchmark; answer: accepted: everyone",
-                "- Q2 | open | round 1 | Who writes? | waits on: a lookup of the owners",
-                "- Q3 | open | round 1 | Retention? | awaiting user: your call",
+                "- Q1 | open | round 1 | Who reads? | waits on:: the benchmark; answer: accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? | waits on:: a lookup of the owners",
+                "- Q3 | open | round 1 | Retention? | awaiting user:: your call",
             ],
         )
         fresh = self.tmp / "fresh"
@@ -647,7 +648,7 @@ class TestImportLedger(SessionCase):
             ],
         )
 
-    def test_a_hold_text_never_carries_the_answer_delimiter_through_a_round_trip(self):
+    def test_a_hold_text_with_the_row_delimiters_round_trips_escaped(self):
         ledger = self.tmp / "seed-ledger.md"
         ledger.write_text(
             "# Interview ledger\n\n## Open-question register\n\n"
@@ -673,17 +674,16 @@ class TestImportLedger(SessionCase):
             encoding="utf-8",
         )
         rc, out = self.rp("apply", "--file", str(path))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 0, out)
         self.apply(
-            {"op": "wait", "id": "Q1", "waitsOn": "vendor quote, answer: pending"},
-            {"op": "wait", "id": "Q2", "waitsOn": "vendor quote, answer: pending"},
+            {"op": "wait", "id": "Q1", "waitsOn": "vendor quote; answer: pending"}
         )
         rows = register_rows(self.export("ledger"))
         self.assertEqual(
             rows,
             [
-                "- Q1 | open | round 1 | Who reads? | waits on: vendor quote, answer: pending; answer: accepted: everyone",
-                "- Q2 | open | round 1 | Who writes? | waits on: vendor quote, answer: pending",
+                "- Q1 | open | round 1 | Who reads? | waits on:: vendor quote\\; answer: pending; answer: accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? | waits on:: vendor quote\\; answer: pending",
             ],
         )
         fresh = self.tmp / "fresh"
@@ -700,7 +700,7 @@ class TestImportLedger(SessionCase):
         }
         self.assertEqual(
             [qs[i].get("waitsOn") for i in ("Q1", "Q2")],
-            ["vendor quote, answer: pending"] * 2,
+            ["vendor quote; answer: pending"] * 2,
         )
         self.assertNotIn("terminal", qs["Q2"])
         self.apply(
@@ -731,7 +731,7 @@ class TestImportLedger(SessionCase):
         self.assertEqual(
             rows,
             [
-                "- Q1 | open | round 1 | Question Q1? | waits on: the benchmark; confirmed: One writer only"
+                "- Q1 | open | round 1 | Question Q1? | waits on:: the benchmark; confirmed: One writer only"
             ],
         )
         fresh = self.tmp / "fresh"
@@ -753,6 +753,46 @@ class TestImportLedger(SessionCase):
             register_rows(self.export("ledger", d=fresh)),
             ["- Q1 | open | round 1 | Question Q1? | ; confirmed: One writer only"],
         )
+
+    def test_a_legacy_held_row_is_read_without_unescaping(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Where? | waits on: C:\\new\\tmp; answer: accepted: yes\n"
+            "- Q2 | open | round 1 | Who? | awaiting user: a\\;b; confirmed: One; Two\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        qs = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
+        self.assertEqual(qs[0]["waitsOn"], "C:\\new\\tmp")
+        self.assertEqual(qs[0]["terminal"]["decision"], "accept")
+        self.assertEqual((qs[1]["waitsOn"], qs[1]["waitingBy"]), ("a\\;b", "user"))
+        self.assertEqual(qs[1]["commits"], ["One", "Two"])
+        self.assertEqual(
+            register_rows(self.export("ledger")),
+            [
+                "- Q1 | open | round 1 | Where? | waits on:: C:\\\\new\\\\tmp; answer: accepted: yes",
+                "- Q2 | open | round 1 | Who? | awaiting user:: a\\\\\\;b; confirmed: One; Two",
+            ],
+        )
+
+    def test_an_escaped_row_keeps_an_unknown_escape_literal(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Where? | waits on:: a\\qb\\;c\\u2028d\\zz; confirmed: \n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        [q] = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
+        self.assertEqual(q["waitsOn"], "a\\qb;c\u2028d\\zz")
+        self.assertEqual(q["commits"], [""])
 
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
@@ -1016,6 +1056,392 @@ class TestSupersededByPlan(SessionCase):
         self.assertRegex(
             rows[1], r"^- Q2 \| answered \| .*free-text: Admin only, confirmed\."
         )
+
+
+CORPUS_CONFIRM = {
+    "op": "confirm-commitments",
+    "id": "Q1",
+    "indices": [0, 2],
+    "reason": "chat",
+}
+CORPUS_ACCEPT = {"op": "record-terminal", "id": "Q1", "decision": "accept"}
+CORPUS_SEED = (
+    "# Interview ledger\n\n## Open-question register\n\n"
+    "- Q1 | superseded-by-plan | round 1 | Which store? | plan proposes: Postgres; was: SQLite\n"
+)
+
+
+def corpus_add(qid="Q1", commits=("One writer", "No network", "Third"), title=None):
+    return {
+        "op": "add",
+        "question": {
+            "id": qid,
+            "short": qid,
+            "title": title or f"Question {qid}?",
+            "recommendation": f"Rec {qid}",
+            "commits": list(commits),
+            "alternatives": [
+                {"key": "a", "text": "Alt a"},
+                {"key": "b", "text": "Alt b"},
+            ],
+        },
+    }
+
+
+def corpus_wait(waits, by="claude"):
+    return {"op": "wait", "id": "Q1", "waitsOn": waits, "by": by}
+
+
+def corpus_cases():
+    """The merge gate's adversarial held-row corpus (corpus.py, corpus2.py, corpus3.py): name -> (ops, seed ledger)."""
+    base = [corpus_add()]
+    cases = {}
+    for tag, waits in [
+        ("nospace", "vendor;answer: x"),
+        ("mixedcase", "vendor; Answer: x"),
+        ("ff1b", "vendor\uff1banswer: x"),
+        ("newline", "vendor;\nanswer: x"),
+        ("twospace", "vendor;  answer: x"),
+        ("tab-confirmed", "vendor;\tconfirmed:\tx"),
+        ("exact-answer", "vendor; answer: x"),
+        ("exact-confirmed", "vendor; confirmed: x"),
+        ("trailing", "vendor; answer:"),
+    ]:
+        cases["w-" + tag] = (
+            [*base, CORPUS_ACCEPT, CORPUS_CONFIRM, corpus_wait(waits)],
+            None,
+        )
+    cases["title-delims"] = (
+        [
+            corpus_add(title="Pick; answer: A; confirmed: B?"),
+            CORPUS_ACCEPT,
+            corpus_wait("bench"),
+        ],
+        None,
+    )
+    own = {
+        "op": "record-terminal",
+        "id": "Q1",
+        "decision": "own",
+        "text": "yes; answer: no; confirmed: z",
+    }
+    cases["own-answer-delims"] = (
+        [*base, own, CORPUS_CONFIRM, corpus_wait("bench")],
+        None,
+    )
+    first = dict(CORPUS_CONFIRM, indices=[0])
+    cases["commit-with-semicolon"] = (
+        [
+            corpus_add(commits=["Use Postgres; no Redis", "B"]),
+            first,
+            corpus_wait("bench"),
+        ],
+        None,
+    )
+    cases["commit-with-answer-delim"] = (
+        [corpus_add(commits=["A; answer: B"]), first, corpus_wait("bench", "user")],
+        None,
+    )
+    for by in ("claude", "user"):
+        w = corpus_wait("bench", by)
+        alt = {"op": "record-terminal", "id": "Q1", "decision": "alt", "alt": "b"}
+        defer = {
+            "op": "record-terminal",
+            "id": "Q1",
+            "decision": "defer",
+            "text": "later",
+        }
+        cases[f"{by}-unans-noconf"] = ([*base, w], None)
+        cases[f"{by}-unans-conf"] = ([*base, CORPUS_CONFIRM, w], None)
+        cases[f"{by}-ans-noconf-before"] = ([*base, CORPUS_ACCEPT, w], None)
+        cases[f"{by}-ans-conf-before"] = (
+            [*base, CORPUS_ACCEPT, CORPUS_CONFIRM, w],
+            None,
+        )
+        cases[f"{by}-ans-after"] = ([*base, CORPUS_CONFIRM, w, CORPUS_ACCEPT], None)
+        cases[f"{by}-alt"] = ([*base, alt, w], None)
+        cases[f"{by}-defer"] = ([*base, defer, w], None)
+    for by in ("claude", "user"):
+        w = corpus_wait("bench", by)
+        cases[f"sup-{by}-hold"] = ([w], CORPUS_SEED)
+        cases[f"sup-{by}-hold-accept"] = (
+            [dict(CORPUS_ACCEPT), w],
+            CORPUS_SEED,
+        )
+    for by in ("claude", "user"):
+        for tag, waits in [
+            ("newline", "vendor;\nanswer: pending"),
+            ("tab-conf", "vendor;\tconfirmed:\tA"),
+        ]:
+            cases[f"unans-{by}-{tag}"] = (
+                [corpus_add(commits=["C"]), corpus_wait(waits, by)],
+                None,
+            )
+    add = corpus_add(commits=[])
+    add["question"].update(waiting=True, waitsOn="vendor; answer: pending")
+    cases["add-with-delim"] = ([add], None)
+    return cases
+
+
+def held_state(doc, resp):
+    """Per question: the hold, the decision that counts, the confirmed commitments and the plan proposal."""
+    responses = resp.get("responses") or {}
+    events = resp.get("events") or []
+    seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+    out = {}
+    for q in doc["questions"]:
+        rec = exporters.latest_decision(q, responses) or {}
+        seed = seeds.get(q["id"]) or {}
+        proposal = (
+            exporters.PROPOSES.match(seed.get("resolution", ""))
+            if seed.get("status") == "superseded-by-plan"
+            else None
+        )
+        out[q["id"]] = {
+            "waiting": bool(q.get("waiting")),
+            "waitsOn": q.get("waitsOn"),
+            "waitingBy": q.get("waitingBy"),
+            "decision": rec.get("decision"),
+            "alt": rec.get("alt") if rec.get("decision") == "alt" else None,
+            "text": rec.get("text") or "",
+            "confirmed": exporters.commitments(q, events)[0],
+            "proposal": proposal.groups() if proposal else None,
+        }
+    return out
+
+
+def load_state(d):
+    doc = json.loads((d / "questions.json").read_text(encoding="utf-8"))
+    path = d / "responses.json"
+    resp = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    return held_state(doc, resp)
+
+
+class TestHeldRowCorpus(SessionCase):
+    """Each corpus case: the ledger re-exports the same rows, the re-import holds the same state
+    (a decision a user hold set aside counts on neither side), and clearing the hold on both
+    sides still exports the same rows."""
+
+    def apply_ops(self, ops, d):
+        path = self.tmp / f"ops-{len(list(self.tmp.iterdir()))}.json"
+        path.write_text(json.dumps({"ops": ops}), encoding="utf-8")
+        rc, out = self.rp("apply", "--file", str(path), d=d)
+        self.assertEqual(rc, 0, out)
+
+    def roundtrip(self, ops, seed):
+        if seed:
+            ledger = self.tmp / "seed-ledger.md"
+            ledger.write_text(seed, encoding="utf-8")
+            rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+            self.assertEqual(rc, 0, out)
+        self.apply_ops(ops, self.dir)
+        first = self.export("ledger")
+        rows = register_rows(first)
+        self.assertEqual(len(rows), 1, rows)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        self.assertEqual(load_state(fresh), load_state(self.dir))
+        for d in (self.dir, fresh):
+            self.apply_ops([{"op": "wait", "id": "Q1", "clear": True}], d)
+        self.assertEqual(
+            register_rows(self.export("ledger", d=fresh)),
+            register_rows(self.export("ledger")),
+        )
+
+
+def corpus_test(ops, seed):
+    def test(self):
+        self.roundtrip(ops, seed)
+
+    return test
+
+
+for _name, (_ops, _seed) in corpus_cases().items():
+    setattr(
+        TestHeldRowCorpus,
+        "test_" + _name.replace("-", "_"),
+        corpus_test(_ops, _seed),
+    )
+
+
+class TestHeldRowProperty(SessionCase):
+    """Random held rows over every hold shape: export -> import -> export is identical, the
+    imported state equals the original before and after the hold is cleared, no row spans
+    lines, and check-open-questions.sh counts every row."""
+
+    PIECES = [
+        ";",
+        ":",
+        "|",
+        "\\",
+        "\n",
+        "\t",
+        "\r",
+        " ",
+        "  ",
+        "; ",
+        "answer:",
+        " answer: ",
+        "confirmed:",
+        "; confirmed: ",
+        "plan proposes:",
+        "was:",
+        "note:",
+        "waits on::",
+        "\\n",
+        "\\;",
+        "\\u0041",
+        "\u00e9",
+        "\u65e5\u672c",
+        "\u2028",
+        "\u00a0",
+        "\x0b",
+        "x",
+        "Postgres",
+        "- Q9 | open",
+    ]
+    SHAPES = [
+        (by, decision, superseded, confirmed)
+        for by in ("claude", "user")
+        for decision in (None, "accept", "alt", "own", "defer")
+        for superseded in (False, True)
+        for confirmed in (False, True)
+    ]
+    EARLIER = "2026-09-23T10:00:00Z"
+    LATER = "2026-09-25T10:00:00Z"
+
+    def text(self, rnd, least=0):
+        return "".join(rnd.choice(self.PIECES) for _ in range(rnd.randint(least, 6)))
+
+    def proposal(self, rnd):
+        """A proposal and prior answer a legacy superseded-by-plan row can carry."""
+        while True:
+            new, old = (
+                exporters.clean(self.text(rnd, 1)),
+                exporters.clean(self.text(rnd)),
+            )
+            m = exporters.PROPOSES.match(f"plan proposes: {new}; was: {old}")
+            if m and m.groups() == (new, old):
+                return new, old
+
+    def build(self, seed):
+        rnd = random.Random(seed)
+        qs, rows, expect = [], {}, {"open": 0, "superseded": 0}
+        for i, (by, decision, superseded, confirmed) in enumerate(self.SHAPES, 1):
+            qid = f"Q{i}" if seed % 2 == 0 else f"H{i}"
+            commits = [f"{self.text(rnd)}; {self.text(rnd)}"]
+            commits += [self.text(rnd) for _ in range(rnd.randint(0, 2))]
+            q = {
+                "id": qid,
+                "short": f"Short {qid}",
+                "title": f"Question {qid}?",
+                "round": 1,
+                "recommendation": self.text(rnd, 1),
+                "commits": commits,
+                "alternatives": [
+                    {"key": "a", "text": self.text(rnd)},
+                    {"key": "b", "text": self.text(rnd)},
+                ],
+                "waiting": True,
+                "waitsOn": self.text(rnd, 1),
+                "history": [],
+            }
+            if confirmed:
+                picks = rnd.sample(range(len(commits)), rnd.randint(1, len(commits)))
+                q["commitsConfirmed"] = [
+                    {"index": k, "reason": "chat", "at": AT} for k in sorted(picks)
+                ]
+            if superseded:
+                new, old = self.proposal(rnd)
+                q["recommendation"] = new
+                q["alternatives"] = [{"key": "was", "text": old}]
+                rows[qid] = {
+                    "status": "superseded-by-plan",
+                    "round": 1,
+                    "resolution": f"plan proposes: {new}; was: {old}",
+                }
+            if decision:
+                alt = (
+                    rnd.choice(q["alternatives"])["key"] if decision == "alt" else None
+                )
+                q["terminal"] = {
+                    "decision": decision,
+                    "alt": alt,
+                    "text": self.text(rnd),
+                    "updatedAt": AT,
+                }
+            if by == "user":
+                q["waitingBy"] = "user"
+                if rnd.random() < 0.6:
+                    q["setAsideAt"] = rnd.choice([self.EARLIER, self.LATER])
+            expect["superseded" if superseded else "open"] += 1
+            qs.append(q)
+        meta = {"title": "Held rows"}
+        if rows:
+            meta["seededFrom"] = {"at": AT, "rows": rows}
+        doc = {"meta": meta, "rev": 1, "groups": [], "questions": qs, "visuals": []}
+        return doc, expect
+
+    def ledger(self, d, name):
+        path = self.tmp / name
+        path.write_text(exporters.export_ledger(d), encoding="utf-8")
+        return path
+
+    def check_seed(self, seed):
+        doc, expect = self.build(seed)
+        orig = self.tmp / f"orig-{seed}"
+        orig.mkdir()
+        (orig / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+        first = self.ledger(orig, f"first-{seed}.md")
+        text = first.read_text(encoding="utf-8")
+        for line in text.split("\n"):
+            self.assertLessEqual(len(line.splitlines()), 1, f"seed {seed}: {line!r}")
+        rows = register_rows(first)
+        self.assertEqual(len(rows), len(self.SHAPES), f"seed {seed}")
+        rc, out = self.check("--ledger", first)
+        self.assertEqual(rc, 1, f"seed {seed}: {out}")
+        self.assertIn(
+            f"registered={len(self.SHAPES)} open={expect['open']} deferred=0 blocked=0 "
+            f"withdrawn=0 answered=0 superseded={expect['superseded']} ",
+            out,
+            f"seed {seed}",
+        )
+        fresh = self.tmp / f"fresh-{seed}"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, f"seed {seed}: {out}")
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, f"seed {seed}: {out}")
+        self.assertEqual(
+            register_rows(self.ledger(fresh, f"second-{seed}.md")), rows, f"seed {seed}"
+        )
+        before, after = held_state(doc, {}), load_state(fresh)
+        self.assertEqual(sorted(after), sorted(before), f"seed {seed}")
+        for qid, state in before.items():
+            self.assertEqual(after[qid], state, f"seed {seed} {qid}")
+        for d in (orig, fresh):
+            path = d / "questions.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for q in data["questions"]:
+                for key in ("waiting", "waitsOn", "waitingBy"):
+                    q.pop(key, None)
+            path.write_text(json.dumps(data), encoding="utf-8")
+        cleared = register_rows(self.ledger(orig, f"cleared-{seed}.md"))
+        self.assertEqual(
+            register_rows(self.ledger(fresh, f"cleared-re-{seed}.md")),
+            cleared,
+            f"seed {seed}",
+        )
+
+    def test_every_hold_shape_round_trips_losslessly(self):
+        for seed in range(10):
+            with self.subTest(seed=seed):
+                self.check_seed(seed)
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

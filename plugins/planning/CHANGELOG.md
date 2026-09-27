@@ -23,10 +23,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   decision recorded before it (`setAsideSeq` for a page decision, `setAsideAt` for a terminal
   one), so only the user's next decision counts, including a `record-terminal` later in the
   same `apply`. An imported ledger row stays open in the export while held and after. A held
-  row exports as `waits on: <text>` or `awaiting user: <text>`, a research hold adding
-  `; answer: <resolution>` for the answer it keeps, and `import-ledger` restores both the hold
-  and that answer. A superseded-by-plan row whose page answer a cleared hold set aside keeps
-  its `plan proposes: ...; was: ...` resolution.
+  row exports as `waits on:: <text>` or `awaiting user:: <text>`, then `; answer: <answer>`
+  for the decision that counts, `; note: <note>` for an accept's or an alternative's note, and
+  `; confirmed: <c1>; <c2>` for its confirmed commitments; a held superseded-by-plan row keeps
+  its status and leads with `plan proposes: <new>; was: <old>`. Each field is escaped on its
+  own (`\\`, `\;`, `\|`, `\n`, `\t`, `\r`, and other whitespace and a field's trailing spaces
+  as `\uXXXX`), so any hold text, answer or commitment round-trips through `import-ledger`, which
+  restores the hold, the answer (accept, alternative, own or defer), the note and the confirmed
+  commitments. The double colon marks an escaped row; an older `waits on: ...` row is read as
+  before, without unescaping. A superseded-by-plan row whose page answer a cleared hold set
+  aside keeps its `plan proposes: ...; was: ...` resolution.
 - **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
   page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
@@ -117,9 +123,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   carries the Claude line, and Go moves focus to the target question.
 - **`interview` page:** a long question id is cut to eight characters in the rail, with the
   full id on hover, so its title and chips stay readable and the rail never scrolls sideways.
-- **`interview` surface:** `wait` refuses a `waitsOn` containing the ledger's hold delimiters
-  (`; answer:` or `; confirmed:` followed by a space), so an exported held row imports back
-  without a fake answer and with its confirmed commitments restored as confirmed.
+- **`scripts/check-open-questions.sh`:** matches row statuses case-insensitively without a
+  subprocess per row, so a large register grades in seconds on Windows.
+- **`interview` surface:** an exported held row imports back without a fake answer, with its
+  confirmed commitments restored as confirmed (a commitment containing a semicolon stays
+  whole), and with a Claude hold's defer, a user hold's later answer and a superseded-by-plan
+  row's hold kept. `wait` takes any hold text, including the row's own `; answer:` and
+  `; confirmed:` delimiters.
 - **`interview` page:** plainer wording: `Sent to Claude` for the rail chip, `Waiting on Qn`
   for an upstream-pending question, `Still open from earlier rounds`, and no `terminal` chip.
 - Three digests in `tests/interview-defenses.test.sh` were re-pinned, none weakening a

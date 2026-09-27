@@ -12,6 +12,16 @@ round.py exposes them as export-ledger, export-brief, export-report and import-l
 Register ids: surface ids that are already Q1..Qn stay as they are; any other set is renumbered
 Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
 which import_ledger reads back so a re-export numbers the same way.
+
+A held row's resolution escapes each field on its own (esc_field) and joins the fields with `; `:
+  [plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)[; answer: E(answer)][; note: E(note)]
+  [; confirmed: E(c1)[; E(c2)...]]
+The label is `waits on` (a Claude hold) or `awaiting user` (a user hold); its double colon marks
+the row as escaped, so an older row (`waits on: ...`) is read as before and never unescaped. The
+proposal leads only on a superseded-by-plan row, which keeps that status. The answer is the
+decision that counts, in the resolution vocabulary (`accepted: <recommendation>`,
+`alt <key>: <text>`, `free-text: <text>`, `deferred[: <text>]`); note is an accept's or an
+alternative's note; confirmed lists the confirmed commitments, one field each.
 """
 
 import base64
@@ -40,6 +50,14 @@ PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
 HELD = re.compile(
     r"^(waits on|awaiting user): (.*?)(?:; answer: (.*)|; confirmed: (.*))?$"
 )
+# The escaped held row (module docstring): E() escapes backslash, `;`, `|`, newline, tab and CR,
+# and any other whitespace and a field's trailing spaces (the register strips a row's end) as
+# \uXXXX. Only these sequences unescape; any other backslash stays literal.
+ESCAPES = {"\\": "\\\\", ";": "\\;", "|": "\\|", "\n": "\\n", "\t": "\\t", "\r": "\\r"}
+UNESCAPES = {"n": "\n", "t": "\t", "r": "\r"}
+UNESCAPE = re.compile(r"\\(?:([\\;|])|([ntr])|u([0-9a-fA-F]{4}))")
+HOLD_MARK = re.compile(r"^(waits on|awaiting user)::(?: |$)(.*)$", re.DOTALL)
+HOLD_FIELD = re.compile(r"^(answer|note|confirmed):(?: |$)(.*)$", re.DOTALL)
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -59,6 +77,147 @@ def para(s):
     """A plain paragraph that cannot turn into a heading, a list item or a fence."""
     s = clean(s)
     return "\\" + s if s[:1] in "#`~->*+" and s else s
+
+
+class Escaped(str):
+    """A held row's resolution, already escaped field by field; clean() would corrupt it."""
+
+
+def esc_field(s):
+    s = str(s)
+    body = s.rstrip(" ")
+    out = "".join(
+        ESCAPES.get(c) or (f"\\u{ord(c):04x}" if c.isspace() and c != " " else c)
+        for c in body
+    )
+    return out + "\\u0020" * (len(s) - len(body))
+
+
+def unesc_field(s):
+    def one(m):
+        if m.group(1):
+            return m.group(1)
+        if m.group(2):
+            return UNESCAPES[m.group(2)]
+        return chr(int(m.group(3), 16))
+
+    return UNESCAPE.sub(one, s)
+
+
+def split_fields(s):
+    """Split on each `; ` no backslash escapes; a final bare `;` also splits, since the row's
+    strip took the space before an empty last field."""
+    fields, cur, i = [], [], 0
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s):
+            cur.append(s[i : i + 2])
+            i += 2
+        elif s[i] == ";" and s[i + 1 : i + 2] in (" ", ""):
+            fields.append("".join(cur))
+            cur = []
+            i += 2
+        else:
+            cur.append(s[i])
+            i += 1
+    fields.append("".join(cur))
+    return fields
+
+
+def decision_fields(q, rec):
+    """(answer, note) for a held row: the decision in the resolution vocabulary, and the note an
+    accept or an alternative carries."""
+    decision, text = rec.get("decision"), rec.get("text") or ""
+    if decision == "accept":
+        return f"accepted: {q.get('recommendation') or 'the recommendation'}", text
+    if decision == "alt":
+        key = rec.get("alt") or ""
+        alt = next(
+            (
+                a.get("text", "")
+                for a in q.get("alternatives") or []
+                if a.get("key") == key
+            ),
+            "",
+        )
+        return f"alt {key}: {alt}", text
+    if decision == "own":
+        return f"free-text: {text}", ""
+    return "deferred" + (f": {text}" if text else ""), ""
+
+
+def hold_row(q, responses, events, seed):
+    """(status, resolution) of a held question, in the escaped grammar of the module docstring."""
+    superseded = seed and seed["status"] == "superseded-by-plan"
+    proposal = PROPOSES.match(seed.get("resolution", "")) if superseded else None
+    fields = []
+    if proposal:
+        new, old = proposal.groups()
+        fields += [f"plan proposes: {esc_field(new)}", f"was: {esc_field(old)}"]
+    fields.append(f"{hold_label(q)}:: {esc_field(q.get('waitsOn') or 'a lookup')}")
+    rec = latest_decision(q, responses)
+    if rec and rec.get("decision"):
+        answer, note = decision_fields(q, rec)
+        fields.append(f"answer: {esc_field(answer)}")
+        if note:
+            fields.append(f"note: {esc_field(note)}")
+    confirmed, _ = commitments(q, events)
+    if confirmed:
+        fields.append("confirmed: " + "; ".join(esc_field(c) for c in confirmed))
+    return ("superseded-by-plan" if proposal else "open"), Escaped("; ".join(fields))
+
+
+def parse_hold(res, where):
+    """The fields of an escaped held resolution as a dict, or None for any other resolution."""
+    fields = split_fields(res)
+    hold = {}
+    if (
+        len(fields) > 2
+        and fields[0].startswith("plan proposes: ")
+        and fields[1].startswith("was: ")
+    ):
+        hold["proposal"] = (
+            unesc_field(fields[0][len("plan proposes: ") :]),
+            unesc_field(fields[1][len("was: ") :]),
+        )
+        fields = fields[2:]
+    m = HOLD_MARK.match(fields[0])
+    if not m:
+        return None
+    hold["user"], hold["waitsOn"] = (
+        m.group(1) == "awaiting user",
+        unesc_field(m.group(2)),
+    )
+    rest = fields[1:]
+    for i, field in enumerate(rest):
+        f = HOLD_FIELD.match(field)
+        if not f or (f.group(1) in hold and f.group(1) != "confirmed"):
+            raise SystemExit(f"refused: unreadable held row field {field!r} in {where}")
+        if f.group(1) == "confirmed":
+            hold["confirmed"] = [unesc_field(f.group(2))]
+            hold["confirmed"] += [unesc_field(x) for x in rest[i + 1 :]]
+            break
+        hold[f.group(1)] = unesc_field(f.group(2))
+    return hold
+
+
+def held_terminal(q, answer, note, at):
+    """The terminal record a held row's answer restores; an alternative's text and an accept's
+    recommendation go back on the question so a re-export writes the same answer."""
+    alt = re.match(r"^alt (\S+): (.*)$", answer, re.DOTALL)
+    if answer == "deferred" or answer.startswith("deferred: "):
+        decision, key, text = "defer", None, answer[len("deferred: ") :]
+    elif answer.startswith("free-text: "):
+        decision, key, text = "own", None, answer[len("free-text: ") :]
+    elif alt:
+        decision, key, text = "alt", alt.group(1), note
+        if not any(a.get("key") == key for a in q["alternatives"]):
+            q["alternatives"].append({"key": key, "text": alt.group(2)})
+    elif answer.startswith("accepted: "):
+        decision, key, text = "accept", None, note
+        q["recommendation"] = answer[len("accepted: ") :]
+    else:
+        decision, key, text = "own", None, answer
+    return {"decision": decision, "alt": key, "text": text, "updatedAt": at}
 
 
 def natural(qid):
@@ -122,9 +281,12 @@ def settle(q, responses, events, seed_rows):
     seed = seed_rows.get(q["id"])
     page = responses.get(q["id"])
     # A hold, or a user hold's set-aside stamp, outranks a seeded row; a superseded-by-plan
-    # one keeps the plan's proposal as its resolution.
+    # one keeps the plan's proposal as its resolution once the hold is cleared.
     held = q.get("waiting") or any(k.startswith("setAside") for k in q)
-    if seed and not page and not (held and seed["status"] != "superseded-by-plan"):
+    live = q.get("waiting") or (
+        held and seed and seed["status"] != "superseded-by-plan"
+    )
+    if seed and not page and not live:
         term, arch = q.get("terminal") or {}, q.get("archived") or {}
         untouched = seed["status"] in UNSETTLED and not term and not arch
         if untouched or term.get("seeded") or arch.get("seeded"):
@@ -143,14 +305,8 @@ def settle(q, responses, events, seed_rows):
     if q.get("supersededBy"):
         return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
     if q.get("waiting"):
-        res = f"{hold_label(q)}: {q.get('waitsOn') or 'a lookup'}"
-        if q.get("waitingBy") != "user":
-            unheld = {k: v for k, v in q.items() if k != "waiting"}
-            status, answer, _, _ = settle(unheld, responses, events, seed_rows)
-            if status == "answered":
-                # A re-import restores the hold and the answer it keeps.
-                return "open", f"{res}; answer: {answer}", "", False
-        return "open", res + tail, "", False
+        status, res = hold_row(q, responses, events, seed)
+        return status, res, "", False
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))
@@ -207,8 +363,12 @@ def register(doc, resp):
     rows = []
     for i, q in enumerate(qs, start=1):
         status, res, note, reserved = settle(q, responses, events, seed_rows)
-        if not contiguous:
-            res = f"[{q['id']}]" + (f" {res}" if res else "")
+        if isinstance(res, Escaped):
+            res = f"[{clean(q['id'])}] {res}" if not contiguous else str(res)
+        else:
+            res = clean(
+                f"[{q['id']}]" + (f" {res}" if res else "") if not contiguous else res
+            )
         confirmed, unconfirmed = commitments(q, events)
         decided = latest_decision(q, responses) or {}
         rows.append(
@@ -216,7 +376,7 @@ def register(doc, resp):
                 "n": f"Q{i}",
                 "q": q,
                 "status": status,
-                "resolution": clean(res),
+                "resolution": res,
                 "note": note,
                 "reserved": reserved,
                 "confirmed": confirmed,
@@ -231,7 +391,11 @@ def register(doc, resp):
 
 def row_line(r):
     q = r["q"]
-    return f"- {r['n']} | {r['status']} | round {q.get('round') or 1} | {clean(q.get('title'))} | {r['resolution']}".rstrip()
+    line = f"- {r['n']} | {r['status']} | round {q.get('round') or 1} | {clean(q.get('title'))} | {r['resolution']}".rstrip()
+    # A raw line break would start a continuation line, and one starting `- Q` forges a row.
+    if len(line.splitlines()) != 1:
+        raise ValueError(f"register row {r['n']} would span lines: {line!r}")
+    return line
 
 
 def export_ledger(d):
@@ -541,19 +705,70 @@ def seeded_decision(res):
     return "own", None, res, None
 
 
+def import_hold(qid, title, rnd, hold, seeded, at):
+    """The question an escaped held row restores: the hold, the answer, the confirmed
+    commitments, and for a superseded-by-plan row the seeded proposal. Any other held row gets no
+    seeded row, so it settles from this state alone once the hold is cleared."""
+    q = {
+        "id": qid,
+        "short": title if len(title) <= 60 else title[:57] + "...",
+        "title": title,
+        "round": rnd,
+        "stage": "interview",
+        "commits": hold.get("confirmed") or [],
+        "alternatives": [],
+        "waiting": True,
+        "waitsOn": hold["waitsOn"],
+    }
+    if hold["user"]:
+        q["waitingBy"] = "user"
+    status = "open"
+    if "proposal" in hold:
+        new, old = hold["proposal"]
+        status = "superseded-by-plan"
+        q["recommendation"] = new
+        q["alternatives"] = [{"key": "was", "text": old}]
+        seeded[qid] = {
+            "status": status,
+            "round": rnd,
+            "resolution": f"plan proposes: {new}; was: {old}",
+        }
+    if "answer" in hold:
+        q["terminal"] = held_terminal(q, hold["answer"], hold.get("note", ""), at)
+    if q["commits"]:
+        q["commitsConfirmed"] = [
+            {"index": i, "reason": SEED_NOTE, "at": at}
+            for i in range(len(q["commits"]))
+        ]
+    q["history"] = [
+        {
+            "at": at,
+            "by": "claude",
+            "kind": "seed",
+            "text": f"{SEED_NOTE}: {status}, held.",
+        }
+    ]
+    return q
+
+
 def import_ledger(doc, text, ledger, at):
     """Fill an empty questions document from a ledger: settled rows keep their decision, open rows stay open."""
     rows = parse_register(text)
     if not rows:
         raise SystemExit(f"refused: no open-question register rows in {ledger}")
-    seeded = {}
+    seeded, seen = {}, set()
     for n, status, rnd, title, res in rows:
         lead = LEAD.match(res)
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
-        if qid in seeded:
+        if qid in seen:
             raise SystemExit(f"refused: duplicate question id in {ledger}: {qid}")
+        seen.add(qid)
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
+        hold = parse_hold(res, ledger) if status in UNSETTLED else None
+        if hold:
+            doc["questions"].append(import_hold(qid, title, rnd, hold, seeded, at))
+            continue
         held = HELD.match(res) if status == "open" else None
         confirmed = held.group(4) if held else None
         if held:  # the hold itself is restored below, so its text leaves the seeded row

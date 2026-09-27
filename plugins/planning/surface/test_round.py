@@ -701,22 +701,12 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(len(self.entries()), 2)
         self.assertEqual(self.entries()[-1]["text"], "Q3 no longer pending research")
 
-    def test_wait_refuses_the_ledger_delimiters_in_its_text(self):
+    def test_wait_takes_the_ledger_delimiters_in_its_text(self):
         for by in ("claude", "user"):
-            for delim in ("; answer: ", "; confirmed: "):
-                out = self.refused(
-                    {
-                        "op": "wait",
-                        "id": "Q1",
-                        "by": by,
-                        "waitsOn": f"vendor quote{delim}pending",
-                    }
-                )
-                self.assertIn(delim, out)
-        self.apply(
-            {"op": "wait", "id": "Q1", "waitsOn": "vendor quote, answer: pending"}
-        )
-        self.assertEqual(self.q("Q1")["waitsOn"], "vendor quote, answer: pending")
+            for delim in ("; answer: ", "; confirmed: ", ";\n answer: "):
+                text = f"vendor quote{delim}pending"
+                self.apply({"op": "wait", "id": "Q1", "by": by, "waitsOn": text})
+                self.assertEqual(self.q("Q1")["waitsOn"], text)
 
     def test_wait_by_user_sets_the_decision_aside(self):
         old = "2026-09-24T10:00:00Z"
