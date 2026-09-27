@@ -3,6 +3,33 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-27
+
+### Added
+
+- `reduce change <old> <new>`: when one value changes, find every site that states it and
+  classify each as setup, record, contract, fixture, generated, protected (CI, agent settings,
+  hooks, lint configs, lock files, migrations), or unknown (a file kind the script does not
+  recognize). `value-sites.py rules` prints every enforced pattern, and change-mode.md lists the
+  same patterns under a suite check that fails when the two differ.
+  Read-only; it reports the sites and proposes a reference form for each setup site.
+- `reduce change apply <old> <new>`: after the human confirms the site list, change the setup sites,
+  convert them to a reference form, and write contract corrections to a proposal file beside the
+  ledger. A confirmed site set is not capped by the per-run budget.
+- `skills/reduce/scripts/value-sites.py`: the deterministic inventory (every separator, escape,
+  drive, and case spelling of the value, token boundaries, longest form first, path-based classes
+  with a default-deny for unknown file kinds, a content anchor per row covering the line and its two
+  neighbors, control bytes, Unicode line breaks, and bidi controls escaped in the row text, and a
+  skip row for each binary, UTF-16, UTF-32, or outside-root file) and a byte-level `apply` that takes
+  `path:line:col:anchor` sites and replaces only the match at that column. It refuses a site whose
+  line changed since `find`, record, contract, generated, protected, and unknown sites, fixture
+  sites without `--allow-fixture`, sites that are not tracked files inside the root, symlinks,
+  hardlinks, binary and UTF-16 or UTF-32 files, unwritable targets, and any write that changes a
+  file's control-byte count. It writes each file through a temp file and restores every replaced
+  file if a write fails. Covered by `value-sites.test.sh`.
+- `skills/reduce/reference/change-mode.md`: site classes, reference forms, the apply sequence, and
+  pitfalls.
+
 ## [0.2.0] - 2026-09-23
 
 ### Changed

@@ -79,12 +79,17 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/animation:learn-style`](../plugins/animation/skills/learn-style/SKILL.md) | `animation` | Measure a traced clip into a style pack and check new scenes against it |
+| [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |
 | [`/instruction-placement:migrate`](../plugins/instruction-placement/skills/migrate/SKILL.md) | `instruction-placement` | Move a repository's instruction content to AGENTS.md behind an operator gate |
 | [`/instruction-placement:realign`](../plugins/instruction-placement/skills/realign/SKILL.md) | `instruction-placement` | Apply accepted placement findings behind a per-item human gate |
 | [`/overengineering:realign`](../plugins/overengineering/skills/realign/SKILL.md) | `overengineering` | Execute accepted audit findings down the rollback ladder behind a per-item human gate |
+| [`/pixel-art:animate`](../plugins/pixel-art/skills/animate/SKILL.md) | `pixel-art` | Author, render, and review pixel-art animation cycles and sprite sheets |
+| [`/pixel-art:scene`](../plugins/pixel-art/skills/scene/SKILL.md) | `pixel-art` | Author, render, and review a self-contained HTML pixel-art scene |
+| [`/pixel-art:sprite`](../plugins/pixel-art/skills/sprite/SKILL.md) | `pixel-art` | Author, render, and review a static pixel-art sprite |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test
@@ -113,6 +118,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:dissolve-comments`](../plugins/code-tidying/skills/dissolve-comments/SKILL.md) | `code-tidying` | Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
+| [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
 | [`/review:audit-enforceability`](../plugins/review/skills/audit-enforceability/SKILL.md) | `review` | Propose the cheapest deterministic rung for each review finding |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |

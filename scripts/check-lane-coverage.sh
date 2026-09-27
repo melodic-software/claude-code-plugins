@@ -345,11 +345,11 @@ if [[ -z "$jobs_all" ]]; then
   echo "check-lane-coverage: no jobs parsed from $WORKFLOW" >&2
   exit 2
 fi
-if ! printf '%s\n' "$jobs_all" | grep -Fxq "$AGGREGATE"; then
+if ! grep -Fxq "$AGGREGATE" <<<"$jobs_all"; then
   echo "check-lane-coverage: aggregate job '$AGGREGATE' is not defined in $WORKFLOW" >&2
   exit 2
 fi
-if ! printf '%s\n' "$parsed" | grep -Fxq 'NEEDSBLOCK'; then
+if ! grep -Fxq 'NEEDSBLOCK' <<<"$parsed"; then
   echo "check-lane-coverage: aggregate job '$AGGREGATE' declares no needs: block in $WORKFLOW" >&2
   exit 2
 fi
@@ -403,7 +403,7 @@ while read -r _ job flag reason; do
   [[ "$job" != "$AGGREGATE" ]] || continue
 
   in_needs=1
-  printf '%s\n' "$needs_all" | grep -Fxq "$job" || in_needs=0
+  grep -Fxq "$job" <<<"$needs_all" || in_needs=0
 
   if [[ "$flag" == "A" ]]; then
     if [[ -z "$reason" ]]; then
@@ -421,7 +421,7 @@ done <<<"$(printf '%s\n' "$parsed" | grep '^JOB ')"
 
 while IFS= read -r need; do
   [[ -n "$need" ]] || continue
-  printf '%s\n' "$jobs_all" | grep -Fxq "$need" ||
+  grep -Fxq "$need" <<<"$jobs_all" ||
     report "DANGLING NEED: ${AGGREGATE}.needs names '$need', which is not a job defined in $WORKFLOW."
 done <<<"$needs_all"
 

@@ -1015,7 +1015,7 @@ for row in "${pairs[@]}"; do
 done
 while IFS= read -r candidate; do
   [[ -n "$candidate" ]] || continue
-  if ! printf '%s' "$registered_detectors" | grep -Fxq -- "$candidate"; then
+  if ! grep -Fxq -- "$candidate" <<<"$registered_detectors"; then
     if [[ "$mode" == "discover" ]]; then
       printf 'UNREGISTERED PAIR: %s emits check ids beside an eval suite and has no registry row\n' \
         "$candidate" >>"$report_tmp"

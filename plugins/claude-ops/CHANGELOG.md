@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.4] - 2026-09-27
+
+### Fixed
+
+- `lane-launcher.sh` now launches every lane with `claude --bg -n <name> --permission-mode auto`. A machine whose Claude Code `defaultMode` is Manual previously started unattended lanes in Manual too, where they stalled at the first permission prompt. `restart-consumer.sh` relaunches through `lane-launcher.sh restart`, so it inherits the fix without its own change.
+
 ## [0.62.3] - 2026-09-26
 
 ### Changed

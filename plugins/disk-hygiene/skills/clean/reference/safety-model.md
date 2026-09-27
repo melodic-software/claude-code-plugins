@@ -199,10 +199,15 @@ guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
 local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
 substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
-`--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
-every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
-`--confirmed-large-scan`, `--quiet` and `--root-children` are the valueless scan flags; the guard
-permits at most one of each and rejects any trailing value, so the scan grammar stays exact.
+`--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last (its
+literal unsubstituted placeholder counts as absent); absent every channel the flag fails closed.
+`--data-root` is mandatory at the guard even though the engine's grammar leaves it optional: an
+otherwise exact call that omits it is denied, because the engine would then fall back to the raw
+`CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set.
+
+`--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
+and `--root-children` are the valueless scan flags; the guard permits at most one of each and
+rejects any trailing value, so the scan grammar stays exact.
 `--quiet` is admitted because it shapes the engine's stdout only: it reaches no path, and skips no
 check, that the same invocation without it would not already reach.
 
@@ -212,7 +217,7 @@ is the version leaf; a directly-linked local install omits it). The guard anchor
 `<plugins>/cache` marker rather than a fixed depth, taking the marketplace and name from the two
 segments after `cache` and reading `data` as `cache`'s sibling, so a version leaf does not shift the
 result. That coupling is acceptable only because its sole failure mode is fail-closed: an
-unrecognized layout yields no authority, so `--data-root` engine calls are denied while the
+unrecognized layout yields no authority, so every engine call is denied while the
 destructive-action guard stays fully active. The plugins reference documents all three path
 variables (`CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR`) as exported to hook
 processes as environment variables, so the guard's `CLAUDE_PLUGIN_DATA` env fallback should carry the
@@ -286,7 +291,7 @@ from that install and derives the marketplace's canonical data root. `CLAUDE_CON
 reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
 account-home note above). Both rely on the `CLAUDE_PLUGIN_DATA`
 environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
-fail-closed there (every `--data-root` invocation denied) while the destructive-action guard itself
+fail-closed there (every engine invocation denied) while the destructive-action guard itself
 stays fully active. This is a deliberate safe-over-convenient tradeoff, not a security gap. The belt's
 denial names one recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to this
 plugin's data directory (`<config>/plugins/data/<name>-<marketplace>`). Exercising the engine lane

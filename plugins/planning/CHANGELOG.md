@@ -40,6 +40,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 19 to
   22, none of which contradicts case 15 or 16. No existing section digest changed.
 
+## [0.42.1] - 2026-09-27
+
+### Fixed
+
+- **`surface` tests:** the AC35 skill-token check no longer reads a CSS declaration such as
+  `{animation:pulse ...}` as a `<plugin>:<skill>` token.
+
 ## [0.42.0] - 2026-09-25
 
 ### Added

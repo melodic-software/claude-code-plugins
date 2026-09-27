@@ -88,6 +88,7 @@ REGISTRY=(
   "check-lane-coverage.sh|-|-|-"
   "check-loop-lane-floor-drift.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
+  "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"
   "check-plugin-manifest-presence.sh|jq|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
@@ -353,6 +354,16 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
+recipe::pipefail_grep_q() { # <clean|violation>
+  # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
+  local body='grep -q x <<<"$v"'
+  # shellcheck disable=SC2016  # see above
+  [[ "$1" == violation ]] && body='echo "$v" | grep -q x'
+  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --no-lib || return 2
+  printf '%s\n' "$body" >"$f/scripts/sample.sh"
+  capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
+}
+
 # The finding each recipe's violation arm must produce, keyed by recipe slug.
 declare -A VIOLATION_NEEDLE=(
   [hooks_description]='HOOKS DESCRIPTION:'
@@ -364,6 +375,7 @@ declare -A VIOLATION_NEEDLE=(
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
   [docs_naming]='is not lower-kebab-case'
+  [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
 )
 
 # --- 1. every member is registered, and every row names a member -------------

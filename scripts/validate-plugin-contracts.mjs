@@ -980,6 +980,50 @@ for (const path of pluginFiles) {
   }
 }
 
+// Every agent definition names its model. A subagent's model resolves as the
+// per-call `model`, then the definition's `model`, then CLAUDE_CODE_SUBAGENT_MODEL,
+// then the main conversation's model, so an omitted field lands on the
+// orchestrator's model wherever the variable is unset. `inherit` picks that
+// model on purpose and outranks the variable, so it must carry a stated reason
+// on the same line. Basis: https://code.claude.com/docs/en/sub-agents#choose-a-model
+// Scope: every .md under plugins/<plugin>/agents/, nested directories included,
+// because plugin agents/ directories are scanned recursively. No plugin declares
+// a custom `agents` path in plugin.json, so that tree is every agent definition.
+// The value must be one plain single-line scalar: a YAML null, a block scalar,
+// a duplicate key, or a comment not set off by whitespace could hide `inherit`.
+const agentDefinitions = pluginFiles.filter((path) => {
+  const parts = pluginPathParts(path);
+  return parts.length >= 3 && parts[1] === "agents" && path.endsWith(".md");
+});
+for (const path of agentDefinitions) {
+  const lines = read(path).replace(/^﻿/, "").split(/\r?\n/);
+  const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
+  const frontmatter = close === -1 ? [] : lines.slice(1, close);
+  const modelLines = frontmatter.filter((line) => line.startsWith("model:"));
+  if (modelLines.length > 1) {
+    fail(path, "model: appears more than once in frontmatter; keep one model line");
+    continue;
+  }
+  const rest = modelLines[0]?.slice("model:".length) ?? "";
+  const [, dq, sq, bare, comment = ""] =
+    /^[ \t]*(?:"([^"]*)"|'([^']*)'|(\S+))?(.*)$/.exec(rest);
+  const value = dq ?? sq ?? bare ?? "";
+  const malformed =
+    (rest !== "" && !/^[ \t]/.test(rest)) ||
+    (bare !== undefined && /^[|>"'[\]{}&*!%@`]|#/.test(bare)) ||
+    !/^(?:\s*|\s+#.*)$/.test(comment);
+  if (malformed) {
+    fail(
+      path,
+      "model: line is malformed; write `model: <value>` on one line, with whitespace after the colon and before any # comment",
+    );
+  } else if (!value || (bare !== undefined && /^(?:null|~)$/i.test(bare))) {
+    fail(path, "agent definitions must name a model in frontmatter (model: <alias or id>)");
+  } else if (value.toLowerCase() === "inherit" && !/#\s*reason:\s*\S/.test(comment)) {
+    fail(path, "model: inherit needs a trailing `# reason: <why>` comment on the same line");
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);

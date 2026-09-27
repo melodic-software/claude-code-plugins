@@ -37,6 +37,25 @@
 # Determinism is the contract: the same record and flags produce byte-identical
 # files, so a re-run shows a diff only when the facts moved.
 #
+# Prints, on stdout, one summary line after the artifacts are written:
+#
+#   landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n>
+#              drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>
+#
+# (one line in the output; wrapped here). The fields:
+#
+#   internal          internal systems; every one is drawn.
+#   external          every external system in the model, drawn or not.
+#   drawn_systems     internal plus the externals the diagram draws.
+#   edges             every edge in the record.
+#   drawn_edges       edges the diagram draws.
+#   unresolved_edges  edges whose source is not a charted repository. Their
+#                     target is still a node: a system reached only by an
+#                     unresolved edge is counted, but gets no arrow.
+#   thin              yes when drawn_systems <= 2 or drawn_edges == 0.
+#
+# The artifacts never carry this line, so they stay byte-identical.
+#
 # Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
 #
 # Exit: 0 = written; 1 = the record is unreadable or not schema_version 1, or
@@ -420,16 +439,20 @@ END {
     split(k, seg, "/")
     printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "external", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
   }
+  drawn_edges = 0
+  unresolved = 0
   for (i = 1; i <= en; i++) {
-    if (!(etarget[i] in drawn)) continue
     # The edge source names a checkout by basename, so resolve it through the
     # map the repository pass built. Iterating the node array instead would put
     # the answer at the mercy of the unspecified array order in awk.
     fk = localkey[efrom[i]]
-    if (fk == "" || !(fk in isnode)) continue
+    if (fk == "" || !(fk in isnode)) { unresolved++; continue }
+    if (!(etarget[i] in drawn)) continue
     printf "edge\t%s\t%s\t%s\t%s\n", aliasof[fk], aliasof[etarget[i]], elabel[i], erel[i]
+    drawn_edges++
   }
   printf "omit\t%d\n", ne - shown_ext
+  printf "stat\t%d\t%d\t%d\t%d\t%d\t%d\n", ni, ne, ni + shown_ext, en, drawn_edges, unresolved
 }
 ' "$record")"
 
@@ -630,5 +653,10 @@ fi
     }
   ' "$record"
 } >"$outdir/portfolio.md"
+
+printf '%s\n' "$model" | awk -F'\t' '$1 == "stat" {
+  printf "landscape: internal=%d external=%d drawn_systems=%d edges=%d drawn_edges=%d unresolved_edges=%d thin=%s\n", \
+    $2, $3, $4, $5, $6, $7, ($4 <= 2 || $6 == 0 ? "yes" : "no")
+}'
 
 exit 0

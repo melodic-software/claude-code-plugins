@@ -225,6 +225,66 @@ assert_not_contains "artifact: nor the portfolio table" "$out" 'portfolio-row'
 assert_contains "artifact: a real doc reference still survives alongside them" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_not_contains "noise: nor in another case" "$out" '"to":"Fixture-Owner/Charted"'
 
+# A worktree or a renamed clone sits in a directory whose name is not the
+# repository's. Its own `owner/repo` citations must still read as self, or the
+# landscape gains a phantom second system with an arrow pointing at it.
+wt_repo="$(make_repo checkout-dir-name)"
+git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git"
+mkdir -p "$wt_repo/docs"
+cat >"$wt_repo/docs/about.md" <<'MD'
+This repository is fixture-owner/real-name, also <https://github.com/Fixture-Owner/Real-Name>.
+It depends on fixture-owner/ci-workflows.
+MD
+commit_repo "$wt_repo"
+out="$(bash "$SCRIPT" "$wt_repo")"
+assert_not_contains "self: the origin remote's repository name is self too" "$out" '"to":"fixture-owner/real-name"'
+assert_not_contains "self: in any case" "$out" '"to":"Fixture-Owner/Real-Name"'
+assert_contains "self: a real reference in the same file survives" "$out" '"to":"fixture-owner/ci-workflows"'
+
+# git accepts a remote URL with a trailing slash; the repository is still named.
+git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git/"
+out="$(bash "$SCRIPT" "$wt_repo")"
+assert_not_contains "self: a trailing slash on the remote still names self" "$out" '"to":"fixture-owner/real-name"'
+
+# An --owner override moves the subject organization, not the remote's slug:
+# the clone's own origin repository is still self, and the override's
+# namesake is a different repository.
+out="$(bash "$SCRIPT" "$wt_repo" --owner other-owner | tr '[:upper:]' '[:lower:]')"
+assert_not_contains "self: the origin slug stays self under --owner" "$out" '"to":"fixture-owner/real-name"'
+
+# Only a github.com host names the subject. A host that merely contains the
+# string is some other server, so its path is neither self nor the owner.
+host_repo="$(make_repo host-check)"
+mkdir -p "$host_repo/docs"
+cat >"$host_repo/docs/about.md" <<'MD'
+Upstream is <https://github.com/zorg/real-name>.
+MD
+commit_repo "$host_repo"
+for evil in "https://evilgithub.com/zorg/real-name.git" \
+  "https://github.com.evil.example/zorg/real-name.git" \
+  "https://evil.example/github.com/zorg/real-name.git" \
+  "git@evilgithub.com:zorg/real-name.git" \
+  "https://api.github.com/zorg/real-name.git" \
+  "file:///srv/github.com/zorg/real-name.git" \
+  "../github.com/zorg/real-name.git" \
+  "https://github.com:abc/zorg/real-name.git" \
+  "ssh://git@github.com:22:/zorg/real-name.git"; do
+  git -C "$host_repo" remote set-url origin "$evil"
+  out="$(bash "$SCRIPT" "$host_repo")"
+  assert_contains "host: $evil is not self" "$out" '"to":"zorg/real-name"'
+  assert_equals "host: $evil yields no owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "unknown"
+done
+for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-name.git" \
+  "ssh://git@github.com/zorg/real-name.git" "https://user@github.com/zorg/real-name.git" \
+  "git@github.com:/zorg/real-name.git" "https://www.github.com/zorg/real-name.git" \
+  "ssh://git@github.com:22/zorg/real-name.git" "https://github.com:443/zorg/real-name.git" \
+  "https://GitHub.COM/zorg/real-name.git" "https://github.com:/zorg/real-name.git"; do
+  git -C "$host_repo" remote set-url origin "$good"
+  out="$(bash "$SCRIPT" "$host_repo")"
+  assert_not_contains "host: $good is self" "$out" '"to":"zorg/real-name"'
+  assert_equals "host: $good yields its owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "zorg"
+done
+
 # --- Case group 6: the .git suffix ------------------------------------------
 clone_repo="$(make_repo cloner)"
 mkdir -p "$clone_repo/docs"

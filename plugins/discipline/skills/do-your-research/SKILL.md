@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. For a heavy verification fan-out, a typed full inventory of the session's claims verified at a configurable depth, use the sibling do-your-research-deep."
+description: "Re-anchor research and no-assumptions discipline, then audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. To verify every claim in the session, use do-your-research-deep."
 user-invocable: true
 disable-model-invocation: false
 metadata:
