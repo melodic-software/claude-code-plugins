@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.13.6] - 2026-09-27
+## [0.13.7] - 2026-09-27
 
 ### Fixed
 
@@ -13,6 +13,24 @@ only after that version increases.
   and to realign, so a single-repo sweep no longer walks all ten layers. A new note sends
   `agent-hooks`, `branch-protection`, `forge-apps`, and `external-integrations` to a separate org- or
   machine-level pass (#4597).
+
+## [0.13.6] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: three hygiene-catalog entries now let the user review findings before anything
+  is fixed, as `next` step 3.3 requires.
+  - `provenance` runs `attribution:audit` with `audit`, the read-only action, instead of `sweep`,
+    which is the fix pipeline and applied fixes during the run. Its notes name
+    `attribution:audit fix <file>` for the approved findings (#4576).
+  - `codebase-health` drops `--fix`. In `codebase-health:audit`, `--fix` applies nothing: it
+    suggests the remediation lanes and says not to invoke them, which contradicted step 3.5. The
+    new notes say the step applies the agreed fixes itself. The `claude-config` and `lint` entries
+    keep `--fix`, because there it applies fixes: after per-fix confirmation in
+    `claude-config:audit`, and format-only in `toolchain:lint` (#4587).
+  - `claude-memory` treats C9 additions as in scope: one line per missing build or test command,
+    verified against the repo's manifest or task runner. Before, every repo whose CLAUDE.md lacked
+    one raised the same exception question (#4614).
 
 ## [0.13.5] - 2026-09-27
 

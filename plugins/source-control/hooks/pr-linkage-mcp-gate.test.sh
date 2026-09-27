@@ -111,6 +111,8 @@ run 2 "markers only inside HTML comments block" "$(payload "$GATED" $CREATE $OWN
 run 2 "bare 'Closes #' with no number blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
 run 0 "deeper heading is section content" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
 run 0 "owner/repo#N keyword form passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
+run 0 "Refs: #N non-closing marker passes" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12'"$SECTIONS")"
+run 2 "negated closer blocks beside a Refs: marker" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12\n\nThis does not close #12.'"$SECTIONS")"
 run 2 "create with no body field blocks (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
 run 0 "update with no body field passes" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
 run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"

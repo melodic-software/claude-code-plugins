@@ -24,6 +24,12 @@
 # start). The fleet list is fetched from its published URL at gate time; an
 # unreachable list is a usage error, never a pass.
 #
+# OFFLINE AND FORKS. The fleet list is required for correctness in the
+# docs/plugin-philosophy.md "Prerequisites and failure behavior" sense: with no
+# network, or from a fork whose standards repository lives elsewhere, the gate
+# stops with exit 2 and names both overrides below rather than skipping. A
+# visible skip would still read as a pass in the lane that runs this.
+#
 # NOT COVERED ELSEWHERE. plugins/claude-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos, but it
 # resolves each marketplace through `source.repo` and records SKIP for a
@@ -60,11 +66,18 @@
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
 #   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
+#
+# Env overrides (fleet list source):
 #   PLUGIN_CATALOG_ENABLEMENT_FLEET        -- path to a local fleet list,
 #                                             instead of fetching the URL
+#                                             (offline, or the cloud
+#                                             snapshot's copy)
+#   PLUGIN_CATALOG_ENABLEMENT_FLEET_URL    -- https URL to fetch it from
+#                                             (a fork or mirror); defaults
+#                                             to the standards repository
 set -euo pipefail
 
-FLEET_URL='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
+FLEET_URL="${PLUGIN_CATALOG_ENABLEMENT_FLEET_URL:-https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -156,6 +169,8 @@ else
     "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
     printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
     echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
+    echo '  Offline, point PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy; from a fork, set' >&2
+    echo '  PLUGIN_CATALOG_ENABLEMENT_FLEET_URL to the https URL your standards repository publishes.' >&2
     exit 2
   fi
   FLEET="$fleet_tmp"

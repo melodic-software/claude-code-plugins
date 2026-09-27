@@ -51,6 +51,10 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
   `WindowsApps` is refused.
 - `apply` refuses a game with no DLSS, FSR 2+ or XeSS of its own (verdict `not-a-candidate`): the
   mod hooks the game's upscaler, so without one it changes nothing.
+- `apply` refuses a folder whose every `*.exe` is 32-bit (PE32), also `not-a-candidate`: NVIDIA
+  ships no 32-bit Windows NGX library. `assess` reads each exe's PE header and import tables to
+  report its bitness and whether it uses DirectX 12, and says `unknown` when the tables do not
+  show it.
 - `apply` never overwrites an existing game file. It refuses before copying on any collision.
 - `remove` deletes only files its manifest or the known byproduct list names, so a removed mod
   leaves the game folder as it was.
