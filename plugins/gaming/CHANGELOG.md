@@ -7,7 +7,7 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 ### Fixed
 
-- A folder the discovery scan cannot list is reported with the path from the error, or `CategoryInfo.TargetName` when Windows leaves `TargetObject` empty. The selftest denies list access for the current user, Administrators, and Everyone and writes that ACL with `FileSystemAclExtensions.SetAccessControl`, because pwsh 7 has no `DirectoryInfo.SetAccessControl` and a user-only deny applied with `Set-Acl` does not stop an elevated runner.
+- A folder the discovery scan cannot list is reported with the path from the error, from `CategoryInfo.TargetName`, or from a quoted path in the message when Windows leaves `TargetObject` empty. The selftest holds that folder open with no sharing so the listing fails with a sharing violation. A Deny ACE, including one for Everyone, does not stop an elevated runner from listing.
 
 ## [0.8.0] - 2026-09-27
 
