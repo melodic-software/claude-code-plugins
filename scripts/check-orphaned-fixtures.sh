@@ -163,7 +163,7 @@ consumed() {
       while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" == "$rel" ]] && return 0
       done <<<"$files_values"
-      if printf '%s\n' "$files_values" | grep -qE -- "$base_re"; then
+      if grep -qE -- "$base_re" <<<"$files_values"; then
         return 0
       fi
     fi

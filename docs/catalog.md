@@ -56,7 +56,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Quality
 
-- [`mcp-tools`](../plugins/mcp-tools): Audits MCP server tool definitions against MCP-specification, Anthropic tool-design, and Claude-Code client criteria and reports a per-tool PASS/WARN/FAIL scorecard covering description, parameters, naming, and annotations. Language-agnostic: Python (mcp), TypeScript, and .NET.
+- [`mcp-tools`](../plugins/mcp-tools): Two MCP audits. audit scores the tool definitions of a server you build against MCP-specification, Anthropic tool-design, and Claude-Code client criteria in a per-tool PASS/WARN/FAIL scorecard (Python, TypeScript, .NET). audit-posture inventories the MCP servers your Claude Code configuration runs and flags supply-chain risks such as floating package versions, without running any server.
 - [`review`](../plugins/review): Code-review toolkit: six read-only reviewer agents (code, security, architecture, doc drift, build/test/lint, CI-log audit), plus orchestration skills for the quality gate, fan-out, and enforceability audit (/review:audit-enforceability), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.
 - [`codebase-health`](../plugins/codebase-health): Repo-wide drift audit between docs, config, code, and architecture: verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, and reports read-only, delegating remediation to the implementation/verification lanes. Audit dimensions are configurable through a tracked .claude/codebase-health.md config file written by the setup skill.
 - [`code-metrics`](../plugins/code-metrics): Read-only code measures for a change, with cited references and no verdict: lines per file (audit-size), cyclomatic, cognitive, and Halstead complexity (audit-complexity), duplication with sanctioned-replication exclusions (audit-duplication), coverage per function with CRAP from existing lcov, Cobertura, coverage.py, or Go artifacts (audit-coverage), type debt for TypeScript and Python (audit-type-debt), the literacy router for what each number can and cannot say (principles), and a setup skill for the consumer's .claude/code-metrics.yaml. Runs external collectors only when they already resolve, never installs, never runs tests, never emits a finding.
@@ -123,6 +123,10 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 ## Learning
 
 - [`education`](../plugins/education): Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, a picture explainer that answers the same question as a diagram-led HTML artifact for someone who knows nothing about the topic, and a post-work comprehension check that quizzes the human on a completed change.
+
+## Visual Arts
+
+- [`pixel-art`](../plugins/pixel-art): Creates pixel art with no external tools: static sprites, animation cycles laid out as sprite sheets for the target engine (RPG Maker MZ, Godot, PICO-8, plain strips) with Aseprite-shaped frame data and GIF previews, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, a bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional backends such as the Aseprite CLI or hosted pixel-art generators are documented behind the same artifact contract; the skills select and detect them, and no adapter code ships yet.
 
 ## Music
 

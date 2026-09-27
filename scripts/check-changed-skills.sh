@@ -155,7 +155,7 @@ for skill_dir in ${changed[@]+"${changed[@]}"}; do
   checked=$((checked + 1))
   printf '=== %s ===\n' "$skill_dir"
   require_evals_args=()
-  if git diff --name-only "$BASE" -- "$skill_dir/SKILL.md" | grep -q .; then
+  if grep -q . < <(git diff --name-only "$BASE" -- "$skill_dir/SKILL.md"); then
     if evals_warrant_skip "$skill_dir"; then
       printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
     else

@@ -277,25 +277,32 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   detection).
 - **Per-worker model tier is an explicit spawn decision.** The subagents doc names cost control as
   a purpose of subagents: "Control costs by routing tasks to faster, cheaper models like Haiku"
-  *(verbatim, verified)*, and documents the model-resolution order: `CLAUDE_CODE_SUBAGENT_MODEL`
-  env var, then the per-invocation `model` parameter, then the agent definition's `model`
-  frontmatter, then the main conversation's model; an omitted `model` "defaults to `inherit`"
-  *(verbatim, verified)*. A spawn that never states a tier therefore runs every worker on the
-  parent session's model, the mechanism behind premium-model fan-outs (imperatives 2 and 7's
-  tiering clauses). Source: <https://code.claude.com/docs/en/sub-agents>
+  *(verbatim, verified)*. Claim: a subagent's model resolves as the per-invocation `model`
+  parameter, then the agent definition's `model` frontmatter (`inherit` selects the main
+  conversation's model), then the `CLAUDE_CODE_SUBAGENT_MODEL` env var when set to an alias or ID,
+  then the main conversation's model; when the frontmatter omits `model`, "Claude Code picks the
+  model in the subagent model order" *(verbatim)*; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` ignores
+  every definition's `model` and blocks the per-invocation parameter. A spawn that states no tier,
+  for an agent whose definition names none, therefore runs on the env var's model or, where it is
+  unset, the parent session's model: the mechanism behind premium-model fan-outs (imperatives 2
+  and 7's tiering clauses). Basis: <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+  Verified 2026-09-27. Recheck: the page changes the order or the omitted-field wording, or a
+  release note names subagent model resolution.
 - **Tier is model AND effort. Effort is a per-worker lever, not only the model.** The `effort`
   frontmatter field: "Effort level when this subagent is active. Overrides the session effort
   level. Default: inherits from session. Options: `low`, `medium`, `high`, `xhigh`, `max`;
   available levels depend on the model." *(verbatim, verified)*. This backs imperative 7's
   "match the reasoning depth (effort) to the subtask too" clause: a cheaper tier is a cheaper
   model, a lower effort, or both. Source: <https://code.claude.com/docs/en/sub-agents>
-- **Volume-driven default: a fleet inherits the session model unless explicitly routed.** "Every
-  agent in a workflow uses your session's model unless the script routes a stage to a different one
-  or the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, which overrides both"; cost
-  guidance: "Ask Claude to use a smaller model for stages that don't need the strongest one when
-  you describe the task." *(verbatim, verified)*. This is the same inherit mechanism as the
-  subagent path, at fan-out scale: the premium-fleet default imperative 7 flips. Source:
-  <https://code.claude.com/docs/en/workflows>
+- **Volume-driven default: a fleet inherits the session model unless explicitly routed.** "Claude
+  Code picks each workflow agent's model in the same order it uses for subagents. A model the
+  script names for a stage counts as the per-invocation model in that order. When nothing else
+  assigns one, the agent runs on your session's model"; cost guidance: "Ask Claude to use a
+  smaller model for stages that don't need the strongest one when you describe the task."
+  *(verbatim, verified 2026-09-27)*. This is the same resolution as the subagent path, at fan-out
+  scale: the premium-fleet default imperative 7 flips. Source:
+  <https://code.claude.com/docs/en/workflows#cost>. Recheck: the page changes how a workflow
+  agent's model is picked.
 - **The platform itself treats width as a volume threshold, the empirical anchor for
   "wide fan-out."** A run is flagged `Large workflow` "When a workflow schedules more than 25
   agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
