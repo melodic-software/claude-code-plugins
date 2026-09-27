@@ -72,10 +72,14 @@ LEXER='
 # ek[] says what grep would see for a masked "_": l a quoted literal char, x a
 # quote or escape removed by the shell, n an expansion (neutral in the option
 # scan). A char left unmasked is code, kind c. Set EK just before an emit.
-function emit(ch) {
+function emit(ch,   j) {
   o[++k] = ch; ol[k] = line; si[k] = EP++
   ek[k] = ch != "_" ? "c" : inexp() ? "n" : EK
   EK = "n"
+  # qt[]: how many backtick frames opened inside double quotes enclose this
+  # char. unquoted() reads a deeper char than its word started at as neutral.
+  qt[k] = 0
+  for (j = 2; j <= sp; j++) if (ft[j] == "T" && ft[j - 1] == "D") qt[k]++
 }
 function inexp(   j) {
   for (j = 1; j <= sp; j++) if (ft[j] == "B" || ft[j] == "A") return 1
@@ -223,10 +227,14 @@ function readword(y) {
 }
 # unquoted(a, b): masked chars a..b-1 as grep would see them: code as is, quoted
 # literals as written, quotes and escapes dropped, each expansion char as "_".
+# A backtick substitution opened inside the double quotes of the word is an
+# expansion too; a grep inside those backticks starts its words at that depth
+# and reads its own options normally.
 function unquoted(a, b,   y, r) {
   r = ""
   for (y = a; y < b; y++) {
-    if (ek[y] == "c") r = r o[y]
+    if (qt[y] > qt[a]) r = r "_"
+    else if (ek[y] == "c") r = r o[y]
     else if (ek[y] == "l") r = r substr(S, si[y], 1)
     else if (ek[y] == "n") r = r "_"
   }

@@ -193,6 +193,24 @@ EOF
 expect_clean "a quoted \"-\${level}\" argument" <<'EOF'
 echo a | grep "-${level}" a
 EOF
+expect_clean "a backtick lvl inside a quoted option word" <<'EOF'
+echo a | grep "-`lvl`" a
+EOF
+expect_clean "a backtick mode inside a quoted option word" <<'EOF'
+echo a | grep "-`mode`" a
+EOF
+expect_clean "a backtick quiet_flag inside a quoted option word" <<'EOF'
+echo a | grep "-`quiet_flag`" a
+EOF
+expect_clean "a backtick l inside a quoted option word" <<'EOF'
+echo a | grep "-`l`" a
+EOF
+expect_flag "-q after a backtick inside a quoted option word" 1 <<'EOF'
+echo a | grep "-`x`q" a
+EOF
+expect_flag "a grep inside quoted backticks keeps its own options" 1 <<'EOF'
+v="`echo a | grep -q a`"
+EOF
 # KNOWN GAP, pinned at current behavior: the lexer does not model `case`, so the
 # pattern `)` closes the double-quoted `$( )` early and the pipe after it is
 # masked. A fix that flags this should flip this case to expect_flag on purpose.
