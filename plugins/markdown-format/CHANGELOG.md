@@ -3,6 +3,15 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.75] - 2026-09-27
+
+### Changed
+
+- README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, that a missing-prerequisite or trust-gate notice appears on the first skip and then every eighth, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
+- README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README and markdown-format.sh: document the timeout tail. `--fix` rewrites in place before the hook reports, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
+- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
+
 ## [0.11.74] - 2026-09-28
 
 ### Changed

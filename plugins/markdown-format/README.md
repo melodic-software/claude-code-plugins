@@ -31,13 +31,7 @@ config has chosen no Markdown style, so the hook does not run there at all
   rewrites nor default-rule findings are imposed, the same doctrine as
   `bash-format`'s shfmt gate. A `package.json` `markdownlint-cli2` property
   does not open the gate: markdownlint-cli2 honors it only under an explicit
-  `--config` flag, not by discovery. A file under no git working tree has no
-  repository root, so when `CLAUDE_PROJECT_DIR` is set the walk stops there
-  instead, which lets an unpacked or vendored project's root config opt it in.
-  A config in your home directory or above it never does on that path: a
-  session started in `~` would otherwise let a personal
-  `~/.markdownlint-cli2.jsonc` rewrite every `.md` under home. A config inside a
-  working tree, a dotfiles repository rooted at `~` included, is unaffected.
+  `--config` flag, not by discovery.
 - **Gitignored paths are out of scope.** A file git excludes, a scratch tier
   such as `.work/**`, build output, or a vendored tree, is neither rewritten nor
   reported on. Your ignore rules already say which paths are not part of the
@@ -66,7 +60,9 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves, and only once per session. To tell the cases apart, wire a
+  themselves: in full on the first skip for each session and subagent, then
+  as a shorter renewal on the eighth skip and every eighth after that
+  (`HOOK_NOTICE_RENEW_EVERY`), silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -98,9 +94,9 @@ those two tools reach it. A Markdown file written through the `Bash` tool (a
 heredoc, a redirect, `sed -i`), through `PowerShell`, or through an MCP
 filesystem server's write tool is never formatted or linted. `guardrails`'
 `block-hook-bypass`, when installed, blocks the common Bash redirect and
-heredoc forms and the PowerShell write cmdlets; `sed -i` and other
-inline-interpreter writes are outside what it detects, and it does not see MCP
-tools. CI is the only gate that sees every path. The matcher does not list
+heredoc forms, `python3 -c` writes, and the PowerShell write cmdlets; `sed -i`,
+`perl -i`, `tee`, `cp`, and other interpreters' one-liners such as `node -e`
+are outside what it detects, and it does not see MCP tools. CI is the only gate that sees every path. The matcher does not list
 `MultiEdit`: the [tools reference](https://code.claude.com/docs/en/tools-reference)
 does not list it among the built-in tools, and
 [permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
