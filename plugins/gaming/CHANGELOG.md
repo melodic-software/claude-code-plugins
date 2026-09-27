@@ -3,6 +3,29 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-09-27
+
+### Added
+
+- `assess` reads each `*.exe` in the exe directory as a PE image, per Microsoft's PE format spec,
+  and reports `executables` (each exe's COFF `machine`, `format` from the optional-header magic,
+  `managed`, `dx12` and `dx12Basis`) and a folder-level `bitness` (#4592).
+- A folder whose every exe is a native `PE32` (32-bit) is `not-a-candidate`, and `apply` refuses
+  it before any write: NVIDIA's DLSS SDK ships no 32-bit Windows NGX library, and a 32-bit process
+  cannot load a 64-bit DLL. `PE32+` passes whatever the machine, so ARM64 is not refused. A managed
+  `PE32` reads `unknown`, since an AnyCPU exe runs as a 64-bit process where it can, and `mixed` is
+  not refused.
+
+### Changed
+
+- `dx12` comes from the exe's PE tables instead of the folder layout, and can now be `null`
+  (unknown). It is `true` for a `d3d12.dll` import or delay-load import, or a `D3D12SDKVersion`
+  export (the Agility SDK's required export), and `false` only when every exe imports `d3d11.dll`
+  with none of those. A `d3d12*.dll` beside the exe or a `Binaries\Win64` path no longer sets it, so
+  an Unreal-layout D3D11 game (Mass Effect Legendary Edition) no longer reads `true`, and a DX12
+  build with no local `d3d12*.dll` (The Witcher 3 `bin\x64_dx12`) no longer reads `false`. A
+  renderer loaded with `LoadLibrary` is in no table and reads `null`.
+
 ## [0.7.0] - 2026-09-24
 
 ### Added

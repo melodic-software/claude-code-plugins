@@ -104,6 +104,7 @@ $Baseline = @(
 $script:PresetDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\presets'))
 $WindowsApps = 'refusing: the folder is under WindowsApps, a protected package folder where installing a proxy DLL is unverified. Xbox app and Game Pass installs under XboxGames are supported; see reference/launchers.md'
 $NoUpscaler = 'not a candidate: no DLSS, FSR 2+ or XeSS DLL in the game tree, so the mod has no upscaler to hook and will not change the picture. See reference/candidate-selection.md'
+$Pe32Only = 'not a candidate: every *.exe here is 32-bit (PE32). NVIDIA ships no 32-bit Windows NGX library, and a 32-bit process cannot load the 64-bit mod. See reference/candidate-selection.md'
 $script:fails = 0
 $script:FaultAfter = 0   # selftest hook: throw after this many copies
 # Discovery and anti-cheat sources. The selftest swaps each for a fixture, so it never reads the
@@ -255,6 +256,91 @@ function Find-Upscalers($root) {
                 if (-not (($rel -split '\\' | Select-Object -SkipLast 1) | Where-Object { $_ -in $ModDirs })) {
                     [pscustomobject]@{ family = $UpscalerDlls[$_.Name]; file = $rel; version = $_.VersionInfo.FileVersion }
                 } } | Sort-Object file -Unique)
+}
+
+# Header facts and DLL names from a PE image, read per Microsoft's PE format spec
+# (learn.microsoft.com/windows/win32/debug/pe-format): the COFF Machine, the optional-header magic
+# (0x10b PE32, 0x20b PE32+), and the import (directory 1), delay-load import (13), export (0) and
+# CLR runtime header (14) directories. Throws on anything malformed; callers report that as unknown.
+function Read-PeImage([string]$path) {
+    $fs = [IO.File]::OpenRead($path)
+    try {
+        $br = [IO.BinaryReader]::new($fs)
+        function Seek([long]$o, [long]$n) { if ($o -lt 0 -or $o + $n -gt $fs.Length) { throw ('truncated: {0} bytes at 0x{1:X}' -f $n, $o) }; $fs.Position = $o }
+        function U16([long]$o) { Seek $o 2; $br.ReadUInt16() }
+        function U32([long]$o) { Seek $o 4; [long]$br.ReadUInt32() }
+        function Str([long]$o) {
+            Seek $o 1
+            $s = $br.ReadBytes([Math]::Min(256, $fs.Length - $o)); $i = [Array]::IndexOf($s, [byte]0)
+            if ($i -lt 0) { throw ('unterminated name at 0x{0:X}' -f $o) }
+            [Text.Encoding]::ASCII.GetString($s, 0, $i)
+        }
+        if ((U16 0) -ne 0x5A4D) { throw 'no MZ header' }
+        $pe = U32 0x3C
+        if ((U32 $pe) -ne 0x4550) { throw 'no PE signature' }
+        $machine = U16 ($pe + 4); $nsec = U16 ($pe + 6); $optSize = U16 ($pe + 20); $opt = $pe + 24
+        $magic = U16 $opt
+        $wide = if ($magic -eq 0x20b) { $true } elseif ($magic -eq 0x10b) { $false } else { throw ('optional-header magic 0x{0:X}' -f $magic) }
+        $base = if ($wide) { Seek ($opt + 24) 8; [long]$br.ReadUInt64() } else { U32 ($opt + 28) }
+        $nDir = U32 ($opt + $(if ($wide) { 108 } else { 92 })); $dd = $opt + $(if ($wide) { 112 } else { 96 })
+        # The section table follows the optional header at its declared size, 40 bytes a row.
+        $secs = @(for ($i = 0; $i -lt $nsec; $i++) {
+                $h = $opt + $optSize + 40 * $i
+                [pscustomobject]@{ Va = U32 ($h + 12); Span = [Math]::Max((U32 ($h + 8)), (U32 ($h + 16))); Raw = U32 ($h + 16); At = U32 ($h + 20) }
+            })
+        function Off([long]$rva) {
+            foreach ($s in $secs) { if ($rva -ge $s.Va -and $rva -lt $s.Va + $s.Span -and $rva - $s.Va -lt $s.Raw) { return $s.At + $rva - $s.Va } }
+            throw ('RVA 0x{0:X} is in no section''s file data' -f $rva)
+        }
+        # The spec bounds every directory probe by NumberOfRvaAndSizes and SizeOfOptionalHeader.
+        function DirRva([int]$i) { if ($i -lt $nDir -and ($dd - $opt) + 8 * ($i + 1) -le $optSize) { U32 ($dd + 8 * $i) } else { 0 } }
+        # Import directory entries are 20 bytes with the name RVA at 12; the last entry is null.
+        $imports = @(if ($r = DirRva 1) { for ($o = Off $r; ($n = U32 ($o + 12)); $o += 20) { Str (Off $n) } })
+        # Delay-load entries are 32 bytes with the name at 4. Attributes bit 0 (RvaBased) clear marks
+        # the pre-VC7 form, whose fields are virtual addresses, so the image base comes off.
+        $delay = @(if ($r = DirRva 13) {
+                for ($o = Off $r; ($n = U32 ($o + 4)); $o += 32) { if (-not ((U32 $o) -band 1)) { $n -= $base }; Str (Off $n) }
+            })
+        # The export name pointer table is ordered lexically for binary search (spec, Export Name
+        # Pointer Table), the same lookup the loader makes.
+        $sdk = $false
+        if (($r = DirRva 0) -and ($cnt = U32 ((Off $r) + 24))) {
+            $np = Off (U32 ((Off $r) + 32)); $lo = 0; $hi = $cnt - 1
+            while ($lo -le $hi) {
+                $mid = [long][Math]::Floor(($lo + $hi) / 2)
+                $c = [string]::CompareOrdinal((Str (Off (U32 ($np + 4 * $mid)))), 'D3D12SDKVersion')
+                if ($c -eq 0) { $sdk = $true; break } elseif ($c -lt 0) { $lo = $mid + 1 } else { $hi = $mid - 1 }
+            }
+        }
+        [pscustomobject]@{
+            machine = '0x{0:X}' -f $machine; format = $(if ($wide) { 'PE32+' } else { 'PE32' }); managed = [bool](DirRva 14)
+            imports = $imports; delayImports = $delay; exportsD3D12SDKVersion = $sdk
+        }
+    }
+    finally { $fs.Dispose() }
+}
+# Per-exe bitness and D3D12 evidence from the PE tables, never the folder layout. d3d12.dll in the
+# import or delay-load table, or a D3D12SDKVersion export (the Agility SDK requires it "exported
+# from the main .exe"), is DX12. A d3d11.dll import with none of those is not. Anything else is
+# null: a renderer loaded with LoadLibrary is in no table, and dxgi.dll serves D3D10 through 12.
+function Get-ExeFacts($root) {
+    @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | Sort-Object Name | ForEach-Object {
+            $f = $_; $pe = $null; $err = $null
+            try { $pe = Read-PeImage $f.FullName } catch { $err = $_.Exception.Message }
+            $dx12, $basis = if ($err) { $null, "unreadable: $err" }
+            elseif ($pe.imports -contains 'd3d12.dll') { $true, 'imports d3d12.dll' }
+            elseif ($pe.delayImports -contains 'd3d12.dll') { $true, 'delay-loads d3d12.dll' }
+            elseif ($pe.exportsD3D12SDKVersion) { $true, 'exports D3D12SDKVersion (Agility SDK)' }
+            elseif (@($pe.imports) + @($pe.delayImports) -contains 'd3d11.dll') { $false, 'imports d3d11.dll; no d3d12.dll import, no D3D12SDKVersion export' }
+            else { $null, 'no d3d11.dll or d3d12.dll import and no D3D12SDKVersion export; the renderer may load at run time' }
+            [pscustomobject]@{ name = $f.Name; machine = $pe.machine; format = $pe.format; managed = [bool]$pe.managed; dx12 = $dx12; dx12Basis = $basis }
+        })
+}
+# 32-bit only when every exe is a native PE32. A managed (CLR) PE32 is unknown: an AnyCPU exe runs
+# as a 64-bit process where it can. PE32+ covers x64 and ARM64 alike, so no machine list is kept.
+function Get-Bitness($exes) {
+    $k = @($exes | ForEach-Object { if ($_.format -eq 'PE32+') { '64-bit' } elseif ($_.format -eq 'PE32' -and -not $_.managed) { '32-bit' } else { 'unknown' } } | Sort-Object -Unique)
+    if ($k.Count -eq 1) { $k[0] } elseif ($k -contains '32-bit' -and $k -contains '64-bit') { 'mixed' } else { 'unknown' }
 }
 
 # Numeric parts, not the FileVersion string: NVIDIA's runtime reports "310,8,0,0" there.
@@ -725,6 +811,7 @@ function Do-Apply($root) {
     # Refusal gates. All run before any write, the state directory included.
     if ($root -match '\\WindowsApps(\\|$)') { throw $WindowsApps }
     if (-not (Get-ChildItem -LiteralPath $root -Filter *.exe -File)) { throw "no *.exe in $root; pass the directory that holds the game executable" }
+    if ((Get-Bitness @(Get-ExeFacts $root)) -eq '32-bit') { throw $Pe32Only }
     $opts = [IO.EnumerationOptions]@{ RecurseSubdirectories = $true; IgnoreInaccessible = $true; AttributesToSkip = 0 }
     $n = @([IO.Directory]::EnumerateFiles($root, '*', $opts) | Select-Object -First 2001).Count
     # 2000 is judgment, not measured: it catches a library or game root passed by mistake.
@@ -1102,6 +1189,7 @@ function Do-Assess($root) {
     }
     $gameRoot = Get-GameRoot $root
     $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
+    $exes = @(Get-ExeFacts $root); $bitness = Get-Bitness $exes
     $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
     $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
     $ups = @(Find-Upscalers $root)
@@ -1116,15 +1204,20 @@ function Do-Assess($root) {
     $installed = try { if (($m = Load-Manifest $root).applied) { Get-PinState $m } } catch { "state unreadable: $($_.Exception.Message)" }
     $refusals = @()
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
-    elseif (-not $ups) { $refusals += $NoUpscaler }
-    elseif (-not $free) { $refusals += "no free proxy name: $($ProxyNames -join ', ') all exist in $root" }
-    $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
+    else {
+        if ($bitness -eq '32-bit') { $refusals += $Pe32Only }
+        if (-not $ups) { $refusals += $NoUpscaler }
+        elseif (-not $free) { $refusals += "no free proxy name: $($ProxyNames -join ', ') all exist in $root" }
+    }
+    $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups -or $bitness -eq '32-bit') { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
+    # Any DX12 exe makes the folder DX12; false needs every exe to read false.
+    $dx12 = if ($exes | Where-Object dx12 -EQ $true) { $true } elseif ($exes -and -not ($exes | Where-Object { $_.dx12 -ne $false })) { $false } else { $null }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
         launcher = $launch.launcher; launcherSource = $launch.source; gameName = $launch.name; discoveryGaps = $gaps
         verdict = $verdict; antiCheat = $acr; acknowledgementRequired = ($acr.status -ne 'none-disclosed')
         refusals = $refusals; upscalers = $ups
-        dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
+        dx12 = $dx12; bitness = $bitness; executables = $exes
         proxyCollisions = $collisions; freeProxies = $free; steamAppId = $appId
         preset = $pr; presetError = $prErr; installedBuild = $installed
     } | ConvertTo-Json -Depth 8
@@ -1317,6 +1410,42 @@ function SameTree($a, $b) {
 function Put($path, $text) {
     New-Item -ItemType Directory -Force -Path (Split-Path $path -Parent) | Out-Null
     Set-Content -LiteralPath $path -Value $text -NoNewline
+}
+# A minimal PE image laid out per the PE format spec: e_lfanew at 0x3c, PE\0\0, the COFF header, an
+# optional header with 16 data directories, and one section (RVA 0x1000 at file offset 0x200)
+# holding the import, delay-load and export tables, then their names from file offset 0x800.
+function New-PeFixture([string]$Path, [int]$Magic = 0x20b, [int]$Machine = 0x8664, [string[]]$Imports = @(), [string[]]$DelayImports = @(), [string[]]$Exports = @(), [switch]$Clr, [switch]$VaDelay) {
+    $b = [byte[]]::new(0x1000); $c = @{ n = 0x800 }
+    function W16($o, $v) { [BitConverter]::GetBytes([uint16]$v).CopyTo($b, $o) }
+    function W32($o, $v) { [BitConverter]::GetBytes([uint32]$v).CopyTo($b, $o) }
+    function Name($text) { $r = $c.n + 0xE00; [Text.Encoding]::ASCII.GetBytes($text).CopyTo($b, $c.n); $c.n += $text.Length + 1; $r }
+    $wide = $Magic -eq 0x20b; $optSize = if ($wide) { 240 } else { 224 }; $base = if ($wide) { 0x140000000 } else { 0x400000 }
+    W16 0 0x5A4D; W32 0x3C 0x40; W32 0x40 0x4550; W16 0x44 $Machine; W16 0x46 1; W16 0x54 $optSize
+    $opt = 0x58; W16 $opt $Magic
+    if ($wide) { [BitConverter]::GetBytes([uint64]$base).CopyTo($b, $opt + 24) } else { W32 ($opt + 28) $base }
+    W32 ($opt + $(if ($wide) { 108 } else { 92 })) 16; $dd = $opt + $(if ($wide) { 112 } else { 96 })
+    # .rdata, initialized data, readable (IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ).
+    $sec = $opt + $optSize; [Text.Encoding]::ASCII.GetBytes('.rdata').CopyTo($b, $sec)
+    W32 ($sec + 8) 0xE00; W32 ($sec + 12) 0x1000; W32 ($sec + 16) 0xE00; W32 ($sec + 20) 0x200; W32 ($sec + 36) 0x40000040
+    # Each import entry's lookup and address tables point at one null thunk at RVA 0x15F0.
+    if ($Imports) { W32 ($dd + 8) 0x1000; W32 ($dd + 12) (20 * ($Imports.Count + 1)); $o = 0x200; foreach ($i in $Imports) { W32 $o 0x15F0; W32 ($o + 12) (Name $i); W32 ($o + 16) 0x15F0; $o += 20 } }
+    if ($DelayImports) {
+        W32 ($dd + 104) 0x1200; W32 ($dd + 108) (32 * ($DelayImports.Count + 1)); $o = 0x400
+        foreach ($i in $DelayImports) { $r = Name $i; if ($VaDelay) { W32 ($o + 4) ($base + $r) } else { W32 $o 1; W32 ($o + 4) $r }; $o += 32 }
+    }
+    if ($Exports) {
+        $sorted = [string[]]$Exports.Clone(); [Array]::Sort($sorted, [StringComparer]::Ordinal)
+        # Name pointers at RVA 0x1428, then the ordinal table, then the address table. The directory
+        # spans the names, as a linker's does, and ends before RVA 0x1D00, which every address-table
+        # entry points at, so none reads as a forwarder.
+        $k = $sorted.Count; $ord = 0x628 + 4 * $k; $eat = $ord + 2 * $k
+        W32 $dd 0x1400; W32 ($dd + 4) 0x800
+        W32 0x60C (Name 'game.exe'); W32 0x610 1; W32 0x614 $k; W32 0x618 $k; W32 0x61C ($eat + 0xE00); W32 0x620 0x1428; W32 0x624 ($ord + 0xE00)
+        for ($i = 0; $i -lt $k; $i++) { W32 (0x628 + 4 * $i) (Name $sorted[$i]); W16 ($ord + 2 * $i) $i; W32 ($eat + 4 * $i) 0x1D00 }
+    }
+    if ($Clr) { W32 ($dd + 112) 0x1D00; W32 ($dd + 116) 72 }
+    New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
+    [IO.File]::WriteAllBytes($Path, $b)
 }
 
 # Self-contained: a temp data dir, temp game fixtures and a fake runtime DLL. Nothing is written
@@ -1617,6 +1746,45 @@ function Do-Selftest {
         $un = "$w\unreal\Proj\Binaries\Win64"; Put "$un\Proj-Win64-Shipping.exe" 'exe'
         Put "$w\unreal\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll" 'dlss'
         Assert 'assess: non-Steam Unreal finds DLSS under Engine\Plugins' (((Do-Assess $un) | ConvertFrom-Json).verdict -eq 'eligible')
+        Assert 'assess: an exe that is not a PE image leaves dx12 and bitness unknown' ($null -eq $fsa.dx12 -and $fsa.bitness -eq 'unknown' -and $fsa.executables[0].dx12Basis -like 'unreadable: no MZ header*')
+
+        # #4592: bitness and dx12 come from the exe's PE tables. An x86 exe, as Alien: Isolation's
+        # AI.exe, is refused even with an upscaler DLL beside it.
+        $x86 = "$w\pe\x86"; New-PeFixture "$x86\AI.exe" -Magic 0x10b -Machine 0x14C -Imports 'KERNEL32.dll', 'd3d11.dll', 'dxgi.dll'; Put "$x86\nvngx_dlss.dll" 'dlss'
+        $xa = (Do-Assess $x86) | ConvertFrom-Json
+        Assert 'assess: a PE32 x86 exe is not-a-candidate for its bitness alone' ($xa.verdict -eq 'not-a-candidate' -and $xa.bitness -eq '32-bit' -and @($xa.refusals).Count -eq 1 -and $xa.refusals[0] -like '*32-bit (PE32)*no 32-bit Windows NGX*' -and $xa.executables[0].machine -eq '0x14C' -and $xa.executables[0].format -eq 'PE32')
+        $before = Tree $x86
+        Assert 'apply refuses a 32-bit exe before any write' ((Throws { Do-Apply $x86 } '*32-bit (PE32)*') -and (SameTree (Tree $x86) $before) -and -not (Test-Path -LiteralPath (StateDir $x86)))
+        # The Witcher 3 DX12 build ships no d3d12*.dll beside witcher3.exe; the import says DX12.
+        $wi = "$w\pe\bin\x64_dx12"; New-PeFixture "$wi\witcher3.exe" -Imports 'KERNEL32.dll', 'd3d12.dll', 'dxgi.dll'
+        $wa = (Do-Assess $wi) | ConvertFrom-Json
+        Assert 'assess: an x64 exe importing d3d12.dll is dx12 with no d3d12*.dll beside it' ($wa.dx12 -eq $true -and $wa.bitness -eq '64-bit' -and $wa.executables[0].dx12Basis -eq 'imports d3d12.dll' -and $wa.executables[0].machine -eq '0x8664')
+        # Mass Effect LE: Binaries\Win64 and D3D11. A stray d3d12.dll (a proxy's name) is not evidence.
+        $me = "$w\pe\Game\ME1\Binaries\Win64"; New-PeFixture "$me\MassEffect1.exe" -Imports 'd3d11.dll', 'dxgi.dll', 'WINMM.dll'; Put "$me\d3d12.dll" 'proxy'
+        $ma = (Do-Assess $me) | ConvertFrom-Json
+        Assert 'assess: a D3D11 exe under Binaries\Win64 beside a d3d12.dll is not dx12' ($ma.dx12 -eq $false -and $ma.bitness -eq '64-bit' -and $ma.executables[0].dx12Basis -like 'imports d3d11.dll*')
+        $dl = "$w\pe\delay"; New-PeFixture "$dl\game.exe" -Imports 'dxgi.dll' -DelayImports 'D3D12.dll'
+        Assert 'assess: d3d12.dll in the delay-load table only is dx12, any case' ((((Do-Assess $dl) | ConvertFrom-Json).executables[0].dx12Basis -eq 'delay-loads d3d12.dll'))
+        $va = "$w\pe\delayva"; New-PeFixture "$va\game.exe" -Magic 0x10b -Machine 0x14C -DelayImports 'd3d12.dll' -VaDelay
+        Assert 'Read-PeImage: a pre-VC7 delay-load descriptor (virtual addresses) still resolves its name' (@((Read-PeImage "$va\game.exe").delayImports) -contains 'd3d12.dll')
+        $ag = "$w\pe\agility"; New-PeFixture "$ag\game.exe" -Imports 'dxgi.dll' -Exports 'NvOptimusEnablement', 'D3D12SDKVersion', 'AmdPowerXpressRequestHighPerformance', 'D3D12SDKPath'
+        $aa = (Do-Assess $ag) | ConvertFrom-Json
+        Assert 'assess: a D3D12SDKVersion export is dx12 (Agility SDK)' ($aa.dx12 -eq $true -and $aa.executables[0].dx12Basis -eq 'exports D3D12SDKVersion (Agility SDK)')
+        $rl = "$w\pe\runtime"; New-PeFixture "$rl\game.exe" -Imports 'KERNEL32.dll', 'dxgi.dll' -Exports 'NvOptimusEnablement', 'D3D12SDKPath'
+        $ra = (Do-Assess $rl) | ConvertFrom-Json
+        Assert 'assess: dxgi.dll alone with no D3D12SDKVersion export is dx12 unknown, with its basis' ($null -eq $ra.dx12 -and $ra.executables[0].dx12Basis -like '*may load at run time')
+        $mx = "$w\pe\mixed"; New-PeFixture "$mx\game.exe" -Imports 'd3d11.dll'; New-PeFixture "$mx\helper32.exe" -Magic 0x10b -Machine 0x14C; Put "$mx\nvngx_dlss.dll" 'dlss'
+        $xm = (Do-Assess $mx) | ConvertFrom-Json
+        Assert 'assess: a 32-bit helper beside a 64-bit game is mixed, not refused; one unknown exe leaves dx12 unknown' ($xm.bitness -eq 'mixed' -and $xm.verdict -eq 'eligible' -and $null -eq $xm.dx12 -and @($xm.executables).Count -eq 2)
+        $cl = "$w\pe\clr"; New-PeFixture "$cl\game.exe" -Magic 0x10b -Machine 0x14C -Clr; Put "$cl\nvngx_dlss.dll" 'dlss'
+        $ca = (Do-Assess $cl) | ConvertFrom-Json
+        Assert 'assess: a managed PE32 exe is bitness unknown, not refused' ($ca.bitness -eq 'unknown' -and $ca.verdict -eq 'eligible' -and $ca.executables[0].managed -eq $true)
+        $arm = "$w\pe\arm64"; New-PeFixture "$arm\game.exe" -Machine 0xAA64 -Imports 'd3d12.dll'; Put "$arm\nvngx_dlss.dll" 'dlss'
+        $am = (Do-Assess $arm) | ConvertFrom-Json
+        Assert 'assess: an ARM64 PE32+ exe is 64-bit and not refused' ($am.bitness -eq '64-bit' -and $am.verdict -eq 'eligible' -and $am.executables[0].machine -eq '0xAA64')
+        $tr = "$w\pe\trunc"; New-PeFixture "$tr\game.exe" -Imports 'd3d12.dll'; [IO.File]::WriteAllBytes("$tr\game.exe", [byte[]][IO.File]::ReadAllBytes("$tr\game.exe")[0..0x5F])
+        $ta = (Do-Assess $tr) | ConvertFrom-Json
+        Assert 'assess: a truncated PE is unknown with its reason, not an error' ($null -eq $ta.dx12 -and $ta.bitness -eq 'unknown' -and $ta.executables[0].dx12Basis -like 'unreadable: truncated*')
 
         $a = "$tmp\ac\a\b\c"; Put "$a\game.exe" 'exe'; Put "$a\nvngx_dlss.dll" 'dlss'
         New-Item -ItemType Directory -Force -Path "$tmp\ac\EasyAntiCheat" | Out-Null
