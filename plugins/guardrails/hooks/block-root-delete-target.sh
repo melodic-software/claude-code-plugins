@@ -90,7 +90,10 @@
 #     the hook timeout, and an unexpected error while judging refuses too.
 #     The batched realpath and cygpath run under `timeout` for the time left
 #     where `timeout` exists, and an operand over 4096 bytes or 128
-#     components is refused before any scan. An
+#     separators is refused before any scan. Where `timeout` is absent
+#     (stock macOS) a batch call cannot be cut short: the clock is checked
+#     on both sides of it, and the operand caps are what keep one call short.
+#     An
 #     operand this guard cannot place (an expansion other than a leading HOME,
 #     a drive-relative path) is left alone rather than guessed. A NUL byte in
 #     the payload `cwd` or `scratchpad_dir` refuses a recursive delete this
@@ -391,9 +394,21 @@ rdt_block() {
       'Each target is resolved against every directory the command may run it from, and past the limit the work outruns the hook timeout.' \
       'Fix: delete a parent directory, or split the delete into shorter commands.' >&2
     ;;
+  too-many-glob-entries)
+    printf '%s\n' \
+      "BLOCKED: a glob in this recursive delete reads more than $MAX_GLOB directory entries, files included." \
+      'Each entry a glob matches must be judged, and past the limit the work outruns the hook timeout.' \
+      'Fix: narrow the glob to the names you mean, or delete the parent directory whole.' >&2
+    ;;
+  operand-too-long)
+    printf '%s\n' \
+      "BLOCKED: this recursive delete names $target." \
+      "No filesystem accepts a path over $MAX_OPERAND_LEN bytes or with more than $MAX_OPERAND_DEPTH separators, so no real target is this long, and judging it would outrun the hook timeout." \
+      'Fix: check how the command was built; name the directory to remove directly.' >&2
+    ;;
   too-slow)
     printf '%s\n' \
-      "BLOCKED: judging where this recursive delete lands took longer than $RDT_DEADLINE seconds." \
+      "BLOCKED: judging where this recursive delete lands ran out of time (a bound of $RDT_DEADLINE seconds for the judgment, $RDT_DEADLINE_ABS for the whole hook)." \
       'A hook the harness cancels on its timeout is cancelled WITHOUT a block, so the guard refuses rather than run on.' \
       'Fix: delete fewer targets per command, or cd once to an absolute directory first.' >&2
     ;;
@@ -1046,7 +1061,13 @@ rdt_lines_to() {
     ((__rb_rc == 124)) && rdt_block "too-slow"
     ((__rb_rc == 0)) || return 1
   else
-    __rb_out=$("$@" 2>/dev/null) || return 1
+    # No `timeout` (stock macOS): the call cannot be cut short, so the clock
+    # is checked on both sides of it and a slow call refuses once it returns.
+    # The operand length and depth caps are what keep one call short here.
+    rdt_deadline
+    __rb_out=$("$@" 2>/dev/null) || __rb_rc=$?
+    rdt_deadline
+    ((__rb_rc == 0)) || return 1
   fi
   __rb_out="${__rb_out//$'\r'/}"
   mapfile -t "$__rb_dest" <<<"$__rb_out"
@@ -1600,7 +1621,7 @@ rdt_enum_links() {
   rdt_glob_on
   all=("$dir"/$pat)
   rdt_glob_off
-  ((${#all[@]} > MAX_GLOB)) && rdt_block "too-many-targets"
+  ((${#all[@]} > MAX_GLOB)) && rdt_block "too-many-glob-entries"
   for m in ${all[@]+"${all[@]}"}; do
     [[ -L "$m" && -d "$m" ]] && RDT_LINKS+=("$m")
   done
@@ -1642,7 +1663,7 @@ rdt_glob_dirs() {
         # tested for being a directory.
         hits=("$d"/$c)
         total=$((total + ${#hits[@]}))
-        ((total > MAX_GLOB)) && rdt_block "too-many-targets"
+        ((total > MAX_GLOB)) && rdt_block "too-many-glob-entries"
         for m in ${hits[@]+"${hits[@]}"}; do
           [[ -d "$m" ]] && next+=("$m")
         done
@@ -2323,12 +2344,12 @@ rdt_check_segment() {
     # normalization walk an operand's segments, and a 16 KB operand of `/*`
     # segments took 17 s on a Linux runner, near the hook timeout the harness
     # answers WITHOUT a block.
-    ((${#w} > MAX_OPERAND_LEN)) && rdt_block "unplaceable" "an operand of ${#w} bytes, longer than any path"
+    ((${#w} > MAX_OPERAND_LEN)) && rdt_block "operand-too-long" "an operand of ${#w} bytes"
     # Resolving a path costs one lookup per component, and on Windows about
     # 10 ms each: 2,000 missing components took realpath 90 s. No path in real
     # use is this deep, so a deeper operand is refused unscanned.
     x="${w//[^\/\\]/}"
-    ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "unplaceable" "an operand ${#x} components deep, deeper than any path"
+    ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "operand-too-long" "an operand with ${#x} path separators"
     # Brace expansion runs before rm sees its argv, so every alternative is
     # judged as an operand of its own. A fully quoted brace is literal; a
     # partly quoted one that would expand cannot be told apart from a literal

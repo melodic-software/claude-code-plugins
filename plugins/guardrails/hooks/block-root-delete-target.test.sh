@@ -1147,6 +1147,17 @@ rdt_ms_payload 'a trailing */ over 300 entries is refused at the cap' 2 15000 \
   "$(rdt_pl "rm -rf '$TEST_TMPDIR/wide2'/*/" "$RDT_TOP")"
 expect_both 'a trailing */ over a few entries under temp allowed' 0 "${RDT_CWD[@]}" \
   --command "rm -rf '$TEST_TMPDIR/wide/d01'/*/"
+guard_invoke "${RDT_CWD[@]}" --command "rm -rf '$TEST_TMPDIR/wide2'/*/"
+assert_contains 'the glob-cap refusal names the entry cap' "$GUARD_ERR" "more than 256 directory entries"
+# A batch resolver that runs out of time refuses. A stand-in `timeout` that
+# answers 124, the code GNU timeout gives when it kills the command, stands
+# for a realpath that ran past the time left.
+mkdir -p "$TEST_TMPDIR/bin-to"
+printf '#!/usr/bin/env bash\nexit 124\n' >"$TEST_TMPDIR/bin-to/timeout"
+chmod +x "$TEST_TMPDIR/bin-to/timeout"
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf ./build' -- "PATH=$TEST_TMPDIR/bin-to:$PATH"
+assert_exit 'a resolver that runs out of time refuses' 2 "$GUARD_RC"
+assert_contains 'the timeout refusal names the time bound' "$GUARD_ERR" "ran out of time"
 rdt_sys=""
 for rdt_t in C:/Windows /usr; do
   [[ -d "$rdt_t" ]] && rdt_sys="$rdt_t" && break
@@ -1176,7 +1187,7 @@ rdt_ms_payload 'the same operand with a cwd is refused in time' 2 8000 \
   "$(rdt_pl "rm -rf \"\${X}${rdt_sl}\"; rm -rf ~" "$RDT_TOP")"
 guard_invoke --command "rm -rf \"a${rdt_sl}\""
 assert_exit 'an operand longer than PATH_MAX is refused' 2 "$GUARD_RC"
-assert_contains 'the refusal names the operand length' "$GUARD_ERR" "longer than any path"
+assert_contains 'the refusal names the operand length' "$GUARD_ERR" "an operand of "
 rdt_ms_payload 'a ${X} operand just under PATH_MAX is refused in time' 2 8000 \
   "$(rdt_pl "rm -rf \"\${X}${rdt_sl:0:4090}\"; rm -rf ~" "$RDT_TOP")"
 # Deeper than 128 components is refused unscanned: resolving one lookup per
@@ -1187,7 +1198,7 @@ rdt_ms_payload 'an operand 128 components deep in the tree is allowed in time' 0
   "$(rdt_pl "rm -rf \"build${rdt_dp}\"" "$RDT_TOP")"
 guard_invoke "${RDT_CWD[@]}" --command "rm -rf \"build${rdt_dp}/x\""
 assert_exit 'an operand 129 components deep is refused' 2 "$GUARD_RC"
-assert_contains 'the refusal names the depth' "$GUARD_ERR" "deeper than any path"
+assert_contains 'the refusal names the separator count' "$GUARD_ERR" "path separators"
 rdt_ms_payload 'a 4 KB glob operand of 2,000 components is refused in time' 2 8000 \
   "$(rdt_pl "rm -rf \"build${rdt_sl:0:4090}\"" "$RDT_TOP")"
 expect_both 'an operand of 129 braces is refused' 2 --command "rm -rf ${rdt_br:0:129}x"
