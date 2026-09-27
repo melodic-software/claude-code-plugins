@@ -52,7 +52,7 @@ No action → route on context (a subject named → `collide`; an existing metap
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when the metaphor lands in a line).
+- **Pre-flight:** run response-filter §7 (+ §2 when the metaphor lands in a line).
 - **Options, never a winner.** Surface 6-8 labeled candidates. Label each with its type (expressed
   identity / qualifying / verbal), its linking quality (why it lands), and family distance
   (close / medium / far). The writer picks by emotional intent.

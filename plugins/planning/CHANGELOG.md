@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.44.3] - 2026-09-27
+## [0.44.4] - 2026-09-27
 
 ### Fixed
 
@@ -14,6 +14,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   leaving a path under it, and that the memory slice never reaches git; content meant to persist
   goes to an ADR, a spec, or a tracker item. The topic-docs binding's contract rows say "pruned
   before merge" too.
+
+## [0.44.3] - 2026-09-27
+
+### Changed
+
+- `plan`'s checklist template states that Step 3 is never skipped without the "MANDATORY" and "NEVER" caps. The stress-test is still required before presenting (#4120).
 
 ## [0.44.2] - 2026-09-27
 
