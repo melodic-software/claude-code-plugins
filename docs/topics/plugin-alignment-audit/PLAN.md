@@ -51,7 +51,13 @@ contract (exit 0 pass, 1 findings, 2 usage/prerequisite; findings on stderr) and
 `plugins/skill-quality/scripts/check-skill.sh` (root form) in CI, and checked end to end by one real
 run.
 
-### Phase 0: Precondition [TODO]
+### Phase 0: Precondition [DONE]
+
+Notes: #4534 merged as `cd0300607`; main merged in at `5048c1769`. Every `docs/plugin-philosophy.md`
+line cited by this plan and the design (`:90-92`, `:110-112`, `:118-176`, `:136-145`, `:220-235`,
+`:254`, `:301-303`, `:431-434`, `:440-456`, `:464`, `:513`, `:638`, `:660`, `:684-688`, `:867`) is
+unchanged on main; no refresh needed. Sanity: ancestor check exit 0, heading count `2`, pixel-art
+`scene` present.
 
 - Confirm #4534 is merged: `gh pr view 4534 --json state --jq .state` prints `MERGED`.
 - `git merge origin/main` into this branch; resolve conflicts.
