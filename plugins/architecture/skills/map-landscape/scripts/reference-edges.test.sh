@@ -252,6 +252,31 @@ assert_not_contains "self: a trailing slash on the remote still names self" "$ou
 out="$(bash "$SCRIPT" "$wt_repo" --owner other-owner | tr '[:upper:]' '[:lower:]')"
 assert_not_contains "self: the origin slug stays self under --owner" "$out" '"to":"fixture-owner/real-name"'
 
+# Only a github.com host names the subject. A host that merely contains the
+# string is some other server, so its path is neither self nor the owner.
+host_repo="$(make_repo host-check)"
+mkdir -p "$host_repo/docs"
+cat >"$host_repo/docs/about.md" <<'MD'
+Upstream is <https://github.com/zorg/real-name>.
+MD
+commit_repo "$host_repo"
+for evil in "https://evilgithub.com/zorg/real-name.git" \
+  "https://github.com.evil.example/zorg/real-name.git" \
+  "https://evil.example/github.com/zorg/real-name.git" \
+  "git@evilgithub.com:zorg/real-name.git"; do
+  git -C "$host_repo" remote set-url origin "$evil"
+  out="$(bash "$SCRIPT" "$host_repo")"
+  assert_contains "host: $evil is not self" "$out" '"to":"zorg/real-name"'
+  assert_equals "host: $evil yields no owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "unknown"
+done
+for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-name.git" \
+  "ssh://git@github.com/zorg/real-name.git" "https://user@github.com/zorg/real-name.git"; do
+  git -C "$host_repo" remote set-url origin "$good"
+  out="$(bash "$SCRIPT" "$host_repo")"
+  assert_not_contains "host: $good is self" "$out" '"to":"zorg/real-name"'
+  assert_equals "host: $good yields its owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "zorg"
+done
+
 # --- Case group 6: the .git suffix ------------------------------------------
 clone_repo="$(make_repo cloner)"
 mkdir -p "$clone_repo/docs"

@@ -22,6 +22,9 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - `reference-edges.sh` treats the `owner/repo` of a github.com origin remote as a self-reference,
   not only `<owner>/<directory name>`. A worktree or a renamed clone of a github.com repository no
   longer charts its own citations as an edge to a phantom second system.
+- `reference-edges.sh` reads the subject owner and slug only from a remote whose host is
+  github.com. A host that merely contains the string (`evilgithub.com`, or a `/github.com/` path
+  on another server) no longer supplies an owner or a self-reference.
 - `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
   path.
 

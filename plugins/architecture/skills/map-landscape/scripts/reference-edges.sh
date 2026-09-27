@@ -134,20 +134,29 @@ fi
 # owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
 # token on a host whose path shape we have not verified is how fixture names
 # become systems.
-remote_owner_segment() {
+#
+# The origin's path on github.com, `owner/repo...`, when the remote's host IS
+# github.com. The host is read from the authority, after any scheme and user
+# info, so `evilgithub.com`, `github.com.evil.example` and a `/github.com/`
+# path segment on another server all fail.
+github_remote_path() {
   local url
   url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
+  url="${url%/}"
   url="${url%.git}"
+  url="${url#*://}"
+  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
   case "$url" in
-  *github.com[:/]*)
-    url="${url#*github.com}"
-    url="${url#:}"
-    url="${url#/}"
-    case "$url" in
-    */*) printf '%s' "${url%%/*}" ;;
-    *) return 1 ;;
-    esac
-    ;;
+  github.com/* | github.com:*) printf '%s' "${url#github.com?}" ;;
+  *) return 1 ;;
+  esac
+}
+
+remote_owner_segment() {
+  local path
+  path="$(github_remote_path)" || return 1
+  case "$path" in
+  */*) printf '%s' "${path%%/*}" ;;
   *) return 1 ;;
   esac
 }
@@ -161,22 +170,13 @@ owner="$owner_override"
 # edge to a second system. The slug is the remote's own, independent of
 # --owner, which moves the subject organization but not what this clone is.
 remote_slug() {
-  local url o r
-  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  case "$url" in
-  *github.com[:/]*)
-    url="${url#*github.com}"
-    url="${url#[:/]}"
-    o="${url%%/*}"
-    r="${url#*/}"
-    r="${r%%/*}"
-    [[ -n "$o" && -n "$r" && "$o" != "$url" ]] || return 1
-    printf '%s/%s' "$o" "$r"
-    ;;
-  *) return 1 ;;
-  esac
+  local path o r
+  path="$(github_remote_path)" || return 1
+  o="${path%%/*}"
+  r="${path#*/}"
+  r="${r%%/*}"
+  [[ -n "$o" && -n "$r" && "$o" != "$path" ]] || return 1
+  printf '%s/%s' "$o" "$r"
 }
 self_slug="$(remote_slug)" || self_slug=""
 
