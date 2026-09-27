@@ -3,6 +3,18 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.14] - 2026-09-27
+
+### Fixed
+
+- **`audit`**: an `unattended` run writes the findings artifact to a neutral filename and renames
+  it to the contract filename from its first write, instead of only after a refusal. The route
+  covers every per-layer checkpoint, including the re-read-and-merge write, so a delegated run
+  whose harness refuses a report-shaped filename keeps its checkpoints instead of writing once at
+  the end. "Before the walk" step 1 probes that write path (neutral write, rename to a second
+  neutral name, delete) before any layer is walked, and stops naming the refusal when it fails.
+  Attended runs are unchanged. Eval 12 covers the delegated case (#4595).
+
 ## [0.4.13] - 2026-09-21
 
 ### Changed
