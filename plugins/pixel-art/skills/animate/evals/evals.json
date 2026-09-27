@@ -66,7 +66,7 @@
       "id": 6,
       "name": "near-miss-hand-drawn-ink-animation",
       "prompt": "animate a hand-drawn ink-style character doing a walk, like a pencil test with rough linework",
-      "expected_output": "Does not fire /pixel-art:animate: hand-drawn or ink-style frame animation belongs to the separate animation plugin, not to pixel sprite sheets. Does not convert the request into a palette-locked pixel sprite sheet.",
+      "expected_output": "Does not fire /pixel-art:animate: hand-drawn or ink-style frame animation is handled outside the pixel-art plugin, not to pixel sprite sheets. Does not convert the request into a palette-locked pixel sprite sheet.",
       "files": [],
       "expectations": [
         "Does not invoke the animate skill for hand-drawn or ink-style animation",
@@ -77,7 +77,7 @@
       "id": 7,
       "name": "near-miss-make-me-a-video",
       "prompt": "make me a video of a bouncing ball, mp4 please",
-      "expected_output": "Does not fire /pixel-art:animate: a video file is the separate animation plugin's job, and this skill exports sprite sheets and GIF previews, not MP4. Does not answer with a sprite sheet in place of the video.",
+      "expected_output": "Does not fire /pixel-art:animate: a video file is handled outside the pixel-art plugin, and this skill exports sprite sheets and GIF previews, not MP4. Does not answer with a sprite sheet in place of the video.",
       "files": [],
       "expectations": [
         "Does not invoke the animate skill for a video request",

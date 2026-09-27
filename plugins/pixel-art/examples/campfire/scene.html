@@ -80,7 +80,13 @@ function mountains() {
 
 const FIRE_X = 168, FIRE_Y = 124;
 const embers = Array.from({ length: 24 }, () => ({ life: 0 }));
-function fire(t, dt) {
+function stepEmbers(dt) {                        // simulation: runs once per fixed step
+  for (const e of embers) {
+    if (e.life <= 0) Object.assign(e, { x: FIRE_X + (rnd() * 8 - 4), y: FIRE_Y - 6, vx: rnd() * 10 - 5, life: 0.6 + rnd() * 0.9 });
+    e.life -= dt; e.y -= 22 * dt; e.x += e.vx * dt;
+  }
+}
+function fire(t) {
   // ground glow: dithered ellipse, flickering radius
   const r = 22 + Math.round(Math.sin(t * 9) + Math.sin(t * 13));
   for (let y = -6; y <= 6; y++) for (let x = -r; x <= r; x++)
@@ -97,8 +103,6 @@ function fire(t, dt) {
     }
   }
   for (const e of embers) {                      // pooled embers stepping through the fire ramp
-    if (e.life <= 0) Object.assign(e, { x: FIRE_X + (rnd() * 8 - 4), y: FIRE_Y - 6, vx: rnd() * 10 - 5, life: 0.6 + rnd() * 0.9 });
-    e.life -= dt; e.y -= 22 * dt; e.x += e.vx * dt;
     const idx = Math.min(3, Math.floor((1 - e.life / 1.5) * 4));
     if (e.life > 0) px(e.x, e.y, idx > 2 ? PAL.smoke : ramp[idx]);
   }
@@ -139,9 +143,9 @@ let last = performance.now(), acc = 0, t = 0;
 const STEP = 1 / 60;
 function tick(now) {
   acc += Math.min(0.1, (now - last) / 1000); last = now;
-  while (acc >= STEP) { acc -= STEP; t += STEP; }
+  while (acc >= STEP) { acc -= STEP; t += STEP; stepEmbers(STEP); }
   const lt = t % LOOP;
-  sky(); drawStars(t); mountains(); fire(t, STEP);
+  sky(); drawStars(t); mountains(); fire(t);
 
   const walkEnd = 6, startX = -48, stopX = FIRE_X - 64;
   const heroX = Math.round(startX + (stopX - startX) * Math.min(1, lt / walkEnd));

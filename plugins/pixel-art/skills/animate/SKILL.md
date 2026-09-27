@@ -69,7 +69,9 @@ Fix the generator, re-render, re-read; typically 2 to 4 rounds.
 
 Report `sheet.png` (the engine asset, at 1x), `sheet.json` (frame rects, durations, tags), the GIFs,
 and the gallery `index.html`, with the viewing path as in `/pixel-art:sprite`. For an engine
-target, name the file-naming rule the engine needs (MZ: `$` prefix for a single-character sheet).
+target, deliver the sheet under the filename the engine needs: for an RPG Maker MZ single
+character, copy `sheet.png` to `$<name>.png` (without the `$` prefix MZ reads the image as an
+eight-character sheet).
 
 ## Next
 

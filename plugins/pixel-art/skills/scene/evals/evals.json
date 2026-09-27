@@ -67,7 +67,7 @@
       "id": 6,
       "name": "near-miss-make-me-a-video",
       "prompt": "make me a video, a 30-second mp4 intro for my YouTube channel",
-      "expected_output": "Does not fire /pixel-art:scene: a rendered video file belongs to the separate animation plugin. This skill produces an HTML scene and no video export; it does not hand back an HTML file in place of the requested MP4.",
+      "expected_output": "Does not fire /pixel-art:scene: a rendered video file is handled outside the pixel-art plugin. This skill produces an HTML scene and no video export; it does not hand back an HTML file in place of the requested MP4.",
       "files": [],
       "expectations": [
         "Does not invoke the scene skill for a video file request",
@@ -78,7 +78,7 @@
       "id": 7,
       "name": "near-miss-hand-drawn-ink-short",
       "prompt": "make a short hand-drawn ink-style animated film of a paper boat in the rain",
-      "expected_output": "Does not fire /pixel-art:scene: hand-drawn or ink-style animation belongs to the separate animation plugin, even though 'short film' overlaps this skill's trigger wording. Does not convert it into a pixel-art scene.",
+      "expected_output": "Does not fire /pixel-art:scene: hand-drawn or ink-style animation is handled outside the pixel-art plugin, even though 'short film' overlaps this skill's trigger wording. Does not convert it into a pixel-art scene.",
       "files": [],
       "expectations": [
         "Does not invoke the scene skill for hand-drawn or ink-style animation",

@@ -54,7 +54,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
 Output directory, first match wins: an explicit path in the request; an assets location the
-project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}`; otherwise ask. Keep the
+project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded
+means unset); otherwise ask. Keep the
 spec (and generator) beside the output so the next iteration edits source, not pixels.
 
 ## 5. Review loop

@@ -35,7 +35,8 @@ file beside the output:
   fps; every draw lands on integer coordinates.
 - Light and fades step through palette colors or Bayer-dither patterns; never alpha, gradients or
   blur.
-- Audio, when given: load it from the path the user named with WebAudio, started on the first click
+- Audio, when given: inline the WAV as a `data:audio/wav;base64,...` URL (the output stays one
+  file) and play it with WebAudio, started on the first click
   (browsers block autoplay), cues tied to the same timeline.
 
 A worked example is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/scene.html` (title card, dithered sky,

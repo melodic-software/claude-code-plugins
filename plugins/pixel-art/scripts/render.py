@@ -39,6 +39,9 @@ def validate(spec):
         if len(key) != 1 or key == TRANSPARENT:
             raise ValueError(f"palette key {key!r} must be one character other than '.'")
         hex_rgb(color)
+    empty = [name for name, rows in frames.items() if not rows or not rows[0]]
+    if empty:
+        raise ValueError(f"frames {empty} are empty")
     first = next(iter(frames.values()))
     h, w = len(first), len(first[0])
     for name, rows in frames.items():
@@ -181,6 +184,12 @@ def render(spec, out_dir, scale=8):
     write_png(out_dir / "preview.png", columns * w * scale, rows_n * h * scale, sheet_pixels(scale))
 
     animations = spec.get("animations") or {"all": {"frames": list(frames), "fps": 8}}
+    previous = out_dir / "sheet.json"
+    if previous.exists():  # drop GIFs the last render wrote for animations this spec no longer has
+        for tag in json.loads(previous.read_text()).get("meta", {}).get("frameTags", []):
+            name = tag.get("name", "")
+            if name not in animations and re.fullmatch(r"[\w-]+", name):
+                (out_dir / f"{name}.gif").unlink(missing_ok=True)
     index_of = {k: i + 1 for i, k in enumerate(keys)}
     index_of[TRANSPARENT] = 0
     for name, anim in animations.items():
@@ -205,7 +214,7 @@ def render(spec, out_dir, scale=8):
             "meta": {"app": "pixel-art render.py", "image": "sheet.png", "format": "RGBA8888",
                      "size": {"w": columns * w, "h": rows_n * h}, "scale": "1", "frameTags": tags}}
     (out_dir / "sheet.json").write_text(json.dumps(meta, indent=2))
-    return sorted(p.name for p in out_dir.iterdir())
+    return sorted(["sheet.png", "preview.png", "sheet.json"] + [f"{name}.gif" for name in animations])
 
 
 def main(argv=None):
