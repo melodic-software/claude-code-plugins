@@ -171,6 +171,30 @@ EOF
 expect_flag "a case pattern ) inside \$( ) before the pipe" 1 <<'EOF'
 v="$(case $y in a) echo a;; esac | grep -q x)"
 EOF
+expect_flag "a pipe after \$( ) holding a bare case argument" 2 <<'EOF'
+v="$(echo case x)"
+echo x | grep -q y
+EOF
+expect_flag "a pipe after \$( ) ending in a bare case argument, same line" 1 <<'EOF'
+v="$(echo case )"; echo x | grep -q y
+EOF
+expect_flag "a pipe two lines after \$( ) holding a printf case argument" 3 <<'EOF'
+v="$(printf '%s\n' case x)"
+out="$(echo z)"
+echo "$out" | grep -q z
+EOF
+expect_flag "a pipe three lines after \$( ) holding a bare case argument" 3 <<'EOF'
+v="$(echo case x)"
+w="$y"
+echo x | grep -q y
+EOF
+expect_flag "a pipe inside \$( ) after a case argument" 1 <<'EOF'
+v=$(echo case study | grep -q x)
+EOF
+expect_flag "a pipe after an esac argument inside a case in \$( )" 2 <<'EOF'
+v=$(case $y in a) echo esac ;; esac)
+echo x | grep -q y
+EOF
 expect_flag "a pipe after a case inside \$( ) closes" 2 <<'EOF'
 v=$(case $y in (a) echo a;; b|c) echo b;; esac)
 echo "$v" | grep -q a
@@ -238,6 +262,10 @@ echo "$x" | grep -e "-q"
 EOF
 expect_clean "a case pattern pipe inside \$( )" <<'EOF'
 v="$(case $y in a|b) grep -c x f;; esac)"
+EOF
+expect_clean "a quoted pipe after \$( ) holding 'in case' arguments" <<'EOF'
+v="$(echo in case you)"
+echo "a | grep -q b"
 EOF
 expect_clean "an option after --" <<'EOF'
 echo "$x" | grep -- -q
