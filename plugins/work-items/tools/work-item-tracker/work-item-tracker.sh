@@ -42,8 +42,11 @@ Verbs:
   create-item --title <t> [--body <b>] [--labels a,b] [--type <name>]
               [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
   get-item <id>
-  claim <id> [--ttl-hours <n>] [--session-id <s>]
+  claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+        --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
+        --ttl-hours 0 --ttl-minutes <n>
   renew-lease <id> --lease-comment-id <n>
+  release <id> --lease-comment-id <n>
   reclaim <id>
   link-blocks <id> --blocked-by <id>
   add-sub-item <id> --parent <id>
@@ -117,7 +120,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.

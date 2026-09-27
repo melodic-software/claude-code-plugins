@@ -1285,6 +1285,38 @@ else
   failures=$((failures + 1))
 fi
 
+# A .git marker that is not a working tree under --root is a discovery-skip, not a run abort
+# (#4207). uv writes a zero-byte .git into its sdists cache; git answers "invalid gitfile format".
+mkdir -p "$TMP/husk-root/packages/uv/sdists-v9" "$TMP/husk-root/repo-b/.git"
+: >"$TMP/husk-root/packages/uv/sdists-v9/.git"
+husk_out="$TMP/husk-root-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/husk-root" --detail >"$husk_out" 2>&1
+husk_status=$?
+if [[ "$husk_status" -ne 2 ]] &&
+  grep -Fq "Finding: discovery-skip" "$husk_out" &&
+  grep -Fq "Target: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out" &&
+  grep -Fq "discovered path is not a Git working tree" "$husk_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$husk_out" &&
+  grep -Fq "Discovery skips: 1 non-repository" "$husk_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$husk_out"; then
+  printf 'PASS: a non-working-tree .git under --root is a discovery-skip and the fleet is audited\n'
+else
+  printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
+  sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+# The operator named this path directly, so the typo-stops-the-run rule still holds.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/husk-root/packages/uv/sdists-v9" \
+  >"$husk_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "Error: not a Git working tree: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out"; then
+  printf 'PASS: explicit --repo on a non-working-tree .git marker still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker failed without the rejection\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A pure bare hub (no checkout debris, no linked worktrees) is still not this finding.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-pure" >"$bare_out" 2>&1; then
   printf 'FAIL: pure bare hub unexpectedly succeeded\n' >&2
@@ -1999,6 +2031,64 @@ if [[ "$plan_fail_status" -ne 0 && ! -f "$missing_plan" ]] &&
   printf 'PASS: unwritable --plan-file fails closed\n'
 else
   printf 'FAIL: unwritable --plan-file did not fail closed (status=%s)\n' "$plan_fail_status" >&2
+  failures=$((failures + 1))
+fi
+
+# On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
+# a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
+# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
+# the <user> placeholder, which the machine-specific-paths gate treats as portable.
+WIN_BIN="$TMP/win-bin"
+WIN_TMP="$TMP/wintmp"
+mkdir -p "$WIN_BIN" "$WIN_TMP"
+printf '#!/usr/bin/env bash\nprintf "MINGW64_NT-10.0-26100\\n"\n' >"$WIN_BIN/uname"
+cat >"$WIN_BIN/cygpath" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "-m" && "$2" == "--" && $# -eq 3 ]] || exit 2
+case "$3" in
+"$MOCK_WIN_TMP"/*) printf 'C:/Users/<user>/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
+*) printf '%s\n' "$3" ;;
+esac
+EOF
+chmod +x "$WIN_BIN/uname" "$WIN_BIN/cygpath"
+win_native="C:/Users/<user>/AppData/Local/Temp"
+win_out="$TMP/win-plan-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" TMPDIR="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" >"$win_out" 2>&1 || true
+win_default_plan="$(compgen -G "$WIN_TMP/repo-fleet-hygiene-plan.*.json" | head -n 1)"
+win_default_native="$win_native/${win_default_plan#"$WIN_TMP"/}"
+if [[ -n "$win_default_plan" ]] &&
+  grep -Fxq "Action plan: $win_default_native" "$win_out" &&
+  grep -Fq -- "--apply-plan $win_default_native" "$win_out" &&
+  ! grep -Fq "$WIN_TMP" "$win_out"; then
+  printf 'PASS: Windows default plan path prints in native form on both plan lines\n'
+else
+  printf 'FAIL: Windows default plan path not native (plan=%s)\n' "$win_default_plan" >&2
+  sed -n '/^Action plan:/,/^Apply dry-run:/p' "$win_out" >&2
+  failures=$((failures + 1))
+fi
+win_explicit_out="$TMP/win-explicit-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/explicit.json" >"$win_explicit_out" 2>&1 || true
+if [[ -f "$WIN_TMP/explicit.json" ]] &&
+  grep -Fxq "Action plan: $win_native/explicit.json" "$win_explicit_out" &&
+  grep -Fq -- "--apply-plan $win_native/explicit.json" "$win_explicit_out"; then
+  printf 'PASS: Windows explicit --plan-file is written as given and printed in native form\n'
+else
+  printf 'FAIL: Windows explicit --plan-file path handling\n' >&2
+  failures=$((failures + 1))
+fi
+# Without cygpath the audit still reports, with the path as bash sees it.
+rm -f "$WIN_BIN/cygpath"
+win_nocyg_out="$TMP/win-nocygpath-out.txt"
+PATH="$WIN_BIN:$PATH" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/nocyg.json" >"$win_nocyg_out" 2>&1 || true
+if command -v cygpath >/dev/null 2>&1; then
+  printf 'SKIP: host cygpath present; cannot test its absence\n'
+elif grep -Fxq "Action plan: $WIN_TMP/nocyg.json" "$win_nocyg_out"; then
+  printf 'PASS: Windows host without cygpath prints the plan path unchanged\n'
+else
+  printf 'FAIL: Windows host without cygpath lost the plan path\n' >&2
   failures=$((failures + 1))
 fi
 

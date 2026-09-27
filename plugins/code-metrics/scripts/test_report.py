@@ -1386,6 +1386,48 @@ class DuplicationRenderTests(unittest.TestCase):
             "Excluded by a sanctioned-replication registry: 1.", self.rendered(doc)
         )
 
+    def test_a_total_exclusion_labels_the_two_file_counts(self) -> None:
+        # Every group excluded: the scope header still counts the scanned
+        # files while the summary counts none, and the report says why.
+        excluded = clone_row("bash", "a/shared/u.sh", "b/shared/u.sh", 20)
+        doc = resummarized(duplication_doc([]))
+        doc["excluded"] = [
+            {
+                "registry": "r.txt",
+                "line": 3,
+                "path": "shared/u.sh",
+                "instances": excluded["instances"],
+            }
+        ]
+        self.assertEqual(doc["summary"]["files"], 0)
+        out = self.rendered(doc)
+        self.assertIn("Scope: all, 4 file(s).", out)
+        self.assertIn("\nFiles with clones: 0.\n", out)
+        self.assertIn(
+            "Excluded by a sanctioned-replication registry: 1. Files with clones counts "
+            "surviving groups only, so the 2 file(s) holding nothing but excluded groups "
+            "are left out of it; the scope's file count is every file scanned.",
+            out,
+        )
+
+    def test_a_file_in_a_surviving_group_is_not_named_as_excluded_only(self) -> None:
+        kept = clone_row("bash", "a/u.sh", "b/u.sh", 20)
+        doc = resummarized(duplication_doc([kept]))
+        doc["excluded"] = [
+            {
+                "registry": "r.txt",
+                "line": 3,
+                "path": "u.sh",
+                "instances": [
+                    {"file": "a/u.sh", "start_line": 40, "end_line": 60},
+                    {"file": "c/u.sh", "start_line": 40, "end_line": 60},
+                ],
+            }
+        ]
+        out = self.rendered(doc)
+        self.assertIn("\nFiles with clones: 2.\n", out)
+        self.assertIn("so the 1 file(s) holding nothing but excluded groups", out)
+
     def test_no_detector_prints_one_headline_with_the_hint(self) -> None:
         hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
         doc = duplication_doc(
