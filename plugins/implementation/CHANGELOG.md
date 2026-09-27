@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2] - 2026-09-27
+
+### Added
+
+- `report` ships a byte-identical copy of discovery's return contract. `implementer` and `phase-verifier` preload `implementation:report`.
+
 ## [0.19.1] - 2026-09-27
 
 ### Fixed
