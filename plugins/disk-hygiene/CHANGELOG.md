@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-27
+
+### Changed
+
+- **The kill-switch probe now reports the guard's interpreter and `--data-root`.** Its single-line JSON gains `hook_python` and `data_root` beside `effective`, `source`, `degraded`, and `detail`. Both come from the guard's own `launch_disclosure`, the same two helpers its denial guidance uses, run against the probe's install root, so the two cannot disagree; `data_root` is `null` when the guard's guidance would say no authority resolved. A test runs the probe and a belt denial side by side on a marketplace-cache install and on a checkout and compares the values.
+- The `clean` skill runs the probe as its first engine-related call and takes `<hook-python>` and `--data-root` from it. It no longer submits a scan with bare `python` to learn them. The probe itself still needs `<hook-python>`: when the session has not learned it, one bare-`python` probe call is denied and names it. That call is read-only, and no scan is denied.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed
