@@ -1,5 +1,14 @@
 # Changelog
 
+All notable changes to `repo-fleet-hygiene` are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+## [0.23.32] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` no longer `%q`-escapes printable UTF-8 under `LC_ALL=C`.
+  Control bytes still take the `%q` path so crafted paths cannot forge report lines.
 
 ## [0.23.32]
 
