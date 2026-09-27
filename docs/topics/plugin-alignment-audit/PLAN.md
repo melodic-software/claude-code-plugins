@@ -25,6 +25,11 @@ Scope items (each maps to a phase):
 Out of scope: a `realign` sibling, a `--fix` mode, the several-positions tier, model-graded evals,
 fixing issues #4582-#4586.
 
+Constraint (user, 2026-09-27): no new model-driven CI. Every CI step this plan adds runs a
+deterministic script (bash, no `claude`, no API key, no Claude GitHub Action). The skill runs only
+when a person invokes it; the existing review and security-review lanes stay the only Claude-driven
+CI jobs.
+
 Success: every phase's Sanity Check passes; `/audit-plugin-conformance animation` writes a findings
 report in which every finding carries a registry id and every registry row has a lane that ran; no
 live doc outside frozen records cites a conformance audit that does not exist.
