@@ -444,6 +444,34 @@ class TestStatus(DirCase):
         self.assertEqual(lines[head + 2], "  #3 - note: " + json.dumps(text))
         self.assertEqual(len(lines), head + 3, out)
 
+    def test_a_waiting_question_is_open_on_its_own_line(self):
+        doc = base_doc()
+        doc["questions"][0].update(waiting=True, waitsOn='your "confirmation" of X')
+        doc["questions"][2].update(waiting=True, waitsOn="research")
+        self.write_doc(doc)
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "Yes if X holds.",
+                    "at": at,
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        lines = out.splitlines()
+        self.assertIn("First group: 0 of 2 closed; open: Q2 Short Q2", lines)
+        self.assertIn(
+            "  Q1 Short Q1 waits on: " + json.dumps('your "confirmation" of X'), lines
+        )
+        self.assertIn("Second group: 0 of 1 closed", lines)
+        self.assertIn('  Q3 Short Q3 waits on: "research"', lines)
+
 
 class TestDirRequired(unittest.TestCase):
     def test_no_dir_is_refused(self):
@@ -582,6 +610,521 @@ class TestApply(DirCase):
             "handle",
         ):
             self.assertIn(name, out)
+
+
+class TestClaudeActivity(DirCase):
+    """set-status, wait and activity, and one activity entry per write whose ops the user sees."""
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def refused(self, *ops):
+        return self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+
+    def entries(self):
+        return self.doc().get("activity", [])
+
+    def test_set_status_then_clear(self):
+        self.apply({"op": "set-status", "text": "Researching ghq"})
+        status = self.doc()["status"]
+        self.assertEqual(status["text"], "Researching ghq")
+        self.assertTrue(status["at"])
+        self.apply({"op": "set-status", "clear": True})
+        self.assertNotIn("status", self.doc())
+        self.assertEqual(self.entries(), [])
+
+    def test_a_non_ascii_summary_prints_on_a_legacy_console(self):
+        waits = "the \u6771\u4eac benchmark \u2192 done"
+        ops = self.file(
+            "ops.json", {"ops": [{"op": "wait", "id": "Q3", "waitsOn": waits}]}
+        )
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "--dir",
+                str(self.dir),
+                "apply",
+                "--file",
+                ops,
+            ],
+            capture_output=True,
+            env=dict(os.environ, PYTHONIOENCODING="cp1252"),
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+        self.assertIn(waits.encode("utf-8"), p.stdout)
+        self.assertEqual(self.q("Q3")["waitsOn"], waits)
+
+    def test_set_status_needs_text_or_clear_not_both(self):
+        for extra in (
+            {},
+            {"text": "  "},
+            {"clear": False},
+            {"text": "x", "clear": True},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "set-status", **extra})
+
+    def test_wait_then_clear(self):
+        self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
+        q = self.q("Q3")
+        self.assertIs(q["waiting"], True)
+        self.assertEqual(q["waitsOn"], "research on ghq")
+        self.assertIsNone(q.get("contentRev"))
+        self.assertEqual(q["history"][-1]["by"], "claude")
+        self.assertIn("research on ghq", q["history"][-1]["text"])
+        self.assertEqual(
+            self.entries(),
+            [
+                {
+                    "at": self.entries()[0]["at"],
+                    "seq": 1,
+                    "text": "Q3 pending research: research on ghq",
+                    "ids": ["Q3"],
+                }
+            ],
+        )
+        self.assertNotIn("waitingBy", q)
+        self.assertNotIn("setAsideAt", q)
+        self.apply({"op": "wait", "id": "Q3", "clear": True})
+        q = self.q("Q3")
+        self.assertNotIn("waiting", q)
+        self.assertNotIn("waitsOn", q)
+        self.assertEqual(len(q["history"]), 2)
+        self.assertEqual(len(self.entries()), 2)
+        self.assertEqual(self.entries()[-1]["text"], "Q3 no longer pending research")
+
+    def test_wait_takes_the_ledger_delimiters_in_its_text(self):
+        for by in ("claude", "user"):
+            for delim in ("; answer: ", "; confirmed: ", ";\n answer: "):
+                text = f"vendor quote{delim}pending"
+                self.apply({"op": "wait", "id": "Q1", "by": by, "waitsOn": text})
+                self.assertEqual(self.q("Q1")["waitsOn"], text)
+
+    def test_wait_by_user_sets_the_decision_aside(self):
+        old = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "If X?",
+                    "at": old,
+                }
+            ]
+        )
+        self.apply({"op": "handle", "seqs": [1]})
+        self.apply(
+            {"op": "wait", "id": "Q1", "by": "user", "waitsOn": "whether X holds"}
+        )
+        q = self.q("Q1")
+        self.assertEqual(q["waitingBy"], "user")
+        self.assertGreater(q["setAsideAt"], old)
+        self.assertEqual(q["history"][-1]["text"], "Needs your answer: whether X holds")
+        self.assertEqual(
+            self.entries()[-1]["text"], "Q1 needs your answer: whether X holds"
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            '  Q1 Short Q1 awaiting user: "whether X holds"', out.splitlines()
+        )
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        q = self.q("Q1")
+        for key in ("waiting", "waitsOn", "waitingBy"):
+            self.assertNotIn(key, q)
+        self.assertTrue(q["setAsideAt"])
+        self.assertEqual(self.entries()[-1]["text"], "Q1 no longer needs your answer")
+        rc, out, err = self.rp("status")
+        self.assertIn("open: Q1 Short Q1, Q2 Short Q2", out)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "If X?",
+                    "at": old,
+                },
+                {
+                    "seq": 2,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2999-01-01T00:00:00Z",
+                },
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
+    def test_a_terminal_answer_before_the_set_aside_does_not_count(self):
+        doc = base_doc()
+        doc["questions"][0].update(
+            setAsideAt="2026-09-25T10:00:00Z",
+            terminal={
+                "decision": "accept",
+                "alt": None,
+                "text": "",
+                "updatedAt": "2026-09-25T10:00:00Z",
+            },
+        )
+        doc["questions"][1]["terminal"] = {
+            "decision": "accept",
+            "alt": None,
+            "text": "",
+            "updatedAt": "2026-09-25T10:00:00Z",
+        }
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q1 Short Q1", out.splitlines())
+        doc["questions"][0]["terminal"]["updatedAt"] = "2026-09-25T10:00:01Z"
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 2 of 2 closed", out.splitlines())
+
+    def test_a_page_decision_is_set_aside_by_its_seq(self):
+        own = {
+            "seq": 1,
+            "id": "Q1",
+            "kind": "own",
+            "alt": None,
+            "text": "If X?",
+            "at": "2999-01-01T00:00:00Z",
+        }
+        self.write_events([own])
+        self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        q = self.q("Q1")
+        self.assertEqual(q["setAsideSeq"], 1)
+        rc, out, err = self.rp("status")
+        self.assertIn(
+            "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2",
+            out.splitlines(),
+        )
+        same_second = {**own, "seq": 2, "kind": "accept", "at": q["setAsideAt"]}
+        self.write_events([own, same_second])
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
+    def test_a_terminal_answer_in_the_second_of_a_hold_counts_after_it(self):
+        self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
+        self.apply({"op": "record-terminal", "id": "Q1", "decision": "accept"})
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        doc = self.doc()
+        q = doc["questions"][0]
+        self.assertLess(q["setAsideRev"], q["terminal"]["rev"])
+        q["terminal"]["updatedAt"] = q["setAsideAt"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
+    def test_wait_by_claude_drops_a_user_hold(self):
+        self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
+        stamp = self.q("Q3")["setAsideAt"]
+        self.apply({"op": "wait", "id": "Q3", "by": "claude", "waitsOn": "research"})
+        q = self.q("Q3")
+        self.assertNotIn("waitingBy", q)
+        self.assertEqual(q["setAsideAt"], stamp)
+        rc, out, err = self.rp("status")
+        self.assertIn('  Q3 Short Q3 waits on: "research"', out.splitlines())
+
+    def test_wait_refusals(self):
+        for op in (
+            {"id": "Q9", "waitsOn": "x"},
+            {"id": "Q3"},
+            {"id": "Q3", "waitsOn": " "},
+            {"id": "Q3", "waitsOn": "x", "clear": True},
+            {"id": "Q3", "waitsOn": "x", "by": "robot"},
+            {"id": "Q3", "clear": True, "by": "user"},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "wait", **op})
+
+    def test_free_text_over_its_cap_is_refused(self):
+        line, text = "x" * 501, "x" * 20001
+        for op in (
+            {"op": "wait", "id": "Q3", "waitsOn": line},
+            {"op": "set-status", "text": line},
+            {"op": "activity", "text": line},
+            {"op": "archive", "ids": ["Q3"], "why": line},
+            {"op": "confirm-commitments", "id": "Q1", "reason": line},
+            {"op": "restate", "sections": {"goal": text}},
+            {"op": "reply", "id": "Q1", "text": text},
+            {"op": "revise", "id": "Q1", "title": "New?", "text": text},
+            {"op": "note-reply", "text": text},
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": text},
+            {"op": "reply", "id": "Q1", "rec": line},
+            {"op": "reply", "id": "Q1", "rec": "Ok.", "affects": "none", "why": text},
+            {"op": "revise", "id": "Q1", "title": line},
+            {"op": "revise", "id": "Q1", "short": line},
+            {"op": "revise", "id": "Q1", "rec": line},
+            {"op": "revise", "id": "Q1", "facts": text},
+            {"op": "revise", "id": "Q1", "basis": text},
+            {"op": "revise", "id": "Q1", "rec": "Ok.", "affects": "none", "why": text},
+            {"op": "revise", "id": "Q1", "alternatives": ["a:" + line, "b:Later"]},
+            {"op": "add", "question": question("Q4", title=line)},
+            {"op": "add", "question": question("Q4", short=line)},
+            {"op": "add", "question": question("Q4", recommendation=line)},
+            {"op": "add", "question": question("Q4", facts=text)},
+            {"op": "add", "question": question("Q4", basis=text)},
+            {"op": "add", "question": question("Q4", commits=[line])},
+            {
+                "op": "add-round",
+                "questions": [question("Q4", alternatives=["a:" + line, "b:x"])],
+            },
+            {
+                "op": "add-round",
+                "questions": [
+                    question(
+                        "Q4",
+                        alternatives=[
+                            {"key": "a", "text": line},
+                            {"key": "b", "text": "x"},
+                        ],
+                    )
+                ],
+            },
+            {"op": "add-round", "questions": [question("Q4", facts=text)]},
+            {"op": "group", "id": "g3", "title": line},
+            {"op": "group", "id": "g3", "title": "T", "summary": text},
+            {"op": "add-round", "groups": [{"id": "g3", "title": line}]},
+        ):
+            with self.subTest(op=repr(op)[:100]):
+                self.assertIn("the cap is", self.refused(op))
+        self.apply(
+            {"op": "wait", "id": "Q3", "waitsOn": "x" * 500},
+            {"op": "restate", "sections": {"goal": "x" * 20000}},
+            {"op": "group", "id": "g3", "title": "x" * 500, "summary": "x" * 20000},
+            {
+                "op": "add",
+                "question": question("Q4", title="x" * 500, facts="x" * 20000),
+            },
+        )
+
+    def test_a_terminal_answer_after_a_hold_in_the_same_apply_counts(self):
+        self.apply(
+            {"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"},
+            {"op": "wait", "id": "Q1", "clear": True},
+            {"op": "record-terminal", "id": "Q1", "decision": "accept"},
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.apply(
+            {"op": "record-terminal", "id": "Q2", "decision": "accept"},
+            {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "y"},
+            {"op": "wait", "id": "Q2", "clear": True},
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
+    def test_same_text_entries_in_one_second_get_distinct_seqs(self):
+        self.apply(
+            {"op": "activity", "text": "Same"}, {"op": "activity", "text": "Same"}
+        )
+        self.apply({"op": "activity", "text": "Same"})
+        self.assertEqual([e["seq"] for e in self.entries()], [1, 2, 3])
+
+    def test_activity_op_appends_its_own_entry(self):
+        self.apply({"op": "activity", "text": "Ledger updated", "ids": ["Q1"]})
+        self.assertEqual(
+            [(e["text"], e["ids"]) for e in self.entries()],
+            [("Ledger updated", ["Q1"])],
+        )
+        self.apply({"op": "activity", "text": "Gate run"})
+        self.assertNotIn("ids", self.entries()[-1])
+        self.apply(
+            {"op": "activity", "text": "Research returned"},
+            {"op": "reply", "id": "Q1", "text": "Done."},
+        )
+        self.assertEqual(
+            [e["text"] for e in self.entries()[2:]],
+            ["Research returned", "Replied on Q1"],
+        )
+
+    def test_confirm_commitments_records_each_index_once(self):
+        doc = base_doc()
+        doc["questions"][2]["commits"] = ["First", "Second", "Third"]
+        self.write_doc(doc)
+        self.apply(
+            {"op": "confirm-commitments", "id": "Q1", "reason": "Said so in chat"}
+        )
+        [c] = self.q("Q1")["commitsConfirmed"]
+        self.assertEqual((c["index"], c["reason"]), (0, "Said so in chat"))
+        self.assertTrue(c["at"])
+        self.assertEqual(self.q("Q1")["history"][-1]["by"], "claude")
+        self.assertEqual(
+            (self.entries()[-1]["text"], self.entries()[-1]["ids"]),
+            ("Confirmed 1 commitment on Q1: Said so in chat", ["Q1"]),
+        )
+        self.apply(
+            {
+                "op": "confirm-commitments",
+                "id": "Q3",
+                "indices": [2, 0, 2],
+                "reason": "r",
+            }
+        )
+        self.assertEqual([c["index"] for c in self.q("Q3")["commitsConfirmed"]], [0, 2])
+        self.assertEqual(self.entries()[-1]["text"], "Confirmed 2 commitments on Q3: r")
+        self.apply({"op": "confirm-commitments", "id": "Q3", "reason": "all now"})
+        confirmed = self.q("Q3")["commitsConfirmed"]
+        self.assertEqual([c["index"] for c in confirmed], [0, 1, 2])
+        self.assertEqual([c["reason"] for c in confirmed], ["r", "all now", "r"])
+        self.assertIsNone(self.q("Q3").get("contentRev"))
+
+    def test_confirm_commitments_refusals(self):
+        for op in (
+            {"id": "Q9", "reason": "r"},
+            {"id": "Q1", "indices": [1], "reason": "r"},
+            {"id": "Q1", "indices": [-1], "reason": "r"},
+            {"id": "Q1", "indices": [], "reason": "r"},
+            {"id": "Q1", "reason": " "},
+            {"id": "Q1"},
+            {"id": "Q2", "reason": "r"},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "confirm-commitments", **op})
+
+    def test_restate_writes_the_restatement_with_a_new_rev(self):
+        self.apply(
+            {
+                "op": "restate",
+                "sections": {"goal": "Ship it.", "planningOwned": "- file layout"},
+            }
+        )
+        r = self.doc()["restatement"]
+        self.assertEqual(r["rev"], 1)
+        self.assertTrue(r["at"])
+        self.assertEqual(
+            r["sections"], {"goal": "Ship it.", "planningOwned": "- file layout"}
+        )
+        [e] = self.entries()
+        self.assertEqual(e["text"], "Restated the shared understanding")
+        self.assertNotIn("ids", e)
+        self.assertEqual(e["restate"], 1)
+        self.apply(
+            {"op": "restate", "sections": {"constraints": "Stdlib only."}},
+            {"op": "reply", "id": "Q1", "text": "Done."},
+        )
+        r = self.doc()["restatement"]
+        self.assertEqual(
+            (r["rev"], r["sections"]), (2, {"constraints": "Stdlib only."})
+        )
+        self.assertEqual(
+            (self.entries()[-1]["restate"], self.entries()[-1]["ids"]), (2, ["Q1"])
+        )
+
+    def test_restate_refusals(self):
+        for sections in (
+            {},
+            {"goal": "  ", "deferred": ""},
+            {"goal": "x", "extra": "y"},
+            {"goal": 3},
+            None,
+        ):
+            with self.subTest(sections=sections):
+                op = {"op": "restate"}
+                if sections is not None:
+                    op["sections"] = sections
+                self.refused(op)
+
+    def test_activity_refusals(self):
+        self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
+        self.refused({"op": "activity", "text": " "})
+
+    def test_one_summary_entry_per_apply(self):
+        self.apply(
+            {"op": "reply", "id": "Q1", "text": "Because."},
+            {
+                "op": "add-round",
+                "round": 4,
+                "questions": [question("Q4", group="g1"), question("Q5", group="g1")],
+            },
+            {"op": "handle", "seqs": [1]},
+        )
+        [e] = self.entries()
+        self.assertEqual(e["text"], "Replied on Q1; round 4 added: Q4, Q5")
+        self.assertEqual(e["ids"], ["Q1", "Q4", "Q5"])
+        self.assertTrue(e["at"])
+        self.assertIs(e["added"], True)
+
+    def test_add_round_without_a_round_names_the_ids(self):
+        self.apply({"op": "add-round", "questions": [question("Q4")]})
+        self.assertEqual(self.entries()[-1]["text"], "Added Q4")
+        self.apply({"op": "add-round", "groups": [{"id": "g3", "title": "T"}]})
+        self.assertEqual(self.entries()[-1]["text"], "Added 1 groups, 0 visuals")
+
+    def test_ops_the_user_does_not_see_write_no_entry(self):
+        self.apply(
+            {"op": "handle", "seqs": [1]},
+            {"op": "meta", "set": {"next": "Then the plan."}},
+            {"op": "group", "id": "g3", "title": "Third group"},
+            {"op": "set-status", "text": "Busy"},
+        )
+        self.assertEqual(self.entries(), [])
+
+    def test_cli_writes(self):
+        for args in (
+            ("bump",),
+            ("group", "g3", "--title", "T"),
+            ("handle", "--seq", "1"),
+        ):
+            rc, out, err = self.rp(*args)
+            self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.entries(), [])
+        rc, out, err = self.rp("reply", "Q1", "--text", "Because.")
+        self.assertEqual(rc, 0, out + err)
+        [e] = self.entries()
+        self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
+        for key in ("notes", "added", "restate"):
+            self.assertNotIn(key, e)
+
+    def test_a_note_reply_marks_the_entry(self):
+        self.apply(
+            {"op": "note-reply", "text": "Thanks."},
+            {"op": "reply", "id": "Q1", "text": "Yes."},
+        )
+        [e] = self.entries()
+        self.assertEqual((e["ids"], e.get("notes")), (["Q1"], True))
+        rc, out, err = self.rp("note-reply", "--text", "Again.")
+        self.assertEqual(rc, 0, out + err)
+        e = self.entries()[-1]
+        self.assertIs(e.get("notes"), True)
+        self.assertNotIn("ids", e)
+
+    def test_newest_200_are_kept(self):
+        doc = base_doc()
+        doc["activity"] = [{"at": "t", "text": f"old {i}"} for i in range(200)]
+        self.write_doc(doc)
+        self.apply({"op": "reply", "id": "Q1", "text": "Because."})
+        e = self.entries()
+        self.assertEqual(len(e), 200)
+        self.assertEqual(e[0]["text"], "old 1")
+        self.assertEqual(e[-1]["text"], "Replied on Q1")
+
+    def test_import_ledger_writes_no_entry(self):
+        ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        self.assertTrue(doc["questions"])
+        self.assertNotIn("activity", doc)
 
 
 class TestRecordTerminal(DirCase):
@@ -861,7 +1404,7 @@ class TestMeta(DirCase):
 
 
 class TestEmojiMarkersValue(unittest.TestCase):
-    """`--emoji-markers` takes any value: false, 0, no, off mean false; anything else means true."""
+    """`--emoji-markers` takes any value: true, 1, yes, on mean true; anything else means false."""
 
     @classmethod
     def setUpClass(cls):
@@ -880,6 +1423,7 @@ class TestEmojiMarkersValue(unittest.TestCase):
         )
         self.assertEqual(rc, 0, f"{value!r}: {out}{err}")
         doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertNotIn("activity", doc)
         return doc["meta"]["emojiMarkers"]
 
     def test_every_value_form(self):
@@ -887,11 +1431,14 @@ class TestEmojiMarkersValue(unittest.TestCase):
             ("false", False),
             ("TRUE", True),
             ("0", False),
-            ("", True),
+            ("1", True),
+            ("", False),
             ("No", False),
-            ("${user_config.use_emoji_question_markers}", True),
+            (" Yes ", True),
+            ("${user_config.use_emoji_question_markers}", False),
             ("OFF", False),
-            ("yes please", True),
+            ("on", True),
+            ("yes please", False),
         ]
         for value, want in cases:
             with self.subTest(value=value):

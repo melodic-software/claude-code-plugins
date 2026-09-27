@@ -151,19 +151,19 @@ Stage specific files (never `git add -A`). Then invoke `/source-control:commit` 
 
 Before building PR body, parse branch for the primary (numeric GitHub) issue number and prompt for any additional closures. Keyword line is injected at top of body in §2.4.1.
 
-By default the parser uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
+The parser resolves the grammar itself: the `branch_issue_pattern` key across the three `source-control.md` layers, then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" 2>/dev/null || true)
+ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" || true)
 ```
 
-If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` (a real ERE, not the literal `${user_config…}` token, because this reference file is Read raw and the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
+If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` userConfig value (a real ERE, not the literal `${user_config…}` token, because this reference file is Read raw and the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' 2>/dev/null || true)
+ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
 ```
 
-Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a non-numeric capture, e.g. a bare Jira key, is looked up below, found absent, and dropped to the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used, and a note naming the source and the reason (never the pattern text) when a layer or the userConfig value is skipped (a heading or HTML comment as the first value line, an empty or unterminated code fence, or a pattern that is invalid, holds a backreference, or breaks the length, bound, or nested-quantifier limit), when a near-miss heading such as `## branch_issue_pattern:` stops resolution (no issue number, whatever the lower sources say), or when a match yields no numeric id. Relay any note to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a pattern with no capture group, or a non-numeric capture such as a bare Jira key, prints nothing and takes the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
 
 ```bash
 CLOSES_LINE=""
@@ -605,7 +605,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by `gh pr view --json mergeable` and CI in Phase 3. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
-- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional (`parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`). The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
+- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
 - **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
 
   ```bash

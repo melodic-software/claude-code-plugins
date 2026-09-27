@@ -76,6 +76,32 @@ LOCK_SECONDS = 10
 START_SECONDS = 3
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
+ACTIVITY_CAP = 200
+# Free-text caps: one-line fields (a title, a short label, a recommendation, an alternative, a
+# commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
+# basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
+# restatement section).
+LINE_CAP = 500
+TEXT_CAP = 20000
+QUESTION_CAPS = (
+    ("title", LINE_CAP),
+    ("short", LINE_CAP),
+    ("recommendation", LINE_CAP),
+    ("facts", TEXT_CAP),
+    ("basis", TEXT_CAP),
+)
+LOGGED_OPS = {
+    "reply",
+    "revise",
+    "add",
+    "add-round",
+    "archive",
+    "record-terminal",
+    "note-reply",
+    "wait",
+    "confirm-commitments",
+    "restate",
+}
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
@@ -133,6 +159,13 @@ def save(d, doc, touched=()):
     if err:
         sys.exit(f"refused: questions.json would not match its schema: {err}")
     save_json(d / "questions.json", doc)
+
+
+def capped(field, text, cap):
+    """`text` unchanged, or a refusal when it runs over `cap` characters."""
+    if isinstance(text, str) and len(text) > cap:
+        sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
+    return text
 
 
 def find(doc, qid):
@@ -225,6 +258,13 @@ def add_question(doc, q):
             f"refused: {q['id']} has {len(alts)} alternatives; every question needs at least 2 "
             "genuine alternatives besides the recommendation (R-I)"
         )
+    for field, cap in QUESTION_CAPS:
+        capped(f"{q['id']} {field}", q.get(field), cap)
+    for i, alt in enumerate(alts, 1):
+        text = alt.get("text") if isinstance(alt, dict) else alt
+        capped(f"{q['id']} alternative {i}", text, LINE_CAP)
+    for i, c in enumerate(q.get("commits") or [], 1):
+        capped(f"{q['id']} commitment {i}", c, LINE_CAP)
     if any(x.get("id") == q["id"] for x in doc["questions"]):
         sys.exit(f"duplicate id: {q['id']}")
     known = {x["id"] for x in doc["questions"]}
@@ -288,6 +328,8 @@ def lint_questions(doc, qs):
 
 
 def put_group(doc, g):
+    capped(f"group {g['id']} title", g.get("title"), LINE_CAP)
+    capped(f"group {g['id']} summary", g.get("summary"), TEXT_CAP)
     cur = next((x for x in doc["groups"] if x["id"] == g["id"]), None)
     if cur is None:
         cur = {"id": g["id"]}
@@ -341,16 +383,19 @@ def op_add_round(d, doc, a):
         if a.round is not None:
             q.setdefault("round", a.round)
         touched += add_question(doc, q)
-    ids = {v.get("id") for v in doc["visuals"]}
+    known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
-        if not v.get("id") or v["id"] in ids:
+        if not v.get("id") or v["id"] in known:
             sys.exit(f"a visual needs a new id: {v.get('id')}")
         doc["visuals"].append(v)
-        ids.add(v["id"])
-    return touched, (
-        f"added {len(a.questions or [])} questions, {len(a.groups or [])} groups, "
-        f"{len(a.visuals or [])} visuals"
-    )
+        known.add(v["id"])
+    ids = ", ".join(q["id"] for q in a.questions or [])
+    if not ids:
+        return (
+            touched,
+            f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
+        )
+    return touched, (f"round {a.round} added: " if a.round else "added ") + ids
 
 
 def op_group(d, doc, a):
@@ -363,6 +408,12 @@ def op_group(d, doc, a):
 
 def op_reply(d, doc, a):
     q = find(doc, a.id)
+    for field, val, cap in (
+        ("text", a.text, TEXT_CAP),
+        ("rec", a.rec, LINE_CAP),
+        ("why", a.why, TEXT_CAP),
+    ):
+        capped(f"reply {field}", val, cap)
     line = {"at": now(), "by": "claude", "text": a.text or ""}
     if a.kind:
         line["kind"] = a.kind
@@ -389,6 +440,16 @@ def op_reply(d, doc, a):
 
 def op_revise(d, doc, a):
     q = find(doc, a.id)
+    for field, val, cap in (
+        ("title", a.title, LINE_CAP),
+        ("short", a.short, LINE_CAP),
+        ("rec", a.rec, LINE_CAP),
+        ("facts", a.facts, TEXT_CAP),
+        ("basis", a.basis, TEXT_CAP),
+        ("why", a.why, TEXT_CAP),
+        ("text", a.text, TEXT_CAP),
+    ):
+        capped(f"revise {field}", val, cap)
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
@@ -410,6 +471,8 @@ def op_revise(d, doc, a):
         changed.append("recommendation")
     if a.alt is not None:
         alts = [split_alt(s) for s in a.alt]
+        for alt in alts:
+            capped(f"revise alternative {alt['key']}", alt["text"], LINE_CAP)
         if len(alts) < 2:
             sys.exit(
                 f"refused: {a.id} would have {len(alts)} alternatives; every question needs at "
@@ -441,6 +504,7 @@ def op_handle(d, doc, a):
 
 
 def op_note_reply(d, doc, a):
+    capped("note-reply text", a.text, TEXT_CAP)
     line = {"at": now(), "by": "claude", "text": a.text}
     if a.seq is not None:
         line["replyTo"] = a.seq
@@ -451,6 +515,7 @@ def op_note_reply(d, doc, a):
 
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
+    capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "alt" and not a.alt:
         sys.exit("--alt KEY required with --decision alt")
     if a.decision == "alt":
@@ -464,7 +529,11 @@ def op_record_terminal(d, doc, a):
         "alt": a.alt if a.decision == "alt" else None,
         "text": a.text or "",
         "updatedAt": at,
+        "rev": doc["rev"] + 1,
     }
+    if q.get("setAsideRev") == doc["rev"] + 1:
+        # A user hold earlier in this same write: this answer came after it, so it counts.
+        q["setAsideRev"] = doc["rev"]
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
         "accept": "Accepted",
@@ -489,6 +558,7 @@ def op_archive(d, doc, a):
     """Record why a question left the path; the server derives its archived state."""
     if not (a.why or "").strip():
         sys.exit("archive needs --why")
+    capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
     for q in qs:
@@ -503,13 +573,164 @@ def op_bump(d, doc, a):
     return ([find(doc, a.id)] if a.id else []), "bumped"
 
 
-def write_op(fn):
-    """A CLI command: lock, load, run one op, save once, then report."""
+def op_set_status(d, doc, a):
+    text = capped("set-status text", (a.text or "").strip(), LINE_CAP)
+    if bool(text) == bool(a.clear):
+        sys.exit("refused: set-status takes a non-empty text or clear, not both")
+    if a.clear:
+        doc.pop("status", None)
+        return [], "status cleared"
+    doc["status"] = {"text": text, "at": now()}
+    return [], "status set"
+
+
+HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
+
+
+def op_wait(d, doc, a):
+    """Hold a question on Claude's research (by claude) or on the user's answer (by user).
+    A user hold stamps setAsideAt, setAsideSeq (the page's seq then) and setAsideRev (the rev this
+    write produces), which outlive the hold: decisions up to them stop counting."""
+    q = find(doc, a.id)
+    waits = capped("waitsOn", (a.waitsOn or "").strip(), LINE_CAP)
+    if bool(waits) == bool(a.clear):
+        sys.exit(
+            f"refused: wait on {a.id} takes a non-empty waitsOn or clear, not both"
+        )
+    if a.clear and a.by:
+        sys.exit(f"refused: wait on {a.id} takes no by with clear")
+    if a.clear:
+        label = HOLD_LABELS[q.get("waitingBy") or "claude"]
+        for key in ("waiting", "waitsOn", "waitingBy"):
+            q.pop(key, None)
+        line, msg = f"No longer {label}.", f"{a.id} no longer {label}"
+    else:
+        by = a.by or "claude"
+        q.update(waiting=True, waitsOn=waits)
+        q.pop("waitingBy", None)
+        if by == "user":
+            seq = load_json(d / "responses.json", EMPTY_RESPONSES).get("seq", 0)
+            q.update(
+                waitingBy="user",
+                setAsideAt=now(),
+                setAsideSeq=seq,
+                setAsideRev=doc["rev"] + 1,
+            )
+        label = HOLD_LABELS[by]
+        line, msg = (
+            f"{label[0].upper()}{label[1:]}: {waits}",
+            f"{a.id} {label}: {waits}",
+        )
+    q.setdefault("history", []).append({"at": now(), "by": "claude", "text": line})
+    return [q], msg
+
+
+def op_confirm_commitments(d, doc, a):
+    """Record commitments the user confirmed outside the page; an index keeps its first record."""
+    q = find(doc, a.id)
+    reason = capped("confirm-commitments reason", (a.reason or "").strip(), LINE_CAP)
+    if not reason:
+        sys.exit(f"refused: confirm-commitments on {a.id} needs a reason")
+    n = len(q.get("commits") or [])
+    if not n:
+        sys.exit(f"refused: {a.id} has no commitments to confirm")
+    wanted = sorted(set(range(n) if a.indices is None else a.indices))
+    bad = [i for i in wanted if not 0 <= i < n]
+    if bad or not wanted:
+        sys.exit(
+            f"refused: {a.id} commitment indices must be 0 to {n - 1}, got {bad or '[]'}"
+        )
+    at = now()
+    kept = {c["index"]: c for c in q.get("commitsConfirmed") or []}
+    for i in wanted:
+        kept.setdefault(i, {"index": i, "reason": reason, "at": at})
+    q["commitsConfirmed"] = [kept[i] for i in sorted(kept)]
+    what = f"{len(wanted)} commitment{'s' if len(wanted) != 1 else ''}"
+    q.setdefault("history", []).append(
+        {"at": at, "by": "claude", "text": f"Confirmed {what}: {reason}"}
+    )
+    return [q], f"confirmed {what} on {a.id}: {reason}"
+
+
+RESTATE_SECTIONS = (
+    "goal",
+    "constraints",
+    "decisions",
+    "acceptance",
+    "deferred",
+    "planningOwned",
+)
+
+
+def op_restate(d, doc, a):
+    """Replace the shared-understanding restatement; its rev increments so an old confirm is stale."""
+    s = a.sections
+    if not isinstance(s, dict):
+        sys.exit("refused: restate needs a sections object")
+    extra = sorted(set(s) - set(RESTATE_SECTIONS))
+    if extra:
+        sys.exit(
+            f"refused: unknown restate sections {extra} (known: {', '.join(RESTATE_SECTIONS)})"
+        )
+    if not any(isinstance(v, str) and v.strip() for v in s.values()):
+        sys.exit("refused: restate needs at least one non-empty section")
+    for k, v in s.items():
+        capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
+    rev = (doc.get("restatement") or {}).get("rev", 0) + 1
+    doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
+    return [], "restated the shared understanding"
+
+
+def op_activity(d, doc, a):
+    text = capped("activity text", (a.text or "").strip(), LINE_CAP)
+    if not text:
+        sys.exit("refused: activity needs text")
+    ids = [find(doc, qid)["id"] for qid in a.ids or []]
+    log_activity(doc, text, ids)
+    return [], "logged"
+
+
+def log_activity(doc, text, ids, **marks):
+    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out. `seq`
+    is one above the highest kept, so it names the entry even when time and text repeat."""
+    kept = doc.get("activity") or []
+    seq = max((e.get("seq", 0) for e in kept), default=0) + 1
+    entry = {"at": now(), "seq": seq, "text": text}
+    if ids:
+        entry["ids"] = ids
+    entry.update((k, v) for k, v in marks.items() if v)
+    doc["activity"] = kept[1 - ACTIVITY_CAP :] + [entry]
+
+
+def summarize(doc, logged):
+    """One feed entry for the (op name, message, touched) of one write's logged ops; none when
+    there are none. `notes`, `added` and `restate` (the new rev) mark what the page links to."""
+    if not logged:
+        return
+    names = {name for name, _, _ in logged}
+    text = "; ".join(msg for _, msg, _ in logged)
+    ids = []
+    for _, _, touched in logged:
+        ids += [q["id"] for q in touched if q["id"] not in ids]
+    log_activity(
+        doc,
+        text[0].upper() + text[1:],
+        ids,
+        notes="note-reply" in names,
+        added=bool(names & {"add", "add-round"}),
+        restate=doc["restatement"]["rev"] if "restate" in names else None,
+    )
+
+
+def write_op(fn, name):
+    """A CLI command: lock, load, run op `name`, save once, then report."""
 
     def cmd(d, a):
         with sidecar_lock(d):
             doc = load(d)
             touched, msg = fn(d, doc, a)
+            if name in LOGGED_OPS:
+                summarize(doc, [(name, msg, touched)])
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -557,7 +778,7 @@ def cmd_add(d, a):
     if a.waiting:
         q["waiting"] = True
     a.question = q
-    write_op(op_add_linted)(d, a)
+    write_op(op_add_linted, "add")(d, a)
 
 
 def cmd_add_round(d, a):
@@ -568,7 +789,7 @@ def cmd_add_round(d, a):
         spec.get("questions"),
         spec.get("visuals"),
     )
-    write_op(op_add_round_linted)(d, a)
+    write_op(op_add_round_linted, "add-round")(d, a)
 
 
 # Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
@@ -627,6 +848,14 @@ OP_ARGS = {
         op_record_terminal,
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
+    "set-status": (op_set_status, {"text": None, "clear": False}),
+    "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
+    "activity": (op_activity, {"text": None, "ids": None}),
+    "confirm-commitments": (
+        op_confirm_commitments,
+        {"id": None, "indices": None, "reason": None},
+    ),
+    "restate": (op_restate, {"sections": None}),
 }
 
 
@@ -660,7 +889,7 @@ def cmd_apply(d, a):
             sys.exit(f"refused: {err}")
     with sidecar_lock(d):
         doc = load(d)
-        touched, lines, added = [], [], []
+        touched, lines, added, logged = [], [], [], []
         for op in spec["ops"]:
             fn, defaults = OP_ARGS[op["op"]]
             args = argparse.Namespace(
@@ -677,6 +906,9 @@ def cmd_apply(d, a):
             elif op["op"] == "add-round":
                 added += args.questions or []
             lines.append(f"{op['op']}: {msg}")
+            if op["op"] in LOGGED_OPS:
+                logged.append((op["op"], msg, t))
+        summarize(doc, logged)
         lint_questions(doc, added)
         save(d, doc, touched)
     for line in lines:
@@ -685,9 +917,7 @@ def cmd_apply(d, a):
 
 
 def effective(q, resp):
-    page, term = resp.get(q["id"]), q.get("terminal")
-    cands = [x for x in (page, term) if x and x.get("updatedAt")]
-    latest = max(cands, key=lambda x: x["updatedAt"]) if cands else None
+    latest = exporters.latest_decision(q, resp)
     return latest.get("decision") if latest else None
 
 
@@ -705,28 +935,34 @@ def cmd_status(d, a):
         state = (
             "archived"
             if q.get("archived")
-            else dec
-            or (
-                "superseded"
-                if q.get("supersededBy")
-                else "waiting"
-                if q.get("waiting")
-                else "open"
+            else "waiting"
+            if q.get("waiting") and not q.get("supersededBy")
+            else dec or ("superseded" if q.get("supersededBy") else "open")
+        )
+        label = exporters.hold_label(q)
+        rows.setdefault(q.get("group"), []).append(
+            (
+                q["id"],
+                q.get("short", ""),
+                state,
+                f"{label}: {json.dumps(q.get('waitsOn', ''))}",
             )
         )
-        rows.setdefault(q.get("group"), []).append((q["id"], q.get("short", ""), state))
     for gid in order:
         if gid not in rows:
             continue
         items = rows[gid]
-        opened = [f"{i} {s}" for i, s, st in items if st == "open"]
-        archived = [i for i, _, st in items if st == "archived"]
+        opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
+        archived = [i for i, _, st, _ in items if st == "archived"]
+        waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
         print(
-            f"{title}: {len(items) - len(opened)} of {len(items)} closed"
+            f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"
             + (f"; open: {', '.join(opened)}" if opened else "")
             + (f"; archived: {', '.join(archived)}" if archived else "")
         )
+        for line in waits:
+            print(line)
     hs = doc.get("handledSeq") or 0
     pending = [
         e
@@ -997,14 +1233,17 @@ def open_browser(url, cmd):
 
 
 def emoji_flag(value):
-    """false, 0, no and off (any case) mean false; anything else, an unexpanded token included, means true."""
-    return value.strip().lower() not in ("false", "0", "no", "off")
+    """true, 1, yes and on (any case) mean true; anything else, an unexpanded token included, means false."""
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
 
 def record_emoji_markers(d, want):
-    """meta.emojiMarkers through the normal write path; writes only on a change or a new file."""
+    """meta.emojiMarkers through the normal write path; writes only on a change or a new file.
+    want None keeps the recorded value, and a new file records false."""
     doc = load(d)
-    if (d / "questions.json").exists() and doc["meta"].get("emojiMarkers") is want:
+    if not (d / "questions.json").exists():
+        want = bool(want)
+    elif want is None or doc["meta"].get("emojiMarkers") is want:
         return
     doc["meta"]["emojiMarkers"] = want
     save(d, doc)
@@ -1027,7 +1266,8 @@ def cmd_ensure_running(d, a):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
-        record_emoji_markers(d, emoji_flag(a.emoji_markers))
+        flag = a.emoji_markers
+        record_emoji_markers(d, None if flag is None else emoji_flag(flag))
         s = read_session(d)
         live = bool(s and running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The
@@ -1183,7 +1423,7 @@ def main(argv=None):
     s.add_argument(
         "--depends", dest="dependsOn", action="append", help="group id, repeatable"
     )
-    s.set_defaults(fn=write_op(op_group))
+    s.set_defaults(fn=write_op(op_group, "group"))
 
     affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
     s = sub.add_parser(
@@ -1207,7 +1447,7 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_reply))
+    s.set_defaults(fn=write_op(op_reply, "reply"))
 
     s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
     s.add_argument("id")
@@ -1223,30 +1463,30 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_revise))
+    s.set_defaults(fn=write_op(op_revise, "revise"))
 
     s = sub.add_parser("handle", help="mark page events handled with no reply")
     s.add_argument("--seq", type=int, nargs="+", required=True)
-    s.set_defaults(fn=write_op(op_handle))
+    s.set_defaults(fn=write_op(op_handle, "handle"))
 
     s = sub.add_parser("note-reply", help="reply in the Notes to Claude thread")
     s.add_argument("--text", required=True)
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
     )
-    s.set_defaults(fn=write_op(op_note_reply))
+    s.set_defaults(fn=write_op(op_note_reply, "note-reply"))
 
     s = sub.add_parser("record-terminal", help="record the user's terminal answer")
     s.add_argument("id")
     s.add_argument("--decision", required=True, choices=DECISIONS)
     s.add_argument("--alt")
     s.add_argument("--text")
-    s.set_defaults(fn=write_op(op_record_terminal))
+    s.set_defaults(fn=write_op(op_record_terminal, "record-terminal"))
 
     s = sub.add_parser("archive", help="archive off-path questions with a reason")
     s.add_argument("ids", nargs="+", metavar="id")
     s.add_argument("--why", required=True, help="why the questions left the path")
-    s.set_defaults(fn=write_op(op_archive))
+    s.set_defaults(fn=write_op(op_archive, "archive"))
 
     s = sub.add_parser("apply", help="run a list of ops from one JSON file, one write")
     s.add_argument("--file", required=True, help='{"ops": [{"op": "reply", ...}, ...]}')
@@ -1262,7 +1502,7 @@ def main(argv=None):
 
     s = sub.add_parser("bump", help="bump rev")
     s.add_argument("--id")
-    s.set_defaults(fn=write_op(op_bump))
+    s.set_defaults(fn=write_op(op_bump, "bump"))
 
     s = sub.add_parser("validate", help="check both files against the shipped schemas")
     add_dir(s)
@@ -1294,9 +1534,9 @@ def main(argv=None):
     s.add_argument(
         "--emoji-markers",
         dest="emoji_markers",
-        default="true",
-        help="record meta.emojiMarkers in questions.json: false, 0, no or off mean false, "
-        "any other value means true (default true)",
+        help="record meta.emojiMarkers in questions.json: true, 1, yes or on mean true, "
+        "any other value means false; without the flag the recorded value stays, and a new "
+        "file records false",
     )
     s.set_defaults(fn=cmd_ensure_running)
 
@@ -1323,4 +1563,8 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    # A console code page such as cp1252 cannot print every op summary once the write lands.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     main()

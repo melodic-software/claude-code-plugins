@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/event",
   "title": "Interview surface page event",
-  "description": "One entry of responses.json events, the append-only log of everything the user did. `confirm` ticks one commitment (`alt` is its index as a string) and records no decision.",
+  "description": "One entry of responses.json events, the append-only log of everything the user did. `confirm` ticks one commitment (`alt` is its index as a string) and records no decision. `confirm-understanding` answers the restatement (no id; `alt` is `confirm` or `off`, `text` says what is off, `contentRev` is the restatement rev it answers).",
   "type": "object",
   "required": ["seq", "kind", "at"],
   "additionalProperties": false,
@@ -10,7 +10,7 @@
     "seq": {"type": "integer"},
     "id": {"type": ["string", "null"]},
     "kind": {
-      "enum": ["accept", "alt", "own", "defer", "reopen", "ask", "rephrase", "note", "undo", "wrapup", "confirm"]
+      "enum": ["accept", "alt", "own", "defer", "reopen", "ask", "rephrase", "note", "undo", "wrapup", "confirm", "confirm-understanding"]
     },
     "alt": {"type": ["string", "null"]},
     "text": {"type": "string"},
