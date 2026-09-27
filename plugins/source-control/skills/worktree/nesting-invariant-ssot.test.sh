@@ -140,8 +140,15 @@ stamp_marked_expired=false
 # nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0
 # when installed is at or past the expiry version.
 nesting_invariant_version_passed() {
-  local expiry="$1" installed="$2"
-  [[ "$(printf '%s\n%s\n' "$expiry" "$installed" | sort -V | head -n1)" == "$expiry" ]]
+  local -a e i
+  local n
+  IFS=. read -r -a e <<<"$1"
+  IFS=. read -r -a i <<<"$2"
+  for n in 0 1 2; do
+    ((10#${i[n]:-0} > 10#${e[n]:-0})) && return 0
+    ((10#${i[n]:-0} < 10#${e[n]:-0})) && return 1
+  done
+  return 0
 }
 
 # Version arm: enforce against the installed CLI when one is present. CI may
