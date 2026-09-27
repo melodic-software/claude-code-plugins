@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.1] - 2026-09-27
+## [0.24.2] - 2026-09-27
 
 ### Fixed
 
 - **`scan` exits 0 when it returns a required next step.** `root-children-selection-required` (the documented first call for an OS-managed volume root) and `large-target-confirmation-required` (for the whole target or a selected root child) exited 5, so the harness showed a normal step as a tool error. Both now exit 0 with the payload unchanged, and `status` carries the distinction. Real failures keep their non-zero exits (2 for an invalid or blocked target, 3 for elevation or unverifiable filesystem state), and the skill states these semantics.
+
+## [0.24.1] - 2026-09-27
+
+### Fixed
+
+- **`scan --quiet` prints `truncated_paths` as a count.** Under `--quiet` the stdout payload carries the number of truncated paths instead of the list, which ran to about 140 lines on a depth-2 home scan. The count is present at zero, so a clean scan is distinguishable from a suppressed list. The snapshot file keeps the full list in both modes, and output without `--quiet` is unchanged. Both quiet notes name the change, and `SKILL.md` and the safety model say where the list lives (#4013).
 
 ## [0.24.0] - 2026-09-27
 
