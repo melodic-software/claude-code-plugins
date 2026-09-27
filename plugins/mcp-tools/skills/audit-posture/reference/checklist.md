@@ -211,7 +211,8 @@ Its value is the diff between runs: a new server, a changed package, or a pin th
   "has no `command`, `args`, `env`, or `headersHelper` member"; "No value contains a `${VAR}`
   reference"; and "The server name contains only letters, numbers, hyphens, and underscores, and
   no key or value contains control or invisible formatting characters". An entry failing one
-  reads `rejected-by-client`.
+  reads `rejected-by-client`. The page does not say whether `type` is matched without regard to
+  case, so the script matches it case-sensitively and reads `"HTTP"` as `rejected-by-client`.
 - **As of**: 2026-09-26.
 - **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying these quoted
   sentences, or a Claude Code release note naming `managedMcpServers` precedence or its entry
