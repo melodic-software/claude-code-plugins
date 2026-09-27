@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.37.1] - 2026-09-27
+## [0.37.2] - 2026-09-27
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
   policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
   still probes live.
+
+## [0.37.1] - 2026-09-27
+
+### Fixed
+
+- **The GitHub MCP write lane now covers a plugin-bundled GitHub server.** Claude Code names that server's tools `mcp__plugin_<plugin>_github__<tool>`, which the anchored `^mcp__github__(push_files|create_or_update_file)$` matcher never matched, so `secret-pattern-detection` and `hardcoded-path-check` let those writes through unscanned. The matcher now admits the scoped segment, and both guards route the scoped names into their MCP lane (widening the matcher alone would have fired the hook only for it to skip the call). `delete_file` stays uncovered in both shapes.
 
 ## [0.37.0] - 2026-09-26
 
