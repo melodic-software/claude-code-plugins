@@ -7,10 +7,9 @@
 - **Scope-wide cue counts.** `rubric-fanout.sh plan` writes `cues.txt` beside the batch lists:
   for `load-bearing` and `seam`, the occurrence and file counts over the prose of every
   readable file in scope (YAML frontmatter, fenced and indented code, code spans, straight and
-  curly double-quoted spans, blockquotes, HTML comments and link URLs skipped, as the rubric
-  skips them; a cue split across a line break is not counted), a `saturated=yes|no` verdict,
-  and per-batch
-  counts. A cue is saturated when it appears in at least 10 files and at least 10% of the
+  curly double-quoted spans, blockquotes, HTML comment interiors, link destinations,
+  reference definitions and autolinks skipped, as the rubric skips them; the catalog lists
+  the remaining gaps), a `saturated=yes|no` verdict, and per-batch counts. A cue is saturated when it appears in at least 10 files and at least 10% of the
   files in scope. Every batch receives the file, so no batch judges saturation from its own
   slice.
 - **Cross-batch consistency flags.** Batch results may carry `declined: <rule> <cue>

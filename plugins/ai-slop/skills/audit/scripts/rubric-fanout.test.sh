@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=157
+EXPECTED_CASES=169
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -655,11 +655,60 @@ k4want=(
   "a link counts its text, not its URL:1"
   "an indented code block is skipped, a list paragraph is not:2"
   "curly double quotes span like straight ones:1"
-  "a mid-line comment left open ends with its paragraph:1"
+  "a mid-line comment never closed is literal text:1"
 )
 for i in "${!k4want[@]}"; do
   assert_line_in "cues: ${k4want[$i]%:*}" "$K4/batches/cues.txt" \
     "batch=$(printf '%02d' $((i + 1))) cue=seam occurrences=${k4want[$i]##*:} files=1"
+done
+
+# CommonMark edges, one file per batch: a quoted <!-- opens no comment, an
+# inline comment needs its -->, a line-start one runs to the end of the file,
+# <!--> is a whole comment, a link destination holds no space, reference
+# definitions and autolinks are not prose, and a heading ends its paragraph.
+K5="$TEST_TMPDIR/cues-prose3"
+mkdir -p "$K5"
+k5=(
+  "$(printf 'The "<!--" token and seam here.\n\nseam two\n')"
+  "$(printf 'Type "<!--" to open a comment; the seam is here.\nA second seam line.\n\nLast seam.\n')"
+  "$(printf 'text seam <!-- open seam\nmore seam\n\nafter seam\n')"
+  "$(printf 'prose seam\n\n<!-- note seam\nmore seam\n\nafter seam\n')"
+  "$(printf 'x <!--> seam -->\n')"
+  "$(printf 'See [sic](the seam) here.\n')"
+  "$(printf 'See [a](https://x/F_(seam) "seam title") and [b](<x y/seam>) seam.\n')"
+  "$(printf 'See [seam text][ref] here.\n\n[ref]: https://x/seam "seam"\n')"
+  "$(printf '[term]: this is a seam\n')"
+  "$(printf 'Go to <https://x/seam> or <mailto:seam@x.y> now.\n')"
+  "$(printf '# Title\n    seam code\n')"
+  "$(printf '[ref]: https://x/u\n    seam\n')"
+)
+for i in "${!k5[@]}"; do
+  printf '%s\n' "${k5[$i]}" >"$K5/t$i.md"
+  touch -t "2026010100$(printf '%02d' $((59 - i)))" "$K5/t$i.md"
+  printf 't%s.md\t%s\n' "$i" "$K5/t$i.md"
+done >"$K5/targets.tsv"
+bash "$FANOUT" plan --out "$K5/batches" --budget 1 --order mtime "$K5/targets.tsv" >/dev/null 2>&1
+k5want=(
+  "a quoted <!-- opens no comment:2"
+  "a quoted <!-- leaves the rest of its paragraph prose:3"
+  "an inline <!-- with no --> is literal text:4"
+  "a line-start <!-- never closed runs to the end of the file:1"
+  "<!--> is a whole comment:1"
+  "a destination holding a space makes no link:1"
+  "a destination with balanced parens, a title, or <brackets> is dropped:1"
+  "a link reference definition is not prose:1"
+  "a [term]: line with no destination is prose:1"
+  "autolinks are not prose:0"
+  "an indented line after a heading is code:0"
+  "an indented line after a reference definition continues its paragraph:1"
+)
+for i in "${!k5want[@]}"; do
+  line="batch=$(printf '%02d' $((i + 1))) cue=seam"
+  if [[ "${k5want[$i]##*:}" == 0 ]]; then
+    assert_not_contains "cues: ${k5want[$i]%:*}" "$(cat "$K5/batches/cues.txt")" "$line"
+  else
+    assert_line_in "cues: ${k5want[$i]%:*}" "$K5/batches/cues.txt" "$line occurrences=${k5want[$i]##*:} files=1"
+  fi
 done
 
 : >"$K2/empty.tsv"

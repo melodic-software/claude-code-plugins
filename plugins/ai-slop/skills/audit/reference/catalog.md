@@ -975,10 +975,13 @@ either layer, and those rows say so.
   between the billing service and the account service", a system boundary described by
   metaphor, where "boundary" is the plainer word.
 - **Saturation.** Counted per audit scope, over the prose the rubric reads. Excluded: YAML
-  frontmatter, fenced and indented code, code spans, straight and curly double-quoted spans
-  (also when wrapped across lines), blockquotes, HTML comments, and link URLs (the link text
-  counts). Known gaps: a cue split across a line break is not counted, and a code span or
-  comment that follows another span on the same line is handled approximately. The usage
+  frontmatter (closed by a `---` or `...` line), fenced and indented code, code spans,
+  straight and curly double-quoted spans (also when wrapped across lines), blockquotes, HTML
+  comment interiors, link and image destinations (the link text counts), reference
+  definitions, and autolinks. Known gaps: a cue split across a line break is not counted,
+  and a few rare CommonMark shapes (indented code right after a fence or paragraph line, an
+  unclosed comment block inside a list item, a definition continued on the next line,
+  destinations with nested parens, raw HTML tag attributes) are counted as prose. The usage
   text of `rubric-fanout.sh` states the exact rules. A cue is saturated
   when it appears in at least 10 files AND in at least 10% of the readable files in scope.
   `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch

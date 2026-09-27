@@ -54,12 +54,25 @@ exists; with none, the first --- is a thematic break and the file is counted);
 fenced code (any indent, the opener possibly after list-item or blockquote
 markers, a backtick opener's info string holding no backtick, closed by a run
 of the opener's character at least as long or by the end of its list item or
-blockquote); indented code (4 columns, after a blank line, outside a list);
-blockquote lines; HTML comments, which may span lines (one opened mid-line
-and never closed ends with its paragraph); the (url) part of a
-[text](url) link; code spans (a run of N backticks through the next run of
-exactly N, on one line); and double-quoted spans, straight or curly, which may
-wrap onto later lines of the same paragraph.
+blockquote); indented code (4 columns, after a blank line or an ATX heading,
+outside a list); blockquote lines; link reference definitions ([label]: dest
+and an optional title, alone on a line after a blank line); code spans (a run
+of N backticks through the next run of exactly N, on one line); the (dest)
+part of an inline link or image, when dest is <bracketed> or holds no space
+and at most one level of balanced parens, with an optional title; autolinks
+(<scheme:...>, <user@host>); double-quoted spans, straight or curly, which may
+wrap onto later lines of the same paragraph; and HTML comment interiors.
+Quotes and comments are read left to right, so a quoted <!-- opens nothing.
+A comment closes at the first --> after its <!-- (<!--> is whole) and may span
+lines; one at a line start (up to 3 spaces) that never closes runs to the end
+of the file, and one opened mid-line whose --> is not in its paragraph is
+literal text. Text beside a comment on its lines counts, as a browser shows it.
+Known gaps, counted as prose: indented code right after a fence close or any
+other non-blank line but an ATX heading; a comment block opened inside a list
+item that never closes; a reference definition whose destination or title is
+on the next line; a destination with parens nested past one level; and the
+attributes of raw HTML tags. An inline comment's --> is sought up to the next
+blank line, even past a block start that ends the paragraph sooner.
 
 A result may carry `declined: <rule-id> <cue> reason=saturated|boundary|cap`
 lines (cap: dropped by the per-file or per-batch finding cap). The cue token
@@ -117,32 +130,46 @@ function unspan(s,   out, n, st, t, k) {
   }
   return out s
 }
-# prose(s): s with code spans, HTML comments, link URLs and "double-quoted"
-# spans (curly quotes too) blanked out. A comment left open sets hcopen and a
-# quote left open at the line end sets qopen; the caller resumes both on the
-# next line and clears qopen at a paragraph boundary. As in detect.sh, a lone
-# quote opens a span only after a space or opening bracket and before a
-# non-space, so an inch mark (6") is dropped instead.
-function prose(s,   q, pre, post) {
+# hc_ahead(): whether a line after L[ln], up to the next blank line, holds -->,
+# so an inline <!-- opened on L[ln] is a comment.
+function hc_ahead(   k) {
+  for (k = ln + 1; k <= nl && L[k] ~ /[^ \t]/; k++) if (index(L[k], "-->")) return 1
+  return 0
+}
+# prose(s): s with code spans, link destinations, autolinks, "double-quoted"
+# spans (curly quotes too) and HTML comments blanked out. Quotes and comments
+# are read left to right, so a <!-- inside a quote opens nothing. A comment
+# closes at the first --> after its <!-- (so <!--> is whole); one left open
+# sets hcopen when hcb says the line starts with it or hc_ahead finds its -->,
+# and is literal text otherwise. A quote left open at the line end sets qopen;
+# the caller resumes both on the next line and clears qopen at a paragraph
+# boundary. As in detect.sh, a lone quote opens a span only after a space or
+# opening bracket and before a non-space, so an inch mark (6") is dropped.
+function prose(s,   out, q, c, e, t) {
   s = unspan(s)
-  while ((q = index(s, "<!--"))) {
-    if ((pre = index(substr(s, q + 4), "-->"))) s = substr(s, 1, q - 1) " " substr(s, q + pre + 6)
-    else { hcblock = (q < 5 && substr(s, 1, q - 1) !~ /[^ ]/); s = substr(s, 1, q - 1); hcopen = 1 }
-  }
-  gsub(/\]\([^)]*\)/, "]", s)
+  gsub(/\]\([ \t]*(<[^<>]*>|([^ \t()<]|\([^ \t()]*\))([^ \t()]|\([^ \t()]*\))*)?([ \t]+("[^"]*"|\047[^\047]*\047|\([^()]*\)))?[ \t]*\)/, "]", s)
+  gsub(/<[A-Za-z][A-Za-z0-9+.-]+:[^ \t<>]*>|<[^ \t<>@]+@[A-Za-z0-9.-]+>/, " ", s)
   while ((q = index(s, LQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
   while ((q = index(s, RQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
   if (qopen) {
     if (!(q = index(s, "\""))) return ""
     s = substr(s, q + 1); qopen = 0
   }
-  gsub(/"[^"]*"/, " ", s)
-  if ((q = index(s, "\""))) {
-    pre = (q > 1) ? substr(s, q - 1, 1) : " "; post = substr(s, q + 1, 1)
-    if (pre ~ /[ \t([{]/ && post ~ /[^ \t]/) { s = substr(s, 1, q - 1); qopen = 1 }
-    else s = substr(s, 1, q - 1) " " substr(s, q + 1)
+  out = ""
+  for (;;) {
+    q = index(s, "\""); c = index(s, "<!--")
+    if (c && (!q || c < q)) {
+      if ((e = index(substr(s, c + 2), "-->"))) { out = out substr(s, 1, c - 1) " "; s = substr(s, c + e + 4); continue }
+      if ((hcb && out == "") || hc_ahead()) { s = substr(s, 1, c - 1); hcopen = 1; break }
+      out = out substr(s, 1, c + 3); s = substr(s, c + 4); continue
+    }
+    if (!q) break
+    if ((e = index(substr(s, q + 1), "\""))) { out = out substr(s, 1, q - 1) " "; s = substr(s, q + e + 1); continue }
+    t = out substr(s, 1, q - 1)
+    if ((t == "" || substr(t, length(t)) ~ /[ \t([{]/) && substr(s, q + 1, 1) ~ /[^ \t]/) { s = substr(s, 1, q - 1); qopen = 1; break }
+    out = t " "; s = substr(s, q + 1)
   }
-  return s
+  return out s
 }
 # lead(s, bq, lists): the length of s up to its content: whitespace, then `>`
 # markers when bq, then list-item markers (-, *, +, 1. or 1) and a space) when
@@ -376,21 +403,19 @@ cmd_plan() {
     {
       t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
       if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
-      S++; fence = ""; fm = 0; ln = 0; qopen = 0; hcopen = 0; pblank = 1; icode = 0; inlist = 0
+      S++; fence = ""; fm = 0; nl = 0; qopen = 0; hcopen = 0; pblank = 1; icode = 0; inlist = 0
       for (i = 1; i <= nc; i++) h[i] = 0
-      while ((getline line < f) > 0) {
-        sub(/\r$/, "", line); ln++
-        if (ln == 1) {
-          if (substr(line, 1, 3) == "\357\273\277") line = substr(line, 4)
-          if (line ~ /^---[ \t]*$/) {
-            # Frontmatter only when a closing --- or ... follows; otherwise
-            # the --- is a thematic break. Scan ahead, then reopen past line 1.
-            while ((getline t < f) > 0) if (t ~ /^(---|\.\.\.)[ \t]*\r?$/) { fm = 1; break }
-            close(f); getline t < f
-            continue
-          }
-        }
-        if (fm) { if (line ~ /^(---|\.\.\.)[ \t]*$/) fm = 0; continue }
+      while ((getline line < f) > 0) { sub(/\r$/, "", line); L[++nl] = line }
+      close(f)
+      if (nl && substr(L[1], 1, 3) == "\357\273\277") L[1] = substr(L[1], 4)
+      # Frontmatter only when a closing --- or ... follows; otherwise the ---
+      # is a thematic break, skipped alone.
+      if (nl && L[1] ~ /^---[ \t]*$/) {
+        fm = 1
+        for (ln = 2; ln <= nl; ln++) if (L[ln] ~ /^(---|\.\.\.)[ \t]*$/) { fm = ln; break }
+      }
+      for (ln = fm + 1; ln <= nl; ln++) {
+        line = L[ln]; hcb = (line ~ /^(   |  | )?<!--/)
         if (fence != "") {
           # The container ends the fence: a blockquote fence at a line with no
           # `>`, a list-item fence at a non-blank line indented less than the
@@ -408,23 +433,22 @@ cmd_plan() {
         }
         if (hcopen) {
           # Inside an HTML comment: skip to its close, then read the rest as
-          # prose. One opened mid-line and left open ends with its paragraph.
-          if (!(t = index(line, "-->"))) {
-            if (!hcblock && line !~ /[^ \t]/) { hcopen = 0; pblank = 1; qopen = 0 }
-            continue
-          }
-          hcopen = 0; s = prose(substr(line, t + 3))
+          # prose. One opened at the line start and never closed runs to the
+          # end of the file, as a CommonMark HTML block does.
+          if (!(t = index(line, "-->"))) continue
+          hcopen = 0; hcb = 0; s = prose(substr(line, t + 3))
           for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
           pblank = 0; continue
         }
         if (line !~ /[^ \t]/) { pblank = 1; qopen = 0; continue }
-        # Indented code: 4 columns of indent after a blank line or more
-        # indented code, outside a list.
-        if ((pblank || icode) && !inlist && line ~ /^( *\t|    )/) { icode = 1; pblank = 0; continue }
+        # Indented code: 4 columns of indent after a blank line, a heading or
+        # more indented code, outside a list.
+        if ((pblank == 1 || icode) && !inlist && line ~ /^( *\t|    )/) { icode = 1; pblank = 0; continue }
         icode = 0
         if (line ~ /^[ \t]*([-*+]|[0-9]+[.)])([ \t]|$)/) inlist = 1
         else if (line ~ /^#/ || (pblank && line ~ /^[^ \t]/)) inlist = 0
-        pblank = 0
+        # An ATX heading is no paragraph, so indented code may follow it.
+        pb = pblank; pblank = (line ~ /^(   |  | )?(#|##|###|####|#####|######)([ \t]|$)/)
         # A fence opener; a backtick fence info string holds no backtick, so
         # a line starting with an inline ```x``` span opens nothing.
         p = lead(line, 1, 1); run = substr(line, p + 1)
@@ -434,7 +458,12 @@ cmd_plan() {
           continue
         }
         if (line ~ /^[ \t]*>/) continue
-        if (line !~ /[^ \t]/ || line ~ /^[ \t]*(#|[-*+] |[0-9]+[.)] |\|)/) qopen = 0
+        # A link reference definition, which cannot interrupt a paragraph:
+        # label, destination and an optional title, alone on the line. Another
+        # may follow it (pblank 2), but indented code may not: the next line
+        # continues its paragraph.
+        if (pb && line ~ /^(   |  | )?\[[^]]+\]:[ \t]*(<[^<>]*>|[^ \t<][^ \t]*)([ \t]+("[^"]*"|\047[^\047]*\047|\([^()]*\)))?[ \t]*$/) { pblank = 2; continue }
+        if (hcb || line ~ /^[ \t]*(#|[-*+] |[0-9]+[.)] |\|)/) qopen = 0
         s = prose(line)
         for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
       }
