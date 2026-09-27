@@ -259,9 +259,10 @@ budget". What governs the category:
     at runtime and is the only lever that helps every roster
   - *Project and user skills*: `skillOverrides: { <skill>: "name-only" }` in a contributor's
     `settings.local.json`
-  - *Plugin skills*: `skillOverrides` **does not reach them**: *"Does not apply to plugin skills,
-    which are managed through `/plugin`"* (settings) and *"Plugin skills are not affected by
-    `skillOverrides`. Manage those through `/plugin` instead"* (skills). So on a plugin-heavy roster
+  - *Plugin skills*: `skillOverrides` **does not reach them**: *"Overrides don't apply to plugin
+    skills, which you manage through `/plugin`."* (settings-reference) and *"Plugin skills are not
+    affected by `skillOverrides`. Manage those through `/plugin` instead"* (skills), both verified
+    2026-09-27 and rechecked whenever `doc-citations.tsv` fails on either span. So on a plugin-heavy roster
     the lever is `/plugin`, since disabling a plugin removes its skills from the listing, plus trimming
     the descriptions upstream in the plugin that owns them. Neither page documents a per-skill
     `name-only` state reachable from `/plugin`, so do not promise one
@@ -271,6 +272,23 @@ budget". What governs the category:
 - **Recommend, don't apply the list.** `skillOverrides` is contributor-scoped and `/plugin` is a
   machine-level action; surface the candidate least-invoked skills, leave the actual list to the
   developer
+- **Entries already set that cannot take effect are engine rows.** Across the user, project and
+  local settings files (one file under two labels, as in a home-rooted run, is read once):
+  - `G/skill-override-plugin` (`warning`): a key whose text before the first `:` names a plugin in
+    the installed registry or any `enabledPlugins` key, `false` included. Plugin skills ignore
+    `skillOverrides`, so the entry is inert; the reachable levers are `enabledPlugins` or `/plugin`
+    for the whole plugin, or the plugin author's `disable-model-invocation`
+  - a colon key whose prefix names no known plugin is a `skip` row, never clean and never a
+    finding: it may be a nested directory-qualified skill (`apps/web:deploy`) or a claude.ai-synced
+    skill (`anthropic-skills:`), and the docs do not settle whether overrides reach either
+  - `G/skill-override-home-local` (`info`): `<user dir>/settings.local.json`, read whatever the
+    project root, holds a non-empty `skillOverrides` object. That file is the project-local file for
+    sessions started in the home directory only (settings scope table: Project local is
+    `.claude/settings.local.json`, "You, in this one project only"), so its entries reach no other
+    project; a user-wide override belongs in `settings.json`. The `/skills` menu saves there from a
+    home-rooted session, so the entry may be intended
+  - Not detected, by design: a key naming no skill at all, since bundled and claude.ai-synced skill
+    names are not enumerable from files and the check would flag working keys
 
 ## Category H: Model and effort settings
 

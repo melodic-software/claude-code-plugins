@@ -7,7 +7,8 @@
 # and the placement rules around it (B), MCP server shape (C), hook path, timeout
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
 # and drift (E), the secret scan and env-vars documentation status (F), the
-# skill-listing measurement from an existing debug log (G), model and effort
+# skill-listing measurement from an existing debug log and the skillOverrides
+# entries that cannot take effect (G), model and effort
 # values (H), and deep-link registration (I). Each decided row is emitted once,
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
@@ -1649,6 +1650,89 @@ if [[ -n "$DEBUG_LOG" ]]; then
   fi
 else
   row G listing-budget skip none "settings" "listing-not-measured" "no debug log found (--debug-log, CLAUDE_CODE_DEBUG_LOGS_DIR, or <user dir>/debug/*.txt); measure with /doctor interactively or a --debug relaunch, never report clean" -
+fi
+
+# --- Category G: skillOverrides entries that cannot take effect ------------------
+#
+# skills: "Plugin skills are not affected by `skillOverrides`." A key whose
+# prefix before the first colon names a plugin this machine knows (the
+# installed registry, or any enabledPlugins key in a scope, false included) is
+# inert. Any other colon key may be a nested directory-qualified skill
+# (apps/web:deploy) or a claude.ai-synced one (anthropic-skills:), which the
+# docs do not settle, so it is not decided. Keys only: an override value from a
+# local file never reaches a row.
+
+G_PLUGINS="$(
+  {
+    [[ -n "$INSTALLED_JSON" && -f "$INSTALLED_JSON" ]] &&
+      tr -d '\r' <"$INSTALLED_JSON" | ejq -c '.plugins | if type == "object" then keys else [] end'
+    for gf in "$USER_OK:$USER_SETTINGS" "$PROJECT_OK:$SETTINGS" "$LOCAL_OK:$LOCAL"; do
+      [[ "${gf%%:*}" == "1" ]] && tr -d '\r' <"${gf#*:}" | ejq -c '.enabledPlugins | if type == "object" then keys else [] end'
+    done
+  } | ejq -c -s 'add // [] | map(select(type == "string") | sub("@[^@]*$"; "") | {key: ., value: true}) | from_entries'
+)"
+[[ -n "$G_PLUGINS" ]] || G_PLUGINS='{}'
+
+# One file under two labels (a home-rooted run, where .claude/settings.json is
+# the user settings file) is scanned once, under the first label: user.
+G_SCANNED=()
+g_overrides() {
+  # g_overrides <ok> <file> <surface>
+  local ok="$1" file="$2" surface="$3" seen kind ptr key prefix
+  [[ "$ok" -eq 1 ]] || return 0
+  for seen in "${G_SCANNED[@]}"; do
+    [[ "$file" -ef "$seen" ]] && return 0
+  done
+  G_SCANNED+=("$file")
+  # Tab-separated fields, each escaped by @tsv so a key with a tab or newline
+  # stays one row; the possibly empty prefix is last so no field shifts.
+  while IFS=$'\t' read -r kind ptr key prefix; do
+    [[ -n "$kind" ]] || continue
+    if [[ "$kind" == "plugin" ]]; then
+      row G skill-override-plugin finding warning "$surface" "skill-override-plugin:$key" \
+        "skillOverrides key $key names plugin $prefix, and plugin skills are not affected by skillOverrides (skills: \"Plugin skills are not affected by \`skillOverrides\`\"; settings-reference: \"Overrides don't apply to plugin skills, which you manage through \`/plugin\`\"), so this entry never takes effect. The reachable levers are enabledPlugins or /plugin for the whole plugin, or disable-model-invocation in the skill's frontmatter, which is the plugin author's to set" \
+        "$ptr"
+    else
+      row G skill-override-plugin skip none "$surface" "skill-override-plugin:$key" \
+        "skillOverrides key $key has a colon but $prefix names no plugin in the installed registry or any enabledPlugins key; it may be a nested directory-qualified skill (apps/web:deploy) or a claude.ai-synced skill (anthropic-skills:), and the docs do not settle whether an override reaches it; not decided" -
+    fi
+  done < <(tr -d '\r' <"$file" | ejq -r --argjson P "$G_PLUGINS" '
+    .skillOverrides | if type == "object" then keys_unsorted[] else empty end
+    | select(contains(":")) | . as $k | (split(":") | .[0]) as $p
+    | [(if $P | has($p) then "plugin" else "unresolved" end),
+       ("/skillOverrides/" + ($k | gsub("~"; "~0") | gsub("/"; "~1"))), $k, $p] | @tsv')
+}
+g_overrides "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
+g_overrides "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
+g_overrides "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
+
+# The user dir's settings.local.json is the project-local file of a session
+# started in the home directory only (settings: Project local is
+# `.claude/settings.local.json`, "You, in this one project only"), so overrides
+# there reach no other project. Read whatever the project root; when it is the
+# local scope (file identity, since the two roots are spelled differently on
+# Windows), category A already reported it unreadable or invalid.
+if [[ -n "$USER_DIR" && -f "$USER_DIR/settings.local.json" ]]; then
+  G_UL="$USER_DIR/settings.local.json"
+  g_ul_ok=0
+  g_ul_report=1
+  if [[ -f "$LOCAL" && "$LOCAL" -ef "$G_UL" ]]; then
+    g_ul_ok=$LOCAL_OK
+    g_ul_report=0
+  elif : 2>/dev/null <"$G_UL" && tr -d '\r' <"$G_UL" | jq empty 2>/dev/null; then
+    g_ul_ok=1
+  fi
+  if [[ $g_ul_ok -eq 1 ]]; then
+    g_ul_n="$(tr -d '\r' <"$G_UL" | ejq -r '.skillOverrides | if type == "object" then length else 0 end')"
+    if [[ "${g_ul_n:-0}" =~ ^[0-9]+$ && "${g_ul_n:-0}" -gt 0 ]]; then
+      row G skill-override-home-local finding info "user:settings.local.json" "skill-override-home-local" \
+        "the user dir's settings.local.json holds skillOverrides entries ($g_ul_n). It is the project-local settings file for sessions started in the home directory only (settings: Project local is .claude/settings.local.json, \"You, in this one project only\"; User is ~/.claude/settings.json), so these entries do not reach sessions in other projects. A user-wide override belongs in settings.json. The /skills menu saves here from a home-rooted session, so this may be intended" \
+        /skillOverrides
+    fi
+  elif [[ $g_ul_report -eq 1 ]]; then
+    row G skill-override-home-local not-inspectable none "user:settings.local.json" "skill-override-home-local" \
+      "the user dir's settings.local.json is present but unreadable or not valid JSON; whether it holds skillOverrides entries is not decided" -
+  fi
 fi
 
 # --- Category H: model and effort values -----------------------------------------
