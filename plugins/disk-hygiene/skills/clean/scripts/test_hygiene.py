@@ -4849,6 +4849,16 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         return result
 
+    def authorize_data_root(self) -> str:
+        """Authorize the owned data root and return the ``--data-root`` words.
+
+        The guard admits an exact engine call only when it carries the
+        authorized ``--data-root``, so every case that expects one admitted
+        appends these words.
+        """
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self._data_root)
+        return f' --data-root "{self._data_root.resolve().as_posix()}"'
+
     def run_guard_tool(
         self, command: str, tool_name: str, enabled: bool
     ) -> dict[str, object] | None:
@@ -4875,30 +4885,39 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_chained_delete_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r; rm -rf x'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root}; rm -rf x'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_single_shell_operator_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r | tee report'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root} | tee report'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_forces_final_prompt_for_exact_engine_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard_disabled(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            result["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
@@ -4907,6 +4926,7 @@ class GuardTests(unittest.TestCase):
     ) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'python "{script}" scan --target t --output s'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         self.assertIn(
@@ -4956,6 +4976,14 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output snapshot.json'
+        template += self.authorize_data_root()
+        # Control: a clean payload is admitted, so each denial below is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(template.format(payload="target"))["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
         payloads = [
             "target{one,two}",
             "$TARGET",
@@ -4997,6 +5025,8 @@ class GuardTests(unittest.TestCase):
         malformed = (
             f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
         )
+        data_root = self.authorize_data_root()
+        scan, preview, malformed = (c + data_root for c in (scan, preview, malformed))
         self.assertEqual(
             "allow",
             self.run_guard(scan)["hookSpecificOutput"]["permissionDecision"],
@@ -5016,6 +5046,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5027,6 +5058,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p --vcs-evidence e"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5040,6 +5072,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard_disabled(command)["hookSpecificOutput"][
@@ -5050,11 +5083,19 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_malformed_handoff_verify_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         prefix = f'"{self.python_command()}" "{script}" handoff-verify'
+        data_root = self.authorize_data_root()
+        # Control: the well-formed shape is admitted, so each denial is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(f"{prefix} --snapshot s --paths p{data_root}")[
+                "hookSpecificOutput"
+            ]["permissionDecision"],
+        )
         commands = [
-            f"{prefix} --paths p --snapshot s",  # wrong flag order
-            f"{prefix} --snapshot s",  # missing --paths
-            f"{prefix} --snapshot s --paths p --report r",  # undeclared flag
-            f"{prefix} --snapshot s --paths p extra",  # trailing token
+            f"{prefix} --paths p --snapshot s{data_root}",  # wrong flag order
+            f"{prefix} --snapshot s{data_root}",  # missing --paths
+            f"{prefix} --snapshot s --paths p --report r{data_root}",  # undeclared
+            f"{prefix} --snapshot s --paths p extra{data_root}",  # trailing token
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -5093,6 +5134,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --policy p",
             f"{base} --project-dir d",
@@ -7542,6 +7584,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(f"{base} --max-depth 3")["hookSpecificOutput"][
@@ -7560,6 +7603,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --confirmed-large-scan",
             f"{base} --confirmed-large-scan --max-depth 1",
@@ -7593,6 +7637,7 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --quiet",
             f"{base} --quiet --max-depth 1",
@@ -7622,6 +7667,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_root_children_selection_flags(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --root-children",
             f"{base} --root-children --root-child builds",
@@ -7980,9 +8026,14 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
         assert bash is not None
         self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            bash["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_kill_switch_enabled_gates_apply_as_ask(self) -> None:
         """With the switch enabled (settings absent → default on), an ``apply`` is
@@ -7993,6 +8044,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
@@ -9517,19 +9569,31 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ):
             return guard.resolve_disk_hygiene_enabled()
 
-    def engine_command(self, subcommand: str) -> str:
+    ENGINE_TAILS = {
+        "scan": "scan --target t --output s",
+        "preview": "preview --snapshot s --plan p",
+        "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "apply": (
+            "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        ),
+    }
+
+    def engine_command(
+        self,
+        subcommand: str,
+        data_root: Path | None = None,
+        *,
+        omit_data_root: bool = False,
+    ) -> str:
+        root = self.expected if data_root is None else data_root
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
-        if subcommand == "scan":
-            tail = "scan --target t --output s"
-        else:
-            tail = (
-                "apply --execute --snapshot s --plan p --confirm-tier high "
-                f"--approval-token {'a' * 24} --report r"
-            )
-        return (
-            f'"{guard._display_python()}" "{script}" {tail} '
-            f'--data-root "{self.expected.as_posix()}"'
+        command = (
+            f'"{guard._display_python()}" "{script}" {self.ENGINE_TAILS[subcommand]}'
         )
+        if omit_data_root:
+            return command
+        return f'{command} --data-root "{root.as_posix()}"'
 
     def run_main(self, command: str, argv: list[str]) -> dict[str, object]:
         guard._directory_marketplace_install.cache_clear()
@@ -9832,6 +9896,124 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
         self.assertEqual("disk-hygiene-------evil", Path(derived).name)
 
+    # --- a conflicting env value never outranks a proof ----------------------
+
+    def set_env_data_root(self) -> Path:
+        env_root = self.base / "from-env"
+        env_root.mkdir(exist_ok=True)
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(env_root)
+        return env_root
+
+    def scan_verdict(self, data_root: Path, argv: list[str]) -> str:
+        belt = self.run_main(self.engine_command("scan", data_root), argv)
+        return cast(str, belt["permissionDecision"])
+
+    def test_belt_ignores_a_conflicting_env_data_root(self) -> None:
+        env_root = self.set_env_data_root()
+        for data_root, verdict in ((env_root, "deny"), (self.expected, "allow")):
+            with self.subTest(data_root=data_root):
+                self.assertEqual(verdict, self.scan_verdict(data_root, self.argv()))
+        # The decision log follows the derived root, never the env root.
+        self.assertEqual([], list(env_root.iterdir()))
+        self.assertNotEqual([], list(self.expected.iterdir()))
+        # Control: without the directory proof the env value is the authority,
+        # so the env-root scan is admitted and the log lands there.
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assertEqual("allow", self.scan_verdict(env_root, self.argv()))
+        self.assertNotEqual([], list(env_root.iterdir()))
+
+    def test_belt_ignores_a_conflicting_env_data_root_on_a_cache_install(
+        self,
+    ) -> None:
+        env_root = self.set_env_data_root()
+        cached = self.base / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
+        cached.mkdir(parents=True)
+        derived = self.base / "plugins" / "data" / "disk-hygiene-mk"
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(cached)]
+        self.assertEqual("deny", self.scan_verdict(env_root, argv))
+        self.assertEqual("allow", self.scan_verdict(derived, argv))
+        self.assertEqual([], list(env_root.iterdir()))
+        # Control: a root with neither a cache layout nor a directory proof
+        # falls through to the env value.
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
+        self.assertEqual("allow", self.scan_verdict(env_root, argv))
+
+    def test_changed_known_marketplaces_shape_yields_no_directory_authority(
+        self,
+    ) -> None:
+        entry = self.directory_entry(self.checkout)
+        shapes = {
+            "versioned-wrapper": {"version": 2, "marketplaces": {"acme": entry}},
+            "source-path-only": {"acme": {"source": entry["source"]}},
+        }
+        for label, known in shapes.items():
+            with self.subTest(shape=label):
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+                self.write_known(known)
+                self.assert_fails_closed()
+                self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
+                # With env set, an unreadable format falls through to the env
+                # channel; the env channel's authority does not widen.
+                env_root = self.set_env_data_root()
+                self.assertEqual(os.fspath(env_root), self.resolve())
+
+    # --- an exact engine call must carry the authorized --data-root ----------
+
+    def engine_gate_argv(self) -> list[str]:
+        return [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+
+    def test_engine_call_without_data_root_is_denied(self) -> None:
+        # Without --data-root the engine would fall back to the raw env value,
+        # which here differs from the proven root.
+        self.set_env_data_root()
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        for subcommand in self.ENGINE_TAILS:
+            command = self.engine_command(subcommand, omit_data_root=True)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual("deny", decision["permissionDecision"])
+                    self.assertIn(
+                        f'--data-root "{self.expected.as_posix()}"',
+                        decision["permissionDecisionReason"],
+                    )
+
+    def test_engine_call_with_data_root_keeps_its_verdict(self) -> None:
+        self.set_env_data_root()
+        verdicts = {
+            "scan": "allow",
+            "preview": "allow",
+            "handoff-verify": "allow",
+            "apply": "ask",
+        }
+        for subcommand, verdict in verdicts.items():
+            command = self.engine_command(subcommand)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual(verdict, decision["permissionDecision"])
+
+    def test_literal_env_placeholder_is_no_authority(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        os.environ["CLAUDE_PLUGIN_DATA"] = "${CLAUDE_PLUGIN_DATA}"
+        self.assertIsNone(self.resolve())
+
     # --- AC7: the no-authority denial names a recovery ----------------------
 
     def test_no_authority_denial_names_the_launch_env_recovery(self) -> None:
@@ -9919,11 +10101,24 @@ class EngineGrammarTests(unittest.TestCase):
     def required_chunks(self, spec) -> list[list[str]]:
         return [self.chunk(flag) for flag in spec.required]
 
+    def is_data_root(self, flag) -> bool:
+        return flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT
+
+    def head(self, spec) -> list[str]:
+        return [word for chunk in self.required_chunks(spec) for word in chunk]
+
+    def data_root_chunk(self, spec) -> list[str]:
+        (flag,) = [flag for flag in spec.optional if self.is_data_root(flag)]
+        return self.chunk(flag)
+
     def words(self, spec, *, optionals: bool) -> list[str]:
-        words = [word for chunk in self.required_chunks(spec) for word in chunk]
+        """The required head plus ``--data-root``, which the guard requires."""
+        words = [*self.head(spec), *self.data_root_chunk(spec)]
         if not optionals:
             return words
         for flag in spec.optional:
+            if self.is_data_root(flag):
+                continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
                 words.extend(self.chunk(flag))
@@ -10036,7 +10231,7 @@ class EngineGrammarTests(unittest.TestCase):
 
     def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             for index, flag in enumerate(spec.required):
                 words = [
                     word
@@ -10052,7 +10247,7 @@ class EngineGrammarTests(unittest.TestCase):
     def test_guard_admits_only_the_declared_head_order(self) -> None:
         """The parser takes the required flags in any order; the guard takes one."""
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             if len(chunks) < 2:
                 continue
             swapped = [
@@ -10067,7 +10262,9 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.optional:
                 if flag.repeatable or flag.requires is not None:
                     continue
-                once = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                once = self.words(spec, optionals=False)
+                if not self.is_data_root(flag):
+                    once = [*once, *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertEqual(spec.name, self.classify(spec.name, once))
                     self.assertIsNone(
@@ -10125,11 +10322,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [
-                    *self.words(spec, optionals=False),
-                    flag.name,
-                    "/somewhere/else",
-                ]
+                words = [*self.head(spec), flag.name, "/somewhere/else"]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertIsNone(self.classify(spec.name, words))
 
@@ -10138,7 +10331,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                words = [*self.head(spec), *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertTrue(
                         self.grammar.match_invocation(
@@ -10148,6 +10341,15 @@ class EngineGrammarTests(unittest.TestCase):
                         )
                     )
                     self.assertFalse(self.grammar.match_invocation(spec.name, words))
+
+    def test_guard_refuses_an_invocation_without_data_root(self) -> None:
+        """The engine parses it; the guard does not, since the engine would fall
+        back to the raw ``CLAUDE_PLUGIN_DATA`` value."""
+        for spec in self.grammar.SUBCOMMANDS:
+            head = self.head(spec)
+            with self.subTest(subcommand=spec.name):
+                self.assertEqual(spec.name, self.parse(spec.name, head).command)
+                self.assertIsNone(self.classify(spec.name, head))
 
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
