@@ -3,6 +3,14 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-09-27
+
+### Changed
+
+- The `audit` persist-findings eval no longer says `Confidence: low` ranks below an omitted field.
+  The review plugin's rank order now puts an omitted field last; the detector rule it tests,
+  `high` or omitted and never `low`, is unchanged.
+
 ## [0.4.1] - 2026-09-27
 
 ### Changed
