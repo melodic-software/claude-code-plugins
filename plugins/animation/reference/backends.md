@@ -14,8 +14,8 @@ backend must follow when it is added.
 - Exit 0 when every frame is written, 1 when the scene fails, 2 when a prerequisite is missing
   (the remedy is printed).
 
-The full contract is sections 2 to 4 of `docs/topics/animation-ports/design/contracts.md` in the
-claude-code-plugins repository (not shipped with the plugin).
+The render boundary is recorded in ADR 0039 of the claude-code-plugins repository (not shipped with
+the plugin).
 
 ## Selection rule
 
