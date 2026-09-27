@@ -212,7 +212,8 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
-   interpolate names from one batch member.
+   interpolate names from one batch member. Triage of the entry is done when all five questions have
+   an evidence-backed answer; any question left unanswered caps the entry at Low.
 
 ## 3. Classify and report
 
@@ -234,7 +235,8 @@ Report every finding with these fields, in this order, size last:
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition.
-6. Logical / reclaimable bytes as a **secondary** signal only.
+6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only when it
+   carries all six fields; one missing Provenance is reported as Low.
 
 Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
 
