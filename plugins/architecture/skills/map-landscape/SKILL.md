@@ -52,8 +52,8 @@ apply` owns both.
    one hop out. This is the default and the primary use. Facts are collected from the current
    checkout; the referenced repositories are nodes with edges and no probed facts unless they are
    also checked out locally or `--remote` is passed.
-2. **`--repos <path>[,<path>...]`**: exactly those repositories, facts and edges both. No discovery
-   runs at all.
+2. **`--repos <path>[,<path>...]`**: exactly those repositories. Facts come from every path; edges
+   come from the first path only (the `--edges-from` default). No discovery runs at all.
 3. **`--root <dir>`** (repeatable): discovery, delegated to the `repo-fleet-hygiene` plugin when it
    is installed and an announced bundled walk when it is not. Read
    [scope-modes.md](${CLAUDE_PLUGIN_ROOT}/skills/map-landscape/reference/scope-modes.md) before
@@ -156,6 +156,10 @@ Write `landscape.json` first, then render from it. The script writes `landscape.
 exists. `--top-external <N>` sets how many external systems the diagram draws, most referenced
 first; every internal system is always drawn and the remainder is counted under the diagram.
 
+The renderer prints one summary line on stdout and nothing else:
+`landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>`.
+Keep it for the report; `--help` defines each field and the thin threshold.
+
 `landscape-notes.md` is the ONLY file in the architecture directory you author, and the only one you
 never overwrite: read it, extend it, leave what a person wrote alone, and mark an annotation as an
 annotation. Annotations say what a system is FOR, which the extractor cannot know.
@@ -165,8 +169,25 @@ annotation. Annotations say what a system is FOR, which the extractor cannot kno
 End every run with this block, in this order, filled from the record and the script exits:
 
 - **Artifacts**: each path written, or `none written (--check)`.
-- **Repositories charted**: internal count, external count.
+- **Repositories charted**: `internal=` and `external=`, quoted from the summary line (from the
+  record under `--check`).
 - **Edges by type**: `uses-workflow`, `installs-plugin`, `depends-on`, `cites`, each with its count.
+- **Thin result**: `no`, or `yes` with the reason and the one remedy that fits, taken from the
+  summary line. Under `--check` it reads `not assessed (--check)`.
+  - `edges=0`: the subject names no other repository. Lead by saying this is the wrong tool for the
+    question: a landscape answers which systems exist and how they reference each other, not how
+    one repository is built inside; that is `/architecture:improve` for module structure or
+    `/discovery:explore` for how it works. Then offer
+    `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
+  - `unresolved_edges` above 0: no charted repository has the name the edges come from, so the
+    repository that supplies them is not charted. Add it to `--repos`, first.
+  - `edges` minus `unresolved_edges` above `drawn_edges`: `--top-external` hid some edges.
+    Re-render with a larger `--top-external`; nothing needs collecting again.
+  - `drawn_systems` at most 2 with drawn edges: `--root <dir>`, or `--repos` with the current
+    subject kept first, adds the organization's other repositories as nodes.
+  - Whenever `internal=1`, also point to `/architecture:improve` or `/discovery:explore`, whatever
+    the counts. Never offer `--remote` here: it fills facts for existing nodes and adds no system
+    and no edge.
 - **Unknown facts**: how many fields across the record are the literal `unknown`.
 - **Discovery source**: default (current repository plus reference graph), explicit list, fleet
   plan, or bundled walk.
@@ -190,6 +211,8 @@ End every run with this block, in this order, filled from the record and the scr
 ## Next
 
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
+- The landscape came back thin and the question was how one repository works inside:
+  `/discovery:explore`.
 - The landscape settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas
