@@ -977,11 +977,14 @@ either layer, and those rows say so.
 - **Saturation.** Counted per audit scope, over the prose the rubric reads. Excluded: YAML
   frontmatter (closed by a `---` or `...` line), fenced and indented code, code spans,
   straight and curly double-quoted spans (also when wrapped across lines), blockquotes, HTML
-  comment interiors, link and image destinations (the link text counts), reference
-  definitions, and autolinks. Known gaps: a cue split across a line break is not counted,
-  and a few rare CommonMark shapes (indented code right after a fence or paragraph line, an
-  unclosed comment block inside a list item, a definition continued on the next line,
-  destinations with nested parens, raw HTML tag attributes) are counted as prose. The usage
+  comment interiors (a backslash-escaped `\<!--` opens nothing), raw HTML tags on one line
+  (the text between tags counts), link and image destinations (the link text counts),
+  reference definitions (also as a list item's first content), and autolinks. Known gaps: a
+  cue split across a line break is not counted; a few rare CommonMark shapes (indented code
+  right after a fence or paragraph line, an unclosed comment block inside a list item, a
+  definition continued on the next line, destinations with nested parens, a raw HTML tag
+  split across lines) are counted as prose; and an inline comment's `-->` is sought past a
+  block start up to the next blank line. The usage
   text of `rubric-fanout.sh` states the exact rules. A cue is saturated
   when it appears in at least 10 files AND in at least 10% of the readable files in scope.
   `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch

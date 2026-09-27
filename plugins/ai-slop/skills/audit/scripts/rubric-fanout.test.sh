@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=169
+EXPECTED_CASES=177
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -665,7 +665,9 @@ done
 # CommonMark edges, one file per batch: a quoted <!-- opens no comment, an
 # inline comment needs its -->, a line-start one runs to the end of the file,
 # <!--> is a whole comment, a link destination holds no space, reference
-# definitions and autolinks are not prose, and a heading ends its paragraph.
+# definitions and autolinks are not prose, and a heading ends its paragraph;
+# a backslash-escaped <!-- is literal, a definition may open or sit in a list
+# item, and a raw HTML tag hides its attributes.
 K5="$TEST_TMPDIR/cues-prose3"
 mkdir -p "$K5"
 k5=(
@@ -681,6 +683,14 @@ k5=(
   "$(printf 'Go to <https://x/seam> or <mailto:seam@x.y> now.\n')"
   "$(printf '# Title\n    seam code\n')"
   "$(printf '[ref]: https://x/u\n    seam\n')"
+  "$(printf 'A \\<!-- seam --> seam\n')"
+  "$(printf '%s\n' 'A \\<!-- seam --> seam')"
+  "$(printf 'A \\"seam\\" seam and "q" seam\n')"
+  "$(printf -- '- item seam\n\n  [ref]: https://x/seam "seam"\n')"
+  "$(printf -- '- seam\n  [ref]: /seam\n')"
+  "$(printf -- '- [ref]: /seam\n\nseam\n')"
+  "$(printf 'Text <not-a-url seam> here.\n')"
+  "$(printf '%s\n' '<b>seam</b> and <a href="seam">x</a>')"
 )
 for i in "${!k5[@]}"; do
   printf '%s\n' "${k5[$i]}" >"$K5/t$i.md"
@@ -701,6 +711,14 @@ k5want=(
   "autolinks are not prose:0"
   "an indented line after a heading is code:0"
   "an indented line after a reference definition continues its paragraph:1"
+  "a backslash-escaped <!-- opens no comment:2"
+  "an escaped backslash before <!-- leaves the comment open:1"
+  "a backslash before a quote leaves quote spans as they were:2"
+  "a reference definition inside a list item is not prose:1"
+  "a [ref]: line continuing a list paragraph is prose:2"
+  "a reference definition opening a list item is not prose:1"
+  "a raw HTML tag's attributes are not prose:0"
+  "text between raw HTML tags counts, their attributes do not:1"
 )
 for i in "${!k5want[@]}"; do
   line="batch=$(printf '%02d' $((i + 1))) cue=seam"

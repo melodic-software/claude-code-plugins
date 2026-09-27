@@ -56,22 +56,24 @@ markers, a backtick opener's info string holding no backtick, closed by a run
 of the opener's character at least as long or by the end of its list item or
 blockquote); indented code (4 columns, after a blank line or an ATX heading,
 outside a list); blockquote lines; link reference definitions ([label]: dest
-and an optional title, alone on a line after a blank line); code spans (a run
-of N backticks through the next run of exactly N, on one line); the (dest)
-part of an inline link or image, when dest is <bracketed> or holds no space
-and at most one level of balanced parens, with an optional title; autolinks
-(<scheme:...>, <user@host>); double-quoted spans, straight or curly, which may
-wrap onto later lines of the same paragraph; and HTML comment interiors.
-Quotes and comments are read left to right, so a quoted <!-- opens nothing.
-A comment closes at the first --> after its <!-- (<!--> is whole) and may span
+and an optional title, alone on a line after a blank line or as a list item's
+first content); code spans (a run of N backticks through the next run of
+exactly N, on one line); the (dest) part of an inline link or image, when dest
+is <bracketed> or holds no space and at most one level of balanced parens,
+with an optional title; autolinks (<scheme:...>, <user@host>); raw HTML tags
+on one line (<tag attr="...">, </tag>), their text between them counted;
+double-quoted spans, straight or curly, which may wrap onto later lines of the
+same paragraph; and HTML comment interiors. A < after an odd run of
+backslashes is literal, so \<!-- opens nothing. Quotes and comments are read
+left to right, so a quoted <!-- opens nothing. A comment closes at the first --> after its <!-- (<!--> is whole) and may span
 lines; one at a line start (up to 3 spaces) that never closes runs to the end
 of the file, and one opened mid-line whose --> is not in its paragraph is
 literal text. Text beside a comment on its lines counts, as a browser shows it.
 Known gaps, counted as prose: indented code right after a fence close or any
 other non-blank line but an ATX heading; a comment block opened inside a list
 item that never closes; a reference definition whose destination or title is
-on the next line; a destination with parens nested past one level; and the
-attributes of raw HTML tags. An inline comment's --> is sought up to the next
+on the next line; a destination with parens nested past one level; and a raw
+HTML tag split across lines. An inline comment's --> is sought up to the next
 blank line, even past a block start that ends the paragraph sooner.
 
 A result may carry `declined: <rule-id> <cue> reason=saturated|boundary|cap`
@@ -147,8 +149,16 @@ function hc_ahead(   k) {
 # opening bracket and before a non-space, so an inch mark (6") is dropped.
 function prose(s,   out, q, c, e, t) {
   s = unspan(s)
+  # A < after an odd run of backslashes is escaped, literal text: it opens no
+  # comment, tag or autolink.
+  t = ""
+  while (match(s, /\\+</)) {
+    t = t substr(s, 1, RSTART + RLENGTH - 2) (((RLENGTH - 1) % 2) ? " " : "<"); s = substr(s, RSTART + RLENGTH)
+  }
+  s = t s
   gsub(/\]\([ \t]*(<[^<>]*>|([^ \t()<]|\([^ \t()]*\))([^ \t()]|\([^ \t()]*\))*)?([ \t]+("[^"]*"|\047[^\047]*\047|\([^()]*\)))?[ \t]*\)/, "]", s)
   gsub(/<[A-Za-z][A-Za-z0-9+.-]+:[^ \t<>]*>|<[^ \t<>@]+@[A-Za-z0-9.-]+>/, " ", s)
+  gsub(/<[A-Za-z][A-Za-z0-9-]*([ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*([ \t]*=[ \t]*([^ \t"\047=<>`]+|"[^"]*"|\047[^\047]*\047))?)*[ \t]*\/?>|<\/[A-Za-z][A-Za-z0-9-]*[ \t]*>/, " ", s)
   while ((q = index(s, LQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
   while ((q = index(s, RQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
   if (qopen) {
@@ -458,11 +468,12 @@ cmd_plan() {
           continue
         }
         if (line ~ /^[ \t]*>/) continue
-        # A link reference definition, which cannot interrupt a paragraph:
-        # label, destination and an optional title, alone on the line. Another
-        # may follow it (pblank 2), but indented code may not: the next line
-        # continues its paragraph.
-        if (pb && line ~ /^(   |  | )?\[[^]]+\]:[ \t]*(<[^<>]*>|[^ \t<][^ \t]*)([ \t]+("[^"]*"|\047[^\047]*\047|\([^()]*\)))?[ \t]*$/) { pblank = 2; continue }
+        # A link reference definition, which cannot interrupt a paragraph but
+        # may open a list item: label, destination and an optional title, alone
+        # on the line. Another may follow it (pblank 2), but indented code may
+        # not: the next line continues its paragraph.
+        p = lead(line, 0, 1)
+        if ((pb || substr(line, 1, p) ~ /[^ \t]/) && substr(line, p + 1) ~ /^\[[^]]+\]:[ \t]*(<[^<>]*>|[^ \t<][^ \t]*)([ \t]+("[^"]*"|\047[^\047]*\047|\([^()]*\)))?[ \t]*$/) { pblank = 2; continue }
         if (hcb || line ~ /^[ \t]*(#|[-*+] |[0-9]+[.)] |\|)/) qopen = 0
         s = prose(line)
         for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
