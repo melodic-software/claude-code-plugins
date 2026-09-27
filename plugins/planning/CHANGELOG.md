@@ -39,7 +39,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `plan proposes:: <new>; was: <old>`. An open row with only confirmed commitments reads
   `confirmed:: <c1>; <c2>`, escaped, and `import-ledger` restores them as confirmed
   commitments; an older `confirmed: ...` or `; confirmed: ...` row still imports, split at each
-  semicolon and space without unescaping.
+  semicolon and space without unescaping. A superseded-by-plan row with confirmed commitments
+  takes the escaped form and adds `; confirmed: <c1>; <c2>` after the proposal. An answered,
+  deferred or withdrawn row, a reconfirmed accept included, ends with
+  `; confirmed:: <c1>; <c2>`, escaped, and `import-ledger` restores those commitments as
+  confirmed; an older row's `; confirmed: ...` stays part of its resolution.
 - **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
   page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,

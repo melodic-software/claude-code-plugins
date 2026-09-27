@@ -25,11 +25,21 @@ that counts, in the resolution vocabulary (`accepted: <recommendation>`, `alt <k
 hold set aside, which import restores still set aside; note is the note of an accept or an
 alternative in answer or aside; confirmed lists the confirmed commitments, one field each.
 
-Two unheld rows use the same escaping, marked the same way by a double colon:
+Unheld rows use the same escaping, marked the same way by a double colon:
   confirmed:: E(c1)[; E(c2)...]        an open row with confirmed commitments
-  plan proposes:: E(new); was: E(old)  a superseded-by-plan row whose proposal the plain
+  plan proposes:: E(new); was: E(old)[; confirmed: E(c1)[; E(c2)...]]
+                                       a superseded-by-plan row with confirmed commitments, or
+                                       whose proposal the plain
                                        `plan proposes: <new>; was: <old>` would not read back
-An older `confirmed: ...` or `; confirmed: ...` row still imports, split on `; ` unescaped.
+  <resolution>; confirmed:: C(c1)[; C(c2)...]
+                                       an answered, deferred, withdrawn or blocked row with
+                                       confirmed commitments; the resolution before it is plain
+C() is E() with the `c` of each `confirmed::` written \\u0063, so the tail holds no other
+`confirmed::` and the last `; confirmed::` of the row (followed by a space, a `;` or the row's
+end) starts it. A plain resolution holding
+that mark and no confirmed commitment gets the empty tail `; confirmed::;`.
+An older `confirmed: ...` or `; confirmed: ...` row still imports, split on `; ` unescaped, and an
+older settled row's `; confirmed: ...` stays part of its resolution.
 """
 
 import base64
@@ -69,6 +79,7 @@ HOLD_FIELD = re.compile(r"^(answer|aside|note|confirmed):(?: |$)(.*)$", re.DOTAL
 PROPOSAL_MARK = re.compile(r"^plan proposes::(?: |$)(.*)$", re.DOTALL)
 WAS = re.compile(r"^was:(?: |$)(.*)$", re.DOTALL)
 CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
+TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -113,6 +124,29 @@ def unesc_field(s):
         return chr(int(m.group(3), 16))
 
     return UNESCAPE.sub(one, s)
+
+
+def with_tail(res, confirmed):
+    """A settled row's resolution, cleaned, then its escaped `; confirmed:: ...` tail when it has
+    confirmed commitments or the resolution already holds the tail's mark."""
+    res = clean(res)
+    if not confirmed and not TAIL.search(res):
+        return res
+    listed = "; ".join(
+        esc_field(c).replace("confirmed::", "\\u0063onfirmed::") for c in confirmed
+    )
+    return Escaped(f"{res}; confirmed::" + (f" {listed}" if confirmed else ";"))
+
+
+def split_tail(res):
+    """(resolution, confirmed commitments) of a settled row; (res, None) when no tail ends it."""
+    marks = list(TAIL.finditer(res))
+    body = res[marks[-1].end() :] if marks else None
+    if body == ";":
+        return res[: marks[-1].start()], []
+    if body is None or body[:1] not in ("", " "):
+        return res, None
+    return res[: marks[-1].start()], [unesc_field(c) for c in split_fields(body[1:])]
 
 
 def split_fields(s):
@@ -167,29 +201,40 @@ def seed_proposal(seed):
     return m.groups() if m else None
 
 
-def seed_resolution(seed):
-    """A seeded row's resolution; a superseded-by-plan proposal that the plain form would not
-    read back takes the escaped `plan proposes:: ...` form."""
+def seed_resolution(seed, confirmed):
+    """A seeded row's resolution; a superseded-by-plan proposal with confirmed commitments, or
+    one the plain form would not read back, takes the escaped `plan proposes:: ...` form."""
     res = seed.get("resolution", "")
     proposal = seed_proposal(seed)
     m = PROPOSES.match(res)
-    if not proposal or (clean(res) == res and m and m.groups() == tuple(proposal)):
+    plain = clean(res) == res and m and m.groups() == tuple(proposal or ())
+    if not proposal or (plain and not confirmed):
         return res
     new, old = proposal
-    return Escaped(f"plan proposes:: {esc_field(new)}; was: {esc_field(old)}")
+    fields = [f"plan proposes:: {esc_field(new)}", f"was: {esc_field(old)}"]
+    if confirmed:
+        fields.append("confirmed: " + "; ".join(esc_field(c) for c in confirmed))
+    return Escaped("; ".join(fields))
 
 
 def parse_proposal(res, where):
-    """(new, old) of an escaped `plan proposes:: ...` resolution, or None for any other."""
+    """(new, old, confirmed) of an escaped `plan proposes:: ...` resolution, or None for any
+    other."""
     mark = PROPOSAL_MARK.match(res)
     if not mark:
         return None
     fields = split_fields(res)
-    was = WAS.match(fields[1]) if len(fields) == 2 else None
-    if not was:
+    was = WAS.match(fields[1]) if len(fields) > 1 else None
+    listed = HOLD_FIELD.match(fields[2]) if len(fields) > 2 else None
+    if not was or (len(fields) > 2 and not (listed and listed.group(1) == "confirmed")):
         raise SystemExit(f"refused: unreadable plan proposal {res!r} in {where}")
+    confirmed = [listed.group(2), *fields[3:]] if listed else []
     new = PROPOSAL_MARK.match(fields[0]).group(1)
-    return unesc_field(new), unesc_field(was.group(1))
+    return (
+        unesc_field(new),
+        unesc_field(was.group(1)),
+        list(map(unesc_field, confirmed)),
+    )
 
 
 def hold_row(q, responses, events, seed):
@@ -344,24 +389,22 @@ def settle(q, responses, events, seed_rows):
     live = q.get("waiting") or (
         held and seed and seed["status"] != "superseded-by-plan"
     )
+    confirmed, _ = commitments(q, events)
     if seed and not page and not live:
         term, arch = q.get("terminal") or {}, q.get("archived") or {}
         untouched = seed["status"] in UNSETTLED and not term and not arch
         if untouched or term.get("seeded") or arch.get("seeded"):
-            res = seed_resolution(seed)
+            res = seed_resolution(seed, confirmed)
             reserved = seed["status"] == "blocked" or "USER-RESERVED" in res
+            if seed["status"] not in UNSETTLED:
+                res = with_tail(res, confirmed)
             return seed["status"], res, "", reserved
-    confirmed, _ = commitments(q, events)
-    tail = f"; confirmed: {'; '.join(confirmed)}" if confirmed else ""
     if q.get("archived"):
-        return (
-            "withdrawn",
-            f"archived: {q['archived'].get('why', '')}" + tail,
-            "",
-            False,
-        )
+        why = q["archived"].get("why", "")
+        return "withdrawn", with_tail(f"archived: {why}", confirmed), "", False
     if q.get("supersededBy"):
-        return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
+        res = with_tail(f"superseded by {q['supersededBy']}", confirmed)
+        return "withdrawn", res, "", False
     if q.get("waiting"):
         status, res = hold_row(q, responses, events, seed)
         return status, res, "", False
@@ -373,18 +416,14 @@ def settle(q, responses, events, seed_rows):
     proposal = seed_proposal(seed)
     if decision == "accept" and proposal:
         new, old = proposal
-        res = f"reconfirmed at plan approval: {new}; was: {old}"
-        return "answered", res + note + tail, text, False
+        res = f"reconfirmed at plan approval: {new}; was: {old}{note}"
+        return "answered", with_tail(res, confirmed), text, False
     if decision == "defer" and superseded:
         # The resolution stays the seed's own, so a re-import reads the same proposal back.
-        return "superseded-by-plan", seed_resolution(seed), text, False
+        return "superseded-by-plan", seed_resolution(seed, confirmed), text, False
     if decision == "accept":
-        return (
-            "answered",
-            f"accepted: {q.get('recommendation') or 'the recommendation'}{note}{tail}",
-            text,
-            False,
-        )
+        res = f"accepted: {q.get('recommendation') or 'the recommendation'}{note}"
+        return "answered", with_tail(res, confirmed), text, False
     if decision == "alt":
         key = rec.get("alt") or ""
         alt = next(
@@ -395,15 +434,15 @@ def settle(q, responses, events, seed_rows):
             ),
             "",
         )
-        return "answered", f"alt {key}: {alt}{note}{tail}", text, False
+        return "answered", with_tail(f"alt {key}: {alt}{note}", confirmed), text, False
     if decision == "own":
-        return "answered", f"free-text: {text}{tail}", text, False
+        return "answered", with_tail(f"free-text: {text}", confirmed), text, False
     if decision == "defer":
         res = "deferred" + (f": {text}" if text else "") + "; arbiter: USER-RESERVED"
-        return "deferred", res + tail, text, True
+        return "deferred", with_tail(res, confirmed), text, True
     if superseded:
         # A set-aside decision leaves the plan's proposal waiting on the user again.
-        return "superseded-by-plan", seed_resolution(seed), "", False
+        return "superseded-by-plan", seed_resolution(seed, confirmed), "", False
     if confirmed:
         listed = "; ".join(esc_field(c) for c in confirmed)
         return "open", Escaped(f"confirmed:: {listed}"), "", False
@@ -837,23 +876,27 @@ def import_ledger(doc, text, ledger, at):
             doc["questions"].append(import_hold(qid, title, rnd, hold, seeded, at, rev))
             continue
         held = HELD.match(res) if status == "open" else None
-        confirmed = held.group(4) if held else None
+        commits = held.group(4).split("; ") if held and held.group(4) else None
         if held:  # the hold itself is restored below, so its text leaves the seeded row
             if held.group(3):
                 status, res = "answered", held.group(3)
             else:
-                res = f"confirmed: {confirmed}" if confirmed else ""
+                res = f"confirmed: {held.group(4)}" if held.group(4) else ""
+        elif status not in UNSETTLED:
+            res, commits = split_tail(res)
         listed = CONFIRMED.match(res) if status == "open" and not held else None
-        pair = parse_proposal(res, ledger) if status == "superseded-by-plan" else None
+        proposal = (
+            parse_proposal(res, ledger) if status == "superseded-by-plan" else None
+        )
         # An escaped open row settles from its commitments alone, as a held row does.
         if not (listed and listed.group(1)):
             seeded[qid] = {"status": status, "round": rnd, "resolution": res}
-        if pair:
-            new, old = pair
+        if proposal:
+            new, old, commits = proposal
             seeded[qid].update(
                 resolution=f"plan proposes: {new}; was: {old}", proposal=[new, old]
             )
-        pair = pair or seed_proposal(seeded.get(qid))
+        pair = seed_proposal(seeded.get(qid))
         q = {
             "id": qid,
             "short": title if len(title) <= 60 else title[:57] + "...",
@@ -892,24 +935,18 @@ def import_ledger(doc, text, ledger, at):
             q["alternatives"] = [{"key": "was", "text": pair[1]}]
         if listed:
             body = listed.group(2)
-            q["commits"] = (
+            commits = (
                 [unesc_field(c) for c in split_fields(body)]
                 if listed.group(1)
                 else body.split("; ")
             )
+        if commits:
+            q["commits"] = commits
             q["commitsConfirmed"] = [
-                {"index": i, "reason": SEED_NOTE, "at": at}
-                for i in range(len(q["commits"]))
+                {"index": i, "reason": SEED_NOTE, "at": at} for i in range(len(commits))
             ]
         if held:
             q.update(waiting=True, waitsOn=held.group(2))
-            # A held row settles from its commitments, not from the seeded text.
-            if confirmed:
-                q["commits"] = confirmed.split("; ")
-                q["commitsConfirmed"] = [
-                    {"index": i, "reason": SEED_NOTE, "at": at}
-                    for i in range(len(q["commits"]))
-                ]
             if held.group(1) == "awaiting user":
                 q["waitingBy"] = "user"
         by = "claude" if status in UNSETTLED else "user-terminal"
