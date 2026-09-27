@@ -3,7 +3,20 @@ description: "Verify the bash-format hook's runtime prerequisites and configurat
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
+tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `shellcheck`: !`{ command -v shellcheck 2>/dev/null || echo "absent"; }`
+- `shfmt`: !`{ command -v shfmt 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -24,8 +37,9 @@ offers remediation guidance. Both are non-interactive. Never prompt when the act
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh`) is the single source of truth
 for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 The lint pass and the format pass are independent; report each separately.
 
@@ -37,11 +51,11 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
-2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of running either pass.
-3. **`shellcheck`** (lint pass). `command -v shellcheck`. FAIL if absent: the lint pass
+3. **`shellcheck`** (lint pass). The pre-computed `shellcheck` row. FAIL if absent: the lint pass
    skips with a visible once-per-session notice.
-4. **`shfmt`** (format pass). `command -v shfmt`. Its FAIL/INFO status depends on the
+4. **`shfmt`** (format pass). The pre-computed `shfmt` row. Its FAIL/INFO status depends on the
    `.editorconfig` opt-in below, because the format pass runs **only when the repo has opted
    in**:
    - opted in AND `shfmt` absent → FAIL: the format pass skips with a visible once-per-session
@@ -116,8 +130,9 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   `check` still reports the OLD value; report the observed effective value, never an
   unobserved change.
 
-After pointing at a remediation, re-run the relevant `check` probe and report its actual
-result. Never claim resolved on the reader's report that they installed something.
+After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
+predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
+the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
