@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.11.0] - 2026-09-26
+
+### Added
+
+- **Scope-wide cue counts.** `rubric-fanout.sh plan` writes `cues.txt` beside the batch lists:
+  for `load-bearing` and `seam`, the occurrence and file counts over the prose of every
+  readable file in scope (YAML frontmatter, fenced and indented code, code spans, straight and
+  curly double-quoted spans, blockquotes, HTML comment interiors, link destinations,
+  reference definitions and autolinks skipped, as the rubric skips them; the catalog lists
+  the remaining gaps), a `saturated=yes|no` verdict, and per-batch counts. A cue is saturated when it appears in at least 10 files and at least 10% of the
+  files in scope. Every batch receives the file, so no batch judges saturation from its own
+  slice.
+- **Cross-batch consistency flags.** Batch results may carry `declined: <rule> <cue>
+  reason=saturated|boundary|cap` lines. `merge` totals them as `declined_total:` lines and
+  prints a `consistency:` line when a saturated cue is still reported, when a word is declined
+  as saturated while `cues.txt` does not mark it so, or when a batch has occurrences of a cue and
+  neither reports nor declines it. Declined cues match in any case and in plural, and a
+  finding's quote may wrap onto continuation lines. The `rule_total:` line of a flagged rule gains
+  `consistency=flagged`. `cues.txt` carries a `scope_digest=` line; when a listed file
+  changed after `plan`, `merge` prints `consistency: cues.txt stale reason=digest` instead of
+  the cue checks.
+- Eval case `cross-batch-verdicts-agree` with two fixtures sharing one passage.
+
+### Changed
+
+- **Catalog rulings the batches disagreed on.** `rule-abstract-metaphor-jargon` defines
+  saturation with a number and a unit and gives a declined and a reported "seam" example.
+  `rule-colon-crutch` states one discriminator with a reported and a declined example, and
+  rules a terse `rule: reason` line in operative instructions out of scope. A leading
+  `U+26A0` on a caveat line stays in scope for `rule-emoji-formatting`, and "Signs of human
+  writing" says the rubric never counts it as a counter-sign.
+
 ## [0.10.0] - 2026-09-25
 
 ### Added

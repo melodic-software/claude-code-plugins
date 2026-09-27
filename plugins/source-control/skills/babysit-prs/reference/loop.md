@@ -82,7 +82,10 @@ not model memory, not prior-iteration state, not comment counts (why:
 **Per-PR rescan flow:**
 
 1. **Terminal check:** `gh pr view <N> --json state -q '.state'`. MERGED/CLOSED → skip
-2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`
+2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`; when more than
+   one worker polls, read the head SHA's REST check-runs instead, per
+   [pull-request monitor.md](../../pull-request/reference/monitor.md) "Polling CI from more than
+   one worker"
 3. **Fetch ALL comments:** run
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
    from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
@@ -127,7 +130,8 @@ For each PR needing attention (oldest first):
 
 Before monitoring work on each PR, arm event delivery, in order:
 
-1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → no push/watch capability; poll `gh pr checks` +
+1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → no push/watch capability; poll CI (REST
+   check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
    the comment fetch on a fixed 60-90s cadence. Skip remaining steps
 2. **Push-channel gate:** when your environment ships a GitHub-events push channel (an MCP
    server delivering webhook events into the session), verify it is healthy and arm its PR
@@ -246,6 +250,20 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
   fi
 fi
 
+# EVERY lane push goes through lane_push: it turns auto-merge off immediately
+# before the push and again right after it (the merge lane may re-arm the old
+# head mid-push), because a push keeps auto-merge armed and the new head could
+# merge on ci-status alone before the AI reviews re-run (safety.md, "Merge-lane
+# auto-merge"). It never re-arms; that stays with the merge lane. A failed read
+# or disarm stops the push.
+disarm_auto_merge() {
+  ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
+  [ -z "$ARMED" ] || gh pr merge "$PR_NUMBER" --disable-auto
+}
+lane_push() {
+  disarm_auto_merge && git push "$PUSH_REMOTE" "HEAD:$BRANCH" && disarm_auto_merge
+}
+
 # Branch freshness — MERGE-ONLY (full mode only). Rebasing would rewrite history
 # and require a force-push, which safety.md ("Never Do Automatically") and
 # orchestration.md's never-force-push invariant forbid; the final squash merge
@@ -261,7 +279,7 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
       # Push by refspec (works from a detached HEAD too) to the pre-resolved
       # $PUSH_REMOTE; fast-forward given the head assertion, never force. A
       # rejected non-fast-forward push means the head moved: re-fetch and stop.
-      git push "$PUSH_REMOTE" "HEAD:$BRANCH"
+      lane_push
     else
       # Graduated conflict handling — attempt simple, abort complex.
       # conflict-attempting is a TRANSIENT state: resolve it (git merge
@@ -284,8 +302,7 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
   # conflict-attempting: resolve NOW — per file, take the mechanical resolution;
   # if ANY file needs intent judgment, `git merge --abort` and set
   # INTEGRATION_STATUS="conflict-aborted". On success: `git add <files>` +
-  # `git merge --continue`, then `git push "$PUSH_REMOTE" HEAD:$BRANCH` (fast-forward,
-  # never force). Set INTEGRATION_STATUS="integrated". Only terminal states pass here.
+  # `git merge --continue`, then `lane_push` (fast-forward, never force). Set INTEGRATION_STATUS="integrated". Only terminal states pass here.
 
   # Safe fallback: ONLY the terminal success states keep full mode. A
   # lingering conflict-attempting (resolution skipped) degrades to read-only
@@ -298,19 +315,22 @@ fi
 
 **Integration conflict handling (graduated).** Freshness is merge-only: integrate a behind-default
 branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the branch's configured upstream
-(`git push "$PUSH_REMOTE" HEAD:$BRANCH`, where `$PUSH_REMOTE` is `origin` for a same-repo head and
-the fork's remote for a write-allowed cross-repo head; fast-forward, never force, since rebasing or
-force-pushing a PR branch as freshness maintenance is forbidden, safety.md and orchestration.md).
-Then:
+through `lane_push` (`git push "$PUSH_REMOTE" HEAD:$BRANCH` between two auto-merge disarms, where
+`$PUSH_REMOTE` is `origin` for a same-repo head and the fork's remote for a write-allowed cross-repo
+head; fast-forward, never force, since rebasing or force-pushing a PR branch as freshness
+maintenance is forbidden, safety.md and orchestration.md). Then:
 
-- **Zero conflicts** (`INTEGRATION_STATUS=integrated`): the merge succeeded; push
-  `git push "$PUSH_REMOTE" HEAD:$BRANCH` and continue normally
+- **Zero conflicts** (`INTEGRATION_STATUS=integrated`): the merge succeeded; `lane_push` and
+  continue normally
 - **Simple conflicts** (≤3 files, `INTEGRATION_STATUS=conflict-attempting`), a TRANSIENT state: attempt
-  resolution immediately; on success continue the merge and push `git push "$PUSH_REMOTE" HEAD:$BRANCH`
+  resolution immediately; on success continue the merge and `lane_push`
   → `integrated`; if ANY file requires intent judgment, abort the merge → `conflict-aborted`.
   Never proceed to comment processing, parking, or the next PR with an integration in progress.
   Resolve via `/source-control:resolve-conflicts` discipline (understand both sides' intent;
-  compose, don't side-pick)
+  compose, don't side-pick). A plugin version-bump collision (`.claude-plugin/plugin.json`,
+  `CHANGELOG.md`) is mechanical, not intent judgment: run
+  `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first; exit 0 resolved and
+  staged every such pair
 - **Complex conflicts** (>3 files, `INTEGRATION_STATUS=conflict-aborted`): abort the merge,
   post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
   files). Manual resolution is required before CI will trigger."`. If an interactive terminal,
@@ -384,9 +404,10 @@ comment is classified VALID after D3 validation:
 - [ ] Edit code to fix the issue
 - [ ] `git add <specific-files>` (never `-A` or `.`)
 - [ ] `git commit -m "<type>: <description>"`
-- [ ] `git push "$PUSH_REMOTE" HEAD:$BRANCH`, the refspec form against the same
-      pre-resolved `$PUSH_REMOTE` the freshness push used; a plain `git push`
-      is rejected from the `--detach` checkout a sibling-locked branch uses
+- [ ] `lane_push`: the refspec form `git push "$PUSH_REMOTE" HEAD:$BRANCH` against the
+      same pre-resolved `$PUSH_REMOTE` the freshness push used, between two auto-merge
+      disarms; a plain `git push` is rejected from the `--detach` checkout a
+      sibling-locked branch uses
 - [ ] Post a follow-up reply citing the commit SHA (D7)
 
 **One wave at a time:** address all current comments on this PR → commit + push → then

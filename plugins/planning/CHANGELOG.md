@@ -159,6 +159,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
   terminal. Parts still never become rows the gate grades, so no defense is weakened. The phrase
   pin on the old alternative wording was replaced by one on the new wording.
 
+## [0.42.1] - 2026-09-27
+
+### Fixed
+
+- **`surface` tests:** the AC35 skill-token check no longer reads a CSS declaration such as
+  `{animation:pulse ...}` as a `<plugin>:<skill>` token.
+
+
 ## [0.42.0] - 2026-09-25
 
 ### Added

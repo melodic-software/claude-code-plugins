@@ -36,6 +36,8 @@ When the topic touches a library, tool, CLI, API or framework that ships release
 
 **Major version bump invalidates prior docs.** When the upstream repo moved `x.y.z` → `(x+1).0.0` since the doc was last updated, treat ALL prior docs as suspect, including first-party docs, which routinely lag a major release. Re-verify every behavior claim against the new release notes regardless of doc age.
 
+**This gate dates claims, not sources.** A current claim passes it however old the sources behind it are. The source side is criterion 13: every source records `published:` and `applies_to:`, and a source that does not cover the claim's target version is `historical` and not counted. Recipe: the artifact-shape file's sidecar header.
+
 ## Falsification step (mandatory Phase 2 query)
 
 Exactly one Phase 2 query attempts to falsify the leading hypothesis from Phase 1.
@@ -248,13 +250,19 @@ Every other criterion grades provenance or process. This one grades whether the 
 
 For each accepted claim, name what each cited source actually measures: the variable it manipulated or observed, the population it measured, and the era or question it answered. Then state in one line why the claim follows from those sources **jointly**. Record both in the sidecar header (`measures:` per source, `inference:` and `qualifiers:` per claim, per the artifact-shape file) so the check can be graded off disk.
 
-- **Variable check.** Does the primary manipulate or observe the variable the claim is about? Papers that varied context or generation order do not support a claim about model identity, however authoritative each is.
-- **Population check.** Is the primary's measured population the one the claim generalizes to? Single-function completions with no security prompting do not describe guardrailed agent pull requests.
+Run the variable, population, era, and scenario checks on **every cited source**, the primary and each corroborator alike. On the primary a failure fails the claim; on a corroborator it means the source is recorded and not counted.
+
+- **Variable check.** Does the source manipulate or observe the variable the claim is about? Papers that varied context or generation order do not support a claim about model identity, however authoritative each is.
+- **Population check.** Is the source's measured population the one the claim generalizes to? Single-function completions with no security prompting do not describe guardrailed agent pull requests.
+- **Era check.** Does the source describe the product and versions the claim is about? Its `applies_to:` and `published:` say which, and criterion 13's script derives `standing:` from them. The verifier checks what the script cannot: that the product string names the claim's product line (a book about a runtime's predecessor framework is another product, not an older version of the same one), and that the recorded date and range match the page. A `historical` source never counts.
+- **Scenario check.** Does the source describe the claim's specific situation, or only the general mechanism the situation uses? A reference that says a primitive never blocks does not show that a particular retry loop built on it keeps the latest value. A source that states only the mechanism measures a different question from the claim, so it is recorded with that scope in `measures:` and not counted, in every evidence-use mode. The claim may still cite it to explain the mechanism.
 - **Hedge-survival check.** Every MEDIUM, "unmeasured", scope limit, or population qualifier a source or sub-slice records stays attached wherever the claim is used. The failure shape is a figure repeated without the qualifier its source attached.
 
 **Counter-evidence already read is resolved in the artifact, not omitted from it.** That includes a source's own headline or aggregate result. Citing a study's demographics table while its aggregate result runs the other way is a claim the study contradicts. Promoting a free-text comment over the result the source itself reports is the same failure.
 
-A claim whose primary measures a different variable, a different population, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and not HIGH.
+A claim whose primary measures a different variable, a different population, a different era, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and not HIGH.
+
+**Evidence the user will publish.** When the index records `evidence_use: publish`, meaning the parent said the output will be quoted outside this session (a pull-request review reply, an issue, a design document, a message to a third party), two rules tighten. An undated source is always `historical`; the `version-independent` exception for undated corroborators does not apply, and criterion 13's script grades that. And the published answer quotes only `current` sources as support: a `historical` source may appear only in a note that labels it historical, never as evidence for the claim. The verifier grades both, and in this mode it grades every cited source for applicability, meaning product line, version range, and scenario, not only whether the quote sits at its link.
 
 **Why the run cannot grade this itself.** Judging whether its own inference holds is judging the quality of its own choices, the same reason the corroboration and HIGH-confidence rows go to a verifier. Outcome-gate criterion 12 is verifier-owned: a fresh context reads the header's `measures:`, `inference:`, and `qualifiers:` against the cited sources and grades each accepted claim.
 

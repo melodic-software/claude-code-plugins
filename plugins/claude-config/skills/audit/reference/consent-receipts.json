@@ -1,0 +1,14 @@
+{
+  "consentReceipt": {
+    "claude-code": [
+      {
+        "key": "skipWorkflowUsageWarning",
+        "scopes": ["user"],
+        "meaning": "the user accepted the multi-agent workflow usage warning",
+        "basis": "installed claude binary describe string: @internal Whether the user has accepted the multi-agent workflow usage warning; not on settings-reference",
+        "as_of": "2026-09-26",
+        "recheck": "when a Claude Code release documents or removes skipWorkflowUsageWarning"
+      }
+    ]
+  }
+}

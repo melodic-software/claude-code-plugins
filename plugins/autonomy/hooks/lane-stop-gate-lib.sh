@@ -74,12 +74,16 @@ gate_resolve_anchor() {
 # The plugin root (the hook directory's parent) that each entry script resolves
 # its install from, written into <var>. An already-absolute hook directory needs
 # no process; only the relative spelling pays the `cd` subshell, and a `cd` that
-# fails yields the empty root both callers already treat as unanchored.
+# fails yields the empty root both callers already treat as unanchored. A drive
+# path has its `\` separators folded to `/`: Claude Code passes CLAUDE_PLUGIN_ROOT
+# backslashed on Windows, and the anchor layout is matched on `/`. Only the drive
+# shape is folded, because on POSIX a `\` is a filename byte.
 #   gate_plugin_root_to <var> <hook-dir>
 gate_plugin_root_to() {
   local __root
   case "$2" in
-  /* | ?:[/\\]*) __root="$2/.." ;;
+  /*) __root="$2/.." ;;
+  ?:[/\\]*) __root="${2//\\//}/.." ;;
   *) __root=$(cd "$2/.." 2>/dev/null && pwd) ;;
   esac
   printf -v "$1" '%s' "$__root"

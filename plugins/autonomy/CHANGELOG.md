@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1] - 2026-09-26
+
+### Fixed
+
+- `lane-stop-gate.sh` and `lane-stop-gate-lib.sh`: the user `settings.json` opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A hook path with a drive letter now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
+
 ## [0.24.0] - 2026-09-25
 
 ### Added

@@ -1215,6 +1215,36 @@ OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
     bash hooks/lane-stop-gate.sh 2>/dev/null)"
 if is_block "$OUT"; then ok "relative invocation: the pre-filter resolves the anchor and the lane blocks"; else fail "relative invocation lost the enabled lane's block: $OUT"; fi
 
+# A drive path spelled with `\`, as Claude Code passes CLAUDE_PLUGIN_ROOT on
+# Windows, must still resolve the anchor. On Windows the staged install
+# itself is spelled that way. On a POSIX host a drive path resolves against the
+# cwd, so `C:` links to the staged root and the backslashed spelling, a single
+# filename there, links to the version directory beneath it.
+write_settings true
+if command -v cygpath >/dev/null 2>&1; then
+  BS_CWD="$UNRELATED"
+  BS_ROOT="$(cygpath -m "$CACHE_ROOT")"
+  BS_ROOT="${BS_ROOT//\//\\}"
+else
+  BS_CWD="$(mktemp -d "$WORK/bscwd.XXXXXX")"
+  BS_ROOT='C:'
+  ln -s "$CACHE_ROOT" "$BS_CWD/C:"
+  ln -s "C:/plugins/cache/melodic/autonomy/9.9.9" "$BS_CWD/C:\\plugins\\cache\\melodic\\autonomy\\9.9.9"
+fi
+OUT="$(cd "$BS_CWD" && build_input Stop "no token" false |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash "$BS_ROOT\\plugins\\cache\\melodic\\autonomy\\9.9.9/hooks/lane-stop-gate.sh" 2>/dev/null)"
+if is_block "$OUT"; then ok "backslashed drive root: the anchor resolves and the lane blocks"; else fail "backslashed drive root lost the enabled lane's block: $OUT"; fi
+if (cd "$BS_CWD" && bash "$BS_ROOT\\plugins\\cache\\melodic\\autonomy\\9.9.9/hooks/lane-stop-gate-arm.sh" \
+  --id "bs-arm-id-4420" --cwd "$WORK" 2>/dev/null); then
+  ok "backslashed drive root: the arm helper resolves the anchor"
+else
+  fail "backslashed drive root: the arm helper found no anchor"
+fi
+
 # --- The interactive default path launches NO external command --------------
 # The strace case below proves the count where ptrace is available; this proves
 # the same property portably, and is the one that runs on the Windows host the

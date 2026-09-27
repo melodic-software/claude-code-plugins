@@ -30,8 +30,9 @@ for p in "$root"/plugins/*/; do
 done
 # One exemption: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token
 # (the Deferred questions tag in the interview skill's Brief template), which names the resolver
-# of a deferred question, never a visual's producer.
-hits=$(grep -nE "(^|[^a-z0-9-])($names):[a-z-]+" "${files[@]}" |
+# of a deferred question, never a visual's producer. A CSS declaration after `{` or `;`
+# (`{animation:pulse ...}`) is a property, not a token.
+hits=$(grep -nE "(^|[^a-z0-9{;-])($names):[a-z-]+" "${files[@]}" |
   grep -vE '^exporters\.py:[0-9]+:ARBITER_PLAN = "\*\*arbiter: /planning:plan\*\*"$')
 if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 

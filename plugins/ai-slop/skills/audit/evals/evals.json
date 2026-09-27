@@ -121,6 +121,20 @@
         "Reports each declined file alongside its cause, distinguishing a config exclusion from an in-file marker",
         "Carries the per-rule declined counts into the report instead of dropping them"
       ]
+    },
+    {
+      "id": 10,
+      "name": "cross-batch-verdicts-agree",
+      "prompt": "/ai-slop:audit over one scope holding exactly two files, evals/fixtures/cross-batch-a.md and evals/fixtures/cross-batch-b.md, relative to the skill directory. Run the rubric through the fan-out in context/rubric-fanout.md with `rubric-fanout.sh plan --budget 20`, so each file is its own batch and its own subagent.",
+      "expected_output": "The plan step writes two batches and a cues.txt with scope_files=2 and load-bearing saturated=no, since two files are under the 10-file floor. Both subagents receive the cues.txt path. Both report the shared 'The comment above the eviction loop is load-bearing' sentence under rule-abstract-metaphor-jargon as a reflexive metaphor for 'matters', and both decline the terse rule line 'Never clear the cache during a deploy: in-flight requests still read from it.' as a `rule: reason` line in operative instructions, outside rule-colon-crutch. The merged rubric report carries no consistency: line.",
+      "files": ["evals/fixtures/cross-batch-a.md", "evals/fixtures/cross-batch-b.md"],
+      "expectations": [
+        "Runs `rubric-fanout.sh plan` with a budget that puts each fixture in its own batch, and dispatches one subagent per batch",
+        "Passes the batch directory's cues.txt path to both subagents, and cues.txt marks load-bearing saturated=no",
+        "Both batches report the shared load-bearing sentence under rule-abstract-metaphor-jargon; neither declines it as saturated",
+        "Both batches treat the terse rule line as out of rule-colon-crutch scope and report no colon-crutch finding for it",
+        "The merged rubric report from `rubric-fanout.sh merge` carries no consistency: line and no consistency=flagged marker"
+      ]
     }
   ]
 }

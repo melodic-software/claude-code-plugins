@@ -191,9 +191,14 @@ machines; neither on the attended box.
 > only for the exceptions the agent frontmatter does not carry: `fable` for conflict
 > resolution and any security-surface work class, unconditionally; `opus`
 > for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never export
-> `CLAUDE_CODE_SUBAGENT_MODEL`. It silently outranks the bindings and
-> every deliberate override alike.
+> `haiku` only for mechanical greps and log pulls. Never set
+> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
+> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
+> unset it puts every subagent on your own model. Leave
+> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
+> or override names a model
+> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+> 2026-09-27).
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes

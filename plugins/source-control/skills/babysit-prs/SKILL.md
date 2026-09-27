@@ -374,7 +374,7 @@ repo#number (@author) | checks | action | open items
 
 Material findings: fixes committed or pushed; new failing or pending required checks; new
 blocking bot feedback; new ordinary human comments (one notification per stable comment ID,
-never an automatic reply); PRs merged; a PR the host runtime's permission layer left "ready,
+never an automatic reply); PRs merged, or armed for auto-merge (`action: auto-merge`, still open, stays queued); a PR the host runtime's permission layer left "ready,
 awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge

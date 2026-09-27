@@ -1385,6 +1385,17 @@ jobs:
           fi
           scripts/check-shell-portability.sh "origin/$BASE_REF"
 
+      # Piped early-exit grep: `producer | grep -q` under pipefail can report a
+      # producer's SIGPIPE as "no match". The suite runs on shell changes; the
+      # gate scans every scripts/**/*.sh on every run.
+      - name: Test the piped early-exit grep gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-pipefail-grep-q.test.sh
+      - name: Gate scripts on piped early-exit greps
+        id: pipefail_grep_q
+        continue-on-error: true
+        run: scripts/check-pipefail-grep-q.sh
+
       # Runner policy, previously its own job. Reads .github/workflows/** and
       # the pinned policy package, so it gates on the workflows filter group:
       # a change that touches nothing under .github/ cannot move a runner
@@ -1471,6 +1482,7 @@ jobs:
             listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
+            pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 

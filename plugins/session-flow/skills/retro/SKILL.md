@@ -107,10 +107,12 @@ backwards from the newest handoff file and aggregates metrics across every chain
 follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file,
 a chain linked by hand-pasted continuation prompts instead of save-points can end after one hop.
 The parser reports what it saw in `chain_coverage` (`requested` / `found` / `available` / `ratio`,
-where `available` counts the transcripts present for this project). When `ratio` is below ~0.5, say
+where `available` counts the transcripts present for this project, or under `--chain-from` the
+chain plus the other transcripts that mention the handoff's topic). When `ratio` is below ~0.5, say
 so before presenting: name the found and available counts, and offer `--sessions` with the ids
 enumerated explicitly. A retro authored from a fifth of the evidence must not read like a complete
-one.
+one. Offer each `fork_candidates` entry the same way: a fork shares records with the chain but no
+handoff points at it, so the walk never reaches it.
 
 **Offer a durable copy when the session was worth retrospecting.** The transcripts this retro reads
 are retention-swept (`cleanupPeriodDays`, default 30 days), and the conversation itself has no
