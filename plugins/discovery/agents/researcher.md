@@ -4,6 +4,7 @@ description: "Runs the full /discovery:research discipline in a fresh context an
 skills:
   - discovery:research
 disallowedTools: "NotebookEdit, EnterWorktree, ExitWorktree"
+model: opus
 effort: high
 maxTurns: 40
 ---
