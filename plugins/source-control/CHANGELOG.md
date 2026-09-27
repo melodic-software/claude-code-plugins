@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-09-26
+
+### Changed
+
+- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR in a review-fix commit, separate from the original work, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or whose fix is blocked on research the lane cannot do (a claim research cannot confirm stays `UNCERTAIN`); no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule as #4541 for work-items.
+
 ## [0.59.0] - 2026-09-26
 
 ### Added
