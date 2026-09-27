@@ -157,7 +157,7 @@ export const slides = [
 ];
 ```
 
-`meta` and `theme` start from the neutral brand in `output/build/brand.js`. DO NOT redefine them per run. A consumer rebrand belongs in the selected profile's schema-validated `brand.json`; `meta.meetingNumber`, `meta.date`, and `meta.window` are the only meeting-specific fields.
+`meta` and `theme` start from the neutral brand in `output/build/brand.js`. Do not redefine them per run. A consumer rebrand belongs in the selected profile's schema-validated `brand.json`; `meta.meetingNumber`, `meta.date`, and `meta.window` are the only meeting-specific fields.
 
 ## Slide types (11 total)
 
@@ -309,7 +309,7 @@ node validate.js
 
 `node run.js` chains steps 1+3+4 in one shot when no pause needed. Use granular form when an overseer judgment call is pending.
 
-Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js` and are imported by `emit-slides-data.js`. Do NOT redefine per run.
+Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js` and are imported by `emit-slides-data.js`. Do not redefine per run.
 
 **Fallback path** (`/document-skills:pptx` skill): only when in-tree pipeline cannot run (Node missing, etc.). See `slide-generation.md` "Fallback skill paths" for skill-stack delegation. Default = in-tree.
 

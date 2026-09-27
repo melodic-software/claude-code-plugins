@@ -41,7 +41,7 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §3 (+ §2 when producing lines) before output.
+- **Pre-flight:** run response-filter §3 (+ §2 when producing lines) before output.
 - Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning, not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
