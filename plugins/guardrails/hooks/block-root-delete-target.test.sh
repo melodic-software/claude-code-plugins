@@ -797,7 +797,20 @@ rm -rf "${X:-/}/"
 rm -rf "${X%/}/"
 rm -rf "${X:-/}/."
 rm -rf "${X//a/b}"/*
+rm -rf "${X:-${Y:-/}}"/*
+rm -rf "${X:-${Y:-/}}/*"
+rm -rf "${X:-${Y}}"/*
 EOF
+# `:?` aborts on an unset or empty X whatever its message word holds.
+expect_both 'bare variable: "${X:?${Y}}"/* allowed' 0 --command 'rm -rf "${X:?${Y}}"/*'
+expect_both 'bare variable: "${X:?${Y}}"/* allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?${Y}}"/*'
+expect_both 'bare variable: "${X:?/}"/* allowed' 0 --command 'rm -rf "${X:?/}"/*'
+expect_both 'bare variable: "${X:?/}"/* allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?/}"/*'
+# A `${` that never closes is refused; bash rejects it.
+expect_both "bare variable: an unclosed \${ blocks" 2 --command "rm -rf '\${X:-/'/*"
+# Bash passes `${...}` through brace expansion whole, and its first `}` ends
+# it, so `${X:-{a,b}}` leaves a literal `}` behind and is not bare.
+expect_both 'bare variable: ${X:-{a,b}}/* allowed' 0 --command 'rm -rf ${X:-{a,b}}/*'
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
@@ -951,7 +964,8 @@ expect_both 'glob: .. before the glob stays judged, inside the tree allowed' 0 "
 # parse (the 900 sibling bodies above, near twelve seconds on a loaded runner)
 # behaves as it does without the arm. Pinned in the source, since no payload
 # under MAX_COMMAND_LEN parses that slowly on a fast host.
-assert_contains "the deadline is twelve seconds" "$(grep -n '^RDT_DEADLINE=' "$HOOK")" "RDT_DEADLINE=12"
+assert_contains "the deadline is twenty-five seconds" "$(grep -n '^RDT_DEADLINE=' "$HOOK")" "RDT_DEADLINE=25"
+assert_contains "the whole-run ceiling is fifty seconds" "$(grep -n '^RDT_DEADLINE_ABS=' "$HOOK")" "RDT_DEADLINE_ABS=50"
 assert_contains "the parse callback checks the deadline only once the arm has work" \
   "$(sed -n '/^rdt_check_segment() {/,/^}/p' "$HOOK")" "((RDT_T0 >= 0)) && rdt_deadline"
 # Every directory a cd reaches is judged against the PAYLOAD cwd's tree, never

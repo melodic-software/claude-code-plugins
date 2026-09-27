@@ -60,9 +60,10 @@
 #   * A BARE VARIABLE operand: after normalization the word is made of
 #     expansions and nothing else (`$NAME`, `${...}` in any form, a positional
 #     or special parameter, `$X$Y`). Unset or empty, it reaches the working
-#     directory or a root. Only `${X:?}` aborts the command on an empty value
-#     too, so an operand of that form alone, such as `"${X:?}/"`, stays
-#     allowed.
+#     directory or a root. Only `${X:?...}` aborts the command on an empty
+#     value too, so an operand of that form alone, such as `"${X:?}/"`, stays
+#     allowed. A nested `${...}` is one unit judged by its outermost operator:
+#     `${X:-${Y:-/}}` is refused and `${X:?${Y}}` is allowed.
 #   * A target OUTSIDE THE SESSION'S ALLOWED ROOTS, judged only when the
 #     payload carries an absolute `cwd`. A target must resolve under the git
 #     toplevel of the payload cwd, or strictly under a temp root or the payload
@@ -83,8 +84,8 @@
 #     the end, with one realpath, (on Windows) one cygpath and one git for the
 #     whole command. Past 32 directories (counting the starting one), 512
 #     directory-and-target pairs, 256 glob entries in total across the levels
-#     of one glob, 12 seconds of wall time from this arm's first work (through
-#     the rest of the parse and the judgment), or 40 seconds of the hook's
+#     of one glob, 25 seconds of wall time from this arm's first work (through
+#     the rest of the parse and the judgment), or 50 seconds of the hook's
 #     whole run once that work has begun, the guard refuses rather than risk
 #     the hook timeout, and an unexpected error while judging refuses too. An
 #     operand this guard cannot place (an expansion other than a leading HOME,
@@ -498,17 +499,53 @@ rdt_normalize_to() {
   # The name test is what bounds it. `/tmp*`, `~/proj*` and `/c/dev/*` stop at
   # their first named segment and stay ordinary deletes, and a directory
   # literally named `_` (`/_`) is named, so it is not a root.
-  local __rdt_last
-  while [[ "$__rdt_s" == */* ]]; do
-    __rdt_last="${__rdt_s##*/}"
+  #
+  # A slash inside a `${...}` is part of the expansion, not a path separator,
+  # so `${X:-/}` and `${X:-${Y:-/}}` are never cut open.
+  local __rdt_last __rdt_cut
+  while :; do
+    rdt_outer_slash_to __rdt_cut "$__rdt_s"
+    ((__rdt_cut >= 0)) || break
+    __rdt_last="${__rdt_s:__rdt_cut+1}"
     [[ "$__rdt_last" == *[[:alnum:]_]* ]] && break
-    __rdt_s="${__rdt_s%/*}"
+    __rdt_s="${__rdt_s:0:__rdt_cut}"
     if [[ -z "$__rdt_s" ]]; then
       __rdt_s="/"
       break
     fi
   done
   printf -v "$__rdt_dest" '%s' "$__rdt_s"
+}
+
+# rdt_outer_slash_to <var> <text>: the index of the last `/` in <text> that sits
+# outside every `${...}`, or -1. A `${...}` ends where bash ends it: only `${`
+# nests, and the first `}` closes the innermost one, so a bare `{` inside
+# counts for nothing.
+# shellcheck disable=SC2016,SC2329  # literal `${` pattern; invoked from rdt_normalize_to and rdt_strip_tail_to
+rdt_outer_slash_to() {
+  local __os_s="$2" __os_i __os_d=0 __os_cut=-1
+  if [[ "$__os_s" != *'${'* ]]; then
+    if [[ "$__os_s" == */* ]]; then
+      __os_i="${__os_s%/*}"
+      __os_cut=${#__os_i}
+    fi
+    printf -v "$1" '%s' "$__os_cut"
+    return 0
+  fi
+  for ((__os_i = 0; __os_i < ${#__os_s}; __os_i++)); do
+    case "${__os_s:__os_i:1}" in
+    '$')
+      if [[ "${__os_s:__os_i+1:1}" == '{' ]]; then
+        __os_d=$((__os_d + 1))
+        __os_i=$((__os_i + 1))
+      fi
+      ;;
+    '}') ((__os_d > 0)) && __os_d=$((__os_d - 1)) ;;
+    /) ((__os_d == 0)) && __os_cut=$__os_i ;;
+    *) ;;
+    esac
+  done
+  printf -v "$1" '%s' "$__os_cut"
 }
 
 # rdt_is_root <normalized>: true when the operand names a filesystem root.
@@ -836,16 +873,37 @@ rdt_resolved_walk() {
 # and any `${...}`. Only `${NAME:?...}` aborts the command on an empty value as
 # well as an unset one, so an operand whose every unit is that form passes;
 # `${NAME?}`, `${NAME%/}`, `${!NAME}` and a substring do not, and neither does
-# `$X$Y`.
+# `$X$Y`. A `${...}` unit ends where bash ends it: only `${` nests and the first
+# `}` closes the innermost one, so `${X:-${Y:-/}}` is one unit, judged by its
+# outermost operator. A `${` that never closes is refused: bash rejects it, and
+# nothing here can say what it would expand to.
 # shellcheck disable=SC2016,SC2329  # literal `$` patterns; called from the operand loop
 rdt_bare_var() {
-  local s="$1" safe=1 unit inner
-  local re_brace='^\$\{([^}]*)\}' re_plain='^\$([a-z_][a-z0-9_]*|[0-9]|[@*#?$!-])' re_safe='^[a-z_][a-z0-9_]*:\?'
+  local s="$1" safe=1 unit inner i d n
+  local re_plain='^\$([a-z_][a-z0-9_]*|[0-9]|[@*#?$!-])' re_safe='^[a-z_][a-z0-9_]*:\?'
   [[ "$s" == '$'* ]] || return 1
   while [[ -n "$s" ]]; do
-    if [[ "$s" =~ $re_brace ]]; then
-      unit="${BASH_REMATCH[0]}"
-      inner="${BASH_REMATCH[1]}"
+    if [[ "$s" == '${'* ]]; then
+      d=1
+      n=${#s}
+      for ((i = 2; i < n; i++)); do
+        case "${s:i:1}" in
+        '$')
+          if [[ "${s:i+1:1}" == '{' ]]; then
+            d=$((d + 1))
+            i=$((i + 1))
+          fi
+          ;;
+        '}')
+          d=$((d - 1))
+          ((d == 0)) && break
+          ;;
+        *) ;;
+        esac
+      done
+      ((i < n)) || return 0
+      unit="${s:0:i+1}"
+      inner="${s:2:i-2}"
       [[ "$inner" =~ $re_safe ]] || safe=0
     elif [[ "$s" =~ $re_plain ]]; then
       unit="${BASH_REMATCH[0]}"
@@ -887,12 +945,15 @@ rdt_bare_var() {
 # would fail open, and the dispatcher shares one 60 s timeout across every
 # guard it runs. A command this arm has nothing to do for is never timed, so a
 # slow but harmless parse behaves as it did before the arm existed. Past any
-# of them the guard refuses.
+# of them the guard refuses. 25 s and 50 s are sized for a busy host: under
+# heavy load an everyday `rm -rf ./build` took 4 to 8 s end to end on Windows
+# Git Bash, and a 12 s bound refused ordinary deletes; 50 s leaves 10 s of the
+# shared 60 s timeout, with this guard last in the dispatcher chain.
 MAX_ORIGINS=32
 MAX_TARGETS=512
 MAX_GLOB=256
-RDT_DEADLINE=12
-RDT_DEADLINE_ABS=40
+RDT_DEADLINE=25
+RDT_DEADLINE_ABS=50
 RDT_T0=-1
 rdt_cdpath=0
 [[ -n "${CDPATH:-}" ]] && rdt_cdpath=1
@@ -2256,21 +2317,9 @@ rdt_check_segment() {
 # digit or underscore), cut only at a slash that sits outside every `${...}`.
 # shellcheck disable=SC2329  # invoked from rdt_check_operand
 rdt_strip_tail_to() {
-  local __st_w="$2" __st_i __st_c __st_d __st_cut __st_last
+  local __st_w="$2" __st_cut __st_last
   while :; do
-    __st_d=0
-    __st_cut=-1
-    for ((__st_i = 0; __st_i < ${#__st_w}; __st_i++)); do
-      __st_c="${__st_w:__st_i:1}"
-      if [[ "$__st_c" == '$' && "${__st_w:__st_i+1:1}" == '{' ]]; then
-        __st_d=$((__st_d + 1))
-        __st_i=$((__st_i + 1))
-      elif [[ "$__st_c" == '}' ]] && ((__st_d > 0)); then
-        __st_d=$((__st_d - 1))
-      elif [[ "$__st_c" == / ]] && ((__st_d == 0)); then
-        __st_cut=$__st_i
-      fi
-    done
+    rdt_outer_slash_to __st_cut "$__st_w"
     ((__st_cut > 0)) || break
     __st_last="${__st_w:__st_cut+1}"
     [[ "$__st_last" == *[[:alnum:]_]* ]] && break
@@ -2289,9 +2338,8 @@ rdt_check_operand() {
   if rdt_is_root "$norm"; then
     rdt_block "root-operand" "$norm"
   fi
-  # The raw word too, with its trailing nameless segments stripped OUTSIDE any
-  # `${...}`: normalization cuts `${X:-/}` and `${X%/}` at their inner slash,
-  # so `"${X:-/}"/*` would otherwise read as a path.
+  # The raw word too, before backslashes turn into slashes and slash runs
+  # collapse, with its trailing nameless segments stripped OUTSIDE any `${...}`.
   rdt_strip_tail_to raw "${w,,}"
   if rdt_bare_var "$norm" || rdt_bare_var "$raw"; then
     rdt_block "bare-variable" "$w"
@@ -2335,7 +2383,24 @@ rdt_brace_rec() {
   local re_seq='^(-?[0-9]+\.\.-?[0-9]+|[A-Za-z]\.\.[A-Za-z])(\.\.-?[0-9]+)?$'
   while ((i < n)); do
     c="${s:i:1}"
-    if [[ "$c" == '{' ]] && { ((i == 0)) || [[ "${s:i-1:1}" != '$' ]]; }; then
+    if [[ "$c" == '$' && "${s:i+1:1}" == '{' ]]; then
+      # Bash passes a `${...}` through whole, and finds its end by counting
+      # every brace, bare ones included; one that never closes leaves the
+      # rest of the word unexpanded.
+      d=0
+      for ((j = i + 1; j < n; j++)); do
+        case "${s:j:1}" in
+        '{') d=$((d + 1)) ;;
+        '}')
+          d=$((d - 1))
+          ((d == 0)) && break
+          ;;
+        *) ;;
+        esac
+      done
+      ((j < n)) || break
+      i=$j
+    elif [[ "$c" == '{' ]]; then
       rdt_deadline
       d=0
       parts=()
