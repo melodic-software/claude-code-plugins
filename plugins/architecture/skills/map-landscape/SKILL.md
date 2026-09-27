@@ -174,18 +174,20 @@ End every run with this block, in this order, filled from the record and the scr
 - **Edges by type**: `uses-workflow`, `installs-plugin`, `depends-on`, `cites`, each with its count.
 - **Thin result**: `no`, or `yes` with the reason and the one remedy that fits, taken from the
   summary line. Under `--check` it reads `not assessed (--check)`.
-  - `edges=0`: the subject names no other repository. Lead with the wrong rung: a landscape answers
-    which systems exist and how they reference each other, not how one repository is built inside;
-    that is `/architecture:improve` for module structure or `/discovery:explore` for how it works.
-    Then offer `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
-  - `unresolved_edges` above 0: the repository that supplies the edges is not charted. Add it to
-    `--repos`, first.
-  - `edges` minus `unresolved_edges` above `drawn_edges`: the cap hid arrows. Re-render with a larger
-    `--top-external`; nothing needs collecting again.
-  - `drawn_systems` at most 2 with drawn edges: small but real. `--root <dir>`, or `--repos` with the
-    current subject kept first, adds the organization's other repositories as nodes.
-  - Whenever `internal=1`, add the wrong-rung pointer whatever the counts. Never offer `--remote`
-    here: it fills facts for existing nodes and adds no system and no edge.
+  - `edges=0`: the subject names no other repository. Lead by saying this is the wrong tool for the
+    question: a landscape answers which systems exist and how they reference each other, not how
+    one repository is built inside; that is `/architecture:improve` for module structure or
+    `/discovery:explore` for how it works. Then offer
+    `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
+  - `unresolved_edges` above 0: no charted repository has the name the edges come from, so the
+    repository that supplies them is not charted. Add it to `--repos`, first.
+  - `edges` minus `unresolved_edges` above `drawn_edges`: `--top-external` hid some edges.
+    Re-render with a larger `--top-external`; nothing needs collecting again.
+  - `drawn_systems` at most 2 with drawn edges: `--root <dir>`, or `--repos` with the current
+    subject kept first, adds the organization's other repositories as nodes.
+  - Whenever `internal=1`, also point to `/architecture:improve` or `/discovery:explore`, whatever
+    the counts. Never offer `--remote` here: it fills facts for existing nodes and adds no system
+    and no edge.
 - **Unknown facts**: how many fields across the record are the literal `unknown`.
 - **Discovery source**: default (current repository plus reference graph), explicit list, fleet
   plan, or bundled walk.
@@ -209,7 +211,8 @@ End every run with this block, in this order, filled from the record and the scr
 ## Next
 
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
-- The landscape came back thin and the question was how one repository works inside: `/discovery:explore`.
+- The landscape came back thin and the question was how one repository works inside:
+  `/discovery:explore`.
 - The landscape settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas

@@ -19,9 +19,9 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 ### Fixed
 
-- `reference-edges.sh` treats `<owner>/<repository name of the github.com origin remote>` as a
-  self-reference, not only `<owner>/<directory name>`. A worktree or a renamed clone no longer
-  charts its own citations as an edge to a phantom second system.
+- `reference-edges.sh` treats the `owner/repo` of a github.com origin remote as a self-reference,
+  not only `<owner>/<directory name>`. A worktree or a renamed clone of a github.com repository no
+  longer charts its own citations as an edge to a phantom second system.
 - `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
   path.
 

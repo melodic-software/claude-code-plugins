@@ -241,6 +241,17 @@ assert_not_contains "self: the origin remote's repository name is self too" "$ou
 assert_not_contains "self: in any case" "$out" '"to":"Fixture-Owner/Real-Name"'
 assert_contains "self: a real reference in the same file survives" "$out" '"to":"fixture-owner/ci-workflows"'
 
+# git accepts a remote URL with a trailing slash; the repository is still named.
+git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git/"
+out="$(bash "$SCRIPT" "$wt_repo")"
+assert_not_contains "self: a trailing slash on the remote still names self" "$out" '"to":"fixture-owner/real-name"'
+
+# An --owner override moves the subject organization, not the remote's slug:
+# the clone's own origin repository is still self, and the override's
+# namesake is a different repository.
+out="$(bash "$SCRIPT" "$wt_repo" --owner other-owner | tr '[:upper:]' '[:lower:]')"
+assert_not_contains "self: the origin slug stays self under --owner" "$out" '"to":"fixture-owner/real-name"'
+
 # --- Case group 6: the .git suffix ------------------------------------------
 clone_repo="$(make_repo cloner)"
 mkdir -p "$clone_repo/docs"
