@@ -51,7 +51,7 @@ rows before confirming: `apply` edits any listed setup site.
 | contract | Approved plans, briefs, specs, published schemas | Never edit. Write a correction entry to the proposal file below, citing path and line |
 | fixture | Test inputs and expected outputs | Flag for a person. Change only when a test pins a value the source of truth now owns |
 | generated | Files whose header says they are generated or not to be edited | Never edit. Flag for a person with the generator input to change |
-| protected | CI workflows and actions, agent settings, git hook directories (`.husky`, `.githooks`), `hooks.json` manifests, lint configs, migrations; an application's own `hooks/` source folder is not included | Never edit here. Route to a person as its own change; phase E keeps these surfaces out of any batch |
+| protected | CI config (GitHub Actions, GitLab, CircleCI, Azure Pipelines, Jenkins, Travis, Buildkite, Bitbucket), agent settings, git hook directories (`.husky`, `.githooks`), `hooks.json` manifests, lint configs, migrations; an application's own `hooks/` source folder is not included | Never edit here. Route to a person as its own change; phase E keeps these surfaces out of any batch |
 
 The script cannot see a vendored copy (a file synced from another location); reclassify it as
 `generated` and change the source it is copied from.

@@ -80,10 +80,17 @@ PROTECTED_SEGMENTS = (
     ".claude",
     ".husky",
     ".githooks",
+    ".circleci",
+    ".buildkite",
     "migrations",
 )
 PROTECTED_NAMES = (
     "hooks.json",
+    ".gitlab-ci.yml",
+    "azure-pipelines.yml",
+    "jenkinsfile",
+    ".travis.yml",
+    "bitbucket-pipelines.yml",
     "ruff.toml",
     ".ruff.toml",
     "_typos.toml",

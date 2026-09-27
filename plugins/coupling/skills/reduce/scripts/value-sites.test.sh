@@ -341,6 +341,9 @@ FX=$(new_fixture protected)
 put "$FX" .github/workflows/ci.yml 'pin: Q:\vol\one'
 put "$FX" .claude/settings.json '{"dir": "Q:\\vol\\one"}'
 put "$FX" .githooks/pre.sh 'v Q:\vol\one'
+put "$FX" .gitlab-ci.yml 'v: Q:\vol\one'
+put "$FX" Jenkinsfile 'v Q:\vol\one'
+put "$FX" .circleci/config.yml 'v: Q:\vol\one'
 put "$FX" plugins/x/hooks/hooks.json '{"dir": "Q:\\vol\\one"}'
 put "$FX" src/hooks/useConfig.ts 'const DIR = "Q:\vol\one"'
 put "$FX" ruff.toml 'v = "Q:\vol\one"'
@@ -353,13 +356,16 @@ OUT=$(vs find --old 'Q:\vol\one' --root "$ROOT")
 assert_contains "workflow is protected" "$OUT" $'protected\t.github/workflows/ci.yml\t1\t6\texact\tsegment:.github'
 assert_contains "agent settings are protected" "$OUT" $'protected\t.claude/settings.json'
 assert_contains "git hook script is protected" "$OUT" $'protected\t.githooks/pre.sh\t1\t3\texact\tsegment:.githooks'
+assert_contains "GitLab CI config is protected" "$OUT" $'protected\t.gitlab-ci.yml\t1\t4\texact\tname:.gitlab-ci.yml'
+assert_contains "Jenkinsfile is protected" "$OUT" $'protected\tJenkinsfile\t1\t3\texact\tname:jenkinsfile'
+assert_contains "CircleCI config is protected" "$OUT" $'protected\t.circleci/config.yml\t1\t4\texact\tsegment:.circleci'
 assert_contains "hook manifest is protected" "$OUT" $'protected\tplugins/x/hooks/hooks.json\t1\t10\tdoubled\tname:hooks.json'
 assert_contains "an app's own hooks/ folder stays setup" "$OUT" $'setup\tsrc/hooks/useConfig.ts\t1\t14\texact\tdefault'
 assert_contains "lint config is protected" "$OUT" $'protected\truff.toml\t1\t6\texact\tname:ruff.toml'
 assert_contains "pre-commit config is protected" "$OUT" $'protected\t.pre-commit-config.yaml'
 assert_contains "migration is protected" "$OUT" $'protected\tdb/migrations/001.sql\t1\t4\texact\tsegment:migrations'
 assert_contains "README stays setup" "$OUT" $'setup\tREADME.md'
-assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t7'
+assert_contains "summary counts protected" "$(vs find --old 'Q:\vol\one' --root "$ROOT" --format summary)" $'class\tprotected\t10'
 rc=0
 vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" README.md:1 .github/workflows/ci.yml:1 >/dev/null 2>&1 || rc=$?
 assert_exit "apply refuses a protected site" 3 "$rc"
