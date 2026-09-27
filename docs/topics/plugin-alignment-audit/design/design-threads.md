@@ -17,11 +17,11 @@ trigger tag).
 | T4 | Existing overlaps become follow-up issues | RESOLVED |
 | T5 | Own branch off main | RESOLVED |
 | T6 | Name chosen with `/naming:name-it-better` | RESOLVED (process); name itself is T8 |
-| T7 | Phantom "fleet conformance audit" citations | OPEN |
-| T8 | Skill name | OPEN |
-| T9 | Concern registry: home and row shape | OPEN |
-| T10 | Verb-name check: gate or advisory | OPEN |
-| T11 | Follow-up issue list | OPEN (filing needs approval) |
+| T7 | Phantom "fleet conformance audit" citations | RESOLVED: A, this skill becomes that audit |
+| T8 | Skill name | RESOLVED: `audit-plugin-conformance` |
+| T9 | Concern registry: home and row shape | RESOLVED: `docs/conformance-dimensions.md` |
+| T10 | Verb-name check: gate or advisory | RESOLVED: CI gate with baseline |
+| T11 | Follow-up issue list | RESOLVED: #4582-#4586 filed; item 5 waits for the baseline run |
 | T12 | Remaining philosophy rule: dependency inventory classes | DIRECTIONAL |
 | T13 | Script shape: extend vs new, CI wiring | DIRECTIONAL |
 | T14 | Target scope, fan-out and findings persistence | DIRECTIONAL |
@@ -84,7 +84,7 @@ Rationale: independent of the animation and pixel-art plugins it will audit.
 Decision: the name is picked by the user from a `/naming:name-it-better` run, not locked by the
 design. T8 carries the candidates.
 
-## Open (needs the user)
+## Resolved (user decisions, 2026-09-27)
 
 ### T7. Phantom "fleet conformance audit" citations
 
@@ -115,6 +115,11 @@ Recommendation: **A**, with the citation edits landing in the same PR as the ski
 cites a missing skill; C only if the skill slips past one release. A is the reason concern 7 is "the
 new skill's clearest purpose". Unblocks: T9's first registry rows and the skill name's wording (T8).
 
+**Decision (user, 2026-09-27): A.** The skill becomes the fleet conformance audit; every site above is
+rewritten in the skill's PR to cite `/audit-plugin-conformance` and its registry row. Rationale: the
+doctrine keeps its enforcement promises and each one gets a named check, instead of silently dropping
+tracked gaps (B) or shipping a placeholder (C).
+
 ### T8. Skill name
 
 A repo-local skill has no plugin namespace, so the leaf is the whole name. Preliminary candidates,
@@ -132,6 +137,23 @@ Recommendation: run `/naming:name-it-better` with these four as the collision vo
 toward `audit-plugin-conformance`; if chosen, T7's rewrites say "plugin conformance audit". A later
 `realign` sibling (verb table `:136-145`) is out of scope. Unblocks: the skill directory, T7 wording.
 
+**Decision (user, 2026-09-27): `audit-plugin-conformance`.** `/naming:name-it-better` ran three blind
+generators (responsibility-literal, moment-of-use, domain-lore) on a brief without the candidates.
+All three proposed `audit-plugin-conformance`; all three ranked the shorter `audit-conformance` and
+`audit-doctrine` first. Neither shorter form beats it strongly enough to override the lean:
+
+- Scope fit: a repo-local skill has no plugin namespace, and the naming rule says the namespace
+  supplies the object (`:120`). Without "plugin" in the name, nothing says what conforms.
+  `audit-conformance` could read as code, spec or security conformance.
+- Semantic accuracy: "conformance" is the standards term of art for meeting a normative
+  specification, which the philosophy doc is. "Doctrine" is used informally in the doc
+  ("house doctrine") but is not its title, so `audit-doctrine` names the target less exactly.
+- Other generated names dropped: `scan-conformance` (both verbs are read-only; `audit` matches the
+  sibling audits), `audit-marketplace-conformance` (longer, and no clearer), and the "fleet" names
+  (the word already means repos and machines here).
+
+T7's rewrites say "plugin conformance audit".
+
 ### T9. Concern registry: home and row shape
 
 Options for the home:
@@ -148,6 +170,9 @@ dim-9 visible skip, dim-11 seam phrasing, per `hook-observability/README.md:56-5
 rest after them. A script (T13) fails when a row names a check that does not exist. Unblocks: T7,
 the skill body.
 
+**Decision (user, 2026-09-27): A,** at `docs/conformance-dimensions.md`. Rationale as above: docs and
+conventions can cite it without reaching into a skill directory.
+
 ### T10. Verb-name check: gate or advisory
 
 Today every check passes noun skills such as `pixel-art`'s `scene` and `sprite`, which no noun exception
@@ -162,7 +187,10 @@ Recommendation: **A**. It stops new drift at once without forcing renames into t
 `feat/pixel-art` (#4407) would land `scene` and `sprite` as new offenders unless it renames them or
 merges first and gets baselined. Unblocks: T13's CI wiring.
 
-### T11. Follow-up issue list (not filed; filing needs the user's OK)
+**Decision (user, 2026-09-27): A,** a CI gate with a baseline of current offenders. Rationale: stops
+new noun leaves now; existing ones become T11 item 5 instead of blocking this branch.
+
+### T11. Follow-up issue list
 
 From capability-matrix "Existing duplication found" and concern tables:
 
@@ -173,7 +201,7 @@ From capability-matrix "Existing duplication found" and concern tables:
    the others route to it.
 3. `plugin-quality` recurring-concerns section 4 restates SSOT doctrine instead of routing to
    `/docs-hygiene:extract-ssot`.
-4. `scripts/check-plugin-catalog-enablement.sh:72` fetches a hardcoded standards-repo URL (a concern-5
+4. `scripts/check-plugin-catalog-enablement.sh:67` fetches a hardcoded standards-repo URL (a concern-5
    instance).
 5. Noun skill leaves (`pixel-art` `scene`, `sprite`, plus whatever T13's verb script lists at
    baseline time): rename or add an exception.
@@ -182,6 +210,10 @@ From capability-matrix "Existing duplication found" and concern tables:
 Items 4 and 5 of the matrix's list (listing budget three ways, two grouping axes) are deliberate and
 cite each other; not filed. Recommendation: file 1-4 and 6 now; file 5 after the verb script's
 baseline run so the list is complete. Unblocks: nothing in this design; keeps T4's promise.
+
+**Decision (user, 2026-09-27): file 1-4 and 6 now; 5 waits for the baseline run.** No open duplicate
+was found before filing. Filed: 1 = #4582, 2 = #4583, 3 = #4584, 4 = #4585, 6 = #4586. Item 5 is filed
+by the build phase that produces the verb baseline.
 
 ## Directional (recommended; details for `/planning:plan`)
 
