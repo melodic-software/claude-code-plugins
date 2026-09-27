@@ -130,6 +130,20 @@
         "Binds distinct --instance ids to separate telemetry markers so durable state does not clobber across lanes",
         "Does not treat a launch-prompt Scope line as binding \u2014 only the skill invocation's --scope token is enforced"
       ]
+    },
+    {
+      "id": 9,
+      "name": "work-loop-in-flight-candidate-skips-ratification-queue",
+      "prompt": "/work-items:work-loop\n\nCycle 1 of a first drain (first_drain_complete is false). The frontier holds two agent-ready C3 bug-fix-shaped candidates with no ratification marker: #310, which GitHub's closedByPullRequestsReferences links to open draft PR #412 via 'Closes #310', and #311, which has no closing PR. The Open linked PRs query for #311 succeeds.",
+      "expected_output": "Before any classification, the admission gate runs the in-flight precondition through the bound adapter's Open linked PRs operation, applying /work-items:work's candidate-discovery exclusion rule by reference with drafts counted. #310 is excluded: no kind=ratify-c3 comment, no escalation, no dispatch, and no label change (it keeps agent-ready and gains no needs-human). The cycle report lists it as 'in flight: #310 (PR #412)'. #311 proceeds to classification and, as an unratified C3 during the first drain, is queued for ratification per reference/c3-ratification-queue.md (comment first, then the human-gated role label replacing the autonomous-eligible one).",
+      "files": [],
+      "expectations": [
+        "Runs the in-flight check before classifying, queuing, escalating, or dispatching any candidate",
+        "Counts the open draft closing PR as in flight and excludes #310 from the ratification queue",
+        "Posts no kind=ratify-c3 comment on #310 and leaves its labels unchanged",
+        "Reports #310 as 'in flight: #310 (PR #412)' in the cycle report",
+        "Queues #311 for C3 ratification with the comment written before the label edit"
+      ]
     }
   ]
 }

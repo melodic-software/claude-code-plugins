@@ -94,7 +94,9 @@ named here rather than in the template above. Each worker definition pins a defa
 `explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
 **pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
 whose scope earns a different model; it replaces the pin in either direction. Every worker spends
-`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading. The pin
+`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading; why 40
+stays is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
+completion budget". The pin
 outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
 overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
@@ -224,7 +226,7 @@ claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Ten harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Eleven harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
@@ -232,11 +234,13 @@ named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agen
 fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
+Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
 
-**One shared recheck trigger covers all ten:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all eleven:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
 subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
-model resolution, turn-limit output or partial marking, or `SendMessage` resume, or the CLI major
+model resolution, per-invocation subagent parameters, turn-limit output or partial marking, or
+`SendMessage` resume, or the CLI major
 version moves. On any of those, re-fetch the page before
 restating the record, and re-date this section rather than editing a claim in place.
 
@@ -379,6 +383,30 @@ where it stopped rather than starting fresh." *Why the plugin cares.* It is what
 rung rather than a hope. *Not verified:* which text the partial output carries. The page says the
 output is "marked as partial" and does not say whether a payload block the agent emitted mid-run
 is part of it, which is why the agents keep the disk marker as the primary stop signal.
+
+### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
+
+*Claim.* A subagent's `maxTurns` comes from its definition, and the parent cannot change it for
+one dispatch. Every worker definition here sets `maxTurns: 40`. The number is a checkpoint and a
+runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
+gathering at its own stop turn to write before the limit, and a run that still reaches the limit
+completes through the resume in the record above. *Basis.*
+[Create custom subagents](https://code.claude.com/docs/en/sub-agents) lists `maxTurns` as a
+frontmatter field, "Maximum number of agentic turns before the subagent stops". The Agent tool
+call parameters it documents, such as `model` and `name`, include no `maxTurns`. An `--agents`
+JSON definition does accept `maxTurns`, but that route is "Current session", "Pass JSON when
+launching Claude Code", so it defines an agent for the whole session rather than widening one
+dispatch. The CLI's `--max-turns` is a different setting:
+[CLI reference](https://code.claude.com/docs/en/cli-reference), "Limit the number of agentic
+turns (print mode only). Exits with an error when the limit is reached. No limit by default."
+*Why the plugin cares.* No documented or measured basis exists for a different number. Raising
+it would size the budget to a guess, and removing it would drop the guard on unattended runs,
+while a limit stop now returns partial output the parent resumes. `contract.test.sh` holds the
+three definitions to the value this record names, and to a stop turn below it. *Recheck, in
+addition to the shared trigger:* the Agent tool documents a per-invocation `maxTurns`, a resume
+fails to recover a run that reached the limit, or a turns-to-complete distribution is measured
+after the explorer stops re-reading files it already read. Change the number only on one of
+those, and change it here and in all three definitions together.
 
 ## Running the acceptance gate
 

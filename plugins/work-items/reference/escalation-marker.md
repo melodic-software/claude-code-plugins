@@ -22,6 +22,21 @@ match.
 2. Post the marker comment (first line exactly as above, remainder is the human-readable question).
 3. Apply the role label in the **same** label edit as any label removals the outcome requires.
 
+## Proposed work class (optional body line, `kind=escalated`)
+
+When a lane that may not record a class escalates an item for class stamping
+(`/work-items:triage`'s "Lane barred from recording a class" branch), the comment body carries
+one line of the form
+
+```text
+Proposed work class: <label>
+```
+
+where `<label>` is exactly one live `work-class:` label string as the repository spells it (for
+example `work-class: scoped`), followed by its one-line basis. It is a proposal for
+the operator, never an admission input: `attend-queue` reads it to pre-fill the stamp question,
+and no consumer admits, dispatches, or merges on it. The marker `kind` stays `escalated`.
+
 `attend-queue` matches on author **and** marker prefix. Suppress duplicate markers from the same
 write identity, never from marker text alone.
 

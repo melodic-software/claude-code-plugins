@@ -4039,9 +4039,9 @@ hook::reset_analysis_state() {
 # real, the path it names never arrived. The four places that discover an
 # orphaned operand (a second operator, a here-doc opener, a process
 # substitution, the end of a segment) share this one spelling. Reads and writes
-# hook::bash_parse_segments's own locals through dynamic scope, so it is not
-# callable on its own.
-# shellcheck disable=SC2154  # `pend` is a local of hook::bash_parse_segments
+# hook::bash_parse_segments_uncached's own locals through dynamic scope, so it
+# is not callable on its own.
+# shellcheck disable=SC2154  # `pend` is a local of hook::bash_parse_segments_uncached
 hook::_bps_orphan_pending() {
   ((pend)) || return 0
   HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
@@ -4052,9 +4052,9 @@ hook::_bps_orphan_pending() {
 # target of the redirection still waiting for its operand. Called from the four
 # places a word can end (blank, redirection operator, control operator, end of
 # input); single-sourced so those four cannot drift apart on the quoting
-# provenance they record. Reads and writes hook::bash_parse_segments's own
-# locals through dynamic scope, so it is not callable on its own.
-# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
+# provenance they record. Reads and writes hook::bash_parse_segments_uncached's
+# own locals through dynamic scope, so it is not callable on its own.
+# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments_uncached
 hook::_bps_close_word() {
   local _bps_q=0 _bps_last
   if ((wq_quoted || wq_esc)); then
@@ -4082,7 +4082,7 @@ hook::_bps_close_word() {
 # operand that never arrived leaves its redirection OPAQUE: the operator is
 # real, the path it names is not recoverable from this command string.
 # Dynamic scope, like hook::_bps_close_word.
-# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
+# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments_uncached
 hook::_bps_flush_segment() {
   hook::_bps_orphan_pending
   if ((${#seg[@]})); then
@@ -4097,7 +4097,48 @@ hook::_bps_flush_segment() {
   HOOK_SEG_REDIR_OPAQUE=()
 }
 
-# Single linear pass: read the command into a char array once (O(n)), then walk
+# hook::_bps_chars <cmd>: fill hook::bash_parse_segments_uncached's `chars`
+# with the bytes of <cmd>, one per element, in time linear in its length.
+#
+# `${s:i:1}` is not O(1): bash measures the whole of `s` on every expansion
+# (a multibyte scan under a UTF-8 locale, a byte scan under C), so one call per
+# character is quadratic. Measured (#4528): 1.2 s for a 10,000-character
+# command under en_US.UTF-8 and 4.9 s for 20,000, which put a ~70 KB command
+# past the Bash row's 60-second hook timeout. Each slice here is taken from a
+# string of at most 4096, then 64, bytes, so no expansion measures more than
+# that. Bytes rather than characters, under C: every character the tokenizer
+# compares against is ASCII, and no byte of a UTF-8 multibyte sequence is, so
+# a word reassembled from bytes is the word the characters spelled.
+# Dynamic scope, like hook::_bps_close_word.
+hook::_bps_chars() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_bps_chars "$@"
+    return
+  }
+  local __hu_s="$1" __hu_n=${#1} __hu_o1 __hu_o2 __hu_j __hu_big __hu_bn __hu_blk __hu_bl
+  chars=()
+  for ((__hu_o1 = 0; __hu_o1 < __hu_n; __hu_o1 += 4096)); do
+    __hu_big=${__hu_s:__hu_o1:4096}
+    __hu_bn=${#__hu_big}
+    for ((__hu_o2 = 0; __hu_o2 < __hu_bn; __hu_o2 += 64)); do
+      __hu_blk=${__hu_big:__hu_o2:64}
+      __hu_bl=${#__hu_blk}
+      for ((__hu_j = 0; __hu_j < __hu_bl; __hu_j++)); do
+        chars+=("${__hu_blk:__hu_j:1}")
+      done
+    done
+  done
+}
+
+# hook::bash_parse_segments is the name every hook calls, and
+# hook::bash_parse_segments_uncached the same parse under the name a dispatcher
+# that shares one parse across the hooks of an event (guardrails
+# run-guards.sh) falls through to on a miss. Same split as hook::jq_fields.
+hook::bash_parse_segments() {
+  hook::bash_parse_segments_uncached "$@"
+}
+
+# Single linear pass: read the command into a byte array once (O(n)), then walk
 # it splitting top-level segments on UNQUOTED control operators and tokenizing
 # each segment into argv words honoring '…', "…", $'…', backslash escapes
 # (including backslash-newline continuation), and unquoted `#` comments to EOL
@@ -4133,19 +4174,19 @@ hook::_bps_flush_segment() {
 # A segment with redirections but no argv word (`> f` alone) invokes no
 # callback, so its redirections are not reported.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
-hook::bash_parse_segments() {
+hook::bash_parse_segments_uncached() {
   local cmd="$1" cb="$2"
   local -a chars=()
-  local c nx n=${#cmd} i __hu_acd
-  # Walk ${cmd:i:1} in-process. The previous `read -N1` from a process
-  # substitution forked a subshell (and a printf) per parse even though both
-  # are builtins (Command Substitution, Bash Reference Manual;
-  # https://mywiki.wooledge.org/CommandSubstitution). Same character walk as
-  # hook::env_s_split. Cygwin's fork is a non-copy-on-write Win32 CreateProcess
-  # (Cygwin User's Guide, Process Creation).
-  for ((i = 0; i < n; i++)); do
-    chars+=("${cmd:i:1}")
-  done
+  local c nx n i __hu_acd
+  # In-process, not `read -N1` from a process substitution, which forked a
+  # subshell (and a printf) per parse even though both are builtins (Command
+  # Substitution, Bash Reference Manual;
+  # https://mywiki.wooledge.org/CommandSubstitution); Cygwin's fork is a
+  # non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+  # Creation). Not a here-string either: one at or above the pipe capacity
+  # can block the shell (hook::json_complete).
+  hook::_bps_chars "$cmd"
+  n=${#chars[@]}
   # `pend` is set while a redirection is waiting for its operand word: the next
   # word to close becomes that target instead of an argv word.
   local word="" have=0 pend=0 rop_txt="" rfd_next="" rdup=""

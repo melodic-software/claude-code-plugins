@@ -58,8 +58,9 @@
 #
 # Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
 #
-# Exit: 0 = written; 1 = the record is unreadable or not schema_version 1, or
-# the output directory does not exist; 2 = usage.
+# Exit: 0 = written; 1 = the record is unreadable, not schema_version 1, or not
+# in the one-object-per-line layout landscape-record.sh writes (nothing is
+# written then), or the output directory does not exist; 2 = usage.
 set -uo pipefail
 
 usage() {
@@ -153,6 +154,44 @@ esac
 [[ -z "$notes" || -r "$notes" ]] || die "cannot read notes: $notes" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
+
+# The readers below match objects by line, so a record that is valid JSON in
+# another layout (compacted, or one key per line) would match nothing and read as
+# empty. Shared with landscape-record.sh: each array is either empty on its key's
+# line, or opens alone on that line and holds one object of the expected shape
+# per line until its closing bracket. Prints the first problem, or nothing.
+read -r -d '' LAYOUT_AWK <<'AWK' || true
+BEGIN {
+  shape["repositories"] = "^[[:space:]]*[{]\"name\":"
+  shape["edges"] = "^[[:space:]]*[{]\"from\":"
+}
+function open_array(key,   rest) {
+  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
+  rest = substr($0, RSTART + RLENGTH)
+  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
+  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
+  problem = "the " key " array does not start on a line of its own"
+}
+open != "" {
+  if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
+  if ($0 !~ shape[open]) { problem = "line " NR " is not one " open " object"; exit }
+  next
+}
+{
+  open_array("repositories")
+  if (problem == "" && open == "") open_array("edges")
+  if (problem != "") exit
+}
+END {
+  if (problem == "" && open != "") problem = "the " open " array never closes"
+  if (problem == "" && !("repositories" in seen)) problem = "no repositories array was found"
+  if (problem == "" && !("edges" in seen)) problem = "no edges array was found"
+  print problem
+}
+AWK
+layout_problem="$(awk "$LAYOUT_AWK" "$record")"
+[[ -z "$layout_problem" ]] ||
+  die "record is not in the one-object-per-line layout landscape-record.sh writes ($layout_problem); regenerate it: $record" 1
 
 # Which organization the landscape is drawn from. A checkout is internal because
 # its owner matches this one, not because someone happened to have it on disk.

@@ -143,7 +143,7 @@ jobs:
   # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
   # PowerShell commands, so Linux tests it faithfully.
   #
-  # Three surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
+  # Four surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
   # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
   # the Windows filesystem, and `cygpath` short-name (8.3) resolution. #2774's
   # disk-hygiene read-only Bash allowlist is NT-specific (MSYS path mapping,
@@ -151,7 +151,9 @@ jobs:
   # Windows allowlist shipped green. And the MSYS-to-Windows emit helper exists
   # for its NT branch: cygpath's answer cannot be faked on Linux, so on a Linux
   # runner those cases report NOT EXERCISED and the suite is green having
-  # proved nothing about them.
+  # proved nothing about them. And the gaming plugin's DLSS 5 script is
+  # Windows-only by its own header (backslash paths, Authenticode), so its
+  # selftest SKIPs on every other OS and ran in no CI before this lane.
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
@@ -209,3 +211,8 @@ jobs:
       # discovered.
       - name: Test the file-name rename executor on Windows
         run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
+      # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
+      # when pwsh is missing, which would read as green here. The selftest's
+      # exit code is its failure count.
+      - name: Run the gaming DLSS 5 selftest on Windows
+        run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest

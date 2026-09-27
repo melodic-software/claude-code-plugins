@@ -131,6 +131,20 @@ to_native_path() {
   printf '%s' "$text"
 }
 
+# An MSYS mount such as /tmp carries no drive letter for to_native_path to rewrite; only the mount
+# table knows it is %LOCALAPPDATA%\Temp. cygpath reads that table and ships with Git for Windows
+# and MSYS2. It forks once per call, so it is kept to the file paths an operator must open from
+# another shell, not run over every report value. The result goes to a named variable rather than
+# stdout so a non-Windows path reaches the report byte-for-byte, trailing newlines included.
+to_native_file_path() { # <out-var> <path>
+  local path="$2" native
+  if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
+    native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then
+    path="$native"
+  fi
+  printf -v "$1" '%s' "$path"
+}
+
 # True when $1 is well-formed UTF-8 (the RFC 3629 section 4 grammar: no overlong form, surrogate,
 # code point above U+10FFFF, or stray/truncated continuation byte) made only of printable
 # characters. Rejected even when well-formed: C0 controls and DEL, C1 controls U+0080..U+009F (U+009B
@@ -1692,13 +1706,15 @@ BARE_LIVE_TREE_EVIDENCE=()
 BARE_LIVE_TREE_COMMON_KEYS=()
 
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
-# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
-# plus the scope remedies, because the operator did not choose this path and the bare rejection
-# gives them nothing to act on.
+# prerequisite. "config" and "discovery" return 1 so the caller records a stale-config entry or a
+# discovery-skip and continues: a husk a package cache left under --root (uv writes a zero-byte
+# .git into its sdists cache) must not abort every repository after it. "cli" and "default" stop
+# the run. "default" is the implicit no-argument target — the same hard failure, plus the scope
+# remedies, because the operator did not choose this path and the bare rejection gives them
+# nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
-  [[ "$origin" == "config" ]] && return 1
+  [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
   printf 'Error: ' >&2
   display_value "$message" >&2
   printf '\n' >&2
@@ -3180,9 +3196,11 @@ fi
   printf '\n  ]\n'
   printf '}\n'
 } >"$PLAN_FILE" || fail "cannot write plan file: $PLAN_FILE"
-print_field 'Action plan' "$PLAN_FILE"
+plan_file_display=""
+to_native_file_path plan_file_display "$PLAN_FILE"
+print_field 'Action plan' "$plan_file_display"
 printf 'Apply dry-run: %s --apply-plan ' "$0"
-display_value "$PLAN_FILE"
+display_value "$plan_file_display"
 printf '\n'
 
 # --- Optional detail: collapsed per-target blocks + confidence groups -------

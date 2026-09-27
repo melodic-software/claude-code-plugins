@@ -804,18 +804,29 @@ _scratch_abs_target() {
   esac
 }
 
+# Why the most recent scratch_target_exempt call refused its operand, read only
+# by block_bypass: a code, empty after a grant. Reset on every call, so a block
+# always reads the refusal of the target it blocked on, never an earlier lane's.
+# Codes, in the order the function tests them, which is their precedence:
+# opaque, quoted, no-root, relative, unnormalized, then the root compare's
+# resolves-outside, plugin-data-unconfirmed and not-under-any-root.
+# temp-default-off is not set here: it is a not-under-any-root refusal of a temp
+# target, and block_bypass derives it, so a refusal that does not block (a
+# staged-move destination with no staged source) pays no temp-root probe.
+# _BBH_SCRATCH_REFUSED_AT holds the normalized target that derivation reads.
+_BBH_SCRATCH_REFUSAL=""
+_BBH_SCRATCH_REFUSED_AT=""
+
 # 0 when the target <$1> lies strictly under a configured scratch root or a
 # shipped default. $2 is 1 when quoting or an escape produced that text, $3 when
 # the parse could not resolve it at all. Called only after a segment has already
 # matched a producer + real-file redirect, so it adds no work to the per-call hot
-# path, and it returns on the first line when no root is configured.
+# path. Sets _BBH_SCRATCH_REFUSAL on every refusal.
 scratch_target_exempt() {
   local target="$1" tgt_quoted="$2" tgt_opaque="$3" norm_target root roots abs
-  # Nothing to compare against: no configured root AND no usable project root,
-  # which is the only state in which the shipped default cannot fire either.
-  # Keeps the unconfigured, project-less path returning on the first line as it
-  # always did.
-  [[ -n "$_SCRATCH_ROOTS" || -n "$_BBH_PROJECT_NORM" ]] || return 1
+  local lexical_miss=""
+  _BBH_SCRATCH_REFUSAL=""
+  _BBH_SCRATCH_REFUSED_AT=""
   # FAIL CLOSED on an operand whose pathname is not dependably what reaches the
   # compare, before anything else. All three tests are keyed on the OPERAND, from
   # the provenance the shared parse carries with it — not on the raw command.
@@ -844,19 +855,43 @@ scratch_target_exempt() {
   # exemption where it was refused, and both land only on a target the parse
   # proves was bare — `echo x > /tmp/scratch/f && grep foo "notes.txt"` and
   # `echo "a > b" > /tmp/scratch/f` are exempt again.
-  ((tgt_opaque)) && return 1
-  ((tgt_quoted)) && return 1
-  [[ "$target" == *\\* ]] && return 1
+  if ((tgt_opaque)); then
+    _BBH_SCRATCH_REFUSAL=opaque
+    return 1
+  fi
+  if ((tgt_quoted)) || [[ "$target" == *\\* ]]; then
+    _BBH_SCRATCH_REFUSAL=quoted
+    return 1
+  fi
+  # Nothing to compare against: no configured root AND no usable project root,
+  # which is the only state in which the shipped default cannot fire either.
+  if [[ -z "$_SCRATCH_ROOTS" && -z "$_BBH_PROJECT_NORM" ]]; then
+    _BBH_SCRATCH_REFUSAL="no-root"
+    return 1
+  fi
   # Place the target absolutely before normalizing. Until #3719 this axis refused
   # every relative target outright; it now resolves one against the payload cwd
   # when — and only when — that cwd is the directory the redirect demonstrably
   # runs in. _scratch_abs_target owns that judgment and still refuses everything
   # it cannot place, so the fail-closed set only ever shrinks by targets proven
   # placeable.
-  abs=$(_scratch_abs_target "$target") || return 1
-  [[ -n "$abs" ]] || return 1
-  _norm_path "$abs" || return 1
-  [[ -n "$_NORM_PATH" ]] || return 1
+  if ! abs=$(_scratch_abs_target "$target"); then
+    # `> $f` is relative-shaped, but its reason is the `$`: placing it would not
+    # have exempted it.
+    case "$target" in
+    *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) _BBH_SCRATCH_REFUSAL=unnormalized ;;
+    *) _BBH_SCRATCH_REFUSAL=relative ;;
+    esac
+    return 1
+  fi
+  if [[ -z "$abs" ]]; then
+    _BBH_SCRATCH_REFUSAL=opaque
+    return 1
+  fi
+  if ! _norm_path "$abs" || [[ -z "$_NORM_PATH" ]]; then
+    _BBH_SCRATCH_REFUSAL=unnormalized
+    return 1
+  fi
   # Case-folded once here rather than at each comparison: the configured roots are
   # lowercased below, the memory-tier default is lowercased at its assignment, and
   # a target that arrived absolute came off the lowercased command stream already.
@@ -872,6 +907,7 @@ scratch_target_exempt() {
   if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_temp_default_applies &&
     hook::under_temp_root "$norm_target"; then
     _bbh_default_confirmed "$norm_target" && return 0
+    lexical_miss="resolves-outside"
   fi
   # THE SECOND SHIPPED DEFAULT — the plugin data directory, once this session is
   # one it applies to. Lexically matched first, then confirmed through symlink
@@ -881,6 +917,7 @@ scratch_target_exempt() {
   if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_plugin_data_default_applies &&
     [[ "$norm_target" == "$_BBH_PLUGIN_DATA_NORM"/* ]]; then
     _bbh_plugin_data_confirmed "$norm_target" && return 0
+    [[ -n "$lexical_miss" ]] || lexical_miss="plugin-data-unconfirmed"
   fi
   roots="$_SCRATCH_ROOTS"
   while [[ -n "$roots" ]]; do
@@ -896,6 +933,8 @@ scratch_target_exempt() {
     # is what makes this a component compare and not a string prefix.
     [[ "$norm_target" == "$_NORM_PATH"/* ]] && return 0
   done
+  _BBH_SCRATCH_REFUSAL="${lexical_miss:-not-under-any-root}"
+  _BBH_SCRATCH_REFUSED_AT="$norm_target"
   return 1
 }
 
@@ -1152,55 +1191,93 @@ py_inline_invocation() {
   return 1
 }
 
-# The scope this guard actually has, stated where a reader meets it. Without it
-# the block reads as "shell file writes are blocked" and is over-trusted in both
-# directions: an agent contorts around a restriction a script file does not
-# have, and a human credits the guard with coverage it never claimed. The guard
-# is a speed bump against specific accidental write-workaround forms in one
-# command string, not a boundary — and it is deliberately producer-scoped, so
-# ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) and
-# other unmodeled Bash write utilities (POSIX `tee`, inline `node -e`, …) are
-# allowed by design too, not only writes inside an invoked script.
-# These notes state the ENFORCED surface to the operator, so they are part of the
-# detector's contract, not commentary: understating it invites the "guard says it
-# cannot see this" contortion the paragraph above describes, and overstating it is
-# the false-assurance failure. #2217 widened the python lane from the literal
-# `python3 -c` to the interpreter family plus a stdin heredoc, and left both notes
-# saying `inline python3 -c only` — materially wrong about a safety guard's own
-# reach. Restated at the shipped width, with the residuals named at theirs.
-_BYPASS_SCOPE_NOTE_BASH="Scope: only this command string is inspected — known shell \
-file-write forms plus inline python code (python/python3/py/pypy with -c, or a \
-program read from stdin as python3 - <<PY) only, plus a same-command staged \
-move (effective redirect target reused as mv|cp source with dest outside \
-configured scratch roots). POSIX tee pipe writes, other inline-interpreter \
-writes (e.g. node -e, sed -i), a stdin heredoc with no - argument (python3 <<PY), \
-writes inside an invoked script file or a program's own opaque code, redirects \
-produced by another program that are not later mv|cp-moved in the same command, \
-cross-tool-call staging, variable-carried staging paths, and other movers \
-(install, rsync, dd), are not seen."
-_BYPASS_SCOPE_NOTE_PWSH="Scope: only this command string is inspected — known PowerShell \
-file-write cmdlets and content-producer redirects (including Tee-Object and the \
-tee alias) plus inline python code (python/python3/py/pypy with -c) only. Other \
-inline-interpreter writes (e.g. node -e), writes inside an invoked script file or \
-a program's own opaque code, and redirects produced by another program, are not \
-seen."
+# The block message (#4679). stderr is the model channel on exit 2, so it carries
+# only what the blocked agent can act on: the verdict, the Write/Edit remedy,
+# and on the redirect and staged-move lanes why the target was not
+# scratch-exempt plus the roots that would have exempted it. The PowerShell and
+# python lanes never consult a scratch root, so their remedy names none.
+#
+# The operator's levers and the guard's scope are not the agent's to act on.
+# The levers go on systemMessage once per (session, agent), latched by
+# hook::notice_once with its every-N renewal declined, so a long session of
+# blocks is one notice. The enforced scope, the list of write forms this guard
+# does not inspect, lives in the guardrails README ("block-hook-bypass inspects
+# one command string"), not on every block.
+#
+# Until a human has confirmed interactively that an exit-2 PreToolUse
+# systemMessage renders, stderr keeps a one-line pointer to the README, so the
+# levers stay reachable if it does not.
+
+# The reason line for a scratch refusal code, in _BBH_REFUSAL_LINE. $1 is the
+# code, $2 the noun the lane names its operand by.
+_BBH_REFUSAL_LINE=""
+_bbh_refusal_line() {
+  local code="$1" noun="$2"
+  case "$code" in
+  opaque) _BBH_REFUSAL_LINE="The $noun could not be read as one pathname." ;;
+  quoted) _BBH_REFUSAL_LINE="A quoted or escaped $noun is never scratch-exempt." ;;
+  no-root) _BBH_REFUSAL_LINE="No scratch root is configured and the project root is unknown." ;;
+  relative) _BBH_REFUSAL_LINE="A relative $noun is not exempt after a directory change or without a known cwd; use an absolute path." ;;
+  unnormalized) _BBH_REFUSAL_LINE="A $noun holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." ;;
+  temp-default-off) _BBH_REFUSAL_LINE="The project root is itself under the temp directory, so the temp directory is not exempt." ;;
+  resolves-outside) _BBH_REFUSAL_LINE="The $noun resolves outside the exempt root." ;;
+  plugin-data-unconfirmed) _BBH_REFUSAL_LINE="The $noun could not be confirmed under the plugin data directory and outside the project root." ;;
+  not-under-any-root) _BBH_REFUSAL_LINE="The $noun is not under an exempt root." ;;
+  *) _BBH_REFUSAL_LINE="" ;;
+  esac
+}
+
+# The roots that exempt a bare target in this session, comma-joined in
+# _BBH_EXEMPT_ROOTS, empty when none applies: the configured list as spelled,
+# then the plugin data directory and the temp tree when their defaults apply.
+_BBH_EXEMPT_ROOTS=""
+_bbh_exempt_roots() {
+  local roots="$_SCRATCH_ROOTS" root out=""
+  while [[ -n "$roots" ]]; do
+    root="${roots%%,*}"
+    if [[ "$root" == "$roots" ]]; then roots=""; else roots="${roots#*,}"; fi
+    root="${root#"${root%%[![:space:]]*}"}"
+    root="${root%"${root##*[![:space:]]}"}"
+    [[ -n "$root" ]] || continue
+    _norm_path "${root,,}" || continue
+    [[ -n "$_NORM_PATH" ]] || continue
+    out+="${out:+, }$root"
+  done
+  if [[ -n "$_BBH_PROJECT_NORM" ]]; then
+    _bbh_plugin_data_default_applies && out+="${out:+, }$_bbh_plugin_data_dir"
+    _bbh_temp_default_applies && out+="${out:+, }the OS temp directory"
+  fi
+  _BBH_EXEMPT_ROOTS="$out"
+}
 
 block_bypass() {
-  local form="$1" reason="$2"
-  # Operator levers live on stderr. systemMessage is an exit-0 JSON field
-  # (docs/conventions/hook-observability); Claude Code discards it on exit 2.
-  # Keep the same text on systemMessage for any host that does parse it.
-  local operator_msg="guardrails block-hook-bypass blocked a shell file-write. The blocked agent cannot toggle this guard (the switch is not actionable by the blocked agent). Narrower levers, in order: (1) block_hook_bypass_scratch_roots for a target-scoped scratch exemption; (2) session-scoped claude --settings; (3) user-global block_hook_bypass_enabled via /plugin configure — that option is user-scoped and persists in every repository where guardrails is enabled. Re-enable it when the bypass is no longer needed."
+  local form="$1" reason="$2" noun=target code
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
-  echo "If Write or Edit is refused for a path in the main checkout (isolated session / worktree), write under a directory listed in block_hook_bypass_scratch_roots, or ask the operator for a session-scoped disable via claude --settings. The user-global block_hook_bypass_enabled switch is last resort — it persists across every repository." >&2
-  echo "$operator_msg" >&2
-  if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-    echo "$_BYPASS_SCOPE_NOTE_PWSH" >&2
-  else
-    echo "$_BYPASS_SCOPE_NOTE_BASH" >&2
+  case "$form" in
+  cat-redirect | echo-redirect | staged-write-move)
+    [[ "$form" == staged-write-move ]] && noun="move destination"
+    code="$_BBH_SCRATCH_REFUSAL"
+    if [[ "$code" == not-under-any-root && -n "$_BBH_PROJECT_NORM" ]] &&
+      ! _bbh_temp_default_applies && hook::under_temp_root "$_BBH_SCRATCH_REFUSED_AT"; then
+      code="temp-default-off"
+    fi
+    _bbh_refusal_line "$code" "$noun"
+    [[ -n "$_BBH_REFUSAL_LINE" ]] && echo "$_BBH_REFUSAL_LINE" >&2
+    _bbh_exempt_roots
+    [[ -n "$_BBH_EXEMPT_ROOTS" ]] &&
+      echo "A bare $noun under these roots is exempt: $_BBH_EXEMPT_ROOTS." >&2
+    echo "If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots." >&2
+    ;;
+  *)
+    echo "If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only." >&2
+    ;;
+  esac
+  echo "Operator levers for this guard: the guardrails README, block-hook-bypass." >&2
+  if hook::notice_once "guardrails-block-hook-bypass-levers" "$INPUT" &&
+    [[ "$HOOK_NOTICE_KIND" == full ]]; then
+    hook::emit_channels PreToolUse "" "guardrails block-hook-bypass blocked a shell file-write. Its levers, narrowest first: (1) block_hook_bypass_scratch_roots, a target-scoped exemption for Bash redirect targets; (2) a session-scoped disable via claude --settings; (3) the user-global block_hook_bypass_enabled switch via /plugin configure, which persists in every repository where guardrails is enabled, so re-enable it once the bypass is no longer needed. This guard is a deterrent over one command string, not a sandbox; the guardrails README lists what it does not inspect."
   fi
-  hook::emit_channels PreToolUse "" "$operator_msg"
   emit_tel "blocked" "$form"
   exit 2
 }

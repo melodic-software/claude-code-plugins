@@ -85,6 +85,19 @@
         "Does not extend the mechanical-gate allowance to postures other than P7",
         "Does not treat mere Bash access as satisfying the destructive-capable predicate"
       ]
+    },
+    {
+      "id": 8,
+      "name": "clean-audit-still-verifies-verdicts",
+      "prompt": "/claude-config:audit-prompting-postures project: every component came back PRESENT or NOT-APPLICABLE and there is nothing to propose. Does Phase D still run, and what does the report say about it?",
+      "expected_output": "Yes. With no proposed addition there is nothing to refute, so the Phase D verifier checks the verdicts instead: it argues that a component needs a posture it was judged not to need, that a purpose classification is wrong, or that a PRESENT citation does not carry the posture. Any reversal becomes a row with its corrected verdict and the verifier's argument, and the audit is reported clean only after that check. The report ends with a verifier attestation line naming the surface batches and stating that the verifier ran the verdicts check.",
+      "files": [],
+      "expectations": [
+        "Runs Phase D on a zero-MISSING run rather than skipping it for lack of proposals",
+        "Points the verifier at the classifications and the PRESENT and NOT-APPLICABLE verdicts, not at proposals",
+        "Reports a reversal as a row with its corrected verdict instead of discarding it",
+        "Ends with an attestation line that names surface batches and says the verdicts check ran"
+      ]
     }
   ]
 }
