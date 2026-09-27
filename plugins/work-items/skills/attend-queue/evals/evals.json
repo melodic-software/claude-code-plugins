@@ -75,6 +75,19 @@
         "Surfaces the binding-presence check before session-start reclaim when the binding is absent — not deferred past reclaim to a raw exit 3",
         "Does not require a shard argument or operator convention for single-session runs"
       ]
+    },
+    {
+      "name": "attend-queue-proposed-class-stamp-then-flip",
+      "prompt": "/work-items:attend-queue\n\n#4400 carries needs-human and status:ready and has no work-class: label. Its escalation comment, authored by the tracker's write identity, starts <!-- work-items:escalation lane=work-loop kind=escalated --> and carries 'Proposed work class: work-class: mechanical' with a one-line basis. This session's standing direction forbids writing work-class: labels; the operator applies them. The operator confirms the proposed class.",
+      "expected_output": "Lists #4400 as an [escalated] row, claims it, restates the item, the proposed class with its basis, and the consequence of confirming or changing it. It does not perform the plain flip, because the item has no work-class: label. After the operator confirms, it hands the operator one ready-to-paste edit that adds work-class: mechanical and the autonomous-eligible role and removes the human-gated role, and it never runs a work-class: label write itself. Once a re-read shows the labels landed, it records the stamped class as a reply comment and clears @me while the claim is still held. A C4/C5 answer would have applied the class label alone and left the item human-gated.",
+      "files": [],
+      "expectations": [
+        "Refuses the plain role flip on an item with no work-class: label",
+        "Presents the marker's proposed class and basis to the operator before acting",
+        "Hands the operator a single ready-to-paste edit covering the class label and the role flip, rather than writing the work-class: label itself",
+        "Re-reads the labels before clearing @me, and clears it while the claim is held"
+      ],
+      "id": 6
     }
   ]
 }
