@@ -40,8 +40,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - `tests/interview-defenses.test.sh` adds digests over the interview `SKILL.md` Step 2
   section, the `loop.md` Step 2 and relentless-mechanics sections,
   `context/assumption-sweep.md`, and the `audit-answers` Step 1 and Step 4 sections, plus
-  phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 19 to
-  22, none of which contradicts case 15 or 16. No existing section digest changed.
+  phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 20 to
+  23, none of which contradicts case 15 or 16. No existing section digest changed.
 
 ## [0.43.0] - 2026-09-27
 
