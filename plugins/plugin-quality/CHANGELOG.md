@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.25] - 2026-09-27
+
+### Added
+
+- `report` ships a byte-identical copy of discovery's return contract. `auditor` preloads `plugin-quality:report`.
+
 ## [0.7.24] - 2026-09-27
 
 ### Fixed

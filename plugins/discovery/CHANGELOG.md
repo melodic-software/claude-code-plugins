@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.24.7] - 2026-09-27
+
+### Added
+
+- `report` is the return contract for an agent a plugin skill dispatches: problems first, one fenced block, every claim graded off disk by the parent. `explorer`, `intent-tracer`, and `researcher` preload `discovery:report`. The canonical copy lives here; implementation and plugin-quality ship byte-identical copies.
+
 ## [0.24.6] - 2026-09-27
 
 ### Changed

@@ -6,11 +6,13 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]" "$@"
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0'
+wit_help_if_requested "$usage" "$@"
 
 ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
