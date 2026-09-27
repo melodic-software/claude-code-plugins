@@ -21,6 +21,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - The `branch_issue_pattern` `userConfig` option. It is still read as a fallback after the cascade, with a deprecation note on stderr naming the cascade key, until a later minor release removes it, no earlier than 2026-12-27.
 
+## [0.60.1] - 2026-09-27
+
+### Fixed
+
+- The babysit stuck-check route for a wrong `runs-on` label points at the branch's own workflow YAML. An organization-owned label is resolved by reading the vendored standards `runner-policy` component and `docs/ci-runner-routing.md`.
+
 ## [0.60.0] - 2026-09-26
 
 ### Added

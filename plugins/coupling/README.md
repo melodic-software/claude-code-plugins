@@ -38,7 +38,17 @@ for a one-to-one call, is refused.
 /coupling:reduce src/billing     # narrowed to a path
 /coupling:reduce dry-run docs    # findings and ledger only, no edits
 /coupling:reduce status          # what is open, applied, routed, and recommended next
+/coupling:reduce change old new  # every site stating a changed value, classified, no edits
+/coupling:reduce change apply old new  # the same, then change the confirmed setup sites
 ```
+
+`change` is the reactive side of the same model. A value stated in N places is connascence of
+value; when that value changes, the skill finds every spelling of it, sorts each site into setup
+(examples, help text, defaults: change it and make it point at the owner), record (history: leave
+it), contract (approved plans and specs: propose a correction), fixture (ask a person),
+generated (change the generator), protected (CI, settings, hooks, lint configs, lock files, migrations:
+route to a person), or unknown (a file kind the script does not recognize: read it first), and
+edits only after confirmation.
 
 ## Consumer conventions
 
