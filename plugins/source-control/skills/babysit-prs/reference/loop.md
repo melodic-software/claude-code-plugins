@@ -116,7 +116,7 @@ PRs not needing attention are reported in a one-line status summary and skipped.
 ### 5.0.4 Structured finding extraction
 
 Finding extraction lives in the plugin-scope reference,
-[review-discipline.md](../../../reference/review-discipline.md) §2, including the MANDATORY
+[review-discipline.md](../../../reference/review-discipline.md) §2, including the
 subagent dispatch for ≥3-finding comments, the verbatim scope-fenced dispatch prompt, the ledger
 contract, and the main-session contract after the subagent returns. Apply it exactly; the
 finding-classification gate (§5.1.3 step E) mechanically enforces that classification rows cover

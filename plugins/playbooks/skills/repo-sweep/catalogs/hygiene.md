@@ -87,7 +87,7 @@ melodic-software/claude-code-plugins#4503.
 
 ### provenance
 
-- skill: provenance:audit
+- skill: attribution:audit
 - args: sweep
 - applies-when: repo has tracked markdown
 - checked: true
