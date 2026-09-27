@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.3] - 2026-09-27
+## [0.14.4] - 2026-09-27
 
 ### Changed
 
@@ -12,6 +12,16 @@ only after that version increases.
   pre-compute block each.** The rows and their labels are unchanged. Each `node -e` probe gains
   the fallback it lacked, so a host without `node` renders `MISSING - node not found` instead of
   failing the skill load.
+
+## [0.14.3] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
 
 ## [0.14.2] - 2026-09-25
 

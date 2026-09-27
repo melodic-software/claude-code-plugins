@@ -3,7 +3,7 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.39] - 2026-09-27
+## [0.7.40] - 2026-09-27
 
 ### Changed
 
@@ -12,6 +12,16 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   calls. Both probes are pre-approved in `allowed-tools`, since a load-time command that is not
   allowed aborts the skill outside auto mode. `apply install-build-deps` keeps its live guards,
   and a policy-disabled injection falls back to the Bash probe.
+
+## [0.7.39] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
 
 ## [0.7.38] - 2026-09-25
 

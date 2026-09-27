@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.2] - 2026-09-27
+## [0.43.1] - 2026-09-27
 
 ### Changed
 
@@ -13,6 +13,162 @@ All notable changes to the `planning` plugin are documented here. Format follows
   loads from a worktree-isolated agent. When the working directory is not the repository root, or
   the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
   post-write verification still re-reads the file live.
+
+## [0.43.0] - 2026-09-27
+
+### Added
+
+- **`interview` page:** an Activity panel (fly-out tab, strip button with an unseen-count badge,
+  and a single-key shortcut) lists what Claude did, newest first. Each `apply` or CLI write
+  whose ops include `reply`, `note-reply`, `revise`, `add`, `add-round`, `archive`,
+  `record-terminal`, `wait`, `confirm-commitments` or `restate` logs one summary entry, and an
+  `activity` op logs its own; the newest 200 are kept.
+- **`interview` page:** a header Claude line shows the current status with its age, else the
+  working text while events are unhandled, else the newest Activity entry.
+- **`interview` surface:** `apply` ops `set-status` (set or clear the Claude line), `wait`
+  (hold a question, or end the hold) and `activity` (log off-page work such as a ledger update,
+  a gate run, or research dispatched or returned). `context/surface.md` says when to post and
+  clear them around off-thread work, with one watcher only.
+- **`interview` surface:** `wait` takes `by`: `claude` (the default) holds a question as
+  pending research, and `user` holds it as needing the user's answer and sets aside the
+  decision recorded before it (`setAsideSeq` for a page decision, `setAsideAt` for a terminal
+  one), so only the user's next decision counts, including a `record-terminal` later in the
+  same `apply`. An imported ledger row stays open in the export while held and after. A held
+  row exports as `waits on:: <text>` or `awaiting user:: <text>`, then `; answer: <answer>`
+  for the decision that counts, else `; aside: <decision>` for the newest one a user hold set
+  aside, `; note: <note>` for that accept's or alternative's note, and
+  `; confirmed: <c1>; <c2>` for its confirmed commitments; a held superseded-by-plan row keeps
+  its status and leads with `plan proposes: <new>; was: <old>`. Each field is escaped on its
+  own (`\\`, `\;`, `\|`, `\n`, `\t`, `\r`, and other whitespace and a field's trailing spaces
+  as `\uXXXX`), so any hold text, answer, proposal or commitment round-trips through
+  `import-ledger`, which restores the hold, the answer (accept, alternative, own or defer), the
+  set-aside decision (still set aside, so the page shows it as set aside), the note, the
+  confirmed commitments and the proposal. The double colon marks an escaped row; an older
+  `waits on: ...` row is read as before, without unescaping. A superseded-by-plan row whose hold
+  was cleared, or whose page answer a cleared hold set aside, keeps its proposal: it reads
+  `plan proposes: <new>; was: <old>` when that reads back the same pair, else the escaped
+  `plan proposes:: <new>; was: <old>`. An open row with only confirmed commitments reads
+  `confirmed:: <c1>; <c2>`, escaped, and `import-ledger` restores them as confirmed
+  commitments; an older `confirmed: ...` or `; confirmed: ...` row still imports, split at each
+  semicolon and space without unescaping. A superseded-by-plan row with confirmed commitments
+  takes the escaped form and adds `; confirmed: <c1>; <c2>` after the proposal. An answered,
+  deferred or withdrawn row, a reconfirmed accept included, and a superseded-by-plan row whose
+  resolution is not a proposal, ends with `; confirmed:: <c1>; <c2>`, escaped, and
+  `import-ledger` restores those commitments as confirmed; an older row's `; confirmed: ...`
+  stays part of its resolution. An answered or deferred row whose plain resolution would not
+  read back the same decision (an accept's note, an alternative, free text that is not one
+  clean line, any defer) reads `answer:: <answer>; note: <note>`, escaped as a held row's
+  fields, with `; arbiter: USER-RESERVED` on a deferred row; `import-ledger` restores the
+  decision, its text and note, the accepted recommendation and the alternative, and refuses a
+  row whose answer contradicts its status.
+- **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
+  page such as cp1252 cannot fail a command after its write lands.
+- **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
+  activity and reason fields, titles, short labels, recommendations, alternatives and
+  commitments, 20000 for thread text, `why`, `facts`, `basis`, group summaries and each
+  restatement section, across `reply`, `revise`, `add`, `add-round` and `group`. A repeated
+  Confirm (the same commitment, or the same restatement revision) returns the first event's
+  seq and records nothing.
+- **`interview` surface:** a `confirm-commitments` op records commitments the user confirmed
+  outside the page, with a reason; the page and `export-brief` count them as confirmed.
+- **`interview` surface:** the page runs the confirmation gate: a `restate` op posts the
+  shared understanding (goal, constraints, decisions, acceptance, deferred, and the decisions
+  left to `/planning:plan`) with a revision number, and the user answers with a
+  `confirm-understanding` event (Confirm, or Something's off with text); a Confirm on an older
+  restatement is refused as stale.
+- **`interview` page:** a held question shows `Pending research: <text>` or
+  `Needs your answer: <text>` on its rail row and card. Pending research has its own color, a
+  header count and the Show: Pending filter, and can still be answered (Answer anyway, with a
+  receipt saying it counts once the research returns); Needs your answer counts as open and in
+  the needs-you navigation. A question with a set-aside answer offers one action, Answer
+  again, with a line saying why the earlier answer no longer counts, and its rail row marks it
+  Set aside as a plain status. A long hold text wraps inside the rail, and a hold or Claude line
+  near its 500-character cap never widens the page at any window width.
+- **`interview` page:** a two-row header: the derived round label and eyebrow over the title,
+  one progress cluster (answered, pending research, to confirm, each a link) beside Wrap up,
+  and a second row with the connection word (`Live`, `Offline`, `Idle` when no watcher polls
+  and nothing waits on Claude, `Not listening: type next` once an event does),
+  the Claude line and the updated notice.
+- **`interview` page:** the summary shows the restatement with Confirm and Something's off,
+  then Confirmed with its time or the flagged text, and a To confirm list of the commitments
+  the user's answers commit them to, with per-item ticks and Confirm all; each group links to
+  its question, and an accepted question's card links to its entries. Wrap up before the
+  understanding is confirmed warns but is not blocked.
+- **`interview` page:** Claude's latest reply on a question is previewed on its rail item and
+  shown above the recommendation.
+- **`interview` page:** an Accept saved with new note text is labeled `Save: Accept with note`
+  and stays on the question; the skill replies to the note.
+- **`interview` page:** Accept all per round section in the Rounds view, beside the per-group
+  action. Each accept carries that question's note; notes with a `Challenge:` line are left
+  out, and the dialog names what it leaves out and says the set cannot be undone as one step.
+- **`interview` page:** an Own answer that reads as a question (ending in `?`) offers Ask
+  Claude instead before it is saved.
+- **`interview` surface:** the watcher waits for a 300 ms quiet window (capped at 2 s) so a
+  burst of saves, such as an Accept all, arrives as one wake.
+- **`interview` page:** every Claude-side change (a new round, a reply, a Notes reply, a
+  revision) shows an in-page notice built from the unseen Activity entries, with a button
+  naming the newest entry's target (`Go to Q5`, `Open Notes`; it shows a hidden rail or clears
+  a hiding filter first) and All activity for the rest, and the changed rail
+  rows are marked, with no reload. One per-browser seen marker drives the notice, the rail
+  marks and the Activity badge.
+- **`interview` surface:** the event stream sends a `ping` every 15 seconds while idle, and the
+  page re-fetches its state when the tab becomes visible, when the stream reconnects, or after
+  two missed pings, so a backgrounded tab catches up. At most 8 streams run at once; one more
+  gets 503.
+- **`interview` tests:** a journey script walks the whole flow (start, answers, accept with
+  note, Accept all, ask and reply, holds, new rounds, Notes replies, commitments, the
+  confirmation gate, wrap-up, a backgrounded tab) against one fixture server without a reload.
+  CI runs no browser suite; the journey runs locally where `playwright-cli` resolves.
+- **`interview` evals:** case 19 checks that a `page` surface starts the page before the first
+  round.
+
+### Changed
+
+- `use_emoji_question_markers` now defaults to `false`, and a user instruction against emoji
+  wins over it. `--emoji-markers` records true only for `true`, `1`, `yes` or `on` (any case);
+  an absent flag keeps the recorded value and a new file records false.
+- **`interview`:** SKILL.md's page paragraph opens with the configured surface value in bold
+  and says a `page` value starts the page before the first round, with no round asked inline.
+- **`interview`:** R9 is narrowed: an accept with new note text gets a reply answering the
+  note; a note that conditions the acceptance is recorded as hedged, headline only.
+- **`interview`:** SKILL.md Step 2 points to the page's confirmation gate in
+  `context/surface.md`.
+- **`interview`:** a held question counts as not answered even with a recorded decision, in
+  `round.sh status`, `export-ledger` and the page meter; status and the ledger label a user
+  hold `awaiting user:` and a Claude hold `waits on:`. An `own` answer that is a question or a
+  condition ("yes, but explain X first") is recorded, answered with a reply, and held with
+  `wait` `by: user` until the user answers again.
+- **`interview`:** an accept (or a reconfirmed accept) and an `own` answer carry a
+  recommendation's commitments; an alternative withdraws them, so `export-brief` and the
+  report no longer list an alternative's commitments as named risks, and a defer's open row
+  covers them. `confirm-commitments` ticks commitments confirmed in the terminal, so a
+  mirrored terminal accept need not leave them unconfirmed.
+- **`interview` page:** groups with open or held questions start expanded, and a section a new
+  round lands in expands and is highlighted; a stored collapse applies only while the section's
+  default is unchanged. The round label is derived from the questions, so `context/surface.md`
+  tells Claude to keep round numbers out of `meta.eyebrow`.
+- **`interview` page:** re-renders keep focus and typed text; a single polite live region
+  carries the Claude line, and Go moves focus to the target question.
+- **`interview` page:** a long question id is cut to eight characters in the rail, with the
+  full id on hover, so its title and chips stay readable and the rail never scrolls sideways.
+- **`scripts/check-open-questions.sh`:** matches row statuses case-insensitively without a
+  subprocess per row, so a large register grades in seconds on Windows.
+- **`interview` surface:** an exported held row imports back without a fake answer, with its
+  confirmed commitments restored as confirmed (a commitment containing a semicolon stays
+  whole), and with a Claude hold's defer, a user hold's later answer and a superseded-by-plan
+  row's hold kept. `wait` takes any hold text, including the row's own `; answer:` and
+  `; confirmed:` delimiters.
+- **`interview` page:** plainer wording: `Sent to Claude` for the rail chip, `Waiting on Qn`
+  for an upstream-pending question, `Still open from earlier rounds`, and no `terminal` chip.
+- Three digests in `tests/interview-defenses.test.sh` were re-pinned, none weakening a
+  defense: the SKILL.md Action Router section (the configured-surface wording), the SKILL.md
+  Stance section (the emoji paragraph), and the eval-case roster (case 19 added, which does
+  not contradict cases 15 and 16).
+- The `loop.md` open-question register section digest was re-pinned: its "Commitment parts on
+  the page" paragraph now says an alternative withdraws the parts, `own` and accept keep
+  unticked parts as Brief risks, and `confirm-commitments` ticks parts confirmed in the
+  terminal. Parts still never become rows the gate grades, so no defense is weakened. The phrase
+  pin on the old alternative wording was replaced by one on the new wording.
 
 ## [0.42.1] - 2026-09-27
 
