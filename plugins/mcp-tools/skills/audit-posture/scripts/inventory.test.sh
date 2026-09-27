@@ -476,6 +476,16 @@ assert_eq "managed-settings row shadowed by a managed-mcp.json row" "shadowed-by
   "$(cell managed-settings both 3)"
 assert_eq "managed-mcp.json row wins over managed-settings" "yes" "$(cell managed both 3)"
 
+# --- Run 2d: a file-scope row is never shadowed by a same-named scope row ------
+
+printf '%s\n' '{"mcpServers": {"shared": {"command": "npx", "args": ["unpinned-plugin-mcp"]}}}' \
+  >"$FIX/plugin collide.json"
+run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$FIX/proj/.mcp.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/plugin collide.json" --date 2026-01-02
+assert_eq "file row with a user/local/project name stays effective" "yes" "$(cell file shared 3)"
+assert_eq "colliding file row still classified" "floating-unversioned" "$(cell file shared 7)"
+assert_eq "user row unaffected by a same-named file row" "shadowed-by:local" "$(cell user shared 3)"
+
 # --- Run 2c: enableAllProjectMcpServers approves every project server ----------
 
 run_inv --claude-json "$FIX/claude.json" --project "d:/all" --mcp-json "$FIX/proj/.mcp.json" \
