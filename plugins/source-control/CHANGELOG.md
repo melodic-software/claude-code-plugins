@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.0] - 2026-09-26
+## [0.60.0] - 2026-09-26
 
 ### Added
 
@@ -13,6 +13,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - Only the merge lane enables auto-merge: a `babysit-loop` lane-pinned invocation passes `--auto`, so it applies only to PRs the rung partition admitted as C2 mechanical or C3 scoped; C4 structural and C5 PRs still wait for the user. Workers, standalone babysit-prs runs, and `/source-control:pull-request` never enable it (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
 - `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. The orchestrator does the same before dispatching a fix worker to an armed PR.
+
+## [0.59.0] - 2026-09-26
+
+### Added
+
+- `scripts/resolve-version-bump-conflict.sh` resolves the conflict two concurrent PRs create when both bump one plugin's `.claude-plugin/plugin.json` version and add a `CHANGELOG.md` entry. Run during a merge of the default branch into a PR branch, or a rebase or cherry-pick of the PR onto it, it sets the version to the default branch's current version plus one bump at the PR's level (so no version is skipped), keeps the default branch's changelog entries, re-heads the PR's entry under the new version above them, three-way merges any other edit to the two files, and stages both. A plugin whose files do not fit that shape, or whose other edits conflict, is left untouched and named (exit 1). `scripts/resolve-version-bump-conflict.test.sh` covers the same-number collision, mixed bump levels, the rebase orientation, and the left-for-manual path.
+- `/source-control:resolve-conflicts` step 3, the babysit-prs inline freshness merge (`reference/loop.md`), the conflict-worker contract (`reference/orchestration.md`), and `/source-control:babysit-loop` run the resolver before hand-resolving these two files, so a version-bump collision no longer aborts the lane's merge as needing intent judgment.
 
 ## [0.58.5] - 2026-09-25
 
