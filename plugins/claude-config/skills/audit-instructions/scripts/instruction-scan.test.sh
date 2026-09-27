@@ -354,6 +354,48 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" "$CLEAN" 2>&1) || rc=$?
 assert_exit "exit 2 when grep missing" 2 "$rc"
 assert_contains "grep required message" "$err_out" "grep required"
 
+# --- Case 19: filter markers at column 0 ---------------------------------------
+# The I6 rationale and I27 brevity filters run over grep -n output, where a
+# `N:` prefix precedes the line text. A marker at the start of the line must
+# still bound correctly against that prefix.
+COL0="$TEST_TMPDIR/column0.md"
+cat >"$COL0" <<'EOF'
+Since X, never Y.
+Short replies: lower the effort.
+EOF
+OUT=$(bash "$SCRIPT" "$COL0")
+assert_not_contains "column-0 rationale suppresses I6" "$OUT" "$COL0:1:I6"
+assert_contains "column-0 brevity token keeps I27" "$OUT" "$COL0:2:I27"
+
+# --- Case 20: one scan over many files equals the per-file scans in order ------
+# Each family greps every file at once and the rows are regrouped, so the
+# combined output must equal each file scanned alone, concatenated in argument
+# order, with duplicates repeated and nonexistent paths skipped. A file name
+# with a space and, where cygpath resolves, a drive-letter path (a colon in the
+# path) ride along.
+SPACED="$TEST_TMPDIR/with space.md"
+cat >"$SPACED" <<'EOF'
+Never skip this step.
+CRITICAL: run the linter.
+Short replies: lower the effort.
+EOF
+ORDER_FILES=("$SPACED" "$I6F" "$TEST_TMPDIR/missing.md" "$I10F" "$FMF" "$SPACED")
+if command -v cygpath >/dev/null 2>&1; then
+  ORDER_FILES+=("$(cygpath -m "$I8SC")")
+fi
+for flag in "" --body-only; do
+  EXPECTED=""
+  for f in "${ORDER_FILES[@]}"; do
+    [[ -f "$f" ]] || continue
+    # shellcheck disable=SC2086 # $flag is empty or one word
+    EXPECTED+="$(bash "$SCRIPT" $flag "$f")"$'\n'
+  done
+  # shellcheck disable=SC2086
+  OUT="$(bash "$SCRIPT" $flag "${ORDER_FILES[@]}")"$'\n'
+  assert_eq "combined scan equals per-file scans in order ${flag:-(default)}" "$EXPECTED" "$OUT"
+done
+assert_contains "a spaced file name is scanned" "$OUT" "$SPACED:2:I28-a"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
