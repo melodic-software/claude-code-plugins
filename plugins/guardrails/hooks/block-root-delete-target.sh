@@ -87,7 +87,10 @@
 #     of one glob, 25 seconds of wall time from this arm's first work (through
 #     the rest of the parse and the judgment), or 50 seconds of the hook's
 #     whole run once that work has begun, the guard refuses rather than risk
-#     the hook timeout, and an unexpected error while judging refuses too. An
+#     the hook timeout, and an unexpected error while judging refuses too.
+#     The batched realpath and cygpath run under `timeout` for the time left
+#     where `timeout` exists, and an operand over 4096 bytes or 128
+#     components is refused before any scan. An
 #     operand this guard cannot place (an expansion other than a leading HOME,
 #     a drive-relative path) is left alone rather than guessed. A NUL byte in
 #     the payload `cwd` or `scratchpad_dir` refuses a recursive delete this
@@ -103,8 +106,9 @@
 # directory change applies to), `cd <worktree> && rm -rf .work/x`
 # from a different checkout's cwd (every target is judged against the payload
 # cwd's tree), a glob over a directory of many files (every entry counts toward
-# the glob cap), a backslash-escaped brace (it reads as partly quoted), and
-# `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
+# the glob cap, so `rm -rf node_modules/*/` over a large directory is refused),
+# an operand deeper than 128 components, a backslash-escaped brace (it reads
+# as partly quoted), and `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
@@ -522,21 +526,9 @@ rdt_normalize_to() {
 rdt_strip_nameless_to() {
   local __sn_s="$2" __sn_min="$3" __sn_i __sn_d=0 __sn_k __sn_cut __sn_end
   local -a __sn_cuts=()
-  if [[ "$__sn_s" != *'${'* ]]; then
-    # No expansion: every slash is outer, and bash's own `%/*` finds the last.
-    while [[ "$__sn_s" == */* ]]; do
-      __sn_i="${__sn_s%/*}"
-      ((${#__sn_i} >= __sn_min)) || break
-      [[ "${__sn_s##*/}" == *[[:alnum:]_]* ]] && break
-      __sn_s="$__sn_i"
-      if [[ -z "$__sn_s" ]]; then
-        ((__sn_min == 0)) && __sn_s="/"
-        break
-      fi
-    done
-    printf -v "$1" '%s' "$__sn_s"
-    return 0
-  fi
+  # No `%/*` shortcut: bash matches a suffix pattern by trying every start
+  # position, so a loop of them over a long operand of short segments is
+  # quadratic per strip and took over a minute at 4 KB.
   for ((__sn_i = 0; __sn_i < ${#__sn_s}; __sn_i++)); do
     case "${__sn_s:__sn_i:1}" in
     '$')
@@ -998,6 +990,18 @@ rdt_deadline() {
   ((SECONDS - RDT_T0 < RDT_DEADLINE && SECONDS < RDT_DEADLINE_ABS)) || rdt_block "too-slow"
 }
 
+# rdt_remaining_to <var>: whole seconds left before rdt_deadline would refuse,
+# at least 1. A batch process (realpath, cygpath) runs under `timeout` with
+# this bound, because the deadline is otherwise checked only between steps and
+# one slow process could carry the hook past the harness timeout.
+rdt_remaining_to() {
+  rdt_deadline
+  local __rr_a=$((RDT_DEADLINE - (SECONDS - RDT_T0))) __rr_b=$((RDT_DEADLINE_ABS - SECONDS))
+  ((__rr_b < __rr_a)) && __rr_a=$__rr_b
+  ((__rr_a < 1)) && __rr_a=1
+  printf -v "$1" '%s' "$__rr_a"
+}
+
 # rdt_is_unc <path>: a `//host/...` path, which is never touched on disk, so
 # no lookup can wait on the network.
 rdt_is_unc() {
@@ -1020,6 +1024,7 @@ rdt_parent_to() {
 rdt_nearest_to() {
   local __rn_a="$3"
   while [[ -n "$__rn_a" && "$__rn_a" == */* && "$__rn_a" != / && ! "$__rn_a" =~ ^[A-Za-z]:/$ ]]; do
+    rdt_deadline
     if [[ "$2" == -d ]]; then [[ -d "$__rn_a" ]] && break; else [[ -e "$__rn_a" ]] && break; fi
     rdt_parent_to __rn_a "$__rn_a"
   done
@@ -1030,10 +1035,19 @@ rdt_nearest_to() {
 # rdt_lines_to <array var> <want count> <command...>: run a batch command,
 # strip CRs, and split its output into lines. Returns 1 when it fails or the
 # line count differs from <want count>, so the caller keeps its own answer.
+# Where `timeout` exists the command is bounded by the time left, and running
+# out refuses: realpath took 90 s over one path of 2,000 missing components.
 rdt_lines_to() {
-  local __rb_dest="$1" __rb_want="$2" __rb_out
+  local __rb_dest="$1" __rb_want="$2" __rb_out __rb_left __rb_rc=0
   shift 2
-  __rb_out=$("$@" 2>/dev/null) || return 1
+  if command -v timeout >/dev/null 2>&1; then
+    rdt_remaining_to __rb_left
+    __rb_out=$(timeout "$__rb_left" "$@" 2>/dev/null) || __rb_rc=$?
+    ((__rb_rc == 124)) && rdt_block "too-slow"
+    ((__rb_rc == 0)) || return 1
+  else
+    __rb_out=$("$@" 2>/dev/null) || return 1
+  fi
   __rb_out="${__rb_out//$'\r'/}"
   mapfile -t "$__rb_dest" <<<"$__rb_out"
   local -n __rb_ref="$__rb_dest"
@@ -2303,6 +2317,18 @@ rdt_check_segment() {
       ((q == 1)) && rdt_block "root-operand" "/"
       rdt_block "empty-operand"
     fi
+    # No path a filesystem accepts is longer than PATH_MAX (4096 on Linux, and
+    # far less on Windows), so a longer operand names nothing rm could delete.
+    # It is refused before any per-operand scan: the tail strip and the
+    # normalization walk an operand's segments, and a 16 KB operand of `/*`
+    # segments took 17 s on a Linux runner, near the hook timeout the harness
+    # answers WITHOUT a block.
+    ((${#w} > MAX_OPERAND_LEN)) && rdt_block "unplaceable" "an operand of ${#w} bytes, longer than any path"
+    # Resolving a path costs one lookup per component, and on Windows about
+    # 10 ms each: 2,000 missing components took realpath 90 s. No path in real
+    # use is this deep, so a deeper operand is refused unscanned.
+    x="${w//[^\/\\]/}"
+    ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "unplaceable" "an operand ${#x} components deep, deeper than any path"
     # Brace expansion runs before rm sees its argv, so every alternative is
     # judged as an operand of its own. A fully quoted brace is literal; a
     # partly quoted one that would expand cannot be told apart from a literal
@@ -2373,6 +2399,11 @@ rdt_check_operand() {
 MAX_BRACE=64
 MAX_BRACE_WORD=4096
 MAX_BRACE_OPEN=128
+# One operand longer than PATH_MAX names no path, and one deeper than
+# MAX_OPERAND_DEPTH components names none in real use; both are refused
+# unscanned.
+MAX_OPERAND_LEN=4096
+MAX_OPERAND_DEPTH=128
 
 # rdt_brace_expand <word>: the word's brace expansion into RDT_BX, the way
 # bash performs it: the first `{...}` holding a top-level comma is expanded,

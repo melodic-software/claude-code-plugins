@@ -1163,16 +1163,33 @@ for ((rdt_d = 0; rdt_d < 3000; rdt_d++)); do rdt_br+='{'; done
 rdt_ms_payload 'an operand of 3000 braces is refused in time' 2 8000 "$(rdt_pl "rm -rf ${rdt_br}x" "$RDT_TOP")"
 guard_invoke "${RDT_CWD[@]}" --command "rm -rf ${rdt_br}x"
 assert_contains "the brace-count refusal names its form" "$GUARD_ERR" "brace expansion"
-# A long run of nameless segments behind a `${X}` is stripped in one pass. A
-# rescan per segment took over 30 s at 2 KB, past the hook timeout, and the
-# harness cancels a hook there without a block, so the later `rm -rf ~` in the
-# same command would have run unjudged.
+# A long run of nameless segments behind a `${X}`. A rescan per segment took
+# over 30 s at 2 KB, past the hook timeout, and the harness cancels a hook
+# there without a block, so the later `rm -rf ~` in the same command would
+# have run unjudged. An operand longer than PATH_MAX (4096) is refused before
+# any scan, and one just under it is stripped in one pass.
 rdt_sl=""
 for ((rdt_d = 0; rdt_d < 8000; rdt_d++)); do rdt_sl+='/*'; done
-rdt_ms_payload 'a ${X} operand of 8000 nameless segments is refused in time' 2 15000 \
+rdt_ms_payload 'a ${X} operand of 8000 nameless segments is refused in time' 2 8000 \
   "$(rdt_pl "rm -rf \"\${X}${rdt_sl}\"; rm -rf ~" "")"
-rdt_ms_payload 'the same operand with a cwd is refused in time' 2 15000 \
+rdt_ms_payload 'the same operand with a cwd is refused in time' 2 8000 \
   "$(rdt_pl "rm -rf \"\${X}${rdt_sl}\"; rm -rf ~" "$RDT_TOP")"
+guard_invoke --command "rm -rf \"a${rdt_sl}\""
+assert_exit 'an operand longer than PATH_MAX is refused' 2 "$GUARD_RC"
+assert_contains 'the refusal names the operand length' "$GUARD_ERR" "longer than any path"
+rdt_ms_payload 'a ${X} operand just under PATH_MAX is refused in time' 2 8000 \
+  "$(rdt_pl "rm -rf \"\${X}${rdt_sl:0:4090}\"; rm -rf ~" "$RDT_TOP")"
+# Deeper than 128 components is refused unscanned: resolving one lookup per
+# component took realpath 90 s over 2,000 of them. 128 deep is still judged.
+rdt_dp=""
+for ((rdt_d = 0; rdt_d < 128; rdt_d++)); do rdt_dp+='/x'; done
+rdt_ms_payload 'an operand 128 components deep in the tree is allowed in time' 0 15000 \
+  "$(rdt_pl "rm -rf \"build${rdt_dp}\"" "$RDT_TOP")"
+guard_invoke "${RDT_CWD[@]}" --command "rm -rf \"build${rdt_dp}/x\""
+assert_exit 'an operand 129 components deep is refused' 2 "$GUARD_RC"
+assert_contains 'the refusal names the depth' "$GUARD_ERR" "deeper than any path"
+rdt_ms_payload 'a 4 KB glob operand of 2,000 components is refused in time' 2 8000 \
+  "$(rdt_pl "rm -rf \"build${rdt_sl:0:4090}\"" "$RDT_TOP")"
 expect_both 'an operand of 129 braces is refused' 2 --command "rm -rf ${rdt_br:0:129}x"
 expect_both 'an operand of 3 braces allowed' 0 --command "rm -rf ${rdt_br:0:3}x"
 # A glob before the last component over real directories under temp allowed.
