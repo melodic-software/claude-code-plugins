@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.33] - 2026-09-27
+
+### Fixed
+
+- `audit` escapes C1 controls (including the one-byte CSI), U+2028/U+2029, bidi override and
+  isolate controls, and malformed UTF-8 in report values again. 0.23.32 printed them raw, so a
+  crafted path could inject terminal controls. Other printable UTF-8 still prints as itself.
+- A repository with no findings shows `Kind counts: none` instead of an em dash.
+
 ## [0.23.32] - 2026-09-27
 
 ### Fixed
