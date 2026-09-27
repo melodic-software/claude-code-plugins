@@ -477,12 +477,21 @@ devnull_target_exempt() {
 # `~` (the written text is not the path that gets written); and a target carrying
 # `*`, `?` or `[` (a glob names a set, not a path).
 #
+# ONE `~` EXCEPTION, at the temp default only and on Windows hosts only: a
+# component in the 8.3 short-name shape (`KYLESE~1`, `RUNNER~1`), because that
+# is how TEMP, and so the harness scratchpad, is spelled on a volume that
+# generates short names. A leading `~`, `~user`, `~+`, and `x~` or `a~b`
+# components still fail closed, and a configured root never matches a `~`
+# target. See _bbh_short_temp_exempt for how the spelling is confirmed.
+#
 # SCOPE (documented residual): normalization is LEXICAL, not filesystem
 # resolution. Symlinks are not followed — a symlink inside a configured root that
 # points outside it is exempted. Resolving them needs a subprocess per segment,
 # which this file's hot path deliberately refuses, and the target frequently
 # does not exist yet. An operator naming a root is accepting that root's
-# contents.
+# contents. The shipped defaults are the exception: they confirm a lexical match
+# through the resolver before granting, and an 8.3 spelling is matched against
+# the raw temp spellings and then decided on its resolved form alone.
 #
 # SCOPE (documented residual): the comparison is CASE-INSENSITIVE, because the
 # segment model stores every word and target lowercased (see collect_segment).
@@ -521,10 +530,14 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 #   TEMP TREE — hook::read_file_path, the library entry every Write|Edit content
 #   guard reads its file through, DECLINES a file under a host temp root when the
 #   project root lies outside that tree. The harness's own per-session scratchpad
-#   lives there. The exemption's width is therefore exactly the width of the
-#   protection it is scoped out of, and hook::under_temp_root is the same
-#   candidate set (TMPDIR/TMP/TEMP plus the POSIX defaults, never a hardcoded
-#   platform assumption) that the decline is decided on.
+#   lives there. hook::under_temp_root is the same candidate set
+#   (TMPDIR/TMP/TEMP plus the POSIX defaults, never a hardcoded platform
+#   assumption) that the decline is decided on, and the library expands an 8.3
+#   short name before it compares. On Windows the exemption also takes the 8.3
+#   spelling of a temp path (#4678), which the strict normalizer below refuses
+#   everywhere else. secret-pattern-detection's temp decline (D1, #4475) widens
+#   the same way on the same spelling, so a Write and a Bash redirect to one
+#   8.3 temp path get the same answer.
 #
 # THE MEMORY TIER IS DELIBERATELY NOT A DEFAULT, and the reason is worth keeping
 # because it is the obvious second entry. `<memory_dir>/` (default `.work/`) was
@@ -575,15 +588,38 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # through: _bbh_temp_default_applies and _scratch_abs_target.
 _BBH_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
 
+# Windows hosts (Git Bash, Cygwin) are the only ones that hand out 8.3
+# short-name paths; everywhere else `~` in a path is a plain filename byte.
+_BBH_WIN=0
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) _BBH_WIN=1 ;;
+*) ;; # POSIX host
+esac
+
+# 0 when <component> has the 8.3 short-name shape `NAME~N` or `NAME~N.EXT`: a
+# base of at most eight characters ending in `~` and a number, and an extension
+# of at most three. `~`, `~user`, `~+`, `x~` and `a~b` do not have it.
+_BBH_SHORT_RE='^([A-Za-z0-9_-]+~[1-9][0-9]*)(\.[A-Za-z0-9_-]{1,3})?$'
+_bbh_short_component() {
+  [[ "$1" =~ $_BBH_SHORT_RE ]] || return 1
+  ((${#BASH_REMATCH[1]} <= 8))
+}
+
 # Lexically normalize an absolute path into `/`-joined canonical form in
 # _NORM_PATH. Returns 1 for every shape the compare must not be trusted with
 # (see "WHAT FAILS CLOSED" above); returns 0 with _NORM_PATH empty only for `/`
 # itself, which is never a usable root.
+#
+# A second argument of 1 lets a component through that carries `~` in the 8.3
+# shape (_bbh_short_component); every other `~` still refuses. Only the temp
+# default's short-name branch and the staged-move identity check pass it, both
+# on Windows hosts only, and both confirm the answer through the resolver.
 _NORM_PATH=""
 _norm_path() {
-  local p="$1" out="" comp rest
+  local p="$1" short="${2:-0}" out="" comp rest
   case "$p" in
-  *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) return 1 ;;
+  *'$'* | *'`'* | *'*'* | *'?'* | *'['*) return 1 ;;
+  *'~'*) ((short)) || return 1 ;;
   *) ;; # every other shape proceeds to normalization below
   esac
   p="${p//\\//}"
@@ -607,6 +643,10 @@ _norm_path() {
       # An escape above the root is not a path this guard can reason about.
       [[ -n "$out" ]] || return 1
       out="${out%/*}"
+      ;;
+    *'~'*)
+      _bbh_short_component "$comp" || return 1
+      out="$out/$comp"
       ;;
     *) out="$out/$comp" ;;
     esac
@@ -762,6 +802,44 @@ _bbh_default_confirmed() {
   hook::under_temp_root "$phys"
 }
 
+# 0 when <absolute target>, which the strict _norm_path refused, is an 8.3
+# short-name spelling of a path under the host temp tree. The harness hands out
+# its scratchpad in the spelling TEMP carries, and on a volume that generates
+# short names that is `C:/Users/KYLESE~1/...` (`RUNNER~1` on the Windows CI
+# runner), so without this branch the temp default never fired for the path
+# agents actually receive (#4678).
+#
+# Windows hosts only, and the temp default only: the configured roots and the
+# plugin-data default never see a `~` target. The target is first matched
+# against the RAW temp candidates, normalized with the same allowance and case
+# fold, which spends no process, so a `~` target outside every temp spelling
+# costs no resolver. Only a match resolves it, and the resolved form must then
+# pass the STRICT normalizer and sit under a resolved temp root. A short
+# component the resolver could not expand, because nothing by that name exists,
+# keeps its `~` and fails closed there; an 8.3 alias of a junction lands where
+# the junction points and is judged there.
+_bbh_short_temp_exempt() {
+  local target cand hit=0
+  ((_BBH_WIN)) || return 1
+  [[ -n "$_BBH_PROJECT_NORM" ]] || return 1
+  _norm_path "$1" 1 || return 1
+  [[ -n "$_NORM_PATH" ]] || return 1
+  target="${_NORM_PATH,,}"
+  hook::_temp_root_candidates
+  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+    _norm_path "$cand" 1 || continue
+    [[ -n "$_NORM_PATH" && "$target" == "${_NORM_PATH,,}"/* ]] || continue
+    hit=1
+    break
+  done
+  ((hit)) || return 1
+  _bbh_temp_default_applies || return 1
+  _bbh_physical_path "$target" || return 1
+  _norm_path "$_BBH_PHYS" || return 1
+  [[ -n "$_NORM_PATH" ]] || return 1
+  hook::under_temp_root "${_NORM_PATH,,}"
+}
+
 # 0 when <lexically-matched target> really lands under the plugin data directory
 # once both are resolved through symlinks, and NOT under the project root once
 # that is resolved too. The directory is resolved so a config dir that is itself
@@ -855,7 +933,12 @@ scratch_target_exempt() {
   # placeable.
   abs=$(_scratch_abs_target "$target") || return 1
   [[ -n "$abs" ]] || return 1
-  _norm_path "$abs" || return 1
+  # A target the strict normalizer refuses has one more chance, and only at the
+  # temp default: an 8.3 short-name spelling, confirmed through the resolver.
+  if ! _norm_path "$abs"; then
+    _bbh_short_temp_exempt "$abs"
+    return
+  fi
   [[ -n "$_NORM_PATH" ]] || return 1
   # Case-folded once here rather than at each comparison: the configured roots are
   # lowercased below, the memory-tier default is lowercased at its assignment, and
@@ -928,6 +1011,9 @@ scratch_target_exempt() {
 # unnormalizable paths compare as separator-folded strings. An empty operand
 # never matches (cannot establish identity → cannot block), and an unresolvable
 # redirect target is never recorded as a prior staging path in the first place.
+# On Windows a pair the lexical compare misses, with an 8.3 component on either
+# side, is compared again on its resolved forms, so a short and a long spelling
+# of one file are one path.
 paths_identical() {
   local a="$1" b="$2" na nb
   [[ -n "$a" && -n "$b" ]] || return 1
@@ -945,10 +1031,34 @@ paths_identical() {
       [[ -n "$na" && -n "$nb" && "$na" == "$nb" ]] && return 0
       return 1
     fi
-    return 1
+    _bbh_paths_physically_identical "$a" "$b"
+    return
   fi
   # Both relative / unexpanded: identity is literal after separator fold.
-  [[ "$a" == "$b" ]]
+  [[ "$a" == "$b" ]] && return 0
+  _bbh_paths_physically_identical "$a" "$b"
+}
+
+# 0 when two absolute paths, at least one spelled with an 8.3 short-name
+# component, resolve to the same physical path. Once an 8.3 redirect into temp
+# is exempt, `> <8.3 temp>/x && mv <long temp>/x src/a.py` names one file two
+# ways, and the lexical compare above would call them two files; so would the
+# reverse spelling. Windows hosts only, and only after the lexical compare has
+# missed, so a POSIX host and every `~`-free pair keep the lexical answer and
+# spend no resolver. A match here can only add a block.
+_bbh_paths_physically_identical() {
+  local pa pb
+  ((_BBH_WIN)) || return 1
+  [[ "$1$2" == *'~'* ]] || return 1
+  _norm_path "$1" 1 || return 1
+  _bbh_physical_path "$_NORM_PATH" || return 1
+  _norm_path "$_BBH_PHYS" 1 || return 1
+  pa="${_NORM_PATH,,}"
+  _norm_path "$2" 1 || return 1
+  _bbh_physical_path "$_NORM_PATH" || return 1
+  _norm_path "$_BBH_PHYS" 1 || return 1
+  pb="${_NORM_PATH,,}"
+  [[ -n "$pa" && "$pa" == "$pb" ]]
 }
 
 # Parse segment $1 (offset) / $2 (length) into MOVE_SOURCES (array), MOVE_DEST

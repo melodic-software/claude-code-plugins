@@ -259,10 +259,23 @@ out of scope until such a signal exists.
   project scope. `Write` still scans some temp targets the Bash redirect exempts
   (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
   capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
-  redirects blocked anyway, which cost false positives with no true positive. A
-  target spelled with an 8.3 short name (a component such as `ABCDEF~1`) is
-  scanned on `Write` and blocked for Bash, so a harness scratchpad path spelled
-  that way is covered by neither exemption.
+  redirects blocked anyway, which cost false positives with no true positive.
+
+  **On Windows the temp default takes an 8.3 short-name spelling** (since
+  **0.37.7**), because that is how `TEMP`, and so the harness scratchpad, is
+  spelled on a volume that generates short names (`C:/Users/ABCDEF~1/...`,
+  `RUNNER~1` on the Windows CI runner). A `~` is accepted only in a component of
+  the 8.3 shape (`NAME~N`, `NAME~N.EXT`), and only for the temp default: the
+  target must match a temp candidate's own spelling, which spends no resolver
+  process, and then its resolved, fully expanded path must sit under a resolved
+  temp root. A short component nothing backs (`name~9` that does not exist), an
+  8.3 alias of a junction out of temp, a temp-rooted project, a leading `~`,
+  `~user`, `~+`, and `x~` or `a~b` components all still block, and a configured
+  scratch root never matches a `~` target. `secret-pattern-detection` declines
+  a `Write` to the same spelling under the same rules. The staged-move detector
+  compares a short and a long spelling of one file by their resolved paths, so
+  `> <8.3 temp>/x && mv <long temp>/x src/a.py` blocks in both directions. On
+  POSIX a `~` in a path is a filename byte and still blocks.
 
   **The memory tier is deliberately NOT a second default.** `<memory_dir>/`
   (default `.work/`) was exempted here during review and removed again, because
