@@ -221,21 +221,25 @@ if command -v playwright-cli >/dev/null 2>&1; then
     "constraints": "Builds stop at ten minutes."}}]}'
   jrun 5
   jhandle
+  # Near the 500-character line cap, with an unbroken token: phase 6 checks the page never widens.
+  long="on the runner image, whether a supercalifragilisticexpialidocious_unbroken_token_that_never_wraps_0123456789 is acceptable"
+  long="$long; $long; $long; and whether the lock file wins over the runner image default for every job"
   japply g '{"ops": [{"op": "wait", "id": "Q5", "clear": true},
     {"op": "record-terminal", "id": "Q5", "decision": "own", "text": "Pin it to the lock file."},
     {"op": "record-terminal", "id": "Q7", "decision": "accept"},
-    {"op": "wait", "id": "Q3", "waitsOn": "a second benchmark", "by": "claude"},
+    {"op": "wait", "id": "Q3", "waitsOn": "a second benchmark '"$long"'", "by": "claude"},
+    {"op": "set-status", "text": "Running a second benchmark '"$long"'"},
     {"op": "group", "id": "g3", "title": "Release", "dependsOn": ["g2"]}]}'
   jrun 6
-  japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}]}'
+  japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true}]}'
   jrun 7
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 248 browser checks not run, 94 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 248))
+  echo "SKIP: 252 browser checks not run, 98 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 252))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

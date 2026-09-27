@@ -41,8 +41,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   header count and the Show: Pending filter, and can still be answered (Answer anyway, with a
   receipt saying it counts once the research returns); Needs your answer counts as open and in
   the needs-you navigation. A question with a set-aside answer offers one action, Answer
-  again, with a line saying why the earlier answer no longer counts. A long hold text wraps
-  inside the rail.
+  again, with a line saying why the earlier answer no longer counts, and its rail row marks it
+  Set aside as a plain status. A long hold text wraps inside the rail, and a hold or Claude line
+  near its 500-character cap never widens the page at any window width.
 - **`interview` page:** a two-row header: the derived round label and eyebrow over the title,
   one progress cluster (answered, pending research, to confirm, each a link) beside Wrap up,
   and a second row with the connection word (`Live`, `Offline`, `Idle` when no watcher polls

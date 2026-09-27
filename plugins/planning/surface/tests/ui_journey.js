@@ -75,7 +75,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
 
     // own answer that is a question
-    await pick("Q5"); await page.fill("#note", "Should we pin the version?"); await arm("o");
+    const askToast = await text("#toast");
+    await pick("Q5");
+    ok("the ask's toast clears when the view changes", /reply lands in the thread/.test(askToast) && (await text("#toast")) === "", askToast + " / " + await text("#toast"));
+    await page.fill("#note", "Should we pin the version?"); await arm("o");
     ok("an Own answer ending in ? shows the Ask Claude nudge before save", /This reads as a question\. Ask Claude instead\?/.test(await text("#askNudge")) && !!(await page.$('#askNudge [data-act="ask"]')), await text("#decideRow"));
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
     const own = await last();
@@ -123,6 +126,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("n visits Q4 then Q5 and skips Q3, pending research", n1 === "Q4" && n2 === "Q5", n1 + " " + n2);
     ok("a long hold text wraps inside the rail: it never scrolls sideways", await page.$eval("#railList", el => el.scrollWidth <= el.clientWidth), await page.$eval("#railList", el => el.scrollWidth + " > " + el.clientWidth));
     ok("Q5 offers one action, Answer again, with a one-line reason and no Reopen", /set your earlier answer \(Own answer: .*\) aside because it needs your decision\./.test(await text("#cur")) && (await page.$$("#cur [data-again]")).length === 1 && !(await page.$('[data-act="reopen"]')) && !/Set aside/.test(await text("#cur")), await text("#cur"));
+    const aside = await page.$eval('.qbtn[data-q="Q5"] .chip.aside', el => { const s = getComputedStyle(el); return {t: el.textContent, b: s.borderTopWidth, bg: s.backgroundColor, c: s.cursor}; }).catch(() => null);
+    ok("the rail's Set aside chip reads as a status, not a button", !!aside && aside.t === "Set aside" && aside.b === "0px" && aside.bg === "rgba(0, 0, 0, 0)" && aside.c === "default", JSON.stringify(aside));
     await tap("#cur [data-again]", 150);
     ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
@@ -273,6 +278,20 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForTimeout(900);
     ok("with only pending research left the summary says your part is done", (await text("#dscroll .done-h")) === "Your part is done for now. Claude is researching Q3.", await text("#dscroll .done-h"));
     ok("a research hold keeps the dependent group locked", /opens after Build/.test(await text('.sec[data-key="g:g3"] .lock')), await text('.sec[data-key="g:g3"]'));
+
+    // a Claude line and a hold near their 500-character caps never widen the page
+    for (const w of [360, 1400]) {
+      await page.setViewportSize({width: w, height: 860});
+      const fit = [];
+      for (const v of ["Q3", "summary"]) {
+        if (v === "summary") await tap("#sumBtn", 300); else await pick(v);
+        fit.push(await page.evaluate(() => {
+          const W = innerWidth, inView = id => { const r = document.getElementById(id).getBoundingClientRect(); return r.left >= 0 && r.right <= W; };
+          return {scroll: document.scrollingElement.scrollWidth, W, wrap: inView("sumBtn"), counts: ["meterText", "pendBtn", "assumeCount"].every(id => document.getElementById(id).hidden || inView(id)), line: document.getElementById("clText").textContent.length};
+        }));
+      }
+      ok("at " + w + " px the long Claude line and hold keep the page, Wrap up and the counts in the viewport", fit.every(f => f.scroll <= f.W && f.wrap && f.counts && f.line > 400), JSON.stringify(fit));
+    }
   }
   if (PHASE === 7) { // the shell cleared Q3's hold
     await page.waitForTimeout(900);
