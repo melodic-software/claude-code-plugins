@@ -652,6 +652,11 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 Any other running check does not hold the arm: GitHub waits out a running required check
 (`ci-status`) itself, and a non-required check never holds a merge.
 
+To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
+with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns only the failed
+`-status` job, which re-reads the cached rate-limit output of the `review` job that succeeded and
+fails again.
+
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
 auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
 synchronously. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
