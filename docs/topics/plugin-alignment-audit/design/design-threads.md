@@ -123,6 +123,12 @@ rewritten in the skill's PR to cite `/audit-plugin-conformance` and its registry
 doctrine keeps its enforcement promises and each one gets a named check, instead of silently dropping
 tracked gaps (B) or shipping a placeholder (C).
 
+Addendum (plan review, 2026-09-27): four more live sites make the same promise and are rewritten too:
+`docs/finding-your-unknowns.md:142`, `docs/conventions/hook-precision/README.md:66`,
+`docs/conventions/pre-pr-ordering/README.md:69`, `docs/conventions/hook-observability/README.md:281`.
+Frozen records (CHANGELOGs, dated research, `docs/topics/`) stay as written. Listed in PLAN.md for
+the user's reply.
+
 ### T8. Skill name
 
 A repo-local skill has no plugin namespace, so the leaf is the whole name. Preliminary candidates,
@@ -246,6 +252,10 @@ that section already owns what happens when a prerequisite is absent.
 Rationale: extending the leaf-name script keeps one owner for leaf-name rules; the two new scripts
 only list because their verdicts are judgment (T3); reusing the suppression convention avoids a
 second store.
+
+Addendum (plan review, 2026-09-27): PLAN.md proposes standalone `ci.yml` steps for the registry check
+instead of `scripts/validate-plugins.sh`, which needs `claude` and `node` on PATH; listed in PLAN.md
+for the user's reply.
 
 ### T14. Target scope, fan-out and findings persistence
 
