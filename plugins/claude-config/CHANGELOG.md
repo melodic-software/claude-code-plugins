@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- `audit`'s env-var checklist row drops its `**MANDATORY**:` prefix. The row still requires reading `code.claude.com/docs/en/env-vars` verbatim and searching it for each env var name, and still says WebSearch alone is insufficient (#4120).
+
 ## [0.49.0] - 2026-09-26
 
 ### Added

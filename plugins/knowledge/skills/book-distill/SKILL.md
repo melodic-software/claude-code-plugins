@@ -68,7 +68,7 @@ This is the core loop. Repeat for every chapter in the file plan.
 
 This is the single most important rule in the entire process:
 
-> **Read ONE chapter. Write its file IMMEDIATELY. Then read the next chapter.**
+> Read one chapter. Write its file immediately. Then read the next chapter.
 
 Never read multiple chapters before writing. Reading the entire book before writing produces one mediocre file from a full book's worth of context. The interleaved approach produces focused, high-quality files because each chapter is fresh when writing.
 
