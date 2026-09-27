@@ -558,7 +558,8 @@ def repeat_of(events, event):
             e
             for e in events
             if not e.get("withdrawn")
-            and (e.get("kind"), e.get("id"), e.get("alt")) == (kind, event["id"], event["alt"])
+            and (e.get("kind"), e.get("id"), e.get("alt"))
+            == (kind, event["id"], event["alt"])
         ]
     elif kind == "confirm-understanding" and event["alt"] == "confirm":
         same = [
