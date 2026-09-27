@@ -4905,11 +4905,17 @@ class GuardTests(unittest.TestCase):
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard_disabled(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            result["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
@@ -4918,6 +4924,7 @@ class GuardTests(unittest.TestCase):
     ) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'python "{script}" scan --target t --output s'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         self.assertIn(
@@ -4967,6 +4974,14 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output snapshot.json'
+        template += self.authorize_data_root()
+        # Control: a clean payload is admitted, so each denial below is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(template.format(payload="target"))["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
         payloads = [
             "target{one,two}",
             "$TARGET",
@@ -5066,11 +5081,19 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_malformed_handoff_verify_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         prefix = f'"{self.python_command()}" "{script}" handoff-verify'
+        data_root = self.authorize_data_root()
+        # Control: the well-formed shape is admitted, so each denial is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(f"{prefix} --snapshot s --paths p{data_root}")[
+                "hookSpecificOutput"
+            ]["permissionDecision"],
+        )
         commands = [
-            f"{prefix} --paths p --snapshot s",  # wrong flag order
-            f"{prefix} --snapshot s",  # missing --paths
-            f"{prefix} --snapshot s --paths p --report r",  # undeclared flag
-            f"{prefix} --snapshot s --paths p extra",  # trailing token
+            f"{prefix} --paths p --snapshot s{data_root}",  # wrong flag order
+            f"{prefix} --snapshot s{data_root}",  # missing --paths
+            f"{prefix} --snapshot s --paths p --report r{data_root}",  # undeclared
+            f"{prefix} --snapshot s --paths p extra{data_root}",  # trailing token
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -8001,9 +8024,14 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
         assert bash is not None
         self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            bash["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_kill_switch_enabled_gates_apply_as_ask(self) -> None:
         """With the switch enabled (settings absent → default on), an ``apply`` is
