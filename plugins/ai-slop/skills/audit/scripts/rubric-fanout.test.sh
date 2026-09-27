@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=140
+EXPECTED_CASES=157
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -619,6 +619,49 @@ assert_line_in "cues: a cue after a wrapped quote's close counts" "$K3/batches/c
   "batch=05 cue=seam occurrences=1 files=1"
 assert_not_contains "cues: a cue inside a wrapped quote does not" "$(cat "$K3/batches/cues.txt")" "batch=05 cue=load-bearing"
 
+# More non-prose, one file per batch: an inline triple-backtick span is not a
+# fence opener; code spans close on a run of the same length; a first-line ---
+# with no closer is not frontmatter; `...` closes frontmatter; a BOM before the
+# frontmatter; HTML comments; link URLs; indented code; curly double quotes.
+K4="$TEST_TMPDIR/cues-prose2"
+mkdir -p "$K4"
+BT='```'
+# shellcheck disable=SC2016  # literal backticks, not a command substitution
+k4=(
+  "$(printf '%sx%s is code, the seam here is prose.\n\nAnother seam paragraph.\n' "$BT" "$BT")"
+  "$(printf 'Use ``seam`` as a code span, ``a ` seam`` too. Then `x` seam.\n')"
+  "$(printf -- '---\nseam one\n\nseam two\n')"
+  "$(printf -- '---\ntitle: seam\n...\nbody seam\n')"
+  "$(printf '\357\273\277---\nx: seam\n---\nbody seam\n')"
+  "$(printf '<!-- seam note -->\ntext <!-- a\nseam\n--> after seam\n')"
+  "$(printf 'See [the seam doc](https://example.com/seam) now.\n')"
+  "$(printf 'para\n\n    seam in indented code\n\nprose seam\n- item\n\n    seam in a list paragraph\n')"
+  "$(printf 'The word \342\200\234seam\342\200\235 is a mention; this seam is a use.\n')"
+  "$(printf 'write <!-- to open\n\nseam after\n')"
+)
+for i in "${!k4[@]}"; do
+  printf '%s\n' "${k4[$i]}" >"$K4/t$i.md"
+  touch -t "2026010100$(printf '%02d' $((59 - i)))" "$K4/t$i.md"
+  printf 't%s.md\t%s\n' "$i" "$K4/t$i.md"
+done >"$K4/targets.tsv"
+bash "$FANOUT" plan --out "$K4/batches" --budget 1 --order mtime "$K4/targets.tsv" >/dev/null 2>&1
+k4want=(
+  "an inline triple-backtick span opens no fence:2"
+  "a double-backtick span closes on a double run:1"
+  "a first-line --- with no closer is not frontmatter:2"
+  "a ... line closes frontmatter:1"
+  "a BOM before the frontmatter is stripped:1"
+  "HTML comments are skipped, over lines too:1"
+  "a link counts its text, not its URL:1"
+  "an indented code block is skipped, a list paragraph is not:2"
+  "curly double quotes span like straight ones:1"
+  "a mid-line comment left open ends with its paragraph:1"
+)
+for i in "${!k4want[@]}"; do
+  assert_line_in "cues: ${k4want[$i]%:*}" "$K4/batches/cues.txt" \
+    "batch=$(printf '%02d' $((i + 1))) cue=seam occurrences=${k4want[$i]##*:} files=1"
+done
+
 : >"$K2/empty.tsv"
 bash "$FANOUT" plan --out "$K2/empty" "$K2/empty.tsv" >/dev/null 2>&1
 assert_eq "cues: an empty targets file writes no cues.txt" \
@@ -709,6 +752,36 @@ assert_line_in "reasons: cap declines are totaled" "$X/reasons.md" \
 assert_line_in "reasons: a declined: line with another reason stays in the body" "$X/reasons.md" \
   "declined: rule-abstract-metaphor-jargon seam reason=whatever"
 assert_not_contains "reasons: and is not totaled" "$merged" "reason=whatever batches"
+
+# A finding's quote may wrap onto indented continuation lines; a cue on one of
+# them is reported, a cue after the closing quote is not.
+mkdir -p "$X/wrap" "$X/wrap-out"
+res "$X/wrap" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+res "$X/wrap" 02 1 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a\n  seam\n  b" -- jargon'
+res "$X/wrap" 03 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/wrap" --out "$X/wrap.md" >/dev/null 2>&1
+assert_eq "wrap: a cue on a quote's continuation line is reported" "$(grep -c '^consistency:' "$X/wrap.md")" "0"
+res "$X/wrap-out" 01 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+res "$X/wrap-out" 02 1 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\n\n## r05.md\n\n- L1 rule-abstract-metaphor-jargon: "a\n  b" -- seam jargon'
+res "$X/wrap-out" 03 0 'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated'
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/wrap-out" --out "$X/wrap-out.md" >/dev/null 2>&1
+assert_line_in "wrap: a cue after the wrapped quote's close is not" "$X/wrap-out.md" \
+  "consistency: rule-abstract-metaphor-jargon cue=seam unaccounted_in=02"
+
+# A declined cue keys to the cue name whatever its case or plural.
+mkdir -p "$X/norm"
+res "$X/norm" 01 0 'declined: rule-abstract-metaphor-jargon Load-Bearing reason=saturated'
+res "$X/norm" 02 0 $'declined: rule-abstract-metaphor-jargon load-bearing reason=saturated\ndeclined: rule-abstract-metaphor-jargon Seams reason=boundary\ndeclined: rule-abstract-metaphor-jargon load bearing reason=cap'
+res "$X/norm" 03 0 'declined: rule-abstract-metaphor-jargon LOAD-BEARING reason=saturated'
+bash "$FANOUT" merge --batches "$X/batches" --results "$X/norm" --out "$X/norm.md" >/dev/null 2>&1
+assert_eq "norm: case and plural variants account for the cue" "$(grep -c '^consistency:' "$X/norm.md")" "0"
+assert_line_in "norm: variants total under the cue name" "$X/norm.md" \
+  "declined_total: rule-abstract-metaphor-jargon load-bearing reason=saturated batches=01,02,03"
+assert_line_in "norm: a plural keys to its cue" "$X/norm.md" \
+  "declined_total: rule-abstract-metaphor-jargon seam reason=boundary batches=02"
+assert_line_in "norm: load bearing with a space keys to load-bearing" "$X/norm.md" \
+  "declined_total: rule-abstract-metaphor-jargon load-bearing reason=cap batches=02"
+assert_eq "norm: and is stripped from the body" "$(grep -c '^declined:' "$X/norm.md")" "0"
 
 # cues.txt binds to the contents plan counted: after a listed file changes, and
 # the stale batch is rerun to complete, merge says cues.txt is stale and skips

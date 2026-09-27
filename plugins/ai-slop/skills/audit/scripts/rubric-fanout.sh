@@ -48,17 +48,28 @@ plan also writes <dir>/cues.txt:
 Cues: load-bearing (load-bearing, load bearing) and seam (seam, seams), any
 case, bounded by [^a-z0-9_] or the line edge, so non-load-bearing counts and
 seamless does not; every match on a line counts, and a cue split across a line
-break is not counted. Skipped, as the rubric skips them: YAML frontmatter (a
---- first line through the next ---), fenced code (any indent, the opener
-possibly after list-item or blockquote markers, closed by a run of the opener's
-character at least as long or by the end of its list item or blockquote),
-blockquote lines, `code` spans and "double-quoted" spans, which may wrap onto
-later lines of the same paragraph.
+break is not counted. Skipped, as the rubric skips them: a UTF-8 BOM; YAML
+frontmatter (a --- first line through the next --- or ... line, when one
+exists; with none, the first --- is a thematic break and the file is counted);
+fenced code (any indent, the opener possibly after list-item or blockquote
+markers, a backtick opener's info string holding no backtick, closed by a run
+of the opener's character at least as long or by the end of its list item or
+blockquote); indented code (4 columns, after a blank line, outside a list);
+blockquote lines; HTML comments, which may span lines (one opened mid-line
+and never closed ends with its paragraph); the (url) part of a
+[text](url) link; code spans (a run of N backticks through the next run of
+exactly N, on one line); and double-quoted spans, straight or curly, which may
+wrap onto later lines of the same paragraph.
 
 A result may carry `declined: <rule-id> <cue> reason=saturated|boundary|cap`
-lines (cap: dropped by the per-file or per-batch finding cap). merge strips
-those from the bodies, totals them on `declined_total:` lines, and leaves any
-other `declined:` line in the body. When cues.txt exists it prints
+lines (cap: dropped by the per-file or per-batch finding cap). The cue token
+(load bearing, with its space, is accepted too) is keyed to its cue name:
+lowercased, load bearing and load_bearing read as load-bearing, and a
+trailing s dropped when that leaves a cue name (seams is seam). merge strips
+those lines from the bodies, totals them on `declined_total:` lines, and leaves
+any other `declined:` line in the body. A finding's quote may wrap onto
+indented continuation lines, up to a blank line, heading or the next line at
+the left margin. When cues.txt exists it prints
 `consistency:` lines for a saturated cue quoted in a
 rule-abstract-metaphor-jargon finding, a reason=saturated decline of a cue that
 is not saturated (or not a cue at all), and a batch holding a cue it neither
@@ -72,7 +83,7 @@ EOF
 }
 
 # A well-formed decline line; merge strips and totals only these.
-DECLINED_RE='^declined: rule-[a-z0-9-]+ [^ ]+ reason=(saturated|boundary|cap) *$'
+DECLINED_RE='^declined: rule-[a-z0-9-]+ [^ ]+( [Bb][Ee][Aa][Rr][Ii][Nn][Gg])? reason=(saturated|boundary|cap) *$'
 
 # The saturation cues and cue_hits(s, c): the matches of cue c in s, compared
 # lowercase and bounded by [^a-z0-9_] or the string's edge. POSIX awk only.
@@ -89,13 +100,38 @@ function cue_hits(s, c,   re, n, off, st, pre, post) {
   }
   return n
 }
-# prose(s): s with `code` spans and "double-quoted" spans blanked out. A quote
-# left open at the line end sets qopen, and the next line is blanked through
-# its closing quote; the caller clears qopen at a paragraph boundary. As in
-# detect.sh, a lone quote opens a span only after a space or opening bracket
-# and before a non-space, so an inch mark (6") is dropped instead.
+# unspan(s): s with code spans blanked out. As in CommonMark, a run of N
+# backticks opens a span that closes at the next run of exactly N; a run with
+# no such closer is literal text.
+function unspan(s,   out, n, st, t, k) {
+  out = ""
+  while (match(s, /`+/)) {
+    st = RSTART; n = RLENGTH; out = out substr(s, 1, st - 1)
+    t = substr(s, st + n); k = 0
+    while (match(substr(t, k + 1), /`+/)) {
+      if (RLENGTH == n) break
+      k += RSTART + RLENGTH - 1
+    }
+    if (RSTART && RLENGTH == n) { out = out " "; s = substr(t, k + RSTART + n) }
+    else { out = out substr(s, st, n); s = t }
+  }
+  return out s
+}
+# prose(s): s with code spans, HTML comments, link URLs and "double-quoted"
+# spans (curly quotes too) blanked out. A comment left open sets hcopen and a
+# quote left open at the line end sets qopen; the caller resumes both on the
+# next line and clears qopen at a paragraph boundary. As in detect.sh, a lone
+# quote opens a span only after a space or opening bracket and before a
+# non-space, so an inch mark (6") is dropped instead.
 function prose(s,   q, pre, post) {
-  gsub(/`[^`]*`/, " ", s)
+  s = unspan(s)
+  while ((q = index(s, "<!--"))) {
+    if ((pre = index(substr(s, q + 4), "-->"))) s = substr(s, 1, q - 1) " " substr(s, q + pre + 6)
+    else { hcblock = (q < 5 && substr(s, 1, q - 1) !~ /[^ ]/); s = substr(s, 1, q - 1); hcopen = 1 }
+  }
+  gsub(/\]\([^)]*\)/, "]", s)
+  while ((q = index(s, LQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
+  while ((q = index(s, RQ))) s = substr(s, 1, q - 1) "\"" substr(s, q + 3)
   if (qopen) {
     if (!(q = index(s, "\""))) return ""
     s = substr(s, q + 1); qopen = 0
@@ -120,7 +156,15 @@ function lead(s, bq, lists,   p, r) {
     else return p
   }
 }
-BEGIN { nc = split("load-bearing seam", C, " ") }'
+# cue_key(w): a declined cue keyed to its cue name: lowercase, load bearing
+# (or load_bearing) as load-bearing, and a trailing s dropped when that leaves a
+# cue name.
+function cue_key(w,   i) {
+  w = tolower(w); sub(/^load[ _]bearing$/, "load-bearing", w)
+  if (w ~ /s$/) for (i = 1; i <= nc; i++) if (substr(w, 1, length(w) - 1) == C[i]) return C[i]
+  return w
+}
+BEGIN { nc = split("load-bearing seam", C, " "); LQ = "\342\200\234"; RQ = "\342\200\235" }'
 
 die() {
   echo "$ME: $*" >&2
@@ -332,12 +376,21 @@ cmd_plan() {
     {
       t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
       if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
-      S++; fence = ""; fm = 0; ln = 0; qopen = 0
+      S++; fence = ""; fm = 0; ln = 0; qopen = 0; hcopen = 0; pblank = 1; icode = 0; inlist = 0
       for (i = 1; i <= nc; i++) h[i] = 0
       while ((getline line < f) > 0) {
         sub(/\r$/, "", line); ln++
-        if (ln == 1 && line ~ /^---[ \t]*$/) { fm = 1; continue }
-        if (fm) { if (line ~ /^---[ \t]*$/) fm = 0; continue }
+        if (ln == 1) {
+          if (substr(line, 1, 3) == "\357\273\277") line = substr(line, 4)
+          if (line ~ /^---[ \t]*$/) {
+            # Frontmatter only when a closing --- or ... follows; otherwise
+            # the --- is a thematic break. Scan ahead, then reopen past line 1.
+            while ((getline t < f) > 0) if (t ~ /^(---|\.\.\.)[ \t]*\r?$/) { fm = 1; break }
+            close(f); getline t < f
+            continue
+          }
+        }
+        if (fm) { if (line ~ /^(---|\.\.\.)[ \t]*$/) fm = 0; continue }
         if (fence != "") {
           # The container ends the fence: a blockquote fence at a line with no
           # `>`, a list-item fence at a non-blank line indented less than the
@@ -353,8 +406,29 @@ cmd_plan() {
             continue
           }
         }
+        if (hcopen) {
+          # Inside an HTML comment: skip to its close, then read the rest as
+          # prose. One opened mid-line and left open ends with its paragraph.
+          if (!(t = index(line, "-->"))) {
+            if (!hcblock && line !~ /[^ \t]/) { hcopen = 0; pblank = 1; qopen = 0 }
+            continue
+          }
+          hcopen = 0; s = prose(substr(line, t + 3))
+          for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
+          pblank = 0; continue
+        }
+        if (line !~ /[^ \t]/) { pblank = 1; qopen = 0; continue }
+        # Indented code: 4 columns of indent after a blank line or more
+        # indented code, outside a list.
+        if ((pblank || icode) && !inlist && line ~ /^( *\t|    )/) { icode = 1; pblank = 0; continue }
+        icode = 0
+        if (line ~ /^[ \t]*([-*+]|[0-9]+[.)])([ \t]|$)/) inlist = 1
+        else if (line ~ /^#/ || (pblank && line ~ /^[^ \t]/)) inlist = 0
+        pblank = 0
+        # A fence opener; a backtick fence info string holds no backtick, so
+        # a line starting with an inline ```x``` span opens nothing.
         p = lead(line, 1, 1); run = substr(line, p + 1)
-        if (match(run, /^(```+|~~~+)/)) {
+        if (match(run, /^(```+|~~~+)/) && !(run ~ /^`/ && index(substr(run, RLENGTH + 1), "`"))) {
           fence = substr(run, 1, RLENGTH); t = substr(line, 1, p)
           fbq = (t ~ />/); gsub(/[ \t>]/, "", t); fcol = (t != "") ? p : 0; qopen = 0
           continue
@@ -545,16 +619,28 @@ cmd_merge() {
           close(cf)
         }
       }
+      # report(): a pending metaphor-jargon finding, its continuation lines
+      # joined, marks each cue its quote holds as reported in batch b.
+      function report(   i) {
+        if (mj != "") for (i = 1; i <= nc; i++) if (cue_hits(quoted(mj), C[i])) rep[b, C[i]] = 1
+        mj = ""
+      }
       {
         t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
-        B[++nb] = b
+        B[++nb] = b; mj = ""
         while ((getline line < f) > 0) {
           sub(/\r$/, "", line)
+          # An indented line continues the finding above it.
+          if (mj != "" && line ~ /^[ \t]+[^ \t]/ && line !~ /^[ \t]*- L[0-9]+ rule-/) {
+            sub(/^[ \t]+/, "", line); mj = mj " " line; continue
+          }
+          report()
           if (line ~ /^- L[0-9]+ rule-[a-z0-9-]+:/) {
             split(line, a, " "); r = a[3]; sub(/:$/, "", r); total[r]++
-            if (r == MJ) for (i = 1; i <= nc; i++) if (cue_hits(quoted(line), C[i])) rep[b, C[i]] = 1
+            if (r == MJ) mj = line
           } else if (line ~ DECLINED) {
-            split(line, a, " ")
+            if (split(line, a, " ") > 4 && a[4] !~ /^reason=/) { a[3] = a[3] " " a[4]; a[4] = a[5] }
+            a[3] = cue_key(a[3])
             dec[b, a[2], a[3]] = 1
             k = a[2] " " a[3] " " a[4]
             if ((b, k) in once) continue
@@ -562,7 +648,7 @@ cmd_merge() {
             dl[k] = add(dl[k], b)
           }
         }
-        close(f)
+        report(); close(f)
       }
       END {
         if (have) {

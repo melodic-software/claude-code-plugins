@@ -133,14 +133,17 @@ When `cues.txt` is present, `merge` also checks that the batches agreed and prin
   unsaturated cue, or a word `cues.txt` does not count, with `reason=saturated`.
 - `consistency: rule-abstract-metaphor-jargon cue=<c> unaccounted_in=<NN,...>`: a batch whose
   `cues.txt` line shows occurrences neither quoted the cue in a finding of that rule nor
-  declined it.
+  declined it. A finding with no double-quoted span accounts for nothing. A quote may wrap
+  onto indented continuation lines. A declined cue is matched in any case and in plural
+  (`seams` is `seam`).
+- `consistency: cues.txt stale reason=digest`: a listed file changed after `plan`, so the
+  counts no longer describe the scope. It replaces the three checks above; plan the scope
+  again into a fresh directory to get current verdicts.
 
 The `rule_total:` line of any rule named on a `consistency:` line ends with `consistency=flagged`.
 A flagged rule's total is an artifact of batch assignment until the named batches are
 dispatched again. With no `cues.txt`, `merge` runs none of these checks and prints nothing
-extra. When a listed file changed after `plan`, the counts no longer describe the scope, so
-`merge` prints `consistency: cues.txt stale reason=digest` instead of the cue checks; plan
-the scope again into a fresh directory to get current verdicts. `rule-colon-crutch` and the other rules without cue words get no merge check; their
+extra. `rule-colon-crutch` and the other rules without cue words get no merge check; their
 consistency rests on the catalog's reported and declined examples. The merged file is the rubric
 half of the human report. Rubric findings never enter the detector's findings file: they have
 no crosswalk row and no relay.

@@ -974,8 +974,12 @@ either layer, and those rows say so.
   test can substitute the clock", a Feathers seam in testing prose. Reported: "the seam
   between the billing service and the account service", a system boundary described by
   metaphor, where "boundary" is the plainer word.
-- **Saturation.** Counted per audit scope, over the prose the rubric reads (fenced code, inline
-  code, double-quoted spans, blockquotes and YAML frontmatter excluded). A cue is saturated
+- **Saturation.** Counted per audit scope, over the prose the rubric reads. Excluded: YAML
+  frontmatter, fenced and indented code, code spans, straight and curly double-quoted spans
+  (also when wrapped across lines), blockquotes, HTML comments, and link URLs (the link text
+  counts). Known gaps: a cue split across a line break is not counted, and a code span or
+  comment that follows another span on the same line is handled approximately. The usage
+  text of `rubric-fanout.sh` states the exact rules. A cue is saturated
   when it appears in at least 10 files AND in at least 10% of the readable files in scope.
   `rubric-fanout.sh plan` computes the counts and the verdict into `cues.txt` in the batch
   directory; a batch reads the verdict there and never judges saturation from its own batch.

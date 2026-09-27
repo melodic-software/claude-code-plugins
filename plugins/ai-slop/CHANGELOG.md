@@ -6,8 +6,10 @@
 
 - **Scope-wide cue counts.** `rubric-fanout.sh plan` writes `cues.txt` beside the batch lists:
   for `load-bearing` and `seam`, the occurrence and file counts over the prose of every
-  readable file in scope (fenced and inline code, double-quoted spans, blockquotes and YAML
-  frontmatter skipped, as the rubric skips them), a `saturated=yes|no` verdict, and per-batch
+  readable file in scope (YAML frontmatter, fenced and indented code, code spans, straight and
+  curly double-quoted spans, blockquotes, HTML comments and link URLs skipped, as the rubric
+  skips them; a cue split across a line break is not counted), a `saturated=yes|no` verdict,
+  and per-batch
   counts. A cue is saturated when it appears in at least 10 files and at least 10% of the
   files in scope. Every batch receives the file, so no batch judges saturation from its own
   slice.
@@ -15,7 +17,8 @@
   reason=saturated|boundary|cap` lines. `merge` totals them as `declined_total:` lines and
   prints a `consistency:` line when a saturated cue is still reported, when a word is declined
   as saturated while `cues.txt` does not mark it so, or when a batch has occurrences of a cue and
-  neither reports nor declines it. The `rule_total:` line of a flagged rule gains
+  neither reports nor declines it. Declined cues match in any case and in plural, and a
+  finding's quote may wrap onto continuation lines. The `rule_total:` line of a flagged rule gains
   `consistency=flagged`. `cues.txt` carries a `scope_digest=` line; when a listed file
   changed after `plan`, `merge` prints `consistency: cues.txt stale reason=digest` instead of
   the cue checks.
