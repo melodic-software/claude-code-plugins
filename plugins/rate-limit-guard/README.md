@@ -88,8 +88,10 @@ You wire the **shim**, not the tee, and that wiring is permanent: `${CLAUDE_PLUG
 version-pinned and the old version directory is pruned ~14 days after an update, so a statusline
 wired straight to `<plugin-root>/scripts/statusline-tee.sh` silently stops teeing on the next
 version bump and then takes the whole statusline down when the path disappears. The shim resolves
-the newest installed tee at run time, so plugin updates need no re-wiring, and it passes your
-statusline through unchanged when no tee is installed (including after uninstall).
+the installed tee at run time, so plugin updates need no re-wiring, and it passes your
+statusline through unchanged when no tee is installed (including after uninstall). It remembers
+the answer; when it has to look again, the version `installed_plugins.json` records wins, then the
+higher version number, then the most recently installed copy.
 
 Running alongside `context-guard`? The tees are transparent wrappers, so they nest, each through
 its own shim, with the innermost command still owning stdout and the exit code. Both setup skills

@@ -59,14 +59,22 @@
 # makes a concurrent truncate-and-write safe: a reader that sees a torn or
 # empty line simply walks.
 #
-# On a MISS the glob picks the newest NON-ORPHANED tee by MTIME across
-# marketplaces, which is the most recently installed one, deliberately not a
-# version sort, since version directory names sort lexically ("0.9.0" >
-# "0.10.0") and carry no guarantee of being semver at all. Marketplace
-# directories named temp_* are skipped: the cache holds transient
-# temp_git_*/temp_local_* clones during marketplace operations. Documented
-# limitation: if two DIFFERENT marketplaces both ship a plugin named
-# rate-limit-guard, the most recently installed one wins.
+# On a MISS the glob collects every NON-ORPHANED tee across marketplaces and
+# ranks them in two steps. First, a version directory the install record
+# (<effective-config-dir>/plugins/installed_plugins.json) names as an
+# installPath outranks one it does not name, so a staged or stray directory
+# never beats the installed one. Second, within a rank, two version
+# directories whose names are dotted numbers compare by VALUE, so 0.10.0 beats
+# 0.9.0 (a lexical sort gets that backwards). Any other pair keeps the older
+# rule, newest mtime: a name that is not a dotted number carries no order, and
+# a symlinked development checkout's name says nothing about its age. mtime
+# alone was not enough: plugin cache copies can carry EQUAL mtimes, `-nt` then
+# never fires, and the first glob match won, which a verifier traced as 0.8.1
+# running while 0.8.9 was installed (#4676). Marketplace directories named
+# temp_* are skipped: the cache holds transient temp_git_*/temp_local_* clones
+# during marketplace operations. If two DIFFERENT marketplaces both ship a
+# plugin named rate-limit-guard, the one the record names wins; with both or
+# neither named, the higher version, then the newer mtime, wins.
 #
 # The CACHE sharpens that limitation, and this is the one thing it makes worse.
 # Installing from marketplace B while an un-orphaned copy from marketplace A is
@@ -108,8 +116,9 @@
 # superseded version directory of a plugin carries the marker and the currently
 # installed one does not. A directory can also be marker-less while merely
 # STAGED (a newer version fetched for a pending update), so the marker's
-# absence is not itself a claim of installation; mtime picks the winner among
-# unmarked candidates whenever the glob runs. Under the cache the marker is
+# absence is not itself a claim of installation; the install record, then the
+# version and mtime order under RESOLUTION, picks the winner among unmarked
+# candidates whenever the glob runs. Under the cache the marker is
 # also the PRIMARY invalidator rather than only a candidate filter: a cached
 # resolution holds until its version directory is marked orphaned, is pruned,
 # or turns out to be a symlink, so a newer unmarked directory does not take
@@ -119,13 +128,16 @@
 # cached tee lingers until its directory is pruned and the existence test
 # re-globs: a stale tee, never a broken statusline.
 #
-# An alternative authoritative source exists — ~/.claude/plugins/
-# installed_plugins.json maps <plugin>@<marketplace> to the current installPath
-# — but it is an UNDOCUMENTED internal file carrying its own schema version,
-# and reading it would put a jq spawn on every statusline refresh. The orphan
-# marker is preferred over it on both counts: the behavior it reports is
-# documented, and the test is a builtin. Revisit only if upstream documents the
-# file.
+# THE INSTALL RECORD is documented: "`installed_plugins.json` records each
+# install with its `scope`, `installPath`, and `version`" (plugins loading
+# reference, "Check which stage a plugin reached",
+# https://code.claude.com/docs/en/plugins/loading, fetched 2026-09-27). Only a
+# MISS reads it, as one builtin `read`, and the test is a substring match on
+# the installPath's last four segments, never a JSON parse: no jq spawn, and
+# the hit path never touches it. Its schema is not documented beyond those
+# three fields, so a record the match cannot read ranks every candidate the
+# same and the version and mtime rules decide, exactly as with no record. The
+# orphan marker stays the hit path's invalidator: that test is a stat.
 #
 # SYMLINKED DEVELOPMENT CHECKOUTS are rejected by the cache deliberately. "If
 # you symlink a development checkout into the cache as a plugin's version
@@ -159,12 +171,34 @@ set -uo pipefail
 
 PLUGIN_NAME="rate-limit-guard"
 
-# shim-revision: 4
+# shim-revision: 5
 # Bumped whenever this file's content changes. The installed copy is a
 # BYTE-IDENTICAL copy of this file, so /rate-limit-guard:setup check compares
 # the two directly; the marker is for humans reading the installed copy.
 
 RESOLVED=""
+
+# Succeeds when candidate $1 (version directory name $2) outranks the current
+# pick $3 (name $4) within one tier. Two plain directories whose names are
+# dotted numbers compare by value, segment by segment, a missing segment
+# counting as 0, so 0.10.0 outranks 0.9.0. Any other pair, and a tie in value,
+# keeps the mtime order: a name that is not a dotted number carries no order,
+# and a symlinked development checkout's name says nothing about its age.
+newer_candidate() {
+  local cand="$1" ver="$2" best="$3" best_ver="$4"
+  local num='^[0-9]{1,9}(\.[0-9]{1,9})*$'
+  if [[ "$ver" =~ $num && "$best_ver" =~ $num ]] &&
+    [[ ! -L "${cand%/scripts/statusline-tee.sh}" && ! -L "${best%/scripts/statusline-tee.sh}" ]]; then
+    local x="$ver." y="$best_ver." sx sy
+    while [[ -n "$x" || -n "$y" ]]; do
+      sx="${x%%.*}" x="${x#*.}"
+      sy="${y%%.*}" y="${y#*.}"
+      ((10#${sx:-0} > 10#${sy:-0})) && return 0
+      ((10#${sx:-0} < 10#${sy:-0})) && return 1
+    done
+  fi
+  [[ "$cand" -nt "$best" ]]
+}
 
 resolve_tee() {
   # The effective config dir anchors the cache path. CLAUDE_CONFIG_DIR wins when
@@ -226,18 +260,40 @@ resolve_tee() {
     fi
   fi
 
-  local cand mkt rest
+  # The install record, read whole with a builtin. `read -d ''` returns 1 at
+  # end of file, which is the normal case here, so its status is ignored; an
+  # absent or unreadable record leaves it empty and every candidate unrecorded.
+  local record="" record_file="$config_dir/plugins/installed_plugins.json"
+  if [[ -f "$record_file" ]]; then
+    IFS= read -r -d '' record 2>/dev/null <"$record_file" || true
+  fi
+
+  local cand mkt rest ver cdir tier best_tier=0 best_ver=""
   for cand in "$cache"/*/"$PLUGIN_NAME"/*/scripts/statusline-tee.sh; do
     # An unmatched glob expands to the literal pattern; -f rejects it.
     [[ -f "$cand" ]] || continue
     rest="${cand#"$cache"/}"
     mkt="${rest%%/*}"
     [[ "$mkt" == temp_* ]] && continue
+    cdir="${cand%/scripts/statusline-tee.sh}"
     # Uninstalled or superseded: the version directory is marked orphaned and
     # lingers ~14 days. Running it would keep an uninstalled plugin writing.
-    [[ -e "${cand%/scripts/statusline-tee.sh}/.orphaned_at" ]] && continue
-    if [[ -z "$RESOLVED" || "$cand" -nt "$RESOLVED" ]]; then
+    [[ -e "$cdir/.orphaned_at" ]] && continue
+    ver="${cdir##*/}"
+    # Tier 2: an installPath in the record ends in this version directory,
+    # spelled with `/` or with the JSON-escaped `\\` a Windows path carries.
+    # The quoted operands match literally, whatever the names contain.
+    tier=1
+    if [[ -n "$record" ]] &&
+      [[ "$record" == *"cache/$mkt/$PLUGIN_NAME/$ver\""* ||
+        "$record" == *"cache\\\\$mkt\\\\$PLUGIN_NAME\\\\$ver\""* ]]; then
+      tier=2
+    fi
+    if [[ -z "$RESOLVED" ]] || ((tier > best_tier)) ||
+      { ((tier == best_tier)) && newer_candidate "$cand" "$ver" "$RESOLVED" "$best_ver"; }; then
       RESOLVED="$cand"
+      best_tier=$tier
+      best_ver="$ver"
     fi
   done
 
