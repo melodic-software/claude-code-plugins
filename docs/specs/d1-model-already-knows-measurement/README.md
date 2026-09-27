@@ -8,7 +8,7 @@ It is committed so the reported **94.1% false-positive rate** can be re-derived 
 on trust. #3124's acceptance criteria bind any future implementation to that number, and a bar
 nobody can recompute is not a bar. The prose in the record states the method; these three files
 are the method, including the fixed word lists and the sampling order that the prose can only
-summarise.
+summarize.
 
 ## Pinned revision
 
@@ -64,10 +64,10 @@ Expected, and verified reproducing exactly at the pinned revision:
 `adjudication.py` holds verdicts, it does not derive them. Each of the 185 sampled sentences was
 read in its own file context and assigned one verdict; the sets in that file are the record of
 those readings, not a rule that recomputes them. Re-running reproduces the arithmetic, not the
-judgement. A reviewer who disagrees with a row should edit its set membership and see what the
+judgment. A reviewer who disagrees with a row should edit its set membership and see what the
 rate does, which is the point of shipping it this way.
 
 The **contested** bucket is deliberately scored twice. Those 11 sentences are model-relative:
-whether `Return only what is necessary.` is a no-op is a claim about a model's default behaviour,
+whether `Return only what is necessary.` is a no-op is a claim about a model's default behavior,
 not something reading settles. Reporting one number would have hidden the disagreement that is
 the investigation's actual finding.

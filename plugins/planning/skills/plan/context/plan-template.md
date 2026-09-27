@@ -24,6 +24,7 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 
 **What**: <1-2 sentences: what is being changed>
 **Why**: <1-2 sentences: the motivation, not just "because we need to">
+**Done when**: <the observable finish line, e.g. "every caller reads the new setting and the build is green">
 
 ## Standards grounding
 
@@ -115,6 +116,8 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 **Goal**: <what and why in one line>
 
+**Done when**: <the observable finish line>
+
 **Steps**:
 1. <step>
 2. <step>
@@ -165,7 +168,7 @@ When any phase includes ≥3 sequential shell commands that could conceivably re
 
 ## Sanity-Check Format (per-phase)
 
-Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgement.
+Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgment.
 
 **Verifiable format** (acceptable):
 
@@ -315,7 +318,7 @@ Omit `Review:` when the phase is docs-only or trivial with no new types/contract
 
 ## Phase-entry checks for tracker writes
 
-When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgement.
+When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgment.
 
 Required phase shape:
 

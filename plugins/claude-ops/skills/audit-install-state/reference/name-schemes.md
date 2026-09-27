@@ -5,7 +5,7 @@ This is the single highest-value rule in the skill.
 Take `ide/<port>.lock`. A process lookup for that number returns nothing, because **the number is a
 listening TCP port**. The real PID lives inside the file body, alive, running the IDE integration
 for that workspace. Deleting the file on the lookup miss breaks a live IDE session, and the
-"evidence" authorising it was a lookup that was never a valid question to ask.
+"evidence" authorizing it was a lookup that was never a valid question to ask.
 
 The failure is structural, not careless. `Get-Process <n>` / `os.kill(<n>, 0)` against a non-PID
 returns a *clean, confident, negative* answer. Nothing about that answer says "you asked the wrong
@@ -40,7 +40,7 @@ property rather than a convention someone has to remember.
 | anything else carrying digits | **unknown** | no |
 
 The last row is the safety property. A third-party plugin's own numeric scheme fails closed: it is
-reported as `unknown`, and no lookup is attempted. Adding a pattern to the table is an optimisation;
+reported as `unknown`, and no lookup is attempted. Adding a pattern to the table is an optimization;
 the default is what keeps the engine correct on an install it has never seen.
 
 ### The `.in_use` row's record

@@ -98,9 +98,8 @@ EXIT_FENCED=3
 # values its writer committed to, so `classify` reads them from the artifact
 # instead of assuming its own.
 #
-# 1800s, not the 300s the prose carried before this script existed. That number
-# was derived from a 60-second wall-clock heartbeat, and a skill-driven run has
-# no timer: it acts between tool calls, so it can only refresh at boundaries it
+# 1800s, not 300s: 300s assumes a 60-second wall-clock heartbeat, and a
+# skill-driven run has no timer: it acts between tool calls, so it can only refresh at boundaries it
 # actually reaches — acquire, each lane's persistence point, release. A single
 # delegated lane can outlast five minutes, and a threshold shorter than a lane
 # makes a *running* pass classify as abandoned, which is the one direction that
@@ -212,13 +211,10 @@ require_non_negative_int() {
 # writer's file — which is why the reason travels as an argument rather than being
 # hardcoded to the staleness case.
 require_int_at_least_one() {
-  local name="$1" value="$2" why="${3:-}"
+  local name="$1" value="$2" why="$3"
   require_non_negative_int "$name" "$value"
   if [[ "$value" -lt 1 ]]; then
-    if [[ -n "$why" ]]; then
-      die "$name must be at least 1: $value ($why)"
-    fi
-    die "$name must be at least 1: $value"
+    die "$name must be at least 1: $value ($why)"
   fi
 }
 

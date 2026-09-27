@@ -3,7 +3,24 @@
 ## Open a pull request as a draft
 
 Open every pull request as a draft and flip it to ready when the work is done: a draft skips the
-test lanes and both AI review lanes, and the flip to ready is what asks for them once.
+test lanes and both AI review lanes, and once it is ready they run again on every push. None of
+their checks is required; `ci-status` is the only one. Flip with
+`/source-control:pull-request ready`, which merges the base, reviews and verifies the merged head,
+and then marks it ready.
+
+## When to stop and when to keep going
+
+When a step doesn't need the user's input, keep going, with status notes in the same message as
+the next action. Stop and ask only when you can't continue without the user, or before anything
+destructive or outside this checkout: deleting data, force-pushing, pushing, merging, commenting on
+a PR or issue, touching another worktree or repo, a fleet host, or user-scope config. A task or
+loop prompt that explicitly authorizes one of those covers it. Launch unattended lanes with
+`--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
+in its lane telemetry and moves on. A hook `ask` or `permissions.ask` rule still opens a dialog
+and stops the lane, so lane sessions carry none. Never use bypass mode or
+`--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push
+credentials. On a long run, keep the task list in a file and tick it as you go, and end with
+three headings: Blocked on me, Changed, Found, unless a skill defines its own report shape.
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 
@@ -19,10 +36,10 @@ and its content is not already in context, read the file directly.
 |---|---|---|
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
+| `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
 | `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |
-| `plugins/provenance/skills/audit/AGENTS.md` | `plugins/provenance/skills/audit/**` | Editing the provenance audit skill: contributor conventions |
 | `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->

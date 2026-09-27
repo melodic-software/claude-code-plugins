@@ -317,7 +317,7 @@ view and no third record.** In order:
 1. **The read-only line**, plus the span this comparison covers: `source-date` → this run's `date`,
    and whether it covers more than one cycle.
 2. **Coverage**: layers walked this run; layers not walked this run, with the count of findings held
-   in them; and, separately labelled, layers **not walkable by `audit`** (the justification lane's
+   in them; and, separately labeled, layers **not walkable by `audit`** (the justification lane's
    five), whose findings no cycle of this lane ever compares.
 3. **Evidence availability**: `unchanged`, or the tiers that moved, first when it moved.
 4. **The counts table**: one row per delta class, listed / counted / omitted.

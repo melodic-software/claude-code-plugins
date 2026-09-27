@@ -130,7 +130,7 @@
 # measured at 75-200 ms here, against ~24 ms to exec a small binary. Detaching
 # therefore does not make the work cheaper; it buys the render's critical path
 # back by paying a fork that is more expensive than the execs it steps around,
-# and it lets the work of successive refreshes overlap instead of serialise.
+# and it lets the work of successive refreshes overlap instead of serialize.
 #
 # Measured on this repo's harness (Windows, 24 cores), statusline + tee:
 #
@@ -734,21 +734,22 @@ _rlg_managed_option() {
 # documented residual). Neither weakens the MANAGED verdict, which is
 # environment-independent by construction.
 _rlg_tee_enabled() {
-  local v
-  if v="$(_rlg_managed_option)"; then
-    [[ "$v" == "false" ]] && return 1
-    return 0
-  fi
-  # User scope. _rlg_probe already read this file inside the one jq pass, so the
-  # normal path spends no process here. The unprobed fallback is what lets a
-  # DIRECT call to this function (no main, hence no probe) read the user scope
-  # for itself.
-  if ((_RLG_USER_PROBED)); then
-    if [[ -n "$_RLG_USER_VERDICT" ]]; then
-      [[ "$_RLG_USER_VERDICT" == "false" ]] && return 1
-      return 0
+  # The verdict of the highest-precedence scope that configures one, empty when
+  # none does. A failed read prints nothing, so the empty value is also what
+  # every degraded path lands on.
+  local v=""
+  if ! v="$(_rlg_managed_option)"; then
+    # User scope. _rlg_probe already read this file inside the one jq pass, so
+    # the normal path spends no process here. The unprobed fallback is what lets
+    # a DIRECT call to this function (no main, hence no probe) read the user
+    # scope for itself.
+    if ((_RLG_USER_PROBED)); then
+      v="$_RLG_USER_VERDICT"
+    else
+      v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"
     fi
-  elif v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"; then
+  fi
+  if [[ -n "$v" ]]; then
     [[ "$v" == "false" ]] && return 1
     return 0
   fi
@@ -892,7 +893,7 @@ _rlg_tee_run() {
 # WHY PER-SESSION FILES, NOT ONE SHARED APPEND SPOOL. A shared O_APPEND spool
 # would be the obvious shape and it is not safe here. POSIX guarantees
 # atomicity for concurrent writes to PIPES up to PIPE_BUF; for REGULAR FILES it
-# explicitly leaves concurrent-write behaviour unspecified. Through
+# explicitly leaves concurrent-write behavior unspecified. Through
 # Cygwin/MSYS the observed no-interleave bound on appends is around a kilobyte
 # while statusline payloads are multiple kilobytes, and bash's buffered builtin
 # output can split one large record across syscalls regardless. Atomicity is
@@ -929,7 +930,7 @@ _rlg_tee_run() {
 # BASH FLOOR. %(%s)T is a bash 4.2 builtin. Below that (macOS ships 3.2) the
 # synchronous path above runs untouched — and that is the platform where fork
 # is cheap and this problem does not exist. RLG_TEE_ASYNC=1 also keeps its
-# current behaviour.
+# current behavior.
 
 # Extract session_id from the raw payload with parameter expansion only, and
 # reduce it to a safe shard name. Sets _RLG_SHARD.
@@ -1119,7 +1120,7 @@ _rlg_drain() {
   # and parsed under `try` so a torn record is dropped instead of failing the
   # batch. The chosen record is the newest WINDOW-BEARING one, falling back to
   # the newest overall when the machine has no window-bearing session at all;
-  # ties on the one-second stamp are broken in favour of THIS render's own shard,
+  # ties on the one-second stamp are broken in favor of THIS render's own shard,
   # whose observation is the freshest by construction.
   #
   # TWO MORE LINES, both for the account field and neither computable outside

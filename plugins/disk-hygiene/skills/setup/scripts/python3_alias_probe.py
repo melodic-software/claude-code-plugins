@@ -93,26 +93,18 @@ def classify(path: Path | None) -> dict[str, object]:
         st = path.stat()
     except OSError as exc:
         if windowsapps:
-            return _report(
-                "indeterminate",
-                path,
-                None,
-                True,
-                None,
+            detail = (
                 f"{_NAME} resolves under WindowsApps ({path}) but its size could not "
                 f"be read ({exc}); this is consistent with a broken App Execution "
                 "Alias stub. Verify manually and disable the alias if it is not a real "
-                "interpreter.",
+                "interpreter."
             )
-        return _report(
-            "indeterminate",
-            path,
-            None,
-            False,
-            None,
-            f"{_NAME} resolves to {path} but its size could not be read ({exc}); "
-            "assuming nothing. Verify the interpreter manually.",
-        )
+        else:
+            detail = (
+                f"{_NAME} resolves to {path} but its size could not be read ({exc}); "
+                "assuming nothing. Verify the interpreter manually."
+            )
+        return _report("indeterminate", path, None, windowsapps, None, detail)
 
     size = st.st_size
     reparse_point = _is_reparse_point(st)

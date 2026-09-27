@@ -127,6 +127,12 @@ function listDir(path) {
   }
 }
 
+// First candidate (repo-relative, "/"-separated) that exists under the repo
+// root, in candidate order; null when none does.
+function firstExisting(repoRoot, candidates) {
+  return candidates.find((rel) => pathExists(join(repoRoot, ...rel.split("/")))) ?? null;
+}
+
 // Minimal YAML scalar read for `enabled: <bool>` — no full YAML dependency.
 function readEnabledFlag(yamlText) {
   const match = yamlText.match(/^\s*enabled\s*:\s*(true|false)\s*(?:#.*)?$/m);
@@ -265,20 +271,18 @@ function probeTracker(repoRoot) {
 }
 
 function probeCiConfig(repoRoot) {
-  for (const marker of CI_MARKERS) {
-    const abs = join(repoRoot, ...marker.split("/"));
-    if (pathExists(abs)) {
-      return {
-        result: "present",
-        ran: true,
-        provenance: {
-          kind: "probe",
-          probe_class: "repo-file",
-          owner: "resolution-contract",
-          path: marker,
-        },
-      };
-    }
+  const marker = firstExisting(repoRoot, CI_MARKERS);
+  if (marker !== null) {
+    return {
+      result: "present",
+      ran: true,
+      provenance: {
+        kind: "probe",
+        probe_class: "repo-file",
+        owner: "resolution-contract",
+        path: marker,
+      },
+    };
   }
   return {
     result: "absent",
@@ -294,18 +298,17 @@ function probeCiConfig(repoRoot) {
 }
 
 function probeDependencyManifests(repoRoot) {
-  for (const name of DEPENDENCY_MANIFESTS) {
-    if (pathExists(join(repoRoot, name))) {
-      return {
-        result: "present",
-        ran: true,
-        provenance: {
-          kind: "probe",
-          probe_class: "repo-file",
-          path: name,
-        },
-      };
-    }
+  const manifest = firstExisting(repoRoot, DEPENDENCY_MANIFESTS);
+  if (manifest !== null) {
+    return {
+      result: "present",
+      ran: true,
+      provenance: {
+        kind: "probe",
+        probe_class: "repo-file",
+        path: manifest,
+      },
+    };
   }
   return {
     result: "absent",
@@ -428,19 +431,17 @@ function probeEcosystems(repoRoot) {
 }
 
 function probeSourceTree(repoRoot) {
-  const candidates = ["src", "lib", "app", "pkg", "cmd"];
-  for (const name of candidates) {
-    if (pathExists(join(repoRoot, name))) {
-      return {
-        result: "present",
-        ran: true,
-        provenance: {
-          kind: "probe",
-          probe_class: "repo-file",
-          path: name,
-        },
-      };
-    }
+  const dir = firstExisting(repoRoot, ["src", "lib", "app", "pkg", "cmd"]);
+  if (dir !== null) {
+    return {
+      result: "present",
+      ran: true,
+      provenance: {
+        kind: "probe",
+        probe_class: "repo-file",
+        path: dir,
+      },
+    };
   }
   // Any non-dotfile besides manifests counts.
   const entries = listDir(repoRoot) ?? [];
@@ -599,7 +600,7 @@ function probeMcp(repoRoot) {
   };
 }
 
-function probeAdvisoryDatabase(_repoRoot, _surface, machineContext) {
+function probeAdvisoryDatabase(machineContext) {
   // Curated advisory source is not established by repo-file presence alone.
   if (!machineContext) {
     return {
@@ -625,7 +626,7 @@ function probeAdvisoryDatabase(_repoRoot, _surface, machineContext) {
   };
 }
 
-function probeUpstreamChangelog(_repoRoot, _surface, machineContext) {
+function probeUpstreamChangelog(machineContext) {
   if (!machineContext) {
     return {
       result: "unresolvable",
@@ -713,9 +714,9 @@ function runNeedProbe(needId, ctx) {
     case "activity_signals":
       return probeActivitySignals(ctx.repoRoot);
     case "advisory_database":
-      return probeAdvisoryDatabase(ctx.repoRoot, ctx.surface, ctx.machineContext);
+      return probeAdvisoryDatabase(ctx.machineContext);
     case "upstream_changelog":
-      return probeUpstreamChangelog(ctx.repoRoot, ctx.surface, ctx.machineContext);
+      return probeUpstreamChangelog(ctx.machineContext);
     case "merge_path":
       return probeMergePath(ctx.surface, ctx.binding);
     default:
@@ -833,11 +834,11 @@ function resolveIdentity(record, ctx) {
     findings.push(...resolved.findings);
   }
 
-  // Identity-level disable declaration.
+  // Identity-level disable declaration (declarationFor with no need already
+  // keeps only need-less declarations).
   const identityDecl = declarationFor(ctx.binding, ctx.surface, record.identity, undefined);
   if (
     identityDecl &&
-    !identityDecl.need &&
     (identityDecl.state === "disabled" || identityDecl.state === "absent")
   ) {
     findings.push({

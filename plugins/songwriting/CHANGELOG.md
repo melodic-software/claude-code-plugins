@@ -3,6 +3,52 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.34] - 2026-09-27
+
+### Changed
+
+- Seven skills (`co-write`, `diagnose`, `metaphor`, `meter-prosody`, `object-writing`, `rhyme`, `song-form`) label their response-filter step "Pre-flight:" instead of "Pre-flight ALWAYS:". The step still runs before output (#4120).
+
+## [1.4.33] - 2026-09-27
+
+### Fixed
+
+- `object-writing` rule 6 now also stops to ask when only `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, since that runs every subagent on the session's model and puts the fleet on the orchestrator's tier.
+
+## [1.4.32] - 2026-09-27
+
+### Fixed
+
+- The `object-writer` agent pins `model: opus` instead of `inherit`, a fail-safe default so a call that forgets the model never runs the fleet on the session's model. `object-writing` rule 6 still requires every call to name the fleet tier, and now states the current model resolution order (per-call `model`, frontmatter, `CLAUDE_CODE_SUBAGENT_MODEL`, main model) with a dated record.
+
+## [1.4.31] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+
+## [1.4.30] - 2026-09-23
+
+### Changed
+
+- **`metaphor` gives the writer-facing reason for showing both finder-question lists.** The old
+  reason treated the visible lists as a substitute for thinking; they stay in the reply because
+  they are raw material the writer mines.
+
+## [1.4.29] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [1.4.28]
+
+### Changed
+
+- The wizard template shares one prompt line and one gh set helper between its ask and set functions, the testing cant-fail scanner folds its readability guards, config dedupe, and C# body-start detection into helpers, its suite gains run and count helpers, and the songwriting datamuse comments are trimmed, with byte-identical output.
+
 ## [1.4.27]
 
 ### Changed
@@ -95,7 +141,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`pat-pattison/scripts/datamuse.sh`: one comment rewritten present-tense, and
   the whole file reflowed by the `bash-format` hook.** The file was not
-  shfmt-clean before the edit (a 68-line diff), so the hook normalised it on
+  shfmt-clean before the edit (a 68-line diff), so the hook normalized it on
   save. The reflow is hook output, not a hand edit, and it leaves the live API
   contract untouched: verified four ways, including bash's own parse-tree
   re-serialiser (78 lines, identical) and a 36-case harness with argv-capturing
@@ -263,7 +309,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **The `## License` section drops its own correction notice.** Three sentences described what the
-  licence text used to say and when it changed, which is changelog content; the `0.8.6` entry in
+  license text used to say and when it changed, which is changelog content; the `0.8.6` entry in
   this file already carries it in full, under "the License section now describes what is actually
   here". Every factual and legal claim in the section stays. Docs-hygiene sweep,
   L8-write-for-humans.
@@ -513,7 +559,7 @@ rather than a verdict.
   file says in the same breath that it licenses nothing about the method.
 
   **The Sofía words are shipped as the FAILURE, not as the target.** A table
-  records them as one writer's judgements on one night, with the wrong lesson the
+  records them as one writer's judgments on one night, with the wrong lesson the
   assistant drew from each. Shipping them as the plugin's register would have
   replaced the AI's preferred voice with one writer's, the same defect at one
   remove. What generalizes is the build. The artifact lands at
@@ -541,7 +587,7 @@ rather than a verdict.
   reproducing that shape is no worse than what is sung today. Without that second
   rule the procedure stalls on impossible perfection.
 
-  The `±1 syllable = one merged or split note` tolerance is labelled as the
+  The `±1 syllable = one merged or split note` tolerance is labeled as the
   writer's own, and priced rather than absorbed: in production the 14-syllable
   variant of a 13-syllable slot was surfaced as a choice, not spent quietly.
 
@@ -592,7 +638,7 @@ rather than a verdict.
 - **Read-at-path, not context-provided, is the requirement.** The 12-agent panel that
   produced the rejected batch was given inlined context and never read the corpus.
   That is why the row demands the sources be read at their paths.
-- **The skeptic row is skippable-with-named-reason, and that is a judgement call
+- **The skeptic row is skippable-with-named-reason, and that is a judgment call
   this release made rather than one the writer handed down.** His standing rules
   cover the rubric self-run with no fatigue exceptions; they say nothing about
   mandating a subagent dispatch per batch. Making it unskippable would have been
@@ -633,7 +679,7 @@ rather than a verdict.
   so the rule can actually be applied: what a *slot* is, what counts as a
   *rejection* (declining the batch's execution, not asking for a tweak; rejecting
   the CONCEPT resets the count), and what the handoff contains instead of a third
-  batch. **Two** is the writer's own threshold and is labelled as his.
+  batch. **Two** is the writer's own threshold and is labeled as his.
 
 ### Fixed: the two vocabulary overcorrections, in opposite directions
 
@@ -672,7 +718,7 @@ rather than a verdict.
   **Pat runs the field himself, in print, and this corpus already had the pages.**
   Chapter 7's keyword `risk` has a Perfect Rhymes column two lines long
   (`disc` / `(oops!)`) beside an Imperfect column crossing roughly fifteen codas on
-  one short-`i`. The walk ORDER is labelled as this plugin's assembly of his two
+  one short-`i`. The walk ORDER is labeled as this plugin's assembly of his two
   printed orders, Chapter 4's within-family sequence and Chapter 5's
   noticeability sequence, because **neither of them is a walk across codas**.
 - **A third fail signature** joins §1's two. Both existing ones catch a list's
@@ -687,7 +733,7 @@ rather than a verdict.
   `charade`, `masquerade`, `parade` and `promenade` are **Pat's own printed
   candidates** in his `afraid` columns, so the pattern is licensed rather than
   invented. Marked as the writer's observation, not a measurement of pop usage,
-  and explicitly not a licence to reach for rare words. The same writer rejected
+  and explicitly not a license to reach for rare words. The same writer rejected
   `silt`.
 - **Datamuse was checked against the script rather than assumed.** No mode of
   `datamuse.sh` accepts a phonetic post-vowel constraint. `pattern` matches
@@ -697,12 +743,12 @@ rather than a verdict.
 ### Fixed: candidates the writer could not judge
 
 - **Bare one-line candidates in a table forced the writer to re-embed each one in
-  the section before he could sing it, and the singing is where the judgement
+  the section before he could sing it, and the singing is where the judgment
   happens.** `variations.md` now carries the writer's own convention: full section
   blocks IN CONTEXT, changed lines marked `►`, one labeled block per variation,
   3-4 per chat menu, deep analysis in the `variations/` file. A worked example
   shows the shape, since a shape is best specified by showing it.
-- **`variations-prompt.md` literally labelled the metadata block "Format for
+- **`variations-prompt.md` literally labeled the metadata block "Format for
   output to writer"**, the exact shape that was rejected. That label was the
   contradiction and is corrected at its source; the block is now named as the
   recorded FILE shape, with the chat shape as its own step.
@@ -753,7 +799,7 @@ on this repo's own precedent: `README.md` enumerates what
 `context/pat-pattison/` holds as *"the full reference corpus, its templates, the
 Datamuse script, and the mandatory response filter"*, naming a repo-authored file
 as a resident, and `audit-checklist.md` has always declared its own form as this
-repo's rather than Pat's. **The remedy is per-box provenance labelling, not
+repo's rather than Pat's. **The remedy is per-box provenance labeling, not
 relocation.** A third sibling under `context/` was considered and rejected:
 `context/<author>/` is the author seam, and a peer directory would break the one
 story the README tells about extension.
@@ -781,7 +827,7 @@ fix-nows. It closes **none** of the following, and none should be read as covere
 - **The preloaded-skill co-writer agent set:** `imagist`, `rhyme-strategist`,
   `prosodist`, `line-skeptic`. Validated in principle and deliberately deferred
   until the rubric and voiceprint had landed, which is now. The skeptic gate above
-  is honoured by a general subagent in the meantime.
+  is honored by a general subagent in the meantime.
 - **Constraint tightness as a quality lever.** The one salvageable slot in the
   rejected batch was the tightest template (a fixed 8-syllable chorus line), and
   the pattern is recorded but not folded into the co-write templates.
@@ -866,7 +912,7 @@ and the entry says so.
   Suno "rushes, skips sections, or cuts output short"). **A shared failure shape
   is not evidence of a shared cause**, and the entry records the two-generation
   test that would settle it. A "golden length" sweet spot offered by the same
-  post is deliberately not carried: one source, one taste judgement, one
+  post is deliberately not carried: one source, one taste judgment, one
   round-number range, the shape this plugin has deleted twice.
 - **Two troubleshooting entries for failures that were tested, not theorized**:
   "My bridge is missing / another section sang its lyrics" (the absorption above)
@@ -1163,7 +1209,7 @@ That convention's required parts (claim, basis, as-of date, recheck trigger) are
 what the two sourced records above are shaped on, and it is cited here as the
 precedent. It is **not** claimed as the owner of this class: its fetch-route
 ladder, its `llms.txt` identity check and its drift signal are all specific to
-`code.claude.com`, and none of that transfers to an Intercom-hosted help centre.
+`code.claude.com`, and none of that transfers to an Intercom-hosted help center.
 Suno claims stay governed by **the confidence ladder in
 `skills/suno/SKILL.md`**, which already carries source-quality semantics; what it
 lacked, and what this release borrows from the convention, is the **recheck
@@ -1222,7 +1268,7 @@ whether another chapter printed it.
 line five, `make everything so clear`, returns **zero across all four books**,
 because the 1991 text layer prints `averything`. A known-present control proves
 your *search* works; it can never prove your *target* is absent. One line failing
-where its neighbours match means "look for a typo", not "absent".
+where its neighbors match means "look for a typo", not "absent".
 
 ### Added
 
@@ -1368,7 +1414,7 @@ the standard that actually applies. **All ten re-verified receipts were sound.**
   - `lyrics.md` listed **`[Fade In]`** inside a HIGH-reliability set although no
     source states it. Marked unattested at both sites. **Kept, not dropped.**
     The audit's row says "drop" but its own summary groups it under "soften",
-    and its neighbouring row establishes that unsourced is not the same as
+    and its neighboring row establishes that unsourced is not the same as
     contradicted. The file's existing `[Synth Solo]` handling set the precedent.
   - `v55-features.md` listed eleven **best-supported languages** where only
     seven are sourceable. All eleven are retained; German, Italian, Russian and
@@ -1385,7 +1431,7 @@ the standard that actually applies. **All ten re-verified receipts were sound.**
   Reported test-stage sliders and the reported failure mode are included.
 
   Tiered **LOW-MEDIUM: one post plus its comment thread, not consensus**, and
-  labelled untested. Also recorded, as an unverified and *disputed* community
+  labeled untested. Also recorded, as an unverified and *disputed* community
   report, that the "make this voice public" toggle may default to on, with the
   reader told to check it rather than trust either side.
 
@@ -1830,13 +1876,13 @@ removed and 283 passages restored verbatim.**
   (*Writing Better Lyrics* (2009), Chapter 18), and again as "there are no
   rules. Only tools." (*Essential Guide to Rhyming* (2014), Chapter 4).
 - **"One focused finding outweighs ten scattered notes" was invented** (zero
-  corpus hits) and was labelled **"Pat's rule"** in two files. Retained as
+  corpus hits) and was labeled **"Pat's rule"** in two files. Retained as
   plugin-authored coaching posture with the attribution removed.
 - **`state / vary / withhold / deliver`:** an invented four-stage scaffold
   carrying a blockquote falsely attributed to 1991 Chapter 7. Removed from
   `hook.md` and from its recurrence in `beyond-books.md`.
 - **An invented "Shelley principle"** with a three-item `Use when:` list. Pat
-  names no such principle. The neighbouring quote is genuine and was kept. Its
+  names no such principle. The neighboring quote is genuine and was kept. Its
   *form* was fixed (a partial quote stitched mid-sentence, now quoted in full).
 - **Mechanical verification:** every block-quoted sentence in `context/` was
   tested against the full four-book corpus: **1,936 checked, 1,840 matched
@@ -1901,7 +1947,7 @@ removed and 283 passages restored verbatim.**
   four items absent from the chapter, and **Exercise 12 had been inflated from
   one printed paragraph into six bullets**, two of which Pat never asks for.
   `EXERCISE` returns zero hits in that chapter, so the file's ten step-lists are
-  now labelled as the file's own rather than Pat's.
+  now labeled as the file's own rather than Pat's.
 - **`rhyme-fundamentals.md` carried an invented compressed quote**:
   `"Rhyme is like the accelerator pedal." — Pat`. Pat's printed text (1991 Chapter 4, "II.
   PACE") is "Rhyme is like the accelerator in a car: the closer the accelerator
@@ -1984,7 +2030,7 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
   sags"). Each replaced with Pat's actual passage: the stack-of-boxes
   paragraph, his Hawaii travelogue definition, his colored-spotlights paragraph
   and his real worked diagnoses. **"Same-color" is this file's shorthand, not
-  Pat's term, and is now labelled as such.**
+  Pat's term, and is now labeled as such.**
 - **`box-model.md`'s "One More Dollar" section was a prose plot summary.**
   Replaced with Pat's printed lyric and the real box diagram
   (Working / Gambling / Panhandling to get home), read off the figure.
@@ -2009,7 +2055,7 @@ plus an extractor bug that had been silently corrupting every quoted stanza.**
 - **Two restored quotes lost their italics and so looked like transcription
   errors.** "you already knows all this stuff" and "a kind of universal feeling
   that you seems to add" both read as subject-verb slips. They are not: the raw
-  XHTML italicises **`you`** in each, because Pat means the *word* `you` as a
+  XHTML italicizes **`you`** in each, because Pat means the *word* `you` as a
   mentioned term, which takes a singular verb. **Both sentences are correct as
   printed**; the italics are now restored. This is a second, subtler failure
   mode of the extractor: stripped italics can make correct verbatim text look
@@ -2266,7 +2312,7 @@ the corpus and nothing was invented to fill them.
   (`abab`, `xaxa`, `aa`, `aabb`, `abcabc`, `xxaxxa`); the file carried three
   of them plus the counterexample.
 - **`five-compositional-elements.md` described `abba` as a "wrap"** in a list
-  where every neighbouring entry names a closure state, inviting the same
+  where every neighboring entry names a closure state, inviting the same
   wrong reading. Clarified that the frame returns without closing. The
   In Memoriam `abba` in `meter.md` is a **different frame**, Tennyson's
   equal-tetrameter stanza from the Challenge 4 curriculum, and was left
@@ -2644,12 +2690,12 @@ repository.
   to drop the third verse, the opposite of the condition that selects the
   form. Each repair now states its resulting form explicitly so the two
   descriptions cannot drift apart again.
-- **"Four times is a lot." was attributed to the wrong book and labelled a
+- **"Four times is a lot." was attributed to the wrong book and labeled a
   paraphrase.** It is verbatim from *Writing Better Lyrics* (2009), Chapter 22.
   The claim that *Essential Guide to Lyric Form and Structure* (1991)
   Chapter 6 shares the warning is left standing but remains unverified. That
   chapter has not been read.
-- **The chapter title was rendered "Im(potent) Packages"**, parenthesising the
+- **The chapter title was rendered "Im(potent) Packages"**, parenthesizing the
   wrong half of Pat's pun. It is "(Im)potent Packages".
 
 ### Added
@@ -2696,11 +2742,11 @@ example writes, or student work reaches this public repository.
 ### Fixed
 
 - **The worksheet layout sorted rhymes into per-type buckets; Chapter 4's does
-  not.** The file gave every core word five labelled rows: perfect, family,
+  not.** The file gave every core word five labeled rows: perfect, family,
   additive/subtractive, assonance, consonance. The chapter's own worksheet is
   ten numbered core words, each heading ONE undifferentiated column with every
   rhyme type mixed together. The mixing is the point: a single field is scanned
-  and compared on meaning, where five labelled rows turn one choice into five
+  and compared on meaning, where five labeled rows turn one choice into five
   sub-choices and invite filling each to a quota, the opposite of generating a
   surplus to reject most of it. The per-type SEARCH still runs, since each
   type is a different lookup and skipping one loses candidates, but its results
@@ -2795,8 +2841,8 @@ writes, or student work reaches this public repository.
 - **Chapter 16's nine couplet / common-meter models were transcribed wrong.** The
   exercise listed eight of the nine, dropped `abaa` entirely, corrupted two
   rhyme schemes (`ababaccc` for `aaabcccb`, `abacccc` for `ababcccc`), stripped
-  every stress count, and labelled the whole set four-stress when five of the
-  nine set a three-stress line against four-stress neighbours. The models now
+  every stress count, and labeled the whole set four-stress when five of the
+  nine set a three-stress line against four-stress neighbors. The models now
   carry both dimensions in their own table.
 - **The Structural Pentad was defined two incompatible ways in one file.** One
   section listed the Five Compositional Elements (number of lines, length of

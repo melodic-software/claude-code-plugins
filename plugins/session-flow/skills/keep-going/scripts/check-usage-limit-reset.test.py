@@ -12,8 +12,9 @@ from unittest import mock
 from zoneinfo import ZoneInfo
 
 
-SCRIPT = Path(__file__).resolve().parent / "check-usage-limit-reset.py"
-VENDOR_ZIP = Path(__file__).resolve().parent / "vendor" / "tzdata-zoneinfo.zip"
+_HERE = Path(__file__).resolve().parent
+SCRIPT = _HERE / "check-usage-limit-reset.py"
+VENDOR_ZIP = _HERE / "vendor" / "tzdata-zoneinfo.zip"
 MSG = "You've hit your session limit · resets 2:30am (America/New_York)"
 
 

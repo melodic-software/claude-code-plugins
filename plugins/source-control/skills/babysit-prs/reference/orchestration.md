@@ -5,7 +5,7 @@
 - [Fan-Out Gate: `needs_worker`](#fan-out-gate-needs_worker)
 - [Concurrency Cap](#concurrency-cap)
 - [Concurrency Guard](#concurrency-guard)
-- [Cross-PR Dependency Signalling](#cross-pr-dependency-signalling)
+- [Cross-PR Dependency Signaling](#cross-pr-dependency-signaling)
 - [Main Agent Responsibilities](#main-agent-responsibilities)
 - [Fix-Round Cap](#fix-round-cap)
 - [Merge Conflict Resolution](#merge-conflict-resolution)
@@ -329,7 +329,7 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py
   prevent. If the harness has no way to message an existing agent, wait for that worker's
   completion notification rather than dispatching again.
 
-## Cross-PR Dependency Signalling
+## Cross-PR Dependency Signaling
 
 A worker is scoped 1:1 to its own PR and never reaches across PRs. When it discovers, mid-fix,
 that its PR is coupled to another open PR, that discovery travels back to the main agent, which
@@ -340,7 +340,7 @@ reverse of the main→worker messaging in the Concurrency Guard above and uses t
 (in Claude Code, the `SendMessage` tool, here targeting the main agent's id). Signal live when the
 coupling blocks the current PR's progress; otherwise carry it in the worker's normal return
 (Worker Contract below). Either way the coupling is a material finding. A worker that acts on the
-other PR itself, rather than signalling, breaks the 1:1 scope and the Concurrency Guard's
+other PR itself, rather than signaling, breaks the 1:1 scope and the Concurrency Guard's
 same-worktree protections.
 
 ## Main Agent Responsibilities
@@ -531,6 +531,9 @@ re-verify anyway.
   compose-by-default, evidence-gated side-dropping, and the post-resolution semantic-conflict sweep.
 - **Resolve mechanical conflicts.** A textual/mechanical conflict is fixed, not escalated:
   formatting, adjacent unrelated changes, both sides adding different items to the same list.
+  A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical:
+  run `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first, per
+  `/source-control:resolve-conflicts` step 3.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
   conclude the operation (`git merge --continue`) so the worktree is left with no unmerged paths, a
   `git status --porcelain` clean of tracked-file changes, and `HEAD` at the merge commit whose first
@@ -695,6 +698,9 @@ On the conflict worker's return, and before pushing anything:
      in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
      fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
      not the fork head). Given the first-parent assertion this is a fast-forward.
+
+  Disarm auto-merge before step 1 and again right after step 3, never between 2 and 3, per the
+  Worker Contract's auto-merge rule below.
      Never force, in any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
@@ -814,6 +820,10 @@ Each worker must:
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
+- disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
+  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+  `gh pr merge <N> --disable-auto`, and do not push if either command fails; never re-arm
+  (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
@@ -897,6 +907,9 @@ pr comment); any gh call that mutates the local checkout, such as gh pr checkout
 same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
+Before that pre-push re-check and again right after the push, when
+`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
+`gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and

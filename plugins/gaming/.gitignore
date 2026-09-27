@@ -1,0 +1,7 @@
+# Proprietary binaries and provisioned state never belong in the plugin tree.
+*.dll
+*.zip
+*.exe
+state/
+runtime/
+builds/

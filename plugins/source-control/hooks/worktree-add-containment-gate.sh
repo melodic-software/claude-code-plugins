@@ -73,6 +73,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=worktree-path-lib.sh
+source "$HOOK_DIR/worktree-path-lib.sh"
 # shellcheck source=../scripts/worktree-root-resolve.sh
 source "$HOOK_DIR/../scripts/worktree-root-resolve.sh"
 hook::buffer_stdin_to INPUT || exit 0
@@ -105,88 +107,6 @@ COMMAND="${COMMAND//$'\r'/}"
 # Same `printf | jq` feed and parameter-expansion CR strip as the command read.
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
-
-# Set once a segment changes the working directory; every later segment then
-# resolves against a directory this hook cannot see (same rule and same
-# rationale as pr-body-linkage-gate: only the CURRENT shell's own relocation
-# counts).
-DIR_CHANGED=0
-
-# A value the tokenizer could not fully resolve — an unexpanded expansion or a
-# command substitution — is not this hook's to judge on its face.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-is_dynamic() {
-  [[ "$1" == *'$'* || "$1" == *'`'* ]]
-}
-
-# True for an absolute path in either grammar this hook meets: POSIX `/...` or
-# drive-letter `C:/...` / `C:\...`.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-is_abs_path() {
-  [[ "$1" == /* || "$1" =~ ^[A-Za-z]:[/\\] ]]
-}
-
-# normalize_path <abs-path> — lexically collapse `.`/`..`/`//`, echoing the
-# result. Pure string work (no filesystem), so it resolves `..` even through
-# not-yet-existing components — the case `git worktree add` handles by creating
-# them. Adapted from scripts/worktree-create.sh, where the hazard it closes is
-# documented: a `..` after a nonexistent component otherwise defeats the
-# nearest-existing-ancestor walk below.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-normalize_path() {
-  local input="$1" root rest seg
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  printf '%s%s' "$root" "${out[*]}"
-}
-
-# resolve_against <base> <path> — absolutize <path> against <base>, echoing the
-# result; echoes nothing when neither is absolute. Backslashes are folded to
-# forward slashes on Windows shells only, mirroring the helper's canonicalize
-# (off-Windows `\` is a legal filename byte).
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-resolve_against() {
-  local base="$1" p="$2"
-  if [[ ("$p" == *\\* || "$base" == *\\*) && ("${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin*) ]]; then
-    local bslash="\\" fwd="/"
-    p="${p//"$bslash"/"$fwd"}"
-    base="${base//"$bslash"/"$fwd"}"
-  fi
-  # A leading unquoted `~` would have been expanded by the shell before git ever
-  # saw it; reproduce the common case, and let an unresolvable one fall out as
-  # relative-with-no-base (allow). SC2088: matching the literal unexpanded tilde
-  # is the point.
-  # shellcheck disable=SC2088
-  if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
-    p="${HOME}/${p#\~/}"
-  fi
-  # shellcheck disable=SC2310  # is_abs_path is a pure predicate; both branches are handled
-  if is_abs_path "$p"; then
-    printf '%s' "$p"
-    return 0
-  fi
-  [[ -n "$base" ]] || return 0
-  printf '%s/%s' "${base%/}" "$p"
-}
 
 # git_unlocated <git-args…> — run git with the locating env vars unset, so an
 # inherited GIT_DIR cannot skew a probe's answer (#972 discipline, same as
@@ -290,119 +210,23 @@ block() {
   exit 2
 }
 
+# The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
+# composition and the add-target walk are worktree-path-lib.sh's, shared
+# verbatim with the claim sibling so the two gates can never disagree about
+# which target a command names. The nesting verdict is this hook's alone, and
+# WORKTREE_ADD_BASE carries the composed effective directory the block message
+# needs as its repository hint.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
-  local -a w=("$@")
-  local n=$# i=0 d word
+  local abs verdict kind detail
+  # shellcheck disable=SC2310  # the return status IS the verdict; abs is read only on 0
+  worktree_add_target_to abs check_segment "$HOOK_CWD" "$@" || return 0
 
-  if hook::shell_c_operand "$@"; then
-    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
-    return 0
-  fi
-
-  # Leading `VAR=val` assignments are not the command word.
-  while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
-
-  # Only the CURRENT shell can relocate later segments; `command`/`builtin`/
-  # `eval` dispatch the cd builtin inside this shell, `sudo cd`/`env cd` are
-  # separate processes that fail on a builtin and move nothing (they fall
-  # through to the resolver, where `cd` is simply not `git`).
-  d=$i
-  while ((d < n)); do
-    case "${w[d]}" in
-    command | builtin | eval | -p) ((d++)) ;;
-    *) break ;;
-    esac
-  done
-  case "${w[d]:-}" in
-  cd | pushd | popd)
-    DIR_CHANGED=1
-    return 0
-    ;;
-  *) ;;
-  esac
-  ((DIR_CHANGED)) && return 0
-
-  # One parsed invocation: the argv `env -S` splicing may have rewritten, git's
-  # index, the wrapper chdirs the [git, subcommand) walk below cannot see, and
-  # the subcommand with its index.
-  hook::git_invocation "${w[@]}" || return 0
-  local gi="$HOOK_GITINV_GI"
-  local -a words=("${HOOK_GITINV_WORDS[@]}")
-  local -a wrapper_dirs=(${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})
-  n=${#words[@]}
-
-  [[ "$HOOK_GITINV_SUB" == "worktree" ]] || return 0
-  local sub_idx="$HOOK_GITINV_SUB_IDX"
-  [[ "${words[sub_idx + 1]:-}" == "add" ]] || return 0
-
-  # The effective directory the git process runs in: the payload cwd, composed
-  # with each wrapper chdir in execution order, then each git global -C in
-  # order (git applies multiple -C values cumulatively). Any dynamic hop makes
-  # the base unknowable — allow.
-  local base="$HOOK_CWD" hop
-  for hop in ${wrapper_dirs[@]+"${wrapper_dirs[@]}"}; do
-    # shellcheck disable=SC2310  # is_dynamic is a pure predicate; the match is the verdict
-    is_dynamic "$hop" && return 0
-    base=$(resolve_against "$base" "$hop")
-    [[ -n "$base" ]] || return 0
-  done
-  local j=$((gi + 1))
-  while ((j < sub_idx)); do
-    if [[ "${words[j]}" == "-C" ]]; then
-      hop="${words[j + 1]:-}"
-      [[ -n "$hop" ]] || return 0
-      # shellcheck disable=SC2310  # is_dynamic is a pure predicate; the match is the verdict
-      is_dynamic "$hop" && return 0
-      base=$(resolve_against "$base" "$hop")
-      [[ -n "$base" ]] || return 0
-      ((j += 2))
-      continue
-    fi
-    ((j++))
-  done
-
-  # Walk the `add` arguments for the target path: the first positional word.
-  # Value-taking options for `git worktree add` are exactly -b, -B, and
-  # --reason (their attached forms are single words); every other option is a
-  # boolean the walk steps over, and `--` ends option parsing.
-  local target="" seen_ddash=0
-  for ((j = sub_idx + 2; j < n; j++)); do
-    word="${words[j]}"
-    if ((seen_ddash == 0)); then
-      case "$word" in
-      --)
-        seen_ddash=1
-        continue
-        ;;
-      -b | -B | --reason)
-        ((j++))
-        continue
-        ;;
-      -*)
-        continue
-        ;;
-      *) ;;
-      esac
-    fi
-    target="$word"
-    break
-  done
-  [[ -n "$target" ]] || return 0
-  # shellcheck disable=SC2310  # is_dynamic is a pure predicate; the match is the verdict
-  is_dynamic "$target" && return 0
-
-  local abs
-  abs=$(resolve_against "$base" "$target")
-  [[ -n "$abs" ]] || return 0
-  abs=$(normalize_path "$abs")
-
-  local verdict kind detail
   # shellcheck disable=SC2310  # the return status IS the verdict; output is read only on 0
   if verdict=$(repo_enclosing "$abs"); then
     kind="${verdict%%$'\n'*}"
     detail="${verdict#*$'\n'}"
-    block "$abs" "$kind" "$detail" "$base"
+    block "$abs" "$kind" "$detail" "$WORKTREE_ADD_BASE"
   fi
   return 0
 }

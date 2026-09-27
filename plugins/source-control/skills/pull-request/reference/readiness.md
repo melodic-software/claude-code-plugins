@@ -188,7 +188,7 @@ Only when ALL gates pass, present:
 **All readiness gates passed. Recommend merge.**
 ```
 
-If ANY gate fails, present which gates failed and what action is needed. **Never suggest merge with open gates.**
+If ANY gate fails, present which gates failed and what action is needed, leading with any action that needs the user (a decision, an approval, a human reviewer's thread). **Never suggest merge with open gates.**
 
 ## `full` mode behavior
 

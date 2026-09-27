@@ -45,20 +45,13 @@ for fn in wit_require_@@PROVIDER_FUNC@@_id wit_need_@@PROVIDER_FUNC@@_config \
   wit_@@PROVIDER_FUNC@@_auth_header wit_@@PROVIDER_FUNC@@_http \
   wit_@@PROVIDER_FUNC@@_require_ok wit_@@PROVIDER_FUNC@@_unimplemented \
   wit_help_if_requested; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # --- id grammar: foreign providers are refused before any I/O ---
 
-if wit_require_@@PROVIDER_FUNC@@_id "github:o/r#1"; then
-  fail "rejects foreign-provider id" "reject" "accepted"
-else
-  pass "rejects foreign-provider id"
-fi
+assert_fails "rejects foreign-provider id" "reject" "accepted" \
+  wit_require_@@PROVIDER_FUNC@@_id "github:o/r#1"
 if wit_require_@@PROVIDER_FUNC@@_id "@@SAMPLE_ID@@"; then
   pass "accepts a @@PROVIDER@@ id and sets the WIT_ID_* globals"
   assert_eq "id number" "@@SAMPLE_ID_NUMBER@@" "$WIT_ID_NUMBER"
@@ -69,16 +62,10 @@ fi
 # --- scope membership is the authorization boundary ---
 
 WIT_@@PROVIDER_UPPER@@_SCOPES='["@@SAMPLE_SCOPE@@"]'
-if wit_@@PROVIDER_FUNC@@_scope_in_scope "@@SAMPLE_SCOPE@@"; then
-  pass "declared scope accepted"
-else
-  fail "declared scope accepted" "in" "out"
-fi
-if wit_@@PROVIDER_FUNC@@_scope_in_scope "undeclared/elsewhere"; then
-  fail "undeclared scope refused" "out" "in"
-else
-  pass "undeclared scope refused"
-fi
+assert_succeeds "declared scope accepted" "in" "out" \
+  wit_@@PROVIDER_FUNC@@_scope_in_scope "@@SAMPLE_SCOPE@@"
+assert_fails "undeclared scope refused" "out" "in" \
+  wit_@@PROVIDER_FUNC@@_scope_in_scope "undeclared/elsewhere"
 
 # --- HTTP status → contract exit code ---
 

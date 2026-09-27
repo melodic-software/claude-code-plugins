@@ -16,25 +16,8 @@ harness_require_python
 SUMMARIZE="$SCRIPT_DIR/summarize.py"
 readonly SUMMARIZE
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 WORK="$(mktemp -d)"
 readonly WORK
@@ -48,12 +31,9 @@ samples() {
   done
 }
 
-RUN_OUT=""
-RUN_RC=0
 run_summarize() {
-  RUN_OUT="$(BENCH_LABEL="$1" BENCH_CONC="$2" BENCH_TIMES="$3" \
-    "$HARNESS_PYTHON" "$SUMMARIZE" 2>&1)"
-  RUN_RC=$?
+  capture env BENCH_LABEL="$1" BENCH_CONC="$2" BENCH_TIMES="$3" \
+    "$HARNESS_PYTHON" "$SUMMARIZE"
 }
 
 # --- 1. enough samples for both percentiles ---
@@ -93,8 +73,7 @@ assert_eq "a malformed row is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the concurrent-append cause" "concurrent appends" "$RUN_OUT"
 
 # --- 6. a missing environment variable is refused, never defaulted ---
-RUN_OUT="$(BENCH_CONC=1 BENCH_TIMES="$WORK/twenty" "$HARNESS_PYTHON" "$SUMMARIZE" 2>&1)"
-RUN_RC=$?
+capture env BENCH_CONC=1 BENCH_TIMES="$WORK/twenty" "$HARNESS_PYTHON" "$SUMMARIZE"
 assert_eq "a missing BENCH_LABEL is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains why there is no default" "no defaults" "$RUN_OUT"
 

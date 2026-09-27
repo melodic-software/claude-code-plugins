@@ -1,5 +1,5 @@
 ---
-description: "Escalate research discipline to a heavy verification fan-out over a TYPED FULL INVENTORY of the session's claims, assumptions, asserted facts, concrete specifics (paths, defaults, flags, signatures), and load-bearing premises, verifying each against a primary source at a configurable depth (tiered by default, or full), then report a per-item ledger with verdict, source, source tier, consensus count, and recency. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or when the session's own judgement is the suspected bias across many claims. For a single or small inline fact-check ('fact-check that'), use the sibling do-your-research."
+description: "Fan out verification over a typed full inventory of the session's claims (assumptions, facts, specifics, premises) against primary sources at a configurable depth, with a per-item ledger. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or the session's judgment is the suspected bias. For one fact-check ('fact-check that'), use do-your-research."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
@@ -28,7 +28,7 @@ only the fan-out delta. There is no separate copy of the discipline here; update
 Reserve the fan-out for when the accumulated claims are load-bearing enough to
 justify the subagent cost: a long session with many concrete specifics the
 rest of the work now rests on, a "fact-check everything" request that wants
-provable coverage, or where your own judgement is the suspected source of bias
+provable coverage, or where your own judgment is the suspected source of bias
 across many claims, a self-check in the context that produced the claims is
 weak by construction. For a single unbacked claim or a short session, the
 inline audit in the sibling is the right tool; this tier is overkill.
@@ -98,7 +98,7 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    - **verdict**. Verified / corrected / unverifiable;
    - **source**. What resolved it: a fetched primary source, the live
      environment, or "internal. Re-derived / needs user confirm" for an item
-     with no external referent;
+     with no external referent; for an unverifiable item, where you looked;
    - **source tier**. How authoritative that source is, per the consuming
      project's own research discipline. Resolve its source of truth by the
      shared method's ladder, the project's `CLAUDE.md` / `.claude/rules/`

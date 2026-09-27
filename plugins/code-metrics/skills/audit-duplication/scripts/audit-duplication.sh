@@ -25,6 +25,8 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
 CLUSTER="$SCRIPT_DIR/cluster-clones.py"
 FILTER="$SCRIPT_DIR/registry-filter.py"
+# shellcheck source=../../../scripts/entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 JSON=0
 CONFIG=""
@@ -53,7 +55,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    cm_usage_banner "${BASH_SOURCE[0]}" 19
     exit 0
     ;;
   *)
@@ -80,15 +82,14 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # the same document the dispatcher measures against.
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
-  "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" \
-    --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
+  cm_resolve_config "$CONFIG" || exit 2
 fi
 
 # Six tunables (a cap of null or 0 is exported empty, which the adapter reads
 # as "no cap"), then the registries from the resolver's own format
 # (`scope.registries`, or `duplication.registries` as its older name), so this
 # script and the dispatcher read the same list the same way.
-mapfile -t DUP < <("${PY[@]}" -c '
+if ! "${PY[@]}" -c '
 import json, sys
 
 section = json.load(open(sys.argv[1])).get("duplication") or {}
@@ -109,14 +110,28 @@ def cap(key):
     return "" if text in ("", "0") else text
 
 
+def rollup_depth():
+    value = section.get("rollup_depth", 2)
+    if isinstance(value, bool) or not isinstance(value, int):
+        sys.stderr.write(
+            "audit-duplication.sh: duplication.rollup_depth must be an integer (got %r)\n"
+            % (value,)
+        )
+        raise SystemExit(2)
+    return value
+
+
 print(number("min_tokens", 50))
 print(number("min_lines", 5))
 ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
 print(cap("max_lines"))
 print(cap("max_size"))
-print(number("rollup_depth", 2))
-' "$CONFIG")
+print(rollup_depth())
+' "$CONFIG" >"$WORK/dup-fields"; then
+  exit 2
+fi
+mapfile -t DUP <"$WORK/dup-fields"
 if [[ ${#DUP[@]} -lt 6 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
   exit 2
@@ -165,15 +180,5 @@ rc=$?
 "${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
-if [[ $JSON -eq 1 ]]; then
-  cat "$WORK/final.json"
-else
-  # shellcheck source=../../../scripts/persist-report.sh
-  source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=(--rollup-depth "$ROLLUP_DEPTH")
-  if document="$(cm_persist_report audit-duplication "$WORK/final.json")"; then
-    render_args+=(--document "$document")
-  fi
-  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/final.json" || exit 2
-fi
+cm_emit_document audit-duplication "$JSON" "$WORK/final.json" --rollup-depth "$ROLLUP_DEPTH" || exit 2
 exit "$rc"

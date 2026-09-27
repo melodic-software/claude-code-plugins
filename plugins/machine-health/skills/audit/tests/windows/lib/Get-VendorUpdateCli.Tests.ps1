@@ -2,9 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    . (Join-Path $script:SkillRoot 'scripts\windows\lib\Get-VendorUpdateCli.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-VendorUpdateCli.ps1'
 }
 
 Describe 'Get-VendorUpdateCli' -Tag 'lib' {

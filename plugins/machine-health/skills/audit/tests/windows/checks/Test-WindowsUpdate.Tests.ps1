@@ -21,14 +21,7 @@ Pins the fixes landing in Phase 5f:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-WindowsUpdate.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-WindowsUpdateAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-WindowsUpdate' -AsObject 'Invoke-WindowsUpdateAsObject'
 }
 
 Describe 'Test-WindowsUpdate -- baseline' -Tag 'check' {
@@ -58,9 +51,8 @@ Describe 'Test-WindowsUpdate -- PFRO value-array regression' -Tag 'check' {
     It 'does NOT flag reboot pending when PendingFileRenameOperations exists but value is empty' {
         Mock Get-HotFix { @() }
         Mock Test-Path { $false }
-        # The key scenario: the registry property exists (so $null -ne $pfro),
-        # but its value-array is empty. A presence-only test flags this as
-        # reboot_pending=true on most healthy machines.
+        # The key scenario: the property exists but its value array is empty; a presence-only
+        # test flags reboot_pending=true on most healthy machines.
         Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
             [pscustomobject]@{ PendingFileRenameOperations = @() }
         }
@@ -141,9 +133,8 @@ Describe 'Test-WindowsUpdate -- CBS and WU reboot signals' -Tag 'check' {
 
 Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
     BeforeAll {
-        # Get-WUList ships with the PSWindowsUpdate module, absent in CI/dev.
-        # Define a stub so Mock can attach; the check resolves it from this
-        # (parent) scope when invoked via `& $ScriptPath`.
+        # Stub Get-WUList (PSWindowsUpdate is absent in CI/dev) so Mock can attach; the check
+        # resolves it from this parent scope under `& $ScriptPath`.
         function Get-WUList { }
     }
 

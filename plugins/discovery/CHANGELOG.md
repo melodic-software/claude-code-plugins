@@ -1,5 +1,244 @@
 # Changelog: discovery plugin
 
+## [0.24.5] - 2026-09-27
+
+### Changed
+
+- `research-deep` states two routing rules without bold caps: N ≥ 2 separable topics are not dispatched to an engine as one blob, and an engine's return is neither re-run inline nor surfaced as-is. Both rules and their reasons are unchanged (#4120).
+
+## [0.24.4] - 2026-09-27
+
+### Fixed
+
+- Parent contract: the depth-limit quote ("Claude Code withholds the `Agent` tool from every subagent except a fork") is marked as quoted with link markup removed and re-dated against the sub-agents page fetched 2026-09-27.
+
+## [0.24.3] - 2026-09-27
+
+### Changed
+
+- **`setup` reads `.claude/topic-docs.yaml` at load time.** `check`'s read of the concern file
+  runs as pre-computed context from the session's working directory, so `check` reads it from the
+  skill instead of spending a call. The path is relative, with no `$` expansion, so the block also
+  loads from a worktree-isolated agent. When the working directory is not the repository root, or
+  the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
+  post-write verification still re-reads the file live.
+
+## [0.24.2] - 2026-09-27
+
+### Fixed
+
+- **Turn-limit record:** the `maxTurns` partial-return and resume behavior is one dated record in
+  the parent contract's "Harness facts" section, re-verified against Claude Code 2.1.280 and the
+  sub-agents page fetched 2026-09-27. The explore, research, and trace-intent dispatch files point
+  at it instead of each carrying a copy.
+- **`research` gotchas:** a small single-topic dispatch at effort `high` can exhaust
+  `maxTurns: 40` with no payload; resuming it by agent ID with `SendMessage` recovers the run.
+- **Agents:** each worker states why it keeps re-emitting its payload block: the docs do not say
+  which text a partial return carries, and the block rides on a turn already spent on a write.
+
+## [0.24.1] - 2026-09-27
+
+### Changed
+
+- **Worker models:** `explorer` now pins `model: sonnet`, and `researcher` and `intent-tracer` pin
+  `model: opus`. For these three workers the pin now outranks a consumer's
+  `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` or a per-call `model` still
+  overrides it. A dispatch that passes no `model` runs on the pin instead of falling through to the
+  orchestrator's own model. The parent contract states the pin as the default a parent overrides
+  per run with the per-call `model`, and its dated record is re-verified.
+
+## [0.24.0] - 2026-09-26
+
+### Added
+
+- **`research`:** each `sources[]` entry records `published:` (a date or `undated`), `applies_to:`
+  (`<product> <range>` with dotted versions, `<v>-<v>` or `<v>+`, or `version-independent`) and
+  `standing: current | historical`; each claim records its target `applies_to:`. A source that does
+  not cover the claim's product and whole version range, or is undated, is `historical`: labeled
+  wherever shown and never counted toward criterion 4. The primary is always dated and `current`.
+- **`research`:** outcome-gate criterion 13, run-owned with a script verdict:
+  `scripts/check-source-applicability.py <slice>` derives each source's standing from its fields,
+  fails any stored label that disagrees, and exits 0 / 1 / 2. It applies to every run with claims,
+  inline included, and the parent re-runs it post-dispatch and on the by-value path. It matches
+  `RESEARCH-*.md` sidecars case-sensitively on every OS, so the lowercase `research-checklist.md`
+  ledger in the same slice is never read as a sidecar, and it needs no Python 3.12 glob flag.
+- **`research`:** criterion 12's joint-inference check runs the variable, population, era and
+  scenario checks on every cited source. The scenario check asks whether a source describes the
+  claim's specific situation or only the general mechanism; a general-mechanism source is recorded
+  and not counted.
+- **Envelope:** a research-only `Evidence use: internal|publish` line (degradable, default
+  `internal`), copied into the index as `evidence_use:`. Under `publish` an undated source is always
+  historical, the answer quotes only `current` sources as support, and the verifier grades every
+  cited source for applicability rather than quote presence. The parent passes the value to the
+  checker as `--expect-evidence-use`. The envelope keeps six shared fields.
+- **`researcher`:** the return payload carries `applicability: pass | fail`.
+- Two eval cases: an old-era verbatim quote labeled historical and not counted, and publish mode
+  grading applicability rather than quote presence.
+
+### Changed
+
+- **`research`:** criterion 4 counts only `current` corroborators; the recency gate section says it
+  dates claims, not sources, and points at criterion 13.
+
+## [0.23.0] - 2026-09-25
+
+### Added
+
+- **Agents (`explorer`, `researcher`, `intent-tracer`):** a "Write early; reserve your last turns"
+  section. Each states its limit as its own `maxTurns: 40`, counts its turns, stops gathering by
+  turn 30 (or the envelope's lower `Turn budget:`; a higher one is ignored and noted in
+  `open_questions`), writes the index skeleton with `Run status: in progress` as the first
+  non-blank line after the level-1 title heading as soon as its input is resolved, writes each sidecar
+  as its section settles, and replaces the marker with `Run status: complete` only in the final
+  write.
+- **Envelope:** a `Turn budget:` line directly under `Budget:` in the parent-contract template and
+  the `research-deep` dispatch block, in the same unit as `maxTurns` and degradable when absent. It
+  is a second line of the Budget field, so the envelope keeps six shared fields.
+- **`check-dispatch-artifact.sh`:** exits 1 (`status=unusable`, reason on stderr) when the index's
+  marker slot holds `Run status: in progress`. The slot is the first non-blank line after the first
+  level-1 title heading (a single `#` and a space), read past a BOM, CRs and YAML front matter and
+  never from inside a code fence. Line 1 `---` is front matter only when a `---` or `...` closer
+  follows and every line between is YAML-shaped (blank, indented, a hash comment, a `-` list item,
+  or a `key:` line); otherwise it is a horizontal rule. A fence opens on 3 or more backticks or
+  tildes after at most 3 spaces of indent and closes only on a run of the same character, at least
+  as long as the opener and followed by whitespace only, per CommonMark. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
+  outside the slot is read, so a quoted marker elsewhere does not trigger, and an index with no
+  marker grades as before. A by-value index body written back must carry `Run status: complete` or
+  no marker.
+- **`research`:** each `sources[]` entry carries `role: primary | corroborator`, with exactly one
+  primary per accepted claim; criterion 12's variable and population checks run against it. New
+  eval case where two corroborators measure an adjacent variable, are not counted, and the claim
+  is filed as a Gap.
+- **`research`:** `discipline.md` names the read-only `gh` forms and why the `-X`/`-f` forms
+  prompt under ask rules written to catch API writes.
+
+### Changed
+
+- **Agents:** a path denied to the `Read` tool, or barred by the dispatch prompt, is not reached
+  through `Bash`, a script, `Grep`, or any other tool; the gap goes into `open_questions`.
+- **Agents:** the early payload block is kept as a second channel; the `status: truncated`
+  paragraphs name the disk marker. The claim that an agent cannot observe its own turn budget is
+  removed.
+- **Parent contract and dispatch references:** "Resume first" and the explore, research and
+  trace-intent dispatch references say an index still marked in progress is refused by the gate,
+  and only an index with no status line cannot be told apart from a complete one. The resume
+  citation is refreshed against the sub-agents page as of 2026-09-25.
+
+### Fixed
+
+- **Dispatch references:** the statement that the sub-agents page documents no partial-return
+  semantics for `maxTurns` is replaced with the page's current wording as a dated record: output
+  at the limit is marked partial on Claude Code v2.1.246 or later.
+- **`explore` dispatch reference:** the "What the harness actually guarantees about a resume"
+  record is re-verified against the sub-agents page as of 2026-09-25. The background-resume and
+  cancelled-subagent quotes use the page's current wording, a subagent stopped with `TaskStop` is
+  named as resumable, and the record gains a recheck trigger.
+
+## [0.22.1] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.22.0] - 2026-09-24
+
+### Added
+
+- **`research`:** outcome-gate criterion 12, owned by the verifier, asks whether every accepted
+  claim follows jointly from its cited sources, and discipline 15 points at its recipe, the new
+  "Joint-inference check" in `context/discipline.md`: variable, population, and hedge-survival
+  sub-tests, plus counter-evidence already read resolved in the artifact. The pass bar is one
+  rule: the claim's primary source measures the claim's variable and population; a corroborator
+  that does not is recorded, not counted toward criterion 4. A failing claim is a Gap or a
+  Conflicts entry.
+- **`research`:** the sidecar header carries per-source `measures:` and per-claim `inference:` and
+  `qualifiers:`, so a verifier can grade criterion 12 off disk.
+- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for
+  criterion 12 before it is surfaced: sub-slice qualifiers survive, and a claim the synthesis adds
+  gets the full check.
+- **`research`:** an eval case where a verbatim-quoted source backs a claim about a variable it
+  never measured.
+
+### Changed
+
+- **`research`:** the parent briefs the verifier on every verifier-owned row by number (4, 7 and
+  12), whatever the payload's `verification_request.criterion` string names. Gotchas and evals name
+  criterion 12 among the verifier rows, and one eval no longer counts the gate's criteria.
+- **`research`:** the gate states that its Owner column governs over any enumeration of the
+  verifier rows in an agent definition or sibling skill.
+- **`researcher` agent:** withholds three criteria from its own verdict, joint inference added,
+  and its `verification_request.criterion` names joint-inference validity.
+- **`research-deep`:** names joint inference among the verifier-owned rows and points at the
+  synthesis criterion-12 check on the N-topic path.
+
+## [0.21.0] - 2026-09-23
+
+### Changed
+
+- `research`'s output leads with any decision the findings leave to the user before the summary.
+
+## [0.20.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.20.0]
+
+### Added
+
+- **`reference/parent-contract.md`:** two harness-fact records, dated against Claude Code 2.1.278
+  and the subagents page fetched 2026-09-19. One states what the built-in Explore agent cannot do
+  (no `Write`, no skill preload, no CLAUDE.md or git status, one-shot with no agent ID) and why each
+  denial removes a load-bearing piece of the dispatch contract; the other states the four-step model
+  resolution order in which a per-invocation `model` outranks a definition's frontmatter. Every site
+  that relied on these facts now cites the record instead of restating them.
+- **`explore`, `explorer`:** built-in Explore is named as the fan-out scout, with the two triggers
+  that start a fan-out (a scope carrying two or more disjoint areas, or a post-pass gap-list carrying
+  four or more entries in areas sharing no files), a dozen-concurrent cap, and the locate-tier
+  constraint that a scout's hit is a pointer the worker must Read before any sidecar records
+  `verified: read`.
+- **`explore`:** a `## Next` section naming the successor skills.
+
+### Changed
+
+- **`explore`:** the choice between `discovery:explorer` and the built-in Explore agent is now four
+  binary tests (graded artifact, project conventions, conclusions resting on file contents,
+  resumability) rather than a prose comparison, and all four NO routes the ask out of this skill
+  entirely. The description's *Skip when* clause now says so, and `'where is X implemented'` moves
+  out of *Use when*, where it was pulling bare lookups into a six-dimension run.
+- **`explore`:** the resume ladder's built-in-Explore exclusion in `reference/dispatch.md` cites the
+  new record instead of carrying its own copy of the one-shot quote.
+- **`explorer`, `researcher`, `intent-tracer`:** drop `model: inherit`. Frontmatter outranks
+  `CLAUDE_CODE_SUBAGENT_MODEL`, so `inherit` silently overrode the consumer's configured subagent
+  model and put every one of these 40-turn readers on the main conversation's model. With no pin the
+  consumer's setting applies and the dispatching session raises it per run.
+
+## [0.19.18]
+
+### Changed
+
+- Fold the usage extraction into one sed, merge the cell edge guards and share the ledger and sidecar fixture helpers in the coverage-complete and dispatch-artifact gate suites (behavior unchanged).
+
+## [0.19.17]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.19.16]
+
+### Fixed
+
+- **`agents/tool-honesty.test.sh`:** the `persistence:` and `scope_as_received:`/`topic_as_received:`
+  checks no longer report a present field as missing when the suite runs beside other suites. Under
+  `set -o pipefail`, `body "$agent" | grep -q` returned 141 whenever `grep` exited on its match before
+  `awk` finished writing the agent body. Each body is now read once and matched from a here-string,
+  and the suite comes off `scripts/run-plugin-tests-serial.txt`.
+
 ## [0.19.15]
 
 ### Fixed
@@ -459,10 +698,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (*Competing hypotheses*) and so read as licensing the very rung the scale forbids for code shape;
   it now says plainly that this is code shape, leaves the scale, and is recorded as a gap.
 - **A grading criterion that was not derivable from the skill as written.** The ceiling on
-  *version-control behaviour*, meaning change coupling, churn, and hotspots, said "reaches `Inferred` and
+  *version-control behavior*, meaning change coupling, churn, and hotspots, said "reaches `Inferred` and
   never `Direct`" while the eval graded "never `Direct` or `Supported`". The body now names both
-  rungs. This is not a third code-shape route: the same section says plainly that behavioural signal
-  is **not** code shape and is admissible. It is the neighbouring rule, and the gap was between the
+  rungs. This is not a third code-shape route: the same section says plainly that behavioral signal
+  is **not** code shape and is admissible. It is the neighboring rule, and the gap was between the
   body and its own eval rather than in the exclusion.
 - **An eval that could not distinguish the behavior it targets from correct behavior.** The
   anticipatory-skip case told the model not to bother checking the tracker but never stipulated
@@ -596,7 +835,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Acceptance gates fail closed when they cannot run (#2616).** A denied or
   uninvocable research gate is a FAIL. It is not a reason to take the inline escape
-  hatch to dodge a post-dispatch check, and not a licence to mark criterion 11
+  hatch to dodge a post-dispatch check, and not a license to mark criterion 11
   PASS by reading the coverage ledger. `reference/parent-contract.md` requires a
   `--help` pre-flight for scripts the **chosen** route owes: the dispatch artifact
   checker before dispatching (explore or research), and the coverage checker for
@@ -691,7 +930,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   parenthetical.** `skills/research/context/dispatch.md`'s parent-obligation table had five rows and
   no **Memory root**, while `agents/researcher.md` requires it "as its own field, not left to be
   derived" and `skills/research-deep/SKILL.md` already ships it as a literal prompt line. The
-  envelope is now one labelled template, reproduced from `research-deep`'s existing block so the two
+  envelope is now one labeled template, reproduced from `research-deep`'s existing block so the two
   cannot drift, and the table carries the missing row. Memory root is recorded as the one
   **degradable** field: the agent derives, flags in `open_questions`, and continues, which is the
   behavior actually observed and is proportionate to a recoverable, visible wrong guess.
@@ -770,7 +1009,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   discard-instead-of-resume (4 before), the envelope table carries its Memory root row,
   `explorer maxTurns >= researcher maxTurns`, and `research/SKILL.md` stays smaller than
   `context/discipline.md`. **24 assertions; 22 fail at the merge-base and all 24 pass at the tip.**
-  The two that hold on both sides are the deliberate no-grant guards, and they are labelled as such.
+  The two that hold on both sides are the deliberate no-grant guards, and they are labeled as such.
   An earlier revision of this file asserted that each agent "points at" the write boundary, which
   passed *before* the change too because both agents already linked that file for an unrelated
   reason. That assertion now keys on the restatements being gone, because a check that cannot fail is
@@ -1000,7 +1239,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   no legal slot for it in the log, write does-not-exist as the nearest legal value, and pass.
 
   The vocabulary is five-valued now, `unresolved` among them and marked as the DEFAULT whenever the
-  sweep was not completed, explicitly not a licence to source from a rung below. The probe-settles-
+  sweep was not completed, explicitly not a license to source from a rung below. The probe-settles-
   nonexistence phrasing is struck. Criterion 9's own "exactly one of three outcomes" is corrected to
   four for the same reason. This wording predates the fix, but the fix is what made it operative:
   before, `unresolved` was a corner case, and after, it is the common outcome.
@@ -1361,7 +1600,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   - `README.md`: the `/discovery:research-deep` row.
   - `skills/research-deep/SKILL.md`: the frontmatter `description` and the Purpose paragraph.
 
-- **Tier 2 was labelled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
+- **Tier 2 was labeled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
   ordinary isolated `general-purpose` subagent; nothing about it forks the conversation. Calling it
   "forked" collided with the genuine fork distinction the fix above turns on, that a *fork* holds
   `Workflow` and a non-fork subagent does not, so the same word carried two meanings, one of them
@@ -1576,7 +1815,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `current`, `invalidated`, or `unresolved`. Criterion 9 reads the first half and criterion 6 the
   second, so neither stands in for the other; recording the rung as fetched without its verdict was
   the same recollection hole one level down. Criterion 6 is graded off this log, so a run could file
-  the required row and still derive the currency judgement from memory. Entries are keyed by claim
+  the required row and still derive the currency judgment from memory. Entries are keyed by claim
   because
   criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
   answered from recollection, which the gate's own preamble says does not bite, and a fresh session

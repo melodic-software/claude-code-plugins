@@ -69,6 +69,10 @@ the source, e.g.:
 Use the `deep_link` values returned by the tools verbatim (the `?t=<seconds>` fragment jumps to
 the right moment). Name the course using the returned `course` field.
 
+Mark any part of the answer no lesson confirmed, including parts resting only on
+partial-term or semantically related hits, and name the queries you ran for it, so the
+user can tell course-grounded guidance from your own.
+
 ## Quota etiquette
 
 Requests are limited per calendar month per account (all keys share the pool) with a short

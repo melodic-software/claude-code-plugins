@@ -381,6 +381,8 @@ catch. The instruction is part of the dispatch, not an afterthought in the repor
 **Two artifacts, `findings.json` and `report.md`**, written side by side in the run directory and
 redirected together by `--report-to <dir>`. The run prints `report.md`'s headline inline and offers
 the file; it does not print the report, which is the cost the second artifact exists to avoid.
+Before the headline, the inline message names what waits on the operator: the pass's human gate,
+the `/doctor` handoff when Phase 4 produced one, and any lane that stopped fenced or unverified.
 
 Every run also emits, in **one line**, how many `OPINION`-tier checks were
 available, how many were not run, and the argument that enables them (`--opinion`). Without it the

@@ -41,8 +41,8 @@ assert_contains "the refusal names the blocker's team" "$(lin_err)" "acme/OPS"
 # item is the edge this verb writes.
 lin_reset
 lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" '{issues: {nodes: [$i]}}')"
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 4 started)" '{issues: {nodes: [($i | .id = "uuid-issue-4")]}}')"
+lin_seed_issue 12 started
+lin_seed_issue 4 started
 rc="$(lin_run "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/ENG#4")"
 assert_eq "link → exit 0" "0" "$rc"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
@@ -58,7 +58,7 @@ assert_contains "the relation type is blocks" "$(lin_bodies)" '"type":"blocks"'
 lin_write_binding '{"scopes":["acme/ENG","acme/OPS"]}'
 lin_reset
 lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" '{issues: {nodes: [$i]}}')"
+lin_seed_issue 12 started
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 7 started)" \
   '{issues: {nodes: [($i | .id = "uuid-issue-ops-7" | .team.key = "OPS")]}}')"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/OPS#7")"
@@ -75,8 +75,8 @@ assert_eq "missing target issue → exit 5" "5" "$rc"
 # --- GraphQL errors inside a 200 still fail ---
 lin_reset
 lin_seed 'issueRelationCreate' 200 '{"errors":[{"message":"nope","extensions":{"type":"AuthenticationError"}}]}'
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" '{issues: {nodes: [$i]}}')"
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 4 started)" '{issues: {nodes: [$i]}}')"
+lin_seed_issue 12 started
+lin_seed_issue 4 started
 rc="$(lin_run "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/ENG#4")"
 assert_eq "GraphQL auth error → exit 4" "4" "$rc"
 

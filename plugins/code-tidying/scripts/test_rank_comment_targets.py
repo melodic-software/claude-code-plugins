@@ -17,15 +17,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# The fixtures build throwaway repositories. Under an inherited absolute GIT_DIR
-# (or GIT_WORK_TREE / GIT_CONFIG) `git init` and `git config` would write into the
-# caller's repository instead of the fixture, so clear the ambient git environment
-# once, before any fixture is built (scripts/check-fixture-git-isolation.sh).
+# An inherited GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) would point the fixtures' git
+# writes at the caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 del _leaked_git_var
 
 SCRIPT = Path(__file__).with_name("rank-comment-targets.py")
+
+
+def load_script():
+    """The hyphenated subject loaded as a module, for its internal helpers."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def pygments_present() -> bool:
@@ -248,7 +256,7 @@ class Ranking(unittest.TestCase):
     def test_no_layer_relays_the_census_install_hint(self):
         """Exit 3 must say why. It used to exit with stdout AND stderr empty.
 
-        The census names the missing analyser and the install command on stderr;
+        The census names the missing analyzer and the install command on stderr;
         the no-layer branch here dropped it, leaving a caller unable to tell a
         missing layer from a tree with nothing to rank.
         """
@@ -273,17 +281,12 @@ class Ranking(unittest.TestCase):
         self.assertIn("pygments", p.stderr)
 
 
-class RankNormalisation(unittest.TestCase):
+class RankNormalisation(unittest.TestCase):  # identifier, not prose # spellchecker:disable-line
     """Ties share one rank, so path spelling never moves a score."""
 
     @staticmethod
     def rank_norm():
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.rank_norm
+        return load_script().rank_norm
 
     def test_all_equal_values_share_the_midpoint(self):
         self.assertEqual(
@@ -309,11 +312,7 @@ class CommentLineNumbers(unittest.TestCase):
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_docstring_lines_count_ordinary_strings_do_not(self):
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = load_script()
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         src = tmp / "mixed.py"

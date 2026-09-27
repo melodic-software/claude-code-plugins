@@ -115,7 +115,7 @@ export async function runPromoteKeyFramesCli(argv) {
     return 1;
   }
 
-  const promotions = pairs.map((pair) => parsePromotionPair(pair));
+  const promotions = pairs.map(parsePromotionPair);
 
   const promoted = await promoteKeyFrames(sliceDir, promotions);
   writeStdout(JSON.stringify({ promoted }, null, 2));

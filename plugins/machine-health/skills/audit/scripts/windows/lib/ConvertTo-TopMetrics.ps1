@@ -40,9 +40,6 @@ function ConvertTo-TopMetric {
             $value = $p.Value
             if ($null -eq $value) { continue }
 
-            # Filter to scalars. Known-safe types: bool, string, and the
-            # numeric primitives tested below. Reject arrays, hashtables,
-            # PSCustomObjects (nested structures).
             $isScalar = $value -is [bool] -or
             $value -is [string] -or
             $value -is [int] -or
@@ -76,7 +73,7 @@ function Get-DetailPair {
         foreach ($key in $Detail.Keys) {
             $pairs.Add([pscustomobject]@{ Key = "$key"; Value = $Detail[$key] })
         }
-    } elseif ($Detail -is [pscustomobject] -or $Detail.PSObject.Properties) {
+    } else {
         foreach ($prop in $Detail.PSObject.Properties) {
             $pairs.Add([pscustomobject]@{ Key = $prop.Name; Value = $prop.Value })
         }

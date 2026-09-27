@@ -51,7 +51,7 @@ paths narrow either. Nothing depends on a framework, a build system, or the publ
 | `eslint-plugin-sonarjs` | TypeScript/JavaScript cognitive complexity | `npm install --save-dev eslint eslint-plugin-sonarjs` |
 | `gocyclo`, `gocognit` | Go cyclomatic and cognitive complexity | `go install github.com/fzipp/gocyclo/cmd/gocyclo@latest`, `go install github.com/uudashr/gocognit/cmd/gocognit@latest` |
 | `shellmetrics` | Bash cyclomatic complexity | one POSIX shell script from github.com/shellspec/shellmetrics, placed on `PATH` |
-| `multimetric` | Halstead difficulty in every lane; Bash cyclomatic as a labelled approximation | `pip install multimetric` |
+| `multimetric` | Halstead difficulty in every lane; Bash cyclomatic as a labeled approximation | `pip install multimetric` |
 | `jscpd` | duplication in every lane | `npm install -g jscpd`, or a devDependency |
 | `dupl` | Go duplication | `go install github.com/mibk/dupl@latest` |
 | PMD CPD | duplication for the non-shell lanes when `jscpd` is absent | the PMD 7 distribution or `brew install pmd` (needs a JVM) |

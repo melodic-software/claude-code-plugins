@@ -3,6 +3,23 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-09-23
+
+### Changed
+
+- `visualize` names the layout habits a rich page leaves out beyond what the bundled chrome
+  settles (italic accent words in headings, numbered "01 / 02 / 03" section labels, pill-shaped
+  buttons or badges, a hero banner), plus any the user names, and adds a disliked choice to that
+  list before rendering again.
+
+## [0.6.3] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.6.2]
 
 ### Changed

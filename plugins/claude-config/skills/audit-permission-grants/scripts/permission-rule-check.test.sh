@@ -57,8 +57,8 @@ mkdir -p "$ISOLATED_HOME"
 # PERMISSION_HYGIENE_SCAN_ROOT is unset in every helper: it outranks the alias
 # these cases pass, so an outer session exporting it would silently redirect the
 # whole suite at another tree.
-run() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
 run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run() { run_with_home "$1" "$ISOLATED_HOME" "${2:-}"; }
 run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
@@ -437,8 +437,8 @@ assert_contains "coverage counts the plugin settings it parsed" "$OUT" "2 settin
 # settings.json that parses with an empty allow array, were all examined and found
 # to grant nothing. That is a clean bill, exactly as a parsed plugin settings.json
 # declaring no `permissions` always was. Counting only the productive inputs is
-# "a denominator that counts only successes" — the defect this block exists to
-# remove — and it survived three earlier revisions of the formula.
+# "a denominator that counts only successes", the defect this block exists to
+# remove.
 D10BF="$TEST_TMPDIR/examined-not-productive"
 mkdir -p "$D10BF/.claude/skills/a" "$D10BF/.claude/skills/b" "$D10BF/.claude"
 printf -- '---\nname: a\n---\nbody\n' >"$D10BF/.claude/skills/a/SKILL.md"
@@ -569,9 +569,8 @@ assert_contains "refusal names the sanctioned variable as the fix" \
 # `//path` = "Absolute path from filesystem root", with `Read(//Users/<name>/secrets/**)`
 # resolving to `/Users/<name>/secrets/**`, and the same page says "Use
 # `//Users/<name>/file` for absolute paths." The docs' literal example names a concrete
-# user home and leaks `alice`. An earlier revision of this suite asserted the opposite,
-# which would have taught an `error`-tier username-leak check to ignore the canonical
-# spelling of the leak.
+# user home and leaks `alice`. Asserting the opposite would teach an `error`-tier
+# username-leak check to ignore the canonical spelling of the leak.
 D12A="$TEST_TMPDIR/issue-2282"
 mkdir -p "$D12A/.claude"
 jq -n --arg posix "Bash(${POSIX_MP}:*)" --arg abs "Read(${ABS_MP})" \
@@ -1094,7 +1093,7 @@ rc=0
 PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --strict >/dev/null 2>&1 || rc=$?
 assert_exit "--strict on a nonexistent root still exits 2" 2 "$rc"
 
-# 15g: --help keeps the pre-gate behavior. The unrecognised-argument row moved to
+# 15g: --help keeps the pre-gate behavior. The unrecognized-argument row moved to
 # Case 16a and INVERTED: falling through to the advisory report is what made a
 # typo'd flag a silent no-op gate, so it is now a refusal.
 rc=0
@@ -1105,16 +1104,6 @@ assert_exit "--help is unaffected by the gate flags" 0 "$rc"
 # Four false-passes a blind verifier reproduced against the gate as first shipped.
 # Each one exited 0 on a tree the gate existed to fail; each row below asserts the
 # CORRECT outcome, not the shipped one.
-gate_args_rc() {
-  # gate_args_rc <root> [args...] — exit code for an arbitrary argv, output discarded.
-  # `run`/`gate_rc` can only pass ONE argument, which is precisely how the
-  # multi-argument defects below went unnoticed.
-  local root="$1" rc=0
-  shift
-  env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
-    PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" >/dev/null 2>&1 || rc=$?
-  printf '%s' "$rc"
-}
 run_args() {
   # run_args <root> [args...] — merged stdout+stderr for an arbitrary argv.
   local root="$1"
@@ -1122,25 +1111,33 @@ run_args() {
   env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
     PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" 2>&1
 }
+gate_args_rc() {
+  # gate_args_rc <root> [args...] — exit code for an arbitrary argv, output discarded.
+  # `run`/`gate_rc` can only pass ONE argument, which is precisely how the
+  # multi-argument defects below went unnoticed.
+  local rc=0
+  run_args "$@" >/dev/null || rc=$?
+  printf '%s' "$rc"
+}
 
-# 16a: an UNRECOGNISED ARGUMENT is refused, never silently ignored. A typo'd
+# 16a: an UNRECOGNIZED ARGUMENT is refused, never silently ignored. A typo'd
 # `--check` against an error-tier tree exited 0: the gate had become a permanent
 # no-op and the CI lane that invoked it never failed again.
 assert_exit "a typo'd gate flag exits 2, never 0" 2 "$(gate_args_rc "$D15_ERR" --chek)" # spellchecker:disable-line
 OUT_16A=$(run_args "$D15_ERR" --chek)                                                   # spellchecker:disable-line
-assert_contains "the refusal names the offending argument" "$OUT_16A" "unrecognised argument"
+assert_contains "the refusal names the offending argument" "$OUT_16A" "unrecognized argument"
 assert_contains "the refusal prints usage" "$OUT_16A" "Usage:"
 # The refusal happens BEFORE any scanning, so no report is produced at all —
 # neither findings nor the coverage block. (The usage text quotes the clean-bill
 # string while explaining it, so its absence is asserted via the report surfaces.)
 assert_not_contains "a refused argument produces no findings" "$OUT_16A" "[P2b]"
 assert_not_contains "a refused argument produces no coverage block" "$OUT_16A" "Scan coverage"
-assert_exit "an unrecognised flag on a CLEAN tree also exits 2" 2 \
+assert_exit "an unrecognized flag on a CLEAN tree also exits 2" 2 \
   "$(gate_args_rc "$D15_CLEAN" --not-a-flag)"
-assert_exit "an unrecognised argument alongside a good flag still exits 2" 2 \
+assert_exit "an unrecognized argument alongside a good flag still exits 2" 2 \
   "$(gate_args_rc "$D15_ERR" --check --verbose)"
 assert_contains "usage documents the refusal" "$(bash "$SCRIPT" --help)" \
-  "NOT A RECOGNISED FLAG IS REFUSED"
+  "NOT A RECOGNIZED FLAG IS REFUSED"
 
 # 16b: COMBINED flags apply the STRICTEST, in either order. Reading only "$1" ran
 # `--check --strict` as --check (passing a warning-only tree) and
@@ -1162,7 +1159,7 @@ assert_contains "usage documents the strictest-wins rule" "$(bash "$SCRIPT" --he
 # read only "$1", saw an empty string, and ran the advisory report — exiting 0 on
 # an error-tier tree. An empty argument is what a quoted-but-unset "$MODE"
 # expands to, so it is ignored rather than refused, and the flag after it is
-# honoured.
+# honored.
 assert_exit "'' --check still gates an error-tier tree" 1 \
   "$(gate_args_rc "$D15_ERR" "" --check)"
 assert_exit "'' --strict still gates a warning-only tree" 1 \

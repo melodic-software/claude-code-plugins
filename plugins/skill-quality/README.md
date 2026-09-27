@@ -98,9 +98,16 @@ description out of the model-visible listing entirely, so it spends none of the 
 consumer's `skillOverrides` can free further descriptions with `"name-only"`, which repository
 content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
 
+`check` also takes one or more skills roots as positionals, so several trees are gated in one run.
+Each root is walked on its own under its own header and the run ends with a single
+`N passed, M failed` rollup. Nothing is pooled across roots: the cross-skill scans (trigger-move,
+sibling-ref, plugin-root detection) stay per root, and pooling is `listing-budget`'s job precisely
+because the budget it reports is the shared one.
+
 ```shell
 /skill-quality:check my-skill                  # gate one skill
 /skill-quality:check                           # gate every skill under the resolved root
+/skill-quality:check plugins/*/skills          # gate every skill under each plugin's root
 /skill-quality:check validate-evals my-skill   # schema-check + quality-lint evals.json
 /skill-quality:check listing-budget            # report the shared budget over the resolved root
 /skill-quality:check listing-budget plugins/*/skills  # pool every plugin's root into one aggregate

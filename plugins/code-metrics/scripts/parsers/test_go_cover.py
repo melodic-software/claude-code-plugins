@@ -21,9 +21,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from conftest import FIXTURES, parsed_output, run_parser, write
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "go_cover.py"
-FIXTURE = SCRIPT_DIR.parent / "fixtures" / "coverage" / "go-cover.out"
+FIXTURE = FIXTURES / "go-cover.out"
 JOIN = SCRIPT_DIR.parent.parent / "skills" / "audit-coverage" / "scripts" / "join.py"
 MODULE_PATH = "example.com/cmsample/cm-sample.go"
 
@@ -56,24 +58,11 @@ SHARD_B = (
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return run_parser(SCRIPT, *args)
 
 
 def parsed(*args: str) -> dict:
-    result = run(*args)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
-
-
-def write(tmp: str, name: str, body: str) -> str:
-    path = Path(tmp) / name
-    path.write_text(body, encoding="utf-8")
-    return str(path)
+    return parsed_output(SCRIPT, *args)
 
 
 def totals(document: dict, path: str) -> dict:

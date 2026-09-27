@@ -1,4 +1,4 @@
-# Routing out: the neighbouring questions this audit does not answer
+# Routing out: the neighboring questions this audit does not answer
 
 Read this when a candidate raises something that is *not* a placement question, and you need to know
 where it goes and what to do when the owning plugin is not installed.

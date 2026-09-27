@@ -43,7 +43,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 
 ### The 10 LLM-vs-Book Tensions
 
-**Every agent prompt MUST include corrective instructions for the tensions relevant to that phase.** The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with stronger corrections.
+Every agent prompt must include corrective instructions for the tensions relevant to that phase. The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with the specific correction the output violated, quoting the offending stickies and restating the reason.
 
 #### 1. Completeness Bias → Partial, Siloed Views
 
@@ -99,14 +99,14 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 **LLM default:** Plan the output. Think about the full scope before writing. Produce organized, categorized results.
 **Book requires:** "The structure must emerge from the team's hard work", not from upfront planning. Chaotic Exploration is organic: people write what comes to mind, influenced by what they see on the wall. The facilitator provides structure AFTER chaos, not before.
 
-**Corrective prompt:** "Do NOT plan your events before writing them. Start writing the FIRST event that comes to mind for your role, then the next, then the next. Let each event trigger the next association. If you find yourself organizing events into categories before placing them, STOP. That's Enforce Timeline behavior and it doesn't happen yet."
+**Corrective prompt:** "Place events in the order they occur to you, starting with the first one your role would name, and let each event suggest the next. Related events may cluster as they come, but decide no categories up front and leave the whole unsorted: ordering and categorizing are Enforce Timeline work, which comes later."
 
 #### 9. Helpful Gap-Filling → Genuine Blind Spots
 
 **LLM default:** Notice gaps in the flow and fill them. Anticipate what's missing. Be thorough.
 **Book requires:** DEEP/GREY/PRETEND zones. In your GREY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce WRONG events, not missing events.
 
-**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have STALE knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. DO NOT research or think carefully about whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
+**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have STALE knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. DO NOT research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
 
 **Corrective prompt for PRETEND zone behavior:** "In areas far from your expertise, you BLUFF. Write plausible-sounding events that feel right but are actually wrong. You don't know they're wrong. You genuinely believe them. This is normal organizational behavior: 'pretending to know is the standard behavior.'"
 
@@ -136,11 +136,11 @@ Not all corrections apply equally to every phase. Here's the priority map:
 Every agent prompt already includes persona identity, domain context, color/format rules, and round-specific behavior. Add a **Behavioral Rules** section AFTER the persona identity that includes the relevant corrections for the current phase. Example structure:
 
 ```markdown
-## Behavioral Rules (DO NOT OVERRIDE)
+## Behavioral Rules (do not override)
 - You know 30% of this domain. Write ONLY from your expertise. Leave gaps.
 - Each event: 2-5 words, past tense, verb phrase. Not sentences.
 - When you read others' events: find what's WRONG first. Challenge 2-3 events.
-- Do NOT plan your output. Write events as they come to mind.
+- Place events in the order they occur to you. Decide no categories up front.
 - Use YOUR role's vocabulary. Different words for the same moment = valuable signal.
 - Your output volume matches your role: [Expert: 12-15 | Newbie: 4-6 | Specialist: 8-10]
 ```
@@ -205,7 +205,7 @@ difference that made the two personas worth simulating separately.
 
 ### Standard Persona Catalog
 
-Pick 4-8 from these based on your domain (beneficiary persona is MANDATORY, always first):
+Pick 4-8 from these based on your domain (beneficiary persona is mandatory, always first):
 
 | Persona | Perspective | Typical Concerns | Agent Tone |
 |---------|-------------|-----------------|------------|
@@ -501,7 +501,7 @@ The simulation produces:
 
 When the `miro` plugin is enabled (see SKILL.md "Miro availability & graceful degradation"),
 simulated agents can place stickies directly on a Miro board. See `@./reference/miro-integration.md`
-for the tool namespace, colour mapping, spacing values, and board setup.
+for the tool namespace, color mapping, spacing values, and board setup.
 
 ### Round-Based Orchestration: Following Brandolini's Incremental Phases
 
@@ -520,9 +520,9 @@ disagreements.
 3. **Domain context**: research relevant to their role, not the full dump, just what THIS persona would know from their professional experience
 4. **Color and format rules**: which colors are allowed this round (e.g., orange only during Chaotic Exploration), event format: `[PersonaName] Event in Past Tense`
 5. **Y-offset**: each persona occupies a distinct y-coordinate row during chaotic exploration
-6. **Sticky note content rules (MANDATORY in every agent prompt):**
+6. **Sticky note content rules (mandatory in every agent prompt):**
    - **Brevity:** 2-5 words per event. Past-tense verb phrases (`Order Placed`, `Payment Failed`). If it doesn't fit on a physical 76x76mm sticky note in thick marker, it's too long. **Key test:** count your words. If >5, split into multiple events or simplify
-   - **No emojis:** Physical sticky notes are handwritten text only. Do NOT prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to ALL board types (BP, PM, DL) and ALL agent prompts. Include this instruction in every subagent prompt that creates stickies
+   - **No emojis:** Physical sticky notes are handwritten text only. Do not prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to all board types (BP, PM, DL) and all agent prompts. Include this instruction in every subagent prompt that creates stickies
    - **No literal newlines:** Do NOT use `\n` in sticky note content. Miro renders these as literal backslash-n, not line breaks. Use ` — ` (em dash with spaces) as separator instead
    - **No type prefixes:** Do NOT add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The COLOR is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
 7. **Round-specific behavior:**
@@ -540,7 +540,7 @@ disagreements.
       three lists rather than judging them by eye: content over 5 words, content containing emoji
       codepoints, and content starting with a type prefix such as `COMMAND:`, `EVENT:` or `POLICY:`.
       Repair every hit via `miro_update_sticky_note`: split or simplify the long ones, strip the
-      emoji, drop the prefix (the colour is the type indicator)
+      emoji, drop the prefix (the color is the type indicator)
    c. **Overlap check:** call `miro_detect_overlaps` and reposition every reported pair. Raise the
       threshold above its 195px default on rectangle-heavy boards
    d. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs and flag as `[PHASE? Decompose this]`
@@ -1010,7 +1010,7 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 **How it differs from `--simulate`:**
 
-- **Persona hierarchy inverted:** The New Hire is the PRIMARY narrator. They model first, using guesses and assumptions. Senior personas REACT to correct errors: "Let's start modelling what you think is happening in this organization!" (Ch. 10)
+- **Persona hierarchy inverted:** The New Hire is the PRIMARY narrator. They model first, using guesses and assumptions. Senior personas REACT to correct errors: "Let's start modeling what you think is happening in this organization!" (Ch. 10)
 - **Facilitator behavior:** Actively protect the New Hire from being steamrolled by expert corrections. "Let them finish their guess before you correct."
 - **Chaotic Exploration:** New Hire goes FIRST (solo agent, 8-10 guessed events). Then spawn expert agents to read the New Hire's events and react: "What did they get right? What did they get wrong? What critical steps did they miss?"
 - **Walk-through:** New Hire narrates the ENTIRE flow. Experts interrupt only when the story goes seriously wrong. Wrong guesses that provoke expert explanations are the primary output

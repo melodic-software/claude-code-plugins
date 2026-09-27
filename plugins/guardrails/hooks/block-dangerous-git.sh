@@ -25,12 +25,16 @@
 #   ps-unparsable-launcher
 #   ps-unparsable-special-construct
 #   ps-unparsable-herestring-unbalanced
+#   ps-unparsable-herestring-subexpr
 # These narrow the unparsable-PowerShell sink by the trigger that routed there.
 # They are NOT interchangeable with the destructive-form tokens above: an
 # unparsable command cannot prove which forms it carries, so reset-hard (etc.)
 # never opens the sink. Only the matching ps-unparsable-<trigger> token does.
 # Allowing a sink shape blanks that opaque region and continues checking any
 # remaining visible commands — it does not fail-open the whole compound line.
+#
+# The sixth sink trigger, `herestring-comment-char`, is deliberately absent from
+# that list and has no token at all; see the sink loop below.
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
 # object id of the repository's own hash width (a literal one: a substitution is
@@ -120,7 +124,7 @@ hook::buffer_stdin_to INPUT || {
 # measured, `git push --force origin main` was ALLOWED. The posture, the
 # membership criterion for this class, and the disclosed cost are argued at
 # hook::require_jq_blocking in hook-utils.sh — this comment asserts the
-# behaviour, that one explains it.
+# behavior, that one explains it.
 hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_enabled"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
@@ -150,7 +154,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 2
 # text keeps the text.
 #
 # Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviours were measured and they
+# reliably the thing that would run. Two behaviors were measured and they
 # disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
 # child_process REFUSES a NUL-bearing string outright — and which of them, if
 # either, a hook payload reaches has not been traced. Blocking is the one verdict
@@ -192,7 +196,7 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data subject
-  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::extract_bash_subject_to subject "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-dangerous-git" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -212,6 +216,40 @@ block() {
   echo "$msg2" >&2
   emit_tel "blocked" "$form"
   exit 2
+}
+
+# The four verdicts each scan below reaches from TWO shapes: before and after the
+# `--` end-of-options marker for the three pathspec forms, and a short bundle
+# carrying `f` versus a bare `--force` for clean. One definition apiece because
+# the wording is a contract the suites assert verbatim, and two copies of it can
+# drift apart on a re-word. Each returns, like `block` itself, when the form is
+# on the allow list.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_clean_force() {
+  block "clean-force" \
+    "BLOCKED: git clean with a force flag permanently deletes untracked files." \
+    "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_push_refspec_plus() {
+  block "push-force" \
+    "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
+    "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_checkout_tree_wide() {
+  block "checkout-dot" \
+    "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
+    "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_restore_tree_wide() {
+  block "restore-dot" \
+    "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
+    "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
 }
 
 # Does a word match a long option or an accepted unique-prefix abbreviation of
@@ -295,7 +333,7 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 #     `--namespace`) and any wrapper chdir ahead of them: a `git -C <sha256-repo>
 #     push` issued from a SHA-1 directory must be judged by the target's format.
 #
-# Those options are replayed verbatim onto the probe rather than modelled, so git
+# Those options are replayed verbatim onto the probe rather than modeled, so git
 # resolves the repository by its own rules — including several `-C` values, which
 # git applies cumulatively.
 #
@@ -408,7 +446,7 @@ lease_expect_is_immutable() {
 # A wrapper's chdir happens before git starts, so git's own locating options
 # compose onto it: it is replayed as LEADING `-C` words, which git applies
 # cumulatively in argv order, and the composition then falls out of git's own
-# rules rather than being modelled here.
+# rules rather than being modeled here.
 #
 # The payload cwd is replayed the same way and sits AHEAD of the wrapper dirs,
 # reproducing execution order end to end: the tool call starts in `.cwd`, a
@@ -425,7 +463,7 @@ lease_expect_is_immutable() {
 # Collateral, and intended: a RELATIVE `--git-dir` / `--work-tree` / `--namespace`
 # now rebases onto that base instead of onto the hook process's directory. That is
 # the correct resolution — a relative path in the tool call means relative to
-# where the tool call runs — and it is a behaviour change only in the sense that
+# where the tool call runs — and it is a behavior change only in the sense that
 # the previous answer was measured from the wrong origin. An ABSOLUTE one is
 # unaffected.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -942,9 +980,7 @@ check_segment() {
       case "$x" in
       --)
         for ((k++; k < nseg; k++)); do
-          [[ "${w[k]}" == +* ]] && block "push-force" \
-            "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-            "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+          [[ "${w[k]}" == +* ]] && block_push_refspec_plus
         done
         break
         ;;
@@ -975,9 +1011,7 @@ check_segment() {
       # until the segment ends.
       --force-*) ;;
       +*)
-        block "push-force" \
-          "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-          "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+        block_push_refspec_plus
         ;;
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
@@ -1095,17 +1129,11 @@ check_segment() {
       if [[ "$x" =~ ^-[A-Za-z]*e[A-Za-z]*$ ]]; then
         rest="${x%%e*}"
         [[ "$x" == *e ]] && ((k++))
-        if [[ "$rest" == *f* ]]; then
-          block "clean-force" \
-            "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-            "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
-        fi
+        [[ "$rest" == *f* ]] && block_clean_force
         continue
       fi
       if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
-        block "clean-force" \
-          "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-          "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
+        block_clean_force
       fi
     done
     ;;
@@ -1134,9 +1162,7 @@ check_segment() {
       # tree-wide pathspec check still applies.
       --)
         for ((k++; k < nseg; k++)); do
-          is_tree_wide_pathspec "${w[k]}" && block "checkout-dot" \
-            "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-            "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+          is_tree_wide_pathspec "${w[k]}" && block_checkout_tree_wide
           if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
         done
         break
@@ -1181,9 +1207,7 @@ check_segment() {
             "BLOCKED: git checkout -f/--force throws away local modifications." \
             "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
         fi
-        is_tree_wide_pathspec "$x" && block "checkout-dot" \
-          "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-          "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+        is_tree_wide_pathspec "$x" && block_checkout_tree_wide
         if [[ "$x" != -* ]]; then
           if is_exclude_pathspec "$x"; then
             ((excl++))
@@ -1286,9 +1310,7 @@ check_segment() {
         # After `--` every word is a pathspec — only the tree-wide check applies.
         --)
           for ((k++; k < nseg; k++)); do
-            is_tree_wide_pathspec "${w[k]}" && block "restore-dot" \
-              "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-              "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+            is_tree_wide_pathspec "${w[k]}" && block_restore_tree_wide
             if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
           done
           break
@@ -1322,9 +1344,7 @@ check_segment() {
             ((k += 2))
             continue
           fi
-          is_tree_wide_pathspec "$x" && block "restore-dot" \
-            "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-            "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+          is_tree_wide_pathspec "$x" && block_restore_tree_wide
           if [[ "$x" != -* ]]; then
             if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
           fi
@@ -1385,13 +1405,37 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
+    # A confirmed here-string opener line carrying a `#` is refused HERE, ahead of
+    # the allow-list question and without spending an attempt, because no allow
+    # token for it can be safe. Every token-granted round below spends the SHARED
+    # _ps_sink_attempts budget, so a sixth grantable trigger pushes a command that
+    # settles in four rounds past the cap at the bottom of this loop, which exits 0
+    # with a plainly visible `git reset --hard` never checked. Measured on the
+    # payload `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a
+    # commented opener and a closer-carried second opener.
+    #
+    # On the FLAG, not on PS_SINK_TRIGGER, and inside the loop rather than before
+    # it. The reduction this loop applies is not idempotent: a closer line carrying
+    # a second opener is joined onto the first opener's prefix, so a command whose
+    # raw text has no `#` on any opener line can acquire one on a later round
+    # (`x @"` / `$(y)` / `"@ # @"` / `git reset --hard` / `"@`). A check placed
+    # before the loop would already be behind that round, and the flag also refuses
+    # on round one when another trigger fired on the same commented-opener command.
+    # PS_SINK_TRIGGER is set here so the trigger line and the telemetry form name
+    # the shape actually being refused.
+    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+      PS_SINK_TRIGGER="herestring-comment-char"
+      ps::print_unparsable_git_block_message
+      emit_tel "blocked" "powershell-unparsable-herestring-comment-char"
+      exit 2
+    fi
     # The allow token is namespaced separately from the telemetry form token
     # (powershell-unparsable-*) so an operator configuring the allow-list cannot
     # confuse the two namespaces, and so no pre-#2664 allow value gains power.
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! allowed "$sink_allow"; then
       ps::print_unparsable_git_block_message
-      # The trigger rides along in the form token: four distinct shapes reach this
+      # The trigger rides along in the form token: five distinct shapes reach this
       # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
       exit 2
@@ -1430,7 +1474,7 @@ HOOK_ALIAS_SEEN=()
 # around each reparse (see check_segment) rather than read fresh from the payload
 # each time. Same chain as block-noncanonical-commit: the payload cwd, then
 # CLAUDE_PROJECT_DIR, then `.` — the last of which reproduces the pre-#2124
-# behaviour for a payload that carries no cwd at all.
+# behavior for a payload that carries no cwd at all.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 HOOK_GIT_INHERITED_LOCATING_OPTS=()
 

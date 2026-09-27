@@ -9,7 +9,7 @@
 checkouts, and it drew a relationship only where a collected fact in one
 checkout named another. In a cloud session, or on any machine holding one
 repository rather than a fleet, that yields a single box: this checkout names
-nineteen other organisation repositories in its workflows, marketplace sources
+nineteen other organization repositories in its workflows, marketplace sources
 and docs, and the skill saw none of them.
 
 Two further defects came out of the same pass. The facts probe mixed runtime

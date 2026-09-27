@@ -12,6 +12,7 @@
 - [Time-sensitive content](#time-sensitive-content)
 - [Evaluation and iteration](#evaluation-and-iteration)
 - [Model coverage](#model-coverage)
+- [Agent model](#agent-model)
 
 Locally-owned Melodic Software guidance (not part of the upstream playbook). Anthropic's
 [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
@@ -99,8 +100,9 @@ gets information plus room to adapt. Decide the level per section, not per skill
 
 The body states the gate ("Only proceed when validation passes"); it cannot enforce it. When the
 cost of a skipped gate is high, a hook is the escalation: deterministic, independent of what the
-model read, and charged to the marketplace's hook budget (`.claude/rules/hook-budget.md`), which
-is why it is the exception rather than the default.
+model read, and charged to the marketplace's hook budget
+(`docs/conventions/hook-budget/README.md`), which is why it is the exception rather than the
+default.
 
 **Record.** Levels:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom>.
@@ -201,7 +203,7 @@ exact template structure:" for data formats and machine-read output; "Here is a 
 format, but use your best judgment:" plus an explicit release line ("Adjust sections as needed")
 where adaptation is wanted. Omit the release only when the structure is fixed.
 
-Where output quality depends on style (commit messages, report prose), give two or three labelled
+Where output quality depends on style (commit messages, report prose), give two or three labeled
 input/output pairs and close with one line naming the rule the pairs illustrate. The pairs carry
 the style; the closing line names it.
 
@@ -255,9 +257,11 @@ never followed, one file read repeatedly (promote it into the body), a bundled f
 it or signal it better). Where the bundled skill-creator plugin is installed, its eval modes run
 this loop with a subagent per case. Where `/skill-doctor` is available (Claude Code v2.1.252 or
 later, in a session that fetches feature flags, run in the terminal rather than over Remote
-Control), it answers "does it activate" from usage data, not "is the output right". A
-`claude plugin eval` subcommand exists in the binary but is undocumented, so nothing here depends
-on it.
+Control), it answers "does it activate" from usage data, not "is the output right".
+`claude plugin eval` is a documented command with its own page, but it evaluates a whole plugin
+against a no-plugin baseline from a case format of its own, which that page states is separate from
+the `evals/evals.json` this section describes. The loop above is the one to run for a skill's eval
+file; a plugin measured as a plugin routes to that command instead.
 
 When a rule is being missed, two fixes are on the table: directive wording ("MUST filter test
 accounts") and reasoning-based wording ("filter test accounts because they inflate every metric").
@@ -270,8 +274,14 @@ version floor and feature-flag gate: <https://code.claude.com/docs/en/skills#fin
 file shape: <https://agentskills.io/skill-creation/evaluating-skills> and
 `plugins/skill-quality/reference/evals.schema.json`. The loop and the four signals:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration>.
-Verified 2026-09-10. Recheck: the Claude Code page documents `claude plugin eval`, changes the
-`/skill-doctor` gate, or the runner changes its record shape.
+Verified 2026-09-10. `claude plugin eval` and the format separation:
+<https://code.claude.com/docs/en/plugin-evals> ("Test plugins with evals"), read as raw markdown,
+which requires Claude Code v2.1.269 or later and says its case format "is separate from the
+`evals/evals.json` file the skill-creator plugin uses"; verified 2026-09-12, the command is
+documented and does not read this format, which is why the loop above is unaffected by it. Recheck:
+that page drops the format-separation statement or its runner starts reading `evals/evals.json`, the
+Claude Code page changes the `/skill-doctor` gate, the skills page changes the loop, the four
+signals, or the skill-creator modes, or the runner changes its record shape.
 
 ## Model coverage
 
@@ -286,3 +296,19 @@ them all or says which are untested.
 questions:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#test-with-all-models-you-plan-to-use>.
 Verified 2026-09-10. Recheck: the alias list changes.
+
+## Agent model
+
+A plugin agent definition names its `model` in frontmatter. `inherit` is reserved for an agent that
+must run on the orchestrator's model, and it says why in a trailing comment on the same line:
+`model: inherit  # reason: <why>`. Why: a subagent runs on the per-call `model` if one is passed,
+then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's
+model. A definition that omits the field therefore runs on the orchestrator's model wherever the
+variable is unset, which is the same cost as `inherit` with nothing to show it was chosen. The pin
+is the default; a dispatching skill overrides it per run with the per-call `model`, which replaces
+the pin in either direction. In the claude-code-plugins marketplace,
+`scripts/validate-plugin-contracts.mjs` fails an agent definition that breaks either rule.
+
+**Record.** Resolution order and the omitted-field fallback:
+<https://code.claude.com/docs/en/subagents#choose-a-model>. Verified 2026-09-27. Recheck: the page
+changes the order, or a release note names subagent model resolution.

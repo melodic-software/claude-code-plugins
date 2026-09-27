@@ -3,6 +3,24 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.9] - 2026-09-27
+
+### Changed
+
+- `lookup`'s philosophy line drops the anti-laziness clause "even for libraries you 'know.'" It still says to verify against Context7 before claiming how a library works (#4120).
+
+## [0.5.8] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.5.7]
+
+### Changed
+
+- The ai-slop audit detector reads its phrase_add and phrase_remove config keys through one helper, its suite shares the branch-line and tier assertions, and the context7 updater drops a dead echo fallback, with identical output.
+
 ## [0.5.6]
 
 ### Changed

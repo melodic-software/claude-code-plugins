@@ -260,7 +260,7 @@ S_UNTRACKED=0
 # unpushed/landed columns instead.
 #
 # Returns 1 when the status could not be read at all. A failed `git status` used
-# to leave all four counts at their zero initialisation, which is exactly the
+# to leave all four counts at their zero initialization, which is exactly the
 # shape of a clean worktree — so an unreadable index reported as clean, and a
 # worktree with nothing unpushed then classified `ok`. Unknown must not wear
 # clean's clothes.
@@ -393,7 +393,7 @@ classify_landed() {
   # `--all`, and exactly one. A criss-cross history has several merge bases; a
   # plain `merge-base` silently returns one of them, and testing against a
   # different base than the one the work actually diverged at can produce a
-  # favourable verdict for content that is not there.
+  # favorable verdict for content that is not there.
   local mb_count
   mb=$(git -C "$p" merge-base --all "$base_sha" HEAD 2>/dev/null) || mb=""
   if [[ -z "$mb" ]]; then
@@ -685,7 +685,12 @@ merged_ref() {
 for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   p="${T_PATH[$idx]}"
   reason=""
-  if [[ ! -d "$p" ]] || ! is_worktree_root "$p"; then
+  if [[ ! -d "$p" ]]; then
+    reason="path-absent"
+  elif ! is_worktree_root "$p"; then
+    reason="not-a-worktree-root; probing it with git -C reports the containing repository"
+  fi
+  if [[ -n "$reason" ]]; then
     R_NOTGIT+=("yes")
     R_BARE+=("no")
     R_UNPUSHED+=("?")
@@ -697,11 +702,7 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     R_UNSTAGED+=("?")
     R_CONFLICTED+=("?")
     R_UNTRACKED+=("?")
-    if [[ ! -d "$p" ]]; then
-      R_REASON+=("path-absent")
-    else
-      R_REASON+=("not-a-worktree-root; probing it with git -C reports the containing repository")
-    fi
+    R_REASON+=("$reason")
     continue
   fi
   R_NOTGIT+=("no")

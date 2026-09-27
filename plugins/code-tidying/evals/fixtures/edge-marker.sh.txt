@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+next_page_window() {
+  local offset="$1" page_size="$2"
+  # end offset of the current page
+  gql_page_end=$((offset + page_size))
+  echo "$offset $gql_page_end"
+}

@@ -6,7 +6,7 @@
 # it through the four EM_DASH_* injection variables, and asserts on exit code
 # plus output. The one thing it does NOT stub is the detector. The fixture
 # drives the real plugins/ai-slop/skills/audit/scripts/detect.sh, because the
-# behaviour most worth pinning here is precisely that this gate and that
+# behavior most worth pinning here is precisely that this gate and that
 # detector agree on what counts as prose. A stubbed detector would let the two
 # drift and still report green.
 #
@@ -222,8 +222,8 @@ fi
 # real detector would report if those rules ran enabled. The SUT only greps
 # rule-em-dash findings, so ignoring those rows is not enough to stay cheap;
 # the one-rule liveness guard is what fails a wide run at exit 2. A passing
-# result here is the coverage arithmetic re-proven under the narrower config
-# #3342 asked for: two declared files, one enabled rule, no em dashes.
+# result here is the coverage arithmetic re-proven under the narrower config:
+# two declared files, one enabled rule, no em dashes.
 run "$REPO" "other-tells.txt"
 if ((RC == 0)) && [[ "$OUT" == *"2 declared paths, 2 files scanned"* ]]; then
   ok "other-rule tells on a declared path do not fail a one-rule run"

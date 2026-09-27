@@ -191,9 +191,14 @@ machines; neither on the attended box.
 > only for the exceptions the agent frontmatter does not carry: `fable` for conflict
 > resolution and any security-surface work class, unconditionally; `opus`
 > for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never export
-> `CLAUDE_CODE_SUBAGENT_MODEL`. It silently outranks the bindings and
-> every deliberate override alike.
+> `haiku` only for mechanical greps and log pulls. Never set
+> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
+> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
+> unset it puts every subagent on your own model. Leave
+> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
+> or override names a model
+> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+> 2026-09-27).
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
@@ -448,7 +453,7 @@ terminals mutating the same row.
 > `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
 > `work-class: structural`, `work-class: untrusted-provenance`.
 >
-> For an item with no trailer, propose a class with your reasoning and
+> For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
 > reversible maintenance such as dependency bumps, lint, format, sync.
 > And a change to any path on the `Runtime surfaces` line is not mechanical
@@ -617,7 +622,7 @@ to the template re-renders here too.
 > candidate whatever else it carries, so the resolved human-gated role, not
 > the decision-pending label, is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after, and in that same edit remove the
+> role-less first and labeled after, and in that same edit remove the
 > resolved autonomous-eligible role if the item carries it. Closing an item
 > never cleared its labels, so a carrier closed while autonomous-eligible
 > comes back still wearing that role, and an item wearing both canonical

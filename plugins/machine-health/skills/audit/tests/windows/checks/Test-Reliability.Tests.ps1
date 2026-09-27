@@ -2,15 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-Reliability.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-ReliabilityAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Reliability' -AsObject 'Invoke-ReliabilityAsObject' -MockHelpers
 }
 
 Describe 'Test-Reliability -- baseline' -Tag 'check' {

@@ -21,19 +21,31 @@ tokenizer, and cannot function as writing goals.
 
 ## Legitimate-hit taxonomy (when NOT to rewrite)
 
-Five classes of detector hit are legitimate as written. The detector's quotation exemption
-(catalog "Quotation exemption") already declines the first two mechanically wherever the text
-is blockquoted, double-quoted, or backticked; the classes are listed here so a fix pass
-recognizes the residue that still surfaces and closes it with the right tool instead of a
-rewrite:
+Five classes of detector hit are legitimate as written. What the detector skips depends on the
+rule's class (catalog "Quotation exemption"; the detector's rule registry assigns the class):
+
+- Every rule skips fenced code, inline code spans, and ignore-marked lines and blocks.
+- Wording rules (pattern and density) also skip blockquote lines and straight double-quoted
+  spans.
+- Typography rules (em dash, emoji formatting, curly artifacts, citation artifacts, `utm_*`
+  params) scan blockquotes and double-quoted spans.
+
+The classes are listed here so a fix pass recognizes the residue that still surfaces and closes
+it with the right tool instead of a rewrite:
 
 1. **Verbatim quotes** (a source's own words, block or inline). Never rewrite a quotation.
-   Residue closure: the fenced `ai-slop-ignore-start/end` pair with a reason, only where the
-   quote form escapes the exemption (single-quoted, or unmarked quoted prose).
+   Residue closure for a wording tell: the `ai-slop-ignore-start/end` pair with a reason, only
+   where the quote form escapes the exemption (single-quoted, or unmarked quoted prose). A quote
+   carrying a typography tell (an em dash) needs a marker in any form: the line marker on the
+   same line, which works on a blockquote line, or a `-start`/`-end` pair on lines outside the
+   blockquote. A start or end line prefixed with `>` matches neither marker form, and such an
+   end line also fails to close a block opened outside, which declines the rest of
+   the file.
 2. **Text that documents the tell it bans** (style guides, forbidden-phrase lists, detection
    criteria, before/after examples, changelog entries citing the phrase a fix removed). The
-   use/mention boundary: mentioning a tell is not using it. Marker-free closure: backtick or
-   double-quote the mention, since inline code spans and quoted spans are exempt for wording rules.
+   use/mention boundary: mentioning a tell is not using it. Marker-free closure: backtick the
+   mention, which every rule skips. Double-quoting is marker-free for wording tells only; for a
+   typography tell, only a backtick span is.
 3. **Generated files** whose prose is owned by a generator. Fix the generator or its source,
    never the output; closure is the config path exclude (`excluded_paths`) or, for one rule,
    `rule_allowed_paths`.
@@ -66,7 +78,7 @@ classes adversarially:
 - **Quoted operative phrases**: a hedge, discriminator, or trigger phrase inside quotation
   marks carries its meaning word for word ("what could possibly happen" as one arm of a
   read-vs-run discriminator). Never edit inside the quotes; the quotation exemption keeps
-  wording rules out of them.
+  wording rules out of straight double quotes, while typography rules still scan them.
 
 ## Substitution guardrails
 

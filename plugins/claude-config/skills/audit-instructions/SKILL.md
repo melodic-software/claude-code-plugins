@@ -1,12 +1,12 @@
 ---
-description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, a natively read AGENTS.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies
+  summary: Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies
 ---
 
 ## Purpose
@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I34, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I35, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -58,9 +58,9 @@ concerns its siblings already cover, so route rather than re-answer:
   re-adding on repeated stumble evidence, is `unhobble` (same plugin): this skill judges instruction
   *text* against doctrine; unhobble measures the *model*.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
-user root Phase A resolves),
-this skill runs only the model-era checks I6–I34. It never runs or reports the hygiene checks
+On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
+`.claude/rules/`, and `rules/` under the user root Phase A resolves),
+this skill runs only the model-era checks I6–I35. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -74,7 +74,8 @@ their own surface sets and are not run outside them; this partition never widens
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
 population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
-(project **and** user root-level CLAUDE.md / rules) rather than from the name of the layer.
+(project **and** user root-level CLAUDE.md / a natively read AGENTS.md / rules) rather than from the
+name of the layer.
 [reference/conflict-criteria.md](reference/conflict-criteria.md) states that boundary and owns it.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
@@ -122,7 +123,7 @@ Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may *
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
-- `claude-md`: findings on user + project CLAUDE.md and CLAUDE.local.md
+- `claude-md`: findings on user + project CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md
 - `rules`: findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills`: findings on skill bodies and their context/reference files
 - `agents`: findings on agent definition markdown
@@ -157,8 +158,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
   family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
-  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5`;
-  re-run with `--target-model opus-5` to confirm"). Suggesting is not guessing: the user's
+  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5-5`;
+  re-run with `--target-model opus-5-5` to confirm"). Suggesting is not guessing: the user's
   confirmation is what turns the resolution into a target. The resolved target (and how it was
   resolved) is named in the report's tier-transparency line.
 
@@ -190,7 +191,10 @@ off, and the exclusions. Phase B cannot run against a record set built any other
 
 Run one **fresh read-only subagent per surface**, each sharing
 [reference/criteria.md](reference/criteria.md) and applying the per-surface check partition from
-the Scope boundary. Seed each lane's candidate set with the deterministic pre-scan over that
+the Scope boundary. **A record whose residency Phase A could not establish carries that state into
+its lane**: the lane still runs, and reports its findings as conditional on the named unresolved
+condition rather than as findings, since a removal or a rewrite proposed against a surface the
+session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
 surface's files (the seeded checks span both evidence tiers; the scan itself is only ever
 deterministic pattern-marking):
 
@@ -200,7 +204,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
 marker), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
-instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
+instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason, `I8-f`
+think-carefully steer (I8-c's
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
 assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
 `I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground: its skeleton is
@@ -381,12 +386,13 @@ plainly that nothing has been applied.
   proposed diffs the human applies.
 - Not a token-brevity pass (`docs-hygiene:compress`) and not structural skill lint
   (`skill-quality:check`).
-- Not memory-layer hygiene: checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
+- Not memory-layer hygiene: checks I1–I5 on CLAUDE.md, a natively read AGENTS.md, and rules route to `claude-memory`'s `audit`
   skill when installed, and upstream-owned plugin-cache or managed materializations route to the
   owning repository rather than being edited here.
 - Does not grade a contradiction whose two halves both sit in the
   **discover-instruction-surfaces** population, namely root-level project **or user** `CLAUDE.md` /
-  `CLAUDE.local.md` / rules, including **user↔project** pairs. That is `claude-memory:audit`'s C6.
+  `CLAUDE.local.md` / a natively read `AGENTS.md` or `.claude/AGENTS.md` / rules, including
+  **user↔project** pairs. That is `claude-memory:audit`'s C6.
   A **nested** `CLAUDE.md` / `CLAUDE.local.md` side, an auto-memory side, or any surface outside that
   population keeps the pair here;
   [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its

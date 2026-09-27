@@ -111,6 +111,8 @@ run 2 "markers only inside HTML comments block" "$(payload "$GATED" $CREATE $OWN
 run 2 "bare 'Closes #' with no number blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
 run 0 "deeper heading is section content" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
 run 0 "owner/repo#N keyword form passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
+run 0 "Refs: #N non-closing marker passes" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12'"$SECTIONS")"
+run 2 "negated closer blocks beside a Refs: marker" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12\n\nThis does not close #12.'"$SECTIONS")"
 run 2 "create with no body field blocks (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
 run 0 "update with no body field passes" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
 run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"
@@ -120,15 +122,11 @@ run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OW
 run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" ""
 
-# Field-shape regressions from the #3871 review of the batched reader. A
-# non-string body is rendered as text and judged (it can hold no section, so it
-# blocks); the per-field reader did that, and a CR probe that errored on the
-# type turned every one of these into an allow. Trailing newlines on the
-# exact-match fields were chomped by `$( )` and must still be. A CR inside
-# owner is the accepted STRICTER case: the per-field reader let it through
-# unmatched, the batched reader strips it and gates the call. A tool_input
-# that is not an object fails the batch and takes the per-field fallback, whose
-# verdict for an undeterminable target is allow.
+# Field shapes of the batched reader. A non-string body is rendered as text and
+# judged (it can hold no section, so it blocks). Trailing newlines on the
+# exact-match fields are chomped. A CR inside owner is stripped and the call
+# gated. A tool_input that is not an object fails the batch and takes the
+# per-field fallback, whose verdict for an undeterminable target is allow.
 payload_raw_body() { # <cwd> <tool> <owner> <repo> <body-json>
   jq -cn --arg d "$1" --arg t "$2" --arg o "$3" --arg r "$4" --argjson b "$5" \
     '{session_id:"test", cwd:$d, tool_name:$t, tool_input:{owner:$o, repo:$r, title:"t", body:$b}}'

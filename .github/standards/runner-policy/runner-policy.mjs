@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// SYNC-MANAGED FILE — DO NOT EDIT IN THE CONSUMING REPOSITORY.
+// Source of truth: melodic-software/standards,
+// components/runner-policy/runner-policy.mjs (the `runner-policy`
+// component in distribution/sync-manifest.yml). Downstream edits are
+// overwritten by the next sync PR; change the component upstream, or move the
+// component to `locally-owned` in the manifest to customize.
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";

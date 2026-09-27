@@ -47,10 +47,10 @@ somewhere while `validate.mjs` quietly validated a different, still-schema-valid
 whole guarantee ("the thing validated IS the thing sent") would be worth nothing. Multi-line
 operations are covered too, whitespace-normalized, since those are the ones an eyeball skips.
 So is `WIT_LINEAR_ISSUE_FIELDS`, the shared field-selection block that `fetch_issue`,
-`list-items` and `list-sub-items` all interpolate rather than spelling out. That one was
-previously extracted, printed, and compared to nothing, which left the three highest-traffic
-reads resting on a human noticing a difference between two `echo` blocks. It is
-also the drift alarm: **change an operation in the adapter and not here, and `fidelity.sh` fails**.
+`list-items` and `list-sub-items` all interpolate rather than spelling out: covering it is what
+keeps the three highest-traffic reads off a human noticing a difference between two `echo`
+blocks. It is also the drift alarm: **change an operation in the adapter and not here, and
+`fidelity.sh` fails**.
 That is intended, not a nuisance. It caught exactly that when the label lookup moved to the root
 `issueLabels` connection.
 

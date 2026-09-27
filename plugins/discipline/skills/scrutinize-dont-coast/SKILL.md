@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor adversarial self-scrutiny. Stop coasting on recent output, re-examine whether it is actually sound (not merely confidently produced) through a fresh-context pass blind to the reasoning that made it, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus to scope the re-examination, or at conversation start to set the posture."
+description: "Re-anchor adversarial self-scrutiny: stop coasting on recent output, re-examine whether it is sound (not merely confident) in a fresh-context pass blind to its reasoning, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus, or at conversation start to set the posture."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -70,7 +70,7 @@ a PR, issue, or published comment without the user's explicit opt-in.
 
 ## The adversarial pass runs in a fresh context (mandatory)
 
-The method doc already owns the rule: where your own judgement is the suspected
+The method doc already owns the rule: where your own judgment is the suspected
 source of the drift, re-derive in a fresh-context subagent rather than self-checking
 in the context that produced it. For every other corrector that is an escalation;
 for this one it is the **core step**. Adversarially re-examining output the same

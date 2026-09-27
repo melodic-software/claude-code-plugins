@@ -63,7 +63,9 @@ def _author_login(author: Any) -> str:
     return str(author or "")
 
 
-def _comment(author: Any, body: Any, thread: dict[str, Any] | None = None) -> dict[str, Any]:
+def _comment(
+    author: Any, body: Any, thread: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return {
         "author": _author_login(author),
         "body": str(body or ""),
@@ -84,7 +86,9 @@ def load_comments_json(path: str) -> list[dict[str, Any]]:
 def resolve_repo(explicit: str | None) -> str:
     if explicit:
         return explicit
-    return run_gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
+    return run_gh(
+        ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]
+    ).strip()
 
 
 def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
@@ -146,9 +150,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     configure_stdio()
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    self_logins = normalize_self_logins(
-        token for token in (args.self_csv or "").split(",")
-    )
+    self_logins = normalize_self_logins((args.self_csv or "").split(","))
     try:
         if args.comments_json:
             comments = load_comments_json(args.comments_json)

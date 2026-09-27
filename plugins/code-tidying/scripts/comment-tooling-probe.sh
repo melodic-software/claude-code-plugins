@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 # comment-tooling-probe.sh — report which comment-analysis layer this machine can run.
 #
-# Probes the environment rather than reading a config file, because environment
-# presence is the fact the skill actually needs and it stays true across
-# convention churn. A consumer repo's .claude/ecosystems/<eco>.yaml enriches the
-# picture where it exists, but audit-dead-code already established that most
-# repos ship none, and its `install-hint` names lint tools rather than analysis
-# tools, so it cannot answer this question.
+# Probes the environment rather than reading a config file: ecosystem configs are
+# mostly absent and their install hints name lint tools, not analysis tools.
 #
 # Usage: comment-tooling-probe.sh [--json]
 #
@@ -46,16 +42,21 @@ else
   add_row attach tree-sitter absent "Knowing what a comment is attached to. Without it the exported-symbol exemption is a text-prefix heuristic instead of a parse fact."
 fi
 
+if have pwsh; then
+  # shellcheck disable=SC2016 # $PSVersionTable is PowerShell's variable, not the shell's.
+  add_row proof-powershell "pwsh($(pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()' 2>/dev/null))" present "-"
+else
+  add_row proof-powershell pwsh absent "The token proof for .ps1 and .psm1, which PowerShell's own parser supplies and no tree-sitter grammar does. Without it every PowerShell deletion and rename is a proposal (exit 2, an unproven edit), and commented-out-code skips those files."
+fi
+
 if have ruff; then
   add_row commented-out ruff present "-"
 else
-  add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgement."
+  add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgment."
 fi
 
-# Probe `ast-grep`, NEVER `sg`. Both meanings of `sg` are live: shadow-utils
-# ships /usr/bin/sg (a symlink to newgrp) and ast-grep historically installed
-# its own now-deprecated `sg` shim, so on a machine carrying both, PATH order
-# alone decides which one answers, silently and wrongly.
+# Probe `ast-grep`, NEVER `sg`: shadow-utils ships /usr/bin/sg (newgrp) and ast-grep's
+# deprecated `sg` shim collides with it, so PATH order would answer silently and wrongly.
 if have ast-grep; then
   add_row rules ast-grep present "-"
 else

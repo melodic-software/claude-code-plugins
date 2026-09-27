@@ -1,5 +1,245 @@
 # Changelog
 
+## [0.11.1] - 2026-09-27
+
+### Changed
+
+- **`setup` resolves the effective config at load time.** The detector's `--show-config` runs as
+  pre-computed context, so `check` reads which layer supplies each value instead of spending a
+  Bash call. `apply`'s post-write re-run still calls the detector live, and a policy-disabled or
+  failed injection falls back to the Bash call.
+
+## [0.11.0] - 2026-09-26
+
+### Added
+
+- **Scope-wide cue counts.** `rubric-fanout.sh plan` writes `cues.txt` beside the batch lists:
+  for `load-bearing` and `seam`, the occurrence and file counts over the prose of every
+  readable file in scope (YAML frontmatter, fenced and indented code, code spans, straight and
+  curly double-quoted spans, blockquotes, HTML comment interiors, link destinations,
+  reference definitions and autolinks skipped, as the rubric skips them; the catalog lists
+  the remaining gaps), a `saturated=yes|no` verdict, and per-batch counts. A cue is saturated when it appears in at least 10 files and at least 10% of the
+  files in scope. Every batch receives the file, so no batch judges saturation from its own
+  slice.
+- **Cross-batch consistency flags.** Batch results may carry `declined: <rule> <cue>
+  reason=saturated|boundary|cap` lines. `merge` totals them as `declined_total:` lines and
+  prints a `consistency:` line when a saturated cue is still reported, when a word is declined
+  as saturated while `cues.txt` does not mark it so, or when a batch has occurrences of a cue and
+  neither reports nor declines it. Declined cues match in any case and in plural, and a
+  finding's quote may wrap onto continuation lines. The `rule_total:` line of a flagged rule gains
+  `consistency=flagged`. `cues.txt` carries a `scope_digest=` line; when a listed file
+  changed after `plan`, `merge` prints `consistency: cues.txt stale reason=digest` instead of
+  the cue checks.
+- Eval case `cross-batch-verdicts-agree` with two fixtures sharing one passage.
+
+### Changed
+
+- **Catalog rulings the batches disagreed on.** `rule-abstract-metaphor-jargon` defines
+  saturation with a number and a unit and gives a declined and a reported "seam" example.
+  `rule-colon-crutch` states one discriminator with a reported and a declined example, and
+  rules a terse `rule: reason` line in operative instructions out of scope. A leading
+  `U+26A0` on a caveat line stays in scope for `rule-emoji-formatting`, and "Signs of human
+  writing" says the rubric never counts it as a counter-sign.
+
+## [0.10.0] - 2026-09-25
+
+### Added
+
+- **`user-scope` target.** `/ai-slop:audit user-scope` and `fix user-scope` audit the
+  user-level Claude Code markdown: `CLAUDE.md`, `rules/`, skills holding `SKILL.md`,
+  `commands/`, `agents/` and top-level `output-styles/*.md`, under `CLAUDE_CONFIG_DIR` else
+  `~/.claude`, per the `.claude` directory docs page; `memory` adds auto memory and agent
+  memory. The new `scripts/user-scope.sh` prints the file list for
+  `detect.sh --list-targets --paths-file`, skipping FIFOs, directories, unreadable files and
+  paths holding a newline or tab. It follows a symlink only to a readable regular `.md`
+  file inside the config root whose resolved path holds no newline or tab, lists that file
+  once, never walks a symlinked directory, and names every skipped link on stderr. With
+  `--memory` it warns when the user `settings.json` sets `autoMemoryDirectory`, which it does
+  not list. Under MSYS it prints Windows-form paths (`C:/...`). A path target such as
+  `~/.claude` is unchanged.
+
+### Fixed
+
+- **A FIFO at a listed path hung `rubric-fanout.sh status` and `plan`.** `sha256sum` and
+  `wc -w` opened it and blocked. Only readable regular files are now hashed or counted, so
+  `status` reports the batch `reason=paths` and `plan` counts the path as 0 words. A
+  targets file that is not a regular file makes `plan` exit 2 instead of blocking.
+- **A missing row did not say its sidecar was unsound.** `status` now prints
+  `status=missing reason=paths digest=<d>` when the result file is absent and the sidecar
+  cannot bind the contents, so the batch is re-planned rather than dispatched. A missing row
+  with a sound sidecar is unchanged.
+- **A sidecar that is not a regular file** (a FIFO, a directory) was treated as absent. It is
+  never opened and now reads `reason=paths`.
+
+## [0.9.0] - 2026-09-25
+
+### Added
+
+- **`rubric-fanout.sh plan`** writes a `batch-NN.paths` sidecar beside each `batch-NN.txt`,
+  one absolute path per listed file (an absolute target path is kept as given; a relative one
+  resolves against the cwd, ignoring `CDPATH`), warns on stderr for a path it cannot read,
+  and the batch digest now covers the list plus those files' contents.
+- **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
+  digest>`, which a re-dispatch hands the batch subagent, and reports `stale reason=paths`
+  when a sidecar's length differs from its list's or one of its paths is not a readable file (a
+  trailing CR on a sidecar line is ignored). Complete rows are unchanged.
+
+### Changed
+
+- **`cross-check.sh`** compares the set of em-dash line numbers per file, not only the count.
+  A `Disagree:` row keeps its `file= detector= cross_check=` fields and adds
+  `detector_only=` and `cross_check_only=`, the lines only one side counted, or `-`.
+- **Rubric batch subagents** are dispatched with `model: sonnet`, pinned in
+  `context/rubric-fanout.md`: the session's own model when it is Sonnet-family, otherwise the
+  alias's Sonnet version.
+
+### Fixed
+
+- **A header written twice could pass `status`.** Copies of `batch:`, `files_reviewed:` or
+  `files_with_findings:` joined into one value, so `files_reviewed: 1` twice read `11` and
+  passed an 11-file batch. Each header must now appear exactly once, and any other count is
+  stale under that header's reason.
+- **A listed file edited after its batch completed kept the batch complete.** The digest bound
+  the result to the list only; it now binds the listed files' contents too, so the batch reads
+  stale, and a listed path that can no longer be read (a moved checkout) reads stale
+  `reason=paths` rather than falling back to the list alone. A batch directory planned before
+  0.9.0 has no sidecars and stays bound to the list.
+- **`cross-check.sh` missed a disagreement with equal counts.** Detector lines {3,4} against
+  actual {3,5} printed no `Disagree:` row; it now names line 4 and line 5.
+
+## [0.8.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.8.0] - 2026-09-23
+
+### Added
+
+- **`rubric-fanout.sh`** runs the rubric fan-out's deterministic steps: `plan` orders the target
+  list and packs batches by `wc -w`, printing each list's digest; `extract` writes the
+  catalog's rubric entries and "Signs of human writing" to one file, whose path is all a batch
+  subagent receives from the catalog; `status` reports each batch as complete, missing, or
+  stale with the failed check; `merge` refuses until every batch is complete, then writes
+  summed counts and per-rule totals. `context/rubric-fanout.md` now runs on these commands.
+- **`detect.sh --list-targets`** prints the files a scan would read, as `<key><TAB><path>`
+  after directory expansion and `excluded_paths`, keyed by the `file=` spelling. `--paths-file`
+  reads that format.
+- **`cross-check.sh`** counts em-dash lines per file with a parse separate from the detector's
+  (same fence rules, count only) and prints a `Disagree:` row for each file whose count differs from the detector's
+  `rule-em-dash` findings. The fix flow's closing step runs it and reports every disagreement.
+- **Fix flow concurrent-edit guard**: every fix run gets a run directory; before each write to a
+  file the flow checks the digest it last recorded (`sha256sum -c`) and stops that file on a
+  mismatch. A write that lands between the check and the re-record after the fixer's own write
+  is not detected.
+
+### Fixed
+
+- **An empty `--paths-file` scanned the repository.** A list with no paths fell back to the
+  repository's tracked markdown; it now scans nothing and says so on stderr.
+- **A backup that cannot be written now stops the edit** for a non-repository `fix` run, as when
+  a `\\?\` or UNC source mirrors to an invalid path.
+
+## [0.7.1] - 2026-09-23
+
+### Fixed
+
+- **`audit` defines a target outside any repository**: the skill had no rule for it, so the
+  orchestrator asked or improvised. It now checks the target with `git -C <dir> rev-parse
+  --is-inside-work-tree`, stops and asks for a path when an empty target has no repository, and
+  for such a run passes absolute paths, orders by modification time, writes no findings file,
+  keeps rubric batch files in the session scratchpad, and reports `rule-style-shift` as not
+  evaluable. A `fix` run backs each file up first, since no git history can undo the edit: the
+  backup path mirrors the file's absolute path under a per-run scratchpad directory, an
+  existing backup stops the edit, and a restore checks the backup's recorded source path. The skill also says config comes from the session, not the
+  target, and "does not scan" now names text outside markdown files instead of non-repo text.
+- **`catalog.md` "Known limitation"** said a double-quoted span wrapped across a line escaped
+  the exemption. The detector carries an open span across lines; the limit is a blank line or
+  a new block.
+- **Quote guidance matches the detector**: the rewrite guide said the exemption declined quotes
+  wherever blockquoted, double-quoted or backticked, and SKILL.md said typography rules scan
+  inline code. Every rule skips inline code; typography rules still scan blockquotes and double
+  quotes. The guide now says a quoted em dash needs a marker, and that `-start`/`-end` lines
+  prefixed with the blockquote `>` do not work. New `detect.test.sh` cases pin this existing behavior.
+
+## [0.7.0] - 2026-09-23
+
+### Added
+
+- **`audit`'s rubric fan-out checks each batch's evidence before merging**: it spot-checks a
+  sample of findings against the cited file and line and re-dispatches a batch whose quoted span
+  is not there.
+
+## [0.6.5] - 2026-09-22
+
+### Fixed
+
+- **`detect.test.sh`:** the suite reconciles its executed case total against a declared expected
+  total. The tally was its own only witness: a run that lost cases still printed `All N cases
+  passed` and exited 0, because nothing said how many cases N should have been. Measured on this
+  Windows host: a run lost three unconditional cases, which produced no `PASS`, `FAIL` or `SKIP`
+  line at all, and the run still reported green, so the line proved less than it claimed. A run
+  that aborts mid-file is a different shape and was already loud, since it exits nonzero and prints
+  no summary. The Result block now sums `PASS + FAIL + SKIP` and compares it to `EXPECTED_CASES`. A
+  total that disagrees writes a report to stderr naming both numbers and the breakdown, never prints
+  the green line, and exits nonzero even with zero failures; a failing run that also miscounted
+  prints both reports. The green line and the failure line are byte-identical to before.
+
+## [0.6.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.6.3]
+
+### Fixed
+
+- **`detect.sh`:** a code fence that opens after a list marker is recognized. CommonMark opens a
+  fence on an ordered or bullet list line carrying the fence characters, and the parser matched an opener
+  only at the line start. It missed such an opener, read the indented closer as one instead, and
+  inverted every fence from there on, so whole stretches of a file were treated as code and never
+  scanned. Nothing said so: one measured file carried 24 em dashes through a full fix pass in
+  lines the parser believed were code. A closer is now measured against its own fence's container
+  indent, and such a fence also ends with that container: a non-blank line indented less than the
+  content column of the list item ends the item, and lazy continuation reaches a paragraph but
+  never a fenced block, so that line is judged on its own and may be prose or an opener of its
+  own. A blank line does not end an item, so a fence survives one. A fence still open at end of
+  file writes one line to stderr naming the file and the opening line number, so an inverted parse
+  is visible rather than silent.
+- **`detect.sh`:** a marker decline is charged only to the rules whose own expression matches the
+  exempted material. Every rule used to be charged the raw count of exempted prose lines, so a run
+  reported the same `declined` and `declined_marker` totals on every rule, including rules with no
+  candidate anywhere in the corpus, and the counts the audit tells the operator to report said
+  nothing about what the markers suppressed. A pattern rule now counts the exempted lines it would
+  have matched and a density rule the exempted occurrences, each against the stream that rule
+  actually scans, so quoted material a wording rule never reads is not charged to it. A whole-file
+  marker and an `excluded_paths` glob still charge one decline per file to every rule, because the
+  unit there is the file.
+- **`detect.sh`:** `rule-emoji-formatting` sees a glyph behind a blockquote prefix. The rule walked
+  a heading or bullet prefix but not a blockquote marker, so a callout written as a `>` marker plus
+  a glyph, or a `>` marker and a `###` heading plus a glyph, passed clean while the same glyph at
+  column zero fired. Up to three spaces
+  of indentation and any depth of blockquote marker now precede the optional heading or bullet
+  marker. The glyph must still follow the last prefix directly, so an emoji in content position
+  stays outside the rule, which the catalog scopes to emoji used as bullets, section markers, or
+  visual separators.
+
+## [0.6.2]
+
+### Changed
+
+- detect.sh and emit-findings.sh validate option values through one sourced helper instead of two identical copies; detect.sh also folds its threshold default and merges two rule loops. Diagnostics, exit codes and findings output are unchanged.
+
+## [0.6.1]
+
+### Changed
+
+- The ai-slop audit detector reads its phrase_add and phrase_remove config keys through one helper, its suite shares the branch-line and tier assertions, and the context7 updater drops a dead echo fallback, with identical output.
+
 ## [0.6.0]
 
 ### Fixed
@@ -188,7 +428,7 @@
   time, so `head` closes the pipe mid-run every time and the script dies of SIGPIPE. Measured here:
   `PIPESTATUS` is `141 0`. The probe rendered the full, correct eight-line config and then appended
   `detector unavailable` under it. This was not latent and not a corner case: it was the observed
-  behaviour of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
+  behavior of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
   empty value, it asserts a failure that did not happen.
 
   Reproduced and fixed by execution in three states, each with and without `pipefail`. Skill

@@ -1,31 +1,18 @@
 #!/usr/bin/env bash
 # nested-agents-check.sh — does every nested AGENTS.md actually load?
 #
-# Claude Code reads CLAUDE.md, not AGENTS.md (memory doc, "AGENTS.md"): the
-# prescribed way to make one load is a CLAUDE.md beside it that imports it
-# (`@AGENTS.md`) or a symlink. A subdirectory's CLAUDE.md loads on demand when
-# Claude reads files in that directory; an AGENTS.md with no such sibling is
-# never loaded at any level of the tree, however well written, and every static
-# gate reports green around it. This check is the byte-deterministic set
-# difference the audit's judgment tier had to find by hand: nested AGENTS.md
-# files minus the ones a sibling CLAUDE.md or CLAUDE.local.md reaches.
+#   Claim: Claude Code attaches a subdirectory's AGENTS.md when Claude opens a
+#     file there with the Read tool and neither that directory nor any directory
+#     above it carries a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md;
+#     otherwise it reads the CLAUDE.md files instead.
+#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
+#     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
+#   As of: 2026-09-19.
+#   Recheck trigger: that section changes which file names count for the check,
+#     or a release note names AGENTS.md or instruction-file loading.
 #
-# Discovery is tracked files only (git ls-files), root-level AGENTS.md excluded
-# (that one is the root CLAUDE.md's business, and the audit's C-checks already
-# cover the root), and the `.claude`, `node_modules`, `vendor`, and `.git` trees
-# skipped so vendored upstream material is never reported as a repo defect. The
-# sibling check reads the filesystem, so a gitignored CLAUDE.local.md shim counts.
-# Reachability uses lib/imports.sh, the same parser instruction-load-stats.sh
-# counts with: import chase to four hops, symlinks resolved.
-#
-# Advisory by default: prints findings, exits 0. `--check` exits 1 when any
-# finding exists, for a CI gate. Consumed by the audit skill (check N1).
-#
-# Usage:
-#   nested-agents-check.sh            # one finding per unwired nested AGENTS.md; exit 0
-#   nested-agents-check.sh --count    # integer finding count only; exit 0
-#   nested-agents-check.sh --check    # findings; exit 1 when there is at least one
-#   nested-agents-check.sh --help
+# AGENTS.md discovery is tracked files only, but the blocking and wiring checks
+# read the filesystem, so a gitignored CLAUDE.local.md shim counts.
 
 set -uo pipefail
 
@@ -35,7 +22,8 @@ source "$SCRIPT_DIR/lib/imports.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
-nested-agents-check.sh — flag a tracked nested AGENTS.md no sibling CLAUDE.md imports.
+nested-agents-check.sh — flag a tracked nested AGENTS.md that a CLAUDE.md blocks
+and no CLAUDE.md imports.
 
 Usage: nested-agents-check.sh [--count|--check|--help]
 
@@ -44,9 +32,12 @@ Usage: nested-agents-check.sh [--count|--check|--help]
   --check    print the findings; exit 1 when there is at least one
   --help     this message
 
-Wired = a CLAUDE.md or CLAUDE.local.md in the same directory that is the
-AGENTS.md (symlink) or imports it within four hops. Root-level AGENTS.md and the
-.claude, node_modules, vendor, and .git trees are not examined.
+Blocked = a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in its own
+directory or any directory above it; Claude Code reads those instead of the
+AGENTS.md. Wired = one of them is the AGENTS.md (symlink) or imports it within
+four hops. A nested AGENTS.md nothing blocks is read directly and is not a
+finding. Root-level AGENTS.md and the .claude, .codex, .cursor, .github,
+node_modules, vendor, and .git trees are not examined.
 EOF
   exit 0
 fi
@@ -77,7 +68,8 @@ nested_agents() {
       if (n < 2) next
       if (seg[n] != "AGENTS.md") next
       for (i = 1; i < n; i++) {
-        if (seg[i] == ".claude" || seg[i] == "node_modules" ||
+        if (seg[i] == ".claude" || seg[i] == ".codex" || seg[i] == ".cursor" ||
+            seg[i] == ".github" || seg[i] == "node_modules" ||
             seg[i] == "vendor" || seg[i] == ".git") next
       }
       print
@@ -85,34 +77,47 @@ nested_agents() {
   ' | LC_ALL=C sort
 }
 
-# Wired = some instruction entry point reaches the file. The sibling CLAUDE.md
-# or CLAUDE.local.md is the prescribed layout, and it is checked first. A
-# CLAUDE.md or CLAUDE.local.md in any ancestor directory, or the root's
-# .claude/CLAUDE.md, is also an entry point: the root ones load at launch and
-# an ancestor's loads when Claude reads under it, and an import from either
-# brings the nested AGENTS.md in with it. A file reached that way loads, so it
-# is not a finding, whatever layout it uses.
+# Wired = any of the three names in its own or any ancestor directory reaches the
+# file, since each of those loads and carries its imports in.
+#
+# All three names count at EVERY level, the root's `.claude/CLAUDE.md` included
+# but not alone: the memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or
+# CLAUDE.local.md in your working directory or any directory above it", and
+# fires the nested attach only where a subdirectory "has none of the three
+# CLAUDE.md files of its own" (code.claude.com/docs/en/memory, "When Claude
+# Code reads AGENTS.md"; fetched 2026-09-19; recheck when that list changes).
 is_wired() {
   local agents="$1" dir want entry
   dir="$(dirname "$agents")"
   want="$(il_realpath "$agents")"
   while :; do
-    for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+    for entry in "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/CLAUDE.local.md"; do
       [[ -f "$entry" ]] || continue
       il_reaches "$entry" "$want" && return 0
     done
     [[ "$dir" == "." ]] && break
     dir="$(dirname "$dir")"
   done
-  if [[ -f ".claude/CLAUDE.md" ]] && il_reaches ".claude/CLAUDE.md" "$want"; then
-    return 0
-  fi
+  return 1
+}
+
+# Blocked = one of the three names sits on the file's own path. A CLAUDE.md
+# above the repository root is invisible here; that case is the operator's to know.
+is_blocked() {
+  local agents="$1" dir
+  dir="$(dirname "$agents")"
+  while :; do
+    [[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0
+    [[ "$dir" == "." ]] && break
+    dir="$(dirname "$dir")"
+  done
   return 1
 }
 
 findings=()
 while IFS= read -r agents; do
   [[ -n "$agents" ]] || continue
+  is_blocked "$agents" || continue
   is_wired "$agents" || findings+=("$agents")
 done < <(nested_agents)
 
@@ -126,7 +131,7 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
   exit 0
 fi
 for agents in "${findings[@]}"; do
-  echo "FAIL [N1]: ${agents} is not imported by a sibling CLAUDE.md or CLAUDE.local.md (Claude Code reads CLAUDE.md, not AGENTS.md, so this file never loads); add a one-line \`@AGENTS.md\` CLAUDE.md beside it."
+  echo "FAIL [N1]: ${agents} is blocked by a CLAUDE.md on its own path and no CLAUDE.md or CLAUDE.local.md imports it, so this file never loads; add a one-line \`@AGENTS.md\` CLAUDE.md beside it."
 done
 [[ "$mode" == "check" ]] && exit 1
 exit 0

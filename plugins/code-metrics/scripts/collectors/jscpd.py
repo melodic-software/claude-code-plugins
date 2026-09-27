@@ -61,9 +61,14 @@ import subprocess
 import sys
 import tempfile
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    relative_to_cwd,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "jscpd"
 REPORT_BASENAME = "jscpd-report.json"
 DEFAULT_MIN_TOKENS = "50"
@@ -77,18 +82,6 @@ NO_LINE_CAP = 2_147_483_647
 NO_SIZE_CAP = 1 << 40
 _SIZE_UNITS = {"": 1, "b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
 _SIZE_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*([kmg]?b)?$")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    if os.path.isabs(path):
-        try:
-            path = os.path.relpath(path, os.getcwd())
-        except ValueError:
-            return path
-    while path.startswith("./"):
-        path = path[2:]
-    return path.replace("\\", "/")
 
 
 def _resolve() -> str | None:
@@ -106,15 +99,10 @@ def probe() -> int:
     if not exe:
         print("jscpd not on PATH or in ./node_modules/.bin", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"jscpd --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -177,7 +165,6 @@ def prefilter(
         except OSError:
             kept.append(path)
             continue
-        lines: int | None = None
         if size_cap is not None and size > size_cap:
             skipped.append((path, size, None))
             continue
@@ -203,8 +190,7 @@ def report_skips(
     """One line naming how many files a cap left out, and the largest one."""
     if not skipped:
         return
-    largest = max(skipped, key=lambda entry: entry[1])
-    path, size, lines = largest
+    path, size, lines = max(skipped, key=lambda entry: entry[1])
     if lines is None:
         try:
             lines = count_lines(path)
@@ -213,9 +199,9 @@ def report_skips(
     reason = (
         f"{len(skipped)} of {total} files skipped by duplication.max_size "
         f"{size_text or 'none'} / max_lines {lines_text or 'none'}; "
-        f"largest: {_normalize(path)} ({size} bytes, {lines} lines)"
+        f"largest: {relative_to_cwd(path)} ({size} bytes, {lines} lines)"
     )
-    target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE") or ""
+    target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE")
     if target:
         try:
             with open(target, "w", encoding="utf-8") as handle:
@@ -228,7 +214,7 @@ def report_skips(
 
 def _instance(entry: dict) -> dict:
     return {
-        "file": _normalize(str(entry.get("name", ""))),
+        "file": relative_to_cwd(str(entry.get("name", ""))),
         "start_line": entry.get("start"),
         "end_line": entry.get("end"),
     }
@@ -266,8 +252,8 @@ def _command(
     exe: str,
     output: str,
     files: list[str],
-    size_cap: int | None = None,
-    line_cap: int | None = None,
+    size_cap: int | None,
+    line_cap: int | None,
 ) -> list[str]:
     command = [
         exe,
@@ -328,7 +314,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         try:
             with open(report, encoding="utf-8") as handle:
                 rows = translate(handle.read(), lane)
-        except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        except (OSError, ValueError, TypeError) as exc:
             print(
                 f"jscpd.py: no parseable {REPORT_BASENAME} ({exc}); "
                 f"stderr: {result.stderr.strip()}",
@@ -342,35 +328,24 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print("*/duplication")
+
+
+INSTALL_HINT = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd, or add it to the repository's devDependencies); this plugin never installs it"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            "usage: jscpd.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print("*/duplication")
-        return 0
-    if verb == "install_hint":
-        print(
-            "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd, or add it to the repository's devDependencies); this plugin never installs it"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print("usage: jscpd.py collect <lane> <measure> <file>...", file=sys.stderr)
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"jscpd.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("jscpd.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

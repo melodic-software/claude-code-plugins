@@ -11,36 +11,24 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from conftest import FIXTURES, parsed_output, run_parser, write
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "coverage_py_json.py"
-FIXTURE = SCRIPT_DIR.parent / "fixtures" / "coverage" / "coverage-py.json"
+FIXTURE = FIXTURES / "coverage-py.json"
 PY_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm_sample.py"
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return run_parser(SCRIPT, *args)
 
 
 def parsed(*args: str) -> dict:
-    result = run(*args)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
-
-
-def write(tmp: str, name: str, document: dict) -> str:
-    path = Path(tmp) / name
-    path.write_text(json.dumps(document), encoding="utf-8")
-    return str(path)
+    return parsed_output(SCRIPT, *args)
 
 
 class FixtureTests(unittest.TestCase):
@@ -78,7 +66,7 @@ class FixtureTests(unittest.TestCase):
             },
         }
         with tempfile.TemporaryDirectory() as tmp:
-            out = parsed(write(tmp, "never-entered.json", document))
+            out = parsed(write(tmp, "never-entered.json", json.dumps(document)))
         self.assertEqual(out["src/a.py"]["functions"][0]["hit"], 0)
 
 
@@ -89,13 +77,13 @@ class ShapeTests(unittest.TestCase):
             "files": {"src/a.py": {"executed_lines": [1, 2], "missing_lines": []}},
         }
         with tempfile.TemporaryDirectory() as tmp:
-            out = parsed(write(tmp, "pre-7.6.json", document))
+            out = parsed(write(tmp, "pre-7.6.json", json.dumps(document)))
         self.assertIsNone(out["src/a.py"]["functions"])
         self.assertEqual(out["src/a.py"]["lines"], {"1": 1, "2": 1})
 
     def test_json_that_is_not_a_coverage_report_exits_2(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            result = run(write(tmp, "other.json", {"totals": {}}))
+            result = run(write(tmp, "other.json", json.dumps({"totals": {}})))
         self.assertEqual(result.returncode, 2)
         self.assertIn("files", result.stderr)
 

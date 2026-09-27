@@ -1159,7 +1159,7 @@ class HygieneTests(unittest.TestCase):
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
 
-    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(
+    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(  # identifier, not prose # spellchecker:disable-line
         self,
     ) -> None:
         """Root-children mode emits its own scan-complete, so quiet must reach it.
@@ -4773,6 +4773,13 @@ class GuardTests(unittest.TestCase):
         self.addCleanup(environ_patch.stop)
         os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
         os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+        # Hermetic directory-marketplace channel: the trusted config dir is the
+        # real account home, so every case here sees none unless it opts in.
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: None)
+        trusted.start()
+        self.addCleanup(trusted.stop)
 
     def decision_records(self, data_root: Path | None = None) -> list[dict]:
         """Every decision record written under a data root, oldest first."""
@@ -4842,6 +4849,16 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         return result
 
+    def authorize_data_root(self) -> str:
+        """Authorize the owned data root and return the ``--data-root`` words.
+
+        The guard admits an exact engine call only when it carries the
+        authorized ``--data-root``, so every case that expects one admitted
+        appends these words.
+        """
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self._data_root)
+        return f' --data-root "{self._data_root.resolve().as_posix()}"'
+
     def run_guard_tool(
         self, command: str, tool_name: str, enabled: bool
     ) -> dict[str, object] | None:
@@ -4868,30 +4885,39 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_chained_delete_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r; rm -rf x'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root}; rm -rf x'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_single_shell_operator_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r | tee report'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root} | tee report'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_forces_final_prompt_for_exact_engine_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard_disabled(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            result["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
@@ -4900,6 +4926,7 @@ class GuardTests(unittest.TestCase):
     ) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'python "{script}" scan --target t --output s'
+        command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         self.assertIn(
@@ -4949,6 +4976,14 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output snapshot.json'
+        template += self.authorize_data_root()
+        # Control: a clean payload is admitted, so each denial below is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(template.format(payload="target"))["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
         payloads = [
             "target{one,two}",
             "$TARGET",
@@ -4990,6 +5025,8 @@ class GuardTests(unittest.TestCase):
         malformed = (
             f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
         )
+        data_root = self.authorize_data_root()
+        scan, preview, malformed = (c + data_root for c in (scan, preview, malformed))
         self.assertEqual(
             "allow",
             self.run_guard(scan)["hookSpecificOutput"]["permissionDecision"],
@@ -5009,6 +5046,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5020,6 +5058,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p --vcs-evidence e"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
@@ -5033,6 +5072,7 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" handoff-verify '
             "--snapshot s --paths p"
         )
+        command += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard_disabled(command)["hookSpecificOutput"][
@@ -5043,11 +5083,19 @@ class GuardTests(unittest.TestCase):
     def test_guard_denies_malformed_handoff_verify_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         prefix = f'"{self.python_command()}" "{script}" handoff-verify'
+        data_root = self.authorize_data_root()
+        # Control: the well-formed shape is admitted, so each denial is its own.
+        self.assertEqual(
+            "allow",
+            self.run_guard(f"{prefix} --snapshot s --paths p{data_root}")[
+                "hookSpecificOutput"
+            ]["permissionDecision"],
+        )
         commands = [
-            f"{prefix} --paths p --snapshot s",  # wrong flag order
-            f"{prefix} --snapshot s",  # missing --paths
-            f"{prefix} --snapshot s --paths p --report r",  # undeclared flag
-            f"{prefix} --snapshot s --paths p extra",  # trailing token
+            f"{prefix} --paths p --snapshot s{data_root}",  # wrong flag order
+            f"{prefix} --snapshot s{data_root}",  # missing --paths
+            f"{prefix} --snapshot s --paths p --report r{data_root}",  # undeclared
+            f"{prefix} --snapshot s --paths p extra{data_root}",  # trailing token
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -5086,6 +5134,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --policy p",
             f"{base} --project-dir d",
@@ -5160,7 +5209,7 @@ class GuardTests(unittest.TestCase):
 
     # --- the local decision record (#3862) ---------------------------------
     #
-    # These pin the observable behaviour an operator relies on after the fact:
+    # These pin the observable behavior an operator relies on after the fact:
     # a decision leaves evidence explaining itself, a defer costs nothing, and
     # no failure of the record can move a verdict.
 
@@ -6320,7 +6369,7 @@ class GuardTests(unittest.TestCase):
                     )
 
     def test_carries_marker_verdict_does_not_depend_on_the_host_platform(self) -> None:
-        """`Path().name` is platform-flavoured; this predicate must not be.
+        """`Path().name` is platform-flavored; this predicate must not be.
 
         `PureWindowsPath("/x/hygiene.py\\").name` is `hygiene.py` while
         `PurePosixPath(...)` keeps the backslash, so a `Path`-based basename
@@ -6435,7 +6484,7 @@ class GuardTests(unittest.TestCase):
         where that spelling names the same file. Forcing backslashes
         unconditionally fabricated a path that cannot exist on POSIX, and the
         case passed there only because the basename predicate was
-        `Path()`-flavoured and did not see the marker in it — a Linux fail-open
+        `Path()`-flavored and did not see the marker in it — a Linux fail-open
         wearing a green test, which is round 2 of this chain exactly. With the
         predicate platform-independent, that fabricated word is an
         unresolvable marker-carrying path after an interpreter, and failing
@@ -7138,6 +7187,11 @@ class GuardTests(unittest.TestCase):
             command,
             f"skill hook must launch through the shared launcher: {command!r}",
         )
+        self.assertTrue(
+            command.startswith('bash "${CLAUDE_PLUGIN_ROOT}"/'),
+            "the belt runs the launcher with a leading `bash`, as every "
+            f"hooks.json row does, so no `env` process runs: {command!r}",
+        )
         self.assertNotIn(
             "args",
             hook,
@@ -7167,8 +7221,9 @@ class GuardTests(unittest.TestCase):
         The belt currently works wherever `python3` resolves to a real
         interpreter, so the risk of #2568 is breaking a working guard rather than
         reviving a dead one. Everything from `destructive_guard.py` onward must
-        therefore survive the conversion byte-identically; only argv[0] changes,
-        from an interpreter name to the launcher path, which IS the fix.
+        therefore survive the conversion byte-identically; only the launch prefix
+        changes, from an interpreter name to `bash` and the launcher path, which
+        IS the fix.
 
         Asserted against roots containing spaces and backslashes because that is
         where quoting fails: a Windows plugin root routinely sits under a
@@ -7356,7 +7411,7 @@ class GuardTests(unittest.TestCase):
         Mirrors Claude Code 2.1.258: the command is split into statements and
         pipeline elements, assignment statements are dropped (the real evaluator
         walks the AST and does not treat ``$script = '...'`` as a command node),
-        each remaining element's text is whitespace-normalised, and each glob is
+        each remaining element's text is whitespace-normalized, and each glob is
         tried against each element; any match runs the hook.
         """
         parts = []
@@ -7529,6 +7584,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         self.assertEqual(
             "allow",
             self.run_guard(f"{base} --max-depth 3")["hookSpecificOutput"][
@@ -7547,6 +7603,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --confirmed-large-scan",
             f"{base} --confirmed-large-scan --max-depth 1",
@@ -7580,6 +7637,7 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --quiet",
             f"{base} --quiet --max-depth 1",
@@ -7609,6 +7667,7 @@ class GuardTests(unittest.TestCase):
     def test_guard_scan_accepts_root_children_selection_flags(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        base += self.authorize_data_root()
         allowed = (
             f"{base} --root-children",
             f"{base} --root-children --root-child builds",
@@ -7967,9 +8026,14 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
         assert bash is not None
         self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            "execution is disabled",
+            bash["hookSpecificOutput"]["permissionDecisionReason"],
+        )
 
     def test_kill_switch_enabled_gates_apply_as_ask(self) -> None:
         """With the switch enabled (settings absent → default on), an ``apply`` is
@@ -7980,32 +8044,41 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        apply_command += self.authorize_data_root()
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
-        out_file = Path(self._cfg.name) / "telemetry-deny.json"
-        # Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
-        # runs a sibling .py keeps quoting simple and inherits stdin.
-        sink_py = Path(self._cfg.name) / "telemetry_sink.py"
+    def _make_telemetry_sink(self, stem: str) -> tuple[Path, Path]:
+        """A fire-and-forget sink writing one telemetry envelope to a file.
+
+        Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
+        runs a sibling .py keeps quoting simple and inherits stdin.
+        """
+        base = Path(self._cfg.name)
+        out_file = base / f"telemetry-{stem}.json"
+        sink_py = base / f"telemetry_{stem}_sink.py"
         sink_py.write_text(
             "import sys\n"
-            f"from pathlib import Path\n"
+            "from pathlib import Path\n"
             f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
             encoding="utf-8",
         )
         if os.name == "nt":
-            sink = Path(self._cfg.name) / "telemetry-sink.cmd"
+            sink = base / f"telemetry-{stem}-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
                 f'@echo off\r\n"{py}" "{sink_py}"\r\n',
                 encoding="utf-8",
             )
         else:
-            sink = Path(self._cfg.name) / "telemetry-sink.sh"
+            sink = base / f"telemetry-{stem}-sink.sh"
             sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
             sink.chmod(0o755)
+        return out_file, sink
+
+    def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
+        out_file, sink = self._make_telemetry_sink("deny")
         with mock.patch.dict(
             os.environ,
             {
@@ -8035,25 +8108,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", envelope["data"]["decision"])
 
     def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
-        out_file = Path(self._cfg.name) / "telemetry-skip.json"
-        sink_py = Path(self._cfg.name) / "telemetry_skip_sink.py"
-        sink_py.write_text(
-            "import sys\n"
-            f"from pathlib import Path\n"
-            f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
-            encoding="utf-8",
-        )
-        if os.name == "nt":
-            sink = Path(self._cfg.name) / "telemetry-skip-sink.cmd"
-            py = os.fspath(Path(sys.executable).resolve())
-            sink.write_text(
-                f'@echo off\r\n"{py}" "{sink_py}"\r\n',
-                encoding="utf-8",
-            )
-        else:
-            sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
-            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
-            sink.chmod(0o755)
+        out_file, sink = self._make_telemetry_sink("skip")
         with mock.patch.dict(
             os.environ,
             {
@@ -8271,7 +8326,7 @@ class GuardTests(unittest.TestCase):
                     resolved = guard._watchdog_seconds()
                 self.assertEqual(guard._WATCHDOG_MAX_SECONDS, resolved)
                 self.assertLess(resolved, guard._DECLARED_HOOK_TIMEOUT_SECONDS)
-        # An override under the ceiling is still honoured verbatim.
+        # An override under the ceiling is still honored verbatim.
         with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: "30"}):
             self.assertEqual(30.0, guard._watchdog_seconds())
 
@@ -9205,6 +9260,13 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.settings = self.config_dir / "settings.json"
         # Managed settings default to absent; managed tests write this file.
         self.managed = self.config_dir / "managed-settings.json"
+        # Hermetic directory-marketplace channel: the trusted config dir is the
+        # real account home, so every case here sees none unless it opts in.
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: None)
+        trusted.start()
+        self.addCleanup(trusted.stop)
 
     def _toggle_json(self, value: object) -> str:
         return json.dumps(
@@ -9418,6 +9480,596 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
 
+class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
+    """A plugin loaded in place from a local-directory marketplace.
+
+    Its ``${CLAUDE_PLUGIN_ROOT}`` is the source checkout, which carries no
+    ``plugins/cache`` marker, so the belt (which receives only ``--plugin-root``)
+    derives its data root, user settings, and plugin id from the trusted
+    account-record config dir's ``known_marketplaces.json`` instead. Every case
+    mocks that config dir to a temp fixture; none reads the real one.
+    """
+
+    SCRIPT = str(SCRIPT_DIR / "destructive_guard.py")
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.base = Path(tmp.name).resolve()
+        self.config = self.base / "home" / ".claude"
+        (self.config / "plugins").mkdir(parents=True)
+        self.checkout = self.base / "checkout"
+        self.plugin_root = self.checkout / "plugins" / "disk-hygiene"
+        (self.plugin_root / ".claude-plugin").mkdir(parents=True)
+        (self.checkout / ".claude-plugin").mkdir()
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json",
+            {"name": "disk-hygiene"},
+        )
+        self.write_marketplace(
+            {
+                "name": "acme",
+                "plugins": [
+                    {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                ],
+            }
+        )
+        self.write_known({"acme": self.directory_entry(self.checkout)})
+        self.expected = self.config / "plugins" / "data" / "disk-hygiene-acme"
+        self.settings = self.config / "settings.json"
+        self.managed = self.base / "managed-settings.json"
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: self.config)
+        trusted.start()
+        self.addCleanup(trusted.stop)
+        environ_patch = mock.patch.dict(os.environ)
+        environ_patch.start()
+        self.addCleanup(environ_patch.stop)
+        for name in ("CLAUDE_PLUGIN_DATA", guard._WATCHDOG_ENV_VAR):
+            os.environ.pop(name, None)
+
+    @staticmethod
+    def write_json(path: Path, value: object) -> None:
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    @staticmethod
+    def directory_entry(location: object) -> dict[str, object]:
+        if isinstance(location, Path):
+            location = os.fspath(location)
+        return {
+            "source": {"source": "directory", "path": location},
+            "installLocation": location,
+        }
+
+    def write_known(self, value: object) -> None:
+        self.write_json(self.config / "plugins" / "known_marketplaces.json", value)
+
+    def write_marketplace(self, value: object) -> None:
+        self.write_json(self.checkout / ".claude-plugin" / "marketplace.json", value)
+
+    def write_entries(self, *entries: object) -> None:
+        self.write_marketplace({"name": "acme", "plugins": list(entries)})
+
+    def argv(self, *tail: str) -> list[str]:
+        return [self.SCRIPT, "--plugin-root", os.fspath(self.plugin_root), *tail]
+
+    def resolve(self, *tail: str) -> str | None:
+        guard._directory_marketplace_install.cache_clear()
+        with mock.patch.object(guard.sys, "argv", self.argv(*tail)):
+            return guard.resolve_authorized_data_root()
+
+    def resolve_enabled(self) -> bool:
+        guard._directory_marketplace_install.cache_clear()
+        with (
+            mock.patch.object(guard.sys, "argv", self.argv()),
+            mock.patch.object(
+                guard.killswitch_config, "managed_settings_path", lambda: self.managed
+            ),
+        ):
+            return guard.resolve_disk_hygiene_enabled()
+
+    ENGINE_TAILS = {
+        "scan": "scan --target t --output s",
+        "preview": "preview --snapshot s --plan p",
+        "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "apply": (
+            "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        ),
+    }
+
+    def engine_command(
+        self,
+        subcommand: str,
+        data_root: Path | None = None,
+        *,
+        omit_data_root: bool = False,
+    ) -> str:
+        root = self.expected if data_root is None else data_root
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        command = (
+            f'"{guard._display_python()}" "{script}" {self.ENGINE_TAILS[subcommand]}'
+        )
+        if omit_data_root:
+            return command
+        return f'{command} --data-root "{root.as_posix()}"'
+
+    def run_main(self, command: str, argv: list[str]) -> dict[str, object]:
+        guard._directory_marketplace_install.cache_clear()
+        stdin = io.StringIO(
+            json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.object(
+                guard.killswitch_config, "managed_settings_path", lambda: self.managed
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())["hookSpecificOutput"]
+
+    def assert_fails_closed(self) -> None:
+        self.assertIsNone(self.resolve())
+
+    # --- AC1, AC2, AC11: the directory channel resolves and is honored ------
+
+    def test_directory_install_derives_canonical_data_root(self) -> None:
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+
+    def test_belt_admits_exact_scan_and_asks_apply_like_the_engine_gate(
+        self,
+    ) -> None:
+        gate_argv = [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+        for subcommand, verdict in (("scan", "allow"), ("apply", "ask")):
+            with self.subTest(subcommand=subcommand):
+                command = self.engine_command(subcommand)
+                belt = self.run_main(command, self.argv())
+                gated = self.run_main(command, gate_argv)
+                self.assertEqual(verdict, belt["permissionDecision"])
+                self.assertEqual(gated["permissionDecision"], belt["permissionDecision"])
+
+    def test_belt_denies_exact_scan_without_the_directory_channel(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        belt = self.run_main(self.engine_command("scan"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+
+    def test_directory_install_keeps_any_key_managed_match(self) -> None:
+        # The directory read passes no exact id, so a managed false keyed to
+        # another marketplace still disables, as it did before this channel.
+        self.write_json(
+            self.managed,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@org-market": {
+                        "options": {"disk_hygiene_enabled": False}
+                    }
+                }
+            },
+        )
+        self.assertFalse(self.resolve_enabled())
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    def test_fails_closed_on_a_plugin_other_than_disk_hygiene(self) -> None:
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json", {"name": "foo"}
+        )
+        self.write_entries({"name": "foo", "source": "./plugins/disk-hygiene"})
+        self.assert_fails_closed()
+
+    def test_directory_install_reads_the_kill_switch(self) -> None:
+        self.assertTrue(self.resolve_enabled())
+        self.write_json(
+            self.settings,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@acme": {"options": {"disk_hygiene_enabled": False}}
+                }
+            },
+        )
+        self.assertFalse(self.resolve_enabled())
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    # --- AC3, AC13: every unproven shape fails closed -----------------------
+
+    def test_fails_closed_without_known_marketplaces_file(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_on_malformed_or_non_object_known_marketplaces(
+        self,
+    ) -> None:
+        path = self.config / "plugins" / "known_marketplaces.json"
+        for text in ("{not json", "[]", '"acme"', "null"):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_non_directory_source(self) -> None:
+        for kind in ("github", "file", "git", None):
+            with self.subTest(kind=kind):
+                entry = self.directory_entry(self.checkout)
+                entry["source"] = {"source": kind, "repo": "acme/plugins"}
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+        for source in ("directory", None, ["directory"]):
+            with self.subTest(source=source):
+                entry = self.directory_entry(self.checkout)
+                entry["source"] = source
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+
+    def test_fails_closed_when_root_is_outside_every_install_location(
+        self,
+    ) -> None:
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        # "check" is a string prefix of "checkout" but not a parent directory.
+        sibling = self.base / "check"
+        sibling.mkdir()
+        for location in (elsewhere, sibling):
+            with self.subTest(location=location):
+                self.write_known({"acme": self.directory_entry(location)})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_bad_install_location(self) -> None:
+        for location in (123, None, os.fspath(self.base / "gone"), ""):
+            with self.subTest(location=location):
+                entry = self.directory_entry(self.checkout)
+                entry["installLocation"] = location
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+
+    def test_fails_closed_when_two_directory_marketplaces_contain_the_root(
+        self,
+    ) -> None:
+        self.write_known(
+            {
+                "acme": self.directory_entry(self.checkout),
+                "acme-too": self.directory_entry(self.checkout / "plugins"),
+            }
+        )
+        self.assert_fails_closed()
+
+    def test_fails_closed_without_exactly_one_matching_entry(self) -> None:
+        other = self.checkout / "plugins" / "other"
+        other.mkdir()
+        cases = {
+            "none": [{"name": "disk-hygiene", "source": "./plugins/other"}],
+            "two": [
+                {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"},
+                {"name": "disk-hygiene", "source": "./plugins/../plugins/disk-hygiene"},
+            ],
+        }
+        for label, entries in cases.items():
+            with self.subTest(label=label):
+                self.write_entries(*entries)
+                self.assert_fails_closed()
+        for plugins in (None, {}, "disk-hygiene"):
+            with self.subTest(plugins=plugins):
+                self.write_marketplace({"name": "acme", "plugins": plugins})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_bad_entry_name(self) -> None:
+        for name in (123, None, "", "---", "..", "disk/hygiene"):
+            with self.subTest(name=name):
+                self.write_json(
+                    self.plugin_root / ".claude-plugin" / "plugin.json", {"name": name}
+                )
+                self.write_entries({"name": name, "source": "./plugins/disk-hygiene"})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_absolute_or_object_source(self) -> None:
+        for source in (
+            os.fspath(self.plugin_root),
+            self.plugin_root.as_posix(),
+            {"source": "github", "repo": "acme/disk-hygiene"},
+            {"source": "local", "path": "./plugins/disk-hygiene"},
+        ):
+            with self.subTest(source=source):
+                self.write_entries({"name": "disk-hygiene", "source": source})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_source_outside_install_location(self) -> None:
+        outside = self.base / "elsewhere" / "disk-hygiene"
+        outside.mkdir(parents=True)
+        self.write_entries(
+            {"name": "disk-hygiene", "source": "./../elsewhere/disk-hygiene"}
+        )
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_entry_name_differs_from_plugin_manifest(
+        self,
+    ) -> None:
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json", {"name": "other"}
+        )
+        self.assert_fails_closed()
+        (self.plugin_root / ".claude-plugin" / "plugin.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_marketplace_name_differs_from_known_key(
+        self,
+    ) -> None:
+        for name in ("not-acme", None, 7):
+            with self.subTest(name=name):
+                self.write_marketplace(
+                    {
+                        "name": name,
+                        "plugins": [
+                            {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                        ],
+                    }
+                )
+                self.assert_fails_closed()
+        (self.checkout / ".claude-plugin" / "marketplace.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_trusted_home_is_unresolvable(self) -> None:
+        with mock.patch.object(guard, "_trusted_config_dir", lambda: None):
+            self.assert_fails_closed()
+            self.assertTrue(self.resolve_enabled())
+
+    def test_bare_name_source_resolves_against_metadata_plugin_root(self) -> None:
+        self.write_marketplace(
+            {
+                "name": "acme",
+                "metadata": {"pluginRoot": "./plugins"},
+                "plugins": [{"name": "disk-hygiene", "source": "disk-hygiene"}],
+            }
+        )
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        self.write_entries({"name": "disk-hygiene", "source": "disk-hygiene"})
+        self.assert_fails_closed()
+
+    # --- AC4, AC5, AC6: provenance and precedence ---------------------------
+
+    def test_environment_cannot_redirect_the_trusted_config_dir(self) -> None:
+        attacker = self.base / "attacker"
+        (attacker / ".claude" / "plugins").mkdir(parents=True)
+        self.write_json(
+            attacker / ".claude" / "plugins" / "known_marketplaces.json",
+            {"evil": self.directory_entry(self.checkout)},
+        )
+        os.environ["HOME"] = os.fspath(attacker)
+        os.environ["USERPROFILE"] = os.fspath(attacker)
+        os.environ["CLAUDE_CONFIG_DIR"] = os.fspath(attacker / ".claude")
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+
+    def test_precedence_argv_then_cache_then_directory_then_env(self) -> None:
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self.base / "from-env")
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        self.assertEqual(
+            "/from-argv", self.resolve("--authorized-data-root", "/from-argv")
+        )
+        # A cache-layout root never consults the directory channel at all
+        # (`_directory_install_for` gates it), so the cache derivation wins.
+        cached = self.checkout / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
+        (cached / ".claude-plugin").mkdir(parents=True)
+        self.write_json(cached / ".claude-plugin" / "plugin.json", {"name": "disk-hygiene"})
+        self.write_entries(
+            {"name": "disk-hygiene", "source": "./plugins/cache/mk/disk-hygiene/1.0"}
+        )
+        guard._directory_marketplace_install.cache_clear()
+        self.assertIsNone(guard._directory_install_for(os.fspath(cached)))
+        with mock.patch.object(
+            guard.sys, "argv", [self.SCRIPT, "--plugin-root", os.fspath(cached)]
+        ):
+            self.assertEqual(
+                os.fspath(self.checkout / "plugins" / "data" / "disk-hygiene-mk"),
+                guard.resolve_authorized_data_root(),
+            )
+        # Without any trusted channel, the environment is the last resort.
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assertEqual(os.fspath(self.base / "from-env"), self.resolve())
+
+    def test_data_root_is_built_only_from_trusted_config_and_sanitized_id(
+        self,
+    ) -> None:
+        key = "../../evil"
+        self.write_known({key: self.directory_entry(self.checkout)})
+        self.write_marketplace(
+            {
+                "name": key,
+                "plugins": [
+                    {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                ],
+            }
+        )
+        derived = self.resolve()
+        assert derived is not None
+        self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
+        self.assertEqual("disk-hygiene-------evil", Path(derived).name)
+
+    # --- a conflicting env value never outranks a proof ----------------------
+
+    def set_env_data_root(self) -> Path:
+        env_root = self.base / "from-env"
+        env_root.mkdir(exist_ok=True)
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(env_root)
+        return env_root
+
+    def scan_verdict(self, data_root: Path, argv: list[str]) -> str:
+        belt = self.run_main(self.engine_command("scan", data_root), argv)
+        return cast(str, belt["permissionDecision"])
+
+    def test_belt_ignores_a_conflicting_env_data_root(self) -> None:
+        env_root = self.set_env_data_root()
+        for data_root, verdict in ((env_root, "deny"), (self.expected, "allow")):
+            with self.subTest(data_root=data_root):
+                self.assertEqual(verdict, self.scan_verdict(data_root, self.argv()))
+        # The decision log follows the derived root, never the env root.
+        self.assertEqual([], list(env_root.iterdir()))
+        self.assertNotEqual([], list(self.expected.iterdir()))
+        # Control: without the directory proof the env value is the authority,
+        # so the env-root scan is admitted and the log lands there.
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assertEqual("allow", self.scan_verdict(env_root, self.argv()))
+        self.assertNotEqual([], list(env_root.iterdir()))
+
+    def test_belt_ignores_a_conflicting_env_data_root_on_a_cache_install(
+        self,
+    ) -> None:
+        env_root = self.set_env_data_root()
+        cached = self.base / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
+        cached.mkdir(parents=True)
+        derived = self.base / "plugins" / "data" / "disk-hygiene-mk"
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(cached)]
+        self.assertEqual("deny", self.scan_verdict(env_root, argv))
+        self.assertEqual("allow", self.scan_verdict(derived, argv))
+        self.assertEqual([], list(env_root.iterdir()))
+        # Control: a root with neither a cache layout nor a directory proof
+        # falls through to the env value.
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
+        self.assertEqual("allow", self.scan_verdict(env_root, argv))
+
+    def test_changed_known_marketplaces_shape_yields_no_directory_authority(
+        self,
+    ) -> None:
+        entry = self.directory_entry(self.checkout)
+        shapes = {
+            "versioned-wrapper": {"version": 2, "marketplaces": {"acme": entry}},
+            "source-path-only": {"acme": {"source": entry["source"]}},
+        }
+        for label, known in shapes.items():
+            with self.subTest(shape=label):
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+                self.write_known(known)
+                self.assert_fails_closed()
+                self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
+                # With env set, an unreadable format falls through to the env
+                # channel; the env channel's authority does not widen.
+                env_root = self.set_env_data_root()
+                self.assertEqual(os.fspath(env_root), self.resolve())
+
+    # --- an exact engine call must carry the authorized --data-root ----------
+
+    def engine_gate_argv(self) -> list[str]:
+        return [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+
+    def test_engine_call_without_data_root_is_denied(self) -> None:
+        # Without --data-root the engine would fall back to the raw env value,
+        # which here differs from the proven root.
+        self.set_env_data_root()
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        for subcommand in self.ENGINE_TAILS:
+            command = self.engine_command(subcommand, omit_data_root=True)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual("deny", decision["permissionDecision"])
+                    self.assertIn(
+                        f'--data-root "{self.expected.as_posix()}"',
+                        decision["permissionDecisionReason"],
+                    )
+
+    def test_engine_call_with_data_root_keeps_its_verdict(self) -> None:
+        self.set_env_data_root()
+        verdicts = {
+            "scan": "allow",
+            "preview": "allow",
+            "handoff-verify": "allow",
+            "apply": "ask",
+        }
+        for subcommand, verdict in verdicts.items():
+            command = self.engine_command(subcommand)
+            for surface, argv in (
+                ("belt", self.argv()),
+                ("engine-gate", self.engine_gate_argv()),
+            ):
+                with self.subTest(subcommand=subcommand, surface=surface):
+                    decision = self.run_main(command, argv)
+                    self.assertEqual(verdict, decision["permissionDecision"])
+
+    def test_literal_env_placeholder_is_no_authority(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        os.environ["CLAUDE_PLUGIN_DATA"] = "${CLAUDE_PLUGIN_DATA}"
+        self.assertIsNone(self.resolve())
+
+    # --- AC7: the no-authority denial names a recovery ----------------------
+
+    def test_no_authority_denial_names_the_launch_env_recovery(self) -> None:
+        belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
+        self.assertIn("known_marketplaces.json", belt)
+        self.assertIn("CLAUDE_PLUGIN_DATA", belt)
+        self.assertIn("<config>/plugins/data/<name>-<marketplace>", belt)
+        self.assertIn("persists until the session ends", belt)
+        self.assertIn("start a new session", belt)
+
+    # --- AC15: memoized per process -----------------------------------------
+
+    def test_directory_lookup_is_memoized_per_plugin_root(self) -> None:
+        calls: list[int] = []
+
+        def counted() -> Path:
+            calls.append(1)
+            return self.config
+
+        guard._directory_marketplace_install.cache_clear()
+        with mock.patch.object(guard, "_trusted_config_dir", counted):
+            first = guard._directory_marketplace_install(os.fspath(self.plugin_root))
+            second = guard._directory_marketplace_install(os.fspath(self.plugin_root))
+        self.assertEqual(first, second)
+        self.assertEqual(1, len(calls))
+        self.assertEqual(1, guard._directory_marketplace_install.cache_info().hits)
+
+
+class TrustedConfigDirTests(unittest.TestCase):
+    """The config-dir anchor comes from the OS account record, never the env.
+
+    Deliberately unmocked: a repo ``settings.json`` ``env`` block reaches hook
+    subprocesses, so HOME, USERPROFILE, and CLAUDE_CONFIG_DIR must not move it.
+    """
+
+    def test_environment_does_not_move_the_account_record_home(self) -> None:
+        baseline = guard._trusted_config_dir()
+        if baseline is None:
+            self.skipTest("no OS account record for this uid")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": tmp, "USERPROFILE": tmp, "CLAUDE_CONFIG_DIR": tmp},
+            ):
+                self.assertEqual(baseline, guard._trusted_config_dir())
+            with mock.patch.dict(os.environ):
+                for name in ("HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR"):
+                    os.environ.pop(name, None)
+                self.assertEqual(baseline, guard._trusted_config_dir())
+
+    def test_account_lookup_failure_yields_no_anchor(self) -> None:
+        # A uid with no password-database entry raises KeyError on POSIX.
+        with mock.patch.object(guard, "_account_home", side_effect=KeyError(1000)):
+            self.assertIsNone(guard._trusted_config_dir())
+
+
 class EngineGrammarTests(unittest.TestCase):
     """The engine's parser and the always-on guard read one grammar.
 
@@ -9449,11 +10101,24 @@ class EngineGrammarTests(unittest.TestCase):
     def required_chunks(self, spec) -> list[list[str]]:
         return [self.chunk(flag) for flag in spec.required]
 
+    def is_data_root(self, flag) -> bool:
+        return flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT
+
+    def head(self, spec) -> list[str]:
+        return [word for chunk in self.required_chunks(spec) for word in chunk]
+
+    def data_root_chunk(self, spec) -> list[str]:
+        (flag,) = [flag for flag in spec.optional if self.is_data_root(flag)]
+        return self.chunk(flag)
+
     def words(self, spec, *, optionals: bool) -> list[str]:
-        words = [word for chunk in self.required_chunks(spec) for word in chunk]
+        """The required head plus ``--data-root``, which the guard requires."""
+        words = [*self.head(spec), *self.data_root_chunk(spec)]
         if not optionals:
             return words
         for flag in spec.optional:
+            if self.is_data_root(flag):
+                continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
                 words.extend(self.chunk(flag))
@@ -9566,7 +10231,7 @@ class EngineGrammarTests(unittest.TestCase):
 
     def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             for index, flag in enumerate(spec.required):
                 words = [
                     word
@@ -9582,7 +10247,7 @@ class EngineGrammarTests(unittest.TestCase):
     def test_guard_admits_only_the_declared_head_order(self) -> None:
         """The parser takes the required flags in any order; the guard takes one."""
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = self.required_chunks(spec)
+            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
             if len(chunks) < 2:
                 continue
             swapped = [
@@ -9597,7 +10262,9 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.optional:
                 if flag.repeatable or flag.requires is not None:
                     continue
-                once = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                once = self.words(spec, optionals=False)
+                if not self.is_data_root(flag):
+                    once = [*once, *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertEqual(spec.name, self.classify(spec.name, once))
                     self.assertIsNone(
@@ -9655,11 +10322,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [
-                    *self.words(spec, optionals=False),
-                    flag.name,
-                    "/somewhere/else",
-                ]
+                words = [*self.head(spec), flag.name, "/somewhere/else"]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertIsNone(self.classify(spec.name, words))
 
@@ -9668,7 +10331,7 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.flags:
                 if flag.external_check is None:
                     continue
-                words = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                words = [*self.head(spec), *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertTrue(
                         self.grammar.match_invocation(
@@ -9678,6 +10341,15 @@ class EngineGrammarTests(unittest.TestCase):
                         )
                     )
                     self.assertFalse(self.grammar.match_invocation(spec.name, words))
+
+    def test_guard_refuses_an_invocation_without_data_root(self) -> None:
+        """The engine parses it; the guard does not, since the engine would fall
+        back to the raw ``CLAUDE_PLUGIN_DATA`` value."""
+        for spec in self.grammar.SUBCOMMANDS:
+            head = self.head(spec)
+            with self.subTest(subcommand=spec.name):
+                self.assertEqual(spec.name, self.parse(spec.name, head).command)
+                self.assertIsNone(self.classify(spec.name, head))
 
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))

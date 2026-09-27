@@ -211,7 +211,7 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
   well as the recognized Bash file commands, so a hook matching only `Bash` leaves the
   `Read`/`Grep`/`Glob` path open and **does not** retire a `sensitive-file-deny` finding. Match the
   matcher to the family, and where the hook covers only part of the family, narrow only that part.
-- **The hook blocks that specific family**, not a neighbouring one. Coverage of `git push --force`
+- **The hook blocks that specific family**, not a neighboring one. Coverage of `git push --force`
   says nothing about `git clean -fd`, and coverage of a long flag says nothing about its short
   spelling unless the hook matches both. Narrow per family, pattern by pattern.
 
@@ -233,7 +233,7 @@ that is what tells you which posture you are in:
   those sources could plausibly cover, do **not** assume absence: state the finding as conditional,
   as in "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void", and name the
   specific unresolved plugin or unparsed file that would settle it. Everything the run *did* enumerate
-  is still decidable; partial is not a blanket licence to hedge.
+  is still decidable; partial is not a blanket license to hedge.
 - **`2` or not run, no inventory.** Treat as partial for every family, and say so. "Could not look" is
   never reportable as "looked and found nothing".
 

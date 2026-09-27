@@ -7,26 +7,28 @@
 #
 # WHY. docs/cloud-sessions.md states the property this repo depends on: this
 # repo dogfoods everything it publishes, so a regression in any plugin
-# surfaces here first. Nothing enforced it. Three plugins reached main with a
-# catalog entry and no `enabledPlugins` key -- ai-slop (#2892), context-budget
-# (#2932) and improvement (#2985) -- while the plugin PRs on either side of
-# them (coupling #2913, overengineering #2961) remembered the settings entry.
-# The failure is silent by construction: a plugin nothing enables is simply
+# surfaces here first. The failure is silent by construction: a plugin nothing enables is simply
 # never installed by .claude/cloud-bootstrap.sh, so the session comes up green
 # with the plugin's skills missing and no line of output naming what is
 # absent. That is the docs/conventions/liveness-assertion/ shape -- a
 # documented guarantee with no gate behind it -- and it costs exactly the
 # dogfooding the directory-source marketplace exists to provide.
 #
-# WHERE ENABLEMENT LIVES NOW. The fleet cloud plugin list in standards
+# WHERE ENABLEMENT LIVES. The fleet cloud plugin list in standards
 # (components/cloud-environment/fleet-plugins.json) is what every cloud
 # snapshot installs, and the bootstrap reads its snapshot copy overlaid with
 # this repo's .claude/settings.json. So a catalogued plugin is covered when
 # the fleet list enables it OR this file carries an explicit key for it, and
-# this file no longer mirrors the whole catalog (that mirror was writing one
+# this file does not mirror the whole catalog (a mirror writes one
 # project-scope install record per plugin per checkout on every local session
 # start). The fleet list is fetched from its published URL at gate time; an
 # unreachable list is a usage error, never a pass.
+#
+# OFFLINE AND FORKS. The fleet list is required for correctness in the
+# docs/plugin-philosophy.md "Prerequisites and failure behavior" sense: with no
+# network, or from a fork whose standards repository lives elsewhere, the gate
+# stops with exit 2 and names both overrides below rather than skipping. A
+# visible skip would still read as a pass in the lane that runs this.
 #
 # NOT COVERED ELSEWHERE. plugins/claude-config/skills/audit/scripts/
 # check-plugin-drift.sh audits this same axis for CONSUMER repos, but it
@@ -41,8 +43,7 @@
 # WHAT IS CHECKED (both directions):
 #   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the
 #      fleet list does not enable AND that has no `<name>@<marketplace>` key
-#      in .claude/settings.json `enabledPlugins`. The class that shipped
-#      three times.
+#      in .claude/settings.json `enabledPlugins`.
 #   2. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
 #      names no catalog entry. What a plugin rename or removal leaves behind;
 #      the id resolves to nothing and the install silently no-ops.
@@ -65,11 +66,18 @@
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
 #   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
+#
+# Env overrides (fleet list source):
 #   PLUGIN_CATALOG_ENABLEMENT_FLEET        -- path to a local fleet list,
 #                                             instead of fetching the URL
+#                                             (offline, or the cloud
+#                                             snapshot's copy)
+#   PLUGIN_CATALOG_ENABLEMENT_FLEET_URL    -- https URL to fetch it from
+#                                             (a fork or mirror); defaults
+#                                             to the standards repository
 set -euo pipefail
 
-FLEET_URL='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
+FLEET_URL="${PLUGIN_CATALOG_ENABLEMENT_FLEET_URL:-https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -161,6 +169,8 @@ else
     "$FLEET_URL" -o "$fleet_tmp" 2>/dev/null; then
     printf 'check-plugin-catalog-enablement: could not fetch the fleet list from %s\n' "$FLEET_URL" >&2
     echo '  The gate judges catalog coverage against that list; without it a green result would be a guess.' >&2
+    echo '  Offline, point PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy; from a fork, set' >&2
+    echo '  PLUGIN_CATALOG_ENABLEMENT_FLEET_URL to the https URL your standards repository publishes.' >&2
     exit 2
   fi
   FLEET="$fleet_tmp"
@@ -217,8 +227,7 @@ fi
 # endswith("@" + $n). Rename the marketplace and update both settings keys and
 # the catalog, and the two disagree: `wanted` matches nothing, cloud sessions
 # install none of the catalog, and this lane stays green over it -- a parity
-# gate certifying a set nobody installs. Raised as P2 by the Codex review on
-# #3235. Verifying the constant rather than deriving it keeps the bootstrap's
+# gate certifying a set nobody installs. Verifying the constant rather than deriving it keeps the bootstrap's
 # behavior byte-identical (it must work before anything else does) while making
 # a rename that touches only one of the two impossible to merge.
 bootstrap_name="$(sed -n 's/^marketplace_name="\([^"]*\)".*/\1/p' "$BOOTSTRAP" | head -1)"

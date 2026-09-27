@@ -1285,7 +1285,7 @@ The distinction, as Pat states it, is one sentence, and it is only about degree:
      Better Lyrics* (2009) Ch 3. Pat's whole statement of the distinction is the
      single sentence now quoted above, a difference of DEGREE, nothing more.
      The invented table also contradicted the paragraph immediately following
-     it, which correctly reports that Pat declines the degree test in favour of
+     it, which correctly reports that Pat declines the degree test in favor of
      commitment. Classic named-axes signature: four tidy oppositions where the
      source has one. -->
 

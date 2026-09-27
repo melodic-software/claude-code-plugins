@@ -58,8 +58,9 @@ told:
    toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
    keep sequential, shared-context work inline.
 2. SPEC EVERY SPAWN. Give each worker an objective, the REASON it is being asked (the larger task
-   it feeds, who the output is for, what it enables), an output format, the tools/sources to use,
-   explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
+   it feeds, who the output is for, what it enables), what done looks like and when to stop and
+   ask, an output format, the tools/sources to use, explicit task boundaries, and a deliberately
+   chosen model tier. Vague delegation makes workers
    duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
    an unspecified model silently inherits the parent session's, often its most expensive, model.
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
@@ -75,7 +76,11 @@ told:
    batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
 4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
-   Watch running workers and intervene the moment one drifts or is missing context.
+   Watch running workers and intervene the moment one drifts or is missing context. A worker that
+   must wait on an external result polls it in the foreground with a bounded loop, or returns what
+   it has and lets the parent re-dispatch. A background command or watch the worker started is not
+   a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
+   sentinel file appears unless something the worker launched writes it.
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep
@@ -108,8 +113,9 @@ told:
    explicitly, never a default to inherit.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
-parallelism, not convenience). Treat every worker's return as unverified synthesis. Verify
-load-bearing claims against a primary source before acting. Cite sources you actually fetched;
+parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
+evidence before accepting it, verify load-bearing claims against a primary source before acting,
+and merge a many-item fan-out into one table (item, verdict, evidence). Cite sources you actually fetched;
 never label a claim "known" / "from memory" / "obvious".
 
 **Priming addendum (current session only).** As the main session, not a spawned non-fork worker,
@@ -149,7 +155,11 @@ loud, and an order-of-magnitude disagreement with this anchor is one to name, no
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
-stopping condition, and the decision about what to spawn next, and it delegates the rest. A top
+stopping condition, and the decision about what to spawn next, and it delegates the rest. It keeps
+the task list in a file (the plan or checklist the work already has, else one it creates), ticks
+each item as its return is verified, and reads that file rather than the scrollback. It keeps going
+when a step needs no input, with status notes in the same message as the next action, and stops to
+ask only when blocked on the user or before a destructive, hard-to-undo, or outward action. A top
 tier that reads findings, weighs them, and asks a follow-up question has converted a fan-out into a
 conversation, and the context it was protecting fills anyway.
 

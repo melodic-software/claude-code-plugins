@@ -43,7 +43,7 @@
       "name": "missing-telemetry-issue-degrades-per-section",
       "prompt": "I ran /claude-ops:morning-brief in a repo that has no loop-lane telemetry issue and none of the melodic-software queue labels. Should the brief fail?",
       "narration": true,
-      "expected_output": "No. Each section degrades on its own: the Lane telemetry section reports \"no telemetry issue found\" and the Queues section reports \"no queue labels found\", while every other section still renders. Queue labels are filtered to the ones that actually exist in the target repo so a differently-labelled repo does not show misleading 0/? rows; `--queue-labels` and `--telemetry-issue` pin a custom set or a specific issue.",
+      "expected_output": "No. Each section degrades on its own: the Lane telemetry section reports \"no telemetry issue found\" and the Queues section reports \"no queue labels found\", while every other section still renders. Queue labels are filtered to the ones that actually exist in the target repo so a differently-labeled repo does not show misleading 0/? rows; `--queue-labels` and `--telemetry-issue` pin a custom set or a specific issue.",
       "files": [],
       "expectations": [
         "The response says the brief still renders rather than failing",

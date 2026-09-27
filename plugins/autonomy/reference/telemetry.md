@@ -79,9 +79,17 @@ agent surface that ignores inbound context does
 not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
 the session's own native emissions attach query-side through the Pillar 2 attribute, which
 both surfaces carry. Where a native surface honors inbound context its spans join the tree
-directly; relying on that is a recorded migration trigger, not an assumption. Interactive contexts are explicitly excluded. The
+directly, but the contract's join stays the Pillar 2 attribute. Interactive contexts are explicitly excluded. The
 contract does not promise inbound trace joining for an interactive session, which
 deliberately ignores ambient context.
+
+**Native trace-context joining, dated record.** *Claim:* relying on native inbound trace context
+was evaluated on 2026-09-25 and not adopted. The agent surface the setup skill wires reads inbound
+trace context only in its headless and SDK sessions; its interactive sessions ignore it, and its
+tracing is beta and off by default. So the contract keeps the Pillar 2 attribute join as its join.
+*Basis:* the setup skill's agent-session wiring records "Inbound trace context in headless
+sessions" and "Traces stay beta", whose vendor page was re-read as raw markdown on 2026-09-25.
+*Verified:* 2026-09-25. *Recheck trigger:* either of those records' recheck triggers fires.
 
 ## Sink binding: out of contract
 
@@ -103,6 +111,44 @@ is named or privileged by this contract.
 Prefer each tool's native telemetry export over reimplementing it. A capability that
 re-derives what a native surface already emits is non-conforming; wrap, configure, or
 transport native output instead.
+
+## Native agent-surface evidence
+
+What the native-surface principle means for an agent session's own export. This contract names
+surface classes; the records for a specific agent surface (which event, which attribute, which
+limits, verified against that vendor's documentation) live with the setup skill's agent-session
+wiring.
+
+**Guardrail evidence.** Where an agent surface's native export records each tool permission
+decision with its outcome and its origin (configuration, hook, or user), a binding that must show a
+guardrail fired reads that record rather than inferring a block from a missing command. It also
+reads the recorded limits of that evidence before counting on it: an origin that does not name the
+matching rule, or that reports the same rule differently in interactive and headless sessions.
+
+**GenAI names are not pinnable, dated record.** *Claim:* the OpenTelemetry GenAI semantic
+conventions have moved to their own repository, which has no release, no tag, and no published
+schema URL, and whose docs README carries Development status. There is nothing to pin. An agent
+surface's `gen_ai.*` attributes are consumed as emitted under Pillar 1 and are not a pin this
+contract binds. Adopting the GenAI conventions once released is a reviewed contract migration under
+Pillar 1's rule: a known break, never an assumed equivalence. *Basis:* the "Moved" notice at
+`docs/gen-ai/README.md` in `open-telemetry/semantic-conventions` (present at the pinned v1.43.0),
+and the `open-telemetry/semantic-conventions-genai` repository's release and tag lists, its
+README's Schema URL section, and the status marker on its `docs/gen-ai/README.md`. *Verified:*
+2026-09-23. *Recheck trigger:* that repository's first tagged release, or its README publishing a
+schema URL.
+
+### Agent memory observability: DEFERRED, with a trigger
+
+**The gap:** on the pages its dated absence record searched, the agent surface the setup skill
+wires documents no signal for the startup load of its persistent memory index, so a binding has
+nothing to show which memory an unattended run began with. The dated absence record, and the
+neighboring memory reads that are observable, live with the setup skill's agent-session wiring.
+
+**Why deferred:** a contract-authored memory signal would be a new custom attribute, which Pillar
+2's namespace governance admits only through a reviewed contract change, and a wrapper that read
+the memory index itself would restate load limits the agent surface's documentation owns.
+
+**Trigger to reconsider:** that absence record's recheck trigger fires.
 
 ## Telemetry is not return
 

@@ -65,8 +65,9 @@ const settleRender = async () => {
 // still reports the layout extent. Pure cosmetic, no scrollbar appears.
 const collectSectionOverflows = () =>
   [...document.querySelectorAll("main#deck > section.section")]
-    .filter((s) => !["open", "qa"].includes(s.id))
-    .filter((s) => s.scrollWidth > s.clientWidth + 4)
+    .filter(
+      (s) => !["open", "qa"].includes(s.id) && s.scrollWidth > s.clientWidth + 4,
+    )
     .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth }));
 
 // ────────────────────────────────────────────────────────────────────
@@ -110,8 +111,7 @@ const sectionInfo = await page.evaluate(() => {
   return sections.map((s) => ({ id: s.id, h1: s.querySelector("h1")?.innerText.trim() || "", h2: s.querySelector("h2")?.innerText.trim() || "" }));
 });
 
-for (let i = 0; i < sectionInfo.length; i++) {
-  const id = sectionInfo[i].id;
+for (const [i, { id }] of sectionInfo.entries()) {
   await page.evaluate((sid) => {
     document.getElementById(sid)?.scrollIntoView({ behavior: "instant", block: "start" });
   }, id);
@@ -149,7 +149,7 @@ const urlMismatches = [...allUrls].filter((u) => !renderedUrlSet.has(normUrl(u))
 const headlineMismatches = expectedHeadlines.filter((exp) => !pageData.headlines.some((h) => h.startsWith(exp.slice(0, 30))));
 
 console.log(`  Sections rendered:      ${sectionInfo.length}`);
-console.log(`  Expected URLs (source): ${[...allUrls].length}`);
+console.log(`  Expected URLs (source): ${allUrls.size}`);
 console.log(`  Rendered (DOM):         ${pageData.urls.length}`);
 console.log(`  Missing URLs:           ${urlMismatches.length}`);
 console.log(`  Missing headlines:      ${headlineMismatches.length}`);

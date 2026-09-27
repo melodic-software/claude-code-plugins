@@ -21,6 +21,7 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-CisaKevCache.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WingetPackageUpdate.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'winget-upgrades'
@@ -30,12 +31,8 @@ $commands = @(
     'winget upgrade --include-unknown --accept-source-agreements  # fallback'
 )
 
-# KEV correlation is ID-based, not display-name-based. A substring match on
-# display names floods the result with false positives ("Windows Subsystem
-# for Linux" / id Microsoft.WSL matches every Microsoft/Windows CVE because
-# the name contains "Windows"). The winget Id is already a structured
-# "<vendor>.<product>" token assigned by the package manifest author, so
-# matching on Id is both precise and cheap.
+# Correlate KEV on the structured winget Id, never display names: a name substring match
+# floods false positives (Microsoft.WSL's "Windows" name matches every Windows CVE).
 
 try {
     $wrapperResult = Get-WingetPackageUpdate
@@ -54,8 +51,7 @@ try {
             -Severity 'UNKNOWN' -Summary $msg `
             -Commands $commands `
             -RanSuccessfully $false `
-            -ErrorMessage $wrapperError `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -ErrorMessage $wrapperError
     } else {
         $upgrades = @($upgrades)
 
@@ -72,14 +68,10 @@ try {
             }
             $kevPath = Join-Path $cacheRoot 'cisa-kev.json'
 
-            # Seed the cache on first run by copying the checked-in stub.
-            # Get-CisaKevCache will detect the empty vulnerabilities array
-            # and fetch live data to replace it.
+            # Seed from the checked-in stub; Get-CisaKevCache sees its empty
+            # vulnerabilities array and fetches live data to replace it.
             if (-not (Test-Path -LiteralPath $kevPath)) {
-                $skillRoot = Split-Path -Path $PSScriptRoot -Parent |
-                    Split-Path -Parent |
-                    Split-Path -Parent
-                $seedPath = Join-Path $skillRoot 'catalog\cisa-kev.json'
+                $seedPath = Join-Path (Resolve-SkillRoot) 'catalog\cisa-kev.json'
                 if (Test-Path -LiteralPath $seedPath) {
                     Copy-Item -LiteralPath $seedPath -Destination $kevPath -Force
                 }
@@ -87,11 +79,7 @@ try {
 
             $kev = Get-CisaKevCache -CachePath $kevPath -LogPath $LogPath -MaxAgeDays 7
             if ($kev -and $kev.vulnerabilities) {
-                # Index KEV entries by lowercase "vendor.product" key so each
-                # upgrade Id can be matched in O(1) instead of scanning every
-                # vuln. KEV has ~1300 entries and a typical machine reports
-                # ~30 upgrades, so the prior nested loop did ~40k comparisons
-                # per run.
+                # Index KEV by lowercase "vendor.product" so each upgrade Id is an O(1) lookup.
                 $kevIndex = @{}
                 foreach ($vuln in $kev.vulnerabilities) {
                     if ([string]::IsNullOrWhiteSpace($vuln.vendorProject) -or
@@ -110,10 +98,8 @@ try {
                     if ([string]::IsNullOrWhiteSpace($upgradeId)) { continue }
                     $idLower = $upgradeId.ToLowerInvariant()
 
-                    # Test idLower against exact key, then progressively
-                    # shorter prefixes (split on '.') so "Microsoft.WSL.Foo"
-                    # also matches "microsoft.wsl". Bounded by Id segment
-                    # count, typically 2-4.
+                    # Exact Id first, then shorter '.'-prefixes, so "Microsoft.WSL.Foo"
+                    # also matches "microsoft.wsl".
                     $segments = $idLower.Split('.')
                     for ($i = $segments.Length; $i -ge 2; $i--) {
                         $candidate = ($segments[0..($i - 1)] -join '.')
@@ -144,7 +130,6 @@ try {
             $severity = 'CRIT'
             $summary = "$($kevMatches.Count) upgrade(s) match CISA KEV."
         } elseif ($upgrades.Count -gt 0) {
-            # >10 behind is the WARN threshold; anything behind at all is INFO.
             $severity = $upgrades.Count -gt 10 ? 'WARN' : 'INFO'
             $summary = "$($upgrades.Count) apps behind on winget upgrades."
         }
@@ -167,16 +152,11 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes $notes
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'winget upgrade check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'winget upgrade check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

@@ -10,7 +10,7 @@ different question about the same surface:
 | `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set? Are there genuine gaps, judged against the enforcement hierarchy? |
 | `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable? Do they survive auto mode, work across machines, and live where they can take effect? |
 | `/claude-config:audit-permission-state` | Which permission rules are actually IN EFFECT, and where does each one come from, across managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy? |
-| `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
+| `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, a natively read AGENTS.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
 | `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target, with every scope inventoried before any check, one reconciled findings artifact, and one human gate, instead of several separate runs whose results nobody reconciles? |
 | `/claude-config:unhobble` | What does the CURRENT MODEL actually still need, measured rather than reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
 
@@ -33,10 +33,11 @@ registration), recheck against live official docs and known upstream issues, rep
 findings, and optionally fix. `scripts/audit-engine.sh` decides every deterministic row in one run
 and writes a findings document whose rows carry `audit-pass`'s identity tuple, so a later run can
 diff against it and `audit-pass` can append it unchanged; the model reads that document and does
-only what needs a reading. Plugin drift is detected against each registered marketplace's
-`marketplace.json`, fetched for a `github` source and read from disk for a `directory` source
-(ORPHAN / NEW / RENAME modes, NEW computed against the merged user, project and local scopes), with
-an asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. Hooks are
+only what needs a reading. Plugin drift is detected against the `marketplace.json` of
+each marketplace declared in the audited file, fetched for a `github` source and read from disk for
+a `directory` source (ORPHAN / NEW / RENAME modes, NEW computed against the merged user, project and
+local scopes and reported only), with a fix that removes only orphan `false` entries, never adds a
+key, and never removes a plugin the user explicitly enabled. Hooks are
 inventoried from the directory the session loads, and a divergence from the registry's cache is
 reported. The skill-listing budget is read from an existing debug log before anyone is asked to
 relaunch. `settings.local.json` is inspected structurally (key counts and the four model and
@@ -107,8 +108,8 @@ it writes nothing in any scope, and managed policy is read-only by construction.
 Audits instruction *content* against current model capability, a different question from the
 sibling audits (config-file correctness) and from `skill-quality:check` (structural lint) or
 `docs-hygiene:compress` (token brevity). It sweeps the locally-owned surfaces (user + project
-`CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, hook instruction text, output styles)
-against a sixteen-check catalog cited to current official prompting and harness doctrine, running
+`CLAUDE.md`, a natively read `AGENTS.md`, `.claude/rules`, skill bodies, agent definitions, hook
+instruction text, output styles) against a sixteen-check catalog cited to current official prompting and harness doctrine, running
 a fresh read-only subagent per surface, then a fresh-context verify pass that re-judges every removal
 proposal before it is surfaced. Findings are tiered mechanical vs behavioral and delivered as a
 report plus proposed diffs, report-only and never auto-applied. On memory-layer surfaces it runs only
@@ -194,7 +195,8 @@ subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DA
 
 ## Consumer conventions
 
-The skills read the consuming repo's own `CLAUDE.md` / `.claude/rules/` for project-specific policy:
+The skills read the consuming repo's own `CLAUDE.md` (or the `AGENTS.md` a session reads natively,
+whether in place of a `CLAUDE.md` or alongside one) / `.claude/rules/` for project-specific policy:
 additional required permission patterns, documented reasons for disabled MCP servers, and a custom
 enforcement hierarchy. Nothing project-specific is baked into the plugin.
 
@@ -252,9 +254,8 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
 [Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
 JSON-parsing scripts require `jq`; the plugin-drift check additionally requires `curl`; and `awk`
-and `sort` are required across three skills, not one: `audit`'s plugin-drift check (both) and its
-fix (`sort`), `audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass
-(both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
+and `sort` are required across three skills, not one: `audit`'s engine (both),
+`audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass (both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
 others call them unguarded, so an absent `awk` or `sort` surfaces there as a bare `command not
 found` partway through a run. Both ship with every POSIX userland, so a missing one means a minimal
 shell environment (Git Bash, a `busybox` shim) rather than an absent package. Install a full

@@ -136,6 +136,37 @@ run "PS: conforming here-string subject allowed" "$r" "$PS_GOOD" 0 PowerShell
 run "PS: violating here-string subject blocked" "$r" "$PS_BAD" 2 PowerShell
 run "PS: violating gh pr create --title blocked" "$r" \
   "gh pr create --title 'junk title'" 2 PowerShell
+# An EXPANDABLE `@"` body carrying `$( ... )` is a command position the
+# classifier cannot read, so it routes to the fail-closed sink and this guard
+# DEFERS on a classifier rc 2: its message would name a subject it never parsed.
+# What this pins is the DEFERRAL and nothing more: an rc of 0 here cannot tell
+# "deferred on a classifier rc 2" from "never matched for some other reason", and
+# this file has no sibling-invocation harness to assert the coupling with. The
+# coupling that makes the deferral sound, that the two blocking guards still
+# refuse the same input, is asserted where that harness lives, in
+# block-noncanonical-commit.test.sh's run_sibling loop.
+PS_BAD_EXPANDABLE=$'@"\njunk subject $(node -p \'x\')\n"@ | git commit -F - --cleanup=verbatim'
+run "PS: violating expandable here-string subject deferred (classifier rc 2)" "$r" \
+  "$PS_BAD_EXPANDABLE" 0 PowerShell
+# The ONE sink trigger this guard does not defer. PowerShell reads `# @"` as
+# comment text, so the `@"` opens nothing and the lines under it are live
+# commands; the reduction takes the line as an opener and drops them as
+# here-string body. Deferring would hand the shape straight through, because the
+# sibling that would catch a commit form is looking at the same reduced text.
+# The refusal is unconditional and consults no allow-list.
+run "PS: a commented here-string opener is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+run "PS: the @\047 spelling of the commented opener (blocked)" "$r" \
+  $'Write-Output x # @\'\ngit commit -m x\n\'@ fine\'' 2 PowerShell
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" "$r" \
+  $'Write-Output "#1" @"\nhello\n"@' 2 PowerShell
+# The regression fence: the `#` has to be on the opener line before the suffix,
+# and the canonical conforming form is untouched.
+run "PS: a here-string body containing a # (allowed)" "$r" \
+  $'Write-Output @\'\nrelease # 1\n\'@' 0 PowerShell
+run "PS: conforming here-string subject with a trailing comment (allowed)" "$r" \
+  "$PS_GOOD # ok" 0 PowerShell
 
 # --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
 r="$(newrepo "$TICKET")"

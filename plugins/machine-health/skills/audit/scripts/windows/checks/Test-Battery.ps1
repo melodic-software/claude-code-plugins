@@ -41,13 +41,8 @@ function Get-CapacityFromBatteryReport {
         return $null
     }
 
-    # Locale-robust parser. Regex-matching the English labels "DESIGN
-    # CAPACITY" and "FULL CHARGE CAPACITY" breaks on localized Windows
-    # where they're translated. The HTML structure is stable across
-    # locales: the Installed Batteries section lists design capacity
-    # first, then full-charge capacity, each as a numeric value followed
-    # by "mWh". Accepting comma or dot as thousands separator covers both
-    # en-US (45,000) and de-DE (45.000) style numbers.
+    # Match "<number> mWh" values, not the English labels (translated on localized Windows):
+    # design capacity comes first, then full charge; comma or dot thousands separators.
     $pattern = '([\d][\d.,]*)\s*mWh'
     $mwhMatches = [regex]::Matches($html, $pattern, 'IgnoreCase')
     if ($mwhMatches.Count -lt 2) {
@@ -73,8 +68,7 @@ try {
         $detail = @{ has_battery = $false }
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'OK' -Summary 'No battery present.' -Detail $detail -Commands $commands `
-            -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -NeedsAdmin $false -RanSuccessfully $true
     } else {
         $fullPct = $null
         $capacity = $null
@@ -139,16 +133,11 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes $reportNote
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Battery check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Battery check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

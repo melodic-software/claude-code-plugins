@@ -4,7 +4,8 @@
 # Single owner of worktree creation for this plugin: external-root path
 # computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
 # resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
-# `git worktree lock` liveness guard (#2257), and the `.worktreeinclude`
+# `git worktree lock` liveness guard (#2257) with an optional --session-id
+# claim token, and the `.worktreeinclude`
 # local-file copy. The copy Claude Code performs for its
 # native worktrees (EnterWorktree / --worktree) is bypassed when a worktree is
 # created with `git worktree add` directly, so this helper reimplements it.
@@ -59,6 +60,11 @@ PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
 source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
+# Lexical path collapse, shared inside this plugin with the worktree gates and
+# the claim helper. Sourced for worktree_path_normalize alone: the file defines
+# functions only and pulls in no library of its own.
+# shellcheck source=../hooks/worktree-path-lib.sh
+source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh"
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -70,22 +76,15 @@ source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
 #     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
 #     never mistaken for drive U:.
 windows_drive_letter() {
-  local path="$1" d
-  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
-    return 0
-  fi
-  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
+  local path="$1"
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]] || [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    printf '%s' "${BASH_REMATCH[1]^^}"
     return 0
   fi
   case "$(uname -s 2>/dev/null || true)" in
   MINGW* | MSYS* | CYGWIN*)
     if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
-      d="${BASH_REMATCH[1]}"
-      printf '%s' "${d^^}"
+      printf '%s' "${BASH_REMATCH[1]^^}"
       return 0
     fi
     ;;
@@ -143,6 +142,7 @@ Usage:
   $PROG --name <name> [--root <dir> | --root-file <path>]
         [--fallback-root <dir> | --fallback-root-file <path>]
         [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
+        [--session-id <id>]
 
 Root resolution, most specific first:
   --root/--root-file (explicit, per invocation), then worktreeroot.path
@@ -221,6 +221,17 @@ Options:
                       default branch. With no resolvable remote, or an uncached
                       <remote>/HEAD, it warns and branches from local HEAD.
   --repo-dir <dir>    Source repository directory. Default: current directory.
+  --session-id <id>   Session id recorded in the git worktree lock reason as
+                      \`session <id> since\`, the token worktree-claim.sh
+                      check-enter matches (exit 0 for this id, exit 4 for any
+                      other). The id must match ^[A-Za-z0-9._:-]{1,128}$; any
+                      other value is a usage error (exit 2) and creates nothing.
+                      Omitted or empty: the reason names the helper, host, and
+                      start time only and carries no session token, so
+                      check-enter reports a foreign claim for every session id.
+                      This flag is the only session source. An omitted id is
+                      never filled in from the host name or the environment, and
+                      is not reported as any session's claim.
   -h, --help          Show this help.
 
 On success the created worktree path is printed as the sole stdout line, for the
@@ -244,6 +255,7 @@ data_root_file=""
 data_root_file_given=0
 base_ref=""
 repo_dir="."
+session_id=""
 
 # need_value <flag> — guard against a value-taking flag given as the last token
 # with no argument. Without this, `shift 2` on a single remaining positional
@@ -300,6 +312,11 @@ while [[ $# -gt 0 ]]; do
   --repo-dir)
     need_value "$@"
     repo_dir="$2"
+    shift 2
+    ;;
+  --session-id)
+    need_value "$@"
+    session_id="$2"
     shift 2
     ;;
   -h | --help)
@@ -406,6 +423,15 @@ if [[ ! "$name" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
   exit 2
 fi
 
+# Same grammar as worktree-claim.sh valid_session_id. Empty is omitted, not
+# invalid: the lock reason then carries no session token (see usage). A value
+# outside this class could break the `session <id> since` match, so refuse
+# before creating anything.
+if [[ -n "$session_id" ]] && [[ ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; then
+  printf '%s: --session-id must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
+  exit 2
+fi
+
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
@@ -432,7 +458,7 @@ root_is_unset() {
 #    the loop breaks on its first iteration, and the whole guard block is
 #    skipped — a backslash root then sails through and git lands the checkout
 #    inside the repo/.git. Swapping `\`→`/` up front routes a backslash root
-#    through the SAME anchor + normalize_path + walk as a forward-slash root
+#    through the SAME anchor + worktree_path_normalize + walk as a fwd-slash root
 #    (one code path, not a parallel one). Gated to Windows shells via $OSTYPE —
 #    off-Windows `\` is a legal filename byte and must be left untouched.
 #    (cygpath is intentionally avoided: it resolves relative paths against the
@@ -658,43 +684,6 @@ parse_owner_repo() {
   fi
 }
 
-# normalize_path <abs-path> — lexically collapse `.` and `..` (and redundant
-# slashes) in an ABSOLUTE path, echoing the result. Pure string work: it does
-# NOT touch the filesystem, so it resolves `..` even when leading components do
-# not exist yet — the case `git worktree add` handles by creating the missing
-# dirs and letting the OS resolve `..`. `realpath -m` would do this too but is a
-# GNU extension absent on BSD/macOS (the repo's realpath/readlink -f idiom needs
-# every-but-last component to exist, so it cannot resolve a nonexistent-prefix
-# `..`). A path with no `.`/`..`/`//` segment re-splits and re-joins identically,
-# so this is a no-op for ordinary roots. Symlink resolution of existing
-# components is left to git's own realpath at creation (see the containment note).
-normalize_path() {
-  local input="$1" root rest seg
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      # Pop the last kept segment; a `..` at the root is a no-op (clamped).
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  printf '%s%s' "$root" "${out[*]}"
-}
-
 # owner/repo from the origin remote when present; otherwise fall back to the
 # repository directory name (owner omitted).
 owner=""
@@ -740,7 +729,7 @@ worktree_path="${root%/}/${dirname}"
 # never probes the real `<repo>` ancestor, so the guard passes and `git worktree
 # add` creates `missing`, resolves `..`, and lands the checkout inside the repo.
 # Normalizing first makes the walk see the true landing path.
-worktree_path=$(normalize_path "$worktree_path")
+worktree_path=$(worktree_path_normalize "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
@@ -936,7 +925,26 @@ fi
 # so the `locked` flag the cleanup skill already honors was structurally always
 # absent (#2257). The owning lane (or cleanup, after explicit confirmation)
 # disarms with `git worktree unlock <path>`.
-lock_reason="worktree-create.sh: lane active on ${HOSTNAME:-$(hostname 2>/dev/null || printf 'unknown-host')} since $(date -u +%Y-%m-%dT%H:%M:%SZ); unlock when the owning lane is done"
+#
+# The reason speaks worktree-claim.sh's dialect. claim_reason writes
+# `session <id> since`, and reason_is_ours matches that token only. With
+# --session-id, this helper emits the same token under its own prefix so
+# check-enter for that id exits 0. Without one, the reason stays host and
+# time only: no session token, so it matches no session and check-enter
+# reports a foreign claim. Do not put the host name where the session id
+# goes; that would make every helper lock look owned by every session.
+lock_host="${HOSTNAME:-}"
+if [[ -z "$lock_host" ]]; then
+  lock_host="$(hostname 2>/dev/null || printf 'unknown-host')"
+fi
+lock_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if [[ -n "$session_id" ]]; then
+  lock_reason="$(printf 'worktree-create.sh: lane active on %s session %s since %s; unlock when the owning lane is done' \
+    "$lock_host" "$session_id" "$lock_stamp")"
+else
+  lock_reason="$(printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
+    "$lock_host" "$lock_stamp")"
+fi
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
   lock_failed=1

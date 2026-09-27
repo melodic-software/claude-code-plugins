@@ -1,5 +1,154 @@
 # Changelog: session-flow plugin
 
+## [0.38.2] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.38.1] - 2026-09-27
+
+### Fixed
+
+- **`orchestrate` sources state the current subagent model order.** The per-invocation `model`
+  comes first, then the definition's `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main
+  conversation's model. An omitted `model` follows that order rather than meaning `inherit`. The
+  workflow bullet quotes the workflows page's current wording. Both carry a dated record with a
+  recheck trigger.
+
+## [0.38.0] - 2026-09-25
+
+### Added
+
+- **`retro` parser reports forks and scopes its coverage denominator.** Multi-session output gains
+  `fork_candidates`: transcripts outside the requested set that share record uuids with it, which
+  no `previous_handoff` pointer reaches. They are offered, never added. Under `--chain-from`,
+  `chain_coverage.available` counts the chain plus the other transcripts that mention the
+  handoff's topic (reported as `topic`), so a chain launched from `$HOME` is no longer measured
+  against every unrelated session in that project directory.
+- **`handoff` promotes resolved cumulative entries.** When a cumulative section passes about 25
+  entries (judgment), resolved entries move into a committed doc or ADR and leave a
+  `- [hN] Promoted to <ref>: <opening words>` pointer. `save_point.py validate` accepts that
+  pointer in place of the dropped entry when it keeps the entry's tag and quotes at least its
+  first 20 characters.
+
+### Changed
+
+- **`orchestrate` imperative 4:** a worker that must wait on an external result polls in the
+  foreground or returns and lets the parent re-dispatch; its own background command, watch, or
+  sentinel file is not a wait. Sources and recheck trigger in `context/sources.md`.
+
+## [0.37.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.37.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/observer-arm.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
+
+## [0.37.1] - 2026-09-23
+
+### Changed
+
+- **`keep-going` no longer holds updates until the end after a usage limit lifts.** "Report only at
+  the end or on a hard block" contradicted the skill's own autonomy policy and suppressed progress
+  notes on models that already under-narrate; it now says to put status notes in the same message
+  as the next action.
+
+## [0.37.0] - 2026-09-23
+
+### Changed
+
+- **`orchestrate`:** the spawn spec names what done looks like and when to stop and ask; a
+  worker's evidence is checked before its return is accepted, and a many-item fan-out ends in one
+  table. The loop owner keeps the task list in a file, keeps going when a step needs no input,
+  and stops only when blocked on the user or before a destructive, hard-to-undo, or outward
+  action.
+- **`keep-going`:** auto-resume keeps going instead of ending on an offer to continue; the report
+  leads with what waits on the user. The gate on killing or re-firing side-effectful work is
+  unchanged.
+- **`reconcile` and `clean-stop`:** reports lead with what needs the user (a gated kill, the
+  dangling items). Their gates are unchanged.
+
+## [0.36.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.36.0]
+
+### Added
+
+- **`save_point.py fill <file> --slots <json>`: one call replaces every reasoning slot.** The
+  handoff write procedure was one Edit per `<!-- FILL: ... -->` slot, up to twenty-two of them on
+  a first hop, so an interrupt mid-batch left a partly filled skeleton. `fill` reads one JSON
+  object keyed by slot name and applies every value in a single write, after every check has
+  passed. An inline prefix on a slot's line is preserved, a multi-line value lands as those lines
+  in place, and an optional slot left out of the object has its line deleted. A closing handoff is
+  written by giving the `next` slot the value `Next: none (closed)` exactly, which `fill` moves
+  onto the `Next:` line above before deleting the slot line, since that is the only shape the
+  validator accepts as closed. A required slot absent, a key naming no slot in the file, a slot
+  name occurring twice, a value that itself carries a `FILL` slot marker, and a target with no
+  slot left are each refused by name with the file left byte-identical. A missing or unreadable
+  target, and a slots file that is missing, unreadable, not a JSON object, or holds a non-string
+  or non-UTF-8-encodable value, exit 2, as does a target that is not a handoff file, the same
+  `type: handoff` guard `validate` and `emit` apply, and a target whose shape is not 2, since
+  substitutions belong to the shape this engine writes. A shape newer than 2 exits 3 with
+  `validate`'s wording, read it and do not rewrite it, so version skew cannot corrupt a
+  future-format handoff. The write goes to a temporary file in the target's own directory and is
+  replaced into place, so an interrupted write cannot truncate the handoff. The target's own line
+  endings survive, so a CRLF handoff stays CRLF. `new`, `validate`, and `emit` keep their behavior
+  and exit codes, and the Edit tool is now only the repair path after a failed `validate`.
+
+## [0.35.18]
+
+### Fixed
+
+- **`save_point.py new` no longer drops the predecessor's amendment bullets that sit below its `Opening ask:` line.** The carry skipped every line after `Opening ask:` until one starting with `**`, so a bullet (`- **Amended (verbatim, ...)`) below the ask was swallowed and the successor lost it; two hops of one real chain had to re-add those bullets by hand. The skip now ends at any structural marker, a `**` line or a bullet, which keeps the multi-paragraph verbatim ask out of the successor as before. The same boundary is used by both of the validator's reads of the section, including the hop-1 ask-length cap, so all three agree.
+
+## [0.35.17]
+
+### Changed
+
+- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged. The probe writes through `printf -v`, so the hook still finds its interpreter on the stock bash 3.2 that macOS ships.
+
+## [0.35.16]
+
+### Changed
+
+- hop_chain and save_point reconfigure stdout and stderr for UTF-8 through one io_streams module instead of two identical private functions.
+
+## [0.35.15]
+
+### Changed
+
+- The session-flow save-point and hop-chain scripts drop dead constants, unread return values, and a redundant predecessor guard, hoist loop-invariant path lookups, and compile a repeated chain-item regex, with byte-identical handoff output.
+
+## [0.35.14]
+
+### Changed
+
+- Fold the chain-coverage note into one branch, drop a redundant staging guard and share the event runner and script-dir binding in the retro and keep-going suites (behavior unchanged).
+
+## [0.35.13]
+
+### Changed
+
+- Forward the observer timing options without redundant string wrapping, simplify the memory-root ignore append, hoist the module-level imports and drop a dead test branch in running-retro (behavior unchanged).
+
 ## [0.35.12]
 
 ### Fixed
@@ -351,7 +500,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   multi-agent research write-up measures agents at roughly 4x a chat interaction and multi-agent
   systems at roughly 15x, with token usage alone explaining most of the performance variance it
   regressed. A reader who checked the source found the skill quoting a lower number with no
-  citation. The range is now labelled as this plugin's own operating figure and as a floor rather
+  citation. The range is now labeled as this plugin's own operating figure and as a floor rather
   than a ceiling, with the upstream measurement cited beside it and the instruction to size
   research-shaped fan-outs against the higher number.
 - **`orchestrate`: "compressed return" gained a magnitude.** The tiered-delegation section required
@@ -847,7 +996,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 
   **Autonomy gating.** Three separate cases hold the line the 0.27.0 review fixes drew: an opt-in
   counts only in a genuine user turn, so consent-shaped text inside a pasted issue body is data and
-  never a licence; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
+  never a license; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
   Skill-invocable built-ins and stay the human's to type; and `clean-stop` takes the literal
   `continue auto` token and nothing else, because once invoked it pushes commits, opens PRs, and
   files issues without a further confirmation.
@@ -889,14 +1038,14 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   **Suggest by default, with two licensed autonomy tiers.** The router's product is a
   recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
   zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
-  next step. Executing the routed mechanism takes the top-tier per-invocation licence, either a new
+  next step. Executing the routed mechanism takes the top-tier per-invocation license, either a new
   `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
   `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
-  the user asking in words. That licence expires with the invocation and is
+  the user asking in words. That license expires with the invocation and is
   never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
   authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
   natural-language half of the opt-in counts only in a genuine user turn. A fetched page, an item
-  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  body, a tool result, or another agent's return is data the router evaluates, never a license it
   acts on. And a routed skill that makes outbound changes without a further confirmation takes the
   literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
   invoked, so a semantic reading must never be what starts it. The opt-in also
@@ -1039,10 +1188,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `workflow`) each carried a near-identical copy of the probe list, the one-command-per-call and
   treat-failure-as-unknown rules, and the `#1687` no-precompute rationale. Each now names the probe
   subset it takes and cites that owner doc. The per-consumer differences are preserved and documented as
-  deliberate rather than normalised away: `orient` reads `git log -8` where the save-point skills
+  deliberate rather than normalized away: `orient` reads `git log -8` where the save-point skills
   read `-5`, `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state
   beyond the branch, and `workflow` takes no session id. `continue-in-background`'s warning that this
-  block is never the dirty-tree gate is kept at its call site and generalised in the owner doc.
+  block is never the dirty-tree gate is kept at its call site and generalized in the owner doc.
 
 ## [0.23.9]
 
@@ -1237,7 +1386,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `--json --all` sample, and it is
   the same contract `claude-ops`' `lane-launcher.sh` (`load_sessions`) already relies on. So a
   finished continuation looked identical to a dead one: the ladder surfaced its save-point as a lost
-  handoff labelled a failed attempt, inviting the operator to redo completed work and letting a
+  handoff labeled a failed attempt, inviting the operator to redo completed work and letting a
   recent completed continuation bury the older manual handoff they were actually looking for. The
   recheck now reads `claude agents --json --all` and resolves four ways instead of two: live
   (exclude, work running), terminal-and-completed (exclude, work FINISHED, point at that session's
@@ -1310,7 +1459,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 - **`handoff` no longer fires on a self-estimated context budget.** Its `description` listed
   "context is heavy" among the triggers, and the body's "When to invoke" repeated it as "Mid-task,
   context heavy (check `/context` output or user report)", which told the model to judge its own
-  window and volunteer a handoff on that judgement. A description is resident in context by default
+  window and volunteer a handoff on that judgment. A description is resident in context by default
   (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), so that trigger was live in every
   session with the plugin installed, and it is the shape the `claude-config` instruction-audit
   catalog's check I23 detects.
@@ -1368,7 +1517,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `previous_handoff` pointers backwards, so it stops at the first session that wrote no handoff
   file. A walk that ended early was indistinguishable in the output from a genuinely short
   chain. The reported case ran a 10-session chain linked by hand-pasted continuation prompts and
-  got a retrospective authored from 2 sessions, with nothing signalling the gap. The multi-session
+  got a retrospective authored from 2 sessions, with nothing signaling the gap. The multi-session
   output carries a `chain_coverage` block (`requested` / `found` / `available` / `ratio`), where
   `available` counts the transcripts present for the project, the denominator the walk itself
   cannot see, and the human-readable `summary` carries the same ratio. The skill now states its
@@ -1464,7 +1613,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `reference/save-point.md` gains an `Original goal — mandatory on BOTH paths` rule (prompt-only
   writes no body sections, so it carries the verbatim goal inline between the rails: below an
   active `/goal` re-arm when one holds the first line, above its remaining-work bullets, and with
-  every dated amendment travelling under the original quote rather than collapsing to a single
+  every dated amendment traveling under the original quote rather than collapsing to a single
   line. It points at no file, and a prompt-only save-point listing just the
   follow-ups is the precise shape that loses the goal), and the rails directive becomes `Read @…,
   confirm its Original goal still governs the remaining next steps, then continue them.` That
@@ -1682,7 +1831,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   "fewer than 5" where the workflows page's table reads "Fewer than 5 agents" (likewise 15 and 50).
   Corrected and anchored to 2026-07-29. Caught by the independent citation audit outside the
   reported hunks; fixed in passing rather than left in a file whose purpose is exact quotation.
-- The superseded page text quoted inside the resolved-drift note is now labelled as page text
+- The superseded page text quoted inside the resolved-drift note is now labeled as page text
   captured 2026-07-26 and no longer reproducible upstream, so it is not mistaken for a live quote.
 
 ### Added

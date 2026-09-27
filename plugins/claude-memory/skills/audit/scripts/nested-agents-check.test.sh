@@ -5,42 +5,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/nested-agents-check.sh"
 
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
+# Local assert_contains: the detail line also names the haystack.
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
   *) fail "$1" "expected to contain: $3 in: $2" ;;
   esac
 }
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
 
-make_repo() {
-  unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
-  mkdir -p "$1"
-  (cd "$1" && git init -q && git config user.email "test@example.com" && git config user.name "test" && git commit -q --allow-empty -m init)
-}
 commit_all() {
   (cd "$1" && git add -A && git commit -q -m "${2:-fixture}")
 }
@@ -66,6 +41,9 @@ REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/shimmed" "$REPO/bare" "$REPO/linked" "$REPO/localonly" "$REPO/deep/a/b" "$REPO/vendor/x" "$REPO/node_modules/y"
 printf 'root agents\n' >"$REPO/AGENTS.md" # root-level: not examined
+# The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: Claude
+# Code then reads CLAUDE.md files and never attaches a bare nested AGENTS.md.
+printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md" # wired by import
 printf 'bare\n' >"$REPO/bare/AGENTS.md"          # UNWIRED
@@ -124,9 +102,8 @@ OUT=$(cd "$REPO" && bash "$SCRIPT" --count)
 assert_eq "untracked files are outside discovery" "0" "$OUT"
 
 # --- Case 6a: a root or ancestor CLAUDE.md that imports the file wires it ---
-# The sibling shim is the prescribed layout, but an import from the root
-# CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor directory's CLAUDE.md
-# brings the file into context too. A file that loads is not a finding.
+# An import from the root CLAUDE.md, root .claude/CLAUDE.md, or an ancestor's
+# CLAUDE.md brings the file into context too, so it is not a finding.
 
 ENTRY="$TEST_TMPDIR/entry"
 make_repo "$ENTRY"
@@ -174,6 +151,70 @@ OUT=$(cd "$HOPS" && bash "$SCRIPT")
 assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
 assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
 
+# --- Case 7: no CLAUDE.md above it, so the missing shim is not a finding ---
+# With no CLAUDE.md name on its path Claude Code attaches the AGENTS.md on a Read
+# there, so there is nothing to fix.
+
+NATIVE="$TEST_TMPDIR/native"
+make_repo "$NATIVE"
+mkdir -p "$NATIVE/bare" "$NATIVE/ownclaude"
+printf 'root agents\n' >"$NATIVE/AGENTS.md"
+printf 'bare\n' >"$NATIVE/bare/AGENTS.md"
+printf 'own\n' >"$NATIVE/ownclaude/AGENTS.md"
+printf '# Directory notes, no import\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE"
+
+OUT=$(cd "$NATIVE" && bash "$SCRIPT")
+assert_not_contains "a bare nested AGENTS.md with no CLAUDE.md above it is not a finding" "$OUT" "bare/AGENTS.md"
+assert_contains "a non-importing CLAUDE.md in its own directory still blocks it" "$OUT" "FAIL [N1]: ownclaude/AGENTS.md"
+OUT=$(cd "$NATIVE" && bash "$SCRIPT" --count)
+assert_eq "--count counts only the blocked one" "1" "$OUT"
+
+printf '@AGENTS.md\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE" "shim the blocked one"
+rc=0
+(cd "$NATIVE" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
+assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
+
+# --- Case 8: a nested .claude/CLAUDE.md counts, not only the root's ---
+# The memory page counts `.claude/CLAUDE.md` at any level, so a subdirectory's own
+# displaces the AGENTS.md beside it exactly as a plain one does.
+
+DOTC="$TEST_TMPDIR/dotclaude"
+make_repo "$DOTC"
+mkdir -p "$DOTC/blocked/.claude" "$DOTC/wired/.claude" "$DOTC/free"
+printf 'root agents\n' >"$DOTC/AGENTS.md"
+printf 'blocked\n' >"$DOTC/blocked/AGENTS.md"
+printf '# Notes, no import\n' >"$DOTC/blocked/.claude/CLAUDE.md"
+printf 'wired\n' >"$DOTC/wired/AGENTS.md"
+printf '@../AGENTS.md\n' >"$DOTC/wired/.claude/CLAUDE.md"
+printf 'free\n' >"$DOTC/free/AGENTS.md"
+commit_all "$DOTC"
+
+OUT=$(cd "$DOTC" && bash "$SCRIPT")
+assert_contains "a nested .claude/CLAUDE.md with no import is a finding" "$OUT" "FAIL [N1]: blocked/AGENTS.md"
+assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$OUT" "wired/AGENTS.md"
+assert_not_contains "a directory with none of the three is not a finding" "$OUT" "free/AGENTS.md"
+
+# --- Case 9: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
+# The exclusion is about whose file it is, and only an AGENTS.md under
+# .codex/.cursor/.github belongs to that tool. A CLAUDE.md there is Claude's.
+
+OWNED="$TEST_TMPDIR/owned"
+make_repo "$OWNED"
+mkdir -p "$OWNED/.cursor" "$OWNED/.github"
+printf '@AGENTS.md\n' >"$OWNED/CLAUDE.md"
+printf 'root agents\n' >"$OWNED/AGENTS.md"
+printf 'cursor\n' >"$OWNED/.cursor/AGENTS.md"
+printf '# Cursor-dir notes for Claude, no import\n' >"$OWNED/.cursor/CLAUDE.md"
+printf '# Workflow notes for Claude\n' >"$OWNED/.github/CLAUDE.md"
+commit_all "$OWNED"
+
+OUT=$(cd "$OWNED" && bash "$SCRIPT")
+assert_not_contains "another tool's AGENTS.md is never a finding" "$OUT" ".cursor/AGENTS.md"
+OUT=$(cd "$OWNED" && bash "$SCRIPT" --count)
+assert_eq "and a Claude CLAUDE.md there is not an AGENTS.md finding either" "0" "$OUT"
+
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 
 NONE="$TEST_TMPDIR/none"
@@ -183,9 +224,4 @@ commit_all "$NONE"
 OUT=$(cd "$NONE" && bash "$SCRIPT" --count)
 assert_eq "no nested AGENTS.md => 0" "0" "$OUT"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

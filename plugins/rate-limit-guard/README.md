@@ -7,7 +7,9 @@ resume on their own after the reset. Four parts:
 - **Statusline shim** (`scripts/statusline-shim.sh`), the durable wiring target. Installed once to
   `~/.claude/rate-limit-guard/bin/`, it resolves whichever tee version is installed at run time, so
   a plugin update never requires re-wiring and an uninstall degrades to your statusline running
-  alone. Pure Bash builtins: it adds no measurable time to a refresh.
+  alone. It resolves once and caches the resolved path, so a steady refresh revalidates one path
+  with Bash builtins alone and adds no measurable time; it re-resolves only when that path stops
+  being valid.
 - **Statusline tee** (`scripts/statusline-tee.sh`), a transparent wrapper around your statusline
   command. It atomically writes the session's `rate_limits` (both the 5-hour and 7-day windows),
   a `captured_at` timestamp, and the session-distinguishing fields to the fixed machine-scope
@@ -256,7 +258,7 @@ applies. Detaching only stops the render waiting.
 MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on
 Windows, against ~24 ms to exec a small binary. Detaching does not make the work cheaper; it buys
 back the render's critical path by paying a fork more expensive than the execs it steps around,
-and it lets successive refreshes overlap instead of serialise. Measured on Windows, 24 cores,
+and it lets successive refreshes overlap instead of serialize. Measured on Windows, 24 cores,
 status line + tee:
 
 | | sync (default) | async |

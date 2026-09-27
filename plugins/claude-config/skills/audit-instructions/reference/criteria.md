@@ -1,6 +1,6 @@
 ---
-version: 1.21.1
-last-updated: 2026-08-09
+version: 1.22.0
+last-updated: 2026-09-23
 ---
 
 # Instruction-Audit Criteria
@@ -46,6 +46,7 @@ Look up a specific check by ID:
   - [I32: Routing text that names a skill absent from the marketplace](#i32-routing-text-that-names-a-skill-absent-from-the-marketplace)
   - [I33: Sibling-file meta-commentary](#i33-sibling-file-meta-commentary)
   - [I34: Maintainer rationale inside model-facing YAML comments](#i34-maintainer-rationale-inside-model-facing-yaml-comments)
+  - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
 - [Stopping condition](#stopping-condition)
 - [Output format](#output-format)
 
@@ -130,7 +131,7 @@ rule does:
   opt-out. Defaulting a suppressor off would not make the audit more conservative. It would delete
   the only bound on the checks it moderates.
 - `OPINION`-derived *advice* inside a backed check's Remediate line follows that check's enablement
-  and severity, because the detection is the host's and is backed. It is labelled inline as
+  and severity, because the detection is the host's and is backed. It is labeled inline as
   `OPINION`-derived and is never fix-applied.
 
 Every run reports one line naming how many `OPINION`-tier checks were available, how many did not
@@ -139,10 +140,11 @@ in name only.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
 non-memory surfaces (skill bodies, agent definitions, hook instruction text, output styles); on
-memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
-findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
-to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
+`~/.claude/rules/`) their findings route to the `claude-memory` plugin's `audit` skill when it is
+installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
+not. Checks I6–I12 and I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in
+their own rows.
 
 ## Sources
 
@@ -157,6 +159,13 @@ I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their
   Migrating to Claude Fable 5.1 and Migrating to Claude Fable 5.1 from Claude Fable 5. This is the
   basis for every `fable-5-1` scope widening in this catalog. **Recheck trigger:** publication of a
   Fable 5.1 prompting guide, which replaces this basis and joins this list in its place.
+- Prompting Claude Opus 5.5:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
+- Getting the most out of Opus 5.5 in Claude and Claude Code (vendor blog, published 2026-09-22,
+  which carries the Opus 5.5 guide's chat-scoped claims to saved Claude Code instructions; a dated
+  post, cited where it adds that reach and otherwise corroborating, so the citing rows keep the
+  `ANTHROPIC-DOCS` Authority of the guide above):
+  <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
 - Prompting Claude Sonnet 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Prompting Claude Opus 4.8:
@@ -167,7 +176,8 @@ I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their
   corroborates rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of
   their primary documentation sources and the closed four-value Authority set above is unchanged):
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
-- Memory (CLAUDE.md, rules, auto memory): <https://code.claude.com/docs/en/memory>
+- Memory (CLAUDE.md, a natively read AGENTS.md, rules, auto memory):
+  <https://code.claude.com/docs/en/memory>
 - The `.claude` directory: <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
@@ -248,8 +258,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** only-sometimes-relevant content (a workflow, domain knowledge, one subsystem's
   quirks) living in a surface that loads **more broadly than the content is relevant**. Two cases,
   because the surfaces this check runs on are not all always-loaded:
-  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` where
-    the partition allows it;
+  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` or a
+    natively read root `AGENTS.md` where the partition allows it;
   - a surface loaded in full on every use of a component whose own scope is broader than the
     content's: a skill body or an agent definition covering several concerns, where the content
     matters to one of them and is in context for all of the others. Establish that breadth before
@@ -261,7 +271,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   while changing the load profile not at all. **State the move cost with the recommendation:** a
   `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
   read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md`. **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  `CLAUDE.md` (or the `AGENTS.md` read natively, whether in place of a `CLAUDE.md` or alongside
+  one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
   adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.
@@ -342,9 +353,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best-practices, "Tell Claude what to do instead of what not to do."
   Corroborated from the model-delta side at the context-engineering blog, under "Then and now" in
-  the paired "Then: Give Claude rules" / "Now: Let Claude use judgement" headings. The bare
+  the paired "Then: Give Claude rules" / "Now: Let Claude use judgment" headings. The bare
   prohibition quoted below was a guardrail for older models, since "newer models have better
-  judgement and can handle these decisions well without explicit rules", and its shipped
+  judgment and can handle these decisions well without explicit rules", and its shipped
   replacement is an instance of this row's remediation shape: "Write code that reads like the
   surrounding code: match its comment density, naming, and idiom."
 
@@ -373,7 +384,7 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-Rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources; promotion
+Rows I8-a, I8-c, I8-d and I8-f carry their own `Model scope` (single-model guide sources; promotion
 gate unmet). The base row and rows I8-b and I8-e are unscoped, since a model-agnostic statement or
 convergent model guides meet the gate for each (see the rows); the base row's delegation-throttle
 worked instance keeps a `fable-5` scope of its own.
@@ -493,7 +504,8 @@ target model.
   without it. The "nowhere in the Opus 5 guide" negative re-verified 2026-08-08 against the Opus 5
   guide's raw `.md`: zero occurrences of "nitpick".)
 
-**Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
+**Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
+`opus-5-5`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
 claim (see Source), and it is a model-agnostic feature page, the surface where a wider claim would
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
@@ -526,6 +538,13 @@ choice, on the same reasoning I10 applies to a declined widening.
   guides, since a claim qualified to two models licenses nothing about the rest. Neither page
   enumerates the models that do *not* leak, so those two sections are the whole of what there is
   to re-read.
+- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Prompts written for thinking
+  disabled", says to re-test the thinking-disabled mitigations and to "remove the no-thinking rule
+  either way", since thinking is always on for that model. On `opus-5-5` the Detect clause's
+  leakage premise does not apply; the finding stands on that removal instruction alone. **Verified
+  2026-09-23** against the guide's raw `.md` (28,311 bytes, MD5
+  `fb3bff7f41e20fbbb71be78770edb8cb`). **Recheck trigger:** that section ceasing to prescribe the
+  removal.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5, fable-5-1`.
 
@@ -619,6 +638,31 @@ report one finding per line rather than two.
   send-to-user tool" runs the other way. **Recheck trigger:** either gate source ceasing to
   prescribe removal of forced status scaffolding, which re-opens the scoping question.
 
+**Row I8-f: think-carefully steer** · Tier `behavioral` · Model scope: `opus-5-5`. **The gate is
+unmet by contradiction, not only by absence:** the base row's model-agnostic source recommends
+"think thoroughly" over a hand-written plan, so an unscoped row would contradict it.
+
+- **Detect:** a standing instruction telling the model to think carefully, hard, deeply, or step by
+  step before answering, or an `ultrathink`-style keyword written into a saved instruction rather
+  than typed for one piece of work. The Opus 5.5 model always thinks and decides how much itself,
+  so the line adds latency without a clear quality gain.
+- **Remediate:** delete the line. Where the intent was more or less depth, change effort, the
+  documented control; where a fast answer to simple questions was the intent, lower effort first,
+  and add an "Answer directly." line only after measuring quality with it, since less thinking can
+  lower quality.
+- **Must NOT flag:** "step-by-step" describing a procedure the text lays out, or instructions for a
+  human reader; a per-invocation keyword the human types (I21 owns effort pinning); a document
+  *about* the pattern, on the audience test I8-b applies.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": for instructions
+  "that tell Claude to think carefully before answering, consider removing them"; removing such a
+  line "made replies start sooner, with no clear decline in the quality of the reply"; "Calibrate
+  effort" for the lower-effort-first remediation. The guide scopes the claim to chat system prompts;
+  the vendor usage guide (Sources) extends it to "your prompts and your saved instructions" and
+  names effort as the Claude Code control. **Verified 2026-09-23** against the guide's raw `.md`
+  (hash as in I8-c). **Recheck trigger:** a second model guide stating the claim, which re-opens
+  the scoping question, or the section dropping it.
+
 ### I9: Example hygiene
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all.
@@ -630,7 +674,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   to enumerate what a caller may pass, such as modes, options, or permitted values, name the interface
   destination that carries it instead: an argument enumeration, a frontmatter field, a typed
   `argument-hint`. That destination clause is **`OPINION`-derived**, since no official page states
-  it, so it rides this check's enablement and severity per the `OPINION` policy above, is labelled
+  it, so it rides this check's enablement and severity per the `OPINION` policy above, is labeled
   as `OPINION` in the finding, and is never fix-applied.
 - **Source:** prompting best-practices, "Use examples effectively": examples are "one of the most
   reliable ways to steer Claude's output format, tone, and structure"; keep them diverse enough
@@ -639,7 +683,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 ### I10: Reasoning-echo directives
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`fable-5, fable-5-1` (the cited refusal category is documented for that model only; promotion gate
+`fable-5, fable-5-1, opus-5-5` (the cited refusal category is documented per model; promotion gate
 unmet).
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
@@ -675,6 +719,13 @@ unmet).
   Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
   prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
   whose statement of this claim replaces this basis and joins `## Sources`.
+- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Safeguard refusals": "Requests
+  that push the model to reproduce its internal reasoning in the response text can be declined with
+  the `reasoning_extraction` category, which is new if you're coming from Claude Opus 5." The same
+  section notes that server-side fallback returns these declines to the caller instead of
+  retrying them on a fallback model. Remediate there as above, or ask for what the reader needs instead, such
+  as the rationale in a few sentences. **Verified 2026-09-23** against the guide's raw `.md` (hash
+  as in I8-c). **Recheck trigger:** that section dropping the category.
 
 ### I11: CLI over MCP where equivalent
 
@@ -760,8 +811,10 @@ skill bodies.
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
   startup and therefore already carries: the **root** project `CLAUDE.md` in **either** supported
   location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
-  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
-  project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is required.
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, the **root** `AGENTS.md` or
+  `./.claude/AGENTS.md` where the session reads it natively, unconditional
+  project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is
+  required.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
   tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
@@ -770,6 +823,21 @@ skill bodies.
   bare path lets the redundant read of the active file escape this check entirely. Phase A resolves
   the variable and inventories both project locations already; match it. The read spends a turn to
   retrieve text that is already present.
+  **The `AGENTS.md` entry carries a fourth qualifier beyond those three, and it is not the
+  displacement test.** Native reading also depends on whether `AGENTS.md` support is available in the
+  session and on the instruction-files mode, so a session where support is unavailable, for any of
+  the four documented reasons, does not load
+  the file even with no `CLAUDE.md` in sight, while one under the `claude-md-and-agents-md` setting
+  loads it even **with** a `CLAUDE.md` beside it, which makes a read of it redundant where the
+  displacement test alone would have exempted it. That setting is a user, `--settings` or managed
+  one, so the value to resolve is the **effective** one across those scopes, never a single scope's
+  copy.
+  There, in the first case, an instruction to read it is the only thing that puts it in context,
+  and flagging the read as redundant would propose deleting the load. Resolve the version, flag
+  **and mode** conditions from the dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before flagging an `AGENTS.md` read, and where **any of the three**
+  cannot be resolved for the session under audit, leave the read alone, per this check's own
+  residency rule below that an unestablished residency is not a finding.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -779,9 +847,17 @@ skill bodies.
   read either one before operating in that package can be doing real work. Flag only when the
   specific file named is one of the startup-loaded set above; when a surface's residency is not
   established, leave it.
-- **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: `AGENTS.md`,
-  contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
-  progressive disclosure, **but only while no active startup import reaches them.** A startup file
+- **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: contributing
+  guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
+  displaces **under the default instruction-files mode and that mode is in effect**, **and one that
+  no file displaces but that the session still does not read natively, because `AGENTS.md` support is
+  unavailable there or the mode is one of the two that read no `AGENTS.md`**. A repository with no
+  displacing file loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where
+  support is available), so resolve both halves, the displacement and the availability-and-mode
+  condition recorded in [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before
+  exempting it or flagging it. Unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
+  import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
   an instruction to go read it is exactly the redundant retrieval this check exists to find.
@@ -802,8 +878,11 @@ skill bodies.
   memory, on `@path` imports, is what puts an imported supporting document inside it: "Imported
   files are expanded and loaded into context at launch alongside the CLAUDE.md that references
   them", and "Imported files can recursively import other files, with a maximum depth of four hops";
-  memory's `AGENTS.md` guidance recommends exactly such an import, and requires it on Windows, where
-  the symlink alternative needs elevation.
+  memory's `AGENTS.md` guidance names exactly such an import as what carries an `AGENTS.md` into a
+  session that cannot read it directly, and it is the portable form on Windows, where the symlink
+  alternative needs elevation (code.claude.com/docs/en/memory, "When AGENTS.md support is
+  unavailable" and "Share one file with other coding tools"; verified 2026-09-19; recheck trigger:
+  that section stops naming the import, or a release note names `AGENTS.md` loading).
 
 ### I15: Cross-surface instruction conflict
 
@@ -822,9 +901,24 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   since a contradiction is real whether or not this repository may edit either side. Resolve `@path` imports
   and symlinks to their targets before pairing, so an imported file is compared as part of the
   surface importing it rather than as a separate one.
-- **Excluded from the comparison set:** `AGENTS.md` and other files that are not Claude Code
-  instruction surfaces. They shape no behavior here, so a divergence between one and a `CLAUDE.md`
-  is not a conflict this check reports.
+- **Excluded from the comparison set:** files that are not Claude Code instruction surfaces here.
+  An `AGENTS.md` is excluded only while a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in
+  the working directory or above it displaces it **under the default instruction-files mode** and no
+  import reaches it: then it shapes no behavior here, so a divergence between it and a `CLAUDE.md`
+  is not a conflict this check reports. Where nothing displaces it, Claude Code reads it as the
+  project instructions and it is in the set like any other surface. **So does the
+  `claude-md-and-agents-md` mode**, under which both files load and a displaced `AGENTS.md` shapes
+  behavior anyway, which is the case where excluding it would drop a genuine contradiction between
+  the two files. **The mode is the second question, not the only one.** This clause's own reason for
+  excluding, that the file "shapes no behavior here", is exactly what an unavailable-support session
+  produces, under any mode, and what the `claude-md` and `managed-only` values produce under any
+  displacement answer: the file is not read, so a divergence between it and
+  a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
+  loads. Exclude on a condition known to rule the file out, and pair it only when every condition is
+  satisfied. I15 is a finding lane, so **an unresolved residency is a leave-alone rather than a pair
+  to judge**, which is what gate 1 already does with every other surface whose residency is not
+  established. Both carry their dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps
@@ -1469,7 +1563,7 @@ confident removals.
 - **Must NOT flag: a user-invoked skill whose purpose is the continuation itself**: a handoff
   writer, a continuation router, a compaction helper. The skill existing is not an instruction to
   watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
-  window is. **A router falling back to its own judgement when no measured signal is available is
+  window is. **A router falling back to its own judgment when no measured signal is available is
   also not a finding.** It prefers the instrument and degrades only in its absence, which is the
   opposite of the shape this row detects.
 - **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the
@@ -1629,7 +1723,7 @@ Promotion gate MET: two model guides converge (see Source).
 
 - **Detect:** operative instruction text steering visual design away from a model's default style
   with generic negatives or vague qualifiers such as "don't use that color", "make it clean and
-  minimal", or "less corporate", with neither a concrete specification nor a propose-options step.
+  minimal", "less corporate", or "avoid a generic AI look", with neither a concrete specification nor a propose-options step.
   Both guides
   state the failure the same way: such instructions "tend to shift the model to a different fixed
   palette rather than producing variety." Also flag text recommending sampling parameters as the
@@ -1640,7 +1734,9 @@ Promotion gate MET: two model guides converge (see Source).
   rationale), have the user pick one, and implement only that, on Sonnet 5 "the recommended way to
   produce meaningfully different design directions across runs", since `temperature` is not
   accepted there. A short anti-generic-aesthetics directive with concrete, enumerable negatives
-  (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding.
+  (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding. Pair the
+  exclusion list with an iteration step: check which styles the result used instead, and extend
+  the list when those are unwanted too.
 - **Must NOT flag:** concrete enumerable negatives. Naming the exact fonts, palettes, or patterns
   to avoid is the sanctioned shape, distinct from a vague qualifier. Non-design uses of "clean" /
   "minimal" (a clean audit, a minimal reproduction). A surface that already runs the propose-options
@@ -1649,8 +1745,12 @@ Promotion gate MET: two model guides converge (see Source).
 - **Source:** Sonnet 5 guide, "Design and frontend defaults", and Opus 4.8 guide, "Design and
   frontend defaults", convergent on the default-style behavior, the fixed-palette failure of
   generic instructions, and both remediations; the Sonnet 5 guide adds the temperature-is-gone
-  ground for preferring propose-options.
-- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24).
+  ground for preferring propose-options. Third convergent guide: Opus 5.5, "Frontend design
+  defaults", where "avoid a generic AI look" "mostly swaps one default for another", named patterns
+  work, and the iteration step is "check which styles the first result used instead, and extend
+  the list if needed."
+- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24); the
+  Opus 5.5 guide verified 2026-09-23 (hash as in I8-c).
   **Recheck trigger:** either guide's design section dropping the fixed-palette claim or the
   propose-options recommendation.
 
@@ -1877,6 +1977,28 @@ skill body.
   working-memory budget"); comments in files the model never loads.
 - **Remediate:** move the rationale to the CHANGELOG, an ADR, or a maintainer-facing `AGENTS.md`;
   leave the value and, at most, a present-tense reason.
+
+### I35: Settled-answers instruction where later steps revise earlier ones
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`opus-5-5` (a single guide states the instruction and its limits; promotion gate unmet).
+
+- **Detect:** an instruction telling the model to treat earlier answers as settled and not go back
+  over them ("treat that answer as done", "don't revisit earlier answers"), on a surface that
+  governs long analysis, investigation, review, or an agentic task where a later step can show an
+  earlier one wrong.
+- **Remediate:** remove it from that surface. Where a long-chat surface also carries it, keep it
+  there only if the surface's work tolerates the model being less likely to point out its own
+  earlier mistake.
+- **Must NOT flag:** the instruction on a long-chat or project surface for short back-and-forth
+  follow-ups, which is the shape the guide recommends; a document *about* the pattern, on the
+  audience test I8-b applies.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": "Leave it out where
+  you want the model to keep re-examining its earlier work, for example in long analyses, or in
+  agentic tasks where a later step can reveal a mistake in an earlier one", and the instruction "may
+  also make the model less likely to point out a mistake in an earlier answer on its own".
+  **Verified 2026-09-23** against the guide's raw `.md` (hash as in I8-c). **Recheck trigger:** that
+  section dropping the carve-out, or a second model guide stating it.
 
 ---
 

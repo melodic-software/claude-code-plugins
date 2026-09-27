@@ -80,7 +80,7 @@ Rows evaluate top-down; the first match wins per detection site.
 - **Markdown structure:** see the parsing contract below. Keep literal directive examples inside
   fences. A bare `<class>` placeholder in live prose would FAIL as an unknown class.
 - **Every directive on a line is classified on its own**, bounded at its own `-->`, so a malformed
-  directive cannot borrow a valid neighbour's class or reason to escape the FAIL.
+  directive cannot borrow a valid neighbor's class or reason to escape the FAIL.
 - **Proximity is per-file and line-based** (`FRESH_EYES_PROXIMITY_LINES` in `check-skill.sh`). A
   declaration in a different file of the same skill does not satisfy proximity; the WARN message
   says so ("declaration may live in a referenced spoke — hand-verify"). <!-- ai-slop-ignore: quotes check-skill.sh's emitted check 21 WARN string verbatim -->

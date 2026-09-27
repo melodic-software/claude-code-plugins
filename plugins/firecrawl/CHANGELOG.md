@@ -3,6 +3,39 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.17] - 2026-09-27
+
+### Fixed
+
+- `update` names the `skill-creator` rewrite helper as the `skill-creator` plugin from Anthropic's `claude-plugins-official` marketplace, when installed, instead of an unmarked `/skill-creator:skill-creator` route (#4119).
+
+## [0.5.16] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `firecrawl` at load time.** The `command -v firecrawl` check runs as pre-computed
+  context, so `check` reads the result instead of making a Bash call. The FAIL rules are unchanged,
+  a policy-disabled injection falls back to the Bash probe, and any post-remediation re-check still
+  probes live.
+
+## [0.5.15] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.5.14]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.5.13]
+
+### Changed
+
+- The desktop-notification, eol-normalizer, go-format, and github test suites route repeated invocations through shared runner and counter helpers, the eol-normalizer hook derives its status from the taken message directly, and the education workspace lister and firecrawl updater drop a redundant subshell and conjunct, with identical output.
+
 ## [0.5.12]
 
 ### Changed

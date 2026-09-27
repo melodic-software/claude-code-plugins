@@ -48,8 +48,10 @@ export function synthesisNameQualityScore(fileName) {
   const base = path.basename(fileName, path.extname(fileName));
   let score = 0;
   if (/[a-z]/i.test(base)) score += 20;
-  if (base.startsWith("at-") && base.includes("scene_")) score += 5;
-  if (base.startsWith("at-") && base.includes("anchor_")) score += 8;
+  if (base.startsWith("at-")) {
+    if (base.includes("scene_")) score += 5;
+    if (base.includes("anchor_")) score += 8;
+  }
   if (/^\d+(-\d+)*$/.test(base)) score -= 15;
   if (/-\d+(-\d+)+$/.test(base)) score -= 10;
   if (

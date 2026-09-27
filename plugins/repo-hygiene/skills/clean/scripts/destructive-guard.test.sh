@@ -218,7 +218,7 @@ assert_exit "tool_name absent: PowerShell ack spelling grants nothing" 2 \
 assert_exit "tool_name absent: benign command still allowed" 0 "$(guard_exit_notool "git status")"
 
 # The block reason for an ungated tool offers no prefix to retry with, rather
-# than naming a spelling that tool cannot honour.
+# than naming a spelling that tool cannot honor.
 ungated_reason=$(jq -n '{tool_name:"Foo",tool_input:{command:"git clean -fdx"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
 assert_contains "ungated tool block reason names the guard" "$ungated_reason" "destructive guard"
 assert_contains "ungated tool block reason says there is no ack path" "$ungated_reason" "no acknowledgement path"

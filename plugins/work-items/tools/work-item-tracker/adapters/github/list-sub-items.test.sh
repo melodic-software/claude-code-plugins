@@ -8,6 +8,35 @@ set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-sub-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
+# write_gh_stub <dir>: install a gh stub in <dir> that answers --version, routes
+# `issue view` to $GH_STUB_VIEW and `issue list` to $GH_STUB_LIST, and treats any
+# other call as unhandled. Each case below supplies only those two payloads.
+write_gh_stub() {
+  cat >"$1/gh" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  printf 'gh version 2.97.0 (test)\n'
+  exit 0
+fi
+mode=""
+for a in "$@"; do
+  case "$a" in
+  view) mode=view ;;
+  list) mode=list ;;
+  esac
+done
+case "$mode" in
+view) printf '%s\n' "${GH_STUB_VIEW:?}" ;;
+list) printf '%s\n' "${GH_STUB_LIST:?}" ;;
+*)
+  printf 'gh-stub: unhandled\n' >&2
+  exit 90
+  ;;
+esac
+EOF
+  chmod +x "$1/gh"
+}
+
 assert_help "$S"
 assert_usage_error "$S"                              # no parent id
 assert_usage_error "$S" "github:o/r#1" --state bogus # bad state
@@ -21,44 +50,21 @@ assert_usage_error "$S" "local-markdown:o/r#1"       # foreign provider
 # every container came back childless — this case fails on that predicate.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d)"
-  cat >"$STUB/gh" <<'EOF'
-#!/usr/bin/env bash
-if [[ "$1" == "--version" ]]; then
-  printf 'gh version 2.97.0 (test)\n'
-  exit 0
-fi
-for a in "$@"; do
-  case "$a" in
-  view) mode=view ;;
-  list) mode=list ;;
-  esac
-done
-case "${mode:-}" in
-view)
-  # #12 is a genuine cross-repo sub-issue whose number also exists in o/r —
+  write_gh_stub "$STUB"
+  # #12 is a genuine cross-repo sub-issue whose number also exists in o/r, so
   # dropping it is what the same-repo filter is for.
-  printf '%s\n' '{"subIssues":{"nodes":[
+  VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":11,"title":"one","url":"https://github.com/o/r/issues/11","state":"OPEN"},
     {"id":"b","number":12,"title":"foreign","url":"https://github.com/x/y/issues/12","state":"OPEN"}
   ],"totalCount":2}}'
-  ;;
-list)
-  printf '%s\n' '[
+  LIST='[
     {"number":11,"title":"one","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/11"},
     {"number":12,"title":"same number, this repo","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/12"},
     {"number":13,"title":"unrelated","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/13"}
   ]'
-  ;;
-*)
-  printf 'gh-stub: unhandled\n' >&2
-  exit 90
-  ;;
-esac
-EOF
-  chmod +x "$STUB/gh"
 
   ERRFILE="$(mktemp)"
-  OUT="$(PATH="$STUB:$PATH" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
   rc=$?
   assert_eq "list-sub-items over stubbed subIssues → exit 0" "0" "$rc"
   assert_eq "url-derived filter keeps the same-repo child" \
@@ -83,45 +89,22 @@ fi
 # What changes is that the drop now says so on stderr, leaving stdout parseable.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d)"
-  cat >"$STUB/gh" <<'EOF'
-#!/usr/bin/env bash
-if [[ "$1" == "--version" ]]; then
-  printf 'gh version 2.97.0 (test)\n'
-  exit 0
-fi
-for a in "$@"; do
-  case "$a" in
-  view) mode=view ;;
-  list) mode=list ;;
-  esac
-done
-case "${mode:-}" in
-view)
+  write_gh_stub "$STUB"
   # #21 is well-formed. #22 carries no url at all and #23 a url that is not an
   # issue path: the two ways a narrowed projection could go unattributable.
-  printf '%s\n' '{"subIssues":{"nodes":[
+  VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":21,"title":"one","url":"https://github.com/o/r/issues/21","state":"OPEN"},
     {"id":"b","number":22,"title":"no url","state":"OPEN"},
     {"id":"c","number":23,"title":"odd url","url":"https://github.com/o/r/pull/23","state":"OPEN"}
   ],"totalCount":3}}'
-  ;;
-list)
-  printf '%s\n' '[
+  LIST='[
     {"number":21,"title":"one","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/21"},
     {"number":22,"title":"two","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/22"},
     {"number":23,"title":"three","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/23"}
   ]'
-  ;;
-*)
-  printf 'gh-stub: unhandled\n' >&2
-  exit 90
-  ;;
-esac
-EOF
-  chmod +x "$STUB/gh"
 
   ERRFILE="$(mktemp)"
-  OUT="$(PATH="$STUB:$PATH" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
   rc=$?
   ERR="$(<"$ERRFILE")"
   assert_eq "unattributable node → still exit 0" "0" "$rc"
@@ -144,43 +127,19 @@ fi
 # silent blindness (#3825) was, just reached by a different route.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d)"
-  cat >"$STUB/gh" <<'EOF'
-#!/usr/bin/env bash
-if [[ "$1" == "--version" ]]; then
-  printf 'gh version 2.97.0 (test)\n'
-  exit 0
-fi
-mode=""
-for a in "$@"; do
-  case "$a" in
-  view) mode="view" ;;
-  list) mode="list" ;;
-  esac
-done
-case "${mode:-}" in
-view)
+  write_gh_stub "$STUB"
   # Canonical casing from the API differs from the casing used in the id.
-  printf '%s\n' '{"subIssues":{"nodes":[
+  VIEW='{"subIssues":{"nodes":[
     {"id":"a","number":31,"title":"one","url":"https://github.com/Acme/Widgets/issues/31","state":"OPEN"},
     {"id":"b","number":32,"title":"foreign","url":"https://github.com/Other/Repo/issues/32","state":"OPEN"}
   ],"totalCount":2}}'
-  ;;
-list)
-  printf '%s\n' '[
+  LIST='[
     {"number":31,"title":"one","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/acme/widgets/issues/31"},
     {"number":32,"title":"same number, this repo","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/acme/widgets/issues/32"}
   ]'
-  ;;
-*)
-  printf 'gh-stub: unhandled\n' >&2
-  exit 90
-  ;;
-esac
-EOF
-  chmod +x "$STUB/gh"
 
   ERRFILE="$(mktemp)"
-  OUT="$(PATH="$STUB:$PATH" bash "$S" "github:acme/widgets#99" 2>"$ERRFILE")"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:acme/widgets#99" 2>"$ERRFILE")"
   rc=$?
   assert_eq "case-differing repo → exit 0" "0" "$rc"
   assert_eq "case-differing same-repo child is kept, not read as foreign" \

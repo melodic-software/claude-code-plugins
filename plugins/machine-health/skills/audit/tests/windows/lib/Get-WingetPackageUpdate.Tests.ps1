@@ -6,9 +6,7 @@ Tests for ConvertFrom-WingetTextOutput short-row handling (#3437).
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-WingetPackageUpdate.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-WingetPackageUpdate.ps1'
 }
 
 Describe 'ConvertFrom-WingetTextOutput' -Tag 'lib' {

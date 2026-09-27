@@ -9,7 +9,7 @@ freely; the renderer appends it and never overwrites it.
 | `claude-code-plugins` | This repository. The plugin marketplace and its skills. |
 | `ci-workflows` | The reusable workflows and composite actions every lane here calls. |
 | `standards` | The engineering conventions this repository restates and defers to. |
-| `github-iac` | GitHub organisation and repository configuration as code. |
+| `github-iac` | GitHub organization and repository configuration as code. |
 | `medley` | An application repository that consumes these plugins. |
 | `provisioning` | Machine provisioning. |
 | `dotfiles` | Developer environment setup. |

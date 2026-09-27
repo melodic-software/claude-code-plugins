@@ -75,8 +75,7 @@ fi
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
-wit_run_gh write api --method PATCH "repos/$owner/$repo/issues/comments/$lease_comment_id" \
-  -f body="${WIT_LEASE_MARKER}${renewed} -->" --jq '.id'
+wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
 
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg cid "$lease_comment_id" \
   '{schema_version: $sv, id: $id, holder: .holder, acquired_at: .acquired_at,

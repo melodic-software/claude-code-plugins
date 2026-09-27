@@ -3,6 +3,85 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.4] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.24.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.24.2] - 2026-09-23
+
+### Fixed
+
+- **Check 6 finds the repo's markdownlint config from any root.** `markdownlint-cli2` never looks
+  above its working directory, so a root-mode run over a subdirectory such as `plugins/<x>/skills`
+  linted with the tool's defaults and reported spurious `MD013`, `MD041` and `MD060` failures.
+  Check 6 now runs it from the top level of the git repo holding the skill; a skill in no repo is
+  linted where the checker stands, as before. The nearest `node_modules/.bin/markdownlint-cli2` above
+  the skill is used when present, so a workspace-local install stays visible; `npx` is the fallback.
+  The Gotcha and code comments that claimed root mode
+  already did this are corrected (#4335).
+
+## [0.24.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.24.0]
+
+### Added
+
+- **`check` accepts one or more skills roots as positionals.** `check-skill.sh <root> [<root> ...]`
+  walks every immediate subdirectory holding a `SKILL.md` under each given root, runs the gate once
+  per skill under that root, prints a `=== <root> ===` header per root and ends with a
+  `N passed, M failed` rollup. The single-skill form is unchanged, including the bare-name call the
+  repo's own changed-skills gate makes: a slash-free positional that resolves to
+  `<resolved-root>/<arg>/SKILL.md` is still read as a skill name, so a same-named directory beside
+  the caller cannot hijack it. Every root is absolutized before it is walked or handed to a child,
+  which makes a relative root resolve against the caller's working directory and keeps a trailing
+  slash from defeating the `/plugins/<x>/skills` plugin-root detection, and a relative root is
+  resolved against the caller's working directory rather than through `CDPATH`. A path that does
+  not exist exits 2 naming it rather than silently omitting a whole subtree, whether or not another
+  root in the same call resolved, which is also what an unmatched `plugins/*/skills` glob reaching
+  the script hits. A directory holding its own `SKILL.md` is a skill directory, not a skills root,
+  and exits 2 pointing at its parent, because walking it would report no skills at exit 0 and leave
+  a CI lane written that way permanently green. A root that exists but genuinely holds no skills is
+  named and is not an error, matching `check-listing-budget.sh`. A skill name mixed with a root,
+  and more than one skill name in one call, both exit 2 instead of guessing or dropping the extra
+  positionals. When a child run hits an environment error the rollup keeps its exact
+  `N passed, M failed` wording and a separate stderr line says so before the exit 2, since such a
+  run is counted in neither tally. Each skill is gated with the DISPATCHED tree's git context
+  rather than the caller's: the git-backed checks (3, 8, 9, 13) each join a repository root with a
+  path inside it, and both derive from the working directory, so a run driven from one repository
+  against a root in another would otherwise report the caller's tracked paths against the
+  dispatched skill and give the same root opposite verdicts depending on where it was invoked. A
+  root outside any repository skips those checks with their usual named notes instead of borrowing
+  the caller's repository, `CHECK_SKILL_BASE_REF` is resolved against the dispatched repository so
+  a ref that exists only there is accepted and one absent there is an environment error, and check
+  6 discovers that tree's markdownlint config, which is what the skill body already told operators
+  to arrange by hand. Nothing is pooled across roots: the cross-skill scans stay per root, and one
+  resolved root remains the default, because widening the default would widen every existing
+  consumer's gate without anyone asking.
+
+## [0.23.1]
+
+### Changed
+
+- check-skill.sh measures name and description length through one codepoint helper in skill-frontmatter.sh and looks up baseline and evals records through one path-list helper; check-listing-budget.sh folds its usage banner into a single awk pass. Findings and exit codes are unchanged.
+
 ## [0.23.0]
 
 ### Removed
@@ -261,7 +340,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 ### Known issues
 
-- **The suite barely covers the deleted line's neighbourhood.** Two coarser
+- **The suite barely covers the deleted line's neighborhood.** Two coarser
   mutations of the surviving expansion also survive with zero failures; only a
   gross one is caught. The deletion is safe on the evidence above, but the suite
   is not what makes it safe.
@@ -765,11 +844,11 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   ordering identical. Per-file rows are the comparison that matters. Two files with offsetting
   extraction errors produce a matching aggregate and a clean report diff while the parser is broken.
 
-  This is a **port, not a rewrite**: the awk program reimplements, behaviour for behaviour, the four
+  This is a **port, not a rewrite**: the awk program reimplements, behavior for behavior, the four
   helpers the loop shelled out to: `skill_frontmatter::extract`, `::field` (block-scalar unfolding
   for `|` and `>`, and the quote-aware trailing-comment strip including the doubled-single-quote
   case), `::strip_quotes` (one outer layer, double OR single, never both), and
-  `normalize_bool`/`trim_ws`. Two behaviours the old pipeline got free from command substitution are
+  `normalize_bool`/`trim_ws`. Two behaviors the old pipeline got free from command substitution are
   reproduced explicitly and commented as such: trailing newlines stripped from the extracted
   frontmatter (so a trailing blank line cannot add a separator inside a block scalar, and an
   all-blank block counts as no frontmatter), and trailing newlines stripped from each field's value.
@@ -963,7 +1042,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   backslash escape makes the next character literal (`` \` `` opens no span, `\<!-- ... -->`
   is text rather than a directive), while inside a span nothing is escaped, so a literal
   backslash before the closing run does not stop it closing. Each directive on a line is
-  classified independently (a malformed one cannot borrow a valid neighbour's class), and
+  classified independently (a malformed one cannot borrow a valid neighbor's class), and
   delegation wording only counts when the same line names the worker or dispatch as a whole
   word. Embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
   not the fresh-context wording).
@@ -1047,7 +1126,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   several was silently skipped while its subtree vanished from an "OK" aggregate. A fixed
   `CHECK_SKILL_LISTING_BUDGET_CHARS` now takes precedence over the token/fraction reconstruction as
   its own documentation always claimed, announcing the ignored input rather than discarding it
-  silently, and is labelled an override instead of the "documented default". The report header
+  silently, and is labeled an override instead of the "documented default". The report header
   counts roots actually scanned rather than arguments given, and `--help` derives its range from the
   header block so editing that block can no longer clip or overrun the help text.
 

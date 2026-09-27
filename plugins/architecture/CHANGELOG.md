@@ -3,6 +3,80 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-09-27
+
+### Changed
+
+- `improve`'s description is under the 1024-codepoint field cap. Every quoted trigger phrase is still there.
+
+## [0.11.0] - 2026-09-26
+
+### Added
+
+- `render-landscape.sh` prints one summary line on stdout after writing the artifacts:
+  `landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d>
+  unresolved_edges=<u> thin=<yes|no>`. A landscape is thin when it draws at most two systems or no
+  edges. The artifacts are unchanged byte for byte.
+- `map-landscape`'s closing report gains a `Thin result` line that says why a thin landscape came
+  back thin and names the remedy that fits: the edge-supplying repository first in `--repos`, a
+  larger `--top-external`, `--root` for more nodes, or `/architecture:improve` and
+  `/discovery:explore` when the question was how one repository is built inside.
+- `## Next` routes a thin result to `/discovery:explore`.
+
+### Fixed
+
+- `reference-edges.sh` treats the `owner/repo` of a github.com origin remote as a self-reference,
+  not only `<owner>/<directory name>`. A worktree or a renamed clone of a github.com repository no
+  longer charts its own citations as an edge to a phantom second system.
+- `reference-edges.sh` reads the subject owner and slug only from a remote whose host is
+  github.com. A host that merely contains the string (`evilgithub.com`, or a `/github.com/` path
+  on another server), a `file://` URL, and a local or relative path no longer supply an owner or a
+  self-reference, and neither does a non-numeric `:` after the host (`github.com:abc/`).
+- `reference-edges.sh` resolves the owner of a github.com remote that carries a port
+  (`https://github.com:443/`, `ssh://git@github.com:22/`), where the port used to become the owner,
+  and of an uppercase host (`https://GITHUB.COM/`), which used to give no owner. `www.github.com`,
+  `git@github.com:/owner/repo` and an empty port (`https://github.com:/`) resolve as in 0.10.1.
+- `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
+  path.
+
+## [0.10.1] - 2026-09-25
+
+### Fixed
+
+- `reference-edges.sh` no longer charts `github.com/user-attachments/assets/...` and
+  `.../files/...` links (GitHub's attachment-delivery paths for uploaded images and files) as
+  `cites` edges to fabricated repositories named `user-attachments/assets` and
+  `user-attachments/files`. `user-attachments` joins the reserved-owner list alongside
+  `sponsors`, `marketplace`, and the rest of GitHub's own product surfaces.
+- `landscape-record.sh --drift-against` no longer gates on a repository's `remote` fact
+  changing clone transport (`https://` vs `ssh://git@`). The same checkout reports a different
+  origin URL depending on how it happens to be cloned, the same machine-vs-architecture split
+  `path` is already dropped for; `remote` is downgraded to a non-gating note instead, like
+  `last_touched`, since it is still a useful fact worth keeping in the emitted record.
+
+## [0.10.0] - 2026-09-23
+
+### Changed
+
+- `improve`'s post-report reply leads with the candidate choice waiting on the user, naming the
+  top recommendation.
+- Scan briefings end with a stopping point: done when the friction checklist is walked, early
+  return when a candidate needs code outside the assigned area.
+
+## [0.9.3] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.9.2]
+
+### Changed
+
+- map-landscape scripts: landscape-record.sh and render-landscape.sh select their usage header by comment marker like the sibling collectors, the markdown pipe escaper lives once in the shared awk prelude, portfolio-facts.sh drops dead guards and single-use intermediates, and the test fixture generator emits its last entry without a per-iteration branch. Output byte-identical.
+
 ## [0.9.1]
 
 ### Changed
@@ -48,7 +122,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **`map-landscape`:** a clean comparison that carries non-gating differences no longer claims the
   record "matches" and then lists what moved.
 - **`map-landscape`:** a repository with no resolvable owner is drawn outside every boundary in both
-  dialects. An enterprise boundary or group is captioned with an organisation, and `unknown` is the
+  dialects. An enterprise boundary or group is captioned with an organization, and `unknown` is the
   absence of one.
 - **`map-landscape`:** the Structurizr artifact carries a `styles` block for its `External` tag.
   Structurizr removed the internal/external `location` property, so the tag is the only carrier left
@@ -85,7 +159,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **`map-landscape`:** an other-owner repository renders as an external system and is read-only in
   every mode. Nothing is written to it, and nothing is fetched from it unless `--remote=all`.
 - **`map-landscape`:** the description leads with single-repository-plus-references, and routes
-  module-level questions, fleet hygiene, organisation settings, and in-repo doc drift to the skills
+  module-level questions, fleet hygiene, organization settings, and in-repo doc drift to the skills
   that own them by name.
 - **`map-landscape`:** `portfolio-facts.sh` separates runtime scope from development scope. The
   record gains `tooling` and `dev_dependencies` beside `runtime` and `dependencies`, each with its
@@ -223,7 +297,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 ### Changed
 
 - improve: the Phase 1.5 reproduction rule is stated without the anecdote of the run that motivated it, in SKILL.md and `actions/deepening.md`; the Gotchas preamble frames the entries as rules, not an incident log; the hot-spot step names the repository-context list this skill gathers instead of a pre-computed block it no longer has; the scan briefing drops the prior-audit finding id and the "instead of Phase 2" contrast; the description drops two phrases that restate 'improve architecture'.
-- improve: `research/deepening/html-report.md` describes badge colours, the files list, band shapes, module labels, and the accent palette in the terms the scaffold's own `<style>` block defines instead of Tailwind classes and colours it never ships; the wins bullet drops its word count; the tone line states the goal instead of banned phrases; the round-trip sequence advice moves from Tone into a sixth diagram pattern with a way to build it under the inline-SVG rule.
+- improve: `research/deepening/html-report.md` describes badge colors, the files list, band shapes, module labels, and the accent palette in the terms the scaffold's own `<style>` block defines instead of Tailwind classes and colors it never ships; the wins bullet drops its word count; the tone line states the goal instead of banned phrases; the round-trip sequence advice moves from Tone into a sixth diagram pattern with a way to build it under the inline-SVG rule.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
 
 ## [0.6.9]

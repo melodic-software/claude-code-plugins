@@ -1,0 +1,24 @@
+# hook::resolve_read_timeout_to <var>
+# Write the resolved timeout into <var> in THIS shell. GNU Bash runs command
+# substitution in a subshell even when the body is only builtins (Command
+# Execution Environment), so a capture here is a startup fork on every hook;
+# this is the only spelling, and the suite pins that buffer_stdin uses it.
+hook::resolve_read_timeout_to() {
+  local __hu_dest="$1"
+  local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  if [[ "$__hu_t" != "2" ]]; then
+    if ! [[ "$__hu_t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$__hu_t" =~ ^0+(\.0+)?$ ]] ||
+      { [[ "$__hu_t" == *.* ]] && ! hook::read_supports_fractional_timeout; }; then
+      __hu_t=2
+    elif [[ "$__hu_t" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+      local whole="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[3]:-}"
+      frac="${frac}000000"
+      frac="${frac:0:6}"
+      local micros=$((10#$whole * 1000000 + 10#$frac))
+      if ((micros < HOOK_STDIN_READ_TIMEOUT_MIN_MICROS)); then
+        __hu_t=2
+      fi
+    fi
+  fi
+  printf -v "$__hu_dest" '%s' "$__hu_t"
+}

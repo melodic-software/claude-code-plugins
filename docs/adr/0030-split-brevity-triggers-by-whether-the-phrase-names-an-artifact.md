@@ -58,5 +58,5 @@ reads as a dropped trigger and hard-fails the gate even when the receiving descr
 gains it. Any future migration between these two skills pays that cost and should budget
 for it.
 
-The criterion generalises. A third brevity-adjacent skill would be placed by the same
+The criterion generalizes. A third brevity-adjacent skill would be placed by the same
 question rather than by another round of negotiation.

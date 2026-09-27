@@ -203,7 +203,7 @@ what a duplication or noise scan finds here is those passes' deliberate output.
 
 **3. The house style makes the cues fire on the material that must not be touched.** This is the
 mechanism [`d1-model-already-knows-measurement.md`](d1-model-already-knows-measurement.md) measured
-and it generalises exactly. That record found a 94.1% false-positive rate over an 895-file
+and it generalizes exactly. That record found a 94.1% false-positive rate over an 895-file
 agent-facing corpus overlapping this one almost entirely, and its verdict was **"never rule on it"**,
 on the reasoning that the predicate is not an imprecise approximation of the right test but a proxy
 for a property that cannot be read off the text at all. Three lanes here reproduced the result

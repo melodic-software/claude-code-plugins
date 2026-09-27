@@ -31,8 +31,9 @@ prove a gap exists before recommending a solution. The default verdict is REJECT
 
 **The enforcement hierarchy** (strongest first): compiler settings → static analyzers/linters →
 architecture tests → unit/integration tests → git hooks → Claude Code hooks → code review →
-documentation/behavioral rules. A consuming repo that documents its own hierarchy in `CLAUDE.md` or
-rules files overrides this default ordering, so read and use theirs.
+documentation/behavioral rules. A consuming repo that documents its own hierarchy in `CLAUDE.md`, in
+any `AGENTS.md` the session reads natively, whether in place of a `CLAUDE.md` or alongside one, or in rules files overrides this default
+ordering, so read and use theirs.
 
 ## Boundary: no machine-readable hook enumerator
 
@@ -148,7 +149,7 @@ time <tool-command> 2>&1 | tail -5
 
 Judge that measurement against the **consuming repository's own documented hook budget** where one
 exists, and say which source the threshold came from. No upstream latency budget exists, so any
-fixed number this skill supplies is a house rule and is labelled as one in the verdict. Note that
+fixed number this skill supplies is a house rule and is labeled as one in the verdict. Note that
 `PostToolUse` cannot block a tool call, so its cost is turn latency rather than a blocked call.
 Budget-resolution ladder, per-event costs, the documented levers, and the dated upstream-fact
 records: read [context/hook-timing.md](context/hook-timing.md).
@@ -379,7 +380,8 @@ For each user-selected item:
 4. **Implement**: execute with incremental validation and commit checkpoints
 5. **Test**: verify the automation works (run hooks, test skills, etc.)
 6. **Review**: dispatch a fresh-context reviewer to check the change against existing patterns,
-   since the context that wrote it is a biased judge of it. Where no subagent surface exists,
+   since the context that wrote it is a biased judge of it. It lists only problems that should
+   block the change, each with file and line, why it is wrong, and how to show it fails. Where no subagent surface exists,
    review inline and record that the review was same-context
 7. **Verify**: build/test the repo if code changed, confirm no regressions
 
@@ -393,7 +395,7 @@ Principles that govern every verdict:
 1. **The enforcement hierarchy is your first check.** Most "gaps" are covered by the compiler-through-git-hooks levels
 2. **Measure, don't assume.** Time every tool before recommending it as a hook. A formatter looks perfect until you measure 15+ seconds per file
 3. **Check incident history, then read it.** Zero incidents across 100+ commits is strong evidence the problem doesn't exist in practice, but a `git log --grep` count is a ceiling on the incidents, not a count of them, and a check a higher rung already runs suppresses its own incidents
-4. **Behavioral rules are valid enforcement.** A rule in CLAUDE.md is legitimate coverage; not everything needs a hook or script
+4. **Behavioral rules are valid enforcement.** A rule in CLAUDE.md, or in a natively read AGENTS.md, is legitimate coverage; not everything needs a hook or script
 5. **YAGNI is a quality gate, not laziness.** Automation for a task at 4% frequency is premature
 6. **Premature is worse than missing.** Adding a database MCP before a database exists, or scheduling before CI exists, creates maintenance burden for zero value
 7. **A clean bill of health is a valid outcome.** Not finding gaps means the automation is mature; don't manufacture recommendations to justify the audit

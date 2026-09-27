@@ -32,10 +32,8 @@ assert_eq "nothing was requested" "" "$(lin_requests)"
 # --- happy path ---
 lin_reset
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 20 started)" \
-  '{issues: {nodes: [($i | .id = "uuid-issue-20")]}}')"
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
-  '{issues: {nodes: [($i | .id = "uuid-issue-12")]}}')"
+lin_seed_issue 20 started
+lin_seed_issue 12 started
 rc="$(lin_run "$S" "linear:acme/ENG#20" --parent "linear:acme/ENG#12")"
 assert_eq "link under a parent → exit 0" "0" "$rc"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
@@ -51,10 +49,9 @@ assert_contains "the parent is the value" "$(lin_bodies)" '"parentId":"uuid-issu
 # rather than about the provider's error text.
 lin_reset
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
-lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 20 started)" \
-  '{issues: {nodes: [($i | .id = "uuid-issue-20")]}}')"
+lin_seed_issue 20 started
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
-  '{issues: {nodes: [($i | .id = "uuid-issue-12" | .parent = {identifier: "ENG-20", team: {key: "ENG"}, number: 20})]}}')"
+  '{issues: {nodes: [($i | .parent = {identifier: "ENG-20", team: {key: "ENG"}, number: 20})]}}')"
 rc="$(lin_run "$S" "linear:acme/ENG#20" --parent "linear:acme/ENG#12")"
 assert_eq "an immediate parent cycle → exit 2" "2" "$rc"
 assert_contains "and names the cycle" "$(lin_err)" "cycle"

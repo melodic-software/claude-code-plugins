@@ -10,8 +10,8 @@ metadata:
 
 ## Purpose
 
-`/context` itemises skills, agents, and MCP tools natively. For those, run it and read the tables.
-What it structurally cannot itemise is the built-in tool pool: `System tools` and
+`/context` itemizes skills, agents, and MCP tools natively. For those, run it and read the tables.
+What it structurally cannot itemize is the built-in tool pool: `System tools` and
 `System tools (deferred)` are lump sums, and together they are typically the largest single
 contributor to the fixed startup payload. This skill measures that attribution on the consumer's
 own machine by A/B differencing: a baseline session versus one session per candidate tool with
@@ -94,7 +94,7 @@ stop. Never substitute an estimate.
 ### 3. Attribute the built-in tool pools
 
 Candidates come from the **live tool list in the baseline record** (`tools`), never from a
-memorised inventory. Ask the operator (or take from arguments) which to measure:
+memorized inventory. Ask the operator (or take from arguments) which to measure:
 
 - A **chosen set** (one run per tool):
 

@@ -1,0 +1,39 @@
+# WHY BLAME-OF-DELETED-LINES, AND NOT THE ALTERNATIVES
+# ---------------------------------------------------
+# Three designs were measured against the real history before this one was
+# chosen.
+#
+#   Curated marker strings (#2691's own suggestion 3). Catches only what
+#   somebody pre-registered. Nobody had registered #2644, #2642, #2635 or
+#   #2639 -- registration happens after you already know a fix matters, which
+#   is exactly the knowledge the incident destroys. It also decays: the list is
+#   only as fresh as the last person who remembered to append to it.
+#
+#   Merge-base staleness (the PR's branch point vs. what landed since).
+#   Tested and REJECTED on evidence: it exonerates all three real incidents,
+#   because all three branches were up to date in history. It is a
+#   false-negative machine for the exact class it is meant to catch.
+#
+#   PR-creation-time overlap (culprit landed after the PR was opened).
+#   Tested and rejected as non-discriminating: at the 17-concurrent-PR rate the
+#   ADR records for this repo, nearly every PR has siblings landing while it is
+#   open, so it fires on almost everything.
+#
+# What is left is content: blame the lines a merge deleted and see who had just
+# added them. Measured over the 500 first-parent commits of main ending at
+# 738791c45, the three known incidents score 853 / 451 / 346 lines against a
+# single recent commit -- plus a fourth attribution of 298 lines on the SAME
+# #2633 squash, whose deletions trace to two different culprits and are
+# reported separately. Unlike the two designs rejected above, this one fires on
+# all three rather than exonerating them.
+#
+# What it does NOT buy is a clean split between incidents and ordinary work.
+# Measured below, the two populations OVERLAP on volume -- the smallest true
+# finding scores under both verified-legitimate fires. So what makes the
+# canary livable is the disposition path and the non-blocking posture, not a
+# number that separates the shapes. No number does.
+
+die() {
+  echo "check-silent-revert: $*" >&2
+  exit 2
+}

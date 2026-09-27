@@ -52,7 +52,7 @@ Give every finding a `Confidence: high|medium|low` line (the severity baseline's
 Use high when the rule and the violating reference are both verified at the cited site, medium for a
 pattern match or partial trace, low for a suspicious shape not yet traced.
 
-A finding lands in **Violations** only when a documented project rule, a failing check, or a demonstrable defect backs it. Design-smell and convention findings without that backing are judgement calls, advisory and reviewer-tier, and belong under Risks or Opportunities, never framed as hard violations.
+A finding lands in **Violations** only when a documented project rule, a failing check, or a demonstrable defect backs it. Design-smell and convention findings without that backing are judgment calls, advisory and reviewer-tier, and belong under Risks or Opportunities, never framed as hard violations.
 
 Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/severity.md`. A Violation maps to CRITICAL (broken rule) or IMPORTANT (drift) by content. Risks and Opportunities map to SUGGESTION.
 

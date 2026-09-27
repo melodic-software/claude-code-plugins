@@ -11,11 +11,8 @@
 # delivery-by-version — editing the shared source obligates a plugin `version`
 # bump, because the version is the update cache key and an unbumped plugin
 # never delivers the change to consumers. Every cross-plugin cluster gets that
-# half enforced by its sync gate's --check-bump; the intra-plugin shape had
-# only prose, and two drifts shipped through it: b3445bc2 re-vendored
-# knowledge's scene-detect.js with the release note folded into the
-# already-released 0.10.9 section and no bump, and b01dace3 edited its
-# vtt-parser.js with no bump at all.
+# half enforced by its sync gate's --check-bump; this gate enforces it for the
+# intra-plugin shape.
 #
 # WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree
 # differs from <base-ref> — an edit, an addition, or a deletion, since each is
@@ -37,12 +34,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
+self="$(basename "$0")"
 
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 if [[ "${1:-}" != "--check-bump" || -z "${2:-}" || $# -gt 2 ]]; then
-  echo "usage: $(basename "$0") --check-bump <base-ref>" >&2
+  echo "usage: $self --check-bump <base-ref>" >&2
   exit 2
 fi
 base="$2"
@@ -52,12 +50,12 @@ base="$2"
 # exempt" for every plugin — a full-open gate. Assert it up front so absent
 # tooling is its own loud exit, distinct from "nothing changed".
 if ! jq --version >/dev/null 2>&1; then
-  echo "$(basename "$0"): jq is required to read manifest versions; refusing to pass without it" >&2
+  echo "$self: jq is required to read manifest versions; refusing to pass without it" >&2
   exit 2
 fi
 
 if ! changed_files::verify_base "$base"; then
-  echo "$(basename "$0"): cannot resolve base ref: $base" >&2
+  echo "$self: cannot resolve base ref: $base" >&2
   exit 2
 fi
 
@@ -81,13 +79,12 @@ fi
 # The resolver also carries the fail-closed mechanics: a failed git diff (or
 # a failure staging/sorting its output) is its own non-zero return rather
 # than an empty list that reads as "nothing changed", and paths arrive
-# NUL-delimited so a name git would
-# C-quote under the default core.quotePath (non-ASCII bytes, a literal quote)
-# reaches the structural filter verbatim instead of wrapped in quotes that
-# match no pattern.
+# NUL-delimited so a name git would C-quote under the default core.quotePath
+# (non-ASCII bytes, a literal quote) reaches the structural filter verbatim
+# instead of wrapped in quotes that match no pattern.
 changed_paths=()
 if ! changed_files::into changed_paths "$base" --include-deleted --no-renames -- plugins/; then
-  echo "$(basename "$0"): git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
+  echo "$self: git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
   exit 2
 fi
 
@@ -123,7 +120,7 @@ fi
 # hands jq the bytes git actually stored, so a corrupt base manifest is the
 # exit 2 the header promises rather than a silent version.
 base_manifest_file="$(mktemp)" || {
-  echo "$(basename "$0"): mktemp failed; refusing to pass without a place to stage base manifests" >&2
+  echo "$self: mktemp failed; refusing to pass without a place to stage base manifests" >&2
   exit 2
 }
 trap 'rm -f "$base_manifest_file"' EXIT
@@ -133,30 +130,30 @@ for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
   # release already carries the vendored source. But "absent" must be an
-  # observation, never a fallback: the old single-pipeline read collapsed a
-  # failed `git show`, a malformed base manifest, and a version-less one into
-  # the same empty string this carve-out keys on, silently exempting each.
+  # observation, never a fallback: a failed `git show`, a malformed base
+  # manifest, and a version-less one must not collapse into the empty string
+  # this carve-out keys on.
   # So existence is probed on its own (ls-tree exits 0 with empty output for
   # a path the base tree lacks, non-zero only when git itself failed), and
   # once the manifest is known to exist every later step must succeed: a base
   # version this gate cannot read is not a bump exemption.
   if ! base_manifest_entry="$(git ls-tree --name-only "$base" -- "$manifest")"; then
-    echo "$(basename "$0"): git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
+    echo "$self: git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
     exit 2
   fi
   if [[ -z "$base_manifest_entry" ]]; then
     continue
   fi
   if ! git show "$base:$manifest" >"$base_manifest_file"; then
-    echo "$(basename "$0"): git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
+    echo "$self: git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
     exit 2
   fi
   if ! base_version="$(jq -r '.version // empty' "$base_manifest_file")"; then
-    echo "$(basename "$0"): $manifest at $base is not valid JSON; refusing to treat an unreadable base version as a bump exemption" >&2
+    echo "$self: $manifest at $base is not valid JSON; refusing to treat an unreadable base version as a bump exemption" >&2
     exit 2
   fi
   if [[ -z "$base_version" ]]; then
-    echo "$(basename "$0"): $manifest at $base has no version; refusing to treat a version-less base manifest as a bump exemption" >&2
+    echo "$self: $manifest at $base has no version; refusing to treat a version-less base manifest as a bump exemption" >&2
     exit 2
   fi
   head_version=$(jq -r '.version // empty' "$manifest" 2>/dev/null || true)

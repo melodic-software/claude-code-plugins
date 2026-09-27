@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Render the landscape artifacts from the committed record.
 #
-# WHY. Table rows, dependency truncation, diagram alias sanitising, boundary
+# WHY. Table rows, dependency truncation, diagram alias sanitizing, boundary
 # grouping and node labels are all mechanical, and rendering them by hand makes
 # two runs on identical facts produce different files. Everything this script
 # does is decided by the record: nothing here weighs, judges, or describes. Prose
@@ -37,6 +37,25 @@
 # Determinism is the contract: the same record and flags produce byte-identical
 # files, so a re-run shows a diff only when the facts moved.
 #
+# Prints, on stdout, one summary line after the artifacts are written:
+#
+#   landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n>
+#              drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>
+#
+# (one line in the output; wrapped here). The fields:
+#
+#   internal          internal systems; every one is drawn.
+#   external          every external system in the model, drawn or not.
+#   drawn_systems     internal plus the externals the diagram draws.
+#   edges             every edge in the record.
+#   drawn_edges       edges the diagram draws.
+#   unresolved_edges  edges whose source is not a charted repository. Their
+#                     target is still a node: a system reached only by an
+#                     unresolved edge is counted, but gets no arrow.
+#   thin              yes when drawn_systems <= 2 or drawn_edges == 0.
+#
+# The artifacts never carry this line, so they stay byte-identical.
+#
 # Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
 #
 # Exit: 0 = written; 1 = the record is unreadable or not schema_version 1, or
@@ -44,7 +63,9 @@
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  # Print the header comment block only, selected by comment marker so --help
+  # stays correct as the block grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -133,7 +154,7 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
-# Which organisation the landscape is drawn from. A checkout is internal because
+# Which organization the landscape is drawn from. A checkout is internal because
 # its owner matches this one, not because someone happened to have it on disk.
 # A record that names no subject owner cannot make that call, so every checkout
 # in it stays internal and the drawing is the same as it was.
@@ -212,7 +233,7 @@ function field(line, want,   keys, vals, n, i) {
 # The record is JSON, so a quote or a backslash inside a value arrives escaped.
 # Stripping the delimiters without undoing the escapes hands the next stage a
 # stray backslash and a quote it will read as its own, so the value is decoded
-# here and neutralised for the target grammar where it is written out.
+# here and neutralized for the target grammar where it is written out.
 function unquote(v,   out, i, c, last) {
   if (substr(v, 1, 1) != "\"") return v
   v = substr(v, 2, length(v) - 2)
@@ -243,6 +264,16 @@ function arraycount(v,   parts) {
   gsub(/^\[|\]$/, "", v)
   if (v == "") return 0
   return split(v, parts, "\",\"")
+}
+# A pipe read out of a manifest ends the markdown cell it lands in and shifts
+# every column after it, so it is escaped to the pipe GFM renders as text.
+# Joined rather than substituted: a backslash in a gsub replacement is
+# underspecified, and mawk and gawk disagree on how many survive it.
+function md(v,   n, parts, i, out) {
+  n = split(v, parts, "|")
+  out = parts[1]
+  for (i = 2; i <= n; i++) out = out "\\|" parts[i]
+  return out
 }
 AWK
 
@@ -408,16 +439,20 @@ END {
     split(k, seg, "/")
     printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "external", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
   }
+  drawn_edges = 0
+  unresolved = 0
   for (i = 1; i <= en; i++) {
-    if (!(etarget[i] in drawn)) continue
     # The edge source names a checkout by basename, so resolve it through the
     # map the repository pass built. Iterating the node array instead would put
     # the answer at the mercy of the unspecified array order in awk.
     fk = localkey[efrom[i]]
-    if (fk == "" || !(fk in isnode)) continue
+    if (fk == "" || !(fk in isnode)) { unresolved++; continue }
+    if (!(etarget[i] in drawn)) continue
     printf "edge\t%s\t%s\t%s\t%s\n", aliasof[fk], aliasof[etarget[i]], elabel[i], erel[i]
+    drawn_edges++
   }
   printf "omit\t%d\n", ne - shown_ext
+  printf "stat\t%d\t%d\t%d\t%d\t%d\t%d\n", ni, ne, ni + shown_ext, en, drawn_edges, unresolved
 }
 ' "$record")"
 
@@ -439,7 +474,7 @@ if [[ "$dialect" == "mermaid" ]]; then
     printf 'Generated on %s from %s. Remote facts: %s.\n\n' \
       "$gen_on" "$disco" "$remote_state"
     printf 'Every fact traces to the file the probe named. Every edge is typed by the\n'
-    printf 'syntax that carries it and labelled with how many references support it.\n'
+    printf 'syntax that carries it and labeled with how many references support it.\n'
     printf 'A system with no probed runtime is one this checkout names but does not\n'
     printf 'contain.\n\n'
     printf '```mermaid\nC4Context\n  title System Landscape\n'
@@ -450,7 +485,7 @@ if [[ "$dialect" == "mermaid" ]]; then
         b = 0
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
-          # An enterprise boundary is captioned with an organisation. "unknown"
+          # An enterprise boundary is captioned with an organization. "unknown"
           # is the absence of one, so a repository with no resolvable owner is
           # drawn at the top level rather than inside a boundary naming nothing.
           if (f[7] == "unknown") {
@@ -489,7 +524,7 @@ else
       END {
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
-          # A group is captioned with an organisation. "unknown" is the absence
+          # A group is captioned with an organization. "unknown" is the absence
           # of one, so an ownerless repository sits outside every group.
           if (f[7] == "unknown") {
             if (cur != "") { print "    }"; cur = "" }
@@ -548,16 +583,6 @@ fi
   printf '| Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |\n'
   printf '|---|---|---|---|---|---|---|\n'
   awk "$SPLIT_AWK"'
-    # A pipe read out of a manifest ends the cell it lands in and shifts every
-    # column after it, so it is escaped to the pipe GFM renders as text.
-    # Joined rather than substituted: a backslash in a gsub replacement is
-    # underspecified, and mawk and gawk disagree on how many survive it.
-    function md(v,   n, parts, i, out) {
-      n = split(v, parts, "|")
-      out = parts[1]
-      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
-      return out
-    }
     function cell(v) { return (v == "" ? "unknown" : md(v)) }
     function deplist(v,   n, list, parts, i, out) {
       n = arraycount(v)
@@ -620,14 +645,6 @@ fi
   printf '\n## Evidence\n\n'
   printf '| Repository | Fact | Source |\n|---|---|---|\n'
   awk "$SPLIT_AWK"'
-    # Joined rather than substituted: a backslash in a gsub replacement is
-    # underspecified, and mawk and gawk disagree on how many survive it.
-    function md(v,   n, parts, i, out) {
-      n = split(v, parts, "|")
-      out = parts[1]
-      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
-      return out
-    }
     /^[[:space:]]*\{"name":/ {
       name = md(unquote(field($0, "name")))
       ev = field($0, "evidence")
@@ -636,5 +653,10 @@ fi
     }
   ' "$record"
 } >"$outdir/portfolio.md"
+
+printf '%s\n' "$model" | awk -F'\t' '$1 == "stat" {
+  printf "landscape: internal=%d external=%d drawn_systems=%d edges=%d drawn_edges=%d unresolved_edges=%d thin=%s\n", \
+    $2, $3, $4, $5, $6, $7, ($4 <= 2 || $6 == 0 ? "yes" : "no")
+}'
 
 exit 0

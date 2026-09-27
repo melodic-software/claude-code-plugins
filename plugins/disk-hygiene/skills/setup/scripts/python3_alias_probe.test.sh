@@ -4,14 +4,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor has one origin: MIN_PYTHON in the clean engine. Parse it
-# rather than restating the number here.
+# shellcheck source=../../../scripts/test-wrapper-lib.sh
+source "$SCRIPT_DIR/../../../scripts/test-wrapper-lib.sh"
+
 ENGINE="$SCRIPT_DIR/../../clean/scripts/hygiene.py"
-FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$ENGINE")"
+FLOOR=""
+test_wrapper::floor_to FLOOR "$ENGINE"
 if [[ -z "$FLOOR" ]]; then
   echo "FAIL: could not parse MIN_PYTHON from $ENGINE" >&2
   exit 1
 fi
+
+FLOOR_CHECK=""
+test_wrapper::floor_check_to FLOOR_CHECK "$FLOOR"
 
 # A zero-length candidate under a WindowsApps path component is the Store's App
 # Execution Alias stub — the very artifact this suite tests for. Executing it
@@ -26,7 +31,7 @@ for candidate in python python3; do
   if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
     continue
   fi
-  if "$candidate" -c "import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"; then
+  if "$candidate" -c "$FLOOR_CHECK"; then
     PYTHON="$candidate"
     break
   fi

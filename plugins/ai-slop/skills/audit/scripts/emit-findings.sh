@@ -26,6 +26,10 @@
 # per the persist contract, coverage is the payload.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
+
 # No `tier:` frontmatter is emitted. Both owner docs (context/persist-findings.md
 # and the detector-findings adopter row) say this producer omits it, and nothing
 # here computes a value: the retired --tier flag defaulted to a hardcoded
@@ -48,28 +52,20 @@ git branch.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "emit-findings.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --from)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     FROM_FILES+=("$2")
     shift 2
     ;;
   --out)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     OUT="$2"
     shift 2
     ;;
   --branch)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     BRANCH="$2"
     shift 2
     ;;

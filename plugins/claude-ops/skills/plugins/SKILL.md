@@ -1,6 +1,6 @@
 ---
 description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
-argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default), audit, converge"
+argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), audit, converge"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -86,8 +86,8 @@ itself is rendered by the script.
 | `audit` | No | Same algorithm as `sync`, every mutating CLI call replaced with a prediction; the reads those calls sit beside still run | "Action: audit" below |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
-Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
-action → show this table.
+Bare invocation (no arguments) → `sync` against the default marketplace. `update` is an alias for
+`sync`. `help` or an unrecognized action → show this table.
 
 ## Running `sync` and `audit`
 
@@ -150,7 +150,10 @@ No hardcoded marketplace name anywhere in this skill. Every action resolves its 
   `installed_plugins.json`'s install records, never a hardcoded name).
 - `<marketplace-name>` argument → that marketplace only.
 - `all` argument → every marketplace in `known_marketplaces.json`; per-marketplace failures are
-  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)).
+  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)). **`all` also
+  multiplies the `install_new` policy across every catalog**: under a rendered policy of `all` this
+  target installs every plugin published in every known marketplace. Confirm the resolved install
+  gap with a human first, per "userConfig: `install_new`" below.
 
 ## State inspection
 
@@ -159,7 +162,10 @@ through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
 extraction where a script's `--ids` form exists. `sync-run.sh` calls all three during `sync` and
-`audit`. Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
+`audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
+carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
+`cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
+Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
 when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
 `sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
 
@@ -204,15 +210,18 @@ reproduces it from a run directory later. Every section, conditional row, annota
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
 three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
-`null`, never rendered as off); the fixed `In-repo:` row in its three variants (`skipped` naming
+`null`, never rendered as off), whose status reads `source checkout behind <upstream>` instead of
+`current` when a `directory` source's git checkout is behind its upstream; the `source:` row under
+it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
+tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
 counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
 `(direction unknown)`) and `Downgraded:`; `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
 when a root resolved; the self-update note when the sweep moved this plugin; the stale project
 records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
-with the clock's resolution; a measurement with no threshold); and `Action needed` (install and
-enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
+`git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
 In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
@@ -241,7 +250,7 @@ names; load [context/sync.md](context/sync.md) when a question is about why a st
 way it did.
 
 (A plugin updated mid-session keeps resolving to the previous version's path, which is what the
-self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behaviour
+self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behavior
 observed on Claude Code 2.1.240 and not re-run on 2.1.261, because it needs an interactive session.
 See [context/gotchas.md](context/gotchas.md).)
 
@@ -266,6 +275,19 @@ schema has no `enum` type. Verified against the published schema), default `"ask
 
 Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
 value in the report.
+
+**`all` is scoped to the marketplace target, and the target is what makes it safe or catastrophic.**
+Against the default marketplace, the one whose fleet the operator curates, the gap is normally zero
+or a handful and `all` is the intended convenience. Against a multi-marketplace target (`all`, or a
+named third-party catalog) the same word means "install every plugin published in every catalog this
+machine knows about." One observed run installed 2,231 plugins before it was killed; see
+[context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
+every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
+proceed unattended:** resolve the total install gap first (one `audit all`, or `fleet-state.sh
+--marketplace <name> --ids missing-user-install` per marketplace, which is the selector
+`sync-run.sh` itself projects for Step 4), state the number, and get an explicit human yes. Treat the
+configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
+no human is present to receive the count.
 
 **Configured value: `${user_config.install_new}`**. Claude Code text-substitutes a `userConfig`
 value into this skill's content before the model sees the rendered skill, but **only when the key is

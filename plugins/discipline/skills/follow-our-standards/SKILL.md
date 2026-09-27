@@ -43,7 +43,7 @@ top-level `README` or agent-instruction file, and pull only what the work
 in flight needs. Discover the applicable docs through that front door
 rather than hardcoding a doc map that will drift. Always re-anchor the core
 design principles; load a specific convention (testing, naming,
-error-handling, domain modelling, and the like) only when the current work
+error-handling, domain modeling, and the like) only when the current work
 touches it. When the repo you are working in declares its own
 design-doctrine docs, add them to the route set and load one when the work
 in flight is designing what that doctrine governs.

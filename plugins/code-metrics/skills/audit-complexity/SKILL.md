@@ -34,9 +34,9 @@ table and the other lanes still run.
 | C# | deferred | deferred | deferred |
 
 `lizard` and `radon` report a start and an end line per function; `gocyclo`, `gocognit`,
-`shellmetrics`, and the two ESLint rules report a start line only, and their rows are labelled
+`shellmetrics`, and the two ESLint rules report a start line only, and their rows are labeled
 `start-line-only`. `multimetric` has no per-function granularity at all, so its rows are per file,
-carry `function: null`, and are labelled `file-level`. Its Bash cyclomatic figure is labelled
+carry `function: null`, and are labeled `file-level`. Its Bash cyclomatic figure is labeled
 `multimetric-approximation` because it under-counts against a per-function parser.
 
 ## Run it
@@ -71,7 +71,7 @@ INCONCLUSIVE; otherwise keep it beside your notes and compare by hand.
   alone.
 - Cognitive complexity (Campbell, SonarSource) and Halstead difficulty (Halstead 1977) ship no
   reference, because no standard sets one for either. Setting `complexity.cognitive.reference` or
-  `complexity.halstead.difficulty` makes the report count against your own number, labelled with
+  `complexity.halstead.difficulty` makes the report count against your own number, labeled with
   the layer that supplied it.
 - A `null` value means the resolved collector did not produce that number for that row. It is
   never zero, and a zero in the report is a measurement: a Halstead difficulty of 0 is a function

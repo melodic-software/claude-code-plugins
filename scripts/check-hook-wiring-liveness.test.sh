@@ -180,9 +180,8 @@ else
 fi
 
 # --- 10. Live tree pin: the checkout this test lives in must itself be green.
-# After #2959's deletion that is the post-delete tree. Running the SUT in
-# place (not the fixture copy) is the honesty proof the fixture cases cannot
-# fake — if a new unwired hook lands beside this test, this assertion fails.
+# Running the SUT in place (not the fixture copy) is the honesty proof the
+# fixture cases cannot fake: if a new unwired hook lands beside this test, this assertion fails.
 live_out="$( (cd "$SCRIPT_DIR/.." && bash "$SUT_SRC" 2>&1))"
 live_rc=$?
 if [[ $live_rc -eq 0 ]]; then

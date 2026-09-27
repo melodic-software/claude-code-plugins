@@ -9,10 +9,9 @@ import { repairSynthesisPromotions } from "./repair-synthesis-promotions.js";
 const tempDirs = [];
 
 afterEach(() => {
-  for (const dir of tempDirs) {
+  for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  tempDirs.length = 0;
 });
 
 describe("repairSynthesisPromotions", () => {

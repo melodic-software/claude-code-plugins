@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: invented-class-c-strip
+description: strip on an invented script deletes the warning, both rationale comments, and the restating comment, and stages the narrative
+tags: [calibration, strip, invented]
+expected_outcome: Every comment but the shebang is deleted; code is unchanged; the report stages the lock-deadlock warning and both rationales.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments strip class-c.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: no-comments-left
+    type: regex
+    pattern: '^[ \t]*#(?!!)'
+    flags: m
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: shebang-kept
+    type: regex
+    pattern: '^#!/usr/bin/env bash\n'
+    target: { source: file, path: class-c.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^prepare_lock\(\) \{\n  : >"\$lock_file"\n\}[\s\S]*^  local retries=3\n  for \(\(attempt = 1; attempt <= retries; attempt\+\+\)\); do\n    if curl --silent --max-time "\$timeout" "\$api_url/status"; then\n      return 0\n    fi\n  done\n  return 1\n\}[\s\S]*^counter=0$[\s\S]*^timeout=5$[\s\S]*^prepare_lock\nstart_worker\n\nfetch_status \|\| counter=\$\(\(counter \+ 1\)\)\necho "failures: \$counter"$'
+    flags: m
+    target: { source: file, path: class-c.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves the removed information, including the warning that prepare_lock must run before start_worker or the lock file deadlocks the worker. FAIL when that warning appears nowhere in the report.

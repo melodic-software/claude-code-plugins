@@ -3,6 +3,99 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.13.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.13.1] - 2026-09-23
+
+### Fixed
+
+- The test helper module `Mock-Helpers.psm1` no longer calls `Export-ModuleMember`, which
+  triggers an intermittent PSScriptAnalyzer 1.25.0 NullReferenceException. It still exports
+  the same 14 functions.
+
+## [0.13.0] - 2026-09-23
+
+### Changed
+
+- The report template moves "Open questions for the operator" to directly under the run header,
+  ahead of the findings.
+
+## [0.12.26] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.12.25]
+
+### Changed
+
+- The fifty Windows Pester suites derive their roots, dot-source the helpers and build their as-object wrapper through one Initialize-CheckSuite preamble; the unused Get-EgressAllowlist and Get-ElevationMatrixByCheckId functions and their three tests are removed. The remaining 445 results match the previous run exactly.
+
+## [0.12.24]
+
+### Changed
+
+- The nineteen Windows check scripts derive the skill root through one Resolve-SkillRoot helper and emit their result through the shared Write-HealthResult tail instead of restating both blocks locally. Output objects are unchanged.
+
+## [0.12.23]
+
+### Changed
+
+- Hoist the redaction cycle guard, drop redundant replace pre-checks and unreachable null branches, and simplify the banner capture and health-result fixtures in the test helpers (behavior unchanged).
+
+## [0.12.22]
+
+### Changed
+
+- Classify event-log noise in one pass, merge the severity tallies in the orchestrator, collapse the PATH normalization loops and inline single-use intermediates in the Windows checks (behavior unchanged).
+
+## [0.12.21]
+
+### Changed
+
+- Fold the single-line error helper into the workflow error writer, share the stopped-then-running service mock factory, collapse the dead remediation else-arm and drop an unused wrapper parameter in the test runner and remediation suites (behavior unchanged).
+
+## [0.12.20]
+
+### Changed
+
+- Share the fixture token expander, add BitLocker-volume and KEV-cache mock factories and drop a dead sort in the Windows check suites (behavior unchanged).
+
+## [0.12.19]
+
+### Changed
+
+- audit Windows lib suites: Get-RunDelta and Get-CisaKevCache share their prior-run and KEV payload builders, Get-ApprovalState computes its approvals path once, and the Merge-CatalogOverlay, ConvertTo-TopMetrics and Read-HistoryJsonl suites drop unused builder parameters and a dead warning-variable seed. Same tests, same assertions.
+
+## [0.12.18]
+
+### Changed
+
+- audit Windows lib: ConvertTo-TopMetrics.ps1 drops an always-true property-collection guard, Assert-CatalogEntry.ps1 flattens a nested deprecation check, Get-ApprovalState.ps1 inlines a single-use splat, two verbose messages are inlined, and six files correct stale help text and change narration in comments. No behavior change.
+
+## [0.12.17]
+
+### Changed
+
+- audit Windows lib: Write-ElevationBanner.ps1 builds the rerun command once and appends the state base when present, New-InvalidCatalogEntryResult.ps1 drops a redundant parenthesis pair, and Merge-CatalogOverlay.ps1 trims stale change narration from a comment. No behavior change.
+
 ## [0.12.16]
 
 ### Changed

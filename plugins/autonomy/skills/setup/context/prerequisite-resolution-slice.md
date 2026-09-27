@@ -34,9 +34,10 @@ Wrapper:
    results is a **finding**, never a silent overwrite. A ran-negative probe caps a positive
    declaration; the identity stays `unsupported` while the finding is open.
 2. **Prose-context pass (proposal only).** Read host instruction files (`CLAUDE.md`),
-   secondary agent-instruction files (`AGENTS.md`, which reaches a session only through a
-   reference; the dated record for that platform bound is the prerequisite-resolution
-   contract in this plugin's reference tree), and `README` for *proposed* declarations into
+   secondary agent-instruction files (`AGENTS.md`, which reaches a session through a
+   reference wherever a `CLAUDE.md` above it is read instead; the dated record for that
+   platform bound is the prerequisite-resolution contract in this plugin's reference
+   tree), and `README` for *proposed* declarations into
    **non-security keys only**.
    The deterministic resolver never parses prose; prose is never runtime authority.
 3. **Human ratifies.** Interactive contexts present proposals one at a time. Non-interactive

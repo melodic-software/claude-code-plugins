@@ -38,7 +38,7 @@
 #       specific account, and is not expanded in Bash rules. Emitted under the
 #       id `P2b`, not `P2`: criteria.md gives it its own `### P2b` section with
 #       its own detection rule and SKILL.md's severity table names the error
-#       tier `(P2, P2b)`, so a report that labelled it `P2` left the reader
+#       tier `(P2, P2b)`, so a report that labeled it `P2` left the reader
 #       unable to tell which of the two documented checks fired, and a grep for
 #       `P2b` returned nothing (#4149 defect 3).
 #
@@ -49,7 +49,7 @@
 # completes exits 0 in report and `--count` mode whether or not it found anything.
 # `--check` and `--strict` are the opt-in gate modes — see Usage. Environment gaps
 # exit 2 in EVERY mode: missing jq, a missing shared pattern library, an
-# unrecognised argument, and an unresolvable (or non-directory) scan root — see
+# unrecognized argument, and an unresolvable (or non-directory) scan root — see
 # below. An unresolvable USER scope is a narrower gap: it is announced on stderr
 # and recorded in the coverage block, and it does not by itself change the exit
 # code in any mode. In the GATE modes the blind-scan limb joins them: a run whose
@@ -109,7 +109,7 @@ Usage: permission-rule-check.sh [--count|--check|--strict|--help]
 ARGUMENTS. Flags may appear in any order and may be combined; the STRICTEST one
 wins, ordered (no arg) < --count < --check < --strict. So `--check --strict` and
 `--strict --check` both run as --strict; neither flag is silently discarded. An
-ARGUMENT THAT IS NOT A RECOGNISED FLAG IS REFUSED: this message goes to stderr and
+ARGUMENT THAT IS NOT A RECOGNIZED FLAG IS REFUSED: this message goes to stderr and
 the run exits 2 (cannot determine) without scanning. It never falls through to the
 advisory report, because a typo'd flag in a CI invocation would otherwise leave the
 gate exiting 0 forever on a tree full of findings. A literal empty argument (what a
@@ -152,12 +152,12 @@ EOF
 }
 
 # --- Argument handling ---------------------------------------------------------
-# EVERY argument is read, and an argument that is not a recognised flag is a hard
+# EVERY argument is read, and an argument that is not a recognized flag is a hard
 # refusal — usage on stderr, exit 2 — never something silently ignored. This
 # script is a CI gate: a one-character typo in the flag falling through to the
 # advisory report left the invocation exiting 0 on a tree full of error-tier
 # findings, i.e. a gate quietly turned into a permanent no-op that nobody sees
-# fail. An argument the script cannot honour means it cannot establish what was
+# fail. An argument the script cannot honor means it cannot establish what was
 # asked of it, which is the same "cannot determine" channel a missing jq and an
 # unresolvable root already take.
 #
@@ -193,7 +193,7 @@ for arg in "$@"; do
   --strict) raise_mode strict 3 ;;
   "") ;;
   *)
-    printf 'ERROR: unrecognised argument: %s\n\n' "$arg" >&2
+    printf 'ERROR: unrecognized argument: %s\n\n' "$arg" >&2
     usage >&2
     exit 2
     ;;
@@ -273,7 +273,6 @@ if [[ ! -r "$PATTERNS_LIB" ]]; then
 fi
 # shellcheck source=../../../lib/permission-patterns.sh
 source "$PATTERNS_LIB"
-P1_ERE="$CCPERM_P1_ERE"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
 # home-path literal appears in this file's source bytes and trips the repo's
@@ -441,43 +440,38 @@ scan_rule() {
   # one frontmatter token region. source-file enables the P4 remedy branch.
   local text="$1" src="$2" file="${3:-}" m remedy path_remedy
   path_remedy="$(portable_path_remedy "$file")"
+  remedy="$(inert_grant_remedy "$file")"
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
-  done < <(rule_matches "$text" "$P1_ERE")
+  done < <(rule_matches "$text" "$CCPERM_P1_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
     # permissions page's own row is `//path` = "Absolute path from filesystem
     # root", with `Read(//Users/<name>/secrets/**)` -> `/Users/<name>/secrets/**`.
     # So `//Users/<name>/…` names a concrete user home and leaks the username,
     # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
     # genuinely portable forms and are already excluded by `_seg` above.
-    emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
+    [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
   done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
     # P2b, not P2 — see the header. criteria.md documents this as its own check
     # with its own detection rule, and emitting it under P2 made the id
     # unreportable (#4149 defect 3).
-    emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
+    [[ -n "$m" ]] && emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
   done < <(rule_matches "$text" "$P2_TILDE_USER_RULE_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
-    remedy="$(inert_grant_remedy "$file")"
-    emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
+    [[ -n "$m" ]] && emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
   done < <(rule_matches "$text" "$P4_BASH_INERT_ERE")
   # Plugin-root/plugin-data tokens DO substitute in a plugin skill's
   # allowed-tools, so flagging them there is a false positive. Everywhere else
   # they stay literal.
   if ! is_plugin_skill "$file"; then
     while IFS= read -r m; do
-      [[ -z "$m" ]] && continue
-      # Route through the same context-sensitive remedy the always-inert tokens
+      # Routed through the same context-sensitive remedy the always-inert tokens
       # use. Offering ${CLAUDE_SKILL_DIR} unconditionally would swap one inert
       # rule for another: that token is substituted in a skill's allowed-tools,
       # so it is no remedy at all for a settings rule, an agent, or a command.
-      remedy="$(inert_grant_remedy "$file")"
-      emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
+      [[ -n "$m" ]] && emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
     done < <(rule_matches "$text" "$P4_BASH_PLUGIN_ONLY_ERE")
   fi
 }
@@ -590,10 +584,8 @@ while IFS= read -r file; do
   # `find` needs only directory-traversal permission to report a file as
   # `-type f`; it does NOT need read permission on the file. So an existing but
   # unreadable candidate (mode 000, a restrictive ACL, a mount that denies
-  # reads) is enumerated here, and before this gate it fell through to `awk`,
-  # which wrote its own error to the real stderr and returned nothing — leaving
-  # the file counted in no bucket at all while the coverage block promised to
-  # disclose exactly that input. `-f` is rechecked alongside `-r` so a candidate
+  # reads) is enumerated here; without this gate `awk` would error to the real
+  # stderr and the file would land in no coverage bucket. `-f` is rechecked alongside `-r` so a candidate
   # that vanished between the walk and this line lands here too, not nowhere.
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     fm_unreadable=$((fm_unreadable + 1))

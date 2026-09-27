@@ -5,25 +5,23 @@
  * Usage: node watch/validate-triage-json.js <slice-dir>
  */
 
-import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
+import { writeStderr } from "@melodic/video-digestion/shared/terminal";
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
-import { validateTriageManifestForSlice } from "../lib/watch-vision-validation.js";
+import {
+  reportSliceValidation,
+  validateTriageManifestForSlice,
+} from "../lib/watch-vision-validation.js";
 
 /**
  * @param {string} sliceDir
  * @returns {number}
  */
 export function runValidateTriageJson(sliceDir) {
-  const result = validateTriageManifestForSlice(sliceDir, { requireIndexMatch: true });
-  if (result.valid) {
-    writeStdout("triage manifest: valid");
-    return 0;
-  }
-  for (const error of result.errors) {
-    writeStderr(`triage manifest: ${error}`);
-  }
-  return 1;
+  return reportSliceValidation(
+    validateTriageManifestForSlice(sliceDir, { requireIndexMatch: true }),
+    "triage manifest",
+  );
 }
 
 if (isMainModule(import.meta.url)) {

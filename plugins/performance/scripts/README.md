@@ -1,6 +1,7 @@
 # Measurement harnesses
 
-The reference implementations `/performance:snapshot` and `/performance:verify` run. Read
+The reference implementations `/performance:snapshot`, `/performance:verify`, and
+`/performance:protect` run. Read
 [`../reference/harness-integrity.md`](../reference/harness-integrity.md) first: these scripts exist
 to ENFORCE the rules in it, and every refusal below is a defect that shipped in the source run.
 
@@ -15,6 +16,7 @@ to ENFORCE the rules in it, and every refusal below is a defect that shipped in 
 | `ratio.py` | Paired ratio, suppressed under concurrency. |
 | `differential.py` | Pre-change versus post-change behavior over an argv matrix: byte-identical stdout and exit code, with any stderr difference disclosed as outside that bar. |
 | `discriminate.py` | Does this check actually fail without the fix. |
+| `ratchet.py` | Checked-in counter ceilings: `check` fails when a counter rises above its ceiling, `propose-tighten` lowers a ceiling only with `--write`, and `add` records a counter only when two runs agree. |
 
 Every script carries a co-located `<stem>.test.sh`. Run one with `bash <stem>.test.sh`.
 

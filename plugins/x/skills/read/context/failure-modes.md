@@ -61,7 +61,7 @@ sides of the same rule and the fix for one is the other's cause:
   result, never their sum. The transport cap is 5 MB, and a response near it consumes the session
   before the result is ever reported. A hostile converter can aim for exactly that.
 
-**The ceiling is a fixed 256 KB, not a per-invocation judgement.** "Set a budget" is unenforceable:
+**The ceiling is a fixed 256 KB, not a per-invocation judgment.** "Set a budget" is unenforceable:
 faced with a 5 MB response, 5 MB is a budget, and behavior would vary by invocation while the failure
 stayed reachable. 256 KB is roughly two orders of magnitude above a long X Article and two below the
 transport cap, so it never truncates real content and never threatens the session.

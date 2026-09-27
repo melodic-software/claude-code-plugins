@@ -102,7 +102,7 @@ What is genuinely broken is a shape the draft never named: 8 citations in `plugi
 the plugin root but the real base is the citing file's own directory. Clause 3 exists to catch
 those.
 
-### Correction 2. The contract's licence to relax is weaker than the draft claimed
+### Correction 2. The contract's license to relax is weaker than the draft claimed
 
 The draft cited
 `plugins/docs-hygiene/skills/audit-encapsulation/context/public-surface-contract.md:3` as
@@ -145,7 +145,7 @@ were doing damage.
 **Ten of the 89 citations do not resolve from the base their own form implies.** The target file
 exists; the address written for it does not reach it. All ten are bare code spans, so none renders
 as a broken link and nothing greps red, but an agent told to open the path fails on all ten. Eight
-of the ten are intra-plugin, which is the case this decision legalises: **proximity did not prevent
+of the ten are intra-plugin, which is the case this decision legalizes: **proximity did not prevent
 them.**
 
 The sharpest single piece of evidence is inside one plugin. `plugins/discovery` cites the same three
@@ -164,7 +164,7 @@ targets twice, in two plugin-level docs, one form working and one not.
 ```
 
 Same plugin, same targets, one anchored and correct, one bare and unresolvable. That is why clause 3
-is binding rather than advisory: legalising the intra-plugin case without also requiring a
+is binding rather than advisory: legalizing the intra-plugin case without also requiring a
 resolvable form produces drift inside a single plugin, and already has.
 
 Two of the ten sit in the doctrine document itself, at `docs/plugin-philosophy.md:596` and `:1071`,
@@ -215,7 +215,7 @@ in full.
 - **This decision does not license the form.** An intra-plugin citation is legal and still has to
   resolve. The anchored `${CLAUDE_PLUGIN_ROOT}/skills/<other>/<path>` form is what makes it resolve
   from any base; 57 intra-plugin citations do not use it today, 8 of which are broken because of it.
-  Normalising the other 49 is tidy-up, not a defect.
+  Normalizing the other 49 is tidy-up, not a defect.
 - **Anchors are under-counted and the clause is therefore under-enforced.** Only 2 heading-anchor
   violations were found, both written as `#fragment`. Citations that pin a section by quoting its
   title in prose bind body structure just as tightly and break just as silently, and are not

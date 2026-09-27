@@ -40,8 +40,8 @@ Cover is documented as an audio-derived re-style: it keeps the melody, carries l
 Two independent community sources converge on two harmonic nudges:
 
 - In the Style field, name the key with the mood (for example, `melancholic indie folk, A minor key`) to improve the odds of staying in the intended harmonic neighborhood. Mood words can steer scale choice indirectly: sad or melancholic tends toward natural minor, while bright or happy tends toward major.
-- In Custom Mode's Lyrics field, add bracketed chord tags either inline at the start of the relevant lyric line (for example, `[Am]`) or in an explicitly labelled block (`Chord progression: [Am] [F] [G] [Em]`).
-- **Failure mode:** Suno frequently treats chord names as lyric content and sings them instead of playing the progression. Explicitly labelling the chord block reduces, but does not eliminate, this failure.
+- In Custom Mode's Lyrics field, add bracketed chord tags either inline at the start of the relevant lyric line (for example, `[Am]`) or in an explicitly labeled block (`Chord progression: [Am] [F] [G] [Em]`).
+- **Failure mode:** Suno frequently treats chord names as lyric content and sings them instead of playing the progression. Explicitly labeling the chord block reduces, but does not eliminate, this failure.
 - Keep expectations to simple pop/rock progressions and blues patterns. Exact voicings, mid-song key changes, complex jazz harmony, and specific cadences are not reliable controls. Roman-numeral notation such as `I-V-vi-IV` is not viable input; prompt the feeling and genre instead.
 
 Suno documents none of these techniques. They are probabilistic rather than deterministic: they can raise the odds but guarantee nothing, and they do not establish a Cover-specific harmony control.

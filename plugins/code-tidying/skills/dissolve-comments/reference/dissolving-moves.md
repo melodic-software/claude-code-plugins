@@ -12,7 +12,7 @@ net; interface-creating moves need a test net and stay proposals in non-interact
 |---|---|
 | 1, token-proven | Rename Variable, Rename Field (function-local identifiers only) |
 | 2, test-gated | Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional, Replace Nested Conditional with Guard Clauses, Introduce Special Case |
-| 3, test-gated and proposal-first | Extract Function, Change Function Declaration, Move Statements into Function, Replace Inline Code with Function Call, Introduce Parameter Object, Inline Function |
+| 3, test-gated and proposal-first | Extract Function, Change Function Declaration, Extract Class, Move Statements into Function, Replace Inline Code with Function Call, Introduce Parameter Object, Inline Function |
 
 | Comment shape being dissolved | Named refactoring |
 |---|---|
@@ -54,11 +54,11 @@ net; interface-creating moves need a test net and stay proposals in non-interact
 Class B reads like the skill's main engine. On many repositories it turns over nothing, and a run
 planned around it should know the three limits up front. All three are deliberate.
 
-- **2 of the 15 moves need no test net.** Only Rename Variable and Rename Field are tier 1, and
+- **2 of the 16 moves need no test net.** Only Rename Variable and Rename Field are tier 1, and
   only on a *function-local* identifier. Every other move adds tokens, so the token proof reports
   CODE-CHANGED by construction ([safety.md](safety.md)) and a discovered test net is required;
   without one they are proposed, never applied.
-- **0 of 15 apply with tree-sitter absent.** The proof is unavailable, so "tier 1 without its proof
+- **0 of 16 apply with tree-sitter absent.** The proof is unavailable, so "tier 1 without its proof
   is tier 2" ([safety.md](safety.md)) demotes the two renames into the test-net tier with
   everything else. On a repository with neither a runnable test net nor tree-sitter, a class-B pass
   produces a proposal list and no edits.

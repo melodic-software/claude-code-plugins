@@ -82,6 +82,13 @@ Never run 'sweep the fixture corpus' against an unreviewed corpus.
 Report the pipe | character carefully.
 EOF
 
+# run_emit <args...>: the writer, run from inside the fixture repo so its branch
+# and repo-root resolution have something to read. The subshell keeps the cd out
+# of the suite's own cwd.
+run_emit() {
+  (cd "$REPO" && bash "$EMIT" "$@")
+}
+
 # --- Usage / refusal paths ------------------------------------------------------------
 
 bash "$EMIT" >/dev/null 2>&1
@@ -92,15 +99,15 @@ assert_exit "missing --from file exits 2" 2 "$?"
 
 NOTSCAN="$TEST_TMPDIR/notscan.txt"
 printf 'this is not detector output\n' >"$NOTSCAN"
-(cd "$REPO" && bash "$EMIT" --from "$NOTSCAN" --out "$TEST_TMPDIR/y.md") >/dev/null 2>&1
+run_emit --from "$NOTSCAN" --out "$TEST_TMPDIR/y.md" >/dev/null 2>&1
 assert_exit "input with no detect blocks exits 3" 3 "$?"
 
 BLOCKS="$TEST_TMPDIR/blocks.txt"
 write_block "$BLOCKS" "$TARGET" 2 negation 7 'Do not use markdown in your response.'
-(cd "$REPO" && bash "$EMIT" --from "$BLOCKS" --out "$TEST_TMPDIR/z.md" --branch '') >/dev/null 2>&1
+run_emit --from "$BLOCKS" --out "$TEST_TMPDIR/z.md" --branch '' >/dev/null 2>&1
 assert_exit "empty --branch value exits 2" 2 "$?"
 
-(cd "$REPO" && bash "$EMIT" --from "$BLOCKS" --out "$TEST_TMPDIR/z.md" --declined-carveout notanint) >/dev/null 2>&1
+run_emit --from "$BLOCKS" --out "$TEST_TMPDIR/z.md" --declined-carveout notanint >/dev/null 2>&1
 assert_exit "non-integer --declined-carveout exits 2" 2 "$?"
 
 # --- Happy path: a real detect.sh run through the writer -------------------------------
@@ -108,7 +115,7 @@ assert_exit "non-integer --declined-carveout exits 2" 2 "$?"
 DETOUT="$TEST_TMPDIR/detout.txt"
 (cd "$REPO" && bash "$DETECT" doc.md) >"$DETOUT"
 OUT1="$TEST_TMPDIR/out/findings.md"
-(cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUT1") >/dev/null
+run_emit --from "$DETOUT" --out "$OUT1" >/dev/null
 body="$(cat "$OUT1")"
 
 assert_contains "declares the consumed type" "$body" "type: review-findings"
@@ -131,7 +138,7 @@ assert_contains "and its decline is counted, never silent" "$body" \
 FORGED="$TEST_TMPDIR/forged.txt"
 write_block "$FORGED" "$TARGET" 2 negation 2 'forged frontmatter row'
 OUT2="$TEST_TMPDIR/out/forged.md"
-(cd "$REPO" && bash "$EMIT" --from "$FORGED" --out "$OUT2") >/dev/null
+run_emit --from "$FORGED" --out "$OUT2" >/dev/null
 forged_body="$(cat "$OUT2")"
 assert_not_contains "a forged frontmatter row is refused by the writer fence" "$forged_body" "doc.md:2"
 assert_contains "and counted as a frontmatter decline" "$forged_body" "reason=frontmatter (body-scope fence)"
@@ -141,7 +148,7 @@ assert_contains "and counted as a frontmatter decline" "$forged_body" "reason=fr
 OTHER="$TEST_TMPDIR/other.txt"
 write_block "$OTHER" "$TARGET" 1 citation 7 'a citation row'
 OUT3="$TEST_TMPDIR/out/other.md"
-(cd "$REPO" && bash "$EMIT" --from "$OTHER" --out "$OUT3") >/dev/null
+run_emit --from "$OTHER" --out "$OUT3" >/dev/null
 other_body="$(cat "$OUT3")"
 assert_contains "a shape with no crosswalk row is declined" "$other_body" \
   "citation count=1 reason=no-severity-crosswalk-row"
@@ -160,13 +167,13 @@ EOF
 OOR="$TEST_TMPDIR/oor.txt"
 write_block "$OOR" "$OUTSIDE" 2 negation 3 'Do not use markdown in your response.'
 OUT4="$TEST_TMPDIR/out/oor.md"
-(cd "$REPO" && bash "$EMIT" --from "$OOR" --out "$OUT4") >/dev/null
+run_emit --from "$OOR" --out "$OUT4" >/dev/null
 oor_body="$(cat "$OUT4")"
 assert_contains "a path outside the repo root is declined" "$oor_body" "reason=outside-repo-root"
 
 # --- Non-overwrite naming --------------------------------------------------------------
 
-(cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUT1") >/dev/null
+run_emit --from "$DETOUT" --out "$OUT1" >/dev/null
 if [[ -f "${OUT1%.md}-2.md" ]]; then
   pass "a colliding --out takes the -2 suffix rather than clobbering"
 else
@@ -181,7 +188,7 @@ fi
 TRAVERSE="$TEST_TMPDIR/traverse.txt"
 write_block "$TRAVERSE" "$REPO/../outside.md" 2 negation 3 'Do not use markdown.'
 OUT6="$TEST_TMPDIR/out/traverse.md"
-(cd "$REPO" && bash "$EMIT" --from "$TRAVERSE" --out "$OUT6") >/dev/null
+run_emit --from "$TRAVERSE" --out "$OUT6" >/dev/null
 trav_body="$(cat "$OUT6")"
 assert_not_contains "a traversing path never reaches the relay" "$trav_body" ".."
 assert_contains "and is declined as out-of-repo" "$trav_body" "reason=outside-repo-root"
@@ -193,11 +200,11 @@ assert_contains "and is declined as out-of-repo" "$trav_body" "reason=outside-re
 # never admits the file.
 for bad_branch in true null 123 2026-08-23 no; do
   OUTB="$TEST_TMPDIR/out/branch-$bad_branch.md"
-  (cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUTB" --branch "$bad_branch") >/dev/null
+  run_emit --from "$DETOUT" --out "$OUTB" --branch "$bad_branch" >/dev/null
   assert_contains "YAML-implicit branch '$bad_branch' is quoted" "$(cat "$OUTB")" "branch: \"$bad_branch\""
 done
 OUTP="$TEST_TMPDIR/out/branch-plain.md"
-(cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUTP" --branch "feature/ordinary-name") >/dev/null
+run_emit --from "$DETOUT" --out "$OUTP" --branch "feature/ordinary-name" >/dev/null
 assert_contains "an ordinary branch stays an unquoted plain scalar" "$(cat "$OUTP")" "branch: feature/ordinary-name"
 
 # --- The fired marker is carried from the scanner ---------------------------------------
@@ -206,7 +213,7 @@ MARKER_IN="$TEST_TMPDIR/marker.txt"
 write_block "$MARKER_IN" "$TARGET" 2 negation 7 \
   'Never commit a secret. Do not use markdown.' 'do not'
 OUT7="$TEST_TMPDIR/out/marker.md"
-(cd "$REPO" && bash "$EMIT" --from "$MARKER_IN" --out "$OUT7") >/dev/null
+run_emit --from "$MARKER_IN" --out "$OUT7" >/dev/null
 assert_contains "the scanner-supplied marker wins over a whole-line scan" "$(cat "$OUT7")" 'prohibition="do not"'
 
 # --- Cell escaping is idempotent --------------------------------------------------------
@@ -224,7 +231,7 @@ EOF
 ESCIN="$TEST_TMPDIR/esc.txt"
 write_block "$ESCIN" "$ESCTGT" 2 negation 3 'Do not use the a \| b form in a cell.'
 OUT8="$TEST_TMPDIR/out/esc.md"
-(cd "$REPO" && bash "$EMIT" --from "$ESCIN" --out "$OUT8") >/dev/null
+run_emit --from "$ESCIN" --out "$OUT8" >/dev/null
 esc_row="$(grep -E '^\| 1 ' "$OUT8")"
 assert_not_contains "an already-escaped pipe is not double-escaped" "$esc_row" '\\\|'
 assert_contains "and survives as a single-escaped literal" "$esc_row" '\|'
@@ -237,7 +244,7 @@ assert_contains "so the row still parses as exactly 7 cells" "delims=$esc_delims
 # --- Counted carve-out -----------------------------------------------------------------
 
 OUT5="$TEST_TMPDIR/out/carve.md"
-(cd "$REPO" && bash "$EMIT" --from "$DETOUT" --out "$OUT5" --declined-carveout 3) >/dev/null
+run_emit --from "$DETOUT" --out "$OUT5" --declined-carveout 3 >/dev/null
 assert_contains "a judgment-lane drop is counted, never silent" "$(cat "$OUT5")" \
   "negation count=3 reason=judgment-lane-dismissal"
 

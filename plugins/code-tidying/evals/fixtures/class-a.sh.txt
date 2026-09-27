@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+counter=0
+total=0
+
+for value in "$@"; do
+  total=$((total + value))
+  # increment counter
+  counter=$((counter + 1))
+done
+
+# old_total=$((total * 2))
+# echo "$old_total"
+
+echo "count=$counter total=$total"

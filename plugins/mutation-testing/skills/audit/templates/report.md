@@ -7,6 +7,8 @@ invented at report time is a section persisted.
 ```text
 ## Mutation audit — <scope>, vs <diff-target>
 
+Needs you: <n> proposed suppressions to accept, <n> unclassified survivors to classify<, or "none">
+
 Baseline: <green, N ms>   Mutants: <n> generated, <n> suppressed<, n dropped by cap>
 
 | File | Coverage | Covered-code score | Gap | Survivors |

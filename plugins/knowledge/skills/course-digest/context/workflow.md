@@ -194,7 +194,11 @@ the instructor says, what's shown on screen, what the actual code does.
 
 **Multi-agent approach per module:**
 
-Each module gets parallel agents, then a synthesis pass:
+Each module gets parallel agents, then a synthesis pass. Each brief names its stopping point: the
+agent is done when it has covered every input file of its modality for the module; it returns
+early, naming the gap, when an input is missing or unreadable rather than filling it from another
+modality. Each agent names the transcript, frame, or source file behind every claim, and the
+synthesis pass checks a claim against that file before accepting it.
 
 1. **Transcript agent**: reads all `transcript.md` files for the module. Extracts concepts,
    arguments, anti-patterns, tools mentioned, lesson structure

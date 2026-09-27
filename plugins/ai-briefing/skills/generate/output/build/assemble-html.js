@@ -1,6 +1,4 @@
 // Assemble single-file sectioned-scroll HTML deck from build modules.
-// One <section> per provider/group, sticky top nav with scroll-spy chips,
-// keyboard nav steps section-by-section, scroll-snap proximity, hash deep-link.
 // Print mode (?print=1) re-paginates one section per page for build-pdf.js.
 
 import fs from "node:fs/promises";

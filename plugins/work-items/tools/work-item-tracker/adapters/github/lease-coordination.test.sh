@@ -120,11 +120,8 @@ jq -cn --arg b "$EXP_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
 rc=0
 bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1 || rc=$?
 assert_eq "renew-lease returns conflict (7) for an expired active lease" "7" "$rc"
-if grep -q '^PATCH' "$GH_STUB_DIR/calls.log"; then
-  fail "renew-lease does NOT revive the expired lease (no PATCH)" "no PATCH logged" "PATCH logged"
-else
-  pass "renew-lease does NOT revive the expired lease (no PATCH)"
-fi
+assert_fails "renew-lease does NOT revive the expired lease (no PATCH)" "no PATCH logged" "PATCH logged" \
+  grep -q '^PATCH' "$GH_STUB_DIR/calls.log"
 cleanup_scenario
 
 # [live control] the same flow on a LIVE active lease must still renew (guards the

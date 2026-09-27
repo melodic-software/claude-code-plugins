@@ -239,28 +239,14 @@ def main(argv: list[str]) -> int:
             print(f"setup-apply.py: {exc}", file=sys.stderr)
             return 2
     body = "\n".join(dump(doc)) + "\n"
-    new_text = (
-        HEADER + body
-        if not existing_text.startswith("#")
-        else existing_text.split("\n", 2)[0]
-        + "\n"
-        + (
-            existing_text.split("\n", 2)[1] + "\n"
-            if existing_text.startswith(HEADER)
-            else ""
-        )
-        + body
-    )
     # Idempotence is judged on the parsed content, so comments the operator
     # added by hand never force a rewrite by themselves.
     if existing_text and yaml_subset.parse(existing_text) == doc:
         print(f"already configured: {target}")
         return 0
-    if not existing_text.startswith(HEADER):
-        new_text = HEADER + body
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
     with open(target, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(new_text)
+        handle.write(HEADER + body)
     print(f"written: {target}")
     return 0
 

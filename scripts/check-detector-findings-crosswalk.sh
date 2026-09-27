@@ -18,10 +18,6 @@
 # machine-checkable half of that bar -- whether the argument is SOUND stays
 # judgment, and the admission test is what carries it.
 #
-# This lived as a checklist in the issue that introduced the crosswalk, which
-# would have disappeared when that issue closed. A bar nothing runs is a bar that
-# decays on the first row nobody argues.
-#
 # The table is located by its exact header rather than by a row-prefix pattern,
 # so a stray table elsewhere in the document can neither satisfy the check nor
 # be dragged into it.
@@ -107,9 +103,6 @@ in_table {
 
   for (i = 2; i <= 6; i++) {
     gsub(/\001/, "\\|", cell[i])
-  }
-
-  for (i = 2; i <= 6; i++) {
     trimmed[i] = cell[i]
     gsub(/^[ \t]+|[ \t]+$/, "", trimmed[i])
   }

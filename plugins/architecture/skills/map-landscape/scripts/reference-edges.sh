@@ -25,7 +25,7 @@
 # is the only way a bare `owner/repo` token is trusted at all.
 #
 # --print-owner prints the owner this run resolved and extracts nothing, so a
-# caller can record which organisation the graph was drawn from without
+# caller can record which organization the graph was drawn from without
 # reimplementing the resolution. `unknown` when none resolves.
 #
 # Output: JSON Lines on stdout, one object per (target, type) pair, sorted:
@@ -134,20 +134,46 @@ fi
 # owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
 # token on a host whose path shape we have not verified is how fixture names
 # become systems.
-remote_owner_segment() {
-  local url
+#
+# The origin's path on github.com, `owner/repo...`, when the remote's host IS
+# github.com. The host is the authority with the scheme and user info removed,
+# compared case-insensitively, with `www.` allowed. With a scheme, a port of
+# digits (possibly empty, as RFC 3986 allows) is removed; any other `:` after
+# the host is not a port and the URL names no github.com path. So
+# `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a
+# `/github.com/` path on another server, a `file://` path and a relative path
+# all fail. A URL without a scheme counts only in the scp form `host:path`.
+github_remote_path() {
+  local url host rest scheme=0 result=1 had_nocase=0
   url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
+  url="${url%/}"
   url="${url%.git}"
-  case "$url" in
-  *github.com[:/]*)
-    url="${url#*github.com}"
-    url="${url#:}"
-    url="${url#/}"
-    case "$url" in
-    */*) printf '%s' "${url%%/*}" ;;
-    *) return 1 ;;
-    esac
-    ;;
+  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
+  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
+  host="${url%%[:/]*}"
+  rest="${url#"$host"}"
+  if [[ $scheme -eq 1 ]]; then
+    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
+    [[ "$rest" == :* ]] && return 1
+    rest="${rest#/}"
+  else
+    [[ "$rest" == :* ]] || return 1
+    rest="${rest#:}"
+    rest="${rest#/}"
+  fi
+  shopt -q nocasematch && had_nocase=1
+  shopt -s nocasematch
+  [[ "$host" == github.com || "$host" == www.github.com ]] && result=0
+  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
+  [[ $result -eq 0 && -n "$rest" ]] || return 1
+  printf '%s' "$rest"
+}
+
+remote_owner_segment() {
+  local path
+  path="$(github_remote_path)" || return 1
+  case "$path" in
+  */*) printf '%s' "${path%%/*}" ;;
   *) return 1 ;;
   esac
 }
@@ -155,8 +181,24 @@ remote_owner_segment() {
 owner="$owner_override"
 [[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
 
+# The `owner/repo` slug of a github.com origin remote. A worktree or a renamed
+# clone sits in a directory whose name is not the repository's, so the
+# directory basename alone would read the repository's own citations as an
+# edge to a second system. The slug is the remote's own, independent of
+# --owner, which moves the subject organization but not what this clone is.
+remote_slug() {
+  local path o r
+  path="$(github_remote_path)" || return 1
+  o="${path%%/*}"
+  r="${path#*/}"
+  r="${r%%/*}"
+  [[ -n "$o" && -n "$r" && "$o" != "$path" ]] || return 1
+  printf '%s/%s' "$o" "$r"
+}
+self_slug="$(remote_slug)" || self_slug=""
+
 # The owner this run resolved, for a caller that has to record which
-# organisation the graph was drawn from. Reading it back from here keeps one
+# organization the graph was drawn from. Reading it back from here keeps one
 # resolution: a second implementation elsewhere would drift from this one about
 # what counts as the subject, and then the edges and the nodes would disagree.
 if [[ "$print_owner" -eq 1 ]]; then
@@ -171,12 +213,15 @@ fi
 # `github.com/<first>/<second>` is only an owner/repo pair when <first> is an
 # account. These first segments are GitHub's own product surfaces, so a funding
 # link (`github.com/sponsors/acme`) or a marketplace page is not a repository.
+# `user-attachments` is the attachment-delivery prefix GitHub issues, PRs and
+# comments embed uploads under (`github.com/user-attachments/assets/...`,
+# `.../files/...`); the segment after it is an opaque asset id, never a repo.
 is_reserved_owner() {
   case "$1" in
   sponsors | features | orgs | settings | apps | marketplace | topics | \
     collections | about | pricing | security | login | join | new | notifications | \
     explore | trending | events | site | contact | readme | pulls | issues | \
-    codespaces | enterprise | customer-stories | organizations)
+    codespaces | enterprise | customer-stories | organizations | user-attachments)
     return 0
     ;;
   *) return 1 ;;
@@ -185,7 +230,7 @@ is_reserved_owner() {
 
 # A segment that can actually be a GitHub owner or repository name. This is the
 # backstop for every extractor: a regex tuned to one surface still catches
-# neighbouring punctuation and documentation templates, so `<source>`,
+# neighboring punctuation and documentation templates, so `<source>`,
 # ``acme-tools` ``, and `claude-code-plugins`;` are rejected here rather than by
 # making each pattern progressively more baroque.
 is_valid_segment() {
@@ -253,10 +298,11 @@ is_own_artifact() {
 # setting is restored so the shopt never leaks into the extractors' own globs.
 is_self_reference() {
   local result=1 had_nocase=0
-  [[ -n "$owner" ]] || return 1
+  [[ -n "$owner" || -n "$self_slug" ]] || return 1
   shopt -q nocasematch && had_nocase=1
   shopt -s nocasematch
-  [[ "$1" == "$owner/$name" ]] && result=0
+  [[ -n "$owner" && "$1" == "$owner/$name" ]] && result=0
+  [[ -n "$self_slug" && "$1" == "$self_slug" ]] && result=0
   [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
   return "$result"
 }

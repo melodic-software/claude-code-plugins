@@ -45,20 +45,13 @@ for fn in wit_require_gitea_id wit_need_gitea_config \
   wit_gitea_auth_header wit_gitea_http \
   wit_gitea_require_ok wit_gitea_require_array wit_gitea_unimplemented \
   wit_help_if_requested; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # --- id grammar: foreign providers are refused before any I/O ---
 
-if wit_require_gitea_id "github:o/r#1"; then
-  fail "rejects foreign-provider id" "reject" "accepted"
-else
-  pass "rejects foreign-provider id"
-fi
+assert_fails "rejects foreign-provider id" "reject" "accepted" \
+  wit_require_gitea_id "github:o/r#1"
 if wit_require_gitea_id "gitea:acme/webapp#12"; then
   pass "accepts a gitea id and sets the WIT_ID_* globals"
   assert_eq "id number" "12" "$WIT_ID_NUMBER"
@@ -69,16 +62,10 @@ fi
 # --- scope membership is the authorization boundary ---
 
 WIT_GITEA_SCOPES='["acme/webapp"]'
-if wit_gitea_scope_in_scope "acme/webapp"; then
-  pass "declared scope accepted"
-else
-  fail "declared scope accepted" "in" "out"
-fi
-if wit_gitea_scope_in_scope "undeclared/elsewhere"; then
-  fail "undeclared scope refused" "out" "in"
-else
-  pass "undeclared scope refused"
-fi
+assert_succeeds "declared scope accepted" "in" "out" \
+  wit_gitea_scope_in_scope "acme/webapp"
+assert_fails "undeclared scope refused" "out" "in" \
+  wit_gitea_scope_in_scope "undeclared/elsewhere"
 
 # --- HTTP status → contract exit code ---
 

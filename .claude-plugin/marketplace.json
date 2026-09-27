@@ -187,7 +187,7 @@
       "name": "playbooks",
       "source": "./plugins/playbooks",
       "category": "claude-code",
-      "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "best-practices", "skill"]
+      "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "repo-sweep", "hygiene", "best-practices", "skill"]
     },
     {
       "name": "docs-hygiene",
@@ -338,6 +338,20 @@
       "defaultEnabled": false
     },
     {
+      "name": "pixel-art",
+      "source": "./plugins/pixel-art",
+      "category": "visual-arts",
+      "tags": ["pixel-art", "sprites", "sprite-sheet", "animation", "rpg-maker", "cutscene", "game-assets", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "animation",
+      "source": "./plugins/animation",
+      "category": "visual-arts",
+      "tags": ["animation", "rotoscope", "2d-animation", "ink", "film", "canvas", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
@@ -403,6 +417,13 @@
       "source": "./plugins/kindle-dedrm",
       "category": "personal",
       "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "gaming",
+      "source": "./plugins/gaming",
+      "category": "personal",
+      "tags": ["gaming", "dlss", "dlss5", "nvidia", "optiscaler", "mod", "windows", "skill"],
       "defaultEnabled": false
     },
     {
@@ -632,9 +653,9 @@
       ]
     },
     {
-      "name": "provenance",
-      "displayName": "Provenance",
-      "source": "./plugins/provenance",
+      "name": "attribution",
+      "displayName": "Attribution",
+      "source": "./plugins/attribution",
       "category": "quality",
       "tags": [
         "provenance",
@@ -647,6 +668,17 @@
         "prose",
         "audit",
         "skill"
+      ]
+    },
+    {
+      "name": "provenance",
+      "source": "./plugins/provenance",
+      "description": "Deprecated: renamed to attribution. Install attribution@melodic-software; this shim only points at /attribution:audit and /attribution:setup and is removed in a later release.",
+      "category": "quality",
+      "tags": [
+        "deprecated",
+        "provenance",
+        "attribution"
       ]
     },
     {

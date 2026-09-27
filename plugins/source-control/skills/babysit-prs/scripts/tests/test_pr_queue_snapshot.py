@@ -167,11 +167,13 @@ class ResolveSelfLoginsTests(unittest.TestCase):
         # In production `resolve_author("@me")` raises on broken auth rather than
         # returning None, so the raise propagates (fail-loud, exit 2). This is the
         # one edge where snapshot behavior diverges from the gate's degrade — #881.
-        with mock.patch.object(
-            gh, "resolve_author", side_effect=RuntimeError("no login")
+        with (
+            mock.patch.object(
+                gh, "resolve_author", side_effect=RuntimeError("no login")
+            ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                snapshot.resolve_self_logins(None, "bot")
+            snapshot.resolve_self_logins(None, "bot")
 
 
 HEAD = "a" * 40

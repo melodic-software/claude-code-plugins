@@ -3,6 +3,100 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-27
+
+### Added
+
+- **`/disk-hygiene:clean` no longer opens with a deliberately denied tool call.** A new `UserPromptExpansion` hook, matching `disk-hygiene:clean$`, runs `skills/clean/scripts/engine_context.py` through the same launcher and with the same `--plugin-root` argument as the skill guard, and hands the skill the guard's absolute interpreter (`hook_python`) and authorized `--data-root` (`data_root`) as context before the skill loads. The skill uses them from the first call. The guard still judges every call, and when the note is absent or says `data_root: none` the skill falls back to the denial route as before.
+
+## [0.23.17] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.23.16] - 2026-09-27
+
+### Security
+
+- **An exact engine call must now carry the authorized `--data-root`.** The belt and the engine gate deny a `scan`, `preview`, `handoff-verify`, or `apply` that omits it, even when every other word is exact; `apply` is denied, not asked. Without the flag the engine falls back to the raw `CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set, so the stronger channels were bypassed. With no authority resolved, no engine call is admitted; previously a read-only call without the flag still was. Calls that carry the authorized `--data-root` get the same verdicts as before.
+- The `CLAUDE_PLUGIN_DATA` env channel ignores the literal, unsubstituted `${CLAUDE_PLUGIN_DATA}` value, as the other channels already did. No channel's authority widened; the env channel stays the last resort.
+
+### Changed
+
+- **New belt tests pin the data-root precedence against a conflicting `CLAUDE_PLUGIN_DATA`.** With the env value set to a different directory, the belt denies an exact `scan --data-root` at the env root and allows it at the derived root, on both a directory-marketplace install and a cache-layout install. On the directory install the decision log lands at the derived root. A control run without the directory proof shows the env value does reach the guard.
+- New tests pin that a changed `known_marketplaces.json` shape (a versioned `{"version": 2, "marketplaces": {...}}` wrapper, or an entry with only `source.path` and no `installLocation`) yields no authority with the env unset, so the belt denies the scan; with the env set it falls back to the env value, the behavior before 0.23.15.
+- The `clean` skill's ownership triage is done when each of the five questions has an evidence-backed answer or is recorded as unknown. An unknown owner or work-product answer rules out High; an unknown work-product answer keeps the entry at Low.
+- A `clean` report finding is complete only with all six fields; one with name-only provenance is Low.
+
+## [0.23.15] - 2026-09-24
+
+### Fixed
+
+- **The `clean` belt no longer denies every engine call on a local-directory marketplace install.** A plugin loaded in place from a local-directory marketplace gets a `${CLAUDE_PLUGIN_ROOT}` that is its source checkout, with no `plugins/cache` segment, so the belt resolved no data root and denied the skill's exact scan, preview, and apply for the rest of the session. The guard now proves such an install against `<config>/plugins/known_marketplaces.json` and the marketplace's own `marketplace.json` and `plugin.json`, and builds the data root only from `<config>` plus the sanitized `disk-hygiene@<marketplace>` id; the marketplace entry must be named `disk-hygiene`. Any unproven step still fails closed.
+- `<config>` is `<account home>/.claude`, with the home read from the OS account record (`pwd` on POSIX, the Profile known folder on Windows), never from `HOME`, `USERPROFILE`, or `CLAUDE_CONFIG_DIR`, which a repo `env` block can set. A `--plugin-dir` session has no derived authority unless its root lies inside a registered directory marketplace, where it derives that marketplace's canonical data root. A config relocated with `CLAUDE_CONFIG_DIR` derives authority only if the account home's `.claude` still lists the marketplace, and then only inside `<home>/.claude/plugins/data/`.
+- Data-root precedence is `--authorized-data-root`, the cache layout, the directory marketplace, then `CLAUDE_PLUGIN_DATA`, so on a directory install a differing environment value no longer wins.
+- The no-authority denial now names the recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to `<config>/plugins/data/<name>-<marketplace>`.
+
+### Security
+
+- The kill switch is now read on a directory install: the same proof locates `<config>/settings.json`, so a configured `disk_hygiene_enabled: false` denies `apply` there. The read matches any `disk-hygiene` `pluginConfigs` key, as broad as the managed read was before, so a managed `false` keyed to another marketplace still disables.
+
+## [0.23.14] - 2026-09-23
+
+### Changed
+
+- **The `Stop` guard-launch monitor costs less per turn (#4416).** Measured under bash on Windows, one `bash -c` per fire with the harness `Stop` payload, 20 interleaved runs, two passes, p50: the skipped path went from 108 / 68 ms to 71 / 49 ms against a no-op `bash -c` floor of 35 / 23 ms; the run path on a 10 MB transcript with one line appended per turn went from 297 / 241 ms to 199 / 156 ms.
+- Every `hooks.json` row and the `clean` skill's frontmatter belt now read `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...`, so no `env` process runs for the launcher's `#!/usr/bin/env bash` shebang. The rows stay in shell form: the Git Bash running the string looks `bash` up on its own PATH, the same lookup `env` did. The WSL `System32\bash.exe` hazard applies to exec form only.
+- The interpreter cache no longer compares `PATH` verbatim. fnm puts a per-shell `fnm_multishells/<pid>_<ts>` directory on `PATH`, so every new shell missed the cache and re-probed Python. The record (schema 2) now keeps, for each name resolution tried, the path bash's own `hash` lookup found; the hot path repeats that builtin lookup and hits when the same files win. A different or missing `python3`, a lookup file newer than the record, or a removed interpreter re-probes.
+- The cache now stores the probe's `sys.executable`, not the file `PATH` found, so a uv trampoline or version-manager shim no longer spends a second process on every launch. The probe writes that path as filesystem-encoded bytes, so an interpreter under a directory outside the Windows ANSI code page still resolves. The `py -3` branch probes in one spawn instead of two, and the path it reports must pass the same executable, non-empty and interpreter-name checks as the other branches. The launcher runs `set -h`, so a `BASH_ENV` that turned command hashing off cannot blind the lookups.
+- The monitor reads the transcript incrementally: a per-session cursor (`<data root>/guard-launch-monitor/<session>.cursor`, holding `b<offset>` and the transcript path) records how far a clean scan got, and the next `Stop` reads only the bytes appended since. The first scan of a session reads the whole file, as before, so a failure anywhere still warns (#1514). A missing, malformed or legacy cursor, a different transcript path, a shorter file, or no newline before the offset falls back to that whole-file scan. The cursor stops before an unterminated final line and advances only past a scan that found no failure, so a warning whose marker could not be written repeats with the same count, as before. Lines without `hook_non_blocking_error` skip the JSON parse. The `systemMessage` text for the same records is unchanged. The module docstring no longer claims an O(cap) tail read, which the head-plus-tail read had not been since #1514.
+- Cursor files, like the markers, are never removed; the data root gains one small file per session that launched a guard.
+
+## [0.23.13] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.23.12]
+
+### Changed
+
+- **The `Stop` guard-launch monitor no longer starts Python in a session that launched no guard.** The engine-gate rows are `if`-gated on the engine's file name, so most sessions never run `destructive_guard.py` at all, yet the monitor started a whole interpreter every turn to discover that from the transcript. `Stop` rows accept neither `matcher` nor `if`, so the gate lives in `hooks/run-python-hook.sh`, which grows three optional leading flags: `--marker-root <dir>`, `--launch-marker <subdir>` (write `<root>/<subdir>/<session>.launched` before exec'ing Python) and `--skip-unless-marker <subdir>` (exit 0 without exec'ing when a candidate marker directory exists and none of them holds that file). Process creations per `Stop` on Windows, measured with a job-object census at n=5: 5 before, 3 with no marker, and still 5 with one present, against a 1-creation harness floor; wall clock 271 ms to 120 ms on the skipped path. The engine-gate row pays nothing for the marker after the first launch in a plugin data root, which spends one `mkdir`.
+- Marker semantics: the marker is per session and is never removed, so a data root accumulates one empty file per session that launched a guard, and no retention sweep collects them; a session whose guard rows never fired is skipped by design; the marker is written before the interpreter is resolved, so a guard that launches and dies, the failure the monitor exists to report, still leaves it. With a marker present the monitor's `systemMessage` and its `guard-decisions` record are byte-identical to before. A skipped turn emits no telemetry envelope at all, where it previously emitted an `ok` one.
+- The `Stop` gate fails open on the half it can detect: it skips only when at least one candidate marker directory exists and holds no marker for the session, so a launch whose `mkdir` failed for both roots leaves nothing and every later `Stop` runs the monitor as it did before the flags. The cost is that the skip is inert in a plugin data root where no guard has ever launched, until the first launch spends its `mkdir`: 5 creations with no candidate directory, 3 with an empty one, 5 with a marker present. The residual it cannot detect: a candidate directory that exists while the marker file itself could not be written (a full disk, a permission denial on the file alone) still silences the monitor for that session, because that file is the only channel between the launch row and the `Stop` row.
+
+## [0.23.11]
+
+### Changed
+
+- The four disk-hygiene Python test wrappers parse the MIN_PYTHON floor, build the floor probe and pick an interpreter through one sourced test-wrapper library instead of four inline copies. Skip messages, argv and exit codes are unchanged.
+
+## [0.23.10]
+
+### Changed
+
+- Settle destructive-guard verdicts through one helper, share the handle-contest and accepted-path overlap checks and the scan-complete payload in the clean engine, inline the monitor tail read and lowercase the launcher path in bash (behavior unchanged).
+
+## [0.23.9]
+
+### Changed
+
+- setup skill: python3_alias_probe.py reports a stat failure through one call that varies only the detail text, and the kill-switch probe suite writes its toggle settings through one helper. Output byte-identical.
+
+## [0.23.8]
+
+### Changed
+
+- killswitch_config.py builds its kill-switch probe reports through two shared wrappers and two sentence constants instead of nine hand-repeated strings; hook_telemetry.py's absolute-sink predicate returns its comparison directly; test_guard_decision_log.py shares its owner-only permission assertion. No behavior change.
+
 ## [0.23.7]
 
 ### Changed
@@ -1052,7 +1146,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `run-python-hook.sh` directly with `"shell": "bash"` and no `args`, which Claude Code routes
   through Git Bash instead of a `PATH` lookup. Every `${CLAUDE_PLUGIN_ROOT}` /
   `${CLAUDE_PLUGIN_DATA}` placeholder is double-quoted, so the argv is byte-identical to the
-  exec-form vector across paths containing spaces. The #1504 Python-resolution behaviour is
+  exec-form vector across paths containing spaces. The #1504 Python-resolution behavior is
   unchanged. Only the launch mechanism moves. `hooks/run-python-hook.test.sh` previously
   asserted `.command == "bash"`, encoding the defect as the contract; it now asserts the
   portability property (launcher named in `command`, no `args`, `shell: bash`, every
@@ -1175,7 +1269,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Follow-ups left open on #1806
 
-Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortisation), 6 (probe path
+Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortization), 6 (probe path
 provenance vs the guard's trusted settings channel), and 7 (run-state retention / snapshot path
 containment) stay out of this PR. Each needs a design or coupled-grammar call rather than a
 mechanical completion of the byte-qualification vertical slice. Findings 1 and 5 already shipped in
@@ -1325,10 +1419,10 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   `protected_reasons: []`. Its `logical_size` is the **remote** byte count while local occupancy is
   roughly zero, so the tree also looked like the largest reclaimable win on the volume. Deleting a
   placeholder propagates the delete to the provider, which for a tenant sync root is the
-  organisation's only copy.
+  organization's only copy.
 
   Measured on the audit host before the fix: 1,101 files walked, 872 dehydrated placeholders
-  totalling 13,770,936,008 bytes, **0 of 872** flagged by `is_linkish()`. After the fix the same
+  totaling 13,770,936,008 bytes, **0 of 872** flagged by `is_linkish()`. After the fix the same
   tree reports 842 entries carrying `cloud-placeholder` (the remaining 30 sit under subtrees an
   existing name protection already truncates), and the only entries left unprotected are the 229
   genuinely local, hydrated files.
@@ -1383,7 +1477,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
 
   Only the OneDrive class was measured. `iCloud Drive` and `Dropbox` were confirmed unprotected by
   name on the audit host, but their file attributes were never sampled, so they are protected on
-  name alone and their placeholder behaviour remains unverified. `iCloud Drive` carries the space
+  name alone and their placeholder behavior remains unverified. `iCloud Drive` carries the space
   and is the folder name Apple documents directly under the Windows user profile.
 
   Effect on the reported scenario: in a depth-1 scan of the user home, `OneDrive - <Organization>`
@@ -1457,7 +1551,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   removed before tokenizing, because the shell eats `\` + newline while reading the line and
   otherwise it stays welded to the filename as `hygiene.py\`, hiding a multi-line invocation of the
   real engine. And the basename is taken by splitting on both separators rather than with
-  `Path().name`, which is platform-flavoured: `PureWindowsPath("/x/hygiene.py\")` yields
+  `Path().name`, which is platform-flavored: `PureWindowsPath("/x/hygiene.py\")` yields
   `hygiene.py` while `PurePosixPath` keeps the backslash, so a `Path`-based predicate would gate on
   Windows and fail open on Linux.
 
@@ -1836,7 +1930,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
 ### Design note
 
 - This supersedes the planned SessionStart-hook + state-file delivery ("C′"). Both guard surfaces are the
-  same script funnelling through one resolve point, so there is nothing to distribute between sessions or
+  same script funneling through one resolve point, so there is nothing to distribute between sessions or
   surfaces: a direct read is a smaller trust surface (a settings *read*, no state-file *write*), honors a
   mid-session settings change, and needs no session-start timing dependency. Semantics are unchanged from
   the locked resolver decision: read user-scope `pluginConfigs`, ignore env, fail closed to enabled.

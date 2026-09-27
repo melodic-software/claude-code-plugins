@@ -234,7 +234,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    `kind=routed-advisory` escalation comment (step 5's marker shape and record write), so the
    routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
    label.
-3. **Admission gate.** Classify each frontier candidate and admit per the gate below. Fail-closed.
+3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
+   in-flight precondition below), then classify each remaining candidate and admit per the gate.
+   Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
    `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
@@ -310,6 +312,19 @@ dispositions bind:
 | C4 structural/contract, C5 untrusted-provenance | Human-gated / per-contract floors |
 | Unclassified | **Fail-closed human-gated** |
 
+**In-flight precondition (before any classification).** A frontier candidate that already has an
+open closing PR is work in flight, not a candidate. Apply `/work-items:work`'s "Exclude in-flight
+frontier candidates (open linked PR)" rule in
+[`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
+as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
+the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
+binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
+nor escalated, and this cycle changes none of its labels. The cycle report lists it as
+`in flight: #<item> (PR #<pr>)`, the PR number read from the same query's `number` field, or as
+`in-flight check failed: #<item>` when the query errored. `/work-items:work`'s own dispatch-time
+staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
+queued or escalated item never reaches it.
+
 Hard gates that override any classification:
 
 - **Path/topic hard gate.** An item touching dependency SHA pins, checksum or pin recomputation,
@@ -327,7 +342,7 @@ Hard gates that override any classification:
   ratified it returns to the frontier autonomous-eligible and dispatches on a later cycle, the
   ratification travels with the item, so it is never re-queued.
 
-  Queueing an unratified C3 has write mechanics of its own, and getting their order wrong leaves
+  Queuing an unratified C3 has write mechanics of its own, and getting their order wrong leaves
   the item unreachable by every later cycle and every operator view. Read
   [reference/c3-ratification-queue.md](reference/c3-ratification-queue.md) before writing either
   the comment or the labels: it owns the comment-before-labels ordering, the at-most-one
@@ -385,7 +400,9 @@ citation. This lane's specifics:
   execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
-  candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds. A cycle
+  candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
+  excluded is waiting on its PR, not on this lane, so it does not count. Otherwise the cycle is
+  idle and the counter holds. A cycle
   in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap

@@ -1,0 +1,122 @@
+{
+  "skill_name": "plugin-eval",
+  "evals": [
+    {
+      "id": 1,
+      "name": "preflight-reports-before-spending",
+      "prompt": "/evals:plugin-eval preflight plugins/evals",
+      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, platform, sandbox_backend, target_type: plugin, suite_tools, estimate_usd, and ceiling, then stops. No claude plugin eval invocation happens during a preflight.",
+      "narration": true,
+      "expectations": [
+        "Every preflight field is printed, including sandbox_backend and estimate_usd",
+        "cli_version comes from reading claude --version rather than being asserted",
+        "target_type is reported as plugin for a directory holding a plugin manifest and an eval dir",
+        "No eval run is launched and no cost is incurred by the preflight action"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "windows-refuses-bash-granting-case",
+      "prompt": "/evals:plugin-eval run ./my-plugin. One of the cases has allowed_tools: [Bash, Read] and I'm on native Windows.",
+      "expected_output": "Refuses before invoking the CLI: reports sandbox_backend: absent for native Windows, explains that each Bash-granting run would be refused rather than run unconfined so the case reports a run error and scores nothing, and names the route (WSL2, a Linux host with bubblewrap and socat, macOS, or a Claude cloud session).",
+      "narration": true,
+      "expectations": [
+        "Refuses before any claude plugin eval invocation, so no money is spent",
+        "Names the missing sandbox backend as the reason rather than a generic failure",
+        "Names at least one working route: WSL2, Linux with bubblewrap and socat, macOS, or a cloud session",
+        "Does not suggest running the suite unconfined or stripping the sandbox"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "rules-target-refused-with-pointer",
+      "prompt": "/evals:plugin-eval run .claude/rules. I want to measure whether our rules actually change the model's behavior.",
+      "expected_output": "Reports target_type: rules and refuses: every run starts from a throwaway home with CLAUDE.md, rules, settings, memory, and other plugins absent, so a shim that re-injects the rule would measure the shim. Routes to /claude-config:unhobble when the claude-config plugin is installed, and otherwise describes the bare-baseline experiment in a sentence.",
+      "narration": true,
+      "expectations": [
+        "Refuses the rules target rather than scaffolding an append_system_prompt workaround",
+        "States that the harness strips rules from every run as the reason",
+        "Routes to claude-config:unhobble behind an installed-ness gate with a stated fallback"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unlimited-prints-estimate-and-proceeds",
+      "prompt": "/evals:plugin-eval run plugins/evals. I have set the unlimited cost option, so don't stop to ask me anything.",
+      "expected_output": "Prints the cost estimate anyway (cases x runs x arms plus three judge calls per paid grader per run, carried as roughly), drops --max-cost-usd from the invocation, and starts the run with no confirmation prompt.",
+      "narration": true,
+      "expectations": [
+        "The estimate is printed even though the ceiling is unlimited",
+        "No confirmation prompt is raised before the run starts",
+        "The invocation omits --max-cost-usd rather than passing a large number"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "validator-runs-before-the-command",
+      "prompt": "/evals:plugin-eval run ./my-plugin",
+      "expected_output": "Runs the static case validator first (validate-cases.py under the plugin root, resolving to plugins/evals/skills/validate/scripts/validate-cases.py in this repository), treats exit 1 as a stop with a route to /evals:validate, and only invokes claude plugin eval with the target ahead of --json, --tag, and --allow-tools once validation passes.",
+      "narration": true,
+      "expectations": [
+        "The validator is run before any paid invocation",
+        "A validator FAIL stops the run instead of spending on broken cases",
+        "The CLI invocation puts the target before the list-taking flags"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "partial-result-not-read-as-a-score",
+      "prompt": "/evals:plugin-eval read results.json. The suite exited 2 and the JSON has partial: true with partialReason: cost_ceiling.",
+      "expected_output": "Reads partial first, reports that the suite did not finish and its scores belong in no trend, and does not report a delta or a suite score as if the run were complete.",
+      "expectations": [
+        "partial is checked before any score is reported",
+        "Names cost_ceiling as the reason the run is incomplete",
+        "Does not present a suite score or delta as a result of the run"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "skipped-graders-and-omitted-delta",
+      "prompt": "/evals:plugin-eval read results.json. Partial is false and it exited 0, but one case has no delta field and one without-run has skippedPaidGraders: true.",
+      "expected_output": "Explains that the ceiling skipped judge calls rather than runs, so a pass can end partial: false with exit 0 and one case still incomparable; reports that case as not comparable rather than reading the omitted delta as zero, and reports the other cases normally.",
+      "expectations": [
+        "The omitted delta is never reported or computed as zero",
+        "The skippedPaidGraders run is named as the reason the arms are not comparable",
+        "Explains that the ceiling skips judge calls, not runs"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "both-arms-perfect-is-a-null-result",
+      "prompt": "/evals:plugin-eval read results.json. Every case scored 1.00 with the plugin and 1.00 without it. Great result, right?",
+      "expected_output": "States that a case at 1.00 in both arms proves the plugin contributed nothing to that case: it is a passing case and a null measurement at once. Routes to grading terms the plugin's own surfaces supply, and to pairing a result grader with a process grader, rather than celebrating the score.",
+      "expectations": [
+        "Does not present a zero delta as evidence the plugin works",
+        "Explains that equal arms mean the plugin contributed nothing to those cases",
+        "Suggests a concrete authoring fix rather than only naming the problem"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "skill-creator-format-routed-elsewhere",
+      "prompt": "/evals:plugin-eval validate my skill's evals/evals.json before I run it.",
+      "expected_output": "Names the format boundary: evals/evals.json is the skill-creator format and is not interchangeable with the plugin eval case layout, so it routes to /skill-quality:check validate-evals when the skill-quality plugin is installed and states the fallback when it is not; it does not run the plugin eval case validator against it.",
+      "expectations": [
+        "Distinguishes the skill-creator evals.json format from the case format this skill runs",
+        "Routes to skill-quality:check validate-evals behind an installed-ness gate",
+        "Does not claim to validate or run the evals.json file itself"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "natural-language-trigger",
+      "prompt": "I rewrote the description on one of our skills and I want to know whether the model actually picks it up now, and whether that change made anything worse. We have a plugin with some eval cases already.",
+      "expected_output": "Triggers from natural language with no slash command: routes to preflight and the run flow, explains that the with-versus-without delta is the number that answers the question, and names the canonical first finding (a delta near zero with the tool_used: Skill grader failing means the description, not the case, is the fix).",
+      "expectations": [
+        "Triggers without the user typing /evals:plugin-eval",
+        "Starts from preflight and the cost estimate rather than invoking the CLI immediately",
+        "Frames the answer as the ablation delta rather than an absolute score"
+      ]
+    }
+  ]
+}

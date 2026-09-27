@@ -14,9 +14,13 @@
 # Cross-platform: uses grep -E (POSIX ERE) only — no grep -P (macOS lacks it).
 #
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
-# repo's concern); a generic allowlist exempts dependency caches, .env
-# examples, test fixtures, and machine-local CC state. Disable entirely with
-# the secret_pattern_detection_enabled userConfig option set to false.
+# repo's concern) only when that root is a git work tree that is not home or an
+# ancestor of home; any other root scans every write, as if unset. A file under
+# a host temp tree is declined when a set root lies outside that tree, no wider
+# than block-hook-bypass's temp default (see spd_temp_declines). A generic
+# allowlist exempts dependency caches, .env examples, test fixtures, and
+# machine-local CC state. Disable entirely with the
+# secret_pattern_detection_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -84,25 +88,32 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
-# runs on every Write/Edit/NotebookEdit. All three per-tool content fields are
-# fetched together because selecting between them would cost a second process;
+# runs on every Write/Edit/NotebookEdit. Every per-tool target and content field
+# is fetched together because selecting between them would cost a second process;
 # jq reads the same envelope either way, and the tool-specific choice happens
-# below in the shell. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
-# case did — hook::require_jq above has already made the degraded state visible
-# once per session.
+# below in the shell. NotebookEdit's target is `notebook_path`, appended last so
+# the MCP lane's indices (2, 5) do not move. Failure semantics are unchanged: a
+# missing jq or an unparsable payload yields rc 1 here, which exits 0 exactly as
+# the empty-TOOL case did; hook::require_jq above has already made the degraded
+# state visible once per session.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
-  '.tool_input.path' || exit 0
+  '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
-# text across the byte, so a clean scan would not reflect the bytes carried.
-if ((HOOK_JQ_FIELDS_NUL)); then
+# text across the byte, so a clean scan would not reflect the bytes carried. One
+# refusal, reached from the envelope below and from each file of the MCP lane, so
+# the two cannot drift to different wording or a different posture.
+secret_nul_refusal() {
   echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
   echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
   echo "Fix: reissue the tool call without the embedded NUL." >&2
   exit 2
+}
+
+if ((HOOK_JQ_FIELDS_NUL)); then
+  secret_nul_refusal
 fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
@@ -127,6 +138,33 @@ secret_path_allowlisted() {
   *.claude/skills/*/completed/*) return 0 ;;
   *) return 1 ;; # proceed to content check
   esac
+}
+
+# Scan <content> for secret patterns. The report lands in the caller's $scan_out
+# (empty means clean) and each pattern label is APPENDED to the caller's $labels,
+# so the MCP lane accumulates labels across the files of one tool call. Callers
+# read $scan_out rather than a status, the same write-into-a-variable shape the
+# library's own `_to` helpers use.
+#
+# secrets::scan_text's exit status is lost inside `$()` because the trailing
+# `printf x` sentinel is what `$()` reports; the sentinel is also what keeps a
+# trailing newline `$()` would otherwise strip, the same pattern as
+# hardcoded-path-check.
+#
+# Call as: secret_scan <content> -> $scan_out $labels
+# shellcheck disable=SC2154  # scan_out and labels are the caller's frame, per the call contract
+secret_scan() {
+  local line
+  scan_out=$(
+    secrets::scan_text "$1"
+    printf x
+  )
+  scan_out=${scan_out%x}
+  [[ -n "$scan_out" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    labels+=("${line%% (line *}")
+  done < <(printf '%s' "$scan_out")
 }
 
 # Scan every file a GitHub MCP write carries, and block the whole tool call if
@@ -155,7 +193,7 @@ mcp_lane() {
   # the array this function was reached through.
   local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
 
-  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+  if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
     count="${HOOK_JQ_FIELDS[0]}"
     # A payload whose files array is absent or unreadable carries nothing this
@@ -164,7 +202,7 @@ mcp_lane() {
   fi
 
   for ((i = 0; i < count; i++)); do
-    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    if [[ "$TOOL" == *__push_files ]]; then
       # One jq process per file, on a lane that fires only on a GitHub MCP write
       # — never on the Write/Edit path this guard runs on for every keystroke of
       # authored content. Reusing hook::jq_fields rather than hand-rolling an
@@ -180,28 +218,17 @@ mcp_lane() {
     # Same fail-closed posture as the envelope: a NUL in scanned content means a
     # clean scan would not reflect the bytes carried.
     if ((HOOK_JQ_FIELDS_NUL)); then
-      echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
-      echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
-      echo "Fix: reissue the tool call without the embedded NUL." >&2
-      exit 2
+      secret_nul_refusal
     fi
 
     [[ -n "$path" && -n "$content" ]] || continue
     secret_path_allowlisted "${path//\\//}" && continue
 
-    scan_out=$(
-      secrets::scan_text "$content"
-      printf x
-    )
-    scan_out=${scan_out%x}
+    secret_scan "$content"
     [[ -n "$scan_out" ]] || continue
 
     [[ -n "$first_offender" ]] || first_offender="$path"
     violations+="$path:"$'\n'"$scan_out"$'\n'
-    while IFS= read -r _vline || [[ -n "$_vline" ]]; do
-      [[ -n "$_vline" ]] || continue
-      labels+=("${_vline%% (line *}")
-    done < <(printf '%s' "$scan_out")
   done
 
   [[ -n "$violations" ]] || return 0
@@ -240,7 +267,10 @@ Write | Edit | NotebookEdit) IS_MCP=0 ;;
 # repo, path, message and branch, and NO content. There is nothing for a content
 # guard to scan, and a delete cannot introduce a secret. Naming it here would
 # claim coverage that consists of skipping every call.
-mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
+mcp__github__push_files | mcp__github__create_or_update_file | \
+  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
 
@@ -252,7 +282,10 @@ if ((IS_MCP)); then
   exit 0
 fi
 
+# NotebookEdit sends its target as notebook_path; file_path is read only when
+# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
+[[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
 
 NORM_FILE=""
@@ -268,12 +301,74 @@ ALLOW_FILE="${FILE//\\//}"
 
 # --- Scope guard: police only files inside THIS project ---
 # A PreToolUse Write|Edit hook fires on every file write regardless of which
-# repo the target lives in. A file outside the project root is not ours to scan
-# — that repo owns its own secret policy. Fail CLOSED: when the root cannot be
+# repo the target lives in. A file outside the project root is not ours to scan:
+# that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
+#
+# A SET root is honored only when it names a project; otherwise it is cleared
+# and treated as unset, which only scans more. Claude Code sets the variable to
+# the session's start directory, which may be home or any folder. Cleared:
+#   - a relative root, or one spelled with `//`, `/./`, `/../`, a trailing `/.`
+#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): such a root cannot be
+#     compared with the file path as a string.
+#   - a root that is not a git work tree: its .git holds HEAD, or is a file
+#     whose first line is `gitdir:` (a linked worktree or submodule).
+#   - a root when neither HOME nor USERPROFILE is set: home is unknown.
+#   - home, or an ancestor of home, as a string or as the same directory under
+#     another path (a link, a case or drive spelling): it contains every other
+#     checkout on the machine. The ancestors walked are those of home as
+#     spelled, not of a symlinked home's resolved target.
+# Every test is a builtin, so the check stays fork-free.
+# The temp-tree decline below reads CLAUDE_PROJECT_DIR directly, so a root
+# cleared here (home, non-git) still declines a temp-tree file outside it,
+# as block-hook-bypass exempts the same redirect.
+spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
+spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
-hook::normalize_path_to PROJECT_DIR "${CLAUDE_PROJECT_DIR:-}"
-PROJECT_DIR="${PROJECT_DIR%/}"
+if [[ -n "$spd_scope_root" ]]; then
+  spd_keep=1
+  case "$spd_scope_root" in
+  *//* | */./* | */../* | */. | */.. | *~*) spd_keep=0 ;;
+  /* | [A-Za-z]:/*) ;;
+  *) spd_keep=0 ;;
+  esac
+  spd_scope_root="${spd_scope_root%/}"
+  if ((spd_keep)); then
+    spd_keep=0
+    if [[ -e "$spd_scope_root/.git/HEAD" ]]; then
+      spd_keep=1
+    elif [[ -f "$spd_scope_root/.git" ]]; then
+      spd_gitline=""
+      { IFS= read -r spd_gitline <"$spd_scope_root/.git"; } 2>/dev/null || :
+      [[ "$spd_gitline" == gitdir:* ]] && spd_keep=1
+    fi
+  fi
+  hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
+  spd_home=""
+  hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
+  [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]] && spd_keep=0
+  # Each home candidate and each of its parents, compared as a directory. The
+  # walk drops one path component per step, so it ends within the path's depth.
+  spd_prev=""
+  for spd_h in "${HOME:-}" "${USERPROFILE:-}"; do
+    ((spd_keep)) || break
+    [[ -n "$spd_h" && "$spd_h" != "$spd_prev" ]] || continue
+    spd_prev="$spd_h"
+    spd_h="${spd_h//\\//}"
+    spd_h="${spd_h%/}"
+    while [[ "$spd_h" == */* ]]; do
+      if [[ "$spd_scope_root" -ef "$spd_h" ]]; then
+        spd_keep=0
+        break
+      fi
+      spd_h="${spd_h%/*}"
+    done
+  done
+  if ((spd_keep == 0)); then
+    spd_scope_root=""
+    PROJECT_DIR=""
+  fi
+fi
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
   "$PROJECT_DIR"/*) ;; # inside the project — proceed
@@ -292,6 +387,152 @@ fi
 #   - CC skill context/completed: research notes; code review is the backstop
 secret_path_allowlisted "$ALLOW_FILE" && exit 0
 
+# --- Temp-tree decline, no wider than block-hook-bypass's temp default ---
+# block-hook-bypass exempts a Bash redirect into a host temp tree when the
+# project root is known and outside that tree. The gate below is never wider than that exemption: root set, spelled as its _norm_path
+# accepts, and under temp neither lexically nor physically; target under temp
+# both as spelled and once its nearest existing ancestor is physically resolved,
+# so a link under temp pointing elsewhere is still scanned. Everything up to
+# the resolve step is a builtin, so a target with no temp-looking component
+# spawns no resolver process.
+
+spd_win=0
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) spd_win=1 ;;
+*) ;; # POSIX host
+esac
+
+# spd_lower_to <var> <text>: <text> lowercased into <var>. Defined through eval
+# and only on Bash 4+, so a 3.2 shell never parses the `,,` expansion.
+if ((BASH_VERSINFO[0] >= 4)); then
+  eval 'spd_lower_to() { printf -v "$1" "%s" "${2,,}"; }'
+fi
+
+# spd_under_temp <path>: hook::under_temp_root, and on a POSIX host also on the
+# lowercased spelling, because block-hook-bypass compares a lowercased target
+# with candidates that keep their case. On Windows the library's normalization
+# already folds case. Below Bash 4 a spelling with a capital is refused instead.
+spd_under_temp() {
+  local lower
+  hook::under_temp_root "$1" || return 1
+  ((spd_win)) && return 0
+  if ((BASH_VERSINFO[0] < 4)); then
+    [[ "$1" != *[[:upper:]]* ]]
+    return
+  fi
+  spd_lower_to lower "$1"
+  hook::under_temp_root "$lower"
+}
+
+# spd_nearest_existing <absolute path>: its nearest existing ancestor in
+# spd_ancestor and the components below it in spd_sfx; returns 1 when none exists.
+# A strip that does not shorten the string ends the walk, so a spelling such as
+# `Z:` terminates. `-e` on a disconnected mapped drive may stall; it is reached
+# only after the lexical pre-match hit.
+spd_ancestor=""
+spd_sfx=""
+spd_nearest_existing() {
+  local p="$1" prev=""
+  spd_ancestor=""
+  spd_sfx=""
+  while [[ -n "$p" && "$p" != "$prev" ]]; do
+    if [[ -e "$p" || -L "$p" ]]; then
+      spd_ancestor="$p"
+      return 0
+    fi
+    prev="$p"
+    spd_sfx="/${p##*/}$spd_sfx"
+    p="${p%/*}"
+  done
+  spd_sfx=""
+  return 1
+}
+
+# spd_temp_declines <file_path>: 0 when the write is declined.
+spd_temp_declines() {
+  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
+  # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
+  # and `/c/x` to other places than Git Bash does, so only a drive spelling may
+  # decline there. On POSIX `\` is a filename byte, never a separator, and below
+  # Bash 4 a capital cannot be folded to compare as block-hook-bypass does.
+  if ((spd_win)); then
+    t="${t//\\//}"
+    r="${r//\\//}"
+    [[ "$t" == [A-Za-z]:/?* ]] || return 1
+  else
+    [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
+    ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
+  fi
+  # Only a spelling a Bash redirect could carry as a BARE operand may decline:
+  # block-hook-bypass never exempts a quoted, escaped or opaque target, so a
+  # character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`, `>`,
+  # parens, `#`, `$`, a backtick, a glob character) refuses here. An allowlist,
+  # so an unlisted character scans. `~` is refused as block-hook-bypass's
+  # _norm_path refuses it, and unnormalized segments are refused below.
+  [[ "$t" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
+  case "$t" in
+  *//* | */./* | */../* | */. | */..) return 1 ;;
+  *) ;; # a normalized spelling
+  esac
+  # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
+  # temp candidate's spelling. It may over-match (costing resolver processes)
+  # and never decides alone.
+  hook::_temp_root_candidates
+  shopt -q nocasematch && nocase=1
+  shopt -s nocasematch
+  case "$t" in
+  */tmp/* | */temp/*) hit=1 ;;
+  *) ;; # try the candidates' spellings below
+  esac
+  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+    ((hit)) && break
+    hook::normalize_path_to norm "$cand"
+    norm="${norm%/}"
+    [[ -n "$norm" && "$t" == "$norm"/* ]] && hit=1
+  done
+  ((nocase)) || shopt -u nocasematch
+  ((hit)) || return 1
+  # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
+  # unnormalized ones and a filesystem or drive root.
+  [[ -n "$r" ]] || return 1
+  case "$r" in
+  *'$'* | *'`'* | *~* | *'*'* | *'?'* | *'['* | *//* | */./* | */../* | */. | */..) return 1 ;;
+  *) ;; # a normalized spelling
+  esac
+  if ((spd_win)); then
+    [[ "$r" == /?* || "$r" == [A-Za-z]:/?* ]] || return 1
+  else
+    [[ "$r" == /?* ]] || return 1
+  fi
+  r="${r%/}"
+  ((spd_win)) && [[ "$r" == /[A-Za-z] ]] && return 1
+  # 4-5. Root not under temp, as spelled or physically. Only directories enter
+  # the resolver cache: the root's existing ancestor and the temp candidates.
+  spd_nearest_existing "$r" && ranc="$spd_ancestor"
+  rsfx="$spd_sfx"
+  hook::_physical_prime ${ranc:+"$ranc"} ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+  hook::under_temp_root "$r" && return 1
+  if [[ -n "$ranc" ]]; then
+    hook::_physical_cached_to phys "$ranc" || return 1
+    hook::under_temp_root "${phys%/}$rsfx" && return 1
+  fi
+  # 6. Target under temp as spelled.
+  spd_under_temp "$t" || return 1
+  # A hard link resolves to itself, so a temp-tree name for a file stored
+  # elsewhere passes every path test: an existing file with a second link, or
+  # whose link count cannot be read, is scanned.
+  if [[ -f "$t" ]]; then
+    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
+    [[ "$links" == 1 ]] || return 1
+  fi
+  # 7. Target under temp physically, resolved without the cache so the file's
+  # own path never enters it.
+  spd_nearest_existing "$t" || return 1
+  hook::physical_path_to phys "$spd_ancestor" || return 1
+  spd_under_temp "${phys%/}$spd_sfx"
+}
+spd_temp_declines "$FILE" && exit 0
+
 # --- Extract content to check ---
 case "$TOOL" in
 Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
@@ -299,7 +540,7 @@ Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
 NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
 *) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
 esac
-[[ -n "${CONTENT:-}" ]] || exit 0
+[[ -n "$CONTENT" ]] || exit 0
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,
@@ -311,12 +552,14 @@ emit_tel() {
   # The helper carries the redaction: a path it could not make repo-relative
   # comes back as the basename, never an absolute path (which would embed the
   # developer's username) and never a UNC share (which would name an internal
-  # host). CLAUDE_PROJECT_DIR is the anchor the envelope itself carries, so
-  # data.file is expressed against that same root when it is set. This hook
-  # deliberately scans on WITHOUT one (the scope guard above falls through
-  # rather than skipping), and an unanchored path can only degrade to a bare
-  # basename, so resolve the file's own checkout for that case.
-  local file_rel root="${CLAUDE_PROJECT_DIR:-}"
+  # host). data.file is anchored on the root the scope guard validated, so it
+  # is repo-relative to the project when that root was honored. When the root
+  # was unset or cleared as untrustworthy, the hook scans on without one, and
+  # an unanchored path can only degrade to a bare basename, so resolve the
+  # file's own checkout for that case. The envelope's project-dir argument
+  # stays the raw CLAUDE_PROJECT_DIR: it records what the harness set, not
+  # what this guard decided to honor.
+  local file_rel root="$spd_scope_root"
   # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
   # is a fork per call on Windows Git Bash and this guard runs on every write.
   # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
@@ -325,11 +568,8 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # The helper strips "$root/", so a root that already ends in a separator
-  # makes the prefix "/repo//" and matches nothing: every in-project file
-  # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
-  # a trailing slash is a supported spelling, so trim it here. The copy this
-  # replaced did the same, and hook::repo_root never returns one.
+  # hook::repo_root_to returns the hint unchanged when git finds no repo, and
+  # the hint ends in "/" for a root-level file; the helper strips "$root/".
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"
@@ -343,34 +583,22 @@ emit_tel() {
 # --- High-confidence secret patterns (shared lib) ---------------------------
 # Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
 # pre-commit content-invariants hook enforces the same set (#2731).
-LABELS=()
-
-# Capture stdout; empty means clean (secrets::scan_text's exit status is lost
-# inside `$()` because the trailing `printf x` sentinel is what `$()` reports —
-# same trailing-newline-strip pattern as hardcoded-path-check).
-_secret_out=$(
-  secrets::scan_text "$CONTENT"
-  printf x
-)
-_secret_out=${_secret_out%x}
-if [[ -z "$_secret_out" ]]; then
+labels=()
+scan_out=""
+secret_scan "$CONTENT"
+if [[ -z "$scan_out" ]]; then
   emit_tel "ok" '[]'
   exit 0
 fi
-VIOLATIONS="$_secret_out"
-while IFS= read -r _vline || [[ -n "$_vline" ]]; do
-  [[ -n "$_vline" ]] || continue
-  LABELS+=("${_vline%% (line *}")
-done < <(printf '%s' "$VIOLATIONS")
 
 # --- Report violations ---
 {
   printf 'Secret/credential pattern(s) detected in %s:\n\n' "$FILE"
-  printf '%s\n' "$VIOLATIONS"
+  printf '%s\n' "$scan_out"
   printf 'If this is a test fixture or example, add the file to the allowlist\n'
   printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
   printf 'environment variables, settings.local.json, or a secret manager.\n'
 } >&2
-labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
 emit_tel "blocked" "$labels_json"
 exit 2

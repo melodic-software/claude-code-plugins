@@ -79,6 +79,8 @@ the section's line form. The script writes all of it. Omit `tier:`,
 - Files scanned, zero findings → write anyway with the empty `## Findings` header: coverage is
   the payload.
 - Nothing scanned (empty target set, everything excluded) → write nothing; say so in the report.
+- Any target outside a repository (SKILL.md "Non-repository targets") → write nothing, on the
+  audit and on a re-run after `fix`.
 
 ## Re-running
 

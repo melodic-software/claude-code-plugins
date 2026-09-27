@@ -65,6 +65,22 @@ tmpsh() {
   printf '%s' "$f"
 }
 
+# expect_all_detected <tokens-file>: reads one fixture body per line from stdin
+# and asserts each one is reported. The loop variables are deliberately not
+# `local`, because `case` is a reserved word and `f`/`out` are the scratch
+# globals every case around this helper writes.
+expect_all_detected() {
+  while IFS= read -r case; do
+    f="$(tmpsh "$case")"
+    if out="$(scan_paths "$1" "$f" 2>&1)"; then
+      fail "[$case] should fail, got success: $out"
+    else
+      ok "[$case] is detected"
+    fi
+    rm -f "$f"
+  done
+}
+
 # =============================================================================
 # Regex-escape classes (\b \< \> \s \S \w \W) — the exact near-miss family.
 # =============================================================================
@@ -78,7 +94,7 @@ tok="$(one_token_list '\\b')"
 f="$(tmpsh "grep -Eq '\\brequire\\b' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "literal \\\\b in a grep pattern should fail, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "literal \\\\b in a grep pattern is detected (not silently inert)"
 else
   fail "expected PORTABILITY with file:line, got: $out"
@@ -102,7 +118,7 @@ f="$(tmpsh "PAT=\"\\brequire\\b\"
 grep -Eq \"\$PAT\" \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a \\\\b pattern assigned to a variable should fail, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "a \\\\b pattern built in a variable and used later is detected"
 else
   fail "expected PORTABILITY on the assignment line, got: $out"
@@ -134,7 +150,7 @@ for esc in '\\s' '\\S' '\\w' '\\W' '\\<' '\\>'; do
   f="$(tmpsh "sed -E 's/${esc}foo${esc}/bar/' \"\$file\"")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
     fail "literal $esc should fail, got success: $out"
-  elif echo "$out" | grep -q "PORTABILITY:"; then
+  elif grep -q "PORTABILITY:" <<<"$out"; then
     ok "literal $esc is detected"
   else
     fail "expected PORTABILITY for $esc, got: $out"
@@ -185,15 +201,7 @@ rm -f "$f" "$tok"
 # operator, redirection, subshell close or quote must still be detected
 # (#1537; a whitespace-only boundary would miss these) ----------------------
 tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(grep -P)
 grep -P|head -n1
 grep -P; echo done
@@ -224,15 +232,7 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms (#1537) --------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(echo -e)
 echo -e|cat
 echo -e; echo done
@@ -261,15 +261,7 @@ rm -f "$f"
 # --- operator-terminated forms: no trailing whitespace before a control
 # operator, redirection, subshell close or quote must still be detected
 # (#1537; a whitespace-only boundary would miss exactly these three forms) --
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sort -V)
 sort -V|head -n1
 sort -V; echo done
@@ -294,15 +286,7 @@ tok="$(one_token_list 'sort[^;&|\n]*[[:space:]]['"'"'"]?--sort['"'"'"]?(=|[[:spa
 # option word rather than just its value -- the shell hands GNU sort the same
 # argument either way, so a pattern demanding whitespace immediately before
 # `--sort` reported these clean. -------------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 sort --sort=version "$file"
 sort --sort version "$file"
 sort --sort='version' "$file"
@@ -615,7 +599,7 @@ CASES
 # --- an ARGUMENT-taking letter does not build an option cluster: GNU accepts
 # -e's script attached, so `sed -ei` passes the script 'i' and edits nothing in
 # place. A letter outside the documented set is an unknown option sed rejects,
-# so neither shape has GNU-only behaviour to report. -------------------------
+# so neither shape has GNU-only behavior to report. -------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -777,15 +761,7 @@ rm -f "$f"
 # as #1537's sort -V/grep -P/echo -e forms). Quotes
 # are NOT in this token's boundary (unlike the sibling tokens above) — see
 # the "sed -Ei'' must not be flagged" test above for why. --------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sed -Ei)
 sed -Ei|cat
 sed -Ei; echo done
@@ -821,15 +797,7 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms (#1545) --------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sed --in-place)
 sed --in-place|cat
 sed --in-place; echo done
@@ -1136,7 +1104,7 @@ amp_fires() {
   f="$(tmpsh "$body")"
   if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
     fail "$label should fire, got success: $out"
-  elif echo "$out" | grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand"; then
+  elif grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand" <<<"$out"; then
     ok "$label fires"
   else
     fail "$label: expected the & class at file:line, got: $out"
@@ -1253,7 +1221,7 @@ amp_fires 'a bare & after a process substitution in the replacement' \
 amp_fires 'a bare & replacement after a process substitution in the pattern' \
   'v="${v//<(cmd1 && cmd2)/&}"'
 
-# --- the class honours the SAME escapes every other class does -------------
+# --- the class honors the SAME escapes every other class does -------------
 f="$(tmpsh 'v="${v//X/&}" # portability-ok: the sed-rule expansion is what this line wants')"
 if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
   ok "a same-line portability-ok excuses an & hit"
@@ -1290,7 +1258,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'msg="opened here\nv=${v//X/&}"\n' >"$f"
 if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
   fail "an & hit on the second physical line should fire, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:2: !subst-replacement-ampersand"; then
+elif grep -q "PORTABILITY: ${f}:2: !subst-replacement-ampersand" <<<"$out"; then
   ok "an & hit inside a joined record is attributed to its own physical line"
 else
   fail "expected the & hit at line 2 of the joined record, got: $out"
@@ -1360,7 +1328,7 @@ rm -f "$f" "$tok"
 f="$(tmpsh 'normalized="${normalized//"$soh"/&}"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the shipped token list must flag the & class, got success: $out"
-elif echo "$out" | grep -q "!subst-replacement-ampersand"; then
+elif grep -q "!subst-replacement-ampersand" <<<"$out"; then
   ok "the shipped token list has the & class active"
 else
   fail "expected the & class from the shipped list, got: $out"
@@ -1396,7 +1364,7 @@ plain_line=1
 grep -Eq "\\bbar\\b" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "annotation should not sanction a later hit, got success: $out"
-elif echo "$out" | grep -q ":4:" && ! echo "$out" | grep -q ":2:"; then
+elif grep -q ":4:" <<<"$out" && ! grep -q ":2:" <<<"$out"; then
   ok "annotation covers line 2 only and does not leak past intervening code"
 else
   fail "expected line 4 flagged and line 2 clean, got: $out"
@@ -1424,7 +1392,7 @@ f="$(tmpsh '# This script supports a whole-file portability-scope: <reason> decl
 grep -Eq "\\bfoo\\b" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a doc-comment merely mentioning portability-scope: should not exempt the file, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+elif grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "a doc-comment mentioning portability-scope: (not a genuine declaration) does not exempt the file"
 else
   fail "expected line 2 flagged (not exempted), got: $out"
@@ -1435,7 +1403,7 @@ f="$(tmpsh 'msg="see portability-scope: docs for details"
 grep -Eq "\\bfoo\\b" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a string literal mentioning portability-scope: should not exempt the file, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+elif grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "a string literal mentioning portability-scope: (not a comment) does not exempt the file"
 else
   fail "expected line 2 flagged (not exempted), got: $out"
@@ -1465,7 +1433,7 @@ fixture_tree::build fx --sut "$SCRIPT"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY: FOO=bar\.sh:1:'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'PORTABILITY: FOO=bar\.sh:1:' <<<"$out"; then
   ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
 else
   fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
@@ -1491,13 +1459,13 @@ cp "$tok" "$fx/plain-tokens.txt"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/plain.sh"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="t=custom.txt" bash scripts/check-shell-portability.sh --paths "plain.sh" 2>&1)"
 rc=$?
-if [[ "$rc" -eq 1 ]] && echo "$out" | grep -q 'PORTABILITY: plain\.sh:1:'; then
+if [[ "$rc" -eq 1 ]] && grep -q 'PORTABILITY: plain\.sh:1:' <<<"$out"; then
   ok "a token list shaped like identifier=value still loads its patterns"
 else
   fail "an identifier=value-shaped token list must not silently disable the gate (rc=$rc): $out"
 fi
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="plain-tokens.txt" bash scripts/check-shell-portability.sh --paths "plain.sh" 2>&1)"
-if [[ "$?" -eq 1 ]] && echo "$out" | grep -q 'PORTABILITY: plain\.sh:1:'; then
+if [[ "$?" -eq 1 ]] && grep -q 'PORTABILITY: plain\.sh:1:' <<<"$out"; then
   ok "the same fixture flags through an ordinary token path (guard is discriminating)"
 else
   fail "control case did not flag; the token-list assertion above is not discriminating"
@@ -1568,10 +1536,10 @@ printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/eva
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1)"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
-  echo "$out" | grep -q 'gate.sh' &&
-  echo "$out" | grep -q 'SKILL\.md' &&
-  echo "$out" | grep -q 'context/run\.md' &&
-  ! echo "$out" | grep -qE 'vendor/|notes\.md|evals/'; then
+  grep -q 'gate.sh' <<<"$out" &&
+  grep -q 'SKILL\.md' <<<"$out" &&
+  grep -q 'context/run\.md' <<<"$out" &&
+  ! grep -qE 'vendor/|notes\.md|evals/' <<<"$out"; then
   ok "--all scans .sh and skill .md but excludes vendor/, evals/, and non-skill .md"
 else
   fail "--all exclusion set wrong (rc=$rc): $out"
@@ -1600,7 +1568,7 @@ out="$(
     SHELL_PORTABILITY_TOKENS="$(one_token_list 'stat[[:space:]]+-c')" bash scripts/check-shell-portability.sh "$base" 2>&1
 )"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'mtime\.md'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'mtime\.md' <<<"$out"; then
   ok "diff-mode gates a changed skill markdown file (#2704)"
 else
   fail "diff-mode should flag changed skill .md (rc=$rc): $out"
@@ -1617,7 +1585,7 @@ out="$(
     SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
 )"
 rc=$?
-if [[ "$rc" -eq 0 ]] && echo "$out" | grep -q 'No unexcused'; then
+if [[ "$rc" -eq 0 ]] && grep -q 'No unexcused' <<<"$out"; then
   ok "skill-md baseline grandfathers a known hit under --all"
 else
   fail "baselined skill .md should pass --all (rc=$rc): $out"
@@ -1628,7 +1596,7 @@ out="$(
       plugins/alpha/skills/demo/SKILL.md 2>&1
 )"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY:.*SKILL\.md'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'PORTABILITY:.*SKILL\.md' <<<"$out"; then
   ok "--paths ignores the skill-md baseline (audit mode)"
 else
   fail "--paths should still flag a baselined file (rc=$rc): $out"
@@ -1640,7 +1608,7 @@ out="$(
     SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
 )"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'STALE BASELINE'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'STALE BASELINE' <<<"$out"; then
   ok "a cleaned-up skill-md baseline entry fails as stale"
 else
   fail "stale baseline entry should fail (rc=$rc): $out"
@@ -1652,7 +1620,7 @@ out="$(
     SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
 )"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q "names a missing file"; then
+if [[ "$rc" -ne 0 ]] && grep -q "names a missing file" <<<"$out"; then
   ok "a missing skill-md baseline entry fails as stale under --all"
 else
   fail "missing baseline entry should fail under --all (rc=$rc): $out"
@@ -1670,7 +1638,7 @@ out="$(
     SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all 2>&1
 )"
 rc=$?
-if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'outside the scannable skill-md set'; then
+if [[ "$rc" -ne 0 ]] && grep -q 'outside the scannable skill-md set' <<<"$out"; then
   ok "a vendor/-moved skill-md baseline entry fails as outside-scannable"
 else
   fail "outside-scannable baseline entry should fail (rc=$rc): $out"
@@ -1693,7 +1661,7 @@ out="$(
 )"
 rc=$?
 if [[ "$rc" -ne 0 ]] &&
-  echo "$out" | grep -q 'plain.sh:1:' &&
+  grep -q 'plain.sh:1:' <<<"$out" &&
   [[ "$(echo "$out" | grep -c 'PORTABILITY:')" -eq 2 ]]; then
   ok "diff-mode gates a Git-quoted (non-ASCII) changed path (not silently dropped)"
 else
@@ -1851,7 +1819,7 @@ f="$(tmpsh "$(printf '%s\n' \
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "sort long forms should fail under the shipped list, got success: $out"
 elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
-  ! echo "$out" | grep -q "PORTABILITY: ${f}:6:"; then
+  ! grep -q "PORTABILITY: ${f}:6:" <<<"$out"; then
   ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
 else
   fail "expected hits on lines 1-5 only, got: $out"
@@ -2526,9 +2494,9 @@ f="$(tmpsh "$(printf '%s\n' \
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a continued GNU-only invocation should fail, got success: $out"
 elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]] &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:1:" &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:3:" &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:5:"; then
+  grep -q "PORTABILITY: ${f}:1:" <<<"$out" &&
+  grep -q "PORTABILITY: ${f}:3:" <<<"$out" &&
+  grep -q "PORTABILITY: ${f}:5:" <<<"$out"; then
   ok "a backslash-continued invocation is matched as one command at its first line"
 else
   fail "expected hits at lines 1, 3 and 5, got: $out"
@@ -2542,7 +2510,7 @@ f="$(tmpsh "$(printf '%s\n' \
   "  -d @0 \\")")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a trailing continued command should fail, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "a continuation left open at end of file is still scanned"
 else
   fail "expected the buffered command reported at line 1, got: $out"
@@ -2557,7 +2525,7 @@ f="$(tmpsh "$(printf '%s\n' \
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the command under a backslash-ended comment should fail, got success: $out"
 elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "a trailing backslash in a comment does not continue into the next line"
 else
   fail "expected exactly the line-2 call reported, got: $out"
@@ -2572,7 +2540,7 @@ f="$(tmpsh "$(printf '%s\n' \
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the standalone date -d should fail, got success: $out"
 elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "an escaped backslash at end of line is not a line continuation"
 else
   fail "expected exactly the line-2 call reported, got: $out"
@@ -2600,7 +2568,7 @@ f="$(tmpsh "$(printf '%s\n' \
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the command under a backslash-ended inline comment should fail, got success: $out"
 elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
-  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "a trailing backslash in an INLINE comment does not continue into the next line"
 else
   fail "expected exactly the line-2 call reported, got: $out"
@@ -2789,7 +2757,7 @@ rm -f "$f"
 # --- admitting a group opener must not weaken what the guard demands INSIDE it:
 # the fallback still has to be the command the group runs first, not merely a
 # string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
-# fallback across a `;` is the line-wide behaviour the per-occurrence anchoring
+# fallback across a `;` is the line-wide behavior the per-occurrence anchoring
 # replaced, and widening it back is not worth a contrived spelling.
 f="$(tmpsh "$(printf '%s\n' \
   "stat -c '%s' \"\$f\" || { echo 'stat -f is unavailable'; }" \
@@ -2929,7 +2897,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'stat %s\nbar%s -c %%s\n' "'foo" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a quoted newline should not hide the option, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "a quoted word spanning physical lines still reaches its option"
 else
   fail "expected the hit at line 1, got: $out"
@@ -2942,8 +2910,8 @@ rm -f "$f"
 f="$(mktemp --suffix=.sh)"
 printf 'x=%sopen\nstat -c %%s "$f"\ndate -d @0 +%%s # portability-ok: fixture\nclose%s\n' "'" "'" >"$f"
 out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
-if echo "$out" | grep -q "PORTABILITY: ${f}:2:" &&
-  ! echo "$out" | grep -q "PORTABILITY: ${f}:3:"; then
+if grep -q "PORTABILITY: ${f}:2:" <<<"$out" &&
+  ! grep -q "PORTABILITY: ${f}:3:" <<<"$out"; then
   ok "a joined record reports per physical line and scopes its annotation there"
 else
   fail "expected line 2 flagged and line 3 excused, got: $out"
@@ -3059,7 +3027,7 @@ rm -f "$TOK" "$f"
 
 # =============================================================================
 # The scanner engine as a file -- scripts/lib/shell-portability-scan.awk.
-# Everything above drives it THROUGH the gate, which is where its behaviour is
+# Everything above drives it THROUGH the gate, which is where its behavior is
 # pinned. These three cases address the program itself: that it compiles, that
 # its two-operand interface is the whole interface, and that the gate refuses
 # to run without it.
@@ -3329,7 +3297,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'v=$(true  # note\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a ladder inside a comment's shadow should fire, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+elif grep -q "PORTABILITY: ${f}:2:" <<<"$out"; then
   ok "an inline comment keeps masking across a join, so its || is not a guard"
 else
   fail "expected the line-2 call reported, got: $out"
@@ -3359,7 +3327,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'a="${x//p/&} one\n${y//q/${z//r/&}} two"\n' >"$f"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "an & in a joined record should fire, got success: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand"; then
+elif grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand" <<<"$out"; then
   ok "an expansion closed before the commit point is still reported, at line 1"
 else
   fail "expected the earliest & frame reported at line 1, got: $out"
@@ -3375,7 +3343,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'stat -c %%s "$f" $(( (1 +\n2)) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a || inside an unterminated arithmetic expansion should not guard: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "an inner ( ) open across a join keeps the arithmetic expansion open"
 else
   fail "expected the line-1 call reported, got: $out"
@@ -3397,7 +3365,7 @@ f="$(mktemp --suffix=.sh)"
 printf 'stat -c %%s "$f" $(printf %%s $(( (1 +\n2)) ) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested arithmetic frame should keep its depth across the join: $out"
-elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+elif grep -q "PORTABILITY: ${f}:1:" <<<"$out"; then
   ok "arithmetic depth is held per frame, one frame deeper included"
 else
   fail "expected the line-1 call reported, got: $out"

@@ -115,7 +115,7 @@ class SkillContractTests(unittest.TestCase):
     def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
         # Worker tier has no merge tier, so its push paragraph still spells the
         # full pinned merge command inline. Step 6 lives in the runbook spoke
-        # after the line-cap extraction (#2424).
+        # (#2424).
         runbook = _reference("runbook-cycle.md")
         paragraph = _paragraph_containing(
             runbook, "In worker mode, after a worker's fix"
@@ -219,7 +219,10 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("always route them through a worker", paragraph)
         self.assertIn("never directly to the merge gate", paragraph)
         self.assertIn("In autopilot, that worker assesses", paragraph)
-        self.assertIn("a completed draft is marked ready with `gh pr ready`", paragraph)
+        self.assertIn(
+            "a completed draft is marked ready with `/source-control:pull-request ready`",
+            paragraph,
+        )
         self.assertIn("a genuinely in-progress draft stays draft", paragraph)
         self.assertIn("reported and escalated with the reason", paragraph)
 
@@ -306,11 +309,9 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("the orchestrator re-verifies and pushes", row)
 
     def test_reference_files_agree_on_who_pushes_a_resolution(self) -> None:
-        def unwrapped(path: pathlib.Path) -> str:
-            return " ".join(path.read_text(encoding="utf-8").split())
-
-        safety = unwrapped(SKILL.parent / "reference" / "safety.md")
-        loop = unwrapped(SKILL.parent.parent / "babysit-loop" / "SKILL.md")
+        safety = " ".join(_reference("safety.md").split())
+        loop_skill = SKILL.parent.parent / "babysit-loop" / "SKILL.md"
+        loop = " ".join(loop_skill.read_text(encoding="utf-8").split())
 
         # safety.md's Role Boundaries enumerates orchestrator authority; the one
         # push it owns has to appear there, not only in the stop-and-ask list.
@@ -396,7 +397,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("gh auth switch --user <approver-login>", safety)
         self.assertIn("never the PR author or a lane identity", safety)
 
-        # Review-workflow requiredness enabling precondition (fork 3a).
+        # Review-workflow requiredness enabling precondition.
         self.assertIn("required status context", safety)
         self.assertIn("mergeStateStatus == CLEAN", safety)
         self.assertIn("operator enabling precondition", safety)
@@ -465,8 +466,28 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("owner allowlist", autopilot)
         self.assertIn("`mutation_policy.branch_write_allowed`", autopilot)
         self.assertIn("`needs_worker` delta", autopilot)
-        self.assertIn("mark it ready for review (`gh pr ready`)", drafts)
+        self.assertIn(
+            "mark it ready for review (`/source-control:pull-request ready`", drafts
+        )
         self.assertIn("leave it draft and report why", drafts)
+
+    def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
+        # A bare `gh pr ready` flips the draft and nothing else; the ready step
+        # is what merges the base first, so the flip must go through it in both
+        # homes.
+        drafts = _paragraph_containing(
+            _reference("autopilot.md"), "**Draft PRs** are in scope"
+        )
+        zero_blocker = _paragraph_containing(
+            self.skill_text, "**Zero-blocker drafts are the exception:**"
+        )
+        policy = _paragraph_containing(self.skill_text, "**Draft policy (per tier).**")
+
+        for text in (drafts, zero_blocker, policy):
+            with self.subTest(text=text[:40]):
+                self.assertIn("/source-control:pull-request ready", text)
+        self.assertNotIn("marked ready with `gh pr ready`", zero_blocker)
+        self.assertIn("rather than a bare `gh pr ready`", policy)
 
 
 if __name__ == "__main__":

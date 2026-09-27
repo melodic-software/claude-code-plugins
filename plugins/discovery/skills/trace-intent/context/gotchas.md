@@ -13,7 +13,7 @@ The tell is a sentence that would survive unchanged if the evidence behind it we
 ## Citing the code as evidence for its own intent
 
 "Retries three times because there is a retry loop with a limit of three" restates the mechanism and
-calls it a motive. Motivation comes from a source outside the implementation, or it is labelled
+calls it a motive. Motivation comes from a source outside the implementation, or it is labeled
 inference, and here, code shape is not even that: it leaves the scale and is recorded as a gap.
 
 The subtle version is a named constant. A literal `128 * 1024` and a convention elsewhere in the
@@ -41,8 +41,8 @@ is wrong and cited. Only the two permitted skip reasons apply, and "probably irr
 ## Flattening the hedges on the way out
 
 The confidence language is the product, not a stylistic layer over it. Rewriting "appears to have
-been" as "was" when summarising destroys the one thing that distinguishes this output from a guess.
-That includes summarising for a human who seems impatient.
+been" as "was" when summarizing destroys the one thing that distinguishes this output from a guess.
+That includes summarizing for a human who seems impatient.
 
 ## Two that bite this skill's own operation
 

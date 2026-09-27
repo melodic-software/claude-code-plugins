@@ -262,7 +262,7 @@ lives.** This table is the whole selection map, and it is the one part a mutatio
 **The class alone is the key because the evidence bar is already in it.** Both withholding classes
 reach this phase having met their demonstration requirement, because SKILL.md "Phase 4" applies that
 requirement at classification and reports a claim that cannot meet it as *unclassified*, so no
-survivor arrives here labelled arid or equivalent without its evidence. That placement is deliberate,
+survivor arrives here labeled arid or equivalent without its evidence. That placement is deliberate,
 and the contract's fail-safe criterion depends on it: Phase 5 reports and Phase 6 persists from
 one classification, so a survivor has **one** disposition rather than one in the report and another
 in the findings file, and the bar binds a bare run too, which is where an unevidenced withholding
@@ -307,7 +307,7 @@ on a pattern it never verified, does not arise. `low` is never emitted, per the 
 **A failed restore precedes this question and is not one of its answers.** A run that could not verify
 a revert ended in failure at Phase 3, so this phase is unreachable and nothing below applies to it.
 The phrase "examined mutants and found survivors" is true of such a run and must not be read as
-licence to write.
+license to write.
 
 For a run that reached here, the discriminator is whether it **examined** anything, not whether it
 found anything:

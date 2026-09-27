@@ -3,6 +3,72 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.35] - 2026-09-27
+
+### Fixed
+
+- `audit` on Windows Git Bash prints the `Action plan:` path and the `Apply dry-run:` plan argument
+  as a native `C:/...` path through `cygpath -m`. It printed the MSYS `/tmp/...` form, which
+  PowerShell, editors, and `/repo-fleet-hygiene:apply` in a PowerShell tool cannot open. Without
+  `cygpath`, and on every other host, the path prints unchanged.
+
+## [0.23.34] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` walks UTF-8 byte-wise (RFC 3629) instead of the 0.23.33 regex
+  allowlist, so LRM/RLM (U+200E/U+200F) and ALM (U+061C) from Unicode `Bidi_Control` escape
+  too. bash 3.2 signed-byte `printf '%d' "'c"` is corrected. Em dashes and other printable
+  UTF-8 still render raw.
+
+## [0.23.33] - 2026-09-27
+
+### Fixed
+
+- `audit` escapes C1 controls (including the one-byte CSI), U+2028/U+2029, bidi override and
+  isolate controls, and malformed UTF-8 in report values again. 0.23.32 printed them raw, so a
+  crafted path could inject terminal controls. Other printable UTF-8 still prints as itself.
+- A repository with no findings shows `Kind counts: none` instead of an em dash.
+
+## [0.23.32] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` no longer `%q`-escapes printable UTF-8 under `LC_ALL=C`.
+  Control bytes still take the `%q` path so crafted paths cannot forge report lines.
+
+## [0.23.31] - 2026-09-23
+
+### Changed
+
+- `apply` reports failed and skipped targets first, each with its reason, then the applied count.
+
+## [0.23.30] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.23.29]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.23.28]
+
+### Changed
+
+- The repo-fleet-hygiene audit routes its six membership loops through the shared array-contains helper and drops unread locals and dead resets in the audit and apply scripts, with byte-identical plans, findings, and GraphQL queries.
+
+## [0.23.27]
+
+### Changed
+
+- worktree-root-legacy.sh drops an unreachable no-tab branch in its promote/retire loop, worktree-create.sh merges its two drive-letter regexes, worktree-claim.sh drops an unreachable dispatch arm, landed-work.sh hoists a per-iteration reason reset, worktree-root-doctor.sh splits its list output once, and babysit-readiness-gate.sh names its unreadable-bodies failure. No behavior change.
+
 ## [0.23.26]
 
 ### Changed
@@ -160,7 +226,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   was measured.
 - **Two `array_contains` over-fire mutants survive the suite**: a never-matching
   scan at the `repo_verdict` site alone is genuinely equivalent (zero difference
-  in any artefact the suite writes), but a prefix-glob comparison escapes
+  in any artifact the suite writes), but a prefix-glob comparison escapes
   undetected.
 - **Drift across the five-copy `allowed-tools-pairing.test.sh` family fell in
   net** (252 differing lines to 228, with four copies now differing pairwise by
@@ -305,11 +371,11 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Changed
 
-- **The `.git` discovery skip is documented as defence in depth, and defended by a test that can
+- **The `.git` discovery skip is documented as defense in depth, and defended by a test that can
   actually fail (#2844).** `should_skip_dir_name`'s unconditional `.` / `..` / `.git` arm is
   unreachable from its only caller: the child loop's globs (`*`, `.[!.]*`, `..?*`) can never
   yield `.` or `..`, and for `.git` the nested-repository early return fires first on the
-  identical path and predicate. The arm stays as defence in depth against a future refactor of
+  identical path and predicate. The arm stays as defense in depth against a future refactor of
   that early return, and both it and its call site now say so. The discovery-level case
   `--skip omitting .git still skips .git and reaches vendor/` was replaced by a direct
   `should_skip_dir_name` contract assertion, because that case passed identically with the `.git`
@@ -331,7 +397,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 - **`.git` is now an unconditional discovery skip (#2826).** The nested-repository early return
   already stopped discovery descending into any directory holding a `.git` marker, so this
-  changes no observable behavior; making `.git` unconditional is defence in depth against a
+  changes no observable behavior; making `.git` unconditional is defense in depth against a
   future refactor of that return, not a fix for a reachable exposure. Replace semantics are
   unchanged; the replaceable default list is `node_modules`, `vendor`, `.venv`; to extend, pass
   those three plus extra names. (Corrected in 0.23.2, see #2844.)
@@ -821,7 +887,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   substitution, so increments are lost with the subshell. On Windows, MSYS-style `/c/...` paths are
   converted to `C:/...` for presentation only, since the report is actionable text whose paths get
   pasted into tools that reject the MSYS form. The two differently-scoped `repositories` counts are
-  now labelled distinctly (`Repositories discovered (audit targets after deduplication)` and
+  now labeled distinctly (`Repositories discovered (audit targets after deduplication)` and
   `repositories_audited`). An empty `--root`/`--repo`/`--config` value stops the run rather than
   being counted toward the scope the header reports and then skipped by the discovery loops.
 - **`setup`'s verify step no longer violates `setup`'s own boundary (#1801).** `apply` step 5
@@ -857,7 +923,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Added
 
-- **Behavioural coverage for the failures a real fleet produced (#1803).** The suite exercised the
+- **Behavioral coverage for the failures a real fleet produced (#1803).** The suite exercised the
   documented happy path while a single 11-repository run surfaced defects none of it could reach.
   New executable assertions cover canonical selection against an earlier-sorting linked worktree
   (constructed red first), the computed scope-provenance line, merged-PR window truncation,

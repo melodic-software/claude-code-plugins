@@ -23,19 +23,10 @@ Pins these fixes:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-DiskHealth.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    # Dot-source the reliability wrapper so Pester can install Mock against it.
-    # Without this, Mock throws CommandNotFoundException -- the function only
-    # exists inside the child script scope otherwise.
-    . (Join-Path $script:LibRoot 'Get-PhysicalDiskReliability.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-DiskHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    # The reliability wrapper is dot-sourced so Mock can attach to it; otherwise it exists only
+    # in the child script scope and Mock throws CommandNotFoundException.
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DiskHealth' `
+        -AsObject 'Invoke-DiskHealthAsObject' -LibScript 'Get-PhysicalDiskReliability.ps1' -MockHelpers
 }
 
 Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {
@@ -240,10 +231,8 @@ Describe 'Test-DiskHealth -- failure modes' -Tag 'check' {
 
         $result = Invoke-DiskHealthAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
-        # Current script design: empty results but ran_successfully = true.
-        # When both data sources fail, we accept either UNKNOWN (preferred)
-        # or OK with an empty detail payload. Pin the weaker invariant so
-        # future hardening can tighten it without breaking this test.
+        # Both data sources failing currently yields empty results with ran_successfully = true;
+        # accept UNKNOWN (preferred) or OK so future hardening can tighten this.
         @($result.detail.volumes).Count | Should -Be 0
         @($result.detail.physical_disks).Count | Should -Be 0
     }

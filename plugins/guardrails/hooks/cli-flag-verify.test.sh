@@ -47,10 +47,7 @@ chmod +x "$FAKE_BIN_DIR/faketool"
 # run_fake: invoke the hook with faketool as the only scanned bin and an
 # isolated per-case verifier cache so a stale 24h --help cache never leaks.
 # Models a Write: the content goes into the payload's `content` (what the hook
-# now scans) AND to disk (so the file existence + extension checks pass). Keeping
-# disk == payload means the pre-fix hook — which read the file — scans the same
-# bytes, so this conversion is behavior-preserving and every existing case stays
-# green across the diff-scope fix.
+# scans) AND to disk (so the file existence + extension checks pass).
 run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"

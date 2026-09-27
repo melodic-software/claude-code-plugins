@@ -77,9 +77,9 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+# Kill switch before any source. The hooks.json row runs the same switch in
+# shell form, so a disabled hook never starts this script; a direct invocation
+# reads this line. scripts/check-killswitch-hoist.sh pins it to hook::is_enabled.
 [[ "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
@@ -119,17 +119,16 @@ emit_skipped() {
   hook::finish skipped findings array '[]' applied array '[]'
 }
 
-# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
-# (and pwd) on every fire to canonicalize a path git already answered as
-# absolute, or a fallback hint that `cd "$RUN_DIR"` already accepts relative.
+# Existence check only, no canonicalization: git already answers an absolute
+# path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.
 root=""
 [[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
 
 # Resolve the typos binary from PATH — never downloaded (typos is a standalone
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
-# `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
-# just to learn the path. The later exec looks the name up on PATH itself.
+# `command -v` is a builtin; the resolved path is not captured because the
+# later exec looks the name up on PATH itself.
 TYPOS_BIN=""
 command -v typos >/dev/null 2>&1 && TYPOS_BIN=typos
 TYPOS_CONFIG_ARGS=()
@@ -391,8 +390,67 @@ fi
 # "could not be summarized" on exactly the typo-heavy files the disclosure
 # matters most for. The marker is not valid JSON, so it can never collide with
 # a finding line.
-CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
-  jq -R -s -c --argjson max "$MAX_REPORT" '
+#
+# Report-only runs first try typos_classify_report_only, which writes the same
+# CLASSIFIED text with builtins and no jq process. With no write pass the
+# residual set IS the scan set, so nothing is applied and the classification
+# reduces to listing the findings. It answers only when every non-empty line is
+# a typo finding in typos' own field order whose path, token and corrections
+# are printable ASCII without `"` or `\` (so no string needs escaping and
+# length is characters), and the output is at most 16 KB; any other output,
+# and every Windows bash (whose regex decodes UTF-8 even under C), goes to jq.
+# shellcheck disable=SC2329 # invoked through hook::_c_locale
+typos_classify_report_only() {
+  [[ "$WRITE_CHANGES" != "true" ]] || return 1
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) return 1 ;;
+  *) ;;
+  esac
+  ((${#SCAN_OUTPUT} <= 16384)) || return 1
+  local a='[] !#-[^-~]'
+  local re="^\\{\"type\":\"typo\",\"path\":\"$a*\",\"line_num\":(0|[1-9][0-9]{0,14}),\"byte_offset\":(0|[1-9][0-9]*),\"typo\":\"($a*)\",\"corrections\":(null|\\[(\"$a*\"(,\"$a*\")*)?\\])\\}\$"
+  local rest="$SCAN_OUTPUT"$'\n' line ln tok corr item corrs shown m n=0 findings="" text=""
+  while [[ -n "$rest" ]]; do
+    line=${rest%%$'\n'*}
+    rest=${rest#*$'\n'}
+    [[ -n "$line" ]] || continue
+    [[ "$line" =~ $re ]] || return 1
+    ln=${BASH_REMATCH[1]}
+    tok=${BASH_REMATCH[3]}
+    corr=${BASH_REMATCH[4]}
+    findings+="${findings:+,}{\\\"typo\\\":\\\"$tok\\\",\\\"corrections\\\":${corr//\"/\\\"}}"
+    n=$((n + 1))
+    ((n <= MAX_REPORT)) || continue
+    ((${#tok} > 60)) && tok="${tok:0:60}…"
+    if [[ "$corr" == null ]]; then
+      shown="  \\\"$tok\\\" (line $ln) is disallowed, no known correction."
+    else
+      m=0
+      corrs=""
+      corr=${corr:1:${#corr}-2}
+      while [[ -n "$corr" ]]; do
+        item=${corr#\"}
+        item=${item%%\"*}
+        corr=${corr#\"*\"}
+        corr=${corr#,}
+        ((${#item} > 60)) && item="${item:0:60}…"
+        ((m++)) && corrs+=" or "
+        corrs+=$item
+      done
+      if ((m > 1)); then
+        shown="  \\\"$tok\\\" (line $ln) should be $corrs (ambiguous — typos will not auto-correct this)."
+      else
+        shown="  \\\"$tok\\\" (line $ln) should be \\\"$corrs\\\"."
+      fi
+    fi
+    text+="${text:+\\n}$shown"
+  done
+  CLASSIFIED="{\"appliedCount\":\"0\",\"residualCount\":\"$n\",\"applied\":\"[]\",\"findings\":\"[$findings]\",\"appliedText\":\"\",\"appliedInline\":\"\",\"residualText\":\"$text\"}"
+}
+CLASSIFIED=""
+hook::_c_locale typos_classify_report_only ||
+  CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
+    jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
     def tokof: [(.typo // ""), .corrections] | tojson;
     # Entry count is capped, but a single entry is not bounded by that: a token
@@ -440,10 +498,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
        | add // []
        | sort_by(.line_num // 0)) as $a
     | {
-        appliedCount: ($a | length),
-        residualCount: ($r | length),
-        applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)})),
-        findings: ($r | map({typo: (.typo // ""), corrections: .corrections})),
+        appliedCount: ($a | length | tostring),
+        residualCount: ($r | length | tostring),
+        applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)}) | tostring),
+        findings: ($r | map({typo: (.typo // ""), corrections: .corrections}) | tostring),
         appliedText: ([limit($max; $a[])] | map("  \"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("\n")),
         appliedInline: ([limit($max; $a[])] | map("\"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
         residualText: ([limit($max; $r[])] | map(
@@ -474,8 +532,11 @@ fi
 # had just produced, charged against the handler's 15-second budget on exactly
 # the typo-heavy runs that already spent the most of it. hook::jq_fields exists
 # for this shape and records the cost it removes (three forks over one envelope
-# measured at ~840 ms on Windows Git Bash). The array fields come back
-# via `tostring`, which is the same compact JSON `jq -c` emitted. jq_fields also
+# measured at ~840 ms on Windows Git Bash). The classifier already applies
+# `tostring` to the counts and the arrays (digit strings and compact JSON, the
+# text jq_fields' own `tostring` would give), so every value is a plain string
+# and the library's builtin parser usually answers without that jq process at
+# all. jq_fields also
 # strips every CR (its documented contract): the Windows jq build writes stdout
 # in text mode, so a multi-line value would otherwise arrive with a CR embedded
 # before every newline and carry a literal \r into the emitted context.
@@ -580,7 +641,7 @@ CTX="${CTX%"${CTX##*[![:space:]]}"}"
 # additionalContext — a 20% margin under the cap, the agent channel carrying
 # the fuller finding list.
 #
-# DEFENCE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
+# DEFENSE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
 # elided tokens the message tops out near 1,100 characters, so this ceiling does
 # not fire today and its branch is exercised only if one of those numbers moves.
 # It is kept because both of them are tunable and the documented channel cap is

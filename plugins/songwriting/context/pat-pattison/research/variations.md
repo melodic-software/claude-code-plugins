@@ -176,7 +176,7 @@ full metadata (vowel, stress count, POV, rhyme position) plus its
 per-candidate craft notes, persisted per the "Artifact pattern" section below.
 It is NOT the chat shape. A bare one-line candidate in a table forces the
 writer to re-embed it in the section by hand before he can sing it, and the
-singing is where the judgement actually happens.
+singing is where the judgment actually happens.
 
 ### Dump vs menu: the distinction the word "inline" is about
 

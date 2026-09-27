@@ -13,8 +13,6 @@ export function buildClientJs(groups) {
   const chips = new Map(
     [...document.querySelectorAll('#topnav .chips a')].map((a) => [a.dataset.key || a.getAttribute('href').slice(1), a])
   );
-  // Just the primary chips (used for keyboard sequential nav)
-  const primaryChips = [...document.querySelectorAll('.chips-primary a')];
   let currentIdx = 0;
 
   function setActive(id) {
@@ -98,9 +96,8 @@ export function buildClientJs(groups) {
   // Hash deep-link on load (instant — no animation surprise)
   function jumpToHash(behavior) {
     const hashId = decodeURIComponent(location.hash.slice(1));
-    if (hashId && document.getElementById(hashId)) {
-      document.getElementById(hashId).scrollIntoView({ behavior: behavior || 'instant', block: 'start' });
-    }
+    const target = hashId && document.getElementById(hashId);
+    if (target) target.scrollIntoView({ behavior, block: 'start' });
   }
   requestAnimationFrame(() => jumpToHash('instant'));
   // Hashchange (manual URL edit, deep-link from another tab) — smooth-scroll
@@ -118,12 +115,13 @@ export function buildClientJs(groups) {
     update();
   }
 
+  const query = new URLSearchParams(location.search);
   // Print mode toggle (?print=1 query) — used by build-pdf.js
-  if (new URLSearchParams(location.search).get('print') === '1') {
+  if (query.get('print') === '1') {
     document.body.classList.add('print-mode');
   }
   // Speaker notes toggle (?notes=1 query) — reveals .speaker-notes overlay
-  if (new URLSearchParams(location.search).get('notes') === '1') {
+  if (query.get('notes') === '1') {
     document.body.classList.add('show-speaker-notes');
   }
 })();

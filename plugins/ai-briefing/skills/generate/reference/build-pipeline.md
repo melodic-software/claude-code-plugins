@@ -44,7 +44,7 @@ This file documents the working pipeline schema + commands. For brand spec, slid
 | `build-pdf.js` | Playwright headless chromium prints `?print=1` HTML to Letter landscape, 0-margin, one slide per page | `../meetings/ai-meeting-{N}.pdf` |
 | `validate.js` | Multi-gate validator. The gate list and which gates block live in the script's own header comment; read it rather than restating it here. Screenshots every section | `shots/section-*.png` + `shots/responsive-*.png` + `shots/audit.json` |
 | `assets/` | Bundled org logos (PNG) + provider logos (SVG) | n/a |
-| `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `date-holidays` + `linkinator` + `unpdf` + `node-pptx-parser` | n/a |
+| `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `linkinator` + `unpdf` + `node-pptx-parser` | n/a |
 
 ## Prerequisites, one-time setup (in-repo maintainer form)
 
@@ -157,7 +157,7 @@ export const slides = [
 ];
 ```
 
-`meta` and `theme` start from the neutral brand in `output/build/brand.js`. DO NOT redefine them per run. A consumer rebrand belongs in the selected profile's schema-validated `brand.json`; `meta.meetingNumber`, `meta.date`, and `meta.window` are the only meeting-specific fields.
+`meta` and `theme` start from the neutral brand in `output/build/brand.js`. Do not redefine them per run. A consumer rebrand belongs in the selected profile's schema-validated `brand.json`; `meta.meetingNumber`, `meta.date`, and `meta.window` are the only meeting-specific fields.
 
 ## Slide types (11 total)
 
@@ -309,7 +309,7 @@ node validate.js
 
 `node run.js` chains steps 1+3+4 in one shot when no pause needed. Use granular form when an overseer judgment call is pending.
 
-Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js` and are imported by `emit-slides-data.js`. Do NOT redefine per run.
+Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js` and are imported by `emit-slides-data.js`. Do not redefine per run.
 
 **Fallback path** (`/document-skills:pptx` skill): only when in-tree pipeline cannot run (Node missing, etc.). See `slide-generation.md` "Fallback skill paths" for skill-stack delegation. Default = in-tree.
 
@@ -326,7 +326,7 @@ Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js`
 9. AI Task Force Update
 10. Feedback / Review Q&A
 
-If `document-skills:pptx` is not available, follow the install steps in `slide-generation.md` "PPTX fallback".
+If the in-tree pipeline cannot run and no PPTX-generation skill is installed either, report the gap and emit markdown only; `slide-generation.md` "PPTX fallback" states the brand-token caveat for when one is.
 
 ### HTML slides (`--format html`)
 
@@ -334,7 +334,7 @@ If `document-skills:pptx` is not available, follow the install steps in `slide-g
 
 **Summary:** Collect items → emit/update `output/build/slides-data.js` → run `node build-html.js` → output lands at `output/meetings/ai-meeting-{N}.html`. Schema and full slide-type list: see "`slides-data.js` schema" earlier in this file.
 
-**Fallback path** (`/frontend-design:frontend-design` + `/ui-ux-pro-max:slides`): see `slide-generation.md` "Fallback skill paths".
+**Fallback path** (`/frontend-design:frontend-design`, plus a slide-layout skill when one is installed): see `slide-generation.md` "Fallback skill paths".
 
 ### PDF (post-generation)
 

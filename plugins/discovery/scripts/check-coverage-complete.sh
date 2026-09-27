@@ -37,7 +37,7 @@ set -uo pipefail
 usage() {
   # Sentinel range (not fixed line numbers) so the printed usage never silently
   # truncates when the header grows or shrinks on a future edit.
-  sed -n '/^# Deterministic gate/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '/^# Deterministic gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 ledger=""
@@ -106,19 +106,17 @@ function cells(line, out,   n, i, raw, c, cell_text) {
   n = split(line, raw, "|")
   c = 0
   for (i = 1; i <= n; i++) {
-    if (i == 1 && trim(raw[i]) == "") continue
-    if (i == n && trim(raw[i]) == "") continue
     cell_text = trim(raw[i])
+    if (cell_text == "" && (i == 1 || i == n)) continue
     gsub(SUBSEP, "|", cell_text)
     out[++c] = cell_text
   }
   return c
 }
 
-function is_separator(line,   probe) {
-  probe = line
-  gsub(/[ \t|:-]/, "", probe)
-  return probe == ""
+function is_separator(line) {
+  gsub(/[ \t|:-]/, "", line)
+  return line == ""
 }
 
 /^[ \t]*\|/ {
@@ -141,12 +139,12 @@ function is_separator(line,   probe) {
     # that a ledger this script never actually read was completed. Requiring each
     # column exactly once also rejects a duplicated header, where the column that a
     # given row value lands in is ambiguous.
-    ok = 1
-    for (r = 1; r <= 4; r++) if (seen_head[required[r]] != 1) ok = 0
-    if (!ok) {
-      done_col = 0
-      delete seen_head
-      next
+    for (r = 1; r <= 4; r++) {
+      if (seen_head[required[r]] != 1) {
+        done_col = 0
+        delete seen_head
+        next
+      }
     }
     header_cols = ncell
     header_seen = 1

@@ -37,7 +37,7 @@ weight, and both properties are already in scope):
   The harness lane's enterprise posture: ZDR is scoped to qualified accounts on Claude for
   Enterprise, which is the commitment a consuming setup needs stated rather than inferred
 
-Agent SDK (one page; SDK docs are canonically harness docs, but queueing the rest of that doc set
+Agent SDK (one page; SDK docs are canonically harness docs, but queuing the rest of that doc set
 is a separate scope decision nobody has taken):
 
 - <https://code.claude.com/docs/en/agent-sdk/agent-loop>
@@ -59,6 +59,11 @@ Models:
   it canonically" is false for exactly the facts already cited. A custody fact about this one page,
   not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
   stays deferred
+- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5-5>
+  and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
+  The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
+  sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both URLs follow the Opus 5 and Sonnet 5 page
+  patterns and are unverified until fetched; one page per run
 
 Claude Code companion docs (digest in this order):
 
@@ -68,6 +73,11 @@ Claude Code companion docs (digest in this order):
 
 Blog posts:
 
+- <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
+  The vendor usage guide for Opus 5.5, the current Opus. The `playbooks` Opus 5.5
+  model-adaptation chapter and this repository's instruction surfaces apply it without a custody
+  record, applicability tags, or an attestation pass; its model-behavior claims are
+  vendor-reported
 - <https://claude.com/blog/the-advisor-strategy>
   The harness advisor doc cites this post as its own "why"; digest it alongside
   <https://code.claude.com/docs/en/advisor> and
@@ -76,6 +86,19 @@ Blog posts:
 - <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
   The designated deep-dive for prompting the Claude 5 generation, already being read by local
   work without a custody record, applicability tags, or an attestation pass
+- <https://claude.com/blog/getting-started-with-loops>
+  Linked from the claude.ai performance post
+  (<https://claude.dev/blog/how-we-made-claude-ai-faster>); by its title, the loop mechanism the
+  `performance` plugin's measure, change, and verify cycle and the `playbooks` orchestration
+  chapter's narrow threads assume. Subject unverified until fetched
+- <https://claude.com/blog/code-review>
+  The automated-review gate the claude.ai performance post names as a safety mechanism set up
+  before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
+  record against it. Unverified until fetched
+- <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic>
+  The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
+  which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
+  technique. Unverified until fetched
 
 Engineering posts:
 

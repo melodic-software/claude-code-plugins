@@ -184,7 +184,8 @@ given, and one disposal venue does not exist.
   landed** in `plugins/review/agents/code-reviewer.md`'s Code quality checklist (`review` 0.24.0):
   it asks what the expected value's independent source is, names the round-trip/identity case
   alongside the canonical shape, and cedes the textually-identical-sides core to
-  `cant-fail-scan.sh` by name so the scanner and the lens cannot double-report. Placement went to
+  `cant-fail-scan.sh` by name only when that scan's output is in the reviewer's context, reporting
+  the core itself otherwise so a repo without the scan still gets the finding. Placement went to
   the agent definition rather than `quality-gate/context/criteria.md` because that file is a
   routing doc — it resolves the project's standards index and carries no criteria of its own,
   which is where its own "Baseline when the ladder yields nothing" step already points.
@@ -256,6 +257,13 @@ given, and one disposal venue does not exist.
   reach for `tdd:principles` unprompted), and `audit_skill_visibility.py` already gates it as
   `T-full`-only.
 
+  > **Adoption note, 2026-09-12.** The README line quoted above is superseded: `claude plugin eval`
+  > shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it, so an evals
+  > filing in that command's case format now has a runner. The routing decision recorded here
+  > stands on its other grounds (the telemetry hook measures invocation directly). The adoption
+  > record is the "Adoption record" paragraph under
+  > [migration-playbook.md § "Evals: warrant policy and consumer-verify recipe"](../migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe).
+
 ## Lane D (#2937)
 
 Design locked 2026-08-19 after adversarial validation (two fresh-context validators, rationale
@@ -323,7 +331,7 @@ withheld; three of five initial answers revised on evidence).
   is the empty set under this repo's squash-merge default; the integration-branch execution shape
   has no per-item PRs at all; a container-scoped basis conflicts with `quality-gate`'s singular
   review-diff-base contract) and it was judged structurally larger than a mode addition.
-  **That last judgement was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
+  **That last judgment was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
   exactly what it was said to be too large for — a tenth `quality-gate` lens,
   `plugins/review/skills/quality-gate/context/close-out.md`, routed from `SKILL.md` with
   `close-out [--container <id>] [--dry-run]` in the argument hint. All four broken mechanisms were
@@ -460,7 +468,7 @@ nor past its own first page. So what ships is **verified against the provider's 
 mocked-transport suite, never against a live server** — materially stronger than "unverified", and
 still short of what the criterion asked. Four resolver-level questions stay open and are named on
 the issue: whether `assigneeId: null` semantically unassigns, Linear's default comment ordering,
-whether `Team.labels` really excludes workspace labels, and behaviour under real rate limits and
+whether `Team.labels` really excludes workspace labels, and behavior under real rate limits and
 concurrent claims.
 
 **A claim in an earlier draft of this very section was wrong and is corrected here**, which is

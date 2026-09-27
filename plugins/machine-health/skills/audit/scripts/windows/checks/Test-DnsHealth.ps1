@@ -46,15 +46,8 @@ try {
         Write-Verbose "Test-DnsHealth: gateway probe failed. $($_.Exception.Message)"
     }
 
-    # Severity rubric (ordered by precedence, most severe first):
-    #   CRIT  -- gateway confirmed unreachable (primary network failure)
-    #   WARN  -- any DNS target failed, regardless of gateway status
-    #            (DNS failures are actionable even when gateway probe didn't run)
-    #   INFO  -- gateway probe couldn't determine reachability AND DNS is fine
-    #   OK    -- gateway reachable and all DNS resolved
-    # Order matters: DNS failures are still reported at WARN when the gateway
-    # state is unknown -- ordering "gateway unknown -> INFO" ahead of the
-    # DNS-failure check would under-report real DNS problems.
+    # Order matters: test DNS failures (WARN) before "gateway unknown" (INFO), or real
+    # DNS problems are under-reported whenever the gateway state is unknown.
     $severity = 'OK'
     $summary = "DNS OK ($($targets.Count)/$($targets.Count)); gateway $gateway reachable."
     if ($gatewayReachable -eq $false) {
@@ -78,15 +71,10 @@ try {
         default_gateway   = $gateway
         gateway_reachable = $gatewayReachable
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'DNS health check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'DNS health check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

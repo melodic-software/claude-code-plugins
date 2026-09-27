@@ -15,7 +15,8 @@ Two eligible D7.5 dispositions (`reference/review-discipline.md`) leave a thread
 construction, so neither can ever satisfy either guard:
 
 - `INCORRECT` with counter-evidence: a disproved finding ships no fix, so nothing moves the anchor.
-- `VALID (defer)` grounded per D4.6: the fix is deliberately not in this PR.
+- `VALID (defer)` grounded per D4.6: the fix is deliberately not in this PR, because the finding
+  is structural, urgent but unable to land here, or its fix is blocked on research.
 
 A prose fix does it a third way: rewriting elsewhere in the file addresses the finding without
 moving the anchored lines.
@@ -76,7 +77,9 @@ each one the disposition plus its evidence:
 
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6. The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
+- `VALID (defer)`: grounded per D4.6. The scope test passed (the finding is structural, urgent
+  but unable to land in this PR, or its fix is blocked on research this lane cannot do; a small or medium
+  finding is fixed here instead, never deferred). The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   branch), and the tracker item exists, carries the finding's own evidence, and its cited id
   re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
@@ -123,7 +126,7 @@ only when its own entry reads `"action": "resolved"`.
 
 Each of these leaves the thread **unresolved**, and the fail-closed fallback is identical in every
 case: **leave the thread unresolved, do not merge, and report the PR with the
-addressed-but-unresolvable thread named.** An unreachable or refused authorization is never a licence
+addressed-but-unresolvable thread named.** An unreachable or refused authorization is never a license
 to self-resolve, and never a reason to reach past the wrapper to raw `resolveReviewThread`.
 
 - **Security/P1 threads.** `--independent-resolver` retains the severity bright line

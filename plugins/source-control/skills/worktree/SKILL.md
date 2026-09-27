@@ -31,18 +31,21 @@ invocation".
 
 That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
 [worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
-2026-08-10), an isolated session's tool calls are screened by three checks. File edits into the main
-checkout, a command whose **working directory** resolves there, and a **git redirect** into it
-"whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a `cd` into the
-main checkout before running git". The two that bite a compound command are the last two, and both
-fail closed: "Claude Code also blocks a command it can't verify stays inside the worktree." A block is
-therefore not evidence the command *would* have reached the main checkout, an unverifiable one is
-refused on the same footing, which is exactly what a multi-command shell invocation looks like. The
-same page adds two facts worth holding: the enforcement "covers every subagent Claude spawns from the
-isolated session, and it applies whether the session is interactive or runs in the background", so a
-delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
+2026-09-27, quoted with link markup removed), "Claude Code applies four checks": file edits into the
+main checkout, a command whose **working directory** resolves there, a **git redirect** into it
+("The redirect can come through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE` variable, or a
+`cd` into the main checkout before running git."), and the **command shape**. The last is the one
+that bites a compound command, and it fails closed: "Claude Code blocks a Bash or Monitor command
+when it can't verify from the command text that any git the command runs stays inside the
+worktree." A block is therefore not evidence the command *would* have reached the main checkout, an
+unverifiable one is refused on the same footing, which is exactly what a multi-command shell
+invocation looks like. The page's own remedy is the one this skill takes: "Claude Code tells Claude
+how to rewrite the refused command, such as splitting it into plain, separate commands." The same
+page adds two facts worth holding: "The same enforcement covers every subagent Claude spawns from
+the isolated session. It applies whether the session is interactive or runs in the background.", so
+a delegated worker inherits it rather than escaping it; and "For PowerShell commands, Claude Code
 applies only the working-directory check", so PowerShell is narrower coverage, never a sanctioned
-route around the git-redirect check.
+route around the git-redirect or command-shape check.
 
 ## Purpose
 
@@ -56,7 +59,7 @@ Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, o
 
 ### The nesting invariant, verified
 
-**This section is the sole owner of the mechanism claim.** Every other statement of it in this plugin is a pointer here. It is a *dated measurement*, not a standing fact. Read the expiry below before relying on it.
+**This section is the sole owner of the mechanism claim.** Every other statement of it in this plugin is a pointer here. It is a *dated measurement*, not a standing fact. Read the expiry below before relying on it. **Stamp status: expired, pending re-probe.** The expiry below fires on whichever arm comes first, and its version arm has passed, so nothing in this section is currently verified; the heading keeps its name only because every pointer cites it. Creation still enforces the invariant as the conservative placement while the re-probe is outstanding.
 
 The eager double-load this invariant was originally written against, CLAUDE.md, commands, agents, and rules all loading twice from a nested worktree, was fixed upstream in Claude Code v2.1.69, so that basis no longer holds. What replaces it, measured on 2.1.224: from a session inside a nested worktree, a read matching a `paths:` glob emits one `path_glob_match` naming the **parent** checkout's rule file, loading it alongside the worktree's own copy, both charged at roughly their own size. The same read from an externally-placed worktree emits zero such events. **That measurement is disputed, not refuted:** a later counter-reproduction on 2.1.227 did not observe the leak. Neither run disclosed its fixture, so the dispute is currently unadjudicable, which is what `fixtures/nesting-invariant-probe.sh` exists to end. A 2026-08-15 probe run on **2.1.232** pinned every discriminator the original runs omitted, but produced **zero `InstructionsLoaded` trace events on every arm** because the CLI was unauthenticated (`Not logged in`). That is a fixture failure, not a null finding. Do not cite this arm as settled in either direction. See `fixtures/README.md`.
 
@@ -75,7 +78,7 @@ On hook registration: use the `args`-array **exec form** here, per <https://code
 
 Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/16600) is the live issue. OPEN, labeled `enhancement` and `memory`, asking that memory traversal respect worktree boundaries. It concerns **memory files**; the same trace found those handled correctly on 2.1.224, so the surface still leaking is path-scoped rules, which no open upstream issue covers. That "handled correctly" is a **null result from this same trace**, not a release-note fact, no 2.1.224 changelog line covers memory, worktree, or rule loading, and that changelog scan is packet-sourced and has not been re-run.
 
-**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp:
+**Verification stamp** ([upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md)), as-of **2026-08-07**, last adjudicated measurement on **2.1.224**. A 2026-08-15 probe attempt on **2.1.232** was inconclusive (fixture failure: CLI unauthenticated / zero `InstructionsLoaded` events) and does **not** refresh this stamp. **The version arm has fired:** a 2026-09-19 audit found Claude Code 2.1.278 installed, and on 2026-09-27 the host carried 2.1.280, both past 2.1.244. The re-probe was not run on 2026-09-27 because that CLI was unauthenticated (`Not logged in`), the same fixture failure as 2026-08-15, so the stamp is marked expired rather than refreshed:
 
 - **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
 - **Unconditional expiry.** **2.1.244, or 2026-11-07. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.
@@ -131,7 +134,9 @@ Create a new worktree with guided naming and setup verification. Full procedure.
 - **Plugin data directory: `${CLAUDE_PLUGIN_DATA}`**, THIS FILE is the only surface where that token expands (a `context/` file is read as raw bytes and would carry it literally, and a Bash-tool subprocess's environment copy is not per-plugin). Carry the resolved path and hand it to the helper's `--data-root-file` flag through the same `Write`-tool temp file channel as the root above, so an unconfigured `worktree_root` still resolves to a location outside every repository. If the token ever arrives unexpanded, the helper detects it and refuses rather than creating a literally-named directory.
 - **Enter with `EnterWorktree(path: "<printed-path>")` as the final action**, working directory changes and session state transitions on that call, so nothing may execute after it. The out-of-`.claude/worktrees/` path prompts for approval (not suppressible outside `bypassPermissions`).
 
-**Orchestrated (autonomous) provisioning does not use this action.** An autonomous orchestrator that must stay resident to keep dispatching, e.g. `/work-items:work`, cannot invoke `create`: the `EnterWorktree` terminal above would transition the orchestrator's own session and end its ability to orchestrate. Such a run provisions **non-interactively** instead, the dispatched worker runs the shared `worktree-create.sh` helper directly (its output contract prints the path; the caller simply omits the `EnterWorktree` step) or a plain `git worktree add` followed by `scripts/worktree-claim.sh claim <path>` (the PostToolUse hook does this for Bash-tool adds, claiming only the parsed target), then works the worktree via `git -C <path>` **without entering it**. The dispatching orchestrator (`/work-items:work`) owns that end-to-end worker-side lifecycle.
+**Orchestrated (autonomous) provisioning does not use this action.** An autonomous orchestrator that must stay resident to keep dispatching, e.g. `/work-items:work`, cannot invoke `create`: the `EnterWorktree` terminal above would transition the orchestrator's own session and end its ability to orchestrate. Such a run provisions **non-interactively** instead, the dispatched worker runs the shared `worktree-create.sh` helper directly (its output contract prints the path; the caller simply omits the `EnterWorktree` step) or a plain `git worktree add` followed by `scripts/worktree-claim.sh claim <path>` (the PostToolUse hook does this for Bash-tool adds, claiming only the parsed target), then works the worktree via `git -C <path>` **without entering it**. When that direct invocation runs from outside the repository, add `--repo-dir <repo-toplevel>` to the flags the interactive path already passes (`--name`, `--fallback-root-file`, `--data-root-file`; see context/create.md). `--repo-dir` alone is not a complete command: with `worktreeroot.path` unset, the helper obtains the plugin-data default only through `--data-root-file` and otherwise exits 3. Also pass `--base-ref head` when the effective `worktree.baseRef` setting is `head`; an omitted `--base-ref` defaults to `fresh`. The dispatching orchestrator (`/work-items:work`) owns that end-to-end worker-side lifecycle.
+
+**Pass this session's id on every direct helper invocation.** `${CLAUDE_SESSION_ID}` expands in this file. The helper's lock is this session's claim only when `--session-id` carries that resolved value, because the reason then contains `session <id> since`, the token `check-enter` matches. If the token is still literal, stop and do not call the helper: the helper treats an unexpanded value as a usage error and creates nothing. [context/create.md](context/create.md) receives the resolved value, not the token, because a context file is read as raw bytes.
 
 **Before writing in an existing worktree, run the claim gate.** A helper-created tree already carries a lock reason; a plain `git worktree add` may not. Before `git -C <path>` writes, or before `EnterWorktree(path:)` into a tree this session did not just create:
 

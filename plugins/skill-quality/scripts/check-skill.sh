@@ -12,7 +12,34 @@
 #
 # Usage:
 #   bash check-skill.sh [--require-evals] <skill-name>
+#   bash check-skill.sh [--require-evals] <root> [<root> ...]
 #   bash check-skill.sh --help
+#
+# Root form: every positional that names an existing directory is a skills
+# root. Each root is walked in argument order under a `=== <root> ===` header,
+# the gate runs once per immediate subdirectory holding a SKILL.md, and the run
+# ends with a `N passed, M failed` rollup. A path that does not exist exits 2
+# naming it (never a silently omitted subtree), whether or not another root in
+# the same call resolved. A directory holding its own SKILL.md is a SKILL
+# directory, not a skills root, and exits 2 pointing at its parent: walking it
+# would report no skills at exit 0 and leave a CI lane written that way green
+# forever. A root that exists but genuinely holds no skills is named and is not
+# an error. A skill name and a root cannot be mixed in one call. When a child
+# hits an environment error the rollup keeps its wording and a separate stderr
+# line says so, since that run is in neither tally. Nothing is pooled across
+# roots: each skill is gated by its own
+# child run carrying its own root, so the cross-skill scans (checks 3 and 5,
+# and the plugin-root detection behind check 14's warrant lookup) stay per
+# root by construction.
+#
+# Each child also runs WITH ITS CWD AT ITS ROOT, so its git context is the
+# dispatched tree's and never the caller's. The git-backed checks (3, 8, 9, 13)
+# each join a repo root with a path inside it and both come from cwd, so a run
+# driven from one repo against a root in another would report the caller's
+# tracked paths against the dispatched skill. A root outside any repo therefore
+# resolves to no git and skips those checks with their named notes rather than
+# borrowing the caller's repo; CHECK_SKILL_BASE_REF is resolved against the
+# dispatched repo.
 #
 # --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
 # is absent for any skill shape, unless the skill has a recorded skip in
@@ -134,6 +161,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Absolute self-path. Root mode re-invokes this script with the child's cwd AT
+# the dispatched root, so a relative "${BASH_SOURCE[0]}" the caller happened to
+# type would no longer resolve from there.
+SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
 # The header range is derived from the comment block itself (same idiom as the
 # sibling checkers), so adding header lines can never desync the help output.
@@ -181,19 +212,32 @@ source "$SCRIPT_DIR/skill-frontmatter.sh"
 # Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
 # HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
 # Validated only when a git repo is present; ignored otherwise.
+#
+# The verdict is DEFERRED rather than fatal here, for the same reason the skills
+# root resolution is: this runs before the dispatch, against the CALLER's repo,
+# and in root mode the ref belongs to the DISPATCHED repo instead. A caller in
+# repo A gating a root in repo B with a ref that exists only in B must not be
+# rejected before anything is dispatched. Each child re-runs this check against
+# its own repo, where a genuinely absent ref is still exit 2.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
+BASE_REF_ERR=""
 if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
   ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
-  printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
-  exit 2
+  printf -v BASE_REF_ERR 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit' "$BASE_REF"
 fi
-
-SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name>}"
 
 # Resolve the skills root without baking a repo layout (convention-resolution
 # ladder): explicit override, then plugin project dir, then git-root default.
 # Outside a git repo the git-root step is unavailable — require an explicit
 # root (or CLAUDE_PROJECT_DIR) rather than aborting solely for missing VCS.
+#
+# Resolution runs BEFORE the dispatch below, which needs it to tell a skill name
+# from a root, and its failures are DEFERRED rather than fatal here: an explicit
+# root positional must work with no env and no git (the plugin-cache case). The
+# deferred message is printed on the single-skill path only, after the usage
+# check, so a no-argument call still reports usage exactly as it always has.
+SKILLS_ROOT=""
+SKILLS_ROOT_ERR=""
 if [[ -n "${CHECK_SKILL_SKILLS_ROOT:-}" ]]; then
   SKILLS_ROOT="$CHECK_SKILL_SKILLS_ROOT"
 elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
@@ -201,22 +245,183 @@ elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
 elif [[ "$HAVE_GIT" == 1 ]]; then
   SKILLS_ROOT="$REPO_ROOT/.claude/skills"
 else
-  printf 'Error: not in a git repo and no skills root set — set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository\n' >&2
-  exit 2
+  SKILLS_ROOT_ERR='Error: not in a git repo and no skills root set: set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository'
 fi
 
 # Anchor a relative skills root to the project root. The setup action persists a
 # project-relative path; if the skill is invoked from a subdirectory a relative
 # root would otherwise resolve against the cwd and miss the skills.
-if [[ "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
+if [[ -n "$SKILLS_ROOT" && "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     SKILLS_ROOT="$CLAUDE_PROJECT_DIR/$SKILLS_ROOT"
   elif [[ "$HAVE_GIT" == 1 ]]; then
     SKILLS_ROOT="$REPO_ROOT/$SKILLS_ROOT"
   else
-    printf 'Error: relative skills root %s needs CLAUDE_PROJECT_DIR or a git repository to anchor against\n' "$SKILLS_ROOT" >&2
+    printf -v SKILLS_ROOT_ERR 'Error: relative skills root %s needs CLAUDE_PROJECT_DIR or a git repository to anchor against' "$SKILLS_ROOT"
+    SKILLS_ROOT=""
+  fi
+fi
+
+# --- Skills-root dispatch ----------------------------------------------------
+# Classify every positional, in this order:
+#   1. SKILL NAME: no `/` and no `\`, a resolved root, and
+#      <root>/<arg>/SKILL.md is a file. Name beats directory unconditionally, so
+#      a same-named directory beside the caller cannot hijack the bare-name call
+#      the repo's changed-skills gate makes. It is also the recursion guard:
+#      every child below is handed a bare leaf that resolves under its own root.
+#      The slash-free restriction stops `../skills` escaping the root here.
+#   2. SKILL DIRECTORY (rejected): a directory holding its own SKILL.md. Walking
+#      it as a root finds no SKILL.md in any SUBdirectory and reports no skills
+#      at exit 0, so a CI lane written that way (tab completion hands you
+#      exactly this path) gates nothing and stays green forever.
+#   3. ROOT: any other existing directory.
+#   4. Neither: unresolvable. A slash-bearing one is held separately, because it
+#      can never be a skill name and so is an environment error rather than a
+#      lookup miss, whether or not any other positional resolved.
+DISPATCH_NAMES=()
+DISPATCH_ROOTS=()
+DISPATCH_BAD=()
+DISPATCH_BAD_PATHS=()
+for dispatch_arg in "$@"; do
+  if [[ "$dispatch_arg" != */* && "$dispatch_arg" != *\\* &&
+    -n "$SKILLS_ROOT" && -f "$SKILLS_ROOT/$dispatch_arg/SKILL.md" ]]; then
+    DISPATCH_NAMES+=("$dispatch_arg")
+  elif [[ -f "$dispatch_arg/SKILL.md" ]]; then
+    printf 'Error: %s is a skill directory, not a skills root (it holds SKILL.md)\n' "$dispatch_arg" >&2
+    printf 'Pass its parent directory as the root, or its bare leaf name as the skill.\n' >&2
+    exit 2
+  elif [[ -d "$dispatch_arg" ]]; then
+    # Absolutize. A relative CHECK_SKILL_SKILLS_ROOT is anchored at the project
+    # or repo root above, never at the cwd, so a relative root handed straight
+    # to a child would have the parent walk one tree and the child check
+    # another. `cd && pwd` also drops a trailing slash (which would otherwise
+    # defeat the /plugins/<x>/skills$ match) and normalizes a Git Bash
+    # backslash path. CDPATH is cleared because `cd` consults it BEFORE `.` and
+    # echoes the directory it landed in, which would both resolve a different
+    # tree and capture two lines into the root string; `--` guards a leading
+    # dash; and the failure is caught, since without it an unreadable directory
+    # would append an empty root and walk `/*/`.
+    if ! dispatch_abs="$(CDPATH='' cd -- "$dispatch_arg" && pwd)"; then
+      printf 'Error: skills root exists but could not be entered: %s\n' "$dispatch_arg" >&2
+      exit 2
+    fi
+    DISPATCH_ROOTS+=("$dispatch_abs")
+  elif [[ "$dispatch_arg" == */* || "$dispatch_arg" == *\\* ]]; then
+    DISPATCH_BAD_PATHS+=("$dispatch_arg")
+  else
+    DISPATCH_BAD+=("$dispatch_arg")
+  fi
+done
+
+if ((${#DISPATCH_ROOTS[@]} > 0)); then
+  if ((${#DISPATCH_NAMES[@]} > 0)); then
+    printf 'Error: mixed skill name and skills root in one call: %s\n' "${DISPATCH_NAMES[*]}" >&2
+    printf 'Pass one <skill-name>, or one or more skills roots; never both.\n' >&2
     exit 2
   fi
+  if ((${#DISPATCH_BAD[@]} > 0)); then
+    if [[ -n "$SKILLS_ROOT" ]]; then
+      printf 'Error: not a skills root and not a skill under %s: %s\n' "$SKILLS_ROOT" "${DISPATCH_BAD[*]}" >&2
+    else
+      printf 'Error: not a skills root, and no skills root resolved, so it cannot be a skill name either: %s\n' "${DISPATCH_BAD[*]}" >&2
+    fi
+    exit 2
+  fi
+  if ((${#DISPATCH_BAD_PATHS[@]} > 0)); then
+    printf 'Error: skills root does not exist: %s\n' "${DISPATCH_BAD_PATHS[*]}" >&2
+    exit 2
+  fi
+
+  DISPATCH_PASSED=0
+  DISPATCH_FAILED=0
+  DISPATCH_ENV_ERR=0
+  for dispatch_root in "${DISPATCH_ROOTS[@]}"; do
+    printf '=== %s ===\n' "$dispatch_root"
+    dispatch_found=0
+    for dispatch_dir in "$dispatch_root"/*/; do
+      [[ -f "$dispatch_dir/SKILL.md" ]] || continue
+      dispatch_found=1
+      dispatch_leaf="${dispatch_dir%/}"
+      dispatch_leaf="${dispatch_leaf##*/}"
+      # REQUIRE_EVALS is passed through VERBATIM (the option loop sets 1, and
+      # anything else the caller put in CHECK_SKILL_REQUIRE_EVALS survives
+      # unchanged), and the child seeds itself from the same variable and tests
+      # it against "1", so the child's verdict is exactly the parent's. Every
+      # other CHECK_SKILL_* seam is read from the environment and inherits. `--`
+      # keeps a leaf beginning with `-` off the child's unknown-option arm.
+      #
+      # The child runs with its cwd AT the dispatched root, which is what makes
+      # its git context the DISPATCHED tree's rather than the caller's. Both
+      # halves of every git-backed check derive from cwd: REPO_ROOT from
+      # `rev-parse --show-toplevel`, SKILL_REL from `rev-parse --show-prefix`
+      # inside the skill dir. Left at the caller's cwd those two come from
+      # DIFFERENT repositories and checks 3, 8, 9 and 13 join them, so a path
+      # tracked in the caller's repo is reported against a skill that lives
+      # somewhere else entirely. Running at the root also makes a root outside
+      # any repo resolve to HAVE_GIT=0, so the git-backed checks skip with their
+      # documented notes instead of silently answering from the caller's repo.
+      (
+        CDPATH='' cd -- "$dispatch_root" || exit 2
+        CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
+          CHECK_SKILL_REQUIRE_EVALS="$REQUIRE_EVALS" \
+          exec bash "$SCRIPT_PATH" -- "$dispatch_leaf"
+      )
+      case $? in
+      0) DISPATCH_PASSED=$((DISPATCH_PASSED + 1)) ;;
+      1) DISPATCH_FAILED=$((DISPATCH_FAILED + 1)) ;;
+      *) DISPATCH_ENV_ERR=1 ;;
+      esac
+    done
+    # An existing root holding no skills is reported, not an error: the sibling
+    # check-listing-budget.sh does the same, and exit 2 here would hard-error
+    # the commonest run (a repo with an empty .claude/skills). The named line is
+    # what keeps it from being silent.
+    ((dispatch_found == 0)) && printf 'No skills found under: %s\n' "$dispatch_root"
+  done
+  printf '\n%d passed, %d failed\n' "$DISPATCH_PASSED" "$DISPATCH_FAILED"
+  # An environment error is not a finding, so it must not be reported as one.
+  # The rollup wording is pinned by the skill body and the suite, and a run that
+  # never produced a verdict belongs in neither tally, so the shortfall is said
+  # out loud here instead of being folded into either number.
+  if ((DISPATCH_ENV_ERR)); then
+    printf 'Error: one or more skill runs hit an environment error and are counted in neither tally above\n' >&2
+    exit 2
+  fi
+  ((DISPATCH_FAILED > 0)) && exit 1
+  exit 0
+elif ((${#DISPATCH_BAD_PATHS[@]} > 0)); then
+  # A positional carrying a path separator can never be a skill name, so an
+  # unresolvable one is an environment error even when nothing else resolved.
+  # Without this the single-skill body answered a typo'd path, and an unmatched
+  # `plugins/*/skills` glob, with the plugin:skill cache guidance at exit 1.
+  printf 'Error: skills root does not exist: %s\n' "${DISPATCH_BAD_PATHS[*]}" >&2
+  exit 2
+elif (($# > 1)); then
+  # Deliberate behavior change: the body below reads $1 and would silently drop
+  # every later positional, which is the silent omission the root form exists to
+  # kill.
+  printf 'Error: more than one skill name given: %s\n' "$*" >&2
+  printf 'Pass one <skill-name>, or one or more skills roots.\n' >&2
+  exit 2
+fi
+
+# Single-skill path only (root mode has already exited above): the deferred
+# base-ref verdict is this run's own, because the repo it was validated against
+# is the repo this run will query. Placed before the USAGE check specifically,
+# so a no-argument call still reports the base ref first exactly as it did
+# before the verdict was deferred. It sits AFTER the dispatch refusals, so a
+# call that also gets its positionals wrong now names that instead; all of
+# those paths exit 2 either way, and the positional error is the more specific.
+if [[ -n "$BASE_REF_ERR" ]]; then
+  printf '%s\n' "$BASE_REF_ERR" >&2
+  exit 2
+fi
+
+SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name> | <root> [<root> ...]}"
+
+if [[ -z "$SKILLS_ROOT" ]]; then
+  printf '%s\n' "$SKILLS_ROOT_ERR" >&2
+  exit 2
 fi
 
 SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
@@ -330,6 +535,21 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
+# Does the record file "$1" list "$2"? Rows are one path per line, `#` comments
+# and surrounding whitespace ignored. Shared by the two record files this gate
+# reads (check 2b's description baseline, check 14's evals warrant exemptions)
+# so a row is recognized the same way in both.
+path_list_contains() {
+  local file="$1" needle="$2" row
+  while IFS= read -r row || [[ -n "$row" ]]; do
+    row="${row%%#*}"
+    row="${row#"${row%%[![:space:]]*}"}"
+    row="${row%"${row##*[![:space:]]}"}"
+    [[ "$row" == "$needle" ]] && return 0
+  done <"$file"
+  return 1
+}
+
 # Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
 # description + when_to_use pair the harness assembles into one listing entry.
 # Reads the frontmatter as a string so every caller (working tree, base ref,
@@ -435,20 +655,13 @@ else
   # the field is absent (https://code.claude.com/docs/en/skills#frontmatter-reference).
   # Run outside the chain above so an over-long or reserved directory leaf is
   # caught even with no `name:` line. Basis, and the measurement that Claude
-  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints with
-  # the same iconv form check 2b uses, so the count is the spec's unit on any
-  # locale.
+  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
+  # shared library helper checks 2b and 22 also use, so the count is the spec's
+  # unit on any locale.
   EFFECTIVE_NAME="${CUR_NAME:-$SKILL_NAME}"
   name_source="directory name"
   [[ -n "$CUR_NAME" ]] && name_source="declared name"
-  if command -v iconv >/dev/null 2>&1; then
-    NAME_CP_LEN=$(($(printf '%s' "$EFFECTIVE_NAME" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-  else
-    NAME_CP_LEN="$(
-      LC_ALL=C.UTF-8
-      printf '%s' "${#EFFECTIVE_NAME}"
-    )"
-  fi
+  NAME_CP_LEN="$(skill_frontmatter::codepoint_len "$EFFECTIVE_NAME")"
   if ((NAME_CP_LEN > NAME_MAX_LEN)); then
     err "skill name '$EFFECTIVE_NAME' is $NAME_CP_LEN codepoints (Agent Skills spec maximum $NAME_MAX_LEN); Claude Code loads it but the spec's validator rejects it, so shorten the $name_source"
   fi
@@ -501,18 +714,10 @@ fi
 # Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
 # a byte count would false-positive on any non-ASCII description under a
 # byte-oriented locale — measured, 600 'é' characters report as 1200 under
-# LC_ALL=C. Same UTF-8 -> UTF-32BE iconv form check 22 uses (every codepoint
-# becomes exactly 4 bytes, so byte-count/4 is the codepoint count on any host),
-# with the same UTF-8-locale fallback where iconv is absent. DESC_LEN stays a
-# byte count for check 2, whose 1536 listing cap is a separate measure.
-if command -v iconv >/dev/null 2>&1; then
-  DESC_CP_LEN=$(($(printf '%s' "$CUR_DESC" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-else
-  DESC_CP_LEN="$(
-    LC_ALL=C.UTF-8
-    printf '%s' "${#CUR_DESC}"
-  )"
-fi
+# LC_ALL=C. The count comes from the shared library helper check 22 also uses.
+# DESC_LEN stays a byte count for check 2, whose 1536 listing cap is a separate
+# measure.
+DESC_CP_LEN="$(skill_frontmatter::codepoint_len "$CUR_DESC")"
 
 # Is this skill recorded as a pre-existing breach? Keyed by the skill's path
 # relative to the repo root (SKILL_REL), the only identifier that is unique across
@@ -521,17 +726,8 @@ DESC_FIELD_BASELINED=0
 if [[ -n "$DESC_FIELD_BASELINE" ]]; then
   if [[ ! -f "$DESC_FIELD_BASELINE" ]]; then
     err "CHECK_SKILL_DESC_FIELD_BASELINE=$DESC_FIELD_BASELINE does not exist — a missing baseline must not silently become a clean run"
-  elif [[ -n "$SKILL_REL" ]]; then
-    while IFS= read -r baseline_row || [[ -n "$baseline_row" ]]; do
-      baseline_row="${baseline_row%%#*}"
-      baseline_row="${baseline_row#"${baseline_row%%[![:space:]]*}"}"
-      baseline_row="${baseline_row%"${baseline_row##*[![:space:]]}"}"
-      [[ -n "$baseline_row" ]] || continue
-      if [[ "$baseline_row" == "$SKILL_REL" ]]; then
-        DESC_FIELD_BASELINED=1
-        break
-      fi
-    done <"$DESC_FIELD_BASELINE"
+  elif [[ -n "$SKILL_REL" ]] && path_list_contains "$DESC_FIELD_BASELINE" "$SKILL_REL"; then
+    DESC_FIELD_BASELINED=1
   fi
 fi
 
@@ -815,14 +1011,39 @@ done < <(
 # CHECK_SKILL_SKIP_MARKDOWNLINT=1 is a test seam: fixture SKILL.md files may
 # live outside a repo with markdownlint config, so the tool applies defaults
 # (MD041/MD013) that real skills intentionally violate.
+#
+# Check 6 runs from the repo top level (below), which hides a workspace-local
+# install (e.g. packages/foo/node_modules) from npx, so the nearest install
+# above the skill is taken first and npx is the fallback when there is none.
+ML_CMD=(npx --no-install markdownlint-cli2)
+ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
+while [[ -n "$ml_d" ]]; do
+  if [[ -x "$ml_d/node_modules/.bin/markdownlint-cli2" ]]; then
+    ML_CMD=("$ml_d/node_modules/.bin/markdownlint-cli2")
+    break
+  fi
+  ml_d="${ml_d%/*}"
+done
 if [[ "${CHECK_SKILL_SKIP_MARKDOWNLINT:-}" == "1" ]]; then
   note "markdownlint check skipped (CHECK_SKILL_SKIP_MARKDOWNLINT=1)"
-elif command -v npx >/dev/null 2>&1; then
+elif [[ "${ML_CMD[0]}" != npx ]] || command -v npx >/dev/null 2>&1; then
   # --no-install: never trigger a remote fetch. A genuine lint failure emits
   # file:line findings; a non-zero exit WITHOUT such findings means the package
   # is unavailable (not installed / offline), which downgrades to a WARN-skip
   # rather than a hard FAIL on an otherwise valid skill.
-  if ML_OUT="$(npx --no-install markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
+  #
+  # markdownlint-cli2 discovers config only from its cwd downward, never above
+  # it, so a skill in a git repo is linted from that repo's top level: a config
+  # at the repo root applies even when the run starts in a subdirectory such as
+  # plugins/<x>/skills. Outside any repo it runs where it stands.
+  ML_CWD="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  ML_FILE="$SKILL_MD"
+  if [[ -n "$ML_CWD" ]]; then
+    ML_FILE="$(git -C "$SKILL_DIR" rev-parse --show-prefix | tr -d '\r')SKILL.md"
+  else
+    ML_CWD=.
+  fi
+  if ML_OUT="$(cd -- "$ML_CWD" && "${ML_CMD[@]}" "$ML_FILE" 2>&1)"; then
     note "markdownlint clean"
   elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:
@@ -966,15 +1187,9 @@ evals_warrant_exemptions_file() {
 }
 
 evals_warrant_skip() {
-  local skill_rel="$1" file raw
+  local file
   file="$(evals_warrant_exemptions_file "${REPO_ROOT:-$SKILL_DIR}")" || return 1
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    raw="${raw%%#*}"
-    raw="${raw#"${raw%%[![:space:]]*}"}"
-    raw="${raw%"${raw##*[![:space:]]}"}"
-    [[ "$raw" == "$skill_rel" ]] && return 0
-  done <"$file"
-  return 1
+  path_list_contains "$file" "$1"
 }
 
 evals_skill_rel=""
@@ -1460,7 +1675,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_line_ambig = (fe_icode || fe_bt_ambig || fe_esc_ambig)
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
-      # its class and reason to a malformed neighbour, so an unknown-class
+      # its class and reason to a malformed neighbor, so an unknown-class
       # suppression could hide beside a well-formed one and never FAIL.
       dir_rest = line
       # The directive name needs a terminator after it, or a prefix-only match

@@ -91,7 +91,7 @@ setup *
 # nearest alternatives are worse: `audit-placement` repeats what the namespace
 # already says, and any migration-flavored verb would promise the mutation the
 # sibling owns behind a per-item gate.
-# provenance joins on ai-slop's grounds, and over the same corpus. Its object --
+# attribution joins on ai-slop's grounds, and over the same corpus. Its object --
 # prose in tracked markdown that restates content an external source owns
 # without a pointer or a conforming stamped record -- is supplied by the
 # namespace, so a topic qualifier would say it twice. The contract is exactly
@@ -101,11 +101,13 @@ setup *
 # write is the findings file, which lands only in the memory tier through the
 # detector-findings rung order and is not written at all when that contract
 # cannot be resolved. The nearest alternative leaf names are worse:
-# `audit-provenance` repeats the namespace, and a copy-flavored verb like
+# `audit-attribution` repeats the namespace, and a copy-flavored verb like
 # `dedupe` would name the wrong object -- the finding is a restatement whose
 # source is external, not a duplicate inside this repository, which is
-# `extract-ssot`'s concern and not this plugin's.
-audit ai-slop,claude-config,claude-memory,codebase-health,context-budget,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,provenance,repo-fleet-hygiene,testing
+# `extract-ssot`'s concern and not this plugin's. provenance is the plugin's
+# former name and keeps the leaf only as a deprecated shim whose `audit` stub
+# points to `attribution:audit`.
+audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-budget,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,provenance,repo-fleet-hygiene,testing
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
 # skill, toolchain checks a build. instruction-placement joins on its own

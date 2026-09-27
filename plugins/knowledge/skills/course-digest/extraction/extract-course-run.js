@@ -29,6 +29,15 @@ function saveLessonResources(lessonDir, res) {
   }
 }
 
+function recordLessonFailure(ctx, lesson, error, lessonStart) {
+  ctx.stats.failed++;
+  ctx.tracker.item(ctx.stats.lessonIndex, lesson.title, {
+    success: false,
+    error,
+    durationMs: performance.now() - lessonStart,
+  });
+}
+
 async function extractLessonFrames({ ctx, lesson, lessonDir, url, durationSec }) {
   const { adapter, page, platformCfg, frameConfig, log, ffmpegReferer, extractFramesFn, stats } =
     ctx;
@@ -112,12 +121,7 @@ async function extractLessonTranscript({
   log.logResult(transcriptResult);
 
   if (!transcriptResult.success) {
-    stats.failed++;
-    tracker.item(stats.lessonIndex, lesson.title, {
-      success: false,
-      error: transcriptResult.error,
-      durationMs: performance.now() - lessonStart,
-    });
+    recordLessonFailure(ctx, lesson, transcriptResult.error, lessonStart);
     return false;
   }
 
@@ -148,15 +152,10 @@ async function processLesson(module, lesson, ctx) {
     platformCfg,
     skipTitles,
     stats,
-    tracker,
   } = ctx;
 
-  // These two joins run BEFORE the skip guard on purpose: they are what makes a
-  // malformed course.json fail loudly. lessonDirName throws on a non-string
-  // title and join throws on a non-string module.slug, so a hand-edited entry
-  // aborts the run instead of being silently counted as skipped. Hoisting the
-  // guard above them saves two allocation-free calls and converts that abort
-  // into stats.skipped++ with exit 0 -- the failure mode C4 exists to prevent.
+  // Keep these joins above the skip guard: they throw on a malformed course.json
+  // entry, which must abort the run rather than be counted as skipped.
   const lessonDir = join(modulesDir, module.slug, lessonDirName(lesson.position, lesson.title));
   const transcriptPath = join(lessonDir, "transcript.md");
 
@@ -183,12 +182,7 @@ async function processLesson(module, lesson, ctx) {
   const url = adapter.buildLessonUrl(course, lesson, platformCfg);
 
   if (!(await navigateWithFallback(page, url))) {
-    stats.failed++;
-    tracker.item(stats.lessonIndex, lesson.title, {
-      success: false,
-      error: "nav error",
-      durationMs: performance.now() - lessonStart,
-    });
+    recordLessonFailure(ctx, lesson, "nav error", lessonStart);
     return;
   }
   await page.waitForTimeout(1500);

@@ -127,7 +127,7 @@ the same vowel. The quartet `chest / dress / picturesque / forget` spans four co
 because their pre-vowel consonants (`ch` / `dr` / `r` / `g`) all differ.
 
 Two cautions carried from elsewhere in this corpus rather than restated here. Family
-assonance, which lets the walk move to a NEIGHBOURING vowel and start the field
+assonance, which lets the walk move to a NEIGHBORING vowel and start the field
 again, is one step along a leg of the vowel triangle; use Step 5 as printed and do
 not re-derive the figure. And before treating a polysyllabic candidate as a masculine
 rhyme, check that its PRIMARY stress is on the syllable you are rhyming: `picturesque`
@@ -169,20 +169,20 @@ For each rhyme candidate, classify on Pat's scale:
 That order is Pat's printed chart, *Essential Guide to Rhyming* (2014),
 Chapter 9, p.110, "Scale of Rhyme Types: Most Stable to Least Stable",
 running Perfect / Family / Additive-Subtractive / Assonance / Consonance
-under a single axis labelled `Most Stable` at the left and `Least Stable`
+under a single axis labeled `Most Stable` at the left and `Least Stable`
 at the right. Five types. Partial and weak-syllable rhyme are not on it.
 
 **Do NOT attach a fixed use-case to a tier.** Chapter 9's whole argument is
 that a tier's effect depends on *where you put it*: the same family rhyme
 lightens a push in one position and softens a landing in the other. See
-"Tier effect is position-conditional" below before labelling candidates.
+"Tier effect is position-conditional" below before labeling candidates.
 
 Surface candidates per tier so the writer picks by **emotional intent**, not
 by what came up first.
 
 ### Step 3a: Tier effect is position-conditional
 
-*Essential Guide to Rhyming* (2014), Chapter 9. Before labelling a candidate,
+*Essential Guide to Rhyming* (2014), Chapter 9. Before labeling a candidate,
 mark which slot it is destined for. Pat's frame, p.108, on `abab`:
 
 > The first three members,
@@ -412,11 +412,11 @@ The `ād` group is not a plugin invention: `charade`, `masquerade`, `parade` and
 for keyword 2, `afraid` (see [rhyme-worksheets.md](rhyme-worksheets.md)). Treat the
 group as the licensed pattern and the other two as the same pattern extended.
 
-**Not a licence to reach for rare words.** The same writer, in the same session,
+**Not a license to reach for rare words.** The same writer, in the same session,
 rejected `silt` as too literary while accepting `picturesque`. The distinguishing
 property is that these words are in actual pop usage despite being multisyllabic and
 Latinate, not that they are unusual. A word that is merely rare fails on register
-even when it walks out of the field cleanly. The register judgement belongs to §2 of
+even when it walks out of the field cleanly. The register judgment belongs to §2 of
 [response-filter.md](response-filter.md) and to pass 8 of
 [line-edit-rubric.md](line-edit-rubric.md), not to §1; surface the candidate with its
 tier label and let the line-writing filter and the writer's ear decide.

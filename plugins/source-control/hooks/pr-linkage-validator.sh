@@ -143,18 +143,88 @@ trim_to() {
   printf -v "$__plv_dest" '%s' "$s"
 }
 
-# The validator's regexes, transcribed to POSIX ERE. JavaScript's `\b` has no
-# ERE equivalent, so the probe is wrapped in newlines and the boundary is spelled
-# as an explicit non-word character on each side — `#12abc` and `unclosed #5`
-# stay non-matches, exactly as `\b` makes them. Matched against a lower-cased
-# probe in place of the `i` flag.
-KEYWORD_ERE='[^a-z0-9_](close[sd]?|fix(es|ed)?|resolve[sd]?)[[:space:]]*:?[[:space:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[^a-z0-9_]'
+# The pr-contract analyzer's linkage patterns (`scan_line` and the `no-issue`
+# test in ci-workflows .github/actions/pr-contract/run.sh), transcribed to POSIX
+# ERE and matched against lower-cased text in place of `tolower`. The closing
+# keyword and the non-closing marker are matched one line at a time, as CI
+# does; the no-issue phrase is matched over the whole body, wrapped in newlines
+# so the explicit non-word boundary also holds at either end.
+CLOSING_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:blank:]]*:?[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+'
+NON_CLOSING_ERE='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
+_PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
 
-has_linkage() {
-  local probe
-  probe=$'\n'"${1,,}"$'\n'
-  [[ "$probe" =~ $KEYWORD_ERE || "$probe" =~ $NO_ISSUE_ERE ]]
+# CI's `negation_trigger`: the first disclaimer word among the last five words
+# between the previous `.!?;,` and the keyword, into <dest>; empty when there is
+# none. A typographic apostrophe (U+2019) counts as a straight one, and "not
+# only" is affirmative.
+negation_trigger_to() {
+  local __plv_dest="$1" tail="${2##*[.!?;,]}" lower n first i
+  local -a words=()
+  printf -v "$__plv_dest" '%s' ""
+  tail="${tail//$'\xe2\x80\x99'/\'}"
+  while [[ "$tail" =~ $_PLV_WORD_ERE ]]; do
+    words+=("${BASH_REMATCH[0]}")
+    tail="${tail#*"${BASH_REMATCH[0]}"}"
+  done
+  n=${#words[@]}
+  first=0
+  ((n > 5)) && first=$((n - 5))
+  for ((i = first; i < n; i++)); do
+    lower="${words[i],,}"
+    [[ "$lower" == not ]] && ((i + 1 < n)) && [[ "${words[i + 1],,}" == only ]] && continue
+    case "$lower" in
+    not | never | no | without | deliberately | intentionally | *"n't")
+      printf -v "$__plv_dest" '%s' "${words[i]}"
+      return 0
+      ;;
+    *) ;;
+    esac
+  done
+}
+
+# Scan the masked body for linkage. Returns 0 when it carries an un-negated
+# closing keyword, a non-closing `Refs:` / `Relates to:` marker on its own line,
+# or a no-issue opt-out. Fills LINKAGE_NEGATED with one `"<text>" (trigger
+# "<word>")` entry per distinct negated closing reference, in first-seen order.
+# A negated closer never counts as linkage, and CI fails it even when valid
+# linkage exists elsewhere, because GitHub's parser still closes the issue.
+LINKAGE_NEGATED=()
+scan_linkage() {
+  local line lower chunk m pre start len off before after text _plv_trigger i found=1
+  local -A negated_seen=()
+  LINKAGE_NEGATED=()
+  linkage::split_lines "$1"
+  for ((i = 0; i < ${#LINKAGE_LINES[@]}; i++)); do
+    line="${LINKAGE_LINES[i]}"
+    lower="${line,,}"
+    [[ "$lower" =~ $NON_CLOSING_ERE ]] && found=0
+    off=0
+    while chunk="${lower:off}" && [[ "$chunk" =~ $CLOSING_ERE ]]; do
+      m="${BASH_REMATCH[0]}"
+      # The leftmost match is also the first occurrence of its own text.
+      pre="${chunk%%"$m"*}"
+      start=$((off + ${#pre}))
+      len=${#m}
+      off=$((start + len))
+      before=""
+      ((start > 0)) && before="${lower:start-1:1}"
+      after="${lower:off:1}"
+      [[ "$before" == [a-z0-9_] || "$after" == [a-z0-9_] ]] && continue
+      text="${line:start:len}"
+      negation_trigger_to _plv_trigger "${line:0:start}"
+      if [[ -z "$_plv_trigger" ]]; then
+        found=0
+        continue
+      fi
+      [[ -n "${negated_seen[$text]:-}" ]] && continue
+      negated_seen[$text]=1
+      LINKAGE_NEGATED+=("\"${text}\" (trigger \"${_plv_trigger}\")")
+    done
+  done
+  ((found == 0)) && return 0
+  lower=$'\n'"${1,,}"$'\n'
+  [[ "$lower" =~ $NO_ISSUE_ERE ]]
 }
 
 # The four contract sections the pinned ci-workflows reusable requires
@@ -178,12 +248,10 @@ REQUIRED_SECTIONS=(Summary Fix Verification Related)
 # empty rather than holding whatever the caller had there.
 section_content_to() {
   local __plv_dest="$1" body="$2" heading_lc="${3,,}" t start=0 lvl i=0 out=""
-  local -a lines=()
   printf -v "$__plv_dest" '%s' ""
   linkage::split_lines "$body"
-  lines=("${LINKAGE_LINES[@]}")
-  for ((i = 0; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
+  for ((i = 0; i < ${#LINKAGE_LINES[@]}; i++)); do
+    t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
     [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
@@ -192,8 +260,8 @@ section_content_to() {
     }
   done
   ((start)) || return 1
-  for ((i = start; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
+  for ((i = start; i < ${#LINKAGE_LINES[@]}; i++)); do
+    t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
     if [[ "$t" =~ ^#+[[:space:]]+[^[:space:]] ]]; then
@@ -201,7 +269,7 @@ section_content_to() {
       while [[ "${t:lvl:1}" == "#" ]]; do ((lvl++)); done
       ((lvl <= 2)) && break
     fi
-    out+="${lines[i]}"$'\n'
+    out+="${LINKAGE_LINES[i]}"$'\n'
   done
   trim_to "$__plv_dest" "$out"
 }
@@ -217,14 +285,15 @@ section_content_to() {
 mask_markdown_code_to() {
   local __plv_dest="$1" body="$2" line rest rendered fence_char="" fence_len=0 in_fence=0
   local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out="" li=0
-  local -a runs_pos runs_len spans_start spans_end used lines=()
+  local -a runs_pos runs_len spans_start spans_end used
+  # Up to three leading spaces, then the fence run, then the info string.
+  local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
   linkage::split_lines "$body"
-  lines=("${LINKAGE_LINES[@]}")
-  for ((li = 0; li < ${#lines[@]}; li++)); do
-    line="${lines[li]}"
+  for ((li = 0; li < ${#LINKAGE_LINES[@]}; li++)); do
+    line="${LINKAGE_LINES[li]}"
     rest="${line%$'\r'}"
     if ((in_fence)); then
-      if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+      if [[ "$rest" =~ $fence_re ]]; then
         marker_run="${BASH_REMATCH[1]}"
         marker_rest="${BASH_REMATCH[2]}"
         if [[ "${marker_run:0:1}" == "$fence_char" && ${#marker_run} -ge $fence_len && "$marker_rest" =~ ^[[:space:]]*$ ]]; then
@@ -236,7 +305,7 @@ mask_markdown_code_to() {
       out+=$'\n'
       continue
     fi
-    if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+    if [[ "$rest" =~ $fence_re ]]; then
       marker_run="${BASH_REMATCH[1]}"
       marker_rest="${BASH_REMATCH[2]}"
       if [[ "${marker_run:0:1}" != '`' || "$marker_rest" != *'`'* ]]; then
@@ -247,7 +316,8 @@ mask_markdown_code_to() {
         continue
       fi
     fi
-    if [[ "$rest" =~ ^(\ {4}|\t) ]]; then
+    # A glob, not `=~ ^(\ {4}|\t)`: in a bash regex `\t` is a literal `t`.
+    if [[ "$rest" == "    "* || "$rest" == $'\t'* ]]; then
       out+=$'\n'
       continue
     fi
@@ -319,8 +389,8 @@ mask_markdown_code_to() {
 }
 
 # Aggregate verdict: strip comments, mask Markdown code (CI does both before
-# any heading or keyword scan), then the closing-keyword half plus every
-# required section. Fills the global LINKAGE_PROBLEMS array with one line per
+# any heading or keyword scan), then every required section plus the linkage
+# half: a negated closing reference, and missing linkage. Fills the global LINKAGE_PROBLEMS array with one line per
 # problem so the author sees the full set in one pass; returns 0 when the body
 # passes (array empty), 1 otherwise. The consuming hook owns what a failure
 # DOES — block message, telemetry, exit code.
@@ -329,6 +399,7 @@ linkage::problems() {
   # `_plv_`-prefixed per the DEST-NAME CONTRACT above: an out-variable named
   # `body`, `out`, or `line` would be captured by the callee's own local.
   local _plv_stripped="" _plv_body="" _plv_content="" heading
+  local _plv_linked=0 _plv_negated=""
   strip_html_comments_to _plv_stripped "$1"
   mask_markdown_code_to _plv_body "$_plv_stripped"
   LINKAGE_PROBLEMS=()
@@ -340,8 +411,14 @@ linkage::problems() {
       LINKAGE_PROBLEMS+=("Missing a \"## ${heading}\" section.")
     fi
   done
-  has_linkage "$_plv_body" ||
-    LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N) and no "No linked issue" marker.')
+  # shellcheck disable=SC2310  # the exit IS the verdict: linkage present or not
+  scan_linkage "$_plv_body" || _plv_linked=1
+  ((${#LINKAGE_NEGATED[@]} == 0)) || {
+    printf -v _plv_negated '%s, ' "${LINKAGE_NEGATED[@]}"
+    LINKAGE_PROBLEMS+=("Negated closing reference (${_plv_negated%, }). GitHub's linkage parser ignores the surrounding words, so this still registers a closing reference and still auto-closes the issue when this PR merges. Remove the closing keyword and use \"Refs: #N\" (or \"Relates to: #N\") on its own line instead.")
+  }
+  ((_plv_linked == 0)) ||
+    LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N). If this PR references an issue it must not close, put "Refs: #N" (or "Relates to: #N") on its own line. If it relates to no GitHub issue at all, state "No linked issue" (or "No related issue:") in the body instead.')
   : >"$_PR_LINKAGE_SPLIT_FILE"
   ((${#LINKAGE_PROBLEMS[@]} == 0))
 }

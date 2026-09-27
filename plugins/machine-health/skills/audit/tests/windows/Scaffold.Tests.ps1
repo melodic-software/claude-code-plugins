@@ -10,18 +10,11 @@ check-specific tests exist. If these fail, nothing else can run.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent $PSScriptRoot
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+    . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Assert-CheckResult.ps1' -MockHelpers
     . (Join-Path $script:TestsRoot 'helpers\Invoke-FixtureRedaction.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
 
-    # USERNAME/COMPUTERNAME are usually unset on non-Windows hosts. The
-    # redaction tests build their payloads from these variables and the
-    # helper reads the same ones, so pin stable values when empty (and
-    # restore after) instead of changing the helper. Windows keeps its
-    # real values.
+    # USERNAME/COMPUTERNAME are usually unset off Windows, and the redaction tests and helper
+    # both read them, so pin stable values when empty (restored after).
     $script:SavedUserName = $env:USERNAME
     $script:SavedComputerName = $env:COMPUTERNAME
     if (-not $env:USERNAME) { $env:USERNAME = 'scaffolduser' }
@@ -158,7 +151,7 @@ Describe 'Scaffold -- Invoke-FixtureRedaction' {
     It 'replaces username inside string values' {
         $payload = [pscustomobject]@{ Path = "C:\Users\$env:USERNAME\Documents\foo.txt" }
         $out = Invoke-FixtureRedaction -InputObject $payload
-        $out.Path | Should -Not -Match ([regex]::Escape("$env:USERNAME"))
+        $out.Path | Should -Not -Match ([regex]::Escape($env:USERNAME))
         $out.Path | Should -Match '__USERNAME__'
     }
 

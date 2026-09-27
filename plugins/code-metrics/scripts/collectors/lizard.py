@@ -28,25 +28,21 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    normalize,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "lizard"
 LANES = ("typescript", "python", "go")
 MEASURES = ("cyclomatic", "function_lines")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -54,15 +50,10 @@ def probe() -> int:
     if not exe:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{NAME} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -78,7 +69,7 @@ def _source_lines(path: str, cache: dict[str, list[str]]) -> list[str]:
 
 def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no record parsed."""
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     cache: dict[str, list[str]] = {}
     rows: list[dict] = []
     parsed = 0
@@ -90,10 +81,9 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
         except ValueError:
             continue
         parsed += 1
-        location = _normalize(record[6])
-        if location not in wanted_norm:
+        path = wanted_norm.get(normalize(record[6]))
+        if path is None:
             continue
-        path = wanted_norm[location]
         if measure == "cyclomatic":
             values: dict = {"cyclomatic": ccn}
         else:
@@ -148,39 +138,27 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    for lane in LANES:
+        for measure in MEASURES:
+            print(f"{lane}/{measure}")
+
+
+INSTALL_HINT = "lizard: https://github.com/terryyin/lizard (pip install lizard, or pipx install lizard)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        for lane in LANES:
-            for measure in MEASURES:
-                print(f"{lane}/{measure}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "lizard: https://github.com/terryyin/lizard (pip install lizard, or pipx install lizard)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("lizard.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

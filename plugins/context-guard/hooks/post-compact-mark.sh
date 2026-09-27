@@ -34,12 +34,13 @@ set -uo pipefail
 # answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
+# must not pay to parse hook-utils.sh before finding out it is off.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
-
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
 
@@ -106,9 +107,7 @@ if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
   # rename up front rather than report a false "ok" (and rather than discover
   # it afterwards, which would leave the temp file littered in that
   # directory).
-  if [[ -d "$target" ]]; then
-    rm -f "$tmp" 2>/dev/null
-  elif mv -f "$tmp" "$target" 2>/dev/null; then
+  if [[ ! -d "$target" ]] && mv -f "$tmp" "$target" 2>/dev/null; then
     marker_ok=1
   else
     rm -f "$tmp" 2>/dev/null

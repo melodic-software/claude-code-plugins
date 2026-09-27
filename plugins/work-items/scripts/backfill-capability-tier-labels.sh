@@ -1,18 +1,9 @@
 #!/usr/bin/env bash
-# backfill-capability-tier-labels.sh — one-shot migration for #1716 body stamps.
+# One-shot #1716 migration: label open items still carrying a legacy frontier-tier body
+# stamp. Setup apply runs it because triage never re-triages already-triaged items.
 #
-# Finds open items whose body carries a legacy frontier-tier triage-briefing signal
-# but lack the provider-permissioned capability-tier: frontier label, then optionally
-# applies the label. Triage refuses to re-triage already-triaged output, so setup
-# apply runs this pass after the label axis is provisioned.
-#
-# Usage:
-#   backfill-capability-tier-labels.sh check [--repo <owner>/<repo>]
-#   backfill-capability-tier-labels.sh apply [--repo <owner>/<repo>] [--dry-run] [--yes]
-#
-# check — prints one candidate issue/PR number per line (stdout); exit 0 always.
-# apply — adds capability-tier: frontier to each candidate; exit 1 when label missing
-#         from repo or gh unavailable; exit 2 when interactive confirmation declined.
+# check exits 0 always. apply exits 1 when the label is unprovisioned or gh is missing,
+# 2 when interactive confirmation is declined.
 
 set -euo pipefail
 
@@ -31,13 +22,22 @@ ASSUME_YES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --repo) REPO="${2:-}"; shift 2 ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    --yes) ASSUME_YES=1; shift ;;
-    *)
-      echo "ERROR: unknown argument: $1" >&2
-      exit 1
-      ;;
+  --repo)
+    REPO="${2:-}"
+    shift 2
+    ;;
+  --dry-run)
+    DRY_RUN=1
+    shift
+    ;;
+  --yes)
+    ASSUME_YES=1
+    shift
+    ;;
+  *)
+    echo "ERROR: unknown argument: $1" >&2
+    exit 1
+    ;;
   esac
 done
 
@@ -59,8 +59,8 @@ require_gh() {
 
 label_exists_in_repo() {
   require_gh
-  gh label list ${repo_args[@]+"${repo_args[@]}"} --limit 200 --json name \
-    | jq -e --arg want "$CAPABILITY_TIER_LABEL" '[.[] | .name] | index($want) != null' >/dev/null
+  gh label list ${repo_args[@]+"${repo_args[@]}"} --limit 200 --json name |
+    jq -e --arg want "$CAPABILITY_TIER_LABEL" '[.[] | .name] | index($want) != null' >/dev/null
 }
 
 list_open_items_without_label_json() {
@@ -79,9 +79,6 @@ list_open_items_without_label_json() {
     ]' <<<"$items"
 }
 
-# collect_candidates — one candidate issue/PR number per line: open items that
-# lack the capability-tier label (the jq select above already excludes labelled
-# ones) and whose body still carries a legacy frontier-tier stamp.
 collect_candidates() {
   local items item body number
   items="$(list_open_items_without_label_json)"
@@ -104,40 +101,43 @@ EOF
 }
 
 case "$MODE" in
-  check)
-    collect_candidates
-    ;;
-  apply)
-    # shellcheck disable=SC2310  # gh probe; false means "label missing", handled below
-    if ! label_exists_in_repo; then
-      echo "ERROR: $CAPABILITY_TIER_LABEL is not provisioned in the repository label set" >&2
-      echo "Run /work-items:setup apply to provision the label axis first, or route to the label-as-code owner." >&2
-      exit 1
-    fi
-    mapfile -t candidates < <(collect_candidates)
-    if [[ "${#candidates[@]}" -eq 0 ]]; then
-      echo "No legacy frontier-tier body stamps need backfill."
-      exit 0
-    fi
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      printf 'Would apply %s to issue(s): %s\n' "$CAPABILITY_TIER_LABEL" "${candidates[*]}"
-      exit 0
-    fi
-    if [[ "$ASSUME_YES" -ne 1 ]]; then
-      echo "Apply $CAPABILITY_TIER_LABEL to ${#candidates[@]} item(s): ${candidates[*]}?"
-      read -r -p "Proceed? [y/N] " reply
-      case "$reply" in
-        [yY]|[yY][eE][sS]) ;;
-        *) echo "Aborted." >&2; exit 2 ;;
-      esac
-    fi
-    for number in ${candidates[@]+"${candidates[@]}"}; do
-      gh issue edit "$number" ${repo_args[@]+"${repo_args[@]}"} --add-label "$CAPABILITY_TIER_LABEL"
-      echo "Applied $CAPABILITY_TIER_LABEL to #$number"
-    done
-    ;;
-  *)
-    usage >&2
+check)
+  collect_candidates
+  ;;
+apply)
+  # shellcheck disable=SC2310  # gh probe; false means "label missing", handled below
+  if ! label_exists_in_repo; then
+    echo "ERROR: $CAPABILITY_TIER_LABEL is not provisioned in the repository label set" >&2
+    echo "Run /work-items:setup apply to provision the label axis first, or route to the label-as-code owner." >&2
     exit 1
-    ;;
+  fi
+  mapfile -t candidates < <(collect_candidates)
+  if [[ "${#candidates[@]}" -eq 0 ]]; then
+    echo "No legacy frontier-tier body stamps need backfill."
+    exit 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf 'Would apply %s to issue(s): %s\n' "$CAPABILITY_TIER_LABEL" "${candidates[*]}"
+    exit 0
+  fi
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    echo "Apply $CAPABILITY_TIER_LABEL to ${#candidates[@]} item(s): ${candidates[*]}?"
+    read -r -p "Proceed? [y/N] " reply
+    case "$reply" in
+    [yY] | [yY][eE][sS]) ;;
+    *)
+      echo "Aborted." >&2
+      exit 2
+      ;;
+    esac
+  fi
+  for number in "${candidates[@]}"; do
+    gh issue edit "$number" ${repo_args[@]+"${repo_args[@]}"} --add-label "$CAPABILITY_TIER_LABEL"
+    echo "Applied $CAPABILITY_TIER_LABEL to #$number"
+  done
+  ;;
+*)
+  usage >&2
+  exit 1
+  ;;
 esac

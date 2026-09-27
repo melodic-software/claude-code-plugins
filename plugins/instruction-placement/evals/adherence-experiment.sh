@@ -78,16 +78,19 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --trials)
+  --trials | --filler)
     [[ $# -lt 2 ]] && {
-      printf 'ERROR: --trials needs a number\n' >&2
+      printf 'ERROR: %s needs a number\n' "$1" >&2
       exit 2
     }
     [[ "$2" =~ ^[0-9]+$ ]] || {
-      printf 'ERROR: --trials must be an integer\n' >&2
+      printf 'ERROR: %s must be an integer\n' "$1" >&2
       exit 2
     }
-    TRIALS="$2"
+    case "$1" in
+    --trials) TRIALS="$2" ;;
+    *) FILLER_SECTIONS="$2" ;;
+    esac
     shift 2
     ;;
   --claude)
@@ -96,18 +99,6 @@ while [[ $# -gt 0 ]]; do
       exit 2
     }
     CLAUDE_BIN="$2"
-    shift 2
-    ;;
-  --filler)
-    [[ $# -lt 2 ]] && {
-      printf 'ERROR: --filler needs a number\n' >&2
-      exit 2
-    }
-    [[ "$2" =~ ^[0-9]+$ ]] || {
-      printf 'ERROR: --filler must be an integer\n' >&2
-      exit 2
-    }
-    FILLER_SECTIONS="$2"
     shift 2
     ;;
   --keep)
@@ -311,9 +302,7 @@ run_trial() {
   local dir="$WORK/$arm"
   git -C "$dir" checkout -q -- . 2>/dev/null
   timeout 300 "$CLAUDE_BIN" -p "$TASK" \
-    --allowedTools Read Edit Write >"$WORK/${arm}-${n}.out" 2>"$WORK/${arm}-${n}.err" &&
-    return 0
-  return 1
+    --allowedTools Read Edit Write >"$WORK/${arm}-${n}.out" 2>"$WORK/${arm}-${n}.err"
 }
 
 build_arm control
@@ -324,8 +313,11 @@ printf 'CONTROL AGENTS.md is %s lines; treatment AGENTS.md is %s lines.\n\n' \
   "$(wc -l <"$WORK/treatment/AGENTS.md" | tr -d ' ')"
 printf 'ARM\tTRIAL\tSEALED\tUNDERSCORE\tBOTH\n'
 
-c_sealed=0 c_under=0 c_both=0 c_ok=0
-t_sealed=0 t_under=0 t_both=0 t_ok=0
+# Tallies per arm: scored trials, and how many of them met each criterion.
+declare -A n_ok n_sealed n_under n_both
+for arm in control treatment; do
+  n_ok[$arm]=0 n_sealed[$arm]=0 n_under[$arm]=0 n_both[$arm]=0
+done
 
 for ((n = 1; n <= TRIALS; n++)); do
   # Interleaved, so any drift in service conditions hits both arms alike.
@@ -341,23 +333,18 @@ for ((n = 1; n <= TRIALS; n++)); do
     both=0
     ((s == 1 && u == 1)) && both=1
     printf '%s\t%d\t%d\t%d\t%d\n' "$arm" "$n" "$s" "$u" "$both"
-    if [[ "$arm" == "control" ]]; then
-      c_ok=$((c_ok + 1))
-      c_sealed=$((c_sealed + s))
-      c_under=$((c_under + u))
-      c_both=$((c_both + both))
-    else
-      t_ok=$((t_ok + 1))
-      t_sealed=$((t_sealed + s))
-      t_under=$((t_under + u))
-      t_both=$((t_both + both))
-    fi
+    n_ok[$arm]=$((n_ok[$arm] + 1))
+    n_sealed[$arm]=$((n_sealed[$arm] + s))
+    n_under[$arm]=$((n_under[$arm] + u))
+    n_both[$arm]=$((n_both[$arm] + both))
   done
 done
 
 printf '\nRESULT\tarm\tn\tsealed\tunderscore\tboth\n'
-printf 'RESULT\tcontrol\t%d\t%d\t%d\t%d\n' "$c_ok" "$c_sealed" "$c_under" "$c_both"
-printf 'RESULT\ttreatment\t%d\t%d\t%d\t%d\n' "$t_ok" "$t_sealed" "$t_under" "$t_both"
+for arm in control treatment; do
+  printf 'RESULT\t%s\t%d\t%d\t%d\t%d\n' "$arm" \
+    "${n_ok[$arm]}" "${n_sealed[$arm]}" "${n_under[$arm]}" "${n_both[$arm]}"
+done
 
 printf '\nRaw counts only. N is small by design and no p-value is computed:\n'
 printf 'this detects a large effect and nothing subtler. One model, one\n'

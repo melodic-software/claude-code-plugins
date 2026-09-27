@@ -26,6 +26,9 @@ assert_eq() {
 assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi
 }
+assert_nonempty() {
+  if [[ -n "$2" ]]; then pass "$1"; else fail "$1" "non-empty" "empty"; fi
+}
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
@@ -44,11 +47,7 @@ assert_not_contains() {
 help_out=$(bash "$SCRIPT" --help 2>&1)
 help_exit=$?
 assert_exit "--help exits 0" 0 "$help_exit"
-if [[ -n "$help_out" ]]; then
-  pass "--help emits non-empty stdout"
-else
-  fail "--help emits non-empty stdout" "non-empty" "empty"
-fi
+assert_nonempty "--help emits non-empty stdout" "$help_out"
 assert_contains "--help mentions --check" "$help_out" "--check"
 assert_contains "--help mentions --apply" "$help_out" "--apply"
 assert_contains "--help mentions vendor" "$help_out" "vendor"
@@ -56,11 +55,7 @@ assert_contains "--help mentions vendor" "$help_out" "vendor"
 help_out_short=$(bash "$SCRIPT" -h 2>&1)
 short_exit=$?
 assert_exit "-h exits 0" 0 "$short_exit"
-if [[ -n "$help_out_short" ]]; then
-  pass "-h emits non-empty stdout"
-else
-  fail "-h emits non-empty stdout" "non-empty" "empty"
-fi
+assert_nonempty "-h emits non-empty stdout" "$help_out_short"
 
 # --- 2. Unknown flag handling ----------------------------------------------------
 

@@ -12,11 +12,7 @@ source "$SCRIPT_DIR/common.sh"
 for fn in gh_write wit_run_gh wit_resolve_repo wit_emit_item wit_lease_json \
   wit_lease_is_live wit_list_lease_comments wit_help_if_requested wit_map_gh_error \
   wit_gh_issue_view_json_fields; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
@@ -108,13 +104,13 @@ EOF
   assert_eq "wit_emit_item on gh 2.45 → id" "github:o/r#1" "$(jq -r '.id' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → parent_id null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → blocked_by_count 0" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
-  CALLS="$(cat "$EMIT_STUB/calls.log")"
+  CALLS="$(<"$EMIT_STUB/calls.log")"
   assert_not_contains "wit_emit_item on gh 2.45 does not request blockedBy" "$CALLS" "blockedBy"
 
   : >"$EMIT_STUB/calls.log"
   GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 GH_STUB_REJECT_NATIVE=0 \
     PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1 >/dev/null
-  CALLS="$(cat "$EMIT_STUB/calls.log")"
+  CALLS="$(<"$EMIT_STUB/calls.log")"
   assert_contains "wit_emit_item on gh 2.94 requests blockedBy" "$CALLS" "blockedBy"
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
 

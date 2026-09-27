@@ -42,6 +42,11 @@ _INT = re.compile(r"^[-+]?\d+$")
 _FLOAT = re.compile(r"^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$")
 
 
+def _is_item(content: str) -> bool:
+    """Whether a line's content opens a block-sequence item."""
+    return content == "-" or content.startswith("- ")
+
+
 def _strip_comment(text: str) -> str:
     quote = None
     for index, ch in enumerate(text):
@@ -176,7 +181,7 @@ class _Parser:
     def __init__(self, text: str) -> None:
         self.lines: list[tuple[int, int, str]] = []  # (indent, lineno, content)
         for number, raw in enumerate(text.splitlines(), 1):
-            if raw.startswith("---") or raw.startswith("..."):
+            if raw.startswith(("---", "...")):
                 raise YamlSubsetError(number, "document markers are outside the subset")
             stripped = _strip_comment(raw)
             if not stripped.strip():
@@ -200,7 +205,7 @@ class _Parser:
 
     def _block(self, indent: int) -> Any:
         _, number, content = self.lines[self.pos]
-        if content == "-" or content.startswith("- "):
+        if _is_item(content):
             return self._sequence(indent)
         if _split_key(content, number) is None:
             raise YamlSubsetError(
@@ -239,9 +244,7 @@ class _Parser:
             if child_indent > parent_indent:
                 return self._block(child_indent)
             # A sequence may sit at the parent's indent (`key:` then `- item`).
-            if child_indent == parent_indent and (
-                content == "-" or content.startswith("- ")
-            ):
+            if child_indent == parent_indent and _is_item(content):
                 return self._sequence(child_indent)
         return None
 
@@ -249,7 +252,7 @@ class _Parser:
         result: list[Any] = []
         while self.pos < len(self.lines):
             line_indent, number, content = self.lines[self.pos]
-            if line_indent < indent or not (content == "-" or content.startswith("- ")):
+            if line_indent < indent or not _is_item(content):
                 break
             if line_indent > indent:
                 raise YamlSubsetError(
@@ -261,11 +264,7 @@ class _Parser:
                 result.append(self._nested(indent, number))
                 continue
             split = _split_key(item, number)
-            if (
-                split is not None
-                and not item.startswith(("'", '"'))
-                or (split is not None and item.startswith(("'", '"')) and ":" in item)
-            ):
+            if split is not None:
                 # A mapping whose first entry sits on the dash line; the rest
                 # of its entries are indented to the item column.
                 item_indent = indent + 2

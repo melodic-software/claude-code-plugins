@@ -54,7 +54,7 @@ is what stops suppression from swallowing real code.
 
 #### The node-kind vocabulary
 
-"Arid" is not a judgement call spelled freely. A suppression's `claim` binds one of these kinds, and
+"Arid" is not a judgment call spelled freely. A suppression's `claim` binds one of these kinds, and
 this list is the whole vocabulary. A survivor fitting none of them **is not arid** and must not be
 suppressed. Naming the kind is what makes a suppression reviewable: a reader can disagree with
 `kind=log-call` in a way they cannot disagree with "seemed unimportant."

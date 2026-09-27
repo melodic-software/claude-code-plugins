@@ -261,30 +261,29 @@ RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 # tolerated locked-file warning, is a genuine clean failure; emit a distinct
 # failure line and a non-zero exit instead of a success line that misrepresents
 # the outcome.
+CLEAN_FAILED=0
 if [[ "$CLEAN_RC" -ne 0 && "$CLEAN_NON_LOCKED_FAILURE" -ne 0 ]]; then
+  CLEAN_FAILED=1
   printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
   [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'
-  printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
-  printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"
-  # Surface restore-guard activity identically to the success path: a clean that
-  # errored mid-run may still have deleted tracked files (reparse-point traversal)
-  # before failing, and the machine-readable RestoredTracked line alone can be
-  # missed. Emit the same human-visible warning the success path prints so an
-  # operator is not left unaware that data-loss recovery fired on the failure path.
-  if [[ "${RESTORED:-0}" -gt 0 ]]; then
-    printf 'WARNING: restored %s tracked file(s) deleted via reparse-point traversal (junction/symlink into tracked dir).\n' "$RESTORED" >&2
-  fi
-  exit 7
+else
+  printf 'AppliedClean: git clean -fdx%s\n' "$PRESERVE_SUFFIX"
 fi
 
-printf 'AppliedClean: git clean -fdx%s\n' "$PRESERVE_SUFFIX"
+# The count lines and the restore-guard warning are the same on both paths: a
+# clean that errored mid-run may still have deleted tracked files (reparse-point
+# traversal) before failing, and the machine-readable RestoredTracked line alone
+# can be missed, so the human-visible warning is not reserved for success.
 printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
 printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"
-
 if [[ "${RESTORED:-0}" -gt 0 ]]; then
   printf 'WARNING: restored %s tracked file(s) deleted via reparse-point traversal (junction/symlink into tracked dir).\n' "$RESTORED" >&2
 fi
+if [[ "$CLEAN_FAILED" -eq 1 ]]; then
+  exit 7
+fi
+
 if [[ "${UNREMOVABLE:-0}" -gt 0 ]]; then
   printf 'NOTE: %s path(s) could not be removed (locked / in use by a running process):\n' "$UNREMOVABLE" >&2
   printf '%s\n' "$CLEAN_STDERR" | grep 'failed to remove' >&2 || true

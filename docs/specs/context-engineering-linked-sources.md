@@ -13,7 +13,7 @@ The two primary articles are:
 - **P2**, "Effective context engineering for AI agents", Anthropic engineering blog,
   2025-09-29 (`https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents`).
 
-The nine pages are the corpus's tier-2 set, labelled T1 through T9. T1 and T2 are one content
+The nine pages are the corpus's tier-2 set, labeled T1 through T9. T1 and T2 are one content
 node (the Fable field guide, published on both X and claude.com/blog), so this file carries
 eight sections for nine tier-2 entries. T9 is itself a pair of docs pages, cited separately
 inside its section.
@@ -247,7 +247,7 @@ the agents in charge of acting on the information.
 ```
 
 The accompanying figure draws it as privilege separation across a trust boundary: an untrusted
-backlog feeds a dashed quarantine zone labelled "read-only tools, no privileges" holding one
+backlog feeds a dashed quarantine zone labeled "read-only tools, no privileges" holding one
 reader agent per item plus a dedupe step; only a structured summary crosses into the trusted
 zone, where "high-privilege tools live here" and an actor agent acts on summaries and never on
 raw content, then either attempts a fix and opens a PR or escalates to a human. `/loop` runs it
@@ -264,7 +264,7 @@ continuously.
   method is a tournament, a pipeline of pairwise-comparison agents, or parallel bucket-ranking
   then merge, with the parenthetical methodological claim that comparative judgment is more
   reliable than absolute scoring. The deterministic loop holds the bracket, so only the running
-  order stays in context. Every judging node in the figure is labelled "fresh agent".
+  order stays in context. Every judging node in the figure is labeled "fresh agent".
 - Memory and rule adherence: one verifier agent per rule with a clean context each, plus a
   skeptic-persona reviewer to cut false positives. The reverse direction mines sessions and
   code-review comments for repeated corrections, clusters them with parallel agents,
@@ -810,7 +810,7 @@ clearing fired, so the reported behavior is self-contradictory on a literal read
 
 **The memory-poisoning threat list.** Two named security threats. *Path traversal* is one
 sentence, "Always validate paths to prevent directory traversal attacks", with implementation
-deferred to `memory_tool.py`. *Memory poisoning* is labelled a Critical Risk: memory files are
+deferred to `memory_tool.py`. *Memory poisoning* is labeled a Critical Risk: memory files are
 read back into Claude's context on later turns, so anything written into one is a
 prompt-injection vector. Four named mitigations: content sanitization (filter dangerous
 patterns before storing), memory scope isolation (per user, per project), memory auditing (log

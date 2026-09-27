@@ -3,9 +3,7 @@
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_GITEA_CURL, so
-# no test in this adapter touches the network. That is not merely convenient: no live
-# Gitea instance is reachable from the environment this adapter was built in, and the
-# alternative to mocked coverage is no coverage — see README.md "Recorded deferrals".
+# no test in this adapter touches the network (README.md "Recorded deferrals").
 #
 # The mock answers by REQUEST URL rather than by call count, because Gitea's verbs
 # interleave several endpoints (issues, dependencies, labels) and a count-indexed mock
@@ -28,18 +26,16 @@ gitea_fixture_init() {
   cat >"$GITEA_MOCK/curl" <<'MOCK'
 #!/usr/bin/env bash
 # Mock curl. Reads the -K stdin config to recover the request URL (that is where the
-# real adapter puts it, so this also proves the URL never travelled in argv), records
+# real adapter puts it, so this also proves the URL never traveled in argv), records
 # the request, and replies from the seeded route table.
-d="$(cd "$(dirname "$0")" && pwd)"
-fix="$(dirname "$d")"
-cfg="$(cat)"
-url="$(printf '%s' "$cfg" | sed -n 's/^url = "\(.*\)"$/\1/p')"
+fix="$(cd "$(dirname "$0")/.." && pwd)"
+url="$(sed -n 's/^url = "\(.*\)"$/\1/p')"
 method="GET"
 dumpfile=""
 prev=""
 for a in "$@"; do
   if [[ "$prev" == "-X" ]]; then method="$a"; fi
-  # The adapter passes -D <file> to capture response headers; honour it so the
+  # The adapter passes -D <file> to capture response headers; honor it so the
   # X-Total-Count path is exercised rather than silently falling back.
   if [[ "$prev" == "-D" ]]; then dumpfile="$a"; fi
   prev="$a"

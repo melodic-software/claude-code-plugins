@@ -125,7 +125,7 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 ## Fork beats compaction when the window is deep
 
 This section picks between two continuation mechanisms; it never licenses the continuation itself.
-That licence comes from "When to invoke" above, and the thresholds here apply only once it is
+That license comes from "When to invoke" above, and the thresholds here apply only once it is
 granted.
 
 Two ways to keep going past a heavy context: fork (handoff file + `/clear` + fresh session) or
@@ -155,6 +155,17 @@ artifact (a topic contract, an issue, a PR body) and reference it from there. Th
 itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
 user-controlled removal. Nothing expires, sweeps, or ages these files out silently.
 
+**Trim a long cumulative section by promoting its resolved entries.** Cumulative sections
+(Constraints, Decisions, Findings, and the other two the structure doc names) are copied forward
+every hop, so a long chain's handoff grows with history it no longer acts on. When one section
+passes about 25 entries (a judgment figure, not a sourced one), move each RESOLVED entry, one that
+is settled and no longer shapes the next action, into the repo's docs or the program's ADR. Then
+replace the entry with a one-line pointer that keeps its tag and quotes its opening words:
+`- [h3] Promoted to docs/adr/0007-migrations.md: Migrations run forward-only;`. The substance then
+lives only in the committed artifact, as the do-not-duplicate rule above requires, and `validate`
+accepts the pointer in place of the dropped entry (structure doc, "Cumulative sections and
+provenance tags"). Commit the artifact before writing the pointer. An open entry stays in full.
+
 ## Produce the save-point
 
 The save-point machinery, destination resolution, locating the position, full-vs-prompt-only
@@ -165,9 +176,11 @@ Walk it top to bottom; do not restate or improvise any of its steps.
 
 On the full path the file is shape 2 and a script owns every deterministic field
 (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
-run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, fill only
-the `<!-- FILL: … -->` slots, run `save_point.py validate` until it exits 0, then paste the
-`save_point.py emit` output as the rails block. The screen and the file's `## Resume prompt`
+run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, write one JSON object
+holding the values for the `<!-- FILL: … -->` slots that skeleton carries, apply them all with
+`save_point.py fill <file> --slots <json>`, run `save_point.py validate` until it exits 0, then
+paste the `save_point.py emit` output as the rails block. The Edit tool is the repair path after a
+failed `validate`, never the way the slots are filled. The screen and the file's `## Resume prompt`
 section are the same bytes by construction. Two refusals route elsewhere and are stated, never
 worked around: no Python 3.10+ on PATH takes the engine doc's Python-absent fallback
 (`validator unavailable`, file hand-written per the structure doc, `validate: SKIPPED`); no
@@ -207,21 +220,28 @@ ticked. Emit the rails block before ending the turn, always.
   the literal `.work` assumed), the root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
   `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
-  later step (Edit, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
+  later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
   for a missing or non-UUID session id → prompt-only path, reason stated; no interpreter →
   `validator unavailable: no python3/python on PATH` said in one line, the shape-2 file written
   by hand per the structure doc, and the `validate` box below reads `SKIPPED (no interpreter)`
-- [ ] Only `<!-- FILL: … -->` slots edited; every deterministic field left as `new` wrote it
-  (frontmatter, `chain:`, the carried `[hN]` sections, the `## Prior sessions` table, the rails
-  block minus `Next:`); the optional slots (`goal-rearm`, `below-rail`, `<section>-new`) deleted
-  when they do not apply, so no `FILL` text remains
+- [ ] Slot values written as ONE JSON object beside the handoff (`<same stem>.slots.json`, left in
+  place afterwards) and applied in a single
+  `save_point.py fill "$FILE" --slots "$SLOTS"` call, its slot names read off the skeleton `new`
+  just wrote rather than a remembered template (the set is branch-dependent, and an unknown key
+  is refused); `fill` exited 0, so no `FILL` text remains and every deterministic field is still
+  as `new` wrote it (frontmatter, `chain:`, the carried `[hN]` sections, the `## Prior sessions`
+  table, the rails block minus `Next:`). An optional slot (`goal-rearm`, `below-rail`,
+  `<section>-new`) that does not apply is left OUT of the object, which is how `fill` deletes its
+  line; a refusal names the slot or key and leaves the file byte-identical, so the fix is the JSON
+  and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
   (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
   present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
   amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
   the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
-  deleted (superseded entries moved under `Superseded:`)
+  deleted (superseded entries moved under `Superseded:`, promoted ones replaced by their
+  `Promoted to` pointer)
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
   paraphrase and not the process serving it, and the drift-check sentence tying the next action
   back to it is answered (structure doc, "Original goal")
@@ -266,7 +286,8 @@ ticked. Emit the rails block before ending the turn, always.
   verbatim (copy instruction, rails, directive, `Prior session:`, `Handoff origin:`, `Next:`
   headlines, the below-rail `claude --resume` line), never retyped or regenerated, so the screen
   equals the file's `## Resume prompt` section byte for byte; `Next:` holds 1 to 5 plain
-  headlines from `Remaining actions, in order` (or `Next: none (closed)`), with `Then: /<skill>`
+  headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
+  `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`
   last only at a stage boundary. The directive `@`-references the file by its **absolute**,
   forward-slash-normalized path, never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd, and carries the invoke-the-skill sentence; the

@@ -93,11 +93,9 @@ function Write-ElevationBanner {
     $lines.Add(' To run elevated:')
     $lines.Add('   Open Windows Terminal as Administrator, then:')
     $lines.Add("     pwsh -NoProfile -File '$invokeScript' ``")
-    if ($StateBase) {
-        $lines.Add("          -OutputBase '$OutputBase' -StateBase '$StateBase'")
-    } else {
-        $lines.Add("          -OutputBase '$OutputBase'")
-    }
+    $rerunArgs = "          -OutputBase '$OutputBase'"
+    if ($StateBase) { $rerunArgs += " -StateBase '$StateBase'" }
+    $lines.Add($rerunArgs)
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
     $lines.Add($sep)
@@ -139,8 +137,7 @@ function Get-ElevationCoverageMarkdown {
     $body.Add('| Feature | Check | Populates when elevated | Reason |')
     $body.Add('|---|---|---|---|')
     foreach ($m in $Matrix) {
-        $fieldList = ($m.Fields -join ', ')
-        $body.Add("| $($m.Feature) | $($m.CheckId) | $fieldList | $($m.Reason) |")
+        $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
     }
     $body.Add('')
     $body.Add('To populate these: re-run the skill from an elevated Windows Terminal.')

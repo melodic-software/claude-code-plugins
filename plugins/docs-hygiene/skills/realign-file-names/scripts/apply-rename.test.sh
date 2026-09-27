@@ -67,9 +67,28 @@ stage() {
 
 # Only the clean variant is used here: the collision variant makes the AUDIT
 # refuse to emit a plan, so there is no artifact for this stage to act on.
+#
+# The fixture repository and its audit are built ONCE and copied per case. On
+# Git Bash each process spawn costs ~140 ms, and a build plus the three audit
+# stages cost ~15 s a case there. The audit is a function of the tree and its
+# branch, and its plan names no path of the checkout it ran in: two audits of
+# the same tree differ only in `date:` and `head:`, which the executor never
+# reads. A case that changes the tree before auditing still stages its own copy.
+TEMPLATE="$TEST_TMPDIR/template"
+bash "$BUILD" "$TEMPLATE/tree" >/dev/null
+cp -R "$TEMPLATE/tree" "$TEMPLATE/staged"
+stage "$TEMPLATE/staged" >/dev/null
+
 new_fixture() {
   d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
-  bash "$BUILD" "$d" >/dev/null
+  cp -R "$TEMPLATE/tree" "$d"
+  printf '%s' "$d"
+}
+
+# new_staged : a fresh copy of the fixture with its plan already at .audit/plan.md
+new_staged() {
+  d="$TEST_TMPDIR/fx-$CASES-$RANDOM"
+  cp -R "$TEMPLATE/staged" "$d"
   printf '%s' "$d"
 }
 
@@ -105,8 +124,8 @@ run() {
 
 # --- a single accepted rename, every current-tier form rewritten --------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Alpha-One.md)"
 accept "$plan" "$id"
 out="$(run --artifact "$plan" --id "$id" --root "$root")"
@@ -143,8 +162,8 @@ assert_contains "historical narrative is left as written" "$adr" \
 # The other half of `links-and-paths`: a backtick path in the same historical
 # file is repointed too. Applying BETA rather than Alpha-One, because that is
 # the pair whose historical site is a backtick path.
-root2="$(new_fixture)"
-plan2="$(stage "$root2")"
+root2="$(new_staged)"
+plan2="$root2/.audit/plan.md"
 idb="$(id_for "$plan2" docs/BETA.md)"
 accept "$plan2" "$idb"
 run --artifact "$plan2" --id "$idb" --root "$root2" >/dev/null
@@ -237,8 +256,8 @@ fi
 
 # --- two mutually referencing offenders, applied one after the other ----------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 a="$(id_for "$plan" docs/Alpha-One.md)"
 b="$(id_for "$plan" docs/BETA.md)"
 accept "$plan" "$a"
@@ -259,8 +278,8 @@ assert_absent "the first run's output is not a no-op report" "$first" "EDITED	0"
 
 # --- a drifted site is reported and skipped, never edited blind --------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 accept "$plan" "$id"
 # The audit recorded a backtick path on README.md line 6; move it out from under
@@ -297,8 +316,8 @@ assert_contains "a longer name carrying the stem is left alone" "$line" "Alpha-O
 
 # --- the id is a finding id, never a pattern ---------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 before="$(git -C "$root" status --porcelain)"
 out="$(run --artifact "$plan" --id 'FN-.*' --root "$root")"
 rc=$?
@@ -338,8 +357,8 @@ assert_contains "its own citation is repointed at the new path" \
 # fixture whose generated site is already `regenerate` cannot tell the two
 # apart.
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Alpha-One.md)"
 accept "$plan" "$id"
 # shellcheck disable=SC2016  # backticks are literal markdown in the plan row
@@ -354,8 +373,8 @@ assert_contains "so its stale sample is still the old path, not a substitution" 
 
 # --- a missing old path is refused -------------------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 accept "$plan" "$id"
 git -C "$root" rm -q docs/Gamma_Three.md
@@ -371,8 +390,8 @@ assert_eq "and the sibling records are untouched" "pending" \
 
 # A record nobody accepted is left alone: nothing was decided about it, so
 # there is no decision to mark unachievable.
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 git -C "$root" rm -q docs/Gamma_Three.md
 run --artifact "$plan" --id "$id" --root "$root" >/dev/null
@@ -380,8 +399,8 @@ assert_eq "a pending record whose file moved stays pending" "pending" "$(status_
 
 # --- an unresolvable regenerator stops the run BEFORE anything moves ----------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Alpha-One.md)"
 accept "$plan" "$id"
 inplace "$root/.claude/docs-hygiene.json" 's|bash tools/gen.sh .|bash tools/does-not-exist.sh .|'
@@ -396,8 +415,8 @@ assert_eq "the record is untouched" "accepted" "$(status_of "$plan" "$id")"
 
 # --- an interrupted apply resumes --------------------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 accept "$plan" "$id"
 # The shape a run that died between `git mv` and its first edit leaves behind.
@@ -427,8 +446,8 @@ assert_eq "and a no-op on the plan" "$plan_before" "$(cat "$plan")"
 
 # --- --dry-run changes nothing -----------------------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Alpha-One.md)"
 accept "$plan" "$id"
 before="$(git -C "$root" status --porcelain)"
@@ -447,8 +466,8 @@ assert_eq "a dry run leaves the record alone" "accepted" "$(status_of "$plan" "$
 
 # --- --regenerate-only is the closing pass -----------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 for p in docs/Alpha-One.md docs/BETA.md docs/Gamma_Three.md; do
   i="$(id_for "$plan" "$p")"
   accept "$plan" "$i"
@@ -467,8 +486,8 @@ assert_contains "the closing pass records the final name" \
 
 # --- a plan written on another branch is refused ------------------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/BETA.md)"
 accept "$plan" "$id"
 git -C "$root" checkout -q -b some-other-branch
@@ -492,16 +511,16 @@ assert_contains "the refusal names the id" "$out" "carries no finding 'FN-deadbe
 # status it cannot act on, so a plan record left pending still applies when the
 # skill asks for it; what it must never do is act on one already applied.
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 out="$(run --artifact "$plan" --id "$id" --root "$root")"
 assert_eq "a pending record applies when the caller asks" "applied" "$(status_of "$plan" "$id")"
 
 # --- --root drives a checkout the script is not run from ----------------------
 
-root="$(new_fixture)"
-plan="$(stage "$root")"
+root="$(new_staged)"
+plan="$root/.audit/plan.md"
 id="$(id_for "$plan" docs/Gamma_Three.md)"
 accept "$plan" "$id"
 other="$TEST_TMPDIR/elsewhere-$RANDOM"

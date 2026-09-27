@@ -77,7 +77,9 @@ confirmation, naming which repos' uncommitted changes will be discarded.
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-reset` (dry-run)
 / `done` (apply) / `skipped` (skip-list, dirty, or no-upstream) / `blocked`
 (default-branch, upstream-unresolved, or a non-git input) / `failed` (child reset
-failed mid-apply). A closing `Summary:` line totals each bucket. Child exit codes
+failed mid-apply). A closing `Summary:` line totals each bucket. After apply, report the
+`failed`, `blocked`, and `skipped` repos with their reasons before the totals: those
+need the user. Child exit codes
 map straight through, so single-repo safety semantics are preserved verbatim.
 
 ### Default-branch reality

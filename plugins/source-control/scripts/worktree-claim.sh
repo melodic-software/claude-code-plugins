@@ -50,6 +50,14 @@ set -uo pipefail
 
 PROG=${0##*/}
 
+# Lexical path collapse, shared inside this plugin with the worktree gates and
+# the creation helper. Sourced for worktree_path_normalize alone: the file
+# defines functions only and pulls in no library of its own.
+SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR=.
+# shellcheck source=../hooks/worktree-path-lib.sh
+source "$SCRIPT_DIR/../hooks/worktree-path-lib.sh"
+
 EX_OK=0
 EX_UNCLAIMED_REPORT=1
 EX_USAGE=2
@@ -78,39 +86,15 @@ git_unlocated() {
 }
 
 # Lexical collapse of `.` / `..` / `//`, plus trailing-slash trim. Pure
-# string work so a not-yet-existing path still compares to porcelain.
+# string work so a not-yet-existing path still compares to porcelain. The
+# collapse itself is worktree-path-lib.sh's, shared with the worktree gates and
+# the creation helper; this script's own two additions stay here: a trailing CR
+# is dropped (git porcelain read on an MSYS/Cygwin shell carries CRLF), and a
+# relative path that collapses away answers `.` rather than the empty string.
 normalize_path() {
-  local input="$1" root rest seg
-  input="${input%$'\r'}"
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  local joined="${out[*]}"
-  if [[ -n "$root" ]]; then
-    printf '%s%s' "$root" "$joined"
-  elif [[ -n "$joined" ]]; then
-    printf '%s' "$joined"
-  else
-    printf '.'
-  fi
+  local collapsed
+  collapsed=$(worktree_path_normalize "${1%$'\r'}")
+  printf '%s' "${collapsed:-.}"
 }
 
 # Make <path> absolute against <base> (default PWD), collapse `.`/`..`,
@@ -165,8 +149,11 @@ valid_session_id() {
 
 # New lock reason for a non-helper worktree. Session id is required so two
 # concurrent sessions on one host produce different reasons. The helper's
-# reason string is a different prefix (`worktree-create.sh:`) and is never
-# written here — existing helper-created trees keep theirs (#2882 AC4).
+# reason string uses a different prefix (`worktree-create.sh:`) and is never
+# written here. Existing helper-created trees keep their reason (#2882 AC4).
+# Ownership is the `session <sid> since` token, not the prefix: a helper
+# reason that carries this session's token is ours, and a helper reason
+# with no session token is foreign to every session.
 claim_reason() {
   local sid="$1"
   local host="${HOSTNAME:-}"
@@ -523,8 +510,6 @@ check-enter)
   do_check_enter
   exit $?
   ;;
-*)
-  printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
-  usage
-  ;;
+# Unknown verbs already exited above, where the verb was validated.
+*) ;;
 esac

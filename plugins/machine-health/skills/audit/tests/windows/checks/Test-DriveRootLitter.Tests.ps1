@@ -13,13 +13,7 @@ the stock Windows layout and still catches the litter shapes.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-DriveRootLitter.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DriveRootLitter' -MockHelpers
 
     function Invoke-DriveRootLitterAsObject {
         param(
@@ -124,12 +118,12 @@ Describe 'Test-DriveRootLitter' -Tag 'check' {
             New-Item -ItemType Directory -Path $stray -Force | Out-Null
             $strayFile = Join-Path $script:sysRoot 'log.txt'
             Set-Content -LiteralPath $strayFile -Value '' -NoNewline
-            $before = @(Get-ChildItem -LiteralPath $script:sysRoot -Force | Sort-Object Name)
+            $before = @(Get-ChildItem -LiteralPath $script:sysRoot -Force)
 
             $result = Invoke-DriveRootLitterAsObject -SystemRootPath $script:sysRoot
             $result.detail.residue_count | Should -Be 2
-            $after = @(Get-ChildItem -LiteralPath $script:sysRoot -Force | Sort-Object Name)
-            @($after).Count | Should -Be @($before).Count
+            $after = @(Get-ChildItem -LiteralPath $script:sysRoot -Force)
+            $after.Count | Should -Be $before.Count
             Test-Path -LiteralPath $stray | Should -BeTrue
             Test-Path -LiteralPath $strayFile | Should -BeTrue
             $result.detail.remediation_route | Should -Be 'disk-hygiene:clean'

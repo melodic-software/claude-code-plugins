@@ -299,7 +299,7 @@ assert_contains "and the reason names the incompleteness" \
 
 # A criss-cross history has more than one merge base. Picking one silently means
 # testing against a base the work did not diverge at, which can produce a
-# favourable verdict for content that is not there.
+# favorable verdict for content that is not there.
 W="$(mkfixture)"
 git -C "$W" checkout -q -b sideA main >/dev/null 2>&1
 commit_in "$W" a.txt "a" "A"

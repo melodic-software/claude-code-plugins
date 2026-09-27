@@ -3,6 +3,42 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-09-27
+
+### Changed
+
+- The `audit` persist-findings eval no longer says `Confidence: low` ranks below an omitted field.
+  The review plugin's rank order now puts an omitted field last; the detector rule it tests,
+  `high` or omitted and never `low`, is unchanged.
+
+## [0.4.1] - 2026-09-27
+
+### Changed
+
+- `audit`'s description is under the 1024-codepoint field cap. The trigger phrases and flags are unchanged.
+
+## [0.4.0] - 2026-09-23
+
+### Changed
+
+- `audit`'s report opens with a "Needs you" line counting proposed suppressions to accept and
+  unclassified survivors to classify.
+- The survivor-judgment subagent's brief states when it is done and when it returns early.
+
+## [0.3.27] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.3.26]
+
+### Changed
+
+- The markdown-format hook uses the shared hook-utils git-tree and dirname helpers instead of local copies, its suite and the powershell-format suite route repeated invocations through shared runners, and the mcp-tools discover, mutation-testing suppression-lint, and playwright update scripts fold duplicated blocks into helpers, with identical output.
+
 ## [0.3.25]
 
 ### Changed

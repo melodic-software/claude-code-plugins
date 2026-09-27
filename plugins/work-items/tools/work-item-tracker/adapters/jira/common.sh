@@ -39,9 +39,7 @@ source "$WIT_JIRA_ADAPTER_DIR/../../lib/json.sh"
 # binding.sh is sourced (not inherited): the dispatcher runs each verb as a fresh
 # `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
 # The adapter re-locates the binding itself to read its jira-specific config subtree,
-# rather than growing the shared binding.sh with jira keys (that shared lib already
-# carries a provider-specific leak — config.storage_dir — that this adapter does not
-# extend; the generalized fix is filed as a scoped follow-up).
+# rather than growing the shared binding.sh with jira keys.
 wit_jira_require_seam_lib "$WIT_JIRA_ADAPTER_DIR/../../lib/binding.sh"
 # shellcheck source=../../lib/binding.sh
 source "$WIT_JIRA_ADAPTER_DIR/../../lib/binding.sh"
@@ -333,8 +331,7 @@ wit_jira_require_ok() {
 readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,summary"
 # WIT_JIRA_FIELDS and WIT_JIRA_NORMALIZE_PROGRAM (below) are consumed by the sourcing
 # verb scripts, not within this file; export so a standalone lint of this sourced-only
-# file sees them as intentionally external (mirrors lib/json.sh exporting
-# WIT_SCHEMA_VERSION and local-markdown/common.sh exporting its verb-referenced consts).
+# file sees them as intentionally external.
 export WIT_JIRA_FIELDS
 
 # wit_jira_normalize_program — a jq program that maps one raw Jira IssueBean into the

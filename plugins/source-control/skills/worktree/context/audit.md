@@ -53,7 +53,7 @@ Classify each path into exactly one of four buckets, and never merge them:
 | **live here** | the path is in **this** repository's `git worktree list`, compared *normalized*: the record spells the path natively (backslashes on Windows) while `git worktree list` prints forward slashes, so unify separators and fold case on Windows, exactly as `scripts/reap-project-plugin-records.sh`'s `norm_path` does | not a finding |
 | **live elsewhere** | the path resolves to a directory **and** `git -C <path> rev-parse --is-inside-work-tree` prints `true` | **not a finding.** Count it and move on |
 | **candidate orphan** | under the resolved worktree root, **and** both tests above failed | reported, with the gated remedy below |
-| **other project records** | not under the resolved worktree root | listed for information only, explicitly labelled *not this plugin's lifecycle*, with **no remedy offered** |
+| **other project records** | not under the resolved worktree root | listed for information only, explicitly labeled *not this plugin's lifecycle*, with **no remedy offered** |
 
 **The `live elsewhere` bucket is not optional, and it is the one an implementation drops.** The
 worktree root is shared: `create` places worktrees at `<root>/<owner>-<repo>-<slug>`, one root

@@ -121,13 +121,19 @@ compose_cmd() {
   done
   ERR="$(bash "$COMPOSE" "${args[@]}" 2>&1 >"$WORK/out")"
   STATUS=$?
-  OUT="$(cat "$WORK/out")"
+  OUT="$(<"$WORK/out")"
   # The script's documented codes are 0-4. Anything above that is the process
   # failing to run at all, so say so rather than letting an empty OUT surface as
   # an ordinary value mismatch.
   if [[ $STATUS -gt 4 ]]; then
     bad "harness: the script process exited $STATUS, outside its documented 0-4 range (stderr: $ERR)"
   fi
+}
+
+# compose_err <arg>... : run with the given arguments and stdout discarded,
+# capturing stderr in ERR. The caller reads $? for the exit code.
+compose_err() {
+  ERR="$(bash "$COMPOSE" "$@" 2>&1 >/dev/null)"
 }
 
 # --- 1. composes-without-double-wrapping -------------------------------------
@@ -177,8 +183,8 @@ assert_eq "4 multiple-generated-layers-collapse-in-one-run: one shim, one sh -c 
   "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline'" \
   "$OUT"
 
-ERR="$(bash "$COMPOSE" --command "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'sh -c '\''THEME=dark my-statusline'\'''" \
-  --command-only --explain --wrap "$CG" 2>&1 >/dev/null)"
+compose_err --command "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'sh -c '\''THEME=dark my-statusline'\'''" \
+  --command-only --explain --wrap "$CG"
 assert_contains "4 multiple-generated-layers-collapse-in-one-run: all three layers peeled in one pass" \
   "layers-peeled: 3" "$ERR"
 assert_contains "4 multiple-generated-layers-collapse-in-one-run: renderer recovered byte-for-byte" \
@@ -209,7 +215,7 @@ assert_eq "6 bare-builtin-renderer-gets-a-shell: shell-wrapped variant with the 
   "bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'ulimit '\''-n'\'''" \
   "$OUT"
 
-ERR="$(bash "$COMPOSE" --command "ulimit '-n'" --command-only --explain --wrap "$CG" 2>&1 >/dev/null)"
+compose_err --command "ulimit '-n'" --command-only --explain --wrap "$CG"
 assert_contains "6 bare-builtin-renderer-gets-a-shell: fires on the not-an-executable trigger" \
   "wrap: shell (command word is a builtin, not an executable)" "$ERR"
 
@@ -224,7 +230,7 @@ assert_eq "7 shell-syntax-sealed-inside-quotes-is-not-a-trigger: plain wrapped f
   "bash ~/.claude/context-guard/bin/statusline-shim.sh my-statusline --format 'a | b'" \
   "$OUT"
 
-ERR="$(bash "$COMPOSE" --command "my-statusline --format 'a | b'" --command-only --explain --wrap "$CG" 2>&1 >/dev/null)"
+compose_err --command "my-statusline --format 'a | b'" --command-only --explain --wrap "$CG"
 assert_contains "8 bare-quoting-is-not-a-wrap-trigger: the wrap decision is plain, with its reason" \
   "wrap: plain (command word resolves as an executable)" "$ERR"
 assert_contains "8 bare-quoting-is-not-a-wrap-trigger: the idempotency check is reported" \
@@ -298,30 +304,30 @@ ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only 2>&1 >"$WORK/out
 STATUS=$?
 assert_status "13 refusal: missing --wrap exits 2" 2 "$STATUS"
 assert_contains "13 refusal: missing --wrap names the missing argument" "--wrap" "$ERR"
-assert_eq "13 refusal: missing --wrap prints nothing on stdout" "" "$(cat "$WORK/out")"
+assert_eq "13 refusal: missing --wrap prints nothing on stdout" "" "$(<"$WORK/out")"
 
 # --- 14. refusal: a --wrap prefix the peel would not recognize ---------------
 # An unrecognized prefix would survive the peel on the next run and stack a
 # fresh layer, which is the compounding the peel rules exist to prevent.
 
-ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only --wrap "my-wrapper" 2>&1 >/dev/null)"
+compose_err --command "my-statusline" --command-only --wrap "my-wrapper"
 STATUS=$?
 assert_status "14 refusal: a non-shim --wrap prefix exits 2" 2 "$STATUS"
 assert_contains "14 refusal: a non-shim --wrap prefix says what the prefix must be" \
   "statusline-shim.sh" "$ERR"
 
-ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only \
-  --wrap "bash ~/.claude/context-guard/bin/statusline-tee.sh" 2>&1 >/dev/null)"
+compose_err --command "my-statusline" --command-only \
+  --wrap "bash ~/.claude/context-guard/bin/statusline-tee.sh"
 STATUS=$?
 assert_status "14 refusal: a legacy tee --wrap prefix exits 2" 2 "$STATUS"
 
-ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only --wrap "sh -c 'x'" 2>&1 >/dev/null)"
+compose_err --command "my-statusline" --command-only --wrap "sh -c 'x'"
 STATUS=$?
 assert_status "14 refusal: a three-word --wrap prefix exits 2" 2 "$STATUS"
 
 # --- 15. refusal: unbalanced quoting in the current command ------------------
 
-ERR="$(bash "$COMPOSE" --command "my-statusline --format 'a" --command-only --wrap "$CG" 2>&1 >/dev/null)"
+compose_err --command "my-statusline --format 'a" --command-only --wrap "$CG"
 STATUS=$?
 assert_status "15 refusal: unbalanced quoting exits 3" 3 "$STATUS"
 assert_contains "15 refusal: unbalanced quoting names the reason on one line" \
@@ -329,7 +335,7 @@ assert_contains "15 refusal: unbalanced quoting names the reason on one line" \
 
 # --- 16. refusal: unknown argument -------------------------------------------
 
-ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only --wrap "$CG" --nope 2>&1 >/dev/null)"
+compose_err --command "my-statusline" --command-only --wrap "$CG" --nope
 STATUS=$?
 assert_status "16 refusal: an unknown argument exits 2" 2 "$STATUS"
 assert_contains "16 refusal: an unknown argument is named" "--nope" "$ERR"

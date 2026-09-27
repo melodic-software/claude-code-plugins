@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: invented-exempt-aggressive
+description: aggressive on an invented Python module keeps every exempt surface and deletes the one ordinary rationale comment
+tags: [calibration, aggressive, invented]
+expected_outcome: The shebang, the two-line license header, the noqa justification, the TODO(#12) marker, and the dissolve-comments-ignore line with the comment it covers all stay; the arbitrary-order rationale is deleted; code is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive exempt.py
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: shebang-kept
+    type: regex
+    pattern: '^#!/usr/bin/env python3\n'
+    target: { source: file, path: exempt.py }
+  - name: license-kept
+    type: regex
+    pattern: '^# Copyright \(c\) 2026 Example Corp\.\n# Licensed under the MIT License\. See LICENSE in the project root\.$'
+    flags: m
+    target: { source: file, path: exempt.py }
+  - name: noqa-kept
+    type: regex
+    pattern: '# noqa: E501  long canonical URL'
+    target: { source: file, path: exempt.py }
+  - name: todo-kept
+    type: regex
+    pattern: '# TODO\(#12\): replace polling with a webhook'
+    target: { source: file, path: exempt.py }
+  - name: ignore-marker-kept
+    type: regex
+    pattern: '# dissolve-comments-ignore\n    return min\(2\*\*attempt, POLL_SECONDS\)  # capped so a retry never outlasts one poll interval'
+    target: { source: file, path: exempt.py }
+  - name: rationale-deleted
+    type: regex
+    pattern: '#[^\n]*arbitrary order'
+    match: not_contains
+    target: { source: file, path: exempt.py }
+  - name: code-intact
+    type: regex
+    pattern: '^    pages = client\.get\(URL\)$[\s\S]*^    pages\.sort\(key=lambda page: page\["updated_at"\]\)\n    return pages$'
+    flags: m
+    target: { source: file, path: exempt.py }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both

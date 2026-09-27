@@ -7,14 +7,10 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
+source "../../../lib/python-probe.sh"
+
 PY=""
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1 &&
-    "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    PY="$candidate"
-    break
-  fi
-done
+python_probe::floor_interpreter_to PY
 
 if [[ -z "$PY" ]]; then
   echo "SKIP: Python 3.10+ not found"

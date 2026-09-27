@@ -10,11 +10,10 @@ function is_body(line) {
   return index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}") \
     || index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_response_body\"}")
 }
-function prefix_len() { return length(tf) + 4 }
 { total++ }
 match($0, "\"" tf "\":\"[0-9]+\"") {
-  pl = prefix_len()
-  ns = substr($0, RSTART + pl, RLENGTH - pl - 1)
+  prefix_len = length(tf) + 4
+  ns = substr($0, RSTART + prefix_len, RLENGTH - prefix_len - 1)
   secs = substr(ns, 1, length(ns) - 9)
   if (secs + 0 < cutoff + 0) {
     would_compact++

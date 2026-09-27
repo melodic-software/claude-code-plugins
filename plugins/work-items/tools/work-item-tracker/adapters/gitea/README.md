@@ -56,7 +56,7 @@ adapter's guards:
 - **Allowlist, never escape.** Values interpolated into request paths and queries
   (`scopes`) are matched against an anchored allowlist and refused when they do not
   conform. A rejection is loud; an escaping bug is silent.
-- **Host pin posture:** **no code-level pin.** Gitea / Forgejo is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that `host` lives in a tracked, review-gated file. Setting `config.gitea.host_suffix` in your binding to pin it to your own instance is recommended.
+- **Host pin posture:** **no code-level pin.** Gitea / Forgejo is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defense is that `host` lives in a tracked, review-gated file. Setting `config.gitea.host_suffix` in your binding to pin it to your own instance is recommended.
 
 ## Verb coverage
 
@@ -102,7 +102,7 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
   at `WIT_GITEA_CURL`; none touches a network.
 - **NOT run:** the abstract conformance suite against a live Gitea or Forgejo instance.
   The binding at `conformance/bindings/gitea.sh` is ready and refuses to run without an
-  explicitly named throwaway target. Until that pass happens, treat the live behaviour
+  explicitly named throwaway target. Until that pass happens, treat the live behavior
   as documented-and-tested-against-the-documentation, not as verified.
 
   **An instance is obtainable. A privileged host for it is not.**

@@ -99,6 +99,16 @@ function text_of(start,   i, s) {
 # no pattern matcher.
 function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
 
+# The single site every `inert` record is emitted from. Three call sites below
+# report a beaten rule, and each one must also increment the summary count: a
+# count that tracked only one of them printed beaten=0 beside an inert record on
+# screen, leaving a reader unable to reconcile the summary with the records it
+# summarizes. Keeping the emission and the count together makes that structural.
+function emit_inert(ikind, itext, tag) {
+  print "inert " ikind " scopes=" scopes[itext SUBSEP ikind] " " tag " " itext
+  n_inert++
+}
+
 # conf records ALWAYS pass through, including under --merge-only. They are not
 # presentation, they are input a downstream stage needs to be correct: the entry
 # diff reads autoMode.classifyAllShell from them, and without it a narrow shell
@@ -190,20 +200,14 @@ END {
         if (win == "") win = kinds[i]
       }
     }
-    # Every `inert` emission increments the count, here as well as in the
-    # cross-kind loop below. A summary that counted only one of the three sites
-    # reported beaten=0 beside an inert record on screen, which is a reader
-    # unable to reconcile the summary with the records it summarizes.
     if (scoped && (tk in bare_deny)) {
       for (i = 1; i <= 3; i++) {
-        k = text SUBSEP kinds[i]
-        if (k in kind_seen) { print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text; n_inert++ }
+        if ((text SUBSEP kinds[i]) in kind_seen) emit_inert(kinds[i], text, "removed_by=deny@" tk)
       }
       continue
     }
     if (scoped && win == "allow" && (tk in bare_ask)) {
-      print "inert allow scopes=" scopes[text SUBSEP "allow"] " outranked_by=ask@" tk " " text
-      n_inert++
+      emit_inert("allow", text, "outranked_by=ask@" tk)
       continue
     }
 
@@ -216,8 +220,7 @@ END {
     n_effective[win]++
     for (i = 1; i <= 3; i++) {
       if (kinds[i] == win) continue
-      k = text SUBSEP kinds[i]
-      if (k in kind_seen) { print "inert " kinds[i] " scopes=" scopes[k] " outranked_by=" win " " text; n_inert++ }
+      if ((text SUBSEP kinds[i]) in kind_seen) emit_inert(kinds[i], text, "outranked_by=" win)
     }
   }
 

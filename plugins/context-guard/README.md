@@ -160,6 +160,44 @@ the older command-position budget, so a redirection moved back inside a substitu
 rather than quietly doubling a call site. Where `strace` is unavailable that assertion skips and
 the command-position budget still runs.
 
+#### Skipping the resolve when nothing moved
+
+Three files outside the hook decide everything it does: the per-session snapshot, the optional
+`zones.json`, and the compaction marker. When none is newer than the `.seen` mark the last
+completed resolve left, and the two optional ones still exist or are still absent exactly as that
+mark's own line records them, the fire cannot reach a different answer, and the hook exits through
+builtins alone. The existence line is what an mtime comparison cannot supply: a removed file is
+never newer than anything, so without it, deleting `zones.json` or the compaction marker read as
+nothing having moved. A mark carrying no readable line never takes the skip. The envelope parse had
+to become free for any of this to mean anything, so a payload
+within `hook::jq_fields`' proof ceiling is parsed by the library's builtin JSON parser, and one
+above it keeps the single here-string `jq` described below.
+
+Measured as process creations under a Windows job object, which counts every descendant; 5 reps per
+cell, identical across reps. The subject is the hooks.json row run through `usr/bin/bash.exe -c`,
+whose own floor is 3: the `-c` shell, `env`, and the shell the script's shebang starts.
+
+| Fire | Payload | Creations before | After |
+|---|---|---|---|
+| First, resolves | small envelope | 11 | 9 |
+| Repeat, nothing moved | small envelope | 9 | **3** |
+| Snapshot rewritten | small envelope | 9 | 7 |
+| First, resolves | 150 KB batch | 11 | 11 |
+| Repeat, nothing moved | 150 KB batch | 9 | **5** |
+| Snapshot rewritten | 150 KB batch | 9 | 9 |
+
+No cell is worse than before, which is what the size test on the envelope parse buys: the helper's
+fallback reads through a process substitution and costs four creations on an oversize payload
+against two for the here-string `jq`, so only the small arm goes through the helper. Wall clock on
+this host is bimodal and is reported only for the row it dominates: the small repeat fire's median
+fell from 1,448 ms to 237 ms.
+
+The one failure mode is a snapshot written DURING a resolve. The mark is stamped after the resolve
+completes, so that write counts as seen and its crossing waits for the next statusline render; the
+window is the resolve, not an mtime tick. A missed crossing is therefore late, never lost, and the
+converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
+manufacture an injection the full path would not have made.
+
 #### The cost this pass added: a temp file on payloads over 64KiB
 
 The saving is not free, and the charge is disk rather than CPU. Two of the five removed process

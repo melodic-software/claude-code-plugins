@@ -150,11 +150,7 @@ fi
 repo_root() {
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  if [[ -n "$root" ]]; then
-    printf '%s\n' "$root"
-  else
-    printf '%s\n' "$PWD"
-  fi
+  printf '%s\n' "${root:-$PWD}"
 }
 
 # The configured root, its origin, and whether the hooks would accept it.
@@ -273,10 +269,10 @@ case "$MODE" in
   fi
   if ((pending_total == 0)); then
     printf 'prune-pending: none\n'
-  elif ((pending_old > 0)); then
-    printf 'prune-pending: %s dir(s), %s older than 24 h WARN: an archiver is not finishing\n' "$pending_total" "$pending_old"
   else
-    printf 'prune-pending: %s dir(s), %s older than 24 h\n' "$pending_total" "$pending_old"
+    pending_warn=""
+    ((pending_old > 0)) && pending_warn=" WARN: an archiver is not finishing"
+    printf 'prune-pending: %s dir(s), %s older than 24 h%s\n' "$pending_total" "$pending_old" "$pending_warn"
   fi
 
   # Two tiers share the root. The telemetry sink writes envelope rows for the
@@ -308,7 +304,9 @@ case "$MODE" in
 
   # The six options as rendered, defaults applied where unset.
   logging="off"
-  ! unset_value "$ENABLED_ARG" && [[ "$ENABLED_ARG" == "true" ]] && logging="on"
+  # Only the literal "true" turns it on, so an unset value and a placeholder
+  # both fall through to the default without a separate unset_value test.
+  [[ "$ENABLED_ARG" == "true" ]] && logging="on"
   categories="all"
   unset_value "$CATEGORIES_ARG" || categories="$CATEGORIES_ARG"
   keep_sessions="30"

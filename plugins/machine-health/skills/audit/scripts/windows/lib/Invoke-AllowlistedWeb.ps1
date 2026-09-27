@@ -53,13 +53,6 @@ function Test-EgressHostAllowed {
     return $false
 }
 
-function Get-EgressAllowlist {
-    [CmdletBinding()]
-    [OutputType([object[]])]
-    param()
-    return , ([string[]]@($script:EgressAllowlist))
-}
-
 function Invoke-AllowlistedWeb {
     [CmdletBinding()]
     [OutputType([Microsoft.PowerShell.Commands.BasicHtmlWebResponseObject])]
@@ -98,8 +91,7 @@ function Invoke-AllowlistedWeb {
     try {
         return Invoke-WebRequest @webParams
     } catch {
-        $msg = $_.Exception.Message
-        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $msg
+        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $_.Exception.Message
         throw
     }
 }
@@ -118,10 +110,8 @@ function Write-EgressLogLine {
     try {
         Add-Content -LiteralPath $LogPath -Value $line -Encoding utf8
     } catch {
-        # Egress log writes back the audit trail the orchestrator reads into
-        # `urls_called`. Swallowing failures would corrupt that snapshot with
-        # no signal. Surface via stderr so the run log and any terminal
-        # observer both capture the dropped entry.
+        # The orchestrator reads this log into `urls_called`; surface a failed
+        # write on stderr rather than silently corrupting that snapshot.
         $err = "egress log write failed ($($_.Exception.Message)). Dropped: $line"
         [Console]::Error.WriteLine("[machine-health] $err")
     }

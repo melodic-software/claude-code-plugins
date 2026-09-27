@@ -77,7 +77,7 @@ class GateHarness(unittest.TestCase):
 class ShippedPairTests(GateHarness):
     def test_the_shipped_pair_agrees(self) -> None:
         result = run(SHIPPED_DEFAULTS, SHIPPED_DOC)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_clean(result)
         self.assertIn("documents all", result.stdout)
 
     def test_the_unmutated_copy_agrees(self) -> None:

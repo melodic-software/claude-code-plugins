@@ -3,6 +3,328 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.6] - 2026-09-27
+
+- **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the
+  `claude --version` and `command -v jq` probes on one line, and `observability` renders the
+  `--hook-events` and `--pipeline --observed` calls of `probe-observability-state.sh` on one line.
+  Each probe keeps its own fallback and labels its missing case; the git lines stay separate body
+  calls.
+
+## [0.62.5] - 2026-09-27
+
+- `audit-performance` names the no-execution route to per-hook Stop timings: the harness's `stop_hook_summary` transcript record carries a `hookInfos` array of `{"command", "durationMs"}`. The Gotchas entry "Never time a hook by running it" gives the operator a `jq` filter that extracts those records alone, labeled undocumented and unstable with a dated recheck trigger, and "Reading the report" item 2 points at it beside the warning against summing hook cost. The skill itself still reads no transcript.
+
+## [0.62.4] - 2026-09-27
+
+### Fixed
+
+- `lane-launcher.sh` now launches every lane with `claude --bg -n <name> --permission-mode auto`. A machine whose Claude Code `defaultMode` is Manual previously started unattended lanes in Manual too, where they stalled at the first permission prompt. `restart-consumer.sh` relaunches through `lane-launcher.sh restart`, so it inherits the fix without its own change.
+
+## [0.62.3] - 2026-09-26
+
+### Changed
+
+- The per-session event log no longer registers producer rows on `PreToolUse` and `PostToolUse`. Both fire on every tool call, so a disabled install paid one process creation per call for them; it now pays none. An enabled log loses its per-tool `PreToolUse` and `PostToolUse` lines and still records tool activity through `PostToolBatch` (one line per batch) and `PostToolUseFailure`. The generated registry marks both events excluded with that reason, and the log now covers 28 events.
+- The `SessionEnd` retention row reads the `session_event_log_enabled` switch in shell form before it starts bash, so a disabled install starts no bash at session end. Behavior with the log on is unchanged.
+
+## [0.62.2] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.62.1] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.62.0] - 2026-09-24
+
+### Added
+
+- `/claude-ops:observability latency` (`scripts/hook-latency.sh`, `otel/hook-latency.sql`) reports hook latency per lane and hook event from `hook_execution_complete` in the OTEL store: p50/p95 against a p95 budget (defaults Stop 2000 ms; PostToolBatch, UserPromptSubmit and SubagentStop 1500 ms; judgment, derived from the hook-budget convention's 'after at S=80 ms' table) and a within-session slope flag for latency that grows across a session. It reads the hot store only and warns when the window reaches past the oldest hot fire. Flags `--days` (default 7), `--since`, `--budget EVENT=MS`, `--min-fires`, `--min-sessions`; exit 0 none flagged, 1 flagged, 2 cannot evaluate (#4443).
+
+## [0.61.0] - 2026-09-24
+
+### Removed
+
+- `skill-usage.jsonl` rows no longer carry `sha` or `pr`. Their only reader, source-control's skill-evidence script, is removed. The branch read is one `git rev-parse --abbrev-ref HEAD` again, and the `git config --get branch.<name>.pr-number` spawn is gone, so the store write costs 3 git processes inside a work tree instead of 4.
+
+## [0.60.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/audit-event-emitter.sh`, `hooks/skill-usage-audit.sh`,
+  `hooks/hook-failure-audit.sh` and `hooks/session-retention.sh` through `bash` with
+  `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
+  `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
+- The session event log's opt-in rows run `exec bash` on `hooks/session-event-log.sh`, so an enabled
+  fire no longer execs `/usr/bin/env` before bash; `scripts/gen-hook-event-registry.sh` generates
+  the new rows.
+- `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
+## [0.60.1] - 2026-09-24
+
+### Changed
+
+- `hooks/hook-failure-audit.test.sh` and the README's `hook-failure-audit` section no longer say
+  `docs/conventions/hook-budget/README.md` sets a 500 ms per-turn ceiling. That doc states each
+  always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's
+  time). Prose only; the test and the hook are
+  unchanged.
+
+## [0.60.0] - 2026-09-24
+
+### Fixed
+
+- **`plugins` no longer reports a `directory` marketplace as `current` while its checkout is
+  behind upstream.** `claude plugin marketplace update` on a `directory` source validates the
+  directory as it is and fetches nothing, so the catalog is only as fresh as that checkout. For a
+  `directory` source, `sync-run.sh` now reads the checkout's branch, upstream, ahead/behind counts
+  as of its last fetch, and whether tracked files are modified, into the digest's new
+  `source_checkout` field. It never fetches, pulls, or writes (`git --no-optional-locks`). The
+  report adds a `source:` row under the `Marketplace:` line, reads
+  `source checkout behind <upstream>` instead of `current` when the checkout is behind, and adds an
+  `Action needed` bullet naming `git -C '<path>' pull --ff-only` and `/claude-ops:plugins sync <marketplace>`. A path that is not a git work
+  tree, a branch with no upstream, and a detached HEAD each render as "freshness not checked".
+  Other source kinds carry `source_checkout: null` and render as before (#4456).
+
+### Added
+
+- **`plugins` accepts `update` as an alias for `sync`.**
+
+## [0.59.4] - 2026-09-24
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
+## [0.59.3] - 2026-09-23
+
+### Changed
+
+- **`hook-failure-audit` reads only the bytes appended since the last Stop.** The per-session cursor
+  now holds a byte offset (`b<offset>`) instead of a line count, and the warm path reads past it
+  with one `tail -c +N` instead of `mapfile -s`, which read and discarded every earlier line. A
+  warm Stop on a 10 MB transcript drops from a 15.5 s p50 (past the hook's 10 s timeout) to under
+  0.2 s, independent of transcript size, at the cost of one `tail` process per Stop. Two bytes
+  before the offset are read as an anchor, so a transcript that shrank or was replaced resets to
+  the cold scan; a partial final line is scanned but not counted; a line-count cursor from an
+  earlier version reads as malformed and takes the cold scan once, without re-warning.
+
+### Fixed
+
+- **`hook-failure-audit` no longer drops the completed-non-zero sentence under a CRLF jq.** A
+  Windows jq build ends its `@tsv` line with a carriage return, which made the last class flag read
+  `true\r` and skipped the sentence for a hook that ran and exited non-zero.
+
+## [0.59.2] - 2026-09-23
+
+### Changed
+
+- **`changelog` states the P2 rule plainly.** "For P2 items: do NOT skip" becomes "List every P2
+  item as ..."; the capitalized emphasis carried no reason and over-applies on current models.
+
+## [0.59.1] - 2026-09-23
+
+### Fixed
+
+- **`audit-skill-visibility --installed` no longer counts never-enabled plugins as enabled.** An installed plugin that no `enabledPlugins` scope names now resolves to the new reachability value `not-enabled` (cause `plugin-never-enabled`, remedy `claude plugin enable <plugin>@<marketplace>`, with the real id filled in only when it is a plain `name@marketplace`), its skills are exempt from the listing contest, and the Markdown counts them on their own line without recommending a fix, naming any settings scope other than the flag scope that could not be read and might enable them. `defaultEnabled` no longer decides an absent key: a fixture probe of `claude plugin list --json` on Claude Code 2.1.280 reported every such plugin disabled, including ones whose marketplace entry or `plugin.json` set `defaultEnabled: true`, although the settings and plugins references state the opposite. The `default`, `default: marketplace entry defaultEnabled`, and `default: plugin.json defaultEnabled` evidence labels are gone, a plugin set `false` still reads `hidden` with its scope file as evidence, and a skill whose plugin does not load is classified by that before its frontmatter. JSON `schema_version` is 1.3.0.
+
+## [0.59.0]
+
+### Added
+
+- Every `skill-usage.jsonl` row written inside a git work tree carries `sha`, the 40-hex commit HEAD pointed at when the Skill call returned, so a reader can join a row to the commit the skill ran against instead of guessing from the timestamp. Outside a work tree, and on an unborn HEAD, the field is absent rather than empty and `branch` keeps the `unknown` it carried before. The SHA and the branch come from one `git rev-parse HEAD --abbrev-ref HEAD` spawn, the same count as the branch read it replaces: `--abbrev-ref` applies only to the arguments after it, so line 1 is the SHA and line 2 the branch, where the reverse order prints the branch twice.
+- A row also carries `pr`, the pull-request number, when `branch.<name>.pr-number` is set in git config for the checked-out branch. One added `git config` spawn per row inside a work tree; a branch with no pull request writes no field. Both fields are additive: the three readers of the store (`audit_skill_visibility.py`, `skill-pair-cooccurrence.sh`, and the observability pruner) name the keys they read and pass or ignore the rest.
+
+## [0.58.0] - 2026-09-23
+
+### Added
+
+- **`known-issues` `quality`:** before blaming the model, check for a flag fallback. The action
+  explains that a flagged request re-runs on an older model with a transcript notice, and how to
+  recover (`/model`, the "Switch models when a message is flagged" setting, `/feedback`).
+
+### Changed
+
+- **`changelog` apply:** once the plan is approved, implementation and verification run without
+  stopping, with a stated finish line and stop conditions; the final report leads with what waits
+  on the user.
+
+## [0.57.5] - 2026-09-22
+
+### Fixed
+
+- `audit-performance`'s known-performance-issues reference, section "The host-level floor: a
+  kernel Token-object leak", no longer tells the operator to capture the pool tag with
+  `poolmon -b`. Every documented poolmon switch is slash-prefixed; the step now names
+  `/g [PoolTagFile]` for the `Mapped_Driver` column, `/i` for tag filtering, and the `p` and `b`
+  run-time keys, and makes "sample the `WC*` tags alongside `Toke`" the first attribution move.
+
+### Changed
+
+- The same section no longer asserts a continuous, impersonation-shaped minter, and no longer
+  offers the ASUS raw-I/O drivers as the fitting profile. A per-binary spawn census on the
+  reference host found the leak tracks process creation (bash and pwsh mint, cmd and python do
+  not) and that an idle host leaks about nothing, which is what clears those drivers; they are
+  kept only as cleared by falsification. The per-package pwsh ordering is stated as NOT
+  established, and swapping PowerShell packages is explicitly not a recommendation.
+- The three public attributions for the signature are now presented with their provenance rather
+  than as fact: a Microsoft maintainer's host-NTFS statement on `microsoft/WSL#40804` (which
+  measures `NtFC`), a non-maintainer's `wcifs.sys` contest in that thread with supporting numbers
+  on `anthropics/claude-code#91265` (a Claude Desktop host), and `bentoner`'s
+  `win32kfull!CForegroundLaunch::_CheckAllowForeground` trace on one machine. Each carries a
+  four-part verification record with an observable recheck trigger.
+- The attribution runbook now leads with the capture a reboot destroys (the poolmon pool-tag
+  snapshot, sampling the `WC*` tags alongside `Toke`), then orders the rest by cost. An unelevated
+  foreground-lock check (read the live timeout via `SPI_GETFOREGROUNDLOCKTIMEOUT`, spawn loop with
+  a census before and after at the current value and at 0, original restored, with the write-up's
+  error-87 precondition and its settled-delta protocol stated) is ranked before the elevated
+  service arms and labeled as one machine's trace pending a second host. Four service arms run on
+  2026-09-18 are recorded as NO CANDIDATE, with the note that only two of them appear in the
+  candidate list. The wcifs branch defers to a per-host `fltmc filters` lookup instead of
+  restating a loader list, naming Cowork's VM, WSL2, Docker Desktop and Windows Sandbox as
+  suspects to check rather than as verified loaders, and an absent filter clears that branch
+  outright. The elevated arm samples under a fixed spawn load rather than at rest, because the
+  section's own result is that an idle host leaks about nothing.
+
+## [0.57.4] - 2026-09-22
+
+### Changed
+
+- The morning brief's default queue label is the bare `needs-triage` floor.
+
+## [0.57.3] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.57.2]
+
+### Fixed
+
+- The session-event-log guard no longer drops a line when many hooks heal one fresh `.gitignore` together. `slog_guard_ok` creates the guard with an exclusive noclobber open, so one writer cannot truncate a sibling's file. A sample that sees no line and then finds the file non-empty reads it again; those bytes are `*`. An operator comment or any other non-`*` line is still refused. An empty file gets `*\n` appended. The parallel test writes its payload to a temp file and redirects that file to the hook, so the hook's idle stdin read no longer races the pipe.
+
+## [0.57.0]
+
+### Added
+
+- audit-performance names the shell Claude Code wraps a shell-form hook command in. `invocation_shape` gains `shell-form-hook-names-a-second-shell`, which fires when a hook or statusline command with no `args` spells a shell in command position: upstream documents that the `command` string is passed to a shell before its first word runs, so such a command puts at least two shells in the chain, and the previous `shell_hits >= 2` rule could see only the one the string spelled. Command position is token 0, a token whose predecessor is `exec`, `env`, `sudo`, `nohup`, `command`, `|`, `||`, `&&`, or `;`, or a token after `-c` whose own predecessor is a shell, which keeps `node run.js cmd`, `make sh`, `grep -c sh file.txt` and `tar -c sh` out of the finding. The operators count whether or not whitespace surrounds them, since the command-position test tokenizes its own copy of the string with operator runs padded apart; the two legacy findings read the unpadded token list and are unchanged on every input. The rule is a floor and the note beside it says so: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) or through a runner taking arguments of its own first (`timeout 5 bash x.sh`) is a known miss. The command-position rule honors quotes, so a quoted executable containing spaces (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is recognized, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read as a delimiter. It walks the string once tracking the active quote character and maps a space, `;`, `|` and `&` inside a quoted run to sentinel characters, then pads the operator runs and splits as before; the predecessor test reads the unrestored token, so a quoted lone `"|"` cannot grant command position either. The two existing findings keep their names, their meaning, their place ahead of the new one, and their own naive quote-flattened token list, so they are byte-identical on every input.
+- A hook row that spells an explicit `"args": []` is exec form, not shell form. `flatten_hook_block` now records the `args` KEY's presence as `exec_form` beside the normalized list, and `invocation_shape` reads that field when it is there, falling back to the list's truthiness when it is not. The previous rule tested the normalized list, which cannot tell an absent `args` from an explicit empty one, and reported a wrapping shell that upstream says is not there; `scripts/check-hook-exec-form.test.sh` has always held that an empty args array is still exec form. The statusline passes no such field on purpose: statusline.md documents a command string run in a shell and no exec form at all, so `bash line.sh` in `statusLine` still reports the finding.
+- `fan_out.shell_resolution` reports which bash a shell-form command would be handed to on Windows: `CLAUDE_CODE_GIT_BASH_PATH`, its source (settings.json `env`, then the engine's own environment), whether the path exists, whether Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the same documented fallback, and both are reported, so a resolution the harness will never use is not presented as one it will. Unset, the block reports the documented two-step search rather than performing it, and says so as a Windows statement, because `fan_out` ships the block on every platform. Its note cites the settings reference for why `env` outranks the process environment, says that only the install-root `settings.json` is read so a project or local `env` that outranks it is unseen, and bounds the answer to rows the harness wraps with bash: a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash, has PowerShell wrap that row instead. Read-only throughout: a settings read, an environment read, and one stat, with no new subprocess and neither binary spawned.
+- SKILL.md and reference/known-performance-issues.md state that an empty `invocation_shape_findings` is not a clean bill of health, since every shell-form command runs inside the harness's shell whether or not it names another, and both route the reader to `shell_resolution`. The `Never execute` section names the new block. The Git for Windows launcher re-exec stays a one-host observation carrying its provenance, never a count the engine asserts.
+
+## [0.56.17]
+
+### Changed
+
+- hook-failure-audit.sh audits only the transcript lines appended since the last Stop, keyed on a per-session cursor kept beside the warning marker. A turn with no new failure record now creates no process at all: measured by job-object accounting on Windows Git Bash at 3 process creations against a 3-creation harness floor (`bash -c`, `env`, `bash`), where it previously took 10. The count is the record because wall clock on that host drifts several-fold within an hour; across two runs the same turn measured 0.36-1.38 s before against 0.23-0.36 s after. The first Stop of a session keeps the tail cap and costs one `wc -lc`, which answers both the byte count the cap decision needs and the line count the cursor starts from, for 5 creations against 10, or 7 on the one session that first creates the data directory. The payload fields now ride on `hook::buffer_stdin_to`, which fuses the library's validation probe into the field read and answers both from the builtin parser. A turn that DOES carry a failure record reports exactly what it reported before, byte for byte. A cursor that is missing, malformed, pruned, ahead of a shortened transcript, or recorded against a different transcript_path rescans from the start, and rescanning cannot re-warn because the marker still decides that.
+- The cursor line count is now accepted only as a canonical decimal (no leading zero, at most 15 digits); a value like `08` used to pass the old `^[0-9]+$` check and then fail bash's octal-reading `((...))` arithmetic, printing shell diagnostics on Stop instead of running either scan path.
+
+## [0.56.16]
+
+### Changed
+
+- The 30 generated session-event-log rows are shell form and read the kill switch themselves (`[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh`), so a disabled logger spawns no chain. Measured on Windows Git Bash with a job-object process census (n=5): switched off, 1 process creation per event instead of 3 (median wall 41 ms against 107 ms), which is the 9 to 12 creations a Bash tool call charged to this hook down to 3 to 4; switched on, unchanged at 3 creations (median 117 ms) since the row execs the script. `scripts/gen-hook-event-registry.sh` owns the row template and `--check` still re-derives every row from the committed registry. The script keeps its own line-41 switch for a direct invocation. Residual: a shell-form row still costs the one shell Claude Code runs the command in, because hooks.json cannot read a plugin option: `if` takes a single permission rule and is evaluated only on tool events, and the option reaches a hook only as an environment variable.
+- Every generated row, the 30 producers and the SessionEnd retention row, pins `"shell": "bash"`. The Hooks reference documents that field as "Defaults to `bash`, or to `powershell` on Windows when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the `shell` field, verified 2026-09-15), and under PowerShell the row's `[ ... ]`, `$VAR` and `exec` all error, so an unpinned row would error on every fire on such a host instead of gating. The sibling markdown-format and disk-hygiene hook configs pin the same field.
+
+## [0.56.15]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.56.14]
+
+### Changed
+
+- The plugins skill records the `--all` + `install_new: all` mass install. gotchas.md gains a section on why that combination installs every plugin in every known catalog, why the downgrade guard and `audit` both miss it, the `claude --bare` requirement for the revert, and the revert recipe. SKILL.md's marketplace-resolution list now warns that `all` multiplies the install policy across catalogs, and its `install_new` section requires a counted human confirmation before that combination runs. Documentation only; no script, output, or exit code changes.
+
+## [0.56.13]
+
+### Changed
+
+- inventory.py and overlap.py read plugin registration shapes through one lib helper instead of two private copies, and overlap.py validates native and component rows through shared helpers with the original messages and order. Envelopes and exit codes are unchanged.
+
+## [0.56.12]
+
+### Changed
+
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies. sync-run keeps its three sidecar-row restores spelled out, since a shared array appender would need a bash 4.3 nameref that the stock bash 3.2 on macOS lacks. Output and exit codes are unchanged.
+
+## [0.56.11]
+
+### Changed
+
+- The claude-ops test wrappers share one plugin-level Python-floor probe library for the floor parse, interpreter discovery, and floor test, keeping each wrapper's own skip and error messages.
+
+## [0.56.10]
+
+### Changed
+
+- plugins skill: sync-run.sh reads fleet state at five steps through one helper, encodes string arrays and installs each plugin through shared helpers, and initializes its per-marketplace accumulators through the existing reset function; cache-content-check.sh walks cache roots through one find invocation; fleet-state.sh and normalize-enabled-plugins.sh drop a duplicate initialization and an unreachable guard. Same digests, same output.
+
+## [0.56.9]
+
+### Changed
+
+- audit-skill-visibility: audit_skill_visibility.py builds its unreadable-lib and settings-stub records through shared helpers, reuses listing_overflows and one budget prefix in the renderer, and folds three conditionals; skill-pair-cooccurrence.sh checks value flags through one helper; the suites share their fixture and fleet builders. Output byte-identical.
+
+## [0.56.8]
+
+### Changed
+
+- lanes skill: lane-launcher.sh derives absolute-or-anchored paths through one path_under helper, machine-behavior.sh checks value flags through one helper, probe-lane-config.sh folds a never-looping argument loop and its repo-root fallback, restart-consumer.sh composes the ledger path from its existing helpers, and telemetry-upsert.sh spells two inverted glob tests as conditionals. No behavior change.
+
+## [0.56.7]
+
+### Changed
+
+- observability skill: clean.sh validates both retention windows through one helper, probe-observability-state.sh folds its repo-root fallback and prune-pending line into single expressions, the prune filter inlines its prefix length, the collector lifecycle cleanup inverts one conditional, and the observability suite emits its hook-event fixture rows through one helper. No behavior change.
+
+## [0.56.6]
+
+### Changed
+
+- hooks: hook-telemetry-sink.sh drops an unreachable exit-code default (mirrored into the repo-local sink), claude-ops-paths.sh and session-event-log.sh drop array re-initializations already made at declaration, and the emitter, failure-audit, event-log and retention suites use the shared sink wait, brace ranges and a single printf per fixture file. No behavior change.
+
+## [0.56.5]
+
+### Changed
+
+- skill scripts: audit_performance.py names its ISO timestamp helper once, registry_manager.py shares its across-repos ambiguity error, overlap.py normalizes a malformed integrity block once, inventory.py and install_state.py drop unreachable guards and re-assignments, changelog-status.sh reuses the repo toplevel it already captured, morning-brief.sh collects PR numbers once, and the inventory and check-all suites share their imports and case runner. No behavior change.
+
+## [0.56.4]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.56.3]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.56.2]
 
 ### Fixed
@@ -79,7 +401,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `converge`'s destructive-tier autonomy abort and `fleet-state.sh`'s `$OSTYPE` path-form
   detection named as the two things that invariant does not cover. The hub's Report section is now
   a pointer to the render plus the one model-owned reload line, and the eval suite gains a case
-  whose expected behaviour is that the model pastes the render and restates none of its numbers.
+  whose expected behavior is that the model pastes the render and restates none of its numbers.
 
 ## [0.55.0]
 
@@ -208,7 +530,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Reachability section tables misconfigured skills with their cause and states each cause's
   remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
   competing descriptions ranked by source length beside the capped charge the listing counts,
-  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  labeled as length and never as a starvation ranking, so it renders the same in an unscored
   run; and a closing Next actions section names only the fixes the run's findings support,
   pointing at the budget control the run's provenance says is effective (the env override, a
   managed-policy file, or the settings file that set the fraction) rather than always at the
@@ -354,7 +676,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **audit-install-state: a cloud-session tree is labelled, never graded as the operator's
+- **audit-install-state: a cloud-session tree is labeled, never graded as the operator's
   machine.** The report opens with an `environment` block: `tree_verdict` (`remote` / `local` /
   `indeterminate`) rests on tree signals (`launcher-settings.json`, `environment-manager/`,
   `plugins/synced/`, root-level hook scripts as corroboration), while the documented
@@ -1085,7 +1407,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   because the cache is keyed by version. The record then claims the new commit while the directory
   still holds the older build, and every check the skill had passed in that state. On the reporting
   machine six plugins were in it at once, twelve stale files in the worst case, including a reviewed
-  dispatcher and two `hooks.json` files. Any measurement or behaviour test against those caches was
+  dispatcher and two `hooks.json` files. Any measurement or behavior test against those caches was
   a test of a different build. The new `cache-content-check.sh` byte-compares every file in a cache
   directory against the recorded commit in the marketplace clone, in both directions: a changed
   file, a file the commit has and the cache lacks, and a file deleted at the commit but still
@@ -1273,10 +1595,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   throwaway plugin loaded from a local marketplace, `${CLAUDE_PLUGIN_ROOT}` substituted in
   the rendered skill body while both a set and an unset `userConfig` token stayed literal,
   so the positive control failed and the result cannot distinguish the documented
-  behaviour from substitution not reaching skill content on that path. The remaining
+  behavior from substitution not reaching skill content on that path. The remaining
   discriminator would require writing real user settings, which the probe was not
   permitted to do. Mid-session update path resolution, the `/reload-plugins` warning
-  behaviour, and the install-summary activation line need an interactive session and were
+  behavior, and the install-summary activation line need an interactive session and were
   not re-run; their documentation was re-fetched and is unchanged. The `claude plugin
   prune` v2.1.121 gate and the `/reload-plugins --force` v2.1.163 gate were not
   re-verified because the current docs state neither version. All of these keep their
@@ -1912,7 +2234,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   usage-informed. On this machine that ranked `adhd:clarify` (1 use) as first to
   lose its description and `work-items:triage` (99 uses) as among the safest.
   Scores are now computed before the listing is built.
-- **Truncation is modelled as the greedy first-fit walk the product runs, not a
+- **Truncation is modeled as the greedy first-fit walk the product runs, not a
   score-ordered prefix.** The product's grant loop has no early exit, so it walks
   every competing entry with a running description budget and a cheap low-scored
   description can be granted after an expensive higher-scored one was refused.
@@ -2235,8 +2557,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   clear every suspect it knew about while the real cause went unreported. A new `fan_out` report
   section carries five probes:
   - **`spawn_cost`**: a trivial no-op spawn timed repeatedly and reduced to min, median, and max,
-    each reading labelled with the concurrent-process load at sample time. The floor moves with
-    load, so an unlabelled single number invites the wrong conclusion; a wide spread whose slow
+    each reading labeled with the concurrent-process load at sample time. The floor moves with
+    load, so an unlabeled single number invites the wrong conclusion; a wide spread whose slow
     mode is itself slow is reported as the contention signature rather than as noise.
   - **`hooks`**: every hook that will fire, resolved across `settings.json`, an optional
     project-scope settings file, and each enabled plugin's `hooks.json`, bucketed into
@@ -2392,7 +2714,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ## [0.36.0]
 
 Remediates the `claude-ops:plugins` post-use audit of the `sync` action (#3112). Every claim about
-CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
+CLI behavior added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
@@ -2734,7 +3056,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   The listing-overflow figure is computed from documented settings alone (budget = fraction ×
   context window × bytes-per-token, against summed description lengths), so it needs no undocumented
-  constant; which particular skills lose descriptions is a labelled likelihood band. Skills with
+  constant; which particular skills lose descriptions is a labeled likelihood band. Skills with
   `disable-model-invocation`, bundled prompt skills, and `name-only` overrides spend no description
   budget and are excluded from both the sum and the ranking.
 
@@ -2795,7 +3117,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   0.32.5 (below, unreleased) split the message two ways and treated `exitCode` 126 or 127 as
   launch-failure evidence on its own. Review found that predicate wrong: a registered shell hook
   launches successfully and still exits 126 or 127 whenever a command *inside* it is missing or not
-  executable, so labelling that a launch failure hands the operator the restart-the-session remedy
+  executable, so labeling that a launch failure hands the operator the restart-the-session remedy
   for a defect restarting cannot touch. That is the exact misdiagnosis #2849 exists to fix, in a narrower
   shape. Classification is now three-way:
   - `launch failure`: the record's stderr carries an exec-failure signature (`execvpe`,
@@ -2831,7 +3153,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   classified, and the diagnosis and remedy follow the classification: the launch-failure wording
   and the restart remedy are kept verbatim where they are correct and are simply not asserted about
   a hook that ran. Classes are counted per record, so one registration that failed several ways in
-  the same unwarned batch is labelled with each class's own count and gets each class's sentence,
+  the same unwarned batch is labeled with each class's own count and gets each class's sentence,
   rather than being relabelled by whichever record happened to come last; the per-class message
   flags are computed from those per-record counts, never from the collapsed group value. The class
   names and the discriminator that assigns them were refined under 0.32.6 above before either
@@ -3175,7 +3497,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   Every run carries an integrity verdict (`ok` / `degraded` / `broken`) because the failure that
   matters is not a crash but a clean-looking short list. Canary commands, a minimum resolved-to-
-  registration-token ratio, a sweep for unrecognised registrar-shaped exports, and the
+  registration-token ratio, a sweep for unrecognized registrar-shaped exports, and the
   resolved-versus-seen gap on bundled skills each convert a quiet shortfall into a stated one; a
   `degraded` run reports counts as floors rather than totals. `--self-check` prints one verdict
   line and exits 0/1/2 for use as a CI gate or scheduled drift check, with `/claude-ops:changelog`
@@ -3221,7 +3543,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
   visible skip notice per session and then exit 0, which is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -3265,7 +3587,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `verdict_for()` therefore classifies the naming scheme first and calls the probe only when the
   number is a PID; a spy-probe test asserts it is never invoked for `ide/<n>.lock` (TCP port),
   `rate-limit-guard/*.tmp.<n>` (MSYS2 `$$`), `shell-snapshots/…` (epoch ms), `paste-cache/<hex>`
-  (content hash), or any unrecognised numeric name. Unknown schemes fail closed, and a probe that
+  (content hash), or any unrecognized numeric name. Unknown schemes fail closed, and a probe that
   cannot run reports `unverified`, never `dead`.
 
 - **Evidence tags and sampled ranges are schema properties, not conventions.** Every emitted claim
@@ -3324,7 +3646,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **The recent-writer cutoff is compared at the precision it is stored.** `FileRow.mtime` carries
   second precision while the cutoff carried microseconds; `.` (0x2E) sorts after `+` (0x2B), so a
   file written inside the window but during the cutoff second compared *lower* than the cutoff and
-  was silently dropped from the behavioural-activity evidence. Same fix, and the same reason, as
+  was silently dropped from the behavioral-activity evidence. Same fix, and the same reason, as
   the rollup cutoff already applied.
 
 ### Changed
@@ -3339,7 +3661,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.28.5]
@@ -3383,7 +3705,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.28.2]
 
@@ -3749,7 +4071,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
   was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
   under cwd, which in `$HOME` is the user settings file itself, and an install record whose `projectPath`
-  equalled that directory would be promoted to `currentProject: true`. Project context now resolves
+  equaled that directory would be promoted to `currentProject: true`. Project context now resolves
   from `CLAUDE_PROJECT_DIR`, a real git toplevel, or, because Claude Code does not require a
   repo, a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
   (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
@@ -4545,7 +4867,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   `claude plugin marketplace update` before discovering the target was unknown.
   The `TARGET_LANES` existence check now runs up front in `main`, ahead of the
   refresh step, so a misspelled target fails fast (exit 3) with no repo/plugin
-  mutation, matching `stop`'s fail-first behaviour. (#639)
+  mutation, matching `stop`'s fail-first behavior. (#639)
 
 ## [0.15.0]
 

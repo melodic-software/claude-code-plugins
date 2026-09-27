@@ -147,7 +147,7 @@ if ((ALLOW_WINDOWS_PATHS == 0)); then
   done
 fi
 
-if ((HAVE_STDIN == 1)) && [[ -n "$STDIN_FILE" && ! -f "$STDIN_FILE" ]]; then
+if [[ -n "$STDIN_FILE" && ! -f "$STDIN_FILE" ]]; then
   harness_die "--stdin-file does not exist: $STDIN_FILE"
 fi
 

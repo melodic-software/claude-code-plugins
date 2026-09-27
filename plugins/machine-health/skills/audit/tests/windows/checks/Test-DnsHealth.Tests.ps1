@@ -2,14 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-DnsHealth.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-DnsHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DnsHealth' -AsObject 'Invoke-DnsHealthAsObject'
 }
 
 Describe 'Test-DnsHealth -- baseline' -Tag 'check' {
@@ -54,10 +47,8 @@ Describe 'Test-DnsHealth -- severity rubric' -Tag 'check' {
     }
 
     It 'reports WARN (not INFO) when DNS fails and gateway probe fails too (regression)' {
-        # Regression: when Get-NetRoute fails the script catches and leaves
-        # $gatewayReachable as $null. Previous code downgraded that to INFO
-        # regardless of DNS state, under-reporting actionable DNS failures.
-        # DNS WARN must survive the unknown-gateway case.
+        # Regression: a failed Get-NetRoute leaves $gatewayReachable $null, and a DNS WARN
+        # must survive that unknown-gateway case instead of dropping to INFO.
         Mock Resolve-DnsName { throw 'DNS resolution failed' }
         Mock Get-NetRoute { throw 'Get-NetRoute failed' }
 

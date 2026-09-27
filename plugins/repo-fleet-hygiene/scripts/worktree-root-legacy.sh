@@ -72,11 +72,7 @@ worktree_root_legacy_promote() {
   [[ -n "$WORKTREE_ROOT_LEGACY_KEY" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     origin="${line%%$'\t'*}"
-    if [[ "$origin" == "$line" ]]; then
-      val=""
-    else
-      val="${line#*$'\t'}"
-    fi
+    val="${line#*$'\t'}"
     origins+=("$origin")
     win_origin="$origin"
     win_val="$val"
@@ -98,7 +94,6 @@ worktree_root_legacy_retire() {
   [[ -n "$WORKTREE_ROOT_LEGACY_KEY" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     origin="${line%%$'\t'*}"
-    [[ "$origin" == "$line" ]] && origin=""
     worktree_root_legacy_unset_file "$repo" "$origin"
   done < <(worktree_root_legacy_pairs "$repo")
   return 0

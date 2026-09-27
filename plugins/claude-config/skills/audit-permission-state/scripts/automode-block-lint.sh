@@ -307,7 +307,7 @@ for section in SECTIONS:
         '"$defaults" is absent and %d of the %d built-in %s entries are gone with it: '
         "a customized section REPLACES the built-in list rather than adding to it. "
         'Add "$defaults" to keep them. First missing: %s'
-        % (len(missing), len(built_in), section, label_of(missing[0]) or "(unlabelled)"),
+        % (len(missing), len(built_in), section, label_of(missing[0]) or "(unlabeled)"),
     )
 
 # --- C2b: the same subject allowed and denied --------------------------------
@@ -342,7 +342,7 @@ for subject, sections in sorted(by_subject.items()):
 # on the same subject can never fire. This is SEMANTIC shadowing inside the
 # classifier block -- a different surface from the syntactic non-matching the
 # permission-plane lint reports, with different inputs.
-hard_subjects = {subject_of(e) for e in entries(config, "hard_deny") if subject_of(e)}
+hard_subjects = {s for s in map(subject_of, entries(config, "hard_deny")) if s}
 for section in ("allow", "soft_deny"):
     for entry in entries(config, section):
         subject = subject_of(entry)

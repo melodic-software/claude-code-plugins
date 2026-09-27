@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""Regression: shfred0 video + empty work dir -> extract with the shipped overrides, render, measure every drawing.
+
+usage: regress.py <shfred0 video> <empty work dir>
+       regress.py --synthetic <empty work dir>
+shfred0  exit 0 only when every drawing meets the measure.py target (239/239 on shfred0) and the replica, encoded as
+         a scene is (controls.replica), passes the woodcut-ink pack (inkstats.py --pack): the same-style control.
+--synthetic  needs no unshipped input: renders fixtures/synthetic.js at 24 fps to mp4 through render.py, decodes it
+         with extract.py --video and measures the replica. Exit 0 only when the render, encode and decode contracts
+         hold (render.json, the mp4, 24 drawings at their first frames) and each regression case below does. The
+         replica's fidelity table is printed and kept, not asserted: at the default brush the synthetic scene does
+         not reach the measure.py target (design O5, fallback b).
+         Regression cases: a scene without DURATION makes render.py exit 1 (D18); frames past f9999 and traces
+         past d999 read in numeric order (D23); a one-drawing clip keeps its full duration (D26); decode and
+         encode exit with a message when ffmpeg dies; measure.py and fit.py forward --playwright-core.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+import extract
+import fit
+import measure
+from measure import render
+
+HERE = Path(__file__).resolve().parent
+PLUGIN = HERE.parents[2]
+FIXTURE = HERE.parent / 'fixtures/shfred0.overrides.json'
+SYNTHETIC = HERE.parent / 'fixtures/synthetic.js'
+SYN_HOLDS = [2, 3] * 12   # synthetic.js HOLDS: 24 drawings held 2 and 3 frames at 24 fps
+PACK = PLUGIN / 'styles/woodcut-ink'
+EXPECTED = 239   # distinct drawings in shfred0; a decode change that drops one must fail, not pass 238/238
+
+sys.path.insert(0, str(PLUGIN / 'skills/learn-style/scripts'))
+import controls  # noqa: E402
+import decode  # noqa: E402
+import inkstats  # noqa: E402
+import workdir  # noqa: E402
+
+
+def empty(work):
+    work = Path(work)
+    if work.exists() and any(work.iterdir()):
+        sys.exit(f'{work} is not empty')
+    work.mkdir(parents=True, exist_ok=True)
+    return work
+
+
+def render_cli(scene, out, *args):
+    return subprocess.run([sys.executable, str(PLUGIN / 'scripts/render.py'), str(scene), str(out), '--fps', '24',
+                           *args]).returncode
+
+
+def numeric_order(d):
+    """A frame folder holding f9998-f10000 decodes in frame order, and d998-d1000 traces list in drawing order."""
+    folder = d / 'frames'
+    folder.mkdir(parents=True)
+    for i in (9998, 9999, 10000):
+        cv2.imwrite(str(folder / f'f{i:04d}.png'), np.full((8, 8, 3), i - 9998, np.uint8))
+    seen = [int(rgb[0, 0, 0]) for rgb, _ in decode.frames(folder, 24)]
+    workdir.traces_dir(d).mkdir()
+    for k in (998, 999, 1000):
+        workdir.trace(d, k).write_text('{}', encoding='utf-8')
+    return seen == [0, 1, 2] and [f.stem for f in workdir.traces(d)] == ['d998', 'd999', 'd1000']
+
+
+ONE_DRAWING = """const cv = document.getElementById('c'), c = cv.getContext('2d');
+cv.width = 160; cv.height = 90;
+window.DURATION = 1;
+window.renderFrame = async () => {
+  c.fillStyle = '#efe9e0'; c.fillRect(0, 0, 160, 90); c.fillStyle = '#141211'; c.fillRect(40, 20, 80, 50);
+};
+"""
+
+
+def one_drawing(d):
+    """A 1 s scene holding one drawing, rendered to mp4 at 24 fps and decoded, lasts 1 s, not a guessed hold."""
+    (d / 'scene').mkdir(parents=True)
+    (d / 'scene/scene.js').write_text(ONE_DRAWING, encoding='utf-8')
+    if render_cli(d / 'scene/scene.js', d / 'frames', '--encode', 'mp4'):
+        return False
+    ix = extract.decode(d / 'frames.mp4', d / 'work')
+    return len(ix['drawings']) == 1 and abs(ix['duration'] - 1) < 1e-3
+
+
+DYING_FFMPEG = """#!/bin/sh
+case " $* " in *" -version "*|*" -encoders "*) exec "{real}" "$@";; esac
+exit 1
+"""
+
+
+def dying_ffmpeg(d, mp4):
+    """With an ffmpeg that dies on every decode and encode, decode.frames and render.encode each exit non-zero with
+    their one-line message: no silent short read, no BrokenPipeError traceback."""
+    d.mkdir(parents=True)
+    fake = d / 'ffmpeg'
+    fake.write_text(DYING_FFMPEG.format(real=shutil.which('ffmpeg')), encoding='utf-8')
+    fake.chmod(0o755)
+    env = {**os.environ, 'PATH': f"{d}{os.pathsep}{os.environ['PATH']}", 'PYTHONPATH': str(PLUGIN / 'scripts')}
+    runs = {'decode: ffmpeg': f'import decode; print(sum(1 for _ in decode.frames({str(mp4)!r}, 24)))',
+            'render: ffmpeg': 'import numpy as np, render; '
+                              'render.encode([np.zeros((1080, 1920, 3), np.uint8)] * 8, "mp4", 24, "x.mp4")'}
+    ok = True
+    for prefix, code in runs.items():
+        r = subprocess.run([sys.executable, '-c', code], cwd=d, env=env, capture_output=True, text=True)
+        ok &= r.returncode != 0 and r.stderr.startswith(prefix) and 'Traceback' not in r.stderr
+    return ok
+
+
+def forwards_playwright_core(work):
+    """measure.py and fit.py hand --playwright-core to every render (a missing directory still falls back to
+    capture.mjs's other lookups, so the renders themselves succeed)."""
+    real, seen, pw = render.render, [], '/nonexistent/playwright-core'
+
+    def spy(*a, **kw):
+        seen.append(kw.get('playwright_core'))
+        return real(*a, **kw)
+    render.render = spy
+    try:
+        measure.main([str(work), '--only', '0-1', '--tag', 'pw', '--playwright-core', pw])
+        fit.main([str(work), '--only', '0-1', '--rounds', '1', '--out', str(work / 'pw-overrides.json'),
+                  '--playwright-core', pw])
+    finally:
+        render.render = real
+    return len(seen) == 2 and set(seen) == {pw}
+
+
+def synthetic(work):
+    work, bad = empty(work), []
+
+    def case(name, ok):
+        print(f"synthetic: {name}: {'ok' if ok else 'FAILED'}", flush=True)
+        bad.extend([] if ok else [name])
+
+    frames = work / 'frames'
+    case('render.py --encode mp4 exits 0', render_cli(SYNTHETIC, frames, '--encode', 'mp4') == 0)
+    meta = json.load(open(frames / 'render.json', encoding='utf-8')) if (frames / 'render.json').is_file() else {}
+    n = sum(SYN_HOLDS)
+    case(f'render.json: fps 24, {n} frames, 480x270, {n / 24} s',
+         (meta.get('fps'), meta.get('frames'), meta.get('size'), meta.get('duration')) == (24, n, [480, 270], n / 24))
+    case(f'{n} fNNNN.png frames', len(workdir.frames(frames)) == n)
+    mp4 = work / 'frames.mp4'
+    case('frames.mp4 written', mp4.is_file())
+    if not mp4.is_file():
+        return 1
+    extract.main([str(work / 'work'), '--video', str(mp4)])
+    ds = json.load(open(workdir.index(work / 'work'), encoding='utf-8'))['drawings']
+    starts = [sum(SYN_HOLDS[:k]) / 24 for k in range(len(SYN_HOLDS))]
+    case(f'decode: {len(SYN_HOLDS)} drawings at their first frames',
+         len(ds) == len(starts) and all(abs(t - s) < 1e-3 for (_, t, _), s in zip(ds, starts)))
+    measure.main([str(work / 'work'), '--tag', 'synthetic'])   # fidelity recorded, not asserted (O5 fallback b)
+    scene = work / 'no-duration/scene.js'
+    scene.parent.mkdir()
+    src = SYNTHETIC.read_text(encoding='utf-8')
+    cut = '\n'.join(ln for ln in src.splitlines() if not ln.startswith('window.DURATION'))
+    scene.write_text(cut, encoding='utf-8')   # ./ink.js still resolves: render.py serves scripts/
+    case('D18: a scene without DURATION makes render.py exit 1',
+         cut != src and render_cli(scene, work / 'no-duration/frames') == 1)
+    case('D23: frames past f9999 and traces past d999 read in numeric order', numeric_order(work / 'd23'))
+    case('D26: a one-drawing 1 s clip decodes to a 1 s drawing', one_drawing(work / 'd26'))
+    case('decode and encode fail loudly when ffmpeg dies', dying_ffmpeg(work / 'ffmpeg-dies', mp4))
+    case('measure.py and fit.py forward --playwright-core to render.py', forwards_playwright_core(work / 'work'))
+    print(f"synthetic: {len(bad)} case(s) failed" + (f": {', '.join(bad)}" if bad else ''))
+    return 1 if bad else 0
+
+
+def main(video, work):
+    work = empty(work)
+    shutil.copy(FIXTURE, workdir.overrides(work))
+    extract.main([str(work), '--video', str(video)])
+    n = len(json.load(open(workdir.index(work), encoding='utf-8'))['drawings'])
+    if n != EXPECTED:
+        sys.exit(f'decoded {n} drawings, expected {EXPECTED}')
+    rc = measure.main([str(work), '--tag', 'regress'])
+    rep = controls.replica(work, 'regress', workdir.out(work, 'regress'))
+    pack_rc = inkstats.main([str(rep), '--pack', str(PACK)])
+    print(f"pack control: the replica {'passes' if pack_rc == 0 else 'FAILS'} {PACK.name}")
+    return rc or pack_rc
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        sys.exit(__doc__)
+    sys.exit(synthetic(sys.argv[2]) if sys.argv[1] == '--synthetic' else main(*sys.argv[1:]))

@@ -10,6 +10,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { indexSelectedFrames, readJsonFile, readLaneJson } from "../lib/watch-frame-index.js";
 
 /**
  * Resolve synthesis filename → source frame using slice promotion-map and generic patterns.
@@ -42,7 +43,7 @@ export function resolveSourceFile(destFile, promotionMap) {
  */
 export function readPromotionMap(sliceDir) {
   const mapPath = lanePath(path.resolve(sliceDir), LANES.keyFrames, "promotion-map.json");
-  return fs.existsSync(mapPath) ? JSON.parse(fs.readFileSync(mapPath, "utf8")) : {};
+  return fs.existsSync(mapPath) ? readJsonFile(mapPath) : {};
 }
 
 /**
@@ -50,10 +51,8 @@ export function readPromotionMap(sliceDir) {
  */
 export function rebuildVisualFrames(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const sel = JSON.parse(
-    fs.readFileSync(lanePath(absSlice, LANES.keyFrames, "selection.json"), "utf8"),
-  );
-  const byFile = Object.fromEntries(sel.selectedFrames.map((f) => [f.file, f]));
+  const sel = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
+  const byFile = indexSelectedFrames(sel);
   const promotionMap = readPromotionMap(absSlice);
 
   const synDir = lanePath(absSlice, LANES.keyFrames, "frames");
@@ -93,9 +92,8 @@ export function rebuildVisualFrames(sliceDir) {
   return outPath;
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/rebuild-visual-frames.js <slice-dir>");
     process.exit(2);

@@ -37,9 +37,11 @@ export const SUMMARY_MAX_CODEPOINTS = 100;
 // orphaned entries, and excluded-but-mapped conflicts.
 export const EXCLUDED_PLUGINS = new Map([
   ["ai-briefing", "personal-domain plugin"],
+  ["gaming", "personal-domain plugin"],
   ["kindle-dedrm", "personal-domain plugin"],
   ["knowledge", "personal-domain plugin"],
   ["machine-health", "personal-domain plugin"],
+  ["provenance", "deprecated shim"],
   ["songwriting", "personal-domain plugin"],
   ["x", "personal-domain plugin"],
 ]);
@@ -75,11 +77,6 @@ export const EXCLUDED_SKILLS = new Map([
 // indicators, anchors, tags, comments, quotes, list dash, flow entry separator,
 // complex-mapping-key indicator). Held as a Set of single characters, not a
 // regex, so no escaping layer can distort it.
-//
-// `,` and `?` were added after a parser sweep found them clearing every rule
-// here while failing a real YAML parse outright (#3189): a leading `,` raises a
-// ParserError and a leading `? ` a ScannerError. They belong to the same
-// c-indicator class as the rest of this set and were simply missing from it.
 const YAML_UNSAFE_LEAD = new Set([
   "[", "]", "{", "}", ">", "|", "*", "&", "!", "%", "@", "`", '"', "'", "#", "-",
   ",", "?",
@@ -120,7 +117,7 @@ export function summaryError(summary) {
     // C1 controls and the Unicode line separators are rejected by a real YAML
     // reader outright (C1) or consumed as line breaks (NEL/LS/PS), which breaks
     // the document structure. Neither is visible in an editor, so nothing about
-    // the source line explains the CI failure they cause (#3189).
+    // the source line explains the CI failure they cause.
     if ((cp >= 0x80 && cp <= 0x9f) || cp === 0x2028 || cp === 0x2029) {
       return "summary contains a C1 control or Unicode line separator";
     }

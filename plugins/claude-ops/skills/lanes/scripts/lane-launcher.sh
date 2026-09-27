@@ -11,8 +11,8 @@
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
 # --settings re-verified against the CLI reference, 2026-07-25):
-#   claude --bg -n <name> [--model M] [--effort E] [--settings JSON] "<prompt>"
-#                                                               launch, return now
+#   claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
+#     [--settings JSON] "<prompt>"                              launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
 #                                                               startedAt,
@@ -425,6 +425,16 @@ resolve_config() {
   }
 }
 
+# Print <path> as it stands when it is already absolute (POSIX or a Windows
+# drive), else anchored under the base directory <base>. Both the prompt dir and
+# each lane's prompt file resolve that way.
+path_under() { # <base> <path>
+  case "$2" in
+  /* | [A-Za-z]:[\\/]*) printf '%s' "$2" ;; # absolute (POSIX or Windows drive)
+  *) printf '%s' "$1/$2" ;;
+  esac
+}
+
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
 # Default: the `lanes/` concern home under the memory root. A config resolved at
 # the pre-move path keeps the pre-move default (see LEGACY_CONFIG_HOME); an
@@ -434,10 +444,7 @@ resolve_prompt_dir() {
   local d default=".work/lanes"
   ((LEGACY_CONFIG_HOME)) && default=".work"
   d="$(jq -r --arg default "$default" '.prompt_dir // $default' "$CONFIG")"
-  case "$d" in
-  /* | [A-Za-z]:[\\/]*) printf '%s' "$d" ;; # absolute (POSIX or Windows drive)
-  *) printf '%s' "$REPO/$d" ;;
-  esac
+  path_under "$REPO" "$d"
 }
 
 # --- Launch-commit marker (#792) ----------------------------------------------
@@ -554,7 +561,7 @@ write_launch_commit_marker() {
 # still alive (duplicate sessions) and `status` would report false "stopped".
 # load_sessions therefore fails on a live error and main aborts — except under
 # --dry-run, which mutates nothing, where previewing against an empty list is
-# harmless and preserves the documented offline-dry-run behaviour.
+# harmless and preserves the documented offline-dry-run behavior.
 #
 # `claude agents --json` (no --all) lists ACTIVE sessions only — interactive and
 # running background; completed/terminal background sessions are excluded by the
@@ -615,15 +622,6 @@ lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONF
 lane_json_field() {
   jq -c --argjson i "$1" --arg k "$2" \
     '.lanes[$i] as $l | if ($l | has($k)) and $l[$k] != null then $l[$k] else empty end' "$CONFIG"
-}
-
-# Absolute path to a lane's prompt file.
-lane_prompt_path() {
-  local raw="$1" pdir="$2"
-  case "$raw" in
-  /* | [A-Za-z]:[\\/]*) printf '%s' "$raw" ;;
-  *) printf '%s' "$pdir/$raw" ;;
-  esac
 }
 
 # --- Lane-stop gate arming (#1784) --------------------------------------------
@@ -830,7 +828,9 @@ launch_lane() {
     fi
   fi
 
-  local -a cmd=(claude --bg -n "$name")
+  # Explicit auto: a Manual defaultMode would stall an unattended lane at its
+  # first prompt. Never bypassPermissions.
+  local -a cmd=(claude --bg -n "$name" --permission-mode auto)
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")
@@ -935,7 +935,7 @@ for_each_lane() {
     fi
     model="$(lane_field "$i" model)"
     effort="$(lane_field "$i" effort)"
-    prompt_path="$(lane_prompt_path "$(lane_field "$i" prompt)" "$pdir")"
+    prompt_path="$(path_under "$pdir" "$(lane_field "$i" prompt)")"
     settings="$(lane_json_field "$i" settings)"
     # A per-lane callback failure must not abort the sweep (other lanes still
     # get their turn) but must surface in the aggregate exit status.

@@ -1,10 +1,10 @@
 # Context Engineering for Claude 5 Models: Sections 110–115
 
-Thariq Shihipar's *"The new rules of context engineering for Claude 5 generation models"* (Part 22, July 24, 2026), landing alongside the Opus 5 launch. Tuning Claude Code for this generation, the team removed over 80% of the system prompt with no measurable loss on coding evals. The through-line: stop over-constraining the model and let judgement work.
+Thariq Shihipar's *"The new rules of context engineering for Claude 5 generation models"* (Part 22, July 24, 2026), landing alongside the Opus 5 launch. Tuning Claude Code for this generation, the team removed over 80% of the system prompt with no measurable loss on coding evals. The through-line: stop over-constraining the model and let judgment work.
 
-## 110. Give Judgement, Not Rules
+## 110. Give Judgment, Not Rules
 
-Older models needed rigid guardrails against worst-case behavior, but a rule that is right 90% of the time is wrong the other 10%. Newer models read the surrounding context and decide, so hard rules were swapped for judgement. The comment guidance is the cleanest example: the rule form was "default to writing no comments, one short line max"; the judgement form is "write code that reads like the surrounding code: match its comment density, naming, and idiom." The rule was wrong everywhere comments *were* wanted; judgement handles both cases with no special case for either. Worth a mirror. Most CLAUDE.md files are still walls of hard rules. Updates Section 88.
+Older models needed rigid guardrails against worst-case behavior, but a rule that is right 90% of the time is wrong the other 10%. Newer models read the surrounding context and decide, so hard rules were swapped for judgment. The comment guidance is the cleanest example: the rule form was "default to writing no comments, one short line max"; the judgment form is "write code that reads like the surrounding code: match its comment density, naming, and idiom." The rule was wrong everywhere comments *were* wanted; judgment handles both cases with no special case for either. Worth a mirror. Most CLAUDE.md files are still walls of hard rules. Updates Section 88.
 
 ## 111. Design Interfaces, Not Examples
 
@@ -32,4 +32,4 @@ The stack Claude assembles for a request, and what belongs in each layer: **your
 
 ## 115. Opus 5, and the Model That's Hardest to Inject
 
-Opus 5 landed the same day: state of the art on coding and knowledge-work evals. Boris led not with the eval scores but with prompt-injection resistance. It is Anthropic's least prompt-injectable model yet, and layering strong model alignment, prompt-injection probes, and auto mode drives attack success to roughly zero. That is the foundation the new rules stand on: judgement-based context engineering only works if the model can be trusted to reconcile conflicting, attacker-adjacent context safely. Pairs with Section 90.
+Opus 5 landed the same day: state of the art on coding and knowledge-work evals. Boris led not with the eval scores but with prompt-injection resistance. It is Anthropic's least prompt-injectable model yet, and layering strong model alignment, prompt-injection probes, and auto mode drives attack success to roughly zero. That is the foundation the new rules stand on: judgment-based context engineering only works if the model can be trusted to reconcile conflicting, attacker-adjacent context safely. Pairs with Section 90.

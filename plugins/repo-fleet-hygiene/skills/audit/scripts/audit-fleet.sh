@@ -131,13 +131,80 @@ to_native_path() {
   printf '%s' "$text"
 }
 
+# An MSYS mount such as /tmp carries no drive letter for to_native_path to rewrite; only the mount
+# table knows it is %LOCALAPPDATA%\Temp. cygpath reads that table and ships with Git for Windows
+# and MSYS2. It forks once per call, so it is kept to the file paths an operator must open from
+# another shell, not run over every report value. The result goes to a named variable rather than
+# stdout so a non-Windows path reaches the report byte-for-byte, trailing newlines included.
+to_native_file_path() { # <out-var> <path>
+  local path="$2" native
+  if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
+    native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then
+    path="$native"
+  fi
+  printf -v "$1" '%s' "$path"
+}
+
+# True when $1 is well-formed UTF-8 (the RFC 3629 section 4 grammar: no overlong form, surrogate,
+# code point above U+10FFFF, or stray/truncated continuation byte) made only of printable
+# characters. Rejected even when well-formed: C0 controls and DEL, C1 controls U+0080..U+009F (U+009B
+# is the 8-bit CSI that terminals act on like ESC [), the Unicode Bidi_Control characters that
+# reorder displayed text, and U+2028/U+2029, which Unicode line breaking treats as mandatory breaks.
+# Decoded byte by byte under LC_ALL=C, where the POSIX locale's [[:cntrl:]] covers only C0 and DEL
+# and every byte above 0x7F is one opaque character, so the verdict ignores the operator's locale.
+utf8_printable() {
+  local value="$1" LC_ALL=C
+  local i=0 n=${#value} byte cp need lo hi
+  while ((i < n)); do
+    printf -v byte '%d' "'${value:i:1}"
+    # bash 3.2 (macOS system bash) returns a byte above 0x7F as a signed char: 0xFF reads as -1.
+    ((byte < 0)) && byte=$((byte + 256))
+    i=$((i + 1))
+    lo=0x80 hi=0xBF
+    if ((byte <= 0x7F)); then
+      ((byte >= 0x20 && byte <= 0x7E)) || return 1
+      continue
+    elif ((byte >= 0xC2 && byte <= 0xDF)); then
+      need=1 cp=$((byte & 0x1F))
+    elif ((byte >= 0xE0 && byte <= 0xEF)); then
+      need=2 cp=$((byte & 0x0F))
+      ((byte == 0xE0)) && lo=0xA0
+      ((byte == 0xED)) && hi=0x9F
+    elif ((byte >= 0xF0 && byte <= 0xF4)); then
+      need=3 cp=$((byte & 0x07))
+      ((byte == 0xF0)) && lo=0x90
+      ((byte == 0xF4)) && hi=0x8F
+    else
+      return 1
+    fi
+    while ((need > 0)); do
+      ((i < n)) || return 1
+      printf -v byte '%d' "'${value:i:1}"
+      ((byte < 0)) && byte=$((byte + 256))
+      ((byte >= lo && byte <= hi)) || return 1
+      cp=$(((cp << 6) | (byte & 0x3F)))
+      i=$((i + 1)) need=$((need - 1)) lo=0x80 hi=0xBF
+    done
+    # C1 controls; Bidi_Control U+061C, U+200E..U+200F, U+202A..U+202E, U+2066..U+2069; and
+    # U+2028..U+2029, which share the U+2028..U+202E run with the embedding/override controls.
+    ((cp <= 0x9F || cp == 0x61C)) && return 1
+    ((cp >= 0x200E && cp <= 0x200F)) && return 1
+    ((cp >= 0x2028 && cp <= 0x202E)) && return 1
+    ((cp >= 0x2066 && cp <= 0x2069)) && return 1
+  done
+  return 0
+}
+
 # Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
 # %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
 # let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
 display_value() {
+  # LC_ALL=C keeps %q byte-wise: an escaped value renders every byte above 0x7F as \ooo. The
+  # [[:print:]] test is only the printable-ASCII fast path, since under C locale every byte above
+  # 0x7F fails it; anything else must pass utf8_printable to render raw.
   local value="$1" escaped
   local LC_ALL=C
-  if [[ "$value" =~ ^[[:print:]]*$ ]]; then
+  if [[ "$value" != *[![:print:]]* ]] || utf8_printable "$value"; then
     to_native_path "$value"
   else
     printf -v escaped '%q' "$value"
@@ -1240,7 +1307,7 @@ fi
 # documented substitution applies. The environment is still honored for callers that genuinely have
 # it (hooks, MCP stdio servers, a direct shell).
 #
-# The ${...} guard below is defence in depth, not the primary path: when Claude Code does not
+# The ${...} guard below is defense in depth, not the primary path: when Claude Code does not
 # substitute the placeholder, the literal reaches the shell, which expands the unset variable to an
 # empty string before this script is entered -- so the ordinary miss arrives as empty and is handled
 # by the emptiness checks. The guard catches only a literal that survives shell expansion (a
@@ -1351,7 +1418,7 @@ fi
 
 should_skip_dir_name() {
   local name="$1" skip
-  # This arm is defence in depth, not a live guard: no input reaching the sole caller
+  # This arm is defense in depth, not a live guard: no input reaching the sole caller
   # (discover_repositories' child loop) can match it. `.` and `..` can never BE a child basename —
   # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
   # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
@@ -1370,12 +1437,9 @@ should_skip_dir_name() {
 }
 
 is_acked() {
-  local key a
+  local key
   key="$(lower "$1")"
-  for a in "${ACK_KEYS[@]:-}"; do
-    [[ -n "$a" && "$a" == "$key" ]] && return 0
-  done
-  return 1
+  array_contains "$key" "${ACK_KEYS[@]:-}"
 }
 
 UNRESOLVED_SCOPE=false
@@ -1551,7 +1615,7 @@ count_worktree_registrations() {
 # classify_bare_live_tree <dir>: when <dir> is bare AND has working-tree content or linked
 # worktrees, print evidence and return 0. Otherwise return non-zero. Does not mutate state.
 classify_bare_live_tree() {
-  local dir="$1" bare wt_count=0 has_content="false" evidence="" detail=""
+  local dir="$1" bare wt_count=0 has_content="false" detail=""
   bare="$(run_git_probe -C "$dir" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" || return 1
   [[ "$bare" == "true" ]] || return 1
   wt_count="$(count_worktree_registrations "$dir")"
@@ -1567,8 +1631,8 @@ classify_bare_live_tree() {
   else
     detail="$((wt_count - 1)) linked worktree registration(s)"
   fi
-  evidence="core.bare=true coincides with $detail; linked worktrees keep working -- only the main worktree is disabled"
-  printf '%s\n' "$evidence"
+  printf '%s\n' \
+    "core.bare=true coincides with $detail; linked worktrees keep working -- only the main worktree is disabled"
 }
 
 # record_bare_live_tree <path> <evidence> <common_key>: defer a bare-repo-with-working-tree finding.
@@ -1715,7 +1779,7 @@ main_worktree() {
 # repository with live working-tree content or linked worktrees is classified as a finding instead
 # of rejected (#2602).
 add_target() {
-  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top main_resolved rt_known rt_existing
+  local candidate="$1" origin="${2:-cli}" top common common_key main_top main_resolved
   local bare_live_evidence=""
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
@@ -1767,14 +1831,7 @@ add_target() {
       # another, so substituting it silently would be the same class of defect as a header asserting
       # a scope the run's own inputs contradict. A config may name one path twice; record each
       # distinct source once so the grouped header line cannot list the same path repeatedly.
-      rt_known=false
-      for rt_existing in "${RETARGETED_FROM[@]:-}"; do
-        [[ -n "$rt_existing" && "$rt_existing" == "$top" ]] && {
-          rt_known=true
-          break
-        }
-      done
-      if [[ "$rt_known" == "false" ]]; then
+      if ! array_contains "$top" "${RETARGETED_FROM[@]:-}"; then
         RETARGETED_FROM+=("$top")
         RETARGETED_TO+=("$main_resolved")
       fi
@@ -1782,9 +1839,7 @@ add_target() {
     fi
   fi
   common_key="$(path_key "$common")"
-  for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
-    [[ "$existing" == "$common_key" ]] && return 0
-  done
+  array_contains "$common_key" "${TARGET_COMMON_KEYS[@]:-}" && return 0
   TARGETS+=("$top")
   TARGET_COMMON_KEYS+=("$common_key")
 }
@@ -1832,7 +1887,7 @@ discover_repositories() {
     # Configurable skip list (--skip / fleet.skip): names come from SKIP_NAMES (defaults, or an
     # explicit replace list). See usage() for replace semantics. should_skip_dir_name also carries
     # an unconditional . / .. / .git arm, but no child basename reaching here can match it — see
-    # the note on that arm. It is defence in depth, not what keeps discovery out of .git internals;
+    # the note on that arm. It is defense in depth, not what keeps discovery out of .git internals;
     # the nested-repository early return above does that.
     if should_skip_dir_name "$name"; then
       continue
@@ -2127,7 +2182,7 @@ repo_kind_counts_text() {
     fi
   done
   if [[ ${#keys[@]} -eq 0 ]]; then
-    printf '%s' '—'
+    printf '%s' 'none'
     return 0
   fi
   local first=true kind_sorted
@@ -2404,7 +2459,6 @@ analyze_repo() {
   # which is one answer for every registration, so it is resolved once here rather than per
   # worktree. select_remote's sole-GitHub fallback (e.g. upstream) is deliberately not used: it
   # would falsely flag creator-compliant trees.
-  origin_url=""
   if origin_url="$(run_git_probe -C "$canonical" remote get-url origin 2>/dev/null | tr -d '\r')" &&
     [[ -n "$origin_url" ]] && parse_github_url "$origin_url"; then
     WT_ORIGIN_OWNER="${PARSED_SLUG%%/*}"
@@ -2560,14 +2614,8 @@ analyze_repo() {
       for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
         [[ -n "$remote_branch_short" && "$remote_branch_short" != "$default_branch" ]] || continue
         [[ "$remote_branch_short" =~ [[:cntrl:]] ]] && continue
-        already=false
-        for existing in "${GQL_BRANCHES[@]:-}"; do
-          [[ "$existing" == "$remote_branch_short" ]] && {
-            already=true
-            break
-          }
-        done
-        [[ "$already" == "true" ]] || GQL_BRANCHES+=("$remote_branch_short")
+        array_contains "$remote_branch_short" "${GQL_BRANCHES[@]:-}" ||
+          GQL_BRANCHES+=("$remote_branch_short")
       done
       repo_pr_available=true
       repo_pr_rows=""
@@ -2753,14 +2801,7 @@ printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#T
 RT_REPORTED=()
 for ((rt_index = 0; rt_index < ${#RETARGETED_TO[@]}; rt_index++)); do
   rt_to="${RETARGETED_TO[$rt_index]}"
-  rt_seen=false
-  for rt_prev in "${RT_REPORTED[@]:-}"; do
-    [[ -n "$rt_prev" && "$rt_prev" == "$rt_to" ]] && {
-      rt_seen=true
-      break
-    }
-  done
-  [[ "$rt_seen" == "true" ]] && continue
+  array_contains "$rt_to" "${RT_REPORTED[@]:-}" && continue
   RT_REPORTED+=("$rt_to")
   printf 'Resolved to main worktree: '
   display_value "$rt_to"
@@ -2837,14 +2878,7 @@ CURRENT_REPO_IDX=-1
 DUP_REPORTED=()
 for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
   dup_key="${IDENT_KEYS[$di]}"
-  dup_seen=false
-  for dup_prev in "${DUP_REPORTED[@]:-}"; do
-    [[ -n "$dup_prev" && "$dup_prev" == "$dup_key" ]] && {
-      dup_seen=true
-      break
-    }
-  done
-  [[ "$dup_seen" == "true" ]] && continue
+  array_contains "$dup_key" "${DUP_REPORTED[@]:-}" && continue
   DUP_REPORTED+=("$dup_key")
   DUP_PATHS=()
   for ((dj = 0; dj < ${#IDENT_KEYS[@]}; dj++)); do
@@ -3160,9 +3194,11 @@ fi
   printf '\n  ]\n'
   printf '}\n'
 } >"$PLAN_FILE" || fail "cannot write plan file: $PLAN_FILE"
-print_field 'Action plan' "$PLAN_FILE"
+plan_file_display=""
+to_native_file_path plan_file_display "$PLAN_FILE"
+print_field 'Action plan' "$plan_file_display"
 printf 'Apply dry-run: %s --apply-plan ' "$0"
-display_value "$PLAN_FILE"
+display_value "$plan_file_display"
 printf '\n'
 
 # --- Optional detail: collapsed per-target blocks + confidence groups -------

@@ -119,18 +119,9 @@ TEAM_UUID="$(jq -r '.id' <<<"$TEAM_NODE")"
 
 LABEL_IDS='[]'
 if [[ -n "$LABELS" ]]; then
-  # Labels come from the ROOT `issueLabels` connection, PAGINATED. Two defects this shape
-  # replaces, both found by validating this adapter against Linear's published schema:
-  #
-  #  1. The old query asked `team.labels(first: 250)` with no pageInfo and no loop. 250 is
-  #     Linear's per-page maximum, not a "surely enough" number, so a team past that count
-  #     silently lost labels — and because an unresolved name is REFUSED below, the failure
-  #     was not a dropped label but a hard exit on a label that exists.
-  #  2. `Team.labels` is documented only as "Labels associated with the team", while
-  #     `IssueLabel.team` says "If null, the label is a workspace-level label available to
-  #     all teams" and the root `issueLabels` query is the one documented to return "both
-  #     workspace-level and team-scoped labels". A workspace label is valid on this team's
-  #     issues, so refusing it was wrong.
+  # Labels come from the ROOT `issueLabels` connection, PAGINATED: 250 is Linear's per-page
+  # maximum, and only the root query is documented to return "both workspace-level and
+  # team-scoped labels". An unresolved name is REFUSED below, so a missed label is a hard exit.
   #
   # Filtering to this team OR workspace-level (`team: { null: true }`) keeps the resolution
   # scoped — a same-named label on some other team is still not silently borrowed.

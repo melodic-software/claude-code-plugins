@@ -3,6 +3,41 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `playwright-cli` at load time.** The `command -v playwright-cli` check runs as
+  pre-computed context, so `check` reads the result instead of making a Bash call. The FAIL rules
+  are unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
+## [0.7.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.7.0] - 2026-09-23
+
+### Changed
+
+- `playwright` answers visual questions (layout, overlap, color, a chart against its data) by
+  reading the screenshot file itself with one specific question, since the snapshot YAML carries
+  no layout, and shares the file path as evidence rather than retyping what it shows.
+
+## [0.6.13]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.6.12]
+
+### Changed
+
+- The markdown-format hook uses the shared hook-utils git-tree and dirname helpers instead of local copies, its suite and the powershell-format suite route repeated invocations through shared runners, and the mcp-tools discover, mutation-testing suppression-lint, and playwright update scripts fold duplicated blocks into helpers, with identical output.
+
 ## [0.6.11]
 
 ### Changed

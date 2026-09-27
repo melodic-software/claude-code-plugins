@@ -128,8 +128,8 @@ The four columns are memory tier, contract tier, durable, and `${CLAUDE_PLUGIN_D
 repo's own normative contract already states: **in a cloud checkout, `${CLAUDE_PLUGIN_DATA}` is
 invisible and only pushed commits carry.** The section is marked "This section is normative".
 
-**3.3 `docs/CLOUD-SESSIONS.md` restates the same rule for this repo.**
-`<worktree>/docs/CLOUD-SESSIONS.md` § "What this is":
+**3.3 `docs/cloud-sessions.md` restates the same rule for this repo.**
+`<worktree>/docs/cloud-sessions.md` § "What this is":
 > "runs each session in a fresh, isolated cloud VM with your repository cloned into it"
 > "repo-committed `.claude/` config reaches cloud sessions; user-level `~/.claude` config never
 > does."

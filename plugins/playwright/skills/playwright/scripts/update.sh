@@ -49,7 +49,6 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
-  return 0
 }
 
 check_prereqs() {
@@ -66,23 +65,16 @@ read_metadata_field() {
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v key="$field" \
     '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == key":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
-# Fetch the latest published version from the npm registry.
-fetch_upstream_version() {
-  local ver
-  ver=$(npm view "$UPSTREAM_PACKAGE" version 2>/dev/null | tr -d '\r')
-  [[ -n "$ver" ]] || return 1
-  printf '%s' "$ver"
-}
-
-# Fetch the registry dist.shasum for the latest published tarball.
-fetch_upstream_shasum() {
-  local sha
-  sha=$(npm view "$UPSTREAM_PACKAGE" dist.shasum 2>/dev/null | tr -d '\r')
-  [[ -n "$sha" ]] || return 1
-  printf '%s' "$sha"
+# Read one field of the latest published release from the npm registry
+# (`version`, `dist.shasum`). Returns 1 when the registry answers nothing.
+npm_view_field() {
+  local value
+  value=$(npm view "$UPSTREAM_PACKAGE" "$1" 2>/dev/null | tr -d '\r')
+  [[ -n "$value" ]] || return 1
+  printf '%s' "$value"
 }
 
 # npm-pack the latest release into TMPDIR_RUN, extract it, and emit the path
@@ -101,9 +93,8 @@ fetch_upstream_skill_dir() {
   printf '%s' "$skill_dir"
 }
 
-# Replace a nested metadata field in the SKILL.md frontmatter.
-# Anchored to the indented key under the metadata: block to avoid matching
-# unrelated top-level keys.
+# Replace a nested metadata field in the SKILL.md frontmatter, anchored to the
+# indented key under the metadata: block so a top-level key never matches.
 replace_metadata_field() {
   local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.tmp"
   # Escape chars special on sed's replacement side (& \ and the | delimiter) so
@@ -120,7 +111,7 @@ run_check() {
 
   section "Frontmatter / upstream version"
   local_ver=$(read_metadata_field "upstream-version")
-  upstream_ver=$(fetch_upstream_version) || {
+  upstream_ver=$(npm_view_field version) || {
     err "npm view ${UPSTREAM_PACKAGE} version failed — network or registry issue"
     return 2
   }
@@ -162,11 +153,11 @@ run_apply() {
   log "previous metadata.synced:           ${prev_synced:-<unset>}"
 
   section "Fetch upstream"
-  upstream_ver=$(fetch_upstream_version) || {
+  upstream_ver=$(npm_view_field version) || {
     err "npm view ${UPSTREAM_PACKAGE} version failed"
     return 2
   }
-  upstream_sha=$(fetch_upstream_shasum) || {
+  upstream_sha=$(npm_view_field dist.shasum) || {
     err "npm view ${UPSTREAM_PACKAGE} dist.shasum failed"
     return 2
   }
@@ -187,9 +178,8 @@ run_apply() {
   rm -rf "$VENDOR_DIR"
   mkdir -p "$VENDOR_DIR"
   cp -r "$upstream_dir"/. "$VENDOR_DIR"/
-  # Redistribution requires the upstream license text (Apache-2.0) to travel
-  # with the vendored content — it lives at the package root, not in the
-  # skill subdirectory.
+  # Apache-2.0 redistribution requires the license to travel with the vendored
+  # content; it lives at the package root, not in the skill subdirectory.
   if [[ -f "${TMPDIR_RUN}/package/LICENSE" ]]; then
     cp "${TMPDIR_RUN}/package/LICENSE" "${VENDOR_DIR}/LICENSE"
   else

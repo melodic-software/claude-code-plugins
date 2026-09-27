@@ -60,13 +60,11 @@ wit_linear_lease_live "$LEASE" && emit false "lease is still live"
 # marker would count its own renewal as activity and keep the lease alive forever.
 RENEWED_EPOCH="$(wit_linear_epoch "$RENEWED_AT")"
 ACTIVITY="no"
-if [[ -n "$RENEWED_EPOCH" ]]; then
-  # Paginating helper, not an inline first-page read: comments come back oldest-first,
-  # so on a long-running item the activity that proves the holder is alive sits on the
-  # LAST page. See wit_linear_activity_since in common.sh.
-  if wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
-    ACTIVITY="yes"
-  fi
+# Paginating helper, not an inline first-page read: comments come back oldest-first,
+# so on a long-running item the activity that proves the holder is alive sits on the
+# LAST page. See wit_linear_activity_since in common.sh.
+if [[ -n "$RENEWED_EPOCH" ]] && wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
+  ACTIVITY="yes"
 fi
 
 # Revalidate before EITHER mutation: the activity read above round-tripped, and a

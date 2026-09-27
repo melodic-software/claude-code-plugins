@@ -40,6 +40,18 @@
       "next_due": "2026-11-06",
       "notes": "Report-only self-maintenance routine (digest menu #9 pilot). Sweep docs/ and top-level repo docs for references to files/checks/skills that no longer exist, stale version claims, and moved official-docs.md pages (review:doc-drift-detector or docs-hygiene audits); verify generated CATALOG/skill-cheat-sheet freshness on a scratch branch. File one issue per confirmed drift cluster or comment no-drift on the open [Maintenance] issue (#2024 is the first instance). Never edits docs directly from the routine.",
       "close_previous": true
+    },
+    {
+      "id": "agents-md-cutover-check",
+      "title": "Run /instruction-placement:migrate cutover-check",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": ["claude-code-release-agents-md"],
+      "last_checked": "2026-09-20",
+      "next_due": "2026-10-20",
+      "notes": "Run /instruction-placement:migrate cutover-check; the skill defines the graded conditions and prints the evidence for each. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release that touches AGENTS.md handling or instruction-file loading. Comment each run's per-condition output on the open [Maintenance] issue (#4281 is the first instance). When every condition reports met, shim removal (remove-shims, per repo, human-confirmed) is unblocked and this row can be retired.",
+      "close_previous": true
     }
   ]
 }

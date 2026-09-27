@@ -3,6 +3,52 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-27
+
+### Fixed
+
+- `teach`'s HTML lessons delegate visual design to "a frontend-design skill" when one is installed, and say none ships in this marketplace (Anthropic's `claude-plugins-official` has a `frontend-design` plugin), instead of routing to `/frontend-design:frontend-design` unmarked (#4119).
+
+## [0.11.2] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.11.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.11.0] - 2026-09-23
+
+### Changed
+
+- `eli5` names the styles an explainer page leaves out (a cream or off-white background, italic
+  accent words in headings, numbered "01 / 02 / 03" section labels, pill-shaped badges), plus any
+  the user names, passes that list to the upstream skill, and adds a disliked choice to it before
+  redoing the page.
+- `teach` names the same default styles, plus monospace labels and pill-shaped buttons, to leave
+  out when first authoring the shared `lesson.css`, keeps that list as a comment at the top of the
+  stylesheet, and appends a style the learner dislikes to it while removing the rule.
+
+## [0.10.10]
+
+### Changed
+
+- The desktop-notification, eol-normalizer, go-format, and github test suites route repeated invocations through shared runner and counter helpers, the eol-normalizer hook derives its status from the taken message directly, and the education workspace lister and firecrawl updater drop a redundant subshell and conjunct, with identical output.
+
+## [0.10.9]
+
+### Fixed
+
+- **teach: the HTML assets splice runs as a shipped script instead of a retyped recipe.** The documented assembly step was an awk program writing a sibling `lesson.html.tmp` and then renaming it over the lesson. That staged-move shape is refused by the guardrails bypass guard, so in any session running that guard the splice failed and the coach had no documented way to finish an HTML lesson without re-emitting the assets through model output. `skills/teach/scripts/splice-assets.sh` now carries the redirect and the overwrite, with the build itself in the sibling `skills/teach/scripts/splice-assets.awk` it runs once validation passes, and `context/lessons.md` invokes the script with two literal argv paths. The script replaces only the markers present in the lesson, exits 1 without touching the lesson when a marker occurs more than once, when a marker line holds anything besides the marker and whitespace (replacing that line whole would silently drop the rest of it, tags included), when a present marker's asset file is missing, unreadable, or empty, or when reading an asset fails partway through the build, and exits 2 on a usage error, a read-only lesson included. It builds the whole lesson in a sibling temp file before overwriting, guarantees a final newline, and preserves carriage returns on unspliced lines. `lessons.md` also states the one fallback: on a host where the script cannot run, inline both assets into that lesson's Write call once and keep `assets/` as the source of truth.
+
 ## [0.10.8]
 
 ### Changed

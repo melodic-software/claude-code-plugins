@@ -160,7 +160,7 @@ generated cheat sheet with an extra column, which an operator reads once and nev
 One word expands any tier-2 roster to full treatment (`expand now`, `spotlight all`). That is
 progressive disclosure, not filtering: nothing was withheld, only deferred a keystroke.
 
-## Boundaries. Four neighbours, four different jobs
+## Boundaries. Four neighbors, four different jobs
 
 - **`/session-flow:workflow`** answers *which stage comes next* and routes to **exactly one** owner,
   by its own mandate never presenting both and leaving the operator to disambiguate. That rule

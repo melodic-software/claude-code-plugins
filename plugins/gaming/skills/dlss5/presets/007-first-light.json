@@ -1,0 +1,21 @@
+{
+  "title": "007 First Light",
+  "match": { "steamAppId": "3768760" },
+  "ini": [
+    {
+      "key": "RestoreComputeSignature",
+      "value": "true",
+      "why": "Conditional. The wiki: required for NVIDIA users to avoid crashes when overriding sharpness or using Output Scaling. The Sharpness Override step below overrides sharpness, so the condition holds. OptiScaler 0.9.3+ sets it itself only on AMD and Intel"
+    }
+  ],
+  "manual": [
+    "Start with path tracing and Ray Reconstruction off, then enable them one at a time. Precaution, not a fix: the only Blackwell NR report for this title (Linux, Proton) faulted on the first NR frame with Ray Reconstruction on.",
+    "DLSS inputs have forced sharpness: tune or disable it with Sharpness Override in the overlay (Insert) before judging NR.",
+    "Enable Neural Rendering in the overlay after the game has loaded."
+  ],
+  "sources": [
+    { "url": "https://github.com/optiscaler/OptiScaler/wiki/007-First-Light", "asOf": "2026-09-23", "supports": "RestoreComputeSignature condition on NVIDIA; forced sharpness on DLSS inputs and the Sharpness Override option (last tested 0.9.4)" },
+    { "url": "https://github.com/Dagherbou/OptiScaler_DLSSNR/issues/50", "asOf": "2026-09-23", "supports": "Linux/Proton RTX 5060 Ti: Xid 69 on the first NR composition with DLSS Ray Reconstruction on" }
+  ],
+  "recheck": "The wiki's 007 First Light page changes, a fork release names the title, or a Windows Blackwell report appears"
+}

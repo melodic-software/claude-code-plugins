@@ -1005,7 +1005,7 @@ italicized word:
 Pat answers **both**, again by marking rather than naming (the marks are
 stripped from the text layer; recovered from the page scan):
 
-<!-- Pat italicises part-words to isolate a sound; verbatim as printed --><!-- spellchecker:off -->
+<!-- Pat italicizes part-words to isolate a sound; verbatim as printed --><!-- spellchecker:off -->
 
 > (Answer)
 > Listen! you hear the *grat*ing roar

@@ -6,9 +6,7 @@ Tests for scripts/windows/lib/Assert-ApprovalState.ps1.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-ApprovalState.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Assert-ApprovalState.ps1'
 
     function New-ValidState {
         param([hashtable] $Overrides = @{})

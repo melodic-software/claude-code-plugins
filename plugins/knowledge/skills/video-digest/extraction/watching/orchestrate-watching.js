@@ -9,16 +9,14 @@ import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-durat
 import { createLogger } from "@melodic/video-digestion/shared/logger";
 
 import {
-  computeCoveragePlan,
   cueAnchorTimestamps,
   densificationAnchorTimestamps,
+  planFrameCoverage,
   stratifiedSampleTimestamps,
 } from "./compute-coverage-plan.js";
-import { findDensificationWindows, scoreFramePriority } from "./densification.js";
 import { extractAnchorFrames } from "./extract-anchor-frames.js";
-import { isHighVolume, summarizeFrameSelection } from "./frame-budget.js";
+import { isHighVolume, selectFramesForCoverage } from "./frame-budget.js";
 import { mergeFrameCandidates } from "./merge-frame-candidates.js";
-import { toSelectedFrame } from "./read-policy.js";
 import {
   batchFramesForContactSheets,
   interleaveTranscriptAndFrames,
@@ -86,10 +84,8 @@ export async function orchestrateWatching(
   const scenePaths = sceneResult.frames.map((frame) => frame.path);
   const sceneDedup = await runDedup(scenePaths, {}, { log });
 
-  const windows = findDensificationWindows(cues);
-  const coveragePlan = computeCoveragePlan({
+  const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
-    densificationWindows: windows,
     sceneCandidateCount: sceneDedup.unique.length,
   });
 
@@ -127,14 +123,10 @@ export async function orchestrateWatching(
 
   assignFrameTimestamps(dedupResult.unique, durationSec);
 
-  const scored = dedupResult.unique.map((frame, index) =>
-    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
-  );
-
-  const selection = summarizeFrameSelection(scored, {
+  const selection = selectFramesForCoverage(dedupResult.unique, {
+    windows,
     targetMinFrames: coveragePlan.targetMinFrames,
     durationSec,
-    densificationWindowCount: windows.length,
   });
 
   log.info(
@@ -147,8 +139,7 @@ export async function orchestrateWatching(
   /** @type {import('@melodic/video-digestion/frames/models').ContactSheet[]} */
   const contactSheets = [];
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
+  for (const [i, batch] of batches.entries()) {
     const outputPath = `${contactSheetsDir}/sheet_${String(i + 1).padStart(3, "0")}.jpg`;
     const sheet = await runContactSheet(
       batch.map((frame) => frame.path),

@@ -491,9 +491,11 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
                     raise PermissionError("access denied probing the gitfile")
                 return real_exists(self, **kwargs)
 
-            with mock.patch.object(pathlib.Path, "iterdir", failing_rescan):
-                with mock.patch.object(pathlib.Path, "exists", denying_exists):
-                    removed = prune.remove_empty_orphan_directory(wt, root)
+            with (
+                mock.patch.object(pathlib.Path, "iterdir", failing_rescan),
+                mock.patch.object(pathlib.Path, "exists", denying_exists),
+            ):
+                removed = prune.remove_empty_orphan_directory(wt, root)
 
             self.assertTrue(probes, "the fixture never reached the pointer probe")
             self.assertFalse(removed)
@@ -624,15 +626,23 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
 
 
 class DropOrphanedWorktreeTests(unittest.TestCase):
+    def _orphan(
+        self, tmp: pathlib.Path, number: int, *, parent: str = "root"
+    ) -> tuple[pathlib.Path, pathlib.Path, prune.Worktree]:
+        """A root plus a directory under `parent` that matches the naming
+        convention but isn't a git repo, with its `Worktree` identity."""
+        root = tmp / "root"
+        root.mkdir()
+        orphan_dir = tmp / parent / f"owner__repo__pr-{number}"
+        orphan_dir.mkdir(parents=True)
+        worktree = prune.Worktree(
+            path=orphan_dir, owner="owner", repo="repo", number=number
+        )
+        return root, orphan_dir, worktree
+
     def test_drops_the_lease_record_and_removes_the_empty_directory(self) -> None:
         with scratch_dir() as tmp:
-            root = tmp / "root"
-            root.mkdir()
-            orphan_dir = root / "owner__repo__pr-9"
-            orphan_dir.mkdir()  # matches the naming convention but isn't a git repo
-            worktree = prune.Worktree(
-                path=orphan_dir, owner="owner", repo="repo", number=9
-            )
+            root, orphan_dir, worktree = self._orphan(tmp, 9)
             state_dir = tmp / "state"
             lease_path = leases.lease_path(state_dir, "worker", worktree.key)
             lease_path.parent.mkdir(parents=True)
@@ -655,13 +665,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
 
     def test_is_a_no_op_when_no_lease_record_exists(self) -> None:
         with scratch_dir() as tmp:
-            root = tmp / "root"
-            root.mkdir()
-            orphan_dir = root / "owner__repo__pr-10"
-            orphan_dir.mkdir()
-            worktree = prune.Worktree(
-                path=orphan_dir, owner="owner", repo="repo", number=10
-            )
+            root, _orphan_dir, worktree = self._orphan(tmp, 10)
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
             info = prune.drop_orphaned_worktree(
@@ -685,13 +689,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         # (`reference/orchestration.md` "Cleanup"), so unlinking the record
         # here would make that release fail and drop ownership early.
         with scratch_dir() as tmp:
-            root = tmp / "root"
-            root.mkdir()
-            orphan_dir = root / "owner__repo__pr-13"
-            orphan_dir.mkdir()
-            worktree = prune.Worktree(
-                path=orphan_dir, owner="owner", repo="repo", number=13
-            )
+            root, orphan_dir, worktree = self._orphan(tmp, 13)
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
             lease_path.parent.mkdir(parents=True)
             lease_path.write_text("{}", encoding="utf-8")
@@ -717,15 +715,9 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         # `remove_worktree`'s post-removal cleanup, this path was never
         # confirmed safe to discard by git, so it must never force-delete.
         with scratch_dir() as tmp:
-            root = tmp / "root"
-            root.mkdir()
-            orphan_dir = root / "owner__repo__pr-11"
-            orphan_dir.mkdir()
+            root, orphan_dir, worktree = self._orphan(tmp, 11)
             stray_file = orphan_dir / "uncommitted-work.txt"
             stray_file.write_text("do not delete me", encoding="utf-8")
-            worktree = prune.Worktree(
-                path=orphan_dir, owner="owner", repo="repo", number=11
-            )
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
             info = prune.drop_orphaned_worktree(
@@ -742,13 +734,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         # only ever yields direct children of root) but a direct caller must
         # not be able to walk this off-root regardless.
         with scratch_dir() as tmp:
-            root = tmp / "root"
-            root.mkdir()
-            outside_dir = tmp / "elsewhere" / "owner__repo__pr-12"
-            outside_dir.mkdir(parents=True)
-            worktree = prune.Worktree(
-                path=outside_dir, owner="owner", repo="repo", number=12
-            )
+            root, outside_dir, worktree = self._orphan(tmp, 12, parent="elsewhere")
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
             info = prune.drop_orphaned_worktree(

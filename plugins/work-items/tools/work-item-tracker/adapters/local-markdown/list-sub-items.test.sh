@@ -44,10 +44,8 @@ GC="$(new --title grandchild --parent "$C1")"
 source "$SCRIPT_DIR/common.sh"
 wit_fm_set "$C2_FILE" state '"closed"'
 
-sub_ids() { bash "$TRACKER" list-sub-items "$@" | jq -c '[.items[].id]'; }
-
 # --- enumeration: direct children only, both states, correctly parented ---
-ALL="$(sub_ids "$MAP")"
+ALL="$(bash "$TRACKER" list-sub-items "$MAP" | jq -c '[.items[].id]')"
 assert_contains "list-sub-items holds open child C1" "$ALL" "$C1"
 assert_contains "list-sub-items holds closed child C2" "$ALL" "$C2"
 assert_not_contains "list-sub-items excludes the container itself" "$ALL" "$MAP"

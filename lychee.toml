@@ -1,6 +1,6 @@
 # lychee ruleset — repo-agnostic link-checking config.
-# The offline CI lane runs with --offline (external URLs skipped); the online
-# advisory lane reuses this file with the network enabled.
+# The offline CI lane runs with --offline (external URLs skipped); a manual
+# online run reuses this file with the network enabled.
 # Ref: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
 
 # Verify #fragment/anchor targets resolve, not just the file path ("full"
@@ -29,7 +29,7 @@ exclude_path = [
   '(^|/)obj/',
 ]
 
-# URL excludes for the online lane (the offline lane skips URLs entirely):
+# URL excludes for a manual online run (the offline lane skips URLs entirely):
 # exact bot-blocked URLs, auth-walled private repos, loopback, placeholders, and
 # hosts the checker cannot complete a TLS handshake against. Every entry is a
 # CHECKER-side limitation on a link verified to be alive — never a dead link
@@ -79,9 +79,9 @@ exclude = [
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://example\.(com|org)',
-  # PRIVATE GitHub repos: valid links for authenticated collaborators, but the
-  # online lane's credential is the calling repo's GITHUB_TOKEN (or nothing
-  # locally), which cannot read any other private repo, so GitHub answers 404.
+  # PRIVATE GitHub repos: valid links for authenticated collaborators, but a
+  # manual online run checks them unauthenticated, carrying no credential that
+  # can read a private repo, so GitHub answers 404.
   # Listed per repo, not per owner, so links to public siblings stay checked.
   # GENERATED, not hand-edited: the two alternations below are derived from
   # actual repository visibility by components/lychee/private-repo-inventory.sh

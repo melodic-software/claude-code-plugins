@@ -42,11 +42,8 @@ $commands = @(
 )
 
 try {
-    # Filter out \Microsoft\* tasks -- too noisy, mostly OS housekeeping.
-    # Never-run detection (LastTaskResult=267011 or LastRunTime sentinel) is
-    # delegated to Test-IsNeverRunScheduledTask; see helper docs above for
-    # the full SCHED_S_* code mapping. 267014 (SCHED_S_TASK_TERMINATED) is
-    # NOT filtered -- termination is a real event worth surfacing.
+    # \Microsoft\* tasks are OS housekeeping noise. 267014 (SCHED_S_TASK_TERMINATED) is
+    # deliberately not filtered: termination is a real event worth surfacing.
     $tasks = @(Get-ScheduledTask -ErrorAction Stop |
             Where-Object { $_.TaskPath -notlike '\Microsoft\*' -and $_.State -eq 'Ready' })
 
@@ -85,15 +82,10 @@ try {
         failed_count = $failed.Count
         failed_tasks = @($failed | Select-Object -First 20)
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Scheduled task check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Scheduled task check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

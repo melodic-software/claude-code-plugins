@@ -58,7 +58,7 @@ layout works in that repository and nowhere else.
 
 **Tracked modifications.** Refuse to start if any file in the swept universe carries tracked
 modifications, and name them. Per-group commits would otherwise capture the user's in-flight work
-inside a commit labelled as a simplification. Untracked non-ignored files are a different case: they
+inside a commit labeled as a simplification. Untracked non-ignored files are a different case: they
 are swept, deliberately, because `--others` exists to reach them and new work benefits most from the
 pass. Say so at the confirmation gate so nobody is surprised that a file they have not committed yet
 comes back edited.
@@ -225,7 +225,7 @@ Present the inventory summary and wait, **after grouping and wave planning, befo
 dispatched.** The position matters in both directions: every number below is computed by the
 filter, existence and grouping phases, so a gate raised before them can only report a raw candidate
 count or an invented one; and a gate raised after dispatch is not a cost gate at all. This applies on
-both entry paths. An explicit `repo` argument is a request to plan the run, not a licence to start
+both entry paths. An explicit `repo` argument is a request to plan the run, not a license to start
 it.
 
 The summary states:

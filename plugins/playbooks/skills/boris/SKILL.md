@@ -41,7 +41,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Finding your unknowns (the four unknowns, blindspot pass, brainstorms + prototypes, interviews, references, implementation plans, implementation-notes.md, pitches + explainers, quizzes) | [reference/unknowns.md](reference/unknowns.md) | 96–99 | Part 18 |
 | Loops (the four loop types, turn-based + goal-based, time-based + proactive, loop quality + token usage, which loop when) | [reference/loops.md](reference/loops.md) | 100–103 | Part 19 |
 | Setup maintenance & automation as infrastructure (/checkup, safe-by-default, the real run, automation as meta-skill, fixes into code, domain knowledge as infrastructure) | [reference/automation.md](reference/automation.md) | 104–109 | Parts 20–21 |
-| Context engineering for Claude 5 models (judgement over rules, interfaces over examples, progressive disclosure, auto-memory + rich references, the context stack + /doctor, Opus 5) | [reference/context-engineering.md](reference/context-engineering.md) | 110–115 | Part 22 |
+| Context engineering for Claude 5 models (judgment over rules, interfaces over examples, progressive disclosure, auto-memory + rich references, the context stack + /doctor, Opus 5) | [reference/context-engineering.md](reference/context-engineering.md) | 110–115 | Part 22 |
 
 ## Quick Reference
 
@@ -138,7 +138,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Automation Is the Meta-Skill | Every automation multiplies across the whole agent fleet |
 | Fixes Into Code | Lint rule / CI step / routine kills the class, not the instance, what "loops" really means |
 | Knowledge as Infrastructure | A PR rejected for unwritten conventions is a failure of automation |
-| Judgement Over Rules | A rule right 90% of the time is wrong the rest; 80%+ of the system prompt deleted |
+| Judgment Over Rules | A rule right 90% of the time is wrong the rest; 80%+ of the system prompt deleted |
 | Interfaces Over Examples | Expressive parameters teach usage; examples fence the exploration space |
 | Progressive Disclosure | Skills, deferred tool loading, a tree of files, load context when relevant |
 | Auto-Memory & References | Memories save themselves; HTML artifacts, code, test suites, rubrics as specs |

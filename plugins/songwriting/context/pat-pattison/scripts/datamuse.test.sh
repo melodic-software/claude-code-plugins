@@ -7,8 +7,8 @@
 # Coverage:
 #   - argument validation (no mode, no word, unknown mode) exits 1, prints the
 #     usage banner, and issues NO request
-#   - the usage banner still spans the modes and the LIMIT override, so
-#     truncating the `sed` range that prints it is caught
+#   - the usage banner still spans the modes and the LIMIT override, so a
+#     banner that stops short of either end is caught
 #   - curl is invoked with the flags the script documents (-sS), since silent
 #     mode without -S swallows the transport error this suite relies on
 #   - happy-path response parsing: one TSV row per result, four tab-separated
@@ -176,9 +176,9 @@ run_datamuse
 assert_eq "no arguments -> exit 1" "1" "$RC"
 assert_contains "no arguments prints the usage banner" "$ERR" "datamuse.sh rhyme"
 assert_contains "usage banner names the API" "$ERR" "https://www.datamuse.com/api/"
-# The banner is a line RANGE out of the script's own header, so it is pinned at
-# both ends: `family` is the last mode listed and the LIMIT note sits below it.
-# Narrowing the range drops one or both.
+# The banner is cut out of the script's own header, so it is pinned at both
+# ends: `family` is the last mode listed and the LIMIT note sits below it. A
+# banner that stops early drops one or both.
 assert_contains "usage banner reaches the last mode listed" "$ERR" "datamuse.sh family"
 assert_contains "usage banner documents the LIMIT override" "$ERR" "LIMIT=<n>"
 assert_contains "usage banner reaches the Examples block" "$ERR" "datamuse.sh rhyme lonely"

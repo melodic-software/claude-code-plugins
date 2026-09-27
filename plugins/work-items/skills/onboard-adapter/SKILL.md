@@ -30,10 +30,10 @@ fixing an existing adapter (ordinary implementation work).
 
 ## The split
 
-Deterministic work is scripted; judgement is not
+Deterministic work is scripted; judgment is not
 (`/discipline:script-the-deterministic-work` if installed). Concretely:
 
-| Judgement, you, in this flow | Mechanical, `scripts/generate-adapter.sh` |
+| Judgment, you, in this flow | Mechanical, `scripts/generate-adapter.sh` |
 |---|---|
 | Which verbs the provider can honestly support | Emitting the manifest and the scaffolds for them |
 | What the provider's fields *mean* | The security skeleton, arg parsing, exit codes, envelopes |

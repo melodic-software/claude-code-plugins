@@ -1,5 +1,5 @@
 /**
- * Transcript-strategy seam (T5): the adapter declares a per-source default
+ * Transcript-strategy seam: the adapter declares a per-source default
  * (`transcriptStrategy`), the pipeline may override it explicitly, and the
  * resolution below picks what actually runs per media entry given what exists —
  * a selected caption, a media file, and the optional local ASR capability.
@@ -121,9 +121,10 @@ export function resolveTranscriptStrategy({
     );
   }
   const requested = override ?? adapterDefault;
+  const asrRunnable = asrAvailable && mediaAvailable;
 
   if (requested === "asr") {
-    if (asrAvailable && mediaAvailable) {
+    if (asrRunnable) {
       return { strategy: "asr", degradation: null };
     }
     if (captionPresent) {
@@ -152,7 +153,7 @@ export function resolveTranscriptStrategy({
     };
   }
 
-  if (asrAvailable && mediaAvailable) {
+  if (asrRunnable) {
     return { strategy: "asr", degradation: null };
   }
   return noTranscriptPlan(mediaAvailable);

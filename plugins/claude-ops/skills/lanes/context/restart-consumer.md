@@ -102,7 +102,7 @@ written only by `upsert_own_telemetry`, which returns early unless the action is
 The local run ledger is deliberately **not** an accepted alternative here: it
 answers "did something run", where this step must answer "did a **`run`** run".
 `append_ledger` is likewise gated on the action being `run`, resolving that in
-favour of the `--help` contract's read-only `check` rather than the other way
+favor of the `--help` contract's read-only `check` rather than the other way
 round. A `check` an operator runs by hand must never move the circuit breaker's
 memory, and a ledger that a `check` could write would satisfy the very check
 above on the failure it exists to catch.

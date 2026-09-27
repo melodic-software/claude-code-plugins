@@ -31,11 +31,6 @@ assert_usage_error "$S" "linear:acme/ENG#12" extra
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-lease_node() {
-  jq -cn --arg b "$(lin_lease_body "$1" "${2:-kyle}" "$3" "${4:-24}" "${5:-}")" \
-    '[{id: "uuid-comment-mine", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]'
-}
-
 # seed_reclaim <lease-nodes> <activity-nodes> [assignee-display-name]
 # The comments query answers three times over a full reclaim: the initial read, the
 # activity check, and the revalidation. Seeding the same set for all three models the
@@ -54,7 +49,7 @@ seed_reclaim() {
 }
 
 # --- a LIVE lease is left alone ---
-seed_reclaim "$(lease_node "$HANDLE" kyle "$NOW" 24)" '[]'
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)" '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "live lease → exit 0" "0" "$rc"
 assert_eq "reclaimed is false" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
@@ -73,7 +68,7 @@ assert_eq "reclaimed is false" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 assert_contains "reason names the absence" "$(jq -r '.reason' <<<"$(lin_out)")" "no active lease"
 
 # --- an expired lease with NO activity is reclaimed ---
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]'
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]'
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired, quiet lease → exit 0" "0" "$rc"
 assert_eq "reclaimed is true" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
@@ -84,7 +79,7 @@ assert_contains "an explanatory comment is posted" "$(lin_bodies)" "Reclaimed:"
 # --- an expired lease WITH activity is renewed, not reclaimed ---
 # The holder is demonstrably still working; taking the item would interrupt them.
 ACTIVITY="$(jq -cn --arg t "$RECENT" '[{body: "still working on this", createdAt: $t}]')"
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$ACTIVITY"
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired lease with activity → exit 0" "0" "$rc"
 assert_eq "reclaimed is false" "false" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
@@ -99,20 +94,20 @@ fi
 # activity and the lease would never expire — the item would be held forever.
 LEASE_ONLY_ACTIVITY="$(jq -cn --arg b "$(lin_lease_body "$HANDLE" kyle "$RECENT" 24)" --arg t "$RECENT" \
   '[{body: $b, createdAt: $t}]')"
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$LEASE_ONLY_ACTIVITY"
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$LEASE_ONLY_ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a lease comment is not activity → reclaimed" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 
 # A comment OLDER than renewed_at is not activity either — it predates the lease.
 OLD_ACTIVITY="$(jq -cn '[{body: "from before the claim", createdAt: "1998-01-01T00:00:00Z"}]')"
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$OLD_ACTIVITY"
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" "$OLD_ACTIVITY"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a pre-lease comment is not activity → reclaimed" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
 
 # --- a co-assignee is NOT stripped ---
 # Someone else in the assignee slot took the item after this lease expired. Clearing it
 # would strip a LIVE claim and hand the item back to the frontier while they work it.
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]' "someone-else"
+seed_reclaim "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]' "someone-else"
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "expired lease, different assignee → exit 0" "0" "$rc"
 assert_eq "still reclaimed (the lease is released)" "true" "$(jq -r '.reclaimed' <<<"$(lin_out)")"
@@ -128,9 +123,9 @@ lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
 lin_comments \
-  "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" \
+  "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)" \
   '[]' \
-  "$(lease_node "$HANDLE" kyle "$NOW" 24)"
+  "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)"
 lin_seed_issue 12 started
 rc="$(lin_run "$S" "linear:acme/ENG#12")"
 assert_eq "a lease renewed under us → exit 0" "0" "$rc"
@@ -147,7 +142,7 @@ lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
-MINE_EXPIRED="$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
+MINE_EXPIRED="$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
 RIVAL_LIVE="$(jq -cn --arg b "$(lin_lease_body "$RIVAL_HANDLE" rival "$NOW" 24)" \
   '[{id: "uuid-comment-rival", body: $b, createdAt: "2026-08-20T12:30:00.000Z"}]')"
 BOTH="$(jq -cn --argjson a "$MINE_EXPIRED" --argjson b "$RIVAL_LIVE" '$a + $b')"
@@ -168,7 +163,7 @@ lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
-EXPIRED="$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
+EXPIRED="$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
 RECENT_TALK="$(jq -cn --arg t "$NOW" '[{id: "uuid-c-late", body: "still on this", createdAt: $t}]')"
 # 1: initial lease read. 2-3: the activity check, whose recent comment is on page TWO.
 # 4: the revalidation read.

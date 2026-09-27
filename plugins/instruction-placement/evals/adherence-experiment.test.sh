@@ -222,6 +222,15 @@ result_row() { printf 'RESULT\t%s\t%s\t%s\t%s\t%s' "$@"; }
 # ---------------------------------------------------------------------------
 # Usage and argument validation
 # ---------------------------------------------------------------------------
+# Every rejected argument list is one exit status, and the status has to be
+# read from the harness run itself, not from a later command.
+assert_usage_error() {
+  local desc="$1"
+  shift
+  bash "$SCRIPT" "$@" >/dev/null 2>&1
+  assert_eq "$desc" "2" "$?"
+}
+
 out="$(bash "$SCRIPT" --help)"
 assert_eq "--help exits 0" "0" "$?"
 assert_contains "--help prints the usage banner" "$out" "adherence-experiment.sh"
@@ -229,18 +238,12 @@ assert_contains "--help prints the usage banner" "$out" "adherence-experiment.sh
 # banner has to admit the flag exists.
 assert_contains "--help documents --filler" "$out" "--filler"
 
-bash "$SCRIPT" --bogus >/dev/null 2>&1
-assert_eq "an unknown argument is a usage error" "2" "$?"
-bash "$SCRIPT" --trials >/dev/null 2>&1
-assert_eq "--trials with no value is a usage error" "2" "$?"
-bash "$SCRIPT" --trials abc >/dev/null 2>&1
-assert_eq "a non-integer --trials is a usage error" "2" "$?"
-bash "$SCRIPT" --filler >/dev/null 2>&1
-assert_eq "--filler with no value is a usage error" "2" "$?"
-bash "$SCRIPT" --filler abc >/dev/null 2>&1
-assert_eq "a non-integer --filler is a usage error" "2" "$?"
-bash "$SCRIPT" --claude >/dev/null 2>&1
-assert_eq "--claude with no value is a usage error" "2" "$?"
+assert_usage_error "an unknown argument is a usage error" --bogus
+assert_usage_error "--trials with no value is a usage error" --trials
+assert_usage_error "a non-integer --trials is a usage error" --trials abc
+assert_usage_error "--filler with no value is a usage error" --filler
+assert_usage_error "a non-integer --filler is a usage error" --filler abc
+assert_usage_error "--claude with no value is a usage error" --claude
 
 # ---------------------------------------------------------------------------
 # An unmeasurable run reports UNKNOWN and never emits counts

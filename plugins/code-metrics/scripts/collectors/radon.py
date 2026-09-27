@@ -22,25 +22,21 @@ shapes):
 from __future__ import annotations
 
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    normalize,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "radon"
 LANE = "python"
 MEASURES = ("cyclomatic", "halstead", "function_lines")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -48,15 +44,10 @@ def probe() -> int:
     if not exe:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{NAME} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -83,13 +74,13 @@ def _non_blank(path: str, start: int | None = None, end: int | None = None) -> i
 
 
 def translate_cc(raw: str, measure: str, wanted: list[str]) -> list[dict]:
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, dict):
         raise ValueError("radon cc -j did not print an object")
     rows: list[dict] = []
     for location, entries in document.items():
-        path = wanted_norm.get(_normalize(location))
+        path = wanted_norm.get(normalize(location))
         if path is None or not isinstance(entries, list):
             continue
         total = _non_blank(path) if measure == "function_lines" else 0
@@ -121,13 +112,13 @@ def translate_cc(raw: str, measure: str, wanted: list[str]) -> list[dict]:
 
 
 def translate_hal(raw: str, wanted: list[str]) -> list[dict]:
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, dict):
         raise ValueError("radon hal -j did not print an object")
     rows: list[dict] = []
     for location, block in document.items():
-        path = wanted_norm.get(_normalize(location))
+        path = wanted_norm.get(normalize(location))
         if path is None or not isinstance(block, dict):
             continue
         functions = block.get("functions")
@@ -172,7 +163,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
             rows = translate_hal(result.stdout, files)
         else:
             rows = translate_cc(result.stdout, measure, files)
-    except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         print(
             f"{NAME}.py: no parseable {NAME} {subcommand} output ({exc}); "
             f"stderr: {result.stderr.strip()}",
@@ -184,36 +175,26 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    for measure in MEASURES:
+        print(f"{LANE}/{measure}")
+
+
+INSTALL_HINT = "radon: https://github.com/rubik/radon (pip install radon)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        for measure in MEASURES:
-            print(f"{LANE}/{measure}")
-        return 0
-    if verb == "install_hint":
-        print("radon: https://github.com/rubik/radon (pip install radon)")
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("radon.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

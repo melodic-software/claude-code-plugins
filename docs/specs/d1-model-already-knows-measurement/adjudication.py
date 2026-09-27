@@ -94,10 +94,8 @@ def main(sample_path, out_path, instructions_path):
     n = len(rows)
     c = Counter(r["verdict"] for r in rows)
 
-    tp_strict = c["CONTESTED"]  # every contested call resolved FOR the proxy
-    fp_strict = n - tp_strict
-    tp_plain = 0  # every contested call resolved against it
-    fp_plain = n - tp_plain
+    fp_strict = n - c["CONTESTED"]  # every contested call resolved FOR the proxy
+    fp_plain = n  # every contested call resolved against it
 
     with open(out_path, "w", encoding="utf-8") as fh:
         for r in rows:
@@ -110,7 +108,7 @@ def main(sample_path, out_path, instructions_path):
     print()
     print("false-positive rate, two readings of the contested bucket")
     print(
-        f"  most favourable to proxy (contested = true positive):"
+        f"  most favorable to proxy (contested = true positive):"
         f" {fp_strict}/{n} = {100.0 * fp_strict / n:.1f}%"
     )
     print(

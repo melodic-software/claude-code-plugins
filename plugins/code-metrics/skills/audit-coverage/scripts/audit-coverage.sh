@@ -24,6 +24,8 @@ COMPLEXITY="$PLUGIN_ROOT/skills/audit-complexity/scripts/audit-complexity.sh"
 # Well-known artifact names, in the order they are looked for. Directories
 # excluded from the walk: node_modules, .git, vendor.
 WELL_KNOWN=(coverage/lcov.info lcov.info coverage.xml cobertura.xml coverage.json coverage.out cover.out)
+# shellcheck source=../../../scripts/entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 JSON=0
 CONFIG=""
@@ -52,7 +54,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    cm_usage_banner "${BASH_SOURCE[0]}" 17
     exit 0
     ;;
   *)
@@ -73,8 +75,7 @@ fi
 
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
-  "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" \
-    --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
+  cm_resolve_config "$CONFIG" || exit 2
 fi
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -132,13 +133,10 @@ fi
 detect_format() {
   local artifact="$1" first
   first="$(grep -v '^[[:space:]]*$' "$artifact" 2>/dev/null | head -n 1)"
-  case "$first" in
-  mode:*)
+  if [[ "$first" == mode:* ]]; then
     printf 'go_cover\n'
     return 0
-    ;;
-  *) ;;
-  esac
+  fi
   if head -n 200 "$artifact" | grep -q '^SF:' || head -n 200 "$artifact" | grep -q '^TN:'; then
     printf 'lcov\n'
     return 0
@@ -218,15 +216,5 @@ bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --con
 source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
 cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/report.json" || exit 2
 
-if [[ $JSON -eq 1 ]]; then
-  cat "$WORK/report.json"
-else
-  # shellcheck source=../../../scripts/persist-report.sh
-  source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=()
-  if document="$(cm_persist_report audit-coverage "$WORK/report.json")"; then
-    render_args=(--document "$document")
-  fi
-  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
-fi
+cm_emit_document audit-coverage "$JSON" "$WORK/report.json" || exit 2
 exit "$rc"

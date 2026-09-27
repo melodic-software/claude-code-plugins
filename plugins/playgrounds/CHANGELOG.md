@@ -3,6 +3,14 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-09-23
+
+### Changed
+
+- `use` carries the styles the user wants left out in the brief it passes to the upstream
+  playground skill, and adds a disliked choice from the generated page to that list before
+  invoking again.
+
 ## [0.1.2]
 
 ### Changed

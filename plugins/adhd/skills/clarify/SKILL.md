@@ -197,8 +197,11 @@ ships with the artifact surface, so it is normally present on the publish rung;
 if it is not, meet the contract's essentials directly rather than skipping them:
 a self-contained page (the baseline above), theme-aware, a title and one-line
 description, a favicon. Either way, the decision table is the page's spine. Keep
-the treatment utilitarian, not a flashy hero, and this static table needs no
-runtime capabilities. In the terminal, give a one-line summary and the artifact
+the treatment utilitarian, and this static table needs no runtime capabilities.
+Leave out a hero banner, a cream or off-white background, italic accent words in
+headings, numbered "01 / 02 / 03" section labels (the `#` column is the only
+numbering), and pill-shaped badges, plus any style the reader names; when the
+reader dislikes a choice in the page, add it to that list and render again. In the terminal, give a one-line summary and the artifact
 link (or the local file path); don't reprint the whole table twice.
 
 ## Boundaries

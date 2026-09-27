@@ -41,7 +41,7 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §1 before any rhyme output.
+- **Pre-flight:** run response-filter §1 before any rhyme output.
 - Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) FIRST for any
   rhyme request. Apply the discipline. Identity check (pre-vowel consonants MUST differ; identity
   is NOT rhyme), vowel-FIELD walk (Step 1b, the source word's own coda is ONE row of the field,
@@ -70,7 +70,7 @@ write the line the rhyme lands in.
 | --- | --- |
 | A finished lyric line built around a chosen rhyme | `/songwriting:co-write` line-brainstorm |
 | A single winning rhyme presented as the answer | nothing. Surface the labeled menu and let the writer pick by emotional intent |
-| A structural judgement about where the rhyme sits | `/songwriting:song-form` |
+| A structural judgment about where the rhyme sits | `/songwriting:song-form` |
 | A claim that a candidate scans | `/songwriting:meter-prosody` |
 
 Three failures belong to this skill specifically and are caught nowhere downstream: a rhyme list

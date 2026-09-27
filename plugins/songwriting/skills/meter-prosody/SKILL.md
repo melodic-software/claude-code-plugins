@@ -7,7 +7,7 @@ disable-model-invocation: false
 
 ## Mandatory pre-flight. Response Filter
 
-Before emitting a scansion verdict, stability call, phrasing judgement, or any rewrite, run
+Before emitting a scansion verdict, stability call, phrasing judgment, or any rewrite, run
 **§3 Critique filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
@@ -41,7 +41,7 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §3 (+ §2 when producing lines) before output.
+- **Pre-flight:** run response-filter §3 (+ §2 when producing lines) before output.
 - Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning, not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
@@ -80,7 +80,7 @@ fix a bad scan.
 | --- | --- |
 | A rewritten line that scans better | `/songwriting:co-write` line-brainstorm |
 | A replacement word chosen for its stress pattern and rhyme | `/songwriting:rhyme` |
-| A judgement that a section is the wrong length or shape | `/songwriting:song-form` |
+| A judgment that a section is the wrong length or shape | `/songwriting:song-form` |
 
 **Measure in stressed syllables, never raw syllables.** Line length in this method is the count of
 stressed syllables; a raw-syllable count is a different measurement that answers a different

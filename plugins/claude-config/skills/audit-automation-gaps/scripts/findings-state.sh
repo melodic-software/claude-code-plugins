@@ -11,7 +11,7 @@
 #
 # NAMING. `findings-state.sh`, not `findings.sh`: this is the state store for one
 # component, the same role `audit-pass`'s `scripts/run-state.sh` fills for that
-# skill, and it is the file this one is modelled on. `emit-findings.sh` in
+# skill, and it is the file this one is modeled on. `emit-findings.sh` in
 # `audit-instructions` is a different job (composing a report body from scanner
 # output) and deliberately resolves no home of its own.
 #

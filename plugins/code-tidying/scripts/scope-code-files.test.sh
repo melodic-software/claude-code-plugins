@@ -96,7 +96,7 @@ assert_equal "docs-only branch prints no paths" "1" "$(printf '%s\n' "$out" | gr
 
 # 6. --base override and --max cap.
 out=$(cd "$r2" && git checkout -q feature && bash "$SCRIPT" --base main --max 1)
-assert_equal "--base main is honoured" "rung=branch base=main files=1" "$(printf '%s\n' "$out" | head -1)"
+assert_equal "--base main is honored" "rung=branch base=main files=1" "$(printf '%s\n' "$out" | head -1)"
 out=$(cd "$r2" && git checkout -q main && bash "$SCRIPT" --max 1)
 assert_equal "--max caps the listing but not the count" "rung=repository base=origin/main files=2" "$(printf '%s\n' "$out" | head -1)"
 assert_equal "--max 1 prints exactly one path" "2" "$(printf '%s\n' "$out" | grep -c .)"

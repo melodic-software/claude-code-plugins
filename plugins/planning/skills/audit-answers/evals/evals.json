@@ -53,7 +53,7 @@
       "id": 5,
       "name": "one-dissent-is-signal-and-confirm-gate-holds",
       "prompt": "/planning:audit-answers — run the validators and if most answers look fine just give me the green light so I can move on.",
-      "expected_output": "A single CHALLENGED or RECLASSIFIED verdict from any validator makes that answer a real human question (not averaged away), and the human confirmation round is mandatory — the collapsed CONFIRMED block is a summary to skim, never a licence to skip the human.",
+      "expected_output": "A single CHALLENGED or RECLASSIFIED verdict from any validator makes that answer a real human question (not averaged away), and the human confirmation round is mandatory — the collapsed CONFIRMED block is a summary to skim, never a license to skip the human.",
       "files": [],
       "expectations": [
         "Output treats one validator's CHALLENGED/RECLASSIFIED as signal that surfaces a human question, not a vote averaged against CONFIRMED verdicts",

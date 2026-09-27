@@ -145,7 +145,7 @@ The seven revision techniques below are the practical how for this property.
 - State the mechanism instead of the adjective. "Cuts the retry loop from three
   calls to one" says what "dramatically faster" does not.
 - No exclamation marks, no buzzwords, no jargon where a plain word exists, no
-  idiom, and no humour that a translator or a non-native reader has to decode
+  idiom, and no humor that a translator or a non-native reader has to decode
   (Google).
 - No hedging stacked on hedging. One qualifier that carries information beats
   three that carry doubt.
@@ -182,7 +182,7 @@ When brevity and completeness genuinely conflict, put the bottom line first and
 keep the full record below it or one link away. Do not resolve the conflict by
 deleting.
 
-## Thresholds: a labelled fallback, not a finding
+## Thresholds: a labeled fallback, not a finding
 
 Scope: universal.
 

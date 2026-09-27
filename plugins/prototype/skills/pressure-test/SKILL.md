@@ -80,7 +80,7 @@ Lay the page out top to bottom, in **domain language**. Every button and field r
 business, not the reducer, because the driver is not reading code:
 
 1. **Title and one-line explanation**, the question from step 1, visible on the page.
-2. **State panel**, the full relevant state as a readable labelled panel (not a raw JSON dump),
+2. **State panel**, the full relevant state as a readable labeled panel (not a raw JSON dump),
    re-rendered after every click so the change is visible.
 3. **Free-play buttons**. One button per action, always available, so the driver can poke at the
    model in any order.

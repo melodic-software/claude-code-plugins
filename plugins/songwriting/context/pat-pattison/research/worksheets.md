@@ -499,7 +499,7 @@ page. Perfect, family, additive, subtractive, assonance, and consonance results
 land in one column together, and the mixing is the point: the eye scans a single
 field and compares candidates on what they *mean* for this lyric.
 
-Labelled per-type rows turn one choice into five sub-choices and invite filling
+Labeled per-type rows turn one choice into five sub-choices and invite filling
 each row to a quota, the opposite of generating a surplus to reject
 most of it. Which type a surviving candidate belongs to matters again when
 deciding where it lands, and that stability question is
@@ -548,7 +548,7 @@ When applying this file:
 7. Search each rhyme type separately: perfect, family, additive, subtractive,
    assonance, consonance. Record every survivor into one mixed, unsorted
    column per core word.
-8. Parenthesise alternates and optional morphemes; drop everything else by
+8. Parenthesize alternates and optional morphemes; drop everything else by
    leaving it off the page.
 9. Draft only after the worksheet contains enough options to say no.
 

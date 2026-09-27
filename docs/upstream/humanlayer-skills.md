@@ -22,7 +22,7 @@ they describe implementing the upstream slash command itself; the surrounding pr
 the router's structure and house style. The upstream skill is not shipped, wrapped, or depended on:
 its trigger vocabulary ("show me", "sketch", "diagram") was already owned by `visualize`, the
 marketplace's skill-split rule admits a second skill only on distinct triggers, and the listing
-aggregate for the neighbouring plugins is over budget. Bare `/show-me` is therefore not a command in
+aggregate for the neighboring plugins is over budget. Bare `/show-me` is therefore not a command in
 this marketplace; `/visualization:visualize` and the `'show me the shape of this'` trigger are.
 
 ## Attribution table
@@ -52,7 +52,7 @@ is accounted for.
 | Guidance 1: "Place each visual next to the short text it supports." | `code-shapes.md` "Selecting a view"; Step 2 paragraph | Taken verbatim | |
 | Guidance 2: "Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or the options to resolve the current discussion point." | `code-shapes.md` "Selecting a view"; Step 2 paragraph (shortened) | Taken verbatim | |
 | Guidance 3: "You may use one of these, you may use several, it is unlikely you will use all of them." | `code-shapes.md` "Selecting a view"; Step 2 paragraph ("one form, sometimes several, rarely all") | Taken verbatim | |
-| Guidance 4: "Use your judgement and don't overwhelm the user." | `code-shapes.md` "Selecting a view" | Adapted | **Changed:** "don't" to "do not" (house style). |
+| Guidance 4: "Use your judgment and don't overwhelm the user." | `code-shapes.md` "Selecting a view" | Adapted | **Changed:** "don't" to "do not" (house style). |
 
 Beyond the pinned file, two behaviors were added that upstream leaves implicit: a thin-context
 prompt (one ranked question when pasted code fits several forms about equally, tunable through the

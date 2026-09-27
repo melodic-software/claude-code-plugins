@@ -3,6 +3,37 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.11.0] - 2026-09-23
+
+### Changed
+
+- `scan`'s report opens with a `**Needs you**:` line naming each finding that waits on an operator
+  decision or route choice, omitted when nothing waits.
+
+## [0.10.5] - 2026-09-22
+
+### Changed
+
+- `scan` applies the bare `needs-triage` floor when it files an issue.
+
+## [0.10.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.10.3]
 
 ### Changed

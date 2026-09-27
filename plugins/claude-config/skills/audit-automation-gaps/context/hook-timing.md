@@ -13,7 +13,7 @@ about to state a timing number.
 ## Resolve the budget before citing a number
 
 There is no upstream hook latency budget. The hooks documentation has no performance section, so
-any fixed number is a house rule and must be labelled as one wherever a verdict cites it.
+any fixed number is a house rule and must be labeled as one wherever a verdict cites it.
 
 The measurement from Phase 2.1 is the left side of the comparison, never a source of the budget
 itself. The budget is the right side, and it resolves in two rungs:

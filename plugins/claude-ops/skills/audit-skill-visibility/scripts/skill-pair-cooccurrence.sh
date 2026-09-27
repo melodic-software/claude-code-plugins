@@ -98,6 +98,11 @@ die_usage() {
   exit "$EX_USAGE"
 }
 
+# need_value <flag> <remaining argument count>: every value-taking option is
+# checked the same way, so the message is derived from the flag rather than
+# restated per branch.
+need_value() { [[ "$2" -ge 2 ]] || die_usage "$1 needs a value"; }
+
 # An option the skill body passed through unrendered (`${user_config.x}`) or
 # empty is an unset option, and reads as its default.
 # shellcheck disable=SC2016  # the literal placeholder text is the thing matched
@@ -120,22 +125,22 @@ while [[ $# -gt 0 ]]; do
     exit "$EX_OK"
     ;;
   --store)
-    [[ $# -ge 2 ]] || die_usage "--store needs a value"
+    need_value "$1" "$#"
     STORE="$2"
     shift 2
     ;;
   --scope)
-    [[ $# -ge 2 ]] || die_usage "--scope needs a value"
+    need_value "$1" "$#"
     SCOPE="$2"
     shift 2
     ;;
   --dir)
-    [[ $# -ge 2 ]] || die_usage "--dir needs a value"
+    need_value "$1" "$#"
     REL_DIR="$2"
     shift 2
     ;;
   --data-root)
-    [[ $# -ge 2 ]] || die_usage "--data-root needs a value"
+    need_value "$1" "$#"
     DATA_ROOT="$2"
     shift 2
     ;;
@@ -144,17 +149,17 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --pair)
-    [[ $# -ge 2 ]] || die_usage "--pair needs a value"
+    need_value "$1" "$#"
     PAIR="$2"
     shift 2
     ;;
   --floor-days)
-    [[ $# -ge 2 ]] || die_usage "--floor-days needs a value"
+    need_value "$1" "$#"
     FLOOR_DAYS="$2"
     shift 2
     ;;
   --floor-groups)
-    [[ $# -ge 2 ]] || die_usage "--floor-groups needs a value"
+    need_value "$1" "$#"
     FLOOR_GROUPS="$2"
     shift 2
     ;;

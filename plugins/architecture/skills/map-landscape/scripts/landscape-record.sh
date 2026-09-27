@@ -40,7 +40,7 @@
 #     "edges": [ <one reference-edges object per line> ]
 #   }
 #
-# `subject_owner` is the organisation the graph was drawn from, resolved by the
+# `subject_owner` is the organization the graph was drawn from, resolved by the
 # edge extractor so the nodes and the edges cannot disagree about it. It is what
 # makes a checkout internal: having a repository on disk says where someone
 # works, not who owns the system.
@@ -57,6 +57,10 @@
 # record written before it was dropped still compares clean. A `last_touched`
 # that moved is reported but never gated on: the subject repository advances its
 # own HEAD on every commit, and a check lane that went red for that gets muted.
+# A `remote` that changed transport (https vs ssh) is reported the same way:
+# whichever checkout runs the collector reports its own clone's origin URL, so
+# gating on it fails a CI drift check the moment it disagrees with an
+# operator's local clone protocol, for a value that names no architecture fact.
 #
 # Nothing here fetches and nothing is written: the record goes to stdout, and the
 # caller decides where it lands.
@@ -73,7 +77,9 @@ FACTS="$SCRIPT_DIR/portfolio-facts.sh"
 EDGES="$SCRIPT_DIR/reference-edges.sh"
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  # Print the header comment block only, selected by comment marker so --help
+  # stays correct as the block grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -225,7 +231,7 @@ fi
 # object rather than matching a pattern, so a value carrying a brace, a comma or
 # an escaped quote does not split the record in the wrong place.
 read -r -d '' SPLIT_AWK <<'AWK' || true
-function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, esc, start) {
+function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, start) {
   n = 0
   i = index(line, "{")
   if (i == 0) return 0
@@ -456,6 +462,13 @@ compare_fields() {
       [[ -n "$c" ]] || continue
       case "$c" in
       last_touched:*) note "  moved on $id: $c" ;;
+      # `remote` is `git remote get-url origin` on whichever checkout ran the
+      # collector: an https clone and an ssh clone of the same repository
+      # report different strings for the same system, the same machine-vs-
+      # architecture split `path` is dropped for outright. Downgraded to a
+      # note rather than dropped, because unlike `path` it is still a useful
+      # fact worth keeping in the emitted record.
+      remote:*) note "  remote transport differs on $id: $c" ;;
       *) say "  changed $label on $id: $c" ;;
       esac
     done <<<"$changed"

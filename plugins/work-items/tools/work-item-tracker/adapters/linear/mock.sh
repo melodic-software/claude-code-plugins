@@ -3,9 +3,7 @@
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_LINEAR_CURL, so
-# no test in this adapter touches the network. That is not merely convenient: no Linear
-# workspace is reachable from the environment this adapter was built in, and the
-# alternative to mocked coverage is no coverage — see README.md "Recorded deferrals".
+# no test in this adapter touches the network (README.md "Recorded deferrals").
 #
 # Linear has ONE endpoint, so unlike a REST mock this cannot route on the URL. It routes
 # on a substring of the GraphQL DOCUMENT instead (`viewer`, `issueCreate`, `comments(`),
@@ -183,4 +181,14 @@ lin_lease_body() {
       ttl_hours: $ttl, ttl_minutes: 0, lease_comment_id: $h}
      + (if ($sup | length) > 0 then {superseded_at: $sup} else {} end)')"
   printf '<!-- work-item-lease v1 %s -->' "$marker"
+}
+
+# lin_lease_node <handle> [holder] <renewed-at> [ttl-hours] [superseded-at]: the same
+# marker as a one-element comments-connection node list, which is the shape the lease
+# verbs read. Shared by every suite that drives the lease protocol.
+lin_lease_node() {
+  local body
+  body="$(lin_lease_body "$1" "${2:-kyle}" "$3" "${4:-24}" "${5:-}")"
+  jq -cn --arg b "$body" \
+    '[{id: "uuid-comment-mine", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]'
 }

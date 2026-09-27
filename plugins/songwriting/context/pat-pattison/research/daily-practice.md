@@ -806,8 +806,8 @@ day as the angry/bees line, not the day after: dark eyes could be literally true
 is not a metaphor. "They join together rather than colliding. Dark thoughts,
 though a cliché, is a metaphor. It's literally false." (Singular *is* is
 correct, and so is the singular *isn't* in "dark *eyes* … thus isn't a
-metaphor". Pat italicises the second word of each pair, `dark *eyes*` and
-`Dark *thoughts,*`, so the subject is the phrase itself. Do not pluralise
+metaphor". Pat italicizes the second word of each pair, `dark *eyes*` and
+`Dark *thoughts,*`, so the subject is the phrase itself. Do not pluralize
 either verb.)
 
 Coach use: when a writer's collision comes back flat, check first whether it is

@@ -12,9 +12,9 @@ import os from "node:os";
 import path from "node:path";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
-import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
+import { normalizeVttCues } from "./cue-normalize.js";
 import { orchestrateWatching } from "./orchestrate-watching.js";
 
 /**
@@ -34,11 +34,7 @@ export async function runWatchingPipelineCli(argv) {
   const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
 
   const vttText = await fs.readFile(vttPath, "utf8");
-  const cues = parseVttSegment(vttText).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  const cues = normalizeVttCues(vttText);
 
   const state = await orchestrateWatching({
     videoPath,

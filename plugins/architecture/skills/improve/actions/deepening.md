@@ -88,7 +88,7 @@ End the file with `top-recommendation: <candidate title>`.
 
 **ADR conflicts**: if a candidate contradicts an existing architecture decision record, surface only when friction is real enough to warrant revisiting. Mark clearly in the card.
 
-Do NOT propose interfaces yet. After the report is written, ask: "Which of these would you like to explore?"
+Do NOT propose interfaces yet. After the report is written, the reply leads with the choice waiting on the user, naming the top recommendation, then the report and artifact paths: "Which of these would you like to explore?"
 
 ## Phase 3: Interview loop on selected candidate
 

@@ -7,8 +7,8 @@ severity where warranted, cross-link via notes. Cross-OS framework.
 
 .DESCRIPTION
 Rules defined in-code (here), documented in reference/shared/correlation-rules.md.
-Only upgrades severity; never downgrades. Nothing downgrades -- trend analysis
-upgrades too, so a severity this run raised stays raised for the run.
+Only upgrades severity; never downgrades, so a severity this run raised stays
+raised for the run.
 
 Always additive to notes; never truncates existing notes.
 #>
@@ -73,7 +73,6 @@ function Invoke-FindingCorrelation {
         $match = & $rule.Apply $CheckResults
         if ($null -eq $match) { continue }
 
-        # Upgrade severity only (never downgrade).
         if ($match.upgrade_primary_to) {
             $currentSev = $match.target.severity
             $newSev = $match.upgrade_primary_to
@@ -82,7 +81,6 @@ function Invoke-FindingCorrelation {
             }
         }
 
-        # Cross-link notes: additive.
         if ($match.note_primary) {
             $existing = $match.target.notes
             $match.target.notes = $existing ? "$existing; $($match.note_primary)" : $match.note_primary

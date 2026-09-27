@@ -61,7 +61,8 @@ quoting and write `\'` for each apostrophe
 
 The turn runs under the TARGET's account, config, plugins and usage limits. That is the point: the
 work happens where its files and credentials already are, and it draws down that machine's window
-rather than this one's.
+rather than this one's. Nobody answers a question the remote turn asks, so give `<prompt>` the whole
+task: what done looks like, and what should make it stop and report instead of acting.
 
 ## Multi-turn
 
@@ -92,7 +93,7 @@ ssh -p 22 ssh-admin@<host> '<pwsh command>'
 
 A headless turn on port 2222 lands inside the WSL distro and sees only the distro's sessions. A WSL
 session and a native Windows session on one computer register under different home directories and
-listen on different socket types, so they cannot reach each other; that is documented behaviour,
+listen on different socket types, so they cannot reach each other; that is documented behavior,
 not a misconfiguration.
 
 To act on the target's Windows-side sessions, start a Windows `claude.exe` turn through the same
@@ -138,13 +139,13 @@ into it, which is the human path from a phone or the web.
 
 ## Boundary
 
-| Neighbour                             | Owns                                                                                                                                                  |
+| Neighbor                             | Owns                                                                                                                                                  |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Built-in Remote Control               | Interactive use of a target's session from a phone, the web, or another device, under THAT machine's account. Not agent-to-agent under split accounts |
 | Built-in `ListAgents` / `SendMessage` | Sessions this session's own account can see; same machine, or same account through Remote Control                                                     |
 | `session-flow:continue-in-background` | A detached session on THIS machine. Same host, no SSH                                                                                                 |
 | `session-flow:orchestrate`            | Delegation inside one session, to subagents. Same host, same account                                                                                  |
-| `repo-fleet-hygiene`                  | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
+| `repo-fleet-hygiene:audit`            | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
 
 ## Gotchas
 

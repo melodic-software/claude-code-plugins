@@ -293,18 +293,19 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No published default auto-compaction threshold grounds the bands.** Verified 2026-08-19
+**No published default auto-compaction threshold grounds the bands.** Verified 2026-09-23
 (model-config, "Default auto-compact thresholds"; the how-Claude-Code-works, context-window,
 settings `autoCompactEnabled`, costs, and statusline pages, checked 2026-07-23 and 2026-08-10,
 say only that compaction triggers "when approaching context limits"). With no window configured,
 compaction fires **at the model's context limit**, with enumerated exceptions that fire earlier:
 cloud sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without
-extended context, and Opus 4.8 / Opus 5 running on a 200K window, compact at the 200K boundary; a
-`CLAUDE_CODE_DISABLE_1M_CONTEXT=1` session on a native-1M model likewise; **Sonnet 5 compacts at
-the threshold for its configuration, "about 967K tokens by default" on its 1M window, before the
-window fills**; an unrecognized model ID compacts at whatever window Claude Code assumes for it.
-That Sonnet 5 figure is the one published number in the set, and it sits at about 97% of the
-window, comfortably above the shipped `dumb` band, so it does not disturb the margin that the
+extended context, and Opus 4.8 and later running on a 200K window (such as on Bedrock, Agent
+Platform, and Foundry), compact at the 200K boundary; a `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`
+session on a native-1M model likewise; **models on a native 1M window (Sonnet 5, the Fable
+models, and Opus 4.7 and later on the Anthropic API) compact before the window fills, at "about
+967K tokens by default"**; an unrecognized model ID compacts at whatever window Claude Code
+assumes for it. That 967K figure is the one published number in the set, and it sits at about
+97% of the window, comfortably above the shipped `dumb` band, so it does not disturb the margin that the
 bands-below-the-trigger rule protects, the way a lowered window does. A *percentage* default is
 implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored"
 but is not published as a number. The empirical check (2026-07-24, execution session): no

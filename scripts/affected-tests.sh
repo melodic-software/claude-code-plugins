@@ -11,6 +11,7 @@
 #
 #   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
 #   scripts/affected-tests.sh --run              ... and run them, sequentially
+#   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
 #   scripts/affected-tests.sh path/a.sh path/b   ... for explicit paths instead of a diff
 #   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
@@ -104,6 +105,14 @@
 #   R6 sync script   a changed scripts/sync-*.sh selects its own co-located test
 #                    plus everything its published `src` selects, since its
 #                    failure mode is the copies drifting from that source.
+#   R7 path class    a path under plugins/autonomy/reference/ selects the
+#                    plugin-contract validator's suite. The validator bans
+#                    vendor names across that whole directory, but its files
+#                    are markdown that no suite names, so R1-R4 never reach
+#                    them and they fell to the no-suite *.md class. Only a
+#                    path rule can see them. The validator's fleet-token ban
+#                    over the rest of plugins/autonomy/ is not mapped here;
+#                    CI also runs the contract suite in a step of its own.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
@@ -217,7 +226,7 @@
 # strip only ADDS pairs back, every one of them a pair the old substring rule
 # also served. So it moves the counts toward the pre-rule baseline and can
 # reverse none of the sweep's directions: nothing that was mapped becomes
-# unmapped, and no file gains a suite the old behaviour did not already give it.
+# unmapped, and no file gains a suite the old behavior did not already give it.
 # Measured on the corpus as it stands, the strip re-admits two (file, basename)
 # pairs in total, one of which R3/R4 discards anyway as a structural basename.
 #
@@ -274,6 +283,7 @@ allow_unmapped=0
 explain=0
 print_fanout=""
 shard_spec=""
+jobs=1
 # Whether --shard was SUPPLIED, tracked apart from its value. `--shard=` with an
 # empty right-hand side is what an environment variable that expanded to nothing
 # produces, and a presence test on the value alone would read it as "no shard
@@ -318,6 +328,19 @@ while [[ $# -gt 0 ]]; do
     ;;
   --explain)
     explain=1
+    shift
+    ;;
+  --jobs)
+    # Same as --base below: usage errors exit 2, not 1.
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      echo "error: --jobs needs a positive integer." >&2
+      exit 2
+    fi
+    jobs="$2"
+    shift 2
+    ;;
+  --jobs=*)
+    jobs="${1#--jobs=}"
     shift
     ;;
   --base)
@@ -379,6 +402,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: --jobs wants a positive integer; got: $jobs" >&2
+  exit 2
+fi
 if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total; got: $shard_spec" >&2
   exit 2
@@ -416,8 +443,6 @@ build_sync_map() {
     *.test.sh) continue ;;
     *) ;;
     esac
-    : >"$outfile"
-    : >"$errfile"
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
@@ -728,6 +753,16 @@ select_for() {
           add_suite "$sib" "co-located with $p" || true
         fi
       done < <(colocated_suites "$p")
+      # R7. The suite path is joined from two pieces so this file never carries
+      # its basename as one token: that would make this file an R4 dependent of
+      # the suite and fan every edit to it out to whatever names this file.
+      case "$p" in
+      plugins/autonomy/reference/*)
+        add_suite "scripts/validate-plugin-contracts"".test.sh" \
+          "path class: autonomy reference/ is gated by the contract validator" || true
+        ;;
+      *) ;;
+      esac
       b="${p##*/}"
       is_structural "$b" && continue
       lang_family "$p"
@@ -883,7 +918,20 @@ changed_from_diff() {
   # Compare the WORKING TREE against the merge base: a local developer wants the
   # suites covering the work in front of them, including uncommitted edits, and
   # not the suites for whatever else landed on the base branch meanwhile.
-  mb="$(git merge-base "$base" HEAD 2>/dev/null)" || mb="$base"
+  #
+  # Mid-merge, HEAD is still the pre-merge commit while the working tree already
+  # holds the incoming side, so merge-base(base, HEAD) would charge this change
+  # with every file the incoming side brought. Passing the MERGE_HEAD commits as
+  # further arguments makes git compute the base against a hypothetical merge of
+  # HEAD and them: the same base the selector reports once the merge commit
+  # lands. --git-path resolves the file in a linked worktree too.
+  local merge_head_file=""
+  local -a merge_heads=()
+  merge_head_file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || merge_head_file=""
+  if [[ -n "$merge_head_file" && -f "$merge_head_file" ]]; then
+    mapfile -t merge_heads <"$merge_head_file"
+  fi
+  mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
   # Every failure here is fatal, never an empty list. An empty change set is
   # indistinguishable from "the diff blew up" downstream, and downstream reports
   # it as "nothing to select, exit 0" — the fail-open this whole tool exists to
@@ -1055,10 +1103,23 @@ if [[ "$do_run" -eq 0 ]]; then
   exit 0
 fi
 
-# Strictly SEQUENTIAL. Two reasons, both measured rather than assumed: running
-# these suites in parallel was measured sublinear (they are spawn-bound and the
-# box saturates), and several guardrails suites assert wall-clock ceilings that
-# fail spuriously under concurrency. Selection, not parallelism, is the lever.
+# SEQUENTIAL BY DEFAULT, --jobs N ON REQUEST. The default stays 1 because that
+# is the measurement this file was written from: on a Windows Git Bash host a
+# parallel run was sublinear (the suites are spawn-bound and the box saturates
+# on process creation). On a Linux CI runner the same measurement came out the
+# other way, which is why scripts/run-plugin-tests.sh has carried --jobs since
+# it was written and why CI passes a count explicitly there.
+#
+# --jobs N > 1 hands the selection to run-plugin-tests.sh rather than spawning
+# anything here: that runner already owns the worker, the bounded xargs
+# dispatch, the per-suite print lock that keeps concurrent output from
+# interleaving, and scripts/run-plugin-tests-serial.txt, the suites that assert
+# wall-clock ceilings or drive concurrency probes and so must never overlap
+# anything. A second parallel runner in this file would be a second copy of all
+# four, and the serial allowlist is the one that must not be forgotten. Three
+# is the proven ceiling on a 4-vCPU runner: at four, suites failed by producing
+# empty output from an external command (#3694).
+#
 # Only *.test.sh is executable HERE. The other three ecosystems are run by their
 # own lanes, with lane-specific invocations this script cannot derive from a
 # suite path: `python -m unittest` against a named module, `npm test`, a bare
@@ -1076,7 +1137,12 @@ for s in "${selected[@]}"; do
 done
 
 failed=0
-if [[ ${#runnable[@]} -gt 0 ]]; then
+if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
+  echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)." >&2
+  list="$WORK_DIR/selection.txt"
+  printf '%s\n' "${runnable[@]}" >"$list"
+  bash "$(dirname "${BASH_SOURCE[0]}")/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
+elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
   for s in "${runnable[@]}"; do
     echo "=== $s ==="

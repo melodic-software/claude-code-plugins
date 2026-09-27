@@ -18,15 +18,7 @@ covered by running the check against a real populated root.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-ClaudeTempRoot.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-ClaudeTempRootAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-ClaudeTempRoot' -AsObject 'Invoke-ClaudeTempRootAsObject' -MockHelpers
 
     function New-SessionDir {
         param(
@@ -196,9 +188,8 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'does not follow a junction out of the tree' {
-            # Get-ChildItem -Recurse does not traverse reparse points without
-            # -FollowSymlink; the hand-rolled walk must match, or a junction both
-            # inflates the total with content living elsewhere and can cycle forever.
+            # Get-ChildItem -Recurse does not traverse reparse points without -FollowSymlink; the
+            # hand-rolled walk must match, or a junction inflates the total and can cycle forever.
             $root = Join-Path $script:tmpDir 'base\claude'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
@@ -236,9 +227,8 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'never treats a bare CLAUDE_CODE_TMPDIR base as the root' {
-            # Claude Code appends `claude` to the base on Windows, so a base with no
-            # claude child means it has not written there. Measuring the bare base
-            # would report an unrelated temp directory's contents as this finding.
+            # Claude Code appends `claude` to the base on Windows; measuring a base with no claude
+            # child would report an unrelated temp directory's contents as this finding.
             $base = Join-Path $script:tmpDir 'base'
             New-Item -ItemType Directory -Path (Join-Path $base 'unrelated') -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $base 'unrelated\big.bin') -Value 'not ours'

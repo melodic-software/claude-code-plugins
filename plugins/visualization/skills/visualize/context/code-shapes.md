@@ -139,4 +139,4 @@ function slugify(title: string): string {
 - Keep only the calls, files, props, states, and boundaries needed to answer the
   user's current question or the options to resolve the current discussion point.
 - You may use one of these, you may use several, it is unlikely you will use all
-  of them. Use your judgement and do not overwhelm the user.
+  of them. Use your judgment and do not overwhelm the user.

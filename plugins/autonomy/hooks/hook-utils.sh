@@ -16,10 +16,11 @@
 # https://mywiki.wooledge.org/CommandSubstitution), and on Windows Git Bash a
 # fork is a non-copy-on-write Win32 CreateProcess costing milliseconds, so a
 # capture around a `_to` helper is pure loss on hooks that run per edit.
-# Five helpers still print instead — hook::json_escape, hook::physical_path,
-# hook::repo_root, hook::buffer_stdin and hook::read_file_path (which reads
-# fd0 and has no `_to` twin). Each carries, at its definition, the one-line
-# reason its capture is still paid for.
+# Six helpers still print instead — hook::json_escape, hook::physical_path,
+# hook::repo_root, hook::buffer_stdin, hook::raw_file_path and
+# hook::read_file_path (which reads fd0; a hook holding the buffered payload
+# calls hook::read_file_path_to). Each carries, at its definition, the reason
+# its print form is kept.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
@@ -126,7 +127,19 @@ hook::emit_channels() {
     out+='"systemMessage":"'"$__hu_es"'"'
   fi
   out+="}"
-  printf '%s\n' "$out"
+  hook::emit_document "$out"
+}
+
+# hook::emit_document <json>: write ONE hook JSON document to stdout. Every
+# document a hook emits goes through here, hook::emit_channels included, so a
+# dispatcher that runs several hooks in one process (guardrails run-guards.sh)
+# can override this one function to collect the documents and merge them,
+# instead of capturing each hook's stdout in a subshell. A hook that prints a
+# document with its own printf bypasses that collection: under such a
+# dispatcher its document reaches stdout unmerged, which is invalid hook
+# output when another hook emitted too.
+hook::emit_document() {
+  printf '%s\n' "$1"
 }
 
 # Visible skip notice: the same message on both channels. The caller must exit 0
@@ -186,14 +199,10 @@ hook::stdin_cut_short_notice() {
 #   hook::format_path_probed "$raw_path"    # trim a dumped PATH string
 hook::format_path_probed() {
   local raw="${1:-${PATH:-}}"
-  [[ -n "$raw" ]] || {
+  if [[ -z "$raw" || "$raw" == '<unset>' ]]; then
     printf '%s' '<unset>'
     return 0
-  }
-  [[ "$raw" == '<unset>' ]] && {
-    printf '%s' '<unset>'
-    return 0
-  }
+  fi
   local rest="$raw" p
   local -a kept=()
   local omitted=0
@@ -328,11 +337,21 @@ hook::notice_once() {
 # JSON-escaped (backslashes doubled); that is fine for extension/segment
 # matching, which is all the pre-filter does. Returns 1 when no file_path is
 # present.
+#   hook::raw_file_path_to RAW_FILE "$INPUT" || exit 0
+# <var> is left unchanged on a return of 1.
+hook::raw_file_path_to() {
+  [[ "$2" =~ \"file_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
+  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
+  printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+}
+
+# Print form, kept for the hooks that capture it once at top level
+# (instruction-placement's index-drift hook), off the per-edit prologue.
 #   RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 hook::raw_file_path() {
-  [[ "$1" =~ \"file_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
-  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
-  printf '%s' "${BASH_REMATCH[1]}"
+  local __hu_raw
+  hook::raw_file_path_to __hu_raw "$1" || return 1
+  printf '%s' "$__hu_raw"
 }
 
 # ============================================================================
@@ -368,7 +387,7 @@ hook::raw_file_path() {
 # after one notice, for the rest of the session.
 #
 # WHICH HOOKS ARE IN THAT MINORITY — the criterion is mechanical, and it is
-# INTERNAL CONSISTENCY, not a taste judgement about severity. A hook belongs in
+# INTERNAL CONSISTENCY, not a taste judgment about severity. A hook belongs in
 # the fail-closed class iff it ALREADY fails closed on some other
 # "I cannot parse this input" condition. Today exactly two do, both via a
 # MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread:
@@ -394,7 +413,7 @@ hook::raw_file_path() {
 #
 # WHY TWO FUNCTIONS RATHER THAN ONE WITH A FLAG. A parameter's OMITTED value has
 # to default to something, and the safe-looking default (fail open, matching
-# today's behaviour) means a guard that should fail closed but whose flag someone
+# today's behavior) means a guard that should fail closed but whose flag someone
 # forgot fails open SILENTLY — which is the exact defect class #2146 reports,
 # reintroduced at the API. Two names make the posture greppable, make the
 # fail-closed path impossible to reach by accident, and make omission a visible
@@ -429,7 +448,7 @@ hook::require_jq() {
 #
 # The kill switch stays the only supported deliberate bypass: a consumer who
 # genuinely wants the operation unguarded on a jq-less machine sets the guard's
-# own *_enabled userConfig option to false, which hook::check_enabled honours
+# own *_enabled userConfig option to false, which hook::check_enabled honors
 # BEFORE this gate is ever reached.
 # DISCLOSED COST, because it is not small: this guard runs on EVERY Bash and
 # PowerShell tool call, and without jq it cannot read the command at all — so it
@@ -525,6 +544,41 @@ hook::expand_8dot3_to() {
   printf -v "$1" '%s' "$__hu_p"
 }
 
+# hook::_physical_builtin_to <var> <path>...
+# realpath's answer for every <path>, one per line, with no realpath process:
+# one subshell reads the physical form with `cd -P` (a directory, or a file's
+# directory plus its name). Linux only, and only for the shapes where the two
+# agree: every path absolute with no `//`, each an existing directory or an
+# existing non-symlink file whose name is not `.` or `..`, and every `cd -P`
+# succeeding. Anything else returns 1 and the caller runs realpath as before:
+# a symlinked file, a missing path, a relative one, a directory it cannot
+# enter. Git Bash and macOS keep realpath, whose drive and short-name forms
+# this does not reproduce. `builtin cd`, so an exported `cd` function cannot
+# answer for it.
+hook::_physical_builtin_to() {
+  [[ "${OSTYPE:-}" == linux* ]] || return 1
+  local __hu_pb_dest="$1" __hu_pb_p __hu_pb_out
+  shift
+  for __hu_pb_p in "$@"; do
+    [[ "$__hu_pb_p" == /* && "$__hu_pb_p" != *//* && "$__hu_pb_p" != *$'\n'* ]] || return 1
+  done
+  __hu_pb_out=$(
+    for __hu_pb_p in "$@"; do
+      if [[ -d "$__hu_pb_p" ]]; then
+        builtin cd -P -- "$__hu_pb_p" 2>/dev/null || exit 1
+        printf '%s\n' "$PWD"
+      else
+        [[ -e "$__hu_pb_p" && ! -L "$__hu_pb_p" ]] || exit 1
+        __hu_pb_d=${__hu_pb_p%/*} __hu_pb_b=${__hu_pb_p##*/}
+        [[ -n "$__hu_pb_b" && "$__hu_pb_b" != . && "$__hu_pb_b" != .. ]] || exit 1
+        builtin cd -P -- "${__hu_pb_d:-/}" 2>/dev/null || exit 1
+        printf '%s\n' "${PWD%/}/$__hu_pb_b"
+      fi
+    done
+  ) || return 1
+  printf -v "$__hu_pb_dest" '%s' "$__hu_pb_out"
+}
+
 # Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
 # expanded — for the membership comparison below, so an in-project symlink
 # pointing outside the project root cannot defeat the guard (the lexical path
@@ -545,6 +599,10 @@ hook::expand_8dot3_to() {
 hook::physical_path_to() {
   local __hu_r
   HOOK_PHYSICAL_PATH_UNRESOLVED=0
+  if hook::_physical_builtin_to __hu_r "$2"; then
+    hook::expand_8dot3_to "$1" "$__hu_r"
+    return 0
+  fi
   if __hu_r=$(realpath -- "$2" 2>/dev/null) || __hu_r=$(readlink -f -- "$2" 2>/dev/null); then
     if [[ -n "$__hu_r" ]]; then
       hook::expand_8dot3_to "$1" "$__hu_r"
@@ -645,9 +703,11 @@ hook::_physical_prime() {
     __hu_todo+=("$__hu_p")
   done
   ((${#__hu_todo[@]} > 1)) || return 0
-  command -v realpath >/dev/null 2>&1 || return 0
-  # portability-ok: realpath with several operands is GNU and BSD alike; a host whose realpath rejects it fails the exit-status check and falls back per path
-  __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
+  if ! hook::_physical_builtin_to __hu_out "${__hu_todo[@]}"; then
+    command -v realpath >/dev/null 2>&1 || return 0
+    # portability-ok: realpath with several operands is GNU and BSD alike; a host whose realpath rejects it fails the exit-status check and falls back per path
+    __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
+  fi
   local -a __hu_lines=()
   local __hu_glob=0
   [[ $- == *f* ]] || __hu_glob=1
@@ -710,10 +770,22 @@ hook::_temp_root_candidates() {
 # candidate into the cache with one batched realpath before calling here, so
 # on that path the shortcut skips a lookup, not a process; the batch is what
 # saves the processes. A direct caller without the batch saves the resolver.
+#
+# On a Windows Git Bash host (msys, cygwin, win32) the target goes through
+# hook::normalize_path_to like the candidates, so its `/c/...` and `C:/...`
+# spellings both compare. A POSIX host leaves it untouched: `\` is a filename
+# byte there, and folding it could make a root-level `tmp\x` compare as under
+# `/tmp`. Precondition: the target is already lexically normalized (as
+# block-hook-bypass's _norm_path produces) or physically resolved, with no `..`
+# segment; nothing here resolves `..`.
 #   hook::under_temp_root "$norm_path" && ...
 _HOOK_UTR_TARGET_PHYSICAL=0
 hook::under_temp_root() {
   local target="$1" cand norm phys
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) hook::normalize_path_to target "$target" ;;
+  *) ;; # POSIX hosts: compare the target as given
+  esac
   hook::_temp_root_candidates
   for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
     if ((_HOOK_UTR_TARGET_PHYSICAL)); then
@@ -761,11 +833,13 @@ hook::in_git_working_tree() {
 # back", never "close enough".
 #
 # What the builtin paths rely on: the text is valid JSON. Every hook payload
-# reaching hook::read_file_path has passed hook::buffer_stdin's jq validation,
-# and every telemetry data object is built with jq. The helpers still verify
-# the structure they walk (terminated strings, well-formed tokens, properly
-# nested brackets, one root, no raw control bytes inside strings), but they
-# are not a full JSON parser and do not claim to reject every malformed text.
+# reaching hook::read_file_path has passed hook::buffer_stdin's validation
+# (jq's, or hook::_json_object_proven's for an object the skeleton below
+# accepts), and every telemetry data object is built with jq. The helpers
+# verify the structure they walk (terminated strings, well-formed tokens,
+# properly nested brackets, one root, no raw control bytes inside strings,
+# only escapes jq accepts). What they do not check is jq's parser depth limit
+# (jq 1.8.2 rejects 9999 nested levels), which no hook payload comes near.
 #
 # Why no scanning: on this repo's Windows hosts bash regex matching and the
 # `%%`/`##` pattern operators cost about a microsecond per character, so a
@@ -773,6 +847,30 @@ hook::in_git_working_tree() {
 # only string operations used on the whole payload are literal-substring
 # replacement, `[[ == *x* ]]` containment, IFS word splitting and offset
 # slicing, all of which run at C speed.
+#
+# They run in the C locale. Under a UTF-8 locale bash does those operations
+# per multibyte character, and the cost grows faster than the payload: 297 ms
+# for a 37 KB Edit payload against about 8 ms under C, on WSL. In C one
+# character is one byte, so the offsets and lengths recorded while splitting
+# are byte counts, and the bodies sliced with them are the payload's own bytes;
+# a non-ASCII byte is ordinary string data, as JSON allows. The entry points
+# (hook::_fast_file_path_to, hook::_fast_fields, hook::json_compact_to,
+# hook::_json_object_proven) re-enter through hook::_c_locale, so every
+# skeleton, and the cached one, is built under the same locale.
+
+# hook::_c_locale <command> [args...]
+# Run <command> with LC_ALL=C and put the caller's LC_ALL back afterwards,
+# exported or not, set or unset, whatever <command> returned. An explicit save
+# and restore rather than `local LC_ALL`, whose unwind is not relied on to reset
+# the shell's locale on every bash these hooks support (the eol-normalizer
+# plugin's EOL library uses the same idiom). Nothing it wraps starts a process.
+hook::_c_locale() {
+  local __hu_lc_set=${LC_ALL+x} __hu_lc=${LC_ALL-} __hu_lc_rc=0
+  LC_ALL=C
+  "$@" || __hu_lc_rc=$?
+  if [[ -n "$__hu_lc_set" ]]; then LC_ALL=$__hu_lc; else unset LC_ALL; fi
+  return "$__hu_lc_rc"
+}
 
 # hook::_json_split <text>
 # Split <text> at every unescaped double quote into the global array
@@ -781,13 +879,16 @@ hook::in_git_working_tree() {
 # replaced by `@@` (same length), so a quote that survives is a real string
 # delimiter and a body's ORIGINAL bytes are ${text:offset:length}. Returns 1
 # when the text is too large, its quotes do not pair up, or it holds more
-# strings than the callers' loops are meant to walk.
+# strings than the callers' loops are meant to walk. The neutralized text is
+# kept in _HOOK_JSON_NT.
 _HOOK_JSON_PARTS=()
+_HOOK_JSON_NT=""
 hook::_json_split() {
   local __hu_s="$1" __hu_t __hu_q __hu_n
   ((${#__hu_s} <= 65536)) || return 1
   __hu_t=${__hu_s//"\\\\"/@@}
   __hu_t=${__hu_t//"\\\""/@@}
+  _HOOK_JSON_NT=$__hu_t
   __hu_q=${__hu_t//\"/}
   __hu_n=$((${#__hu_t} - ${#__hu_q}))
   ((__hu_n % 2 == 0)) || return 1
@@ -815,108 +916,136 @@ hook::_json_split() {
 # byte, which jq rejects.
 _HOOK_JSON_SK=""
 _HOOK_JSON_OFF=()
+# The last text and its verdict. A hook that primes several fields and then
+# reads its file path asks for the same payload's skeleton twice in one
+# process; the parts, offsets and skeleton are still those of that text, so the
+# second ask is a string comparison rather than a second walk.
+_HOOK_JSON_SK_TEXT=""
+_HOOK_JSON_SK_RC=""
 hook::_json_skeleton() {
-  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
+  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_g="" __hu_prev __hu_esc __hu_c
+  # The regex checks run where the C locale's regex reads bytes (Linux,
+  # macOS). A Windows bash's regex decodes UTF-8 even under C, where
+  # [[:cntrl:]] matches a C1 character the glob check does not, so it keeps the
+  # glob checks.
+  local __hu_rx=1 __hu_partcntrl=1
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) __hu_rx=0 ;;
+  *) ;;
+  esac
+  local __hu_cntrl='[[:cntrl:]]'
+  local __hu_badesc='\\([^/bfnrtu]|$|u(.?.?.?$|[^0-9a-fA-F]|.[^0-9a-fA-F]|..[^0-9a-fA-F]|...[^0-9a-fA-F]))'
+  if [[ -n "$_HOOK_JSON_SK_RC" && "$__hu_s" == "$_HOOK_JSON_SK_TEXT" ]]; then
+    return "$_HOOK_JSON_SK_RC"
+  fi
+  _HOOK_JSON_SK_TEXT=$__hu_s
+  _HOOK_JSON_SK_RC=1
   hook::_json_split "$__hu_s" || return 1
+  if ((__hu_rx)); then
+    # Every escape must be one jq accepts, or jq rejects the whole text. In
+    # the neutralized text `\\` and `\"` are already `@@`, so every surviving
+    # backslash starts one of the other escapes, `\/ \b \f \n \r \t` or
+    # `\uXXXX`; one followed by anything else, or by `u` and fewer than four
+    # hex digits, is an invalid escape. One search over the whole text: a
+    # surviving backslash is never followed by a quote, so a match never spans
+    # two parts, and one in the structural text is not JSON either.
+    [[ "$_HOOK_JSON_NT" =~ $__hu_badesc ]] && return 1
+    # No control byte anywhere: no string body can hold one.
+    [[ "$__hu_s" =~ $__hu_cntrl ]] || __hu_partcntrl=0
+  fi
   __hu_n=${#_HOOK_JSON_PARTS[@]}
   _HOOK_JSON_OFF=()
   for ((__hu_i = 0; __hu_i < __hu_n; __hu_i++)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
     if ((__hu_i % 2 == 0)); then
       __hu_sk+=$__hu_part
+      __hu_g+=$__hu_part
     else
       _HOOK_JSON_OFF[__hu_i]=$__hu_off
-      [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
-      # Every escape must be one jq accepts, or jq rejects the whole text. In
-      # the neutralized part `\\` and `\"` are already `@@`, so a surviving
-      # backslash starts one of the other escapes: `\/ \b \f \n \r \t` or
-      # `\uXXXX`. Delete every well-formed one (literal glob substitution, C
-      # speed); a backslash that survives is an invalid escape.
-      if [[ "$__hu_part" == *\\* ]]; then
-        __hu_esc=${__hu_part//'\u'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/}
-        # Six literal two-byte replacements: a quoted backslash before a
-        # bracket expression does not survive bash's pattern quoting.
-        for __hu_c in / b f n r t; do
-          __hu_esc=${__hu_esc//"\\$__hu_c"/}
-        done
-        [[ "$__hu_esc" == *\\* ]] && return 1
+      if ((__hu_rx)); then
+        # A regex search: on a large body it runs about ten times faster than
+        # the equivalent `*[...]*` glob match.
+        ((__hu_partcntrl)) && [[ "$__hu_part" =~ $__hu_cntrl ]] && return 1
+      else
+        [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
+        if [[ "$__hu_part" == *\\* ]]; then
+          # Delete every well-formed escape (literal glob substitution); a
+          # backslash that survives is an invalid escape. Six literal two-byte
+          # replacements: a quoted backslash before a bracket expression does
+          # not survive bash's pattern quoting.
+          __hu_esc=${__hu_part//'\u'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/}
+          for __hu_c in / b f n r t; do
+            __hu_esc=${__hu_esc//"\\$__hu_c"/}
+          done
+          [[ "$__hu_esc" == *\\* ]] && return 1
+        fi
       fi
       __hu_sk+="\"#$__hu_i\""
+      __hu_g+='"'
     fi
     __hu_off=$((__hu_off + ${#__hu_part} + 1))
   done
-  # Tokenize the skeleton and run it through the JSON grammar. Each token is
-  # consumed by one anchored regex on the (small) remainder; whitespace is
-  # allowed only between tokens, so `tr ue` is two bad tokens, not `true`. # spellchecker:disable-line
-  local __hu_re=$'^[ \t\n\r]*(\\{|\\}|\\[|\\]|,|:|"#[0-9]+"|-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][-+]?[0-9]+)?|true|false|null)'
-  local __hu_ws=$'^[ \t\n\r]*$'
-  __hu_rest=$__hu_sk
-  while [[ -n "$__hu_rest" ]] && ! [[ "$__hu_rest" =~ $__hu_ws ]]; do
-    [[ "$__hu_rest" =~ $__hu_re ]] || return 1
-    __hu_tok=${BASH_REMATCH[1]}
-    __hu_rest=${__hu_rest:${#BASH_REMATCH[0]}}
-    __hu_top=${__hu_stack:${#__hu_stack}-1:1}
-    case "$__hu_expect" in
-    value | value_or_end)
-      case "$__hu_tok" in
-      '{')
-        __hu_stack+='{'
-        __hu_expect=key_or_end
-        continue
-        ;;
-      '[')
-        __hu_stack+='['
-        __hu_expect=value_or_end
-        continue
-        ;;
-      ']')
-        [[ "$__hu_expect" == value_or_end ]] || return 1
-        ;;
-      '}' | ',' | ':') return 1 ;;
-      *)
-        # A scalar. Inside a container the next token is , or the close;
-        # at the top level nothing may follow.
-        if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
-        continue
-        ;;
-      esac
-      ;;
-    key_or_end | key)
-      case "$__hu_tok" in
-      \"#*)
-        __hu_expect='colon'
-        continue
-        ;;
-      '}') [[ "$__hu_expect" == key_or_end ]] || return 1 ;;
-      *) return 1 ;;
-      esac
-      ;;
-    colon)
-      [[ "$__hu_tok" == ':' ]] || return 1
-      __hu_expect=value
-      continue
-      ;;
-    comma_or_end)
-      case "$__hu_tok" in
-      ',')
-        if [[ "$__hu_top" == '{' ]]; then __hu_expect=key; else __hu_expect=value; fi
-        continue
-        ;;
-      '}') [[ "$__hu_top" == '{' ]] || return 1 ;;
-      ']') [[ "$__hu_top" == '[' ]] || return 1 ;;
-      *) return 1 ;;
-      esac
-      ;;
-    *) return 1 ;; # `end`: a token after the root value closed
-    esac
-    # Reaching here means a container just closed.
-    [[ -n "$__hu_stack" ]] || return 1
-    __hu_stack=${__hu_stack:0:${#__hu_stack}-1}
-    if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
+  # Run the structural text, each string a lone `"`, through the JSON grammar
+  # with a few whole-string rewrites instead of a regex per token.
+  # Whitespace is allowed only between tokens: between two characters that
+  # are neither punctuation nor whitespace it splits a token (`tr ue`) or # spellchecker:disable-line
+  # separates two scalars, neither of which is JSON. Anywhere else it goes.
+  local __hu_ws=$' \t\n\r'
+  local __hu_wsre="[^][{}:,$__hu_ws][$__hu_ws]+[^][{}:,$__hu_ws]"
+  [[ "$__hu_g" =~ $__hu_wsre ]] && return 1
+  __hu_g=${__hu_g//[$__hu_ws]/}
+  # Every token between punctuation is a string, a number, true, false or null.
+  local __hu_sc=${__hu_g//[][\{\}:,]/ }
+  local __hu_scre='^ *(("|true|false|null|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?) +)*$'
+  [[ "$__hu_sc " =~ $__hu_scre ]] || return 1
+  # Grammar: each non-string scalar becomes `v`; a string followed by `,`, `]`
+  # or `}` is a value, so it becomes `v` too, and one followed by `:` stays `s`
+  # (a key). The root is wrapped as `<k:<root>>`, with marks no other rule
+  # makes or consumes. Then reduce until nothing changes, in this order each
+  # pass: `k:v` is `K`; `s:v` is a member `m`; `v,v` is `v`; `m,m` is `m`;
+  # `{m}`, `{}`, `[v]` and `[]` are `v`. Each rewrite undoes one grammar
+  # production, so the text is one JSON value exactly when it reduces to
+  # `<K>`. `v,v` is an array's element list only because `k:v` and `s:v` were
+  # folded just before it: a value after a key or at the root is already
+  # inside a `K` or an `m`, so the rule cannot join it with a stray value.
+  # A structure this long is no hook envelope (about 100 characters); it goes
+  # to jq, which answers the same, rather than through thousands of passes.
+  ((${#__hu_g} <= 8192)) || return 1
+  __hu_g=${__hu_g//[^\]\[\{\}:,\"]/v}
+  while [[ "$__hu_g" == *vv* ]]; do __hu_g=${__hu_g//vv/v}; done
+  __hu_g="<k:${__hu_g//\"/s}>"
+  __hu_g=${__hu_g//s,/v,}
+  __hu_g=${__hu_g//s\]/v]}
+  __hu_g=${__hu_g//s\}/v\}}
+  __hu_g=${__hu_g//s>/v>}
+  while :; do
+    __hu_prev=$__hu_g
+    __hu_g=${__hu_g//k:v/K}
+    __hu_g=${__hu_g//s:v/m}
+    while [[ "$__hu_g" == *v,v* ]]; do __hu_g=${__hu_g//v,v/v}; done
+    while [[ "$__hu_g" == *m,m* ]]; do __hu_g=${__hu_g//m,m/m}; done
+    __hu_g=${__hu_g//\{m\}/v}
+    __hu_g=${__hu_g//\{\}/v}
+    __hu_g=${__hu_g//\[v\]/v}
+    __hu_g=${__hu_g//\[\]/v}
+    [[ "$__hu_g" != "$__hu_prev" ]] || break
   done
-  [[ "$__hu_expect" == end ]] || return 1
+  [[ "$__hu_g" == '<K>' ]] || return 1
   _HOOK_JSON_SK=${__hu_sk//[$' \t\n\r']/}
+  _HOOK_JSON_SK_RC=0
   return 0
+}
+
+# hook::_json_object_proven <text>
+# The builtin stand-in for hook::buffer_stdin's `jq -e .` probe: 0 when
+# hook::_json_skeleton accepts <text> and its root is an object, which jq -e
+# accepts too (an object is truthy); 1 when not proven, and the caller runs jq.
+hook::_json_object_proven() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_json_object_proven "$@"
+    return
+  }
+  hook::_json_skeleton "$1" && [[ "$_HOOK_JSON_SK" == \{* ]]
 }
 
 # hook::json_unescape_to <var> <raw>
@@ -975,6 +1104,10 @@ hook::json_unescape_to() {
 # still recognized; a body longer than any escaped spelling of either name is
 # skipped without decoding.
 hook::_fast_file_path_to() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_fast_file_path_to "$@"
+    return
+  }
   local __hu_s="$2" __hu_i __hu_n __hu_part __hu_body __hu_ti=-1 __hu_fp=-1 __hu_m __hu_raw __hu_pre __hu_re __hu_file
   hook::_json_skeleton "$__hu_s" || return 2
   [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
@@ -982,7 +1115,13 @@ hook::_fast_file_path_to() {
   for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
     ((${#__hu_part} <= 60)) || continue
-    __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    # A part with no `@` is its body verbatim (the split rewrote only `\\` and
+    # `\"`, each to `@@`), so it skips a slice that copies the whole payload.
+    if [[ "$__hu_part" == *@* ]]; then
+      __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    else
+      __hu_body=$__hu_part
+    fi
     if [[ "$__hu_body" == *\\* ]]; then
       hook::json_unescape_to __hu_body "$__hu_body" || continue
     fi
@@ -1034,6 +1173,184 @@ hook::_fast_file_path_to() {
   return 0
 }
 
+# The associative-array availability guard for hook::_fast_fields below, split
+# out as its own predicate so the pre-4.0 path stays reachable in tests on a
+# modern host: BASH_VERSINFO is readonly, so it cannot be shadowed, but a test
+# can override this function after sourcing. Same class as
+# hook::read_supports_nchars. macOS ships Bash 3.2 and these hooks document
+# 3.2+ support, so below the floor the answer is jq's, not a wrong one. Not a
+# consumer seam.
+hook::_fast_fields_supported() {
+  ((BASH_VERSINFO[0] >= 4))
+}
+
+# hook::_fast_fields <payload> <filter>...
+# The builtin answer to hook::jq_fields' jq program for the filters that
+# program is usually given: `.key` and `.key.sub`, identifier keys only, each
+# optionally followed by ` // false | tostring` (the guards' `replace_all`
+# read). With that suffix an absent or null value is `false`, and a boolean is
+# proven too: jq prints `true` or `false`.
+# Returns
+#   0  proven: HOOK_JQ_FIELDS holds, per filter, exactly what jq prints for
+#      `((<filter>) // "" | tostring)` with CR stripped, and HOOK_JQ_FIELDS_NUL
+#      is 0 (a NUL escape in any requested value is a proof failure)
+#   2  not proven: run jq
+# Any other filter shape is not proven. Proof, on top of hook::_json_skeleton's
+# structural checks (which include every escape jq accepts and no raw control
+# byte): the root is an object; every key named by a filter decodes from
+# exactly ONE string in the whole payload, so neither a duplicate key nor a
+# same-named key in another object nor a value spelled like the key can change
+# jq's answer; a top-level key is a direct member of the root; a nested key's
+# parent is a flat object (no container inside it, else jq); and each
+# requested value is a plain string or null, or the key is absent. A number,
+# boolean, object or array value is handed to jq for its `tostring`, a string
+# whose escapes hook::json_unescape_to does not decode (a NUL, a \u past
+# U+007F) likewise. Key strings are compared after decoding, so a key spelled
+# with \u escapes is still recognized; a body longer than any escaped spelling
+# of a requested key name is skipped without decoding. That bound is six times
+# the longest requested key name: a filter key is an ASCII identifier, and an
+# identifier character's longest escaped spelling is `\uXXXX`, six bytes.
+#
+# Bash 4.0+ only (the `local -A` index below), so the call site gates it on
+# hook::_fast_fields_supported and a 3.2 shell runs jq instead.
+hook::_fast_fields() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_fast_fields "$@"
+    return
+  }
+  local __hu_s="$1"
+  shift
+  local -a __hu_k1=() __hu_k2=() __hu_df=()
+  local __hu_f __hu_i __hu_n __hu_part __hu_body __hu_re __hu_raw __hu_val __hu_j __hu_nil
+  local __hu_ident='[A-Za-z_][A-Za-z0-9_]*'
+  local __hu_cap=0
+  __hu_re="^\\.($__hu_ident)(\\.($__hu_ident))?( // false \\| tostring)?\$"
+  for __hu_f in "$@"; do
+    [[ "$__hu_f" =~ $__hu_re ]] || return 2
+    __hu_k1+=("${BASH_REMATCH[1]}")
+    __hu_k2+=("${BASH_REMATCH[3]}")
+    __hu_df+=("${BASH_REMATCH[4]:+1}")
+    ((${#BASH_REMATCH[1]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[1]}
+    ((${#BASH_REMATCH[3]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[3]}
+  done
+  # The skip bound: six bytes per character of the longest requested key name,
+  # the width of `\uXXXX`. A shorter bound proves the wrong thing rather than
+  # costing time: a key whose body exceeds it is never decoded, so a key that
+  # IS present is reported absent, and a key of 11 or more characters spelled
+  # entirely in \u escapes is missed the same way.
+  __hu_cap=$((__hu_cap * 6))
+  hook::_json_skeleton "$__hu_s" || return 2
+  [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
+  # Every string body that decodes to a requested key name, by name: the part
+  # index, or -1 once a second body decodes to the same name.
+  local -A __hu_idx=()
+  local -A __hu_want=()
+  for __hu_f in "${__hu_k1[@]}" "${__hu_k2[@]}"; do
+    [[ -n "$__hu_f" ]] && __hu_want[$__hu_f]=1
+  done
+  __hu_n=${#_HOOK_JSON_PARTS[@]}
+  for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
+    __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
+    ((${#__hu_part} <= __hu_cap)) || continue
+    # A part with no `@` is its body verbatim (the split rewrote only `\\` and
+    # `\"`, each to `@@`), so it skips a slice that copies the whole payload.
+    if [[ "$__hu_part" == *@* ]]; then
+      __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    else
+      __hu_body=$__hu_part
+    fi
+    if [[ "$__hu_body" == *\\* ]]; then
+      hook::json_unescape_to __hu_body "$__hu_body" || continue
+    fi
+    [[ -n "$__hu_body" && -n "${__hu_want[$__hu_body]+x}" ]] || continue
+    if [[ -n "${__hu_idx[$__hu_body]+x}" ]]; then
+      __hu_idx[$__hu_body]=-1
+    else
+      __hu_idx[$__hu_body]=$__hu_i
+    fi
+  done
+  local -a __hu_vals=()
+  local __hu_ti __hu_fi __hu_pre __hu_o1 __hu_o2 __hu_c1 __hu_c2 __hu_depth __hu_tok
+  for ((__hu_j = 0; __hu_j < ${#__hu_k1[@]}; __hu_j++)); do
+    # What jq prints for an absent or null value: `// ""` gives the empty
+    # string, `// false | tostring` gives `false`.
+    __hu_nil=${__hu_df[__hu_j]:+false}
+    __hu_ti=${__hu_idx[${__hu_k1[__hu_j]}]--2}
+    ((__hu_ti != -1)) || return 2
+    if ((__hu_ti == -2)); then
+      __hu_vals+=("$__hu_nil") # no string in the payload spells the key: absent
+      continue
+    fi
+    # The key must be a direct member of the root: a key position at depth
+    # exactly one. Anywhere else (a value, a deeper key) the root has no such
+    # member, and the unique spelling means nothing else could be one.
+    __hu_re="(^|[{,])\"#$__hu_ti\":(\"#[0-9]+\"|\\{[^][{}]*\\}|null|true|false|[-0-9][^,}]*|\\[|\\{)"
+    if ! [[ "$_HOOK_JSON_SK" =~ $__hu_re ]]; then
+      __hu_vals+=("$__hu_nil")
+      continue
+    fi
+    __hu_tok=${BASH_REMATCH[2]}
+    __hu_pre=${_HOOK_JSON_SK%%\"#"$__hu_ti"\"*}
+    __hu_o1=${__hu_pre//\{/}
+    __hu_o2=${__hu_pre//\[/}
+    __hu_c1=${__hu_pre//\}/}
+    __hu_c2=${__hu_pre//\]/}
+    __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
+    if ((__hu_depth != 1)); then
+      __hu_vals+=("$__hu_nil")
+      continue
+    fi
+    if [[ -z "${__hu_k2[__hu_j]}" ]]; then
+      case "$__hu_tok" in
+      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
+      null) __hu_vals+=("$__hu_nil") && continue ;;
+      true | false)
+        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
+        __hu_vals+=("$__hu_tok") && continue
+        ;;
+      *) return 2 ;;
+      esac
+    else
+      case "$__hu_tok" in
+      null) __hu_vals+=("$__hu_nil") && continue ;;
+      \{*\}) ;;      # a flat object: its members are the only place the key can be
+      *) return 2 ;; # a string, number, boolean, array, or an object with a container inside
+      esac
+      __hu_fi=${__hu_idx[${__hu_k2[__hu_j]}]--2}
+      ((__hu_fi != -1)) || return 2
+      if ((__hu_fi == -2)); then
+        __hu_vals+=("$__hu_nil")
+        continue
+      fi
+      __hu_body=${__hu_tok:1:${#__hu_tok}-2}
+      __hu_re="(^|,)\"#$__hu_fi\":(\"#[0-9]+\"|null|true|false|[-0-9][^,]*)(,|\$)"
+      if ! [[ "$__hu_body" =~ $__hu_re ]]; then
+        __hu_vals+=("$__hu_nil") # not a key of the parent; unique, so not one anywhere
+        continue
+      fi
+      __hu_tok=${BASH_REMATCH[2]}
+      case "$__hu_tok" in
+      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
+      null) __hu_vals+=("$__hu_nil") && continue ;;
+      true | false)
+        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
+        __hu_vals+=("$__hu_tok") && continue
+        ;;
+      *) return 2 ;;
+      esac
+    fi
+    __hu_val=${__hu_s:${_HOOK_JSON_OFF[__hu_raw]}:${#_HOOK_JSON_PARTS[__hu_raw]}}
+    if [[ "$__hu_val" == *\\* ]]; then
+      hook::json_unescape_to __hu_val "$__hu_val" || return 2
+    fi
+    __hu_val=${__hu_val//$'\r'/}
+    __hu_vals+=("$__hu_val")
+  done
+  HOOK_JQ_FIELDS=("${__hu_vals[@]}")
+  HOOK_JQ_FIELDS_NUL=0
+  return 0
+}
+
 # hook::dirname_to <var> <path>: dirname with builtins for the resolver's
 # answer. Strips the last segment; a bare name lives in `.`, a root-level file
 # in `/`. The path comes from realpath, so the trailing-slash and doubled-slash
@@ -1066,6 +1383,10 @@ hook::_print_nul_joined() {
 # outside the JSON set, a raw control byte), or the structure fails
 # hook::_json_skeleton; the caller then runs jq.
 hook::json_compact_to() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::json_compact_to "$@"
+    return
+  }
   local __hu_s="$2" __hu_out="" __hu_i __hu_part __hu_n
   hook::_json_skeleton "$__hu_s" || return 1
   [[ "$_HOOK_JSON_SK" == \{*\} ]] || return 1
@@ -1166,35 +1487,67 @@ hook::json_str_object_to() {
 # directories for the process. Same verdict, same emitted path, fewer
 # processes: on Windows Git Bash each spawn costs tens of milliseconds and this
 # guard runs on every Write and Edit.
+#
+# Print form, kept for a caller that holds no buffered payload and reads fd0
+# itself. A hook that already buffered stdin calls hook::read_file_path_to
+# with that buffer: `FILE=$(printf '%s' "$INPUT" | hook::read_file_path)`
+# paid a capture subshell, a pipeline member and a byte-at-a-time
+# `read -d ''` of the pipe for the same answer.
 hook::read_file_path() {
-  local -a chunks=()
-  local chunk file="" mode=2
+  local -a __hu_chunks=()
+  local __hu_chunk __hu_out=""
   # Builtin read to NUL or EOF. A NUL splits the payload into several chunks;
   # the fast path only takes a single-chunk (NUL-free) payload, and the jq
   # fallback is fed the chunks NUL-joined, so it sees the bytes jq used to
   # read straight from stdin.
   while :; do
-    chunk=""
-    if IFS= read -r -d '' chunk; then
-      chunks+=("$chunk")
+    __hu_chunk=""
+    if IFS= read -r -d '' __hu_chunk; then
+      __hu_chunks+=("$__hu_chunk")
       continue
     fi
-    chunks+=("$chunk")
+    __hu_chunks+=("$__hu_chunk")
     break
   done
-  if ((${#chunks[@]} == 1)); then
-    mode=0
-    hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
+  hook::read_file_path_to __hu_out "${__hu_chunks[@]}" || return 1
+  printf '%s' "$__hu_out"
+}
+
+# hook::read_file_path_to <var> <payload>
+# hook::read_file_path's answer for an already-buffered payload, written into
+# <var> in THIS shell; returns 1 to skip, leaving <var> unchanged. A buffered
+# payload holds no NUL, so it is one chunk. More than one argument is the print
+# form's NUL-split stdin, which only jq may parse.
+#
+# The in-shell call leaves hook::_physical_prime's directory cache (and the
+# temp-root candidates) in the caller's process, where the print form's
+# subshell dropped them; a later path check in the same process reuses them,
+# which is what that cache is for.
+#
+# The one entry point is split in two names, as hook::jq_fields is: a
+# dispatcher that answers several guards from one payload (guardrails
+# run-guards.sh) puts a cache in front of hook::read_file_path_to and falls
+# through to hook::read_file_path_uncached_to on a miss.
+hook::read_file_path_to() {
+  hook::read_file_path_uncached_to "$@"
+}
+
+hook::read_file_path_uncached_to() {
+  local __hu_rf_dest="$1" __hu_rf_file="" __hu_rf_mode=2
+  shift
+  if (($# == 1)); then
+    __hu_rf_mode=0
+    hook::_fast_file_path_to __hu_rf_file "$1" || __hu_rf_mode=$?
   fi
-  case "$mode" in
-  0) ;;          # proven: `file` holds jq's answer
+  case "$__hu_rf_mode" in
+  0) ;;          # proven: `__hu_rf_file` holds jq's answer
   1) return 1 ;; # proven absent
   *)
-    file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+    __hu_rf_file=$(hook::_print_nul_joined "$@" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
     ;;
   esac
-  [[ -n "$file" ]] || return 1
-  [[ -f "$file" ]] || return 1
+  [[ -n "$__hu_rf_file" ]] || return 1
+  [[ -f "$__hu_rf_file" ]] || return 1
   # Scope opt-out, off unless the caller sets it for the duration of ONE call
   # (`local HOOK_READ_FILE_PATH_UNSCOPED=1` in the calling frame). Parse and
   # existence only, no membership.
@@ -1209,23 +1562,24 @@ hook::read_file_path() {
   # guard: there the scope is what stops a rewrite of something outside the
   # project.
   if [[ "${HOOK_READ_FILE_PATH_UNSCOPED:-0}" == 1 ]]; then
-    printf '%s' "$file"
+    printf -v "$__hu_rf_dest" '%s' "$__hu_rf_file"
     return 0
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local norm_file norm_project phys_file phys_project file_resolved=0 project_resolved=0
+    local __hu_rf_norm_file __hu_rf_norm_project __hu_rf_phys_file __hu_rf_phys_project
+    local __hu_rf_file_resolved=0 __hu_rf_project_resolved=0
     hook::_temp_root_candidates
-    hook::_physical_prime "$file" "${CLAUDE_PROJECT_DIR}" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
-    hook::_physical_cached_to phys_file "$file" && file_resolved=1
-    hook::_phys_cache_forget "$file"
-    hook::_physical_cached_to phys_project "${CLAUDE_PROJECT_DIR}" && project_resolved=1
-    hook::normalize_path_to norm_file "$phys_file"
-    hook::normalize_path_to norm_project "$phys_project"
-    norm_project="${norm_project%/}"
+    hook::_physical_prime "$__hu_rf_file" "${CLAUDE_PROJECT_DIR}" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+    hook::_physical_cached_to __hu_rf_phys_file "$__hu_rf_file" && __hu_rf_file_resolved=1
+    hook::_phys_cache_forget "$__hu_rf_file"
+    hook::_physical_cached_to __hu_rf_phys_project "${CLAUDE_PROJECT_DIR}" && __hu_rf_project_resolved=1
+    hook::normalize_path_to __hu_rf_norm_file "$__hu_rf_phys_file"
+    hook::normalize_path_to __hu_rf_norm_project "$__hu_rf_phys_project"
+    __hu_rf_norm_project="${__hu_rf_norm_project%/}"
     # Anchor on a path-segment boundary: accept the project root itself or a
     # child under it, but not a sibling whose name merely shares the prefix
     # (e.g. /c/repo must not admit /c/repo-backup/...).
-    if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
+    if [[ "$__hu_rf_norm_file" != "$__hu_rf_norm_project" && "$__hu_rf_norm_file" != "$__hu_rf_norm_project"/* ]]; then
       return 1
     fi
     # Prefix membership alone is not project membership. When the project dir is
@@ -1241,28 +1595,28 @@ hook::read_file_path() {
     # built by `mktemp -d`, which is how this repo's own hook suites run), so
     # the branch must not fire. Only a temp-tree file reached from a project
     # root OUTSIDE the temp tree is scratch.
-    local file_in_temp=0
-    _HOOK_UTR_TARGET_PHYSICAL=$file_resolved
-    hook::under_temp_root "$norm_file" && file_in_temp=1
+    local __hu_rf_file_in_temp=0
+    _HOOK_UTR_TARGET_PHYSICAL=$__hu_rf_file_resolved
+    hook::under_temp_root "$__hu_rf_norm_file" && __hu_rf_file_in_temp=1
     _HOOK_UTR_TARGET_PHYSICAL=0
-    if ((file_in_temp)); then
-      local project_in_temp=0
-      _HOOK_UTR_TARGET_PHYSICAL=$project_resolved
-      hook::under_temp_root "$norm_project" && project_in_temp=1
+    if ((__hu_rf_file_in_temp)); then
+      local __hu_rf_project_in_temp=0
+      _HOOK_UTR_TARGET_PHYSICAL=$__hu_rf_project_resolved
+      hook::under_temp_root "$__hu_rf_norm_project" && __hu_rf_project_in_temp=1
       _HOOK_UTR_TARGET_PHYSICAL=0
-      ((project_in_temp)) || return 1
+      ((__hu_rf_project_in_temp)) || return 1
     fi
   elif command -v git >/dev/null 2>&1; then
     # When CLAUDE_PROJECT_DIR is unset, scope to git-working-tree membership so
     # scratch files outside any repository are not mutated by formatter hooks
     # (#1091 / #972).
-    local file_physical file_dir
-    hook::physical_path_to file_physical "$file" || :
-    if [[ -L "$file" && "$file_physical" == "$file" ]]; then
+    local __hu_rf_file_physical __hu_rf_file_dir
+    hook::physical_path_to __hu_rf_file_physical "$__hu_rf_file" || :
+    if [[ -L "$__hu_rf_file" && "$__hu_rf_file_physical" == "$__hu_rf_file" ]]; then
       return 1
     fi
-    hook::dirname_to file_dir "$file_physical"
-    if ! hook::in_git_working_tree "$file_dir"; then
+    hook::dirname_to __hu_rf_file_dir "$__hu_rf_file_physical"
+    if ! hook::in_git_working_tree "$__hu_rf_file_dir"; then
       return 1
     fi
   else
@@ -1270,7 +1624,7 @@ hook::read_file_path() {
     # pre-#1091 behavior (#1091).
     return 1
   fi
-  printf '%s' "$file"
+  printf -v "$__hu_rf_dest" '%s' "$__hu_rf_file"
 }
 
 # Resolve the repository root (working-tree top) for a path inside the tree.
@@ -1287,8 +1641,16 @@ hook::read_file_path() {
 # `_to` writes in THIS shell so the caller does not pay an extra subshell
 # around the necessary git process (Command Substitution, Bash Reference
 # Manual; https://mywiki.wooledge.org/CommandSubstitution).
-# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
+#
+# Split in two names like hook::read_file_path_to: guardrails run-guards.sh
+# caches in front of hook::repo_root_to and falls through to
+# hook::repo_root_uncached_to.
 hook::repo_root_to() {
+  hook::repo_root_uncached_to "$@"
+}
+
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
+hook::repo_root_uncached_to() {
   local __hu_rr_dest="$1"
   local __hu_rr_hint="${2:-.}"
   local __hu_rr_val
@@ -1384,12 +1746,13 @@ hook::walk_up_to() {
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
 # schema requires of `data.file` ("relative to the consuming repo root").
 #
-# Both sides go through `cygpath -lm` (long name, forward-slash mixed form)
-# when it is available, so the prefix strip compares ONE representation: on
-# Windows Git Bash `git rev-parse --show-toplevel` answers with a drive-letter
-# path while file_path may arrive in POSIX mount form, and the raw strip never
-# matches. On Linux/macOS cygpath is absent and both paths are already POSIX,
-# so the strip runs directly.
+# On a Windows bash host (OSTYPE msys, cygwin or win32) both sides go through
+# `cygpath -lm` (long name, forward-slash mixed form) when it is available, so
+# the prefix strip compares ONE representation: on Windows Git Bash
+# `git rev-parse --show-toplevel` answers with a drive-letter path while
+# file_path may arrive in POSIX mount form, and the raw strip never matches. On
+# Linux/macOS both paths are already POSIX, so the strip runs directly without
+# looking for cygpath.
 #
 # What survives the strip is not trusted to BE relative. A mount/symlink
 # mismatch, or a cygpath that answers for one side and not the other, leaves
@@ -1419,7 +1782,16 @@ hook::repo_relative_path_to() {
   # redaction below, so it would leak with a success status. Skipping the strip
   # leaves rel as the input, which the redaction then degrades correctly.
   if [[ -n "$__hu_rp_root" ]]; then
-    if command -v cygpath >/dev/null 2>&1; then
+    # cygpath exists only on the Windows bash hosts (the OSTYPE set
+    # hook::normalize_path_to uses). Elsewhere `command -v` misses, and a miss
+    # probes every PATH directory: on WSL that includes the /mnt/c entries, one
+    # 9P round trip each, 13-20 ms per call.
+    local __hu_rp_cyg=0
+    case "${OSTYPE:-}" in
+    msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && __hu_rp_cyg=1 ;;
+    *) ;;
+    esac
+    if ((__hu_rp_cyg)); then
       local __hu_rp_file_lm __hu_rp_root_lm
       __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
       __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
@@ -1772,7 +2144,13 @@ hook::buffer_stdin_to() {
     if ((__hu_fields_rc == 2)); then
       __hu_jq_rc=2
     fi
-  elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1; then
+  elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1 &&
+    ! hook::_json_object_proven "$__hu_input"; then
+    # hook::_json_object_proven answers first, with builtins: a text
+    # hook::_json_skeleton accepts whose root is an object is one `jq -e .`
+    # accepts (an object is truthy), so the common payload spawns nothing. The
+    # skeleton it builds is cached for the file-path and field parses that
+    # follow on the same text. Anything it cannot prove still goes to jq.
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
     # a hook payload routinely exceeds it. A direct probe, not a command
@@ -1899,7 +2277,7 @@ hook::jq_field() {
 # the strip.
 #
 # Removing the NUL is NOT a claim about how a NUL executes, and must not be read
-# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
+# as one. Two behaviors were measured and they disagree: bash DISCARDS a NUL
 # while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
 # prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
 # argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
@@ -1926,7 +2304,7 @@ hook::jq_field() {
 # split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
 # inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
 # that no regex pattern and no string literal in the jq PROGRAM text carries a
-# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
+# NUL byte: a construct whose behavior varied across jq builds would fail EVERY
 # payload, which is strictly worse than the payload-dependent bug being fixed.
 #
 # The library cannot impose the verdict itself — the plugins sourcing it include
@@ -1939,14 +2317,37 @@ hook::jq_field() {
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 #   if ((HOOK_JQ_FIELDS_NUL)); then echo "BLOCKED: …" >&2; exit 2; fi
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
+#
+# The jq process is the last resort, not the first. hook::_fast_fields answers
+# the common shape (a well-formed payload whose requested fields are plain
+# strings under unique keys) with builtins and hands anything it cannot prove
+# to jq, so a hook that reads `.tool_input.command` and `.tool_name` from an
+# ordinary Bash payload spawns nothing. The two entry points are one function:
+# hook::jq_fields is the name every hook calls, and hook::jq_fields_uncached is
+# the same body under the name a dispatcher that puts a per-event cache in
+# front of it (guardrails run-guards.sh) falls through to on a miss. Overriding
+# hook::jq_fields alone therefore never loses the library's own path.
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
 hook::jq_fields() {
+  hook::jq_fields_uncached "$@"
+}
+
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
+hook::jq_fields_uncached() {
   local input="$1"
   shift
   HOOK_JQ_FIELDS=()
   HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
+  # The floor first: hook::_fast_fields indexes with an associative array, which
+  # is Bash 4.0+. Below it the whole fast path is skipped and jq answers, rather
+  # than `local -A` failing per call on a shell these hooks support.
+  if hook::_fast_fields_supported && hook::_fast_fields "$input" "$@"; then
+    return 0
+  fi
+  HOOK_JQ_FIELDS=()
+  HOOK_JQ_FIELDS_NUL=0
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
@@ -2208,7 +2609,8 @@ hook::begin() {
   # `/dev/stdin` cannot resolve at all.
   hook::buffer_stdin_to INPUT || exit 0
 
-  RAW_FILE=$(hook::raw_file_path "$INPUT") || RAW_FILE=""
+  RAW_FILE=""
+  hook::raw_file_path_to RAW_FILE "$INPUT" || :
   if [[ -z "$RAW_FILE" ]] && ((__hu_bg_notebook)); then
     RAW_FILE=$(hook::raw_notebook_path "$INPUT") || RAW_FILE=""
   fi
@@ -2250,7 +2652,8 @@ hook::begin() {
   fi
 
   local HOOK_READ_FILE_PATH_UNSCOPED="$__hu_bg_unscoped"
-  FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+  FILE=""
+  hook::read_file_path_to FILE "$INPUT" || exit 0
   if (($#)); then
     hook::path_matches "$FILE" "$@" || exit 0
   fi
@@ -2422,11 +2825,18 @@ hook::finish() {
 # (e.g. the whole command is `TOKEN=ghp_…`) is likewise a value the subject must
 # not carry, so a resolved token still shaped like a NAME=value assignment aborts
 # to the bare "Bash" subject too.
-#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
+#   hook::extract_bash_subject_to SUBJECT "$TOOL" "$CMD"   # in this shell
+#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")   # print form: a fork
 hook::extract_bash_subject() {
-  local tool="$1" cmd="${2:-}"
+  local __hu_subject
+  hook::extract_bash_subject_to __hu_subject "$1" "${2:-}"
+  printf '%s' "$__hu_subject"
+}
+
+hook::extract_bash_subject_to() {
+  local __hu_dest="$1" tool="$2" cmd="${3:-}"
   if [[ "$tool" != "Bash" ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   # Trim leading whitespace so the first token is real.
@@ -2437,7 +2847,7 @@ hook::extract_bash_subject() {
     # A quote in the prefix token means a quoted value spans the next whitespace;
     # we cannot tokenize it safely — bail rather than leak a value fragment.
     if [[ "$first_token" == *[\"\']* ]]; then
-      printf '%s' "$tool"
+      printf -v "$__hu_dest" '%s' "$tool"
       return 0
     fi
     cmd="${cmd#*[[:space:]]}"
@@ -2447,7 +2857,7 @@ hook::extract_bash_subject() {
   # The resolved command token itself must not carry a quote (e.g. a value that
   # ended here), which would likewise be a value fragment.
   if [[ "$first_token" == *[\"\']* ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   # A resolved token still shaped like a bare/trailing assignment (no following
@@ -2460,14 +2870,14 @@ hook::extract_bash_subject() {
   # no-close-bracket class would miss. This runs BEFORE the basename strip so
   # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
   if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[.*\])?\+?= ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   first_token="${first_token##*/}"
   if [[ -n "$first_token" ]]; then
-    printf 'Bash:%s' "$first_token"
+    printf -v "$__hu_dest" 'Bash:%s' "$first_token"
   else
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
   fi
 }
 
@@ -3566,7 +3976,7 @@ hook::git_alias_reparse_to() {
 #     only one leaves the other empty, which contributes a constant to the key;
 #     keying both here keeps the key shape uniform across guards.
 #   * `%q` on every word, so a word containing a newline cannot merge into its
-#     neighbour and no boundary in the key can shift.
+#     neighbor and no boundary in the key can shift.
 # `printf -v` keeps the whole key build fork-free — a `$(printf …)` per word
 # would cost more than the walk it bounds.
 #
@@ -3610,6 +4020,34 @@ hook::git_alias_admit() {
   return 2
 }
 
+# hook::reset_analysis_state: forget the per-invocation analysis state, so the
+# next hook to run in this process starts as a fresh hook process would. That
+# state is the alias memo and budget above (armed on first use, and a memo hit
+# means "already analyzed: skip"), the two seen-sets, and the effective base
+# the alias walk carries. A hook run alone never needs this; a dispatcher that
+# sources several hooks into one shell (guardrails run-guards.sh) calls it
+# before each, because otherwise the second hook to walk the same alias chain
+# is answered by the first hook's memo and skips the analysis it owes. The
+# keyed caches (physical paths, the JSON skeleton) are not analysis state:
+# they answer the same question the same way for every hook, and stay.
+hook::reset_analysis_state() {
+  unset HOOK_ALIAS_ADMIT_ARMED HOOK_ALIAS_MEMO HOOK_ALIAS_WORK
+  unset HOOK_ALIAS_SEEN HOOK_SHELL_ALIAS_SEEN HOOK_EFFECTIVE_BASE
+}
+
+# Mark the redirection still waiting for an operand as OPAQUE: the operator is
+# real, the path it names never arrived. The four places that discover an
+# orphaned operand (a second operator, a here-doc opener, a process
+# substitution, the end of a segment) share this one spelling. Reads and writes
+# hook::bash_parse_segments's own locals through dynamic scope, so it is not
+# callable on its own.
+# shellcheck disable=SC2154  # `pend` is a local of hook::bash_parse_segments
+hook::_bps_orphan_pending() {
+  ((pend)) || return 0
+  HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+  pend=0
+}
+
 # Close the word being assembled into the segment: as an argv word, or as the
 # target of the redirection still waiting for its operand. Called from the four
 # places a word can end (blank, redirection operator, control operator, end of
@@ -3646,10 +4084,7 @@ hook::_bps_close_word() {
 # Dynamic scope, like hook::_bps_close_word.
 # shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
 hook::_bps_flush_segment() {
-  if ((pend)); then
-    HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-    pend=0
-  fi
+  hook::_bps_orphan_pending
   if ((${#seg[@]})); then
     "$cb" "${seg[@]}"
     seg=()
@@ -3904,10 +4339,7 @@ hook::bash_parse_segments() {
         hd_strip+=("$hstrip")
         # The opener is a redirection whose target is the delimiter. A pending
         # operand ahead of it never arrived.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
         if ((hstrip)); then HOOK_SEG_REDIR_OP+=('<<-'); else HOOK_SEG_REDIR_OP+=('<<'); fi
         HOOK_SEG_REDIR_FD+=("$rfd_next")
         HOOK_SEG_REDIR_TARGET+=("$delim")
@@ -3920,10 +4352,7 @@ hook::bash_parse_segments() {
         # substituted as a filename — it satisfies any pending target, which no
         # parse can resolve to a path, and the '(' separator splits it into a
         # segment that gets scanned.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
       else
         rop_txt="$c"
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
@@ -3932,10 +4361,7 @@ hook::bash_parse_segments() {
         done
         # A second operator arriving while one still waits means the first
         # never got an operand.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
         rdup=""
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
           ((i++))

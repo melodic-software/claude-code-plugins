@@ -13,6 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
+import { readJsonFile } from "../lib/watch-frame-index.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
@@ -25,7 +26,7 @@ export function snapshotBootstrapContactSheets(sliceDir) {
   if (!fs.existsSync(watchPath)) {
     throw new Error(`watch.json missing at ${absSlice}`);
   }
-  const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
+  const watch = readJsonFile(watchPath);
   const { contactSheetsDir } = resolveTempSession(watch.tempSession ?? {});
   if (!contactSheetsDir || !fs.existsSync(contactSheetsDir)) {
     throw new Error("contactSheetsDir missing or not found");

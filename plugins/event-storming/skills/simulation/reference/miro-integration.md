@@ -19,12 +19,23 @@ Miro MCP server.
 
 ### Tool namespace
 
-Because the server is plugin-bundled, its tools are namespaced at runtime as
-**`mcp__plugin_miro_miro__<tool>`** (e.g. `mcp__plugin_miro_miro__miro_create_board`). A bare
-`miro_*` name, or a bare-server-key `mcp__miro__…`, does **not** resolve for a plugin-bundled
-server. Every `miro_*` tool named in this skill and its reference docs denotes that plugin's tool
-under the `mcp__plugin_miro_miro__` prefix; the availability gate (SKILL.md "Miro availability &
-graceful degradation") probes the prefixed form.
+The same server's tools resolve under one of two runtime prefixes:
+
+- **Plugin-provided** (the default): `mcp__plugin_<plugin>_<server>__<tool>`, so
+  **`mcp__plugin_miro_miro__<tool>`** (e.g. `mcp__plugin_miro_miro__miro_create_board`).
+- **Directly configured** at user or project scope, as in the miro README's opt-in `vault-exec`
+  override with the plugin's own server disabled: `mcp__<server>__<tool>`, so
+  **`mcp__miro__<tool>`** when the server is named `miro`.
+
+A bare `miro_*` name resolves under neither. Every `miro_*` tool named in this skill and its
+reference docs denotes that tool under whichever prefix is live; the availability gate (SKILL.md
+"Miro availability & graceful degradation") accepts either by matching the Miro-specific tool name
+(`…__miro_list_boards`), not the server name.
+
+Claim: the two prefix forms above. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp),
+"Plugin MCP tool names", and [Plugins reference](https://code.claude.com/docs/en/plugins-reference).
+As of: 2026-09-23 (Claude Code 2.1.280). Recheck when either page changes its tool-name format or a
+Claude Code changelog entry mentions MCP tool naming.
 
 ### Setup
 
@@ -38,7 +49,8 @@ marketplace first, then enabled** (enabling alone does not install it).
    enable time (masked input) and stores it using its secure credential mechanism, never as a
    non-sensitive `settings.json` value. Get a token from
    https://miro.com/app/settings/user-profile/apps with `boards:read` + `boards:write` scopes.
-4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools are callable.
+4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools (or
+   `mcp__miro__*` under the user-scope override) are callable.
    Test with "List my Miro boards".
 
 ---
@@ -215,7 +227,7 @@ Next Event       x=1600    row: Domain Events
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
 - **Visual check required:** After placing legend stickies, verify via screenshot that all stickies are visible within the frame bounds. Frame overflow = stickies hidden behind the white frame background
 - **Place legend stickies at absolute coordinates, not with `parent_id`.** Setting `parent_id`
-  switches x and y from board-centre-relative to frame-top-left-relative, so any coordinate computed
+  switches x and y from board-center-relative to frame-top-left-relative, so any coordinate computed
   against the y-coordinate tables above lands in the wrong place. Keeping the legend stickies
   parentless also means they survive deletion of the legend frame
 
@@ -261,7 +273,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
   reasoning: once an arrow is drawn, the brain avoids moving stickies to preserve it. Use proximity
   and temporal order instead
 - **Overlap detection is available.** `miro_detect_overlaps` returns every pair of stickies whose
-  centres are closer than a pixel threshold, which is the mechanical form of the density check the
+  centers are closer than a pixel threshold, which is the mechanical form of the density check the
   quality gate would otherwise do by eye. Its 195px default is tuned for square stickies; raise it
   on rectangle-heavy boards
 - **Bulk limit**: max 20 items per bulk operation

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract + behavioural test for the jq-gate POSTURE split (#2146).
+# Contract + behavioral test for the jq-gate POSTURE split (#2146).
 #
 # Two things are proven here, and the second is the one that matters:
 #
@@ -10,7 +10,7 @@
 #      a hook that grows a ceiling and keeps the fail-open gate fails here, and
 #      so does a hook that adopts the blocking gate without one.
 #
-#   2. BEHAVIOUR (four cells, with controls). Running the guards with jq
+#   2. BEHAVIOR (four cells, with controls). Running the guards with jq
 #      genuinely unreachable, and asserting the ALLOW/DENY grid #2146 measured.
 #      Two cells cannot distinguish "the guard was skipped" from "the harness
 #      returns ALLOW for everything", so the jq-PRESENT column is the
@@ -154,7 +154,7 @@ echo
 JQ_HIDING_WORKS=1
 if [[ "$PRECOND" != "jq=hidden git=visible bash=visible path-to-jq=intact" ]]; then
   JQ_HIDING_WORKS=0
-  bad "jq-hidden environment did not establish its preconditions ($PRECOND) — every behavioural cell below would be unreadable, so none is reported"
+  bad "jq-hidden environment did not establish its preconditions ($PRECOND) — every behavioral cell below would be unreadable, so none is reported"
 else
   ok "precondition: jq=hidden git=visible bash=visible path-to-jq=intact (PATH untouched; the LOOKUP is what was hidden)"
 fi
@@ -335,7 +335,7 @@ fi
 # the function that sets this suite's exit status, so a `bad` recorded below would
 # print and then be discarded by the very thing it reports on: under either
 # sabotage the suite exits 0 with FAIL lines on screen. HELPER_SELF_FAIL is a tally
-# the helper cannot reach and the trailing exit honours it, which is the discipline
+# the helper cannot reach and the trailing exit honors it, which is the discipline
 # scripts/lib/test-harness.test.sh applies to its own library and the only thing
 # that makes these three assertions capable of failing.
 HELPER_SELF_FAIL=0

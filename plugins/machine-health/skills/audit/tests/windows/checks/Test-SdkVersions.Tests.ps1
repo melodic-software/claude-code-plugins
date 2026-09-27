@@ -2,14 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-SdkVersions.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-SdkVersionsAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-SdkVersions' -AsObject 'Invoke-SdkVersionsAsObject'
 }
 
 Describe 'Test-SdkVersions -- baseline' -Tag 'check' {
@@ -42,9 +35,8 @@ Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
     }
 
     It 'labels oldest by EOL date, not detection order' {
-        # INFO is only reachable with no eol / eol_soon findings. First-detected
-        # is always dotnet, so the table gives node the earlier (still-active)
-        # EOL. A `$findings[0]` regression would name dotnet 8.0.
+        # INFO needs no eol / eol_soon findings. dotnet is detected first but node gets the
+        # earlier EOL, so a `$findings[0]` regression would name dotnet 8.0.
         Mock Get-Command {
             param($Name)
             if ($Name -eq 'dotnet' -or $Name -eq 'node') {

@@ -1,31 +1,13 @@
 #!/usr/bin/env bash
-# Self-contained tests for dead-code-scan.sh (no external test lib — ships with
-# the plugin). The assertion primitives are duplicated here on purpose: house
-# convention is that a plugin test carries its own harness rather than sourcing
-# a shared one.
-#
-# WHAT IS UNDER TEST: the parsing and adjudication-input layer, exercised
-# HERMETICALLY. Each lane is driven through --lane so it runs in isolation, and
-# each detector is replaced by a replayer on PATH that prints one of the REAL
-# captured tool outputs in evals/fixtures/ (knip-report.json,
-# knip-degraded.stderr.txt, vulture-report.txt, vulture-parse-error.txt,
-# gopls-hints.txt) with a chosen exit status. No knip, vulture, or gopls is
-# installed in CI, so the canned-fixture cases ARE the gate and never skip; only
-# the one live end-to-end smoke case degrades to a bare SKIP.
-#
-# The replayers are not a shortcut around the detectors: every byte they print
-# is a committed capture of the real tool, and the script under test cannot tell
-# the difference — which is the point, because what is graded here is this
-# script's READING of that output, not the detectors themselves.
+# Self-contained tests for dead-code-scan.sh; the assertion primitives are duplicated on
+# purpose (house convention). Each lane runs via --lane against a PATH replayer printing a
+# REAL committed capture from evals/fixtures/, so what is graded is this script's READING
+# of detector output. No detector is installed in CI: these cases are the gate and never
+# skip; only the live smoke case degrades to SKIP.
 set -uo pipefail
 
-# This suite builds throwaway git repositories as fixtures (the cap ordering is
-# git-recency-based, so a fixture needs real commits). An inherited ABSOLUTE
-# GIT_DIR overrides repository discovery and outranks -C, so without this the
-# fixture's `git config user.email` would land in the CALLER's .git/config —
-# shared by every worktree of the clone — instead of in the fixture. Any process
-# can export it (a git hook is one way, an ad-hoc command another), so it is
-# cleared unconditionally rather than conditionally.
+# An inherited ABSOLUTE GIT_DIR outranks -C, so a fixture's `git config user.email` would
+# land in the CALLER's .git/config; clear it unconditionally before building fixtures.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -264,14 +246,9 @@ assert_contains "degraded lane counts zero findings" "$deg_out" "Summary total: 
 assert_contains "degraded-only run is called a scan of nothing" "$deg_out" "Note: no lane ran"
 
 # --- 2b. Per-root OWNERSHIP: a degraded nested root's files appear in NO record ----
-# The contract (SKILL.md): "knip runs per project root … Each root carries its own
-# state — one degraded workspace does not condemn the others." Running knip AT a
-# root does not restrict what it REPORTS: knip walks the whole subtree, nested
-# workspaces included. Measured on this marketplace before the ownership filter,
-# the repo-root run emitted 213 of its 288 candidates for files belonging to roots
-# the SAME scan had declared `degraded` and promised would "emit no records" —
-# findings manufactured by exactly the unrestored run the degraded state exists to
-# withhold. The outer root may only report the files it OWNS.
+# SKILL.md: "one degraded workspace does not condemn the others." Running knip AT a root
+# does not restrict what it REPORTS (it walks nested workspaces), so the outer root may
+# only report the files it OWNS, or it re-emits a degraded root's manufactured findings.
 
 MULTI_DEG="$TEST_TMPDIR/multi-degraded"
 init_repo "$MULTI_DEG"
@@ -404,7 +381,7 @@ assert_contains "no unrecognized stdout lines for the clean capture" "$vul_out" 
 # in the exact same `<path>:<line>: <msg>` grammar with any other verb must become
 # drift, never a silently coerced finding.
 VERB_OUT="$TEST_TMPDIR/vulture-verbs.txt"
-cat "$FIXTURES/vulture-report.txt" >"$VERB_OUT"
+cp "$FIXTURES/vulture-report.txt" "$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:36: unreachable code after 'raise' (100% confidence)" >>"$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:31: obsolete function 'ghost' (60% confidence)" >>"$VERB_OUT"
 verb_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
@@ -438,7 +415,7 @@ assert_not_contains "exported symbol absent from the capture stays absent" "$go_
 # filtered as a diagnostic this lane does not own — NOT counted as drift, which
 # would be a different and wrong reading.
 GO_EXPORTED="$TEST_TMPDIR/gopls-hints-exported.txt"
-cat "$FIXTURES/gopls-hints.txt" >"$GO_EXPORTED"
+cp "$FIXTURES/gopls-hints.txt" "$GO_EXPORTED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:9:6-19: function "ExportedEntry" is unused' >>"$GO_EXPORTED"
 goexp_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_EXPORTED" bash "$SCAN" --lane gopls 2>/dev/null)"
 assert_contains "unexported symbol still reported alongside the control" "$goexp_out" 'Finding excerpt: function "deadHandler" is unused'
@@ -453,7 +430,7 @@ assert_contains "exported control does not inflate the totals" "$goexp_out" "Sum
 # parse loop can append this module's rows via add_candidate.
 
 GO_DEGRADED="$TEST_TMPDIR/gopls-degraded.txt"
-cat "$FIXTURES/gopls-hints.txt" >"$GO_DEGRADED"
+cp "$FIXTURES/gopls-hints.txt" "$GO_DEGRADED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:6:1: could not import example.com/missing (no required module provides package example.com/missing)' >>"$GO_DEGRADED"
 godeg_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_DEGRADED" bash "$SCAN" --lane gopls 2>/dev/null)"
 assert_contains "an import error on stdout degrades the module" "$godeg_out" "Lane: gopls | root=. | state=degraded"

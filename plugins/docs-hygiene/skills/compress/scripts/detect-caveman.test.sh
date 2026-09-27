@@ -70,17 +70,19 @@ trap 'rm -rf "$FAKE_BIN"' EXIT
 # jq must stay reachable while the stub shadows `claude` at the front of PATH.
 JQ_DIR="$(dirname "$(command -v jq)")"
 STUB_PATH="$FAKE_BIN:$JQ_DIR:$PATH"
+# One stub serves both cases; STUB_JSON carries the `claude plugin list --json`
+# payload under test.
 cat >"$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == plugin && "${2:-}" == list && "${3:-}" == --json ]]; then
-  cat <<'JSON'
-[{"id":"caveman@caveman","enabled":false},{"id":"other@x","enabled":true}]
-JSON
+  printf '%s\n' "${STUB_JSON:-}"
   exit 0
 fi
 exit 1
 EOF
 chmod +x "$FAKE_BIN/claude"
+
+export STUB_JSON='[{"id":"caveman@caveman","enabled":false},{"id":"other@x","enabled":true}]'
 if out_disabled="$(PATH="$STUB_PATH" bash "$DETECT" 2>/dev/null)"; then
   ok "disabled-install invocation exits 0"
 else
@@ -88,16 +90,7 @@ else
 fi
 assert_contains "disabled caveman reports absent" "$out_disabled" "Caveman backend: absent"
 
-cat >"$FAKE_BIN/claude" <<'EOF'
-#!/usr/bin/env bash
-if [[ "${1:-}" == plugin && "${2:-}" == list && "${3:-}" == --json ]]; then
-  cat <<'JSON'
-[{"id":"caveman@caveman","enabled":true}]
-JSON
-  exit 0
-fi
-exit 1
-EOF
+STUB_JSON='[{"id":"caveman@caveman","enabled":true}]'
 if out_enabled="$(PATH="$STUB_PATH" bash "$DETECT" 2>/dev/null)"; then
   ok "enabled-install invocation exits 0"
 else

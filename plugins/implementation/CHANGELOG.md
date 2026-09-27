@@ -3,6 +3,54 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0] - 2026-09-27
+
+### Changed
+
+- **`implement-dispatch`: a resident phase boundary runs a reduced ritual.** When the orchestrator
+  stays in the window and dispatches the next phase, the boundary runs the acceptance verdict,
+  plan marks, a `DEVIATIONS.md` entry, and mark-then-commit. The handoff entry, status summary,
+  and resume prompt now run only when the orchestrator clears, a model or domain switch is
+  pending, or the run ends: a resident orchestrator was their only reader, and it already held
+  their content.
+- **`implement-dispatch`: each worker-brief rule is stated once.** The brief step is a numbered
+  checklist. The worktree-anchoring, comment-hygiene, exec-bit ordering, and push-early rules
+  live only in Gotchas, and the checklist names them there instead of restating them in other
+  words.
+- **`phase-verifier`: its read-only contract names the concrete prohibition.** It never re-runs a
+  build, render, format, or lint script that writes files; it reads the committed output instead.
+  The README documents the `permissions.deny` Bash-rule recipe, the one instrument that narrows
+  its `Bash`, and that recipe's matching limits.
+
+## [0.18.1] - 2026-09-27
+
+### Fixed
+
+- `implement`'s feature context names .NET scaffolding skills by class (a C# MCP-server scaffold, a .NET project-template skill), resolved from what the session has installed, instead of routing to `dotnet-ai:mcp-csharp-create` and `dotnet-template-engine:template-instantiation`, which this marketplace does not ship (#4119).
+
+## [0.18.0] - 2026-09-26
+
+### Added
+
+- **`implement-dispatch` and `implementer`: the orchestrator can keep commit authority.** A brief
+  that declares commit authority `orchestrator` gets a worker that edits files only: it never
+  stages, commits, pushes, or provisions a worktree, and returns its changed and untracked paths
+  instead of a commit sha. The orchestrator verifies the uncommitted tree, then commits source and
+  plan marks together at the phase boundary and pushes per the plan's push rule. A
+  plan whose worker fence forbids staging, committing, or pushing can now run through the
+  implementer instead of a generic subagent. The mode is declared, never inferred from a fence;
+  commit authority `worker` stays the default, so existing briefs behave as before.
+
+## [0.17.0] - 2026-09-23
+
+### Changed
+
+- **`implement-dispatch`: a phase boundary is not a stopping point in autonomous mode.** The
+  status summary and resume prompt are followed by the next dispatch in the same turn unless a
+  resident-vs-clear condition calls for a clear; otherwise the run
+  stops only on Major divergence, when blocked on the human, or before a destructive,
+  hard-to-undo, or outward action the plan does not cover.
+
 ## [0.16.8]
 
 ### Fixed
@@ -207,7 +255,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   pointer for a consumer who installs `implementation` alone and has never met that phrase. It now
   names `work-items:work-loop` and `source-control:babysit-loop`, which is what 0.15.0's own
   release note already told a changelog reader the rule cited. The wording deliberately echoes
-  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognises the
+  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognizes the
   other.
 
 ## [0.15.1]
@@ -343,7 +391,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **`implement`: the mid-phase handoff no longer triggers on a self-estimated context budget.** The
   guidance read "Mid-phase handoff is still appropriate when context is heavy or a pause is
-  imminent", which asks the model to judge its own window and hand off on that judgement. That is the
+  imminent", which asks the model to judge its own window and hand off on that judgment. That is the
   shape the `claude-config` instruction-audit catalog's check I23 detects, and the same clause was
   removed from `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
   user's report, an instrument that measures the window, or visible drift in the responses; a budget

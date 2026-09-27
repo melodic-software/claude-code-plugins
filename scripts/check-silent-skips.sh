@@ -177,9 +177,10 @@ if ((${#hooks[@]} > 0)); then
   report_hits "$(scan_hook "${hooks[@]}")"
 fi
 
-shopt -s nullglob
 test_files=()
 for test_file in scripts/*.test.sh; do
+  # An unmatched glob arrives as its own literal text, which is not a file, so
+  # the same `-f` guard the hook loop above uses covers the empty case here too.
   [[ -f "$test_file" ]] || continue
   # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
   # own body; scanning it would false-positive on those embeddings. Shape 3 is
@@ -189,7 +190,6 @@ for test_file in scripts/*.test.sh; do
   fi
   test_files+=("$test_file")
 done
-shopt -u nullglob
 if ((${#test_files[@]} > 0)); then
   report_hits "$(scan_test_skip_pass "${test_files[@]}")"
 fi

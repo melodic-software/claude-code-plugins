@@ -10,18 +10,17 @@
 # tracked config puts out of enforcement, 2 usage or a prerequisite this gate
 # cannot verify around.
 #
-# WHY (#2891). The de-slop campaign rewrites prose surface by surface, and each
-# landed shard is paid for by hand: a mechanical em-dash split changes meaning
-# often enough that every shard so far has needed a rationale-withheld reviewer
-# to catch clauses the automated passes waved through. Nothing then stops the
-# next contributor from reintroducing one, because no lane enforces the policy.
+# WHY. The de-slop campaign rewrites prose surface by surface, and each shard is
+# paid for by hand: a mechanical em-dash split changes meaning often enough that
+# a shard needs a rationale-withheld reviewer to catch clauses the automated
+# passes wave through. Without a lane enforcing the policy, nothing stops the
+# next contributor from reintroducing one.
 # A one-time purge with no gate is a purge that silently rots. This gate is the
 # ratchet: what the campaign has already cleaned stays clean.
 #
 # ALLOWLIST, NOT A REPO-WIDE RULE, and the distinction is the whole design.
-# 29,649 em-dash prose lines across 1,074 tracked markdown files remained when
-# this gate was written, so a repo-wide check would fail nearly every pull
-# request on contact and would have to be merged disabled, which is not a gate.
+# Much of the tracked markdown still carries em-dash prose lines, so a
+# repo-wide check would fail nearly every pull request on contact and would have to be merged disabled, which is not a gate.
 # Enforcing only DECLARED-CLEAN paths inverts that: blast radius at adoption is
 # zero, because every listed path already passes. Enforcement then grows with
 # the campaign instead of waiting for it. A shard that purges a surface adds
@@ -57,8 +56,7 @@
 #
 # THE GATE ONLY JUDGES rule-em-dash. The rest of the roster is wasted work here:
 # each enabled rule greps every declared file, and this script ignores those
-# findings. #3342 needs a several-hundred-file allowlist; that is only
-# affordable when this invocation is a one-rule run. Slugs are read from the
+# findings. A several-hundred-file allowlist is only affordable when this invocation is a one-rule run. Slugs are read from the
 # detector's own rule tables so a newly shipped rule is disabled here without a
 # second roster to drift.
 #
@@ -66,7 +64,7 @@
 # let a declared path pass without being judged: rule-em-dash's entry in
 # disabled_rules, em_dash_allowed_paths, and rule_allowed_paths["rule-em-dash"].
 # A path on the allowlist is a claim that the surface is purged; a per-rule
-# exemption on the same path is the opposite claim, and honouring it would let
+# exemption on the same path is the opposite claim, and honoring it would let
 # the gate report the surface clean while no finding on it was ever possible,
 # because such a file is still opened and still counted as scanned.
 # excluded_paths is the one exclusion left standing, because its files are
@@ -216,13 +214,11 @@ stale=0
 # reads it, this script runs under `set -u`, and a future early return between
 # the two would turn a clean run into an unbound-variable crash.
 excluded=0
-matched=()
 for glob in "${GLOBS[@]}"; do
-  matched=()
+  count=0
   for f in "${UNION[@]}"; do
-    glob_matches_path "$glob" "$f" && matched+=("$f")
+    glob_matches_path "$glob" "$f" && count=$((count + 1))
   done
-  count=${#matched[@]}
   if ((count == 0)); then
     echo "check-purged-em-dashes: stale allowlist entry matches no tracked file: $glob" >&2
     stale=1

@@ -17,10 +17,9 @@ import { visionGatedPromote } from "./vision-gated-promote.js";
 const tempDirs = [];
 
 afterEach(() => {
-  for (const dir of tempDirs) {
+  for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  tempDirs.length = 0;
 });
 
 /**
@@ -32,7 +31,6 @@ function makeVisionSliceDir(options = {}) {
   tempDirs.push(dir, framesDir);
 
   const sourceFile = "anchor_00000000_0001.png";
-  fs.writeFileSync(path.join(framesDir, sourceFile), "fake-png");
 
   const selectedFrames = CELL_IDS.map((_, index) => ({
     file: `anchor_${String(index).padStart(8, "0")}_0001.png`,
@@ -43,9 +41,7 @@ function makeVisionSliceDir(options = {}) {
   }));
 
   for (const frame of selectedFrames) {
-    if (!fs.existsSync(path.join(framesDir, frame.file))) {
-      fs.writeFileSync(path.join(framesDir, frame.file), "fake-png");
-    }
+    fs.writeFileSync(path.join(framesDir, frame.file), "fake-png");
   }
 
   const inputFiles = selectedFrames.map((frame) => frame.file);

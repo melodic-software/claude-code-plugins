@@ -5,6 +5,47 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.33] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `node` and the Claude Code CLI at load time.** `command -v node`,
+  `node --version`, `command -v claude`, and `claude --version` run as pre-computed context, so
+  `check` reads four rows instead of making those Bash calls. The two version probes are
+  pre-approved in `allowed-tools`, since a load-time command that is not allowed aborts the skill
+  outside auto mode. The FAIL rules are unchanged, and a policy-disabled injection falls back to
+  the Bash probe.
+
+## [0.6.32] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.6.31] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.6.30] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.6.29]
+
+### Changed
+
+- Merge the settings-path alternation in the settings-write-ask hook, inline the single-use snapshot predicates and share the degrade and exit assertions in the audit suites (behavior unchanged).
+
 ## [0.6.28]
 
 ### Changed

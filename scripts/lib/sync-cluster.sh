@@ -24,6 +24,13 @@
 #   sync_cluster_sync_summary    1 to print a trailing per-run copy count in sync
 #                                mode, 0 for the scripts that never printed one
 #
+# A gate whose --check-bump also gates surface no other cluster has
+# (scripts/sync-standards-contract.sh gates the contract's own frontmatter semver
+# and its CHANGELOG) keeps that one mode to itself, delegates the rest with
+# `sync_cluster::run "$mode"`, and calls
+# `sync_cluster::check_manifest_bumps_to <var> <base-ref>` for the
+# carrying-plugin walk so the walk still lives in one place.
+#
 # `--print-manifest` is the published surface scripts/affected-tests.sh reads.
 # It emits one `src<TAB><path>` line and zero or more `copy<TAB><path>` lines
 # (already-expanded array values). The consumer invokes this flag; it does not
@@ -60,27 +67,41 @@ sync_cluster::check() {
   echo "All ${#copies[@]} plugin copies match $src."
 }
 
+# sync_cluster::check_manifest_bumps_to <var> <base-ref>
+#
+# Walks the cluster's copies, reports on stderr every carrying plugin whose
+# manifest version did not move vs <base-ref>, and writes 1 into <var> when any
+# did not, 0 when all of them did. The answer goes into a caller variable rather
+# than the return status because a status has to be read in a condition, and
+# bash runs the whole body of a function called from a condition with errexit
+# off. Locals carry an _sc_ prefix so the caller may name any of them as <var>.
+sync_cluster::check_manifest_bumps_to() {
+  local _sc_base="$2" _sc_copy _sc_manifest _sc_base_version _sc_head_version _sc_stale=0
+  for _sc_copy in ${copies[@]+"${copies[@]}"}; do
+    # shellcheck disable=SC2295  # the strip glob is a PATTERN, so it must stay unquoted
+    _sc_manifest="${_sc_copy%%${sync_cluster_manifest_strip}}/.claude-plugin/plugin.json"
+    # A plugin absent at the base ref is new in this change set; its initial
+    # release already carries the new canonical content.
+    _sc_base_version=$(git show "$_sc_base:$_sc_manifest" 2>/dev/null | jq -r '.version // empty' || true)
+    if [[ -z "$_sc_base_version" ]]; then
+      continue
+    fi
+    _sc_head_version=$(jq -r '.version // empty' "$_sc_manifest")
+    if [[ "$_sc_head_version" == "$_sc_base_version" ]]; then
+      echo "STALE VERSION: $src changed vs $_sc_base but $_sc_manifest is still $_sc_head_version" >&2
+      _sc_stale=1
+    fi
+  done
+  printf -v "$1" '%s' "$_sc_stale"
+}
+
 sync_cluster::check_bump() {
-  local base="$1" copy manifest base_version head_version stale=0
+  local base="$1" stale=0
   if git diff --quiet "$base" -- "$src"; then
     echo "$sync_cluster_noun unchanged vs $base; no version bumps required."
     exit 0
   fi
-  for copy in ${copies[@]+"${copies[@]}"}; do
-    # shellcheck disable=SC2295  # the strip glob is a PATTERN, so it must stay unquoted
-    manifest="${copy%%${sync_cluster_manifest_strip}}/.claude-plugin/plugin.json"
-    # A plugin absent at the base ref is new in this change set; its initial
-    # release already carries the new lib.
-    base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
-    if [[ -z "$base_version" ]]; then
-      continue
-    fi
-    head_version=$(jq -r '.version // empty' "$manifest")
-    if [[ "$head_version" == "$base_version" ]]; then
-      echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
-      stale=1
-    fi
-  done
+  sync_cluster::check_manifest_bumps_to stale "$base"
   if [[ "$stale" -ne 0 ]]; then
     echo "Bump the version of every $sync_cluster_carrier plugin so consumers receive the lib change." >&2
     exit 1

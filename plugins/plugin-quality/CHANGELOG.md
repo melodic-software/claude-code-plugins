@@ -5,6 +5,63 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.24] - 2026-09-27
+
+### Fixed
+
+- The `auditor` agent pins `model: opus`, so a dispatch that passes no `model` no longer runs on the orchestrator's model. The agent audit checklist's Model check now asks that a definition name its model explicitly and that `inherit` carry a stated reason on the model line. `audit` Step 2 passes the session's own model as the per-call `model` when the session resolves above `opus`, so the verdict never runs below the session's tier.
+
+## [0.7.23] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.7.22] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.7.21]
+
+### Changed
+
+- The citation and zones drift suites and the packet prune and seal contract suites source one scripts/test-helpers.sh with a lane initializer per assertion shape instead of four inline copies; context-zone.test.sh stays the registered twin of its context-guard canonical. Output and exit codes are byte-identical.
+
+## [0.7.20]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.7.19]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.7.18]
+
+### Changed
+
+- Probe the digest tool once at startup and inline the symlink test in packet-seal, merge the escaped-path guard in packet-prune and trim the drift suites (behavior unchanged).
+
+## [0.7.17]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.7.16]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
 ## [0.7.15]
 
 ### Changed
@@ -385,7 +442,7 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   rule, and `argument-hint` were all singular. A request like "audit the plugins we used" resolves
   to several components, the run reasonably allocates one conforming packet per component, and the
   re-derived slug then matches **no directory at all**, so a post-compaction resume concludes the
-  findings are missing from a run that produced six packets. Fan-out is now documented behaviour
+  findings are missing from a run that produced six packets. Fan-out is now documented behavior
   rather than an undocumented improvisation: the argument resolves to a LIST of targets, each gets
   its own packet under a slug derived from the **resolved component identity** (capped at 64
   characters, which also retires the Windows 260-character path hazard), and resume

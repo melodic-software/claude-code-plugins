@@ -102,7 +102,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | Dispatch a dedicated conflict worker (`git merge`, never rebase; it resolves locally and never pushes, the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no, report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no, report | **pre-push-outdated bot threads only** | any thread **it has addressed**, bot, AI-review, or human |
 | Merge a PR | no. Report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
-| Mark a completed draft ready (`gh pr ready`) | no, report | no, report | yes, via its worker's completeness assessment |
+| Mark a completed draft ready (`/source-control:pull-request ready`) | no, report | no, report | yes, via its worker's completeness assessment |
 | Refresh a stale (behind-base) branch, post a review trigger | orchestrator-only | orchestrator-only | orchestrator-only |
 | `CHANGES_REQUESTED`, security/P1, posture, design, dependency acceptance | escalate | escalate | attempt with research; escalate only when it cannot confidently and safely resolve |
 
@@ -128,9 +128,12 @@ never merged autonomously in ANY tier, the merge gate refuses it absent `--allow
 which is passed only on an explicit user instruction to merge that specific PR.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
-draft skip. Safe: evaluate and report draft status, never `gh pr ready`. Worker and autopilot:
-zero-blocker drafts always route through a worker (see Fan out). `gh pr ready` happens only in
-autopilot, only for a draft its worker assesses complete.
+draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
+autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
+happens only in autopilot, only for a draft its worker assesses complete, and it runs
+`/source-control:pull-request ready` rather than a bare `gh pr ready`: that step merges the base
+branch and runs the security review and the verify gate before it flips, which a bare flip does
+not.
 
 ## Autopilot
 
@@ -231,8 +234,8 @@ snapshot and assessment, never an unattended unpinned override.
 
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
-completed draft is marked ready with `gh pr ready` and continues through the normal guarded
-path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
+completed draft is marked ready with `/source-control:pull-request ready` and continues through
+the normal guarded path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
 GitHub's
 [draft-stage contract](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)
 confirms a draft cannot merge until it is marked ready. Completeness of the diff is not the
@@ -363,7 +366,7 @@ post-push merge gating with pinned resolves, per-PR worktree cleanup, and the ne
 
 ## Reporting
 
-Report only material findings, one line per materially changed or blocked PR:
+Report only material findings, one line per materially changed or blocked PR, with the PRs waiting on the user (a decision, a human merge, or a pinned command to run) first:
 
 ```text
 repo#number (@author) | checks | action | open items
@@ -371,7 +374,7 @@ repo#number (@author) | checks | action | open items
 
 Material findings: fixes committed or pushed; new failing or pending required checks; new
 blocking bot feedback; new ordinary human comments (one notification per stable comment ID,
-never an automatic reply); PRs merged; a PR the host runtime's permission layer left "ready,
+never an automatic reply); PRs merged, or armed for auto-merge (`action: auto-merge`, still open, stays queued); a PR the host runtime's permission layer left "ready,
 awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge

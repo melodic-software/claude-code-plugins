@@ -17,17 +17,23 @@ from babysit_gh import (
     find_open_prs_for_head_ref,
     gh_json,
     parse_repo_number,
+    run_gh,
     view_pr,
 )
 from babysit_state import (
     load_state,
+    require_pr_state,
     resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
     state_path_for,
     write_state,
 )
-from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, json_object
+from babysit_util import (
+    MIN_HEAD_SHA_PREFIX_LENGTH,
+    configure_stdio,
+    json_object,
+)
 
 
 def allowed_owners_from_policy(policy: dict[str, Any]) -> frozenset[str]:
@@ -74,6 +80,17 @@ def validate_current_candidate(
     return current
 
 
+def disarm_auto_merge(repo: str, number: int) -> None:
+    """Disable an armed auto-merge before the branch moves; a failure raises.
+
+    A push by a writer keeps GitHub auto-merge armed, so the new head could merge
+    on `ci-status` before the AI review lanes re-review it. The merge lane
+    re-arms once both lanes finish on the new head.
+    """
+    if json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"])).get("auto_merge"):
+        run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])
+
+
 def require_worker_lease(
     args: argparse.Namespace,
     state_dir: Path,
@@ -107,10 +124,7 @@ def run_locked(
     key = f"{repo}#{number}"
     require_worker_lease(args, state_dir, repo, number)
     state = load_state(state_path)
-    pr_state_value: Any = cast(Any, state.get("prs") or {}).get(key)
-    if not isinstance(pr_state_value, dict):
-        raise RuntimeError(f"missing snapshot state for {key}; run --write-state first")
-    pr_state = cast(dict[str, Any], pr_state_value)
+    pr_state = require_pr_state(state, key)
     expected_head_sha = resolve_expected_head_sha(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )
@@ -169,6 +183,7 @@ def run_locked(
     try:
         validate_current_candidate(repo, number, expected_head_sha, allowed_owners)
         require_worker_lease(args, state_dir, repo, number, renew=True)
+        disarm_auto_merge(repo, number)
         response = gh_json(
             [
                 "api",

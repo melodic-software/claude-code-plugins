@@ -43,28 +43,13 @@ if [[ ! -r "$CONTRACT" ]]; then
   echo "SKIP: context-guard reader contract not reachable (installed-cache isolation) — drift lane runs in the monorepo only"
   exit 0
 fi
-for f in "$RESOLVER" "$SKILL"; do
-  if [[ ! -r "$f" ]]; then
-    echo "FAIL: required file missing or unreadable: $f" >&2
-    exit 1
-  fi
-done
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
+test_helpers::drift_lane
 
-# Normalize: drop markdown emphasis/backticks, flatten all whitespace runs.
-norm() {
-  tr -d '`*' <"$1" | tr '\n' ' ' | tr -s ' '
-}
+require_readable "$RESOLVER" "$SKILL"
+
 RESOLVER_N=$(norm "$RESOLVER")
 SKILL_N=$(norm "$SKILL")
 CONTRACT_N=$(norm "$CONTRACT")
@@ -84,9 +69,6 @@ both() {
 resolver_and_contract() {
   both "$RESOLVER_N" "scripts/context-zone.sh" "$1" "$2"
 }
-skill_and_contract() {
-  both "$SKILL_N" "skills/audit/SKILL.md" "$1" "$2"
-}
 
 resolver_and_contract "staleness window (10 minutes)" "10 minutes"
 resolver_and_contract "snapshot path pattern" "~/.claude/context-guard/context/<session_id>.json"
@@ -99,8 +81,6 @@ resolver_and_contract "token-shape version floor" "cli_version"
 resolver_and_contract "token-shape version floor value" "2.1.132"
 resolver_and_contract "zone vocabulary" "smart / acceptable / dumb / unknown"
 
-skill_and_contract "evidence-degraded marker path" "<session_id>.compacted"
+both "$SKILL_N" "skills/audit/SKILL.md" "evidence-degraded marker path" "<session_id>.compacted"
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ $FAIL -eq 0 ]]
+drift_report

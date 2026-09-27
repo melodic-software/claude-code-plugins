@@ -69,7 +69,7 @@
         "handle_alpha is NOT verdicted dead, and the getattr dispatch is cited as the saving evidence",
         "handle_beta is NOT verdicted dead, and the string-keyed ROUTES table is cited as the saving evidence",
         "The 60% confidence value is described as fixed for every unused symbol and therefore useless for ranking or filtering",
-        "The Python lane is labelled with its measured low precision instead of being presented as equal in strength to the knip lane",
+        "The Python lane is labeled with its measured low precision instead of being presented as equal in strength to the knip lane",
         "Findings come from parsing the canned capture rather than from reading the Python sources and judging them directly"
       ]
     },

@@ -156,9 +156,19 @@ assert_contains "and the case-collision pass" "$out" "differing only by case"
 if command -v shellcheck >/dev/null 2>&1; then
   RC_FILE="$SCRIPT_DIR/../../../../../.shellcheckrc"
   sc_args=(-x)
-  [[ -f "$RC_FILE" ]] && sc_args+=("--rcfile=$RC_FILE")
-  sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
-  assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"
+  # --rcfile is how this repo's rcfile is applied. A shellcheck that rejects
+  # the flag cannot apply that file (it targets a newer ShellCheck), and
+  # failing the suite on the flag itself hides every other case.
+  if [[ -f "$RC_FILE" ]] && shellcheck --help 2>&1 | grep -q -- '--rcfile'; then
+    sc_args+=("--rcfile=$RC_FILE")
+    sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
+    assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"
+  elif [[ -f "$RC_FILE" ]]; then
+    printf 'SKIP: shellcheck has no --rcfile, so the repo rcfile cannot be applied\n'
+  else
+    sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
+    assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"
+  fi
 else
   printf 'SKIP: shellcheck not installed\n'
 fi

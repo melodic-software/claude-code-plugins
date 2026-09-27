@@ -876,7 +876,7 @@ run_pwsh "PS: braced call target, single positional (allowed — #2848 verifier)
 # scanner's `[^}]*` stopped at the injected brace, the whitespace boundary failed,
 # and the call site vanished: both measuring probes returned false and the gate
 # fell through ALLOWED. The escape is now consumed BEFORE the deletion
-# (ps::fold_escaped_brace_closers), and the target token may carry non-space text
+# (ps::fold_escaped_brace_closers_to), and the target token may carry non-space text
 # glued after its closing brace. Blocked pre-0.28.33; these pin the recovery.
 # shellcheck disable=SC2016
 run_pwsh "PS: escaped closer in a braced call target, positional Path+Value (blocked — #2908 review)" \
@@ -1071,6 +1071,29 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
   "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+# The write twin of the comment-tail here-string opener. PowerShell reads `# @"`
+# as comment text, so the `@"` opens nothing and the Set-Content under it is a
+# live top-level command; the reduction takes the line as an opener and drops
+# that write as here-string body. Measured on the base through this hook: rc 0,
+# with the write never seen. A `#` anywhere on a CONFIRMED opener line, before
+# the two-character suffix, now reports a bypass by shape, on a plain substring
+# test of the raw line with no quote pairing. This guard consults no allow-list,
+# so the refusal here is final.
+run_pwsh "PS: Set-Content recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "Set-Content f.txt x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "Set-Content f.txt x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
@@ -1083,7 +1106,7 @@ run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
 # --- fd-dup merge must not hide a computed writer's operands (#2927) ---------
-# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region
+# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region_to
 # ends a call's operand region at a depth-zero `;` `|` `&`. So the region of
 # `& $w 2>&1 f.txt x` was truncated to `" 2>"`, both measuring probes went silent,
 # and a working `Set-Content <path> <value>` — verified as a real write under
@@ -1326,7 +1349,7 @@ assert_contains "PS write block tells operator to re-enable kill switch" "$psout
 # --- Enforcement-scope disclosure -------------------------------------------
 # The message asserted "use Write or Edit instead" with no scope, so it read as
 # "shell file writes are blocked" when the guard is deliberately producer-scoped
-# over one command string. Both lanes must carry the scope, and the behaviour
+# over one command string. Both lanes must carry the scope, and the behavior
 # the scope describes is pinned below it so message and reality move together.
 scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
 assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
@@ -1374,7 +1397,7 @@ assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Obj
 assert_contains "powershell block names the interpreter family it covers" "$psscope" \
   "python/python3/py/pypy with -c"
 
-# The behaviour the scope note describes. A write inside an invoked script is
+# The behavior the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
 # the producer-scoped design — so the note must not promise either is blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
@@ -1461,7 +1484,7 @@ run "scratch: tilde target (blocked)" \
   "echo hello > ~/scratch/data.json" 2 "$SCRATCH_ENV=/tmp/scratch,~"
 run "scratch: glob target (blocked)" \
   "echo hello > /tmp/scratch/*.json" 2 "$SCRATCH_ENV=/tmp/scratch"
-# A root that fails the same normalization is skipped, not honoured loosely.
+# A root that fails the same normalization is skipped, not honored loosely.
 run "scratch: relative configured root exempts nothing (blocked)" \
   "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=scratch"
 run "scratch: root of / exempts nothing (blocked)" \
@@ -1650,7 +1673,7 @@ run_cwd "default: temp write blocks when the project IS the temp root" \
   "echo hello > /tmp/f" /tmp 2 "$PROJ_ENV=/tmp"
 # With no project root the guard cannot establish either default, so both fail
 # closed. This is also what keeps the option-unset assertions above measuring
-# the shipped behaviour they were written for.
+# the shipped behavior they were written for.
 run_cwd "default: temp write blocks with no project root" \
   "echo hello > /tmp/probe.json" "$PROJ" 2 "$PROJ_ENV="
 run_cwd "default: memory tier blocks with no project root" \
@@ -1790,9 +1813,86 @@ fi
 run_cwd "symlink: a wholly nonexistent temp path is still exempt" \
   "echo hello > /tmp/bhb-nonexistent/deeper/probe.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
 
+# --- the temp default on a Windows drive path --------------------------------
+# The guard folds a `C:/...` operand to `/c/...` while the temp candidates
+# normalize to `C:/...`, so the drive-spelled temp tree never matched. Host-gated:
+# the drive-letter TEMP exists only on a Windows host. The project root is a
+# non-temp, non-repo spelling nothing on disk has to back.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
+  command -v cygpath >/dev/null 2>&1 && [[ -d "${TEMP:-}" ]]; then
+  WIN_LONG=$(cygpath -l -m "$TEMP")
+  WIN_SHORT=$(cygpath -s -m "$TEMP")
+  WIN_PROJ=C:/srv-bhb-proj
+  WIN_TARGET="$WIN_LONG/claude/bhb-probe/scratchpad/probe.txt"
+  # A session rooted at the home directory keeps the exemption: home is not
+  # under a temp tree.
+  run_cwd "windows temp: long-name target allowed with the project root at home" \
+    "echo hello > $WIN_TARGET" "$HOME" 0 "$PROJ_ENV=$HOME"
+  run_cwd "windows temp: long-name target allowed with a non-temp project root" \
+    "echo hello > $WIN_TARGET" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: /c/ spelling of the target allowed" \
+    "echo hello > $(cygpath -u "$WIN_TARGET")" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: no project root keeps the block" \
+    "echo hello > $WIN_TARGET" "$WIN_PROJ" 2
+  run_cwd "windows temp: a TempEvil sibling still blocks" \
+    "echo hello > ${WIN_LONG}Evil/f" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  # Enough `..` to climb from the temp root back to the drive root, then into
+  # the project.
+  WIN_UP=""
+  WIN_REST="${WIN_LONG#?:}"
+  while [[ "$WIN_REST" == */* ]]; do
+    WIN_REST="${WIN_REST#*/}"
+    WIN_UP="$WIN_UP/.."
+  done
+  run_cwd "windows temp: a .. climb out of temp into the project still blocks" \
+    "echo hello > $WIN_LONG$WIN_UP/srv-bhb-proj/src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: a relative project file still blocks" \
+    "echo hello > src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  # `//c/...` is the share `Users` on a host named `c`, not the local drive.
+  run_cwd "windows temp: a //c/ UNC spelling of the temp path still blocks" \
+    "echo hello > //c${WIN_LONG#?:}/f" "$HOME" 2 "$PROJ_ENV=$HOME"
+  # AC6 on Windows: a junction inside the temp tree pointing at a project
+  # outside it. The project sits in the repo's gitignored memory tier, as the
+  # symlink case above does.
+  WIN_JDIR="$WIN_LONG/bhb-junction-$$"
+  WIN_JPROJ="$(cd "$HOOK_DIR/../../.." && pwd)/.work/bhb-junction-proj-$$"
+  mkdir -p "$WIN_JDIR" "$WIN_JPROJ/src"
+  if cmd //c mklink //J "$(cygpath -w "$WIN_JDIR/to-proj")" "$(cygpath -w "$WIN_JPROJ")" >/dev/null 2>&1 &&
+    test -L "$WIN_JDIR/to-proj"; then
+    run_cwd "windows temp: a junction out of the temp tree into the project blocks" \
+      "echo secret > $WIN_JDIR/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
+    run_cwd "windows temp: a sibling of the junction stays allowed" \
+      "echo probe > $WIN_JDIR/scratch.txt" "$WIN_JPROJ" 0 "$PROJ_ENV=$WIN_JPROJ"
+  else
+    printf 'SKIP: Windows junction escape not asserted (mklink //J failed or the link is not seen as a link; no coverage here, not a pass)\n'
+  fi
+  # Remove the junction itself first, never through it; then only empty dirs.
+  [[ -e "$WIN_JDIR/to-proj" || -L "$WIN_JDIR/to-proj" ]] &&
+    cmd //c rmdir "$(cygpath -w "$WIN_JDIR/to-proj")" >/dev/null 2>&1
+  rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
+  if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
+    # Documented residual: an 8.3-spelled target is refused by _norm_path's
+    # fail-closed rule for any operand carrying `~`, before the temp compare
+    # runs, so the harness's own 8.3 scratchpad spelling stays blocked.
+    run_cwd "windows temp: an 8.3 short-name target is still refused" \
+      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  else
+    printf 'SKIP: 8.3 temp target not asserted (TEMP has no short-name spelling on this volume; no coverage here, not a pass)\n'
+  fi
+else
+  printf 'SKIP: Windows drive-path temp default not asserted (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)\n'
+fi
+
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
   "echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
+# A leading `//` names a network host on Windows and is implementation-defined
+# on POSIX, so neither the temp default nor a configured root exempts it.
+run_cwd "default: a leading // temp spelling still blocks" \
+  "echo hello > //tmp/probe.json" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: a leading // configured-root spelling still blocks" \
+  "echo hello > //var/jobtmp/f" "$PROJ" 2 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
 # The kill switch is still the whole-guard switch.
 run_cwd "default: repo file allowed when the guard is disabled" \
   "echo hello > src/main.py" "$PROJ" 0 "$PROJ_ENV=$PROJ" \
@@ -2115,6 +2215,12 @@ run_pwsh "#2663: PowerShell write still blocked after lazy source" \
 # Path-identity keeps ordinary renames unblocked; scratch-root dest stays staging.
 run "#2731: jq > tmp && mv tmp repo-file (blocked)" \
   "jq . f > /tmp/x && mv /tmp/x plugins/guardrails/.claude-plugin/plugin.json" 2
+# Path identity survives a leading `//` on either side: POSIX resolves `//tmp/x`
+# and `/tmp/x` to one file, so the move is still the staged write.
+run "#2731: jq > //tmp && mv /tmp dest (blocked)" \
+  "jq . f > //tmp/x && mv /tmp/x out.json" 2
+run "#2731: jq > /tmp && mv //tmp dest (blocked)" \
+  "jq . f > /tmp/x && mv //tmp/x out.json" 2
 run "#2731: curl > tmp && cp tmp dest (blocked)" \
   "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
 run "#2731: sort > tmp && mv -f tmp dest (blocked)" \
@@ -2150,7 +2256,7 @@ bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + 
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 # --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
 # expressions, neither aware of which style opened first. The single-quote
 # expression matched from the apostrophe inside one double-quoted string to the
 # apostrophe inside the next and DELETED everything between them, so a computed
@@ -2179,7 +2285,7 @@ run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
 # Both the backtick and the doubled-quote escape therefore delete NOTHING on
 # their line. This spelling
 # reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
-# backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
+# backticks are stripped from `lcq` — so `ps::blank_quoted_spans_to` sees the
 # backtick and the backtick-ambiguity branch emits the line verbatim. The
 # doubled-quote arm is not what catches this pinned case.
 # shellcheck disable=SC2016
@@ -2203,7 +2309,7 @@ run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed 
   "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
 
 # --- #2906: quoting an operand is not a free escape from the positional signal --
-# ps::blank_quoted_spans DELETES quoted spans, so the two-positional arm of
+# ps::blank_quoted_spans_to DELETES quoted spans, so the two-positional arm of
 # ps::computed_call_has_positional_write_signal saw `& $w 'f.txt' 'x'` as a
 # zero-operand call. Quoting is the idiomatic Path+Value spelling, not an
 # obscure one. The contained fix keeps those operands present-but-opaque for

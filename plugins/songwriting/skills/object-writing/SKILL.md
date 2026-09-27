@@ -38,7 +38,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when producing lines) before output.
+- **Pre-flight:** run response-filter §7 (+ §2 when producing lines) before output.
 - If the user asks for a prompt, generate one usable timed exercise immediately (default
   90 seconds). Do not assign the full curriculum unless asked. That is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not
@@ -72,12 +72,22 @@ Dispatch rules:
 5. **For rounds:** name what made the strongest write of a round work, then carry that as the
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
 6. **Set the model explicitly on every agent call, never let the fleet inherit the session's.** The
-   `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model unset
-   runs the whole fleet on whatever the session happens to run on, a tier picked for the
-   orchestrator's work, not the writers'. Unset is not a default; it is the bug. A global
-   `CLAUDE_CODE_SUBAGENT_MODEL` override outranks every per-call `model` argument and agent
-   frontmatter when set to anything but `inherit`. Keep it unset for fleet dispatches, and stop to
-   ask if the consumer's settings export a tier above the fleet default before spawning.
+   `object-writer` agent's frontmatter pins `opus` as a fail-safe default, so a call that forgets
+   the model never lands on whatever the session happens to run on, a tier picked for the
+   orchestrator's work, not the writers'. The pin is not the fleet tier: every call still names
+   the fleet default below explicitly. A subagent's model resolves in this order: the per-call
+   `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's
+   model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` ignores both the per-call `model` and the
+   frontmatter. Stop to ask before spawning when it is on and either `CLAUDE_CODE_SUBAGENT_MODEL`
+   names a tier above the fleet default, or `CLAUDE_CODE_SUBAGENT_MODEL` is unset (or set to
+   `inherit`, which counts as unset), which runs
+   every subagent on the session's model and so puts the fleet on the orchestrator's tier.
+
+   *Record.* Claim: the resolution order above, and that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+   overrides it, onto `CLAUDE_CODE_SUBAGENT_MODEL` when that is set and onto the session's model
+   when it is not. Basis: <https://code.claude.com/docs/en/sub-agents#choose-a-model>. Verified
+   2026-09-27. Recheck: the page changes the order or the `_FORCE` behavior, or a release note
+   names subagent model resolution.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Resolve it from the consuming project's own
@@ -132,7 +142,7 @@ lyric lines, and being mid-conversation about a song does not authorize it to.
 | --- | --- |
 | A finished verse, chorus, or bridge line | `/songwriting:co-write` line-brainstorm |
 | A rhyme partner or rhyme list | `/songwriting:rhyme` |
-| A section rewrite, or a judgement about where a section's material belongs | `/songwriting:song-form` |
+| A section rewrite, or a judgment about where a section's material belongs | `/songwriting:song-form` |
 | A scansion or stress-map claim | `/songwriting:meter-prosody` |
 
 Routing means invoking that skill, not summarizing what you believe it would say. Emitting a lyric

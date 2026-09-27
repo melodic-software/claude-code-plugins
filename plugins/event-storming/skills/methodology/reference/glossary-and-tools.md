@@ -33,7 +33,7 @@
 | **Impact Mapping** | A strategic planning technique (by Gojko Adzic) that connects goals to deliverables through actors and impacts. |
 | **Model Storming** | The radical approach to modeling big stuff when you have no idea what you're doing: "the meta-process that lets you collaboratively model virtually everything without having an idea of how it will look like at the end." Extreme incremental notation. |
 | **Theory of Constraints** | Focuses on finding the main system constraint (bottleneck). Improving around the bottleneck yields major improvements; improving elsewhere leads to negligible results or worse. Brandolini: "once you spot the bottleneck, every little improvement counts." From Goldratt's "The Goal." |
-| **Blink Modelling** | A format where you model a domain with an expert you've never met in under 2 hours. Demonstrates "Rush to the Goal" pattern. Coined at DDD Europe 2020. |
+| **Blink Modeling** | A format where you model a domain with an expert you've never met in under 2 hours. Demonstrates "Rush to the Goal" pattern. Coined at DDD Europe 2020. |
 
 ### EventStorming Format Names
 

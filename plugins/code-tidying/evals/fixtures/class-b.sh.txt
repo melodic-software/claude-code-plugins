@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+cache_ttl_seconds() {
+  local days="$1"
+  # seconds per day
+  local ttl=$((days * 86400))
+  echo "$ttl"
+}
+
+greeting() {
+  # user's display name
+  local n="$1"
+  echo "Hello, $n"
+}

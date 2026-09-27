@@ -87,7 +87,7 @@ Each row states its own invocation form, since one row is an agent and the rest 
 | Whether a page **deserves to exist**: derivable from the code it describes, aspirational, or redundant. Also doc freshness scoped to a change under review | the `review` plugin's `doc-drift-detector` **agent**, so invoke it with the Agent tool as `@review:doc-drift-detector`, or run `/review:fanout run-everything`. Name that mode: fanout's default lifecycle-tiered mode never dispatches this agent, only `run-everything` does (`plugins/review/skills/fanout/context/run-everything-mode.md`), so an unqualified `/review:fanout` can finish without ever reaching the owner. **The dispatch rule is the question asked, not the scope swept:** whether a page should exist is the agent's, it runs a derivability admission gate this skill has no equivalent of; whether a page's claims are TRUE is always this skill's, repo-wide included. `--docs-only` is this skill's own exhaustive claim pass and never routes out |
 | A session's own working assumptions: base-branch movement, a stale handoff, a referenced PR, issue, or branch whose state has since changed | `/session-flow:reanchor` |
 | Whether the surface in flight still matches the CURRENT official upstream docs | `/discipline:recheck-against-upstream` |
-| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/provenance:audit` |
+| Prose restating an external source with no pointer, and verification stamps past their expiry window | `/attribution:audit` |
 | Claude Code's own configuration and instruction surfaces: `settings.json`, `.mcp.json`, hooks, permissions, environment variables, and the text of `CLAUDE.md`, `AGENTS.md`, and `.claude/rules/` judged against current model capability or against how Claude Code actually behaves | `/claude-config:audit`, with `/claude-config:audit-automation-gaps` for automation-landscape gaps and `/claude-config:audit-instructions` for instruction-surface drift. Phase 0 reads those instruction files here too, but only as the convention lens: a claim they make about this repo is this skill's to verify, a claim they make about the harness or a prescription aimed at the model is not |
 | What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` |
 | What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` |
@@ -262,7 +262,9 @@ Doc Drift.
 
 ### Output format
 
-Use this exact table with consistent `error`/`warning`/`info` severity:
+Open with a **Needs you** line naming anything waiting on the user: a finding whose fix turns on a
+decision (which of two conflicting sources is right, a planned-versus-abandoned call), or the
+config-gap observations to persist. Write "Needs you: none" when nothing waits. Then use this exact table with consistent `error`/`warning`/`info` severity:
 
 | # | Severity | Category | File:Line | Description | Verification |
 |---|----------|----------|-----------|-------------|-------------|

@@ -25,7 +25,7 @@ skip-with-reason. Order matters: cheap kills first.
 **What this file is.** The rubric form is this repo's, not Pat's. He never
 publishes a per-candidate emission cycle. What is his is the material most boxes
 invoke, and this file quotes that material from the plugin's own context files
-rather than paraphrasing it. Boxes with no book source are still here, labelled
+rather than paraphrasing it. Boxes with no book source are still here, labeled
 writer-derived or plugin-authored so you can tell the tooling from the books.
 Every pass opens with a **Provenance:** line: Pat-anchored with a citation, or
 writer-derived / plugin-authored.
@@ -416,7 +416,7 @@ promotes it from a rewrite nicety into a kill rule.
      vernacular, which is what the Sofía failure actually was, and none of them
      is attributed to Pat. -->
 
-The failure this pass exists for is not a wrong emotional colour; it is
+The failure this pass exists for is not a wrong emotional color; it is
 out-of-vernacular drift. The writer caught it on `silt`: the anti-cliche
 discipline overcorrects into literary or rare words nobody sings.
 
@@ -425,7 +425,7 @@ discipline overcorrects into literary or rare words nobody sings.
       (`bracelet's trill` did). Unsayable = rewrite, not polish
 - [ ] **Bar-story test**: is this word in a bar-story telling of THIS scene, the
       words someone reaches for recounting it out loud? The writer's own
-      formulation and his recorded judgements, 2026-08-12: `silt` rejected as too
+      formulation and his recorded judgments, 2026-08-12: `silt` rejected as too
       literary, `picturesque` accepted, `so` never
 - [ ] **Common-word stock searched FIRST**: brainstorm from common idiom (`time
       to kill`, `sit still`, `the bill`), then reframe against cliche, per
@@ -476,7 +476,7 @@ Boundaries* (2011), Challenge 2 and *Writing Better Lyrics* (2009), Chapter 3.
       the first term. A simile-only candidate is usually a metaphor the writer
       flinched from (see [metaphor.md](metaphor.md))
 - [ ] **Borrowed physics named** when the metaphor works by importing another
-      thing's behaviour: Sofía's `the evening spill` is verbal metaphor because
+      thing's behavior: Sofía's `the evening spill` is verbal metaphor because
       evenings do not spill and fountains do (writer-derived example, 2026-08-12)
 
 ## 10. Spotlight content ("does it hit")
@@ -588,7 +588,7 @@ AND the accepted line that sets the standard:
       song means as the accepted lines hold?
 - [ ] **Rejection check**: does the candidate reuse a word or a move already on
       the writer's recorded rejection list? A repeat of a named rejection is an
-      automatic fail, not a judgement call
+      automatic fail, not a judgment call
 
 If no voiceprint exists, report `UNKNOWN — no voiceprint on disk` and move on.
 That is this pass's scope condition failing, in the sense rule 2 allows, and it is

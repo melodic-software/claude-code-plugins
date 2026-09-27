@@ -78,7 +78,7 @@ US="$(printf '\037')"
 TAB="$(printf '\t')"
 
 usage() {
-  sed -n '2,71p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,71{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
 }
 
 die() {
@@ -297,7 +297,7 @@ digest16 probe >/dev/null || die "neither sha256sum nor shasum is available"
 kinds="$(read_kinds "$kinds_file")"
 [[ -n "$kinds" ]] || die "no node kinds found in $kinds_file"
 kinds_flat="$(printf '%s' "$kinds" | tr '\n' ' ')"
-kinds_list="$(printf '%s' "$kinds_flat" | sed 's/ *$//' | sed 's/ /, /g')"
+kinds_list="$(printf '%s' "$kinds_flat" | sed 's/ *$//; s/ /, /g')"
 
 is_kind() {
   case " $kinds_flat " in
@@ -319,7 +319,7 @@ grade_entry() {
   local missing="" failures="" verdict="" detail=""
   [[ -n "$has_check" ]] || missing="check"
   [[ -n "$has_claim" ]] || missing="${missing:+$missing, }claim"
-  [[ -n "$site_count" && "$site_count" -gt 0 ]] || missing="${missing:+$missing, }sites"
+  [[ "$site_count" -gt 0 ]] || missing="${missing:+$missing, }sites"
   [[ -n "$has_reason" ]] || missing="${missing:+$missing, }reason"
   [[ -n "$has_date" ]] || missing="${missing:+$missing, }date"
 
@@ -391,7 +391,6 @@ reset_entry() {
 
 cur_id=""
 reset_entry
-status=0
 
 stdin_copy=""
 trap '[[ -z "$stdin_copy" ]] || rm -f "$stdin_copy"' EXIT
@@ -440,13 +439,12 @@ for record in "${records[@]}"; do
         ;;
       reason) [[ -z "$f2" ]] || has_reason=1 ;;
       date)
-        if [[ -z "$f2" ]]; then
-          :
-        elif is_calendar_iso_date "$f2"; then
+        # A nonempty value satisfies the required-key check whatever it says;
+        # only its calendar validity is a separate defect.
+        if [[ -n "$f2" ]]; then
           has_date=1
-        else
-          has_date=1
-          cur_defects="${cur_defects:+$cur_defects; }date is not ISO-8601 (YYYY-MM-DD): $f2"
+          is_calendar_iso_date "$f2" ||
+            cur_defects="${cur_defects:+$cur_defects; }date is not ISO-8601 (YYYY-MM-DD): $f2"
         fi
         ;;
       *) cur_defects="${cur_defects:+$cur_defects; }unrecognized key: $f1" ;;
@@ -469,5 +467,5 @@ done
 
 [[ "$kind_failure" -eq 0 ]] || printf 'accepted kinds: %s\n' "$kinds_list"
 printf 'suppression-lint: entries=%d ok=%d failed=%d\n' "$entries" "$ok_count" "$failed"
-[[ "$failed" -eq 0 ]] || status=1
-exit "$status"
+[[ "$failed" -eq 0 ]] || exit 1
+exit 0

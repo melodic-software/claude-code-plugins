@@ -122,25 +122,25 @@ cd "$ROOT" || die "cannot enter --root: $ROOT"
 # ---------------------------------------------------------------------------
 is_excluded() {
   case "$1" in
-  */evals/fixtures/* | evals/fixtures/*) return 0 ;;
-  */node_modules/* | node_modules/*) return 0 ;;
-  */vendor/* | vendor/*) return 0 ;;
-  .git/*) return 0 ;;
-  CHANGELOG.md | */CHANGELOG.md) return 0 ;;
+  */evals/fixtures/* | evals/fixtures/* | \
+    */node_modules/* | node_modules/* | \
+    */vendor/* | vendor/* | \
+    .git/* | \
+    CHANGELOG.md | */CHANGELOG.md) return 0 ;;
   *) return 1 ;;
   esac
 }
 
 classify_tier() {
   case "$1" in
-  CLAUDE.md | AGENTS.md | CLAUDE.local.md | .claude/CLAUDE.md) printf 'core' ;;
-  */CLAUDE.md | */AGENTS.md | */CLAUDE.local.md) printf 'core' ;;
-  .claude/rules/*.md | */.claude/rules/*.md) printf 'core' ;;
-  CONTRIBUTING.md | SECURITY.md | ARCHITECTURE.md | CONVENTIONS.md) printf 'named' ;;
-  *guidelines*.md | *Guidelines*.md) printf 'named' ;;
-  *conventions*.md | *Conventions*.md) printf 'named' ;;
-  *standards*.md | *Standards*.md) printf 'named' ;;
-  *style*.md | *Style*.md) printf 'named' ;;
+  CLAUDE.md | AGENTS.md | CLAUDE.local.md | .claude/CLAUDE.md | \
+    */CLAUDE.md | */AGENTS.md | */CLAUDE.local.md | \
+    .claude/rules/*.md | */.claude/rules/*.md) printf 'core' ;;
+  CONTRIBUTING.md | SECURITY.md | ARCHITECTURE.md | CONVENTIONS.md | \
+    *guidelines*.md | *Guidelines*.md | \
+    *conventions*.md | *Conventions*.md | \
+    *standards*.md | *Standards*.md | \
+    *style*.md | *Style*.md) printf 'named' ;;
   # `*` matches `/` in a case glob, so `docs/*.md` already covers every depth.
   docs/*.md | documentation/*.md | .github/*.md) printf 'docs' ;;
   */README.md) printf 'module-readme' ;;
@@ -157,12 +157,16 @@ SKIP_ROWS="$(mktemp)"
 ROWS="$(mktemp)"
 trap 'rm -f "$SKIP_ROWS" "$ROWS"' EXIT
 
+skip_row() {
+  printf 'SKIP\t%s\t%s\n' "$1" "$2" >>"$SKIP_ROWS"
+  SKIPPED=$((SKIPPED + 1))
+}
+
 if ((${#EXPLICIT[@]} > 0)); then
   for f in "${EXPLICIT[@]}"; do
     f="${f#./}"
     if [[ ! -f "$f" ]]; then
-      printf 'SKIP\t%s\tnot a readable file\n' "$f" >>"$SKIP_ROWS"
-      SKIPPED=$((SKIPPED + 1))
+      skip_row "$f" "not a readable file"
       continue
     fi
     FILES+=("$f")
@@ -176,14 +180,12 @@ else
     [[ -z "$f" ]] && continue
     [[ "$f" == *.md ]] || continue
     if is_excluded "$f"; then
-      printf 'SKIP\t%s\texcluded by corpus rules\n' "$f" >>"$SKIP_ROWS"
-      SKIPPED=$((SKIPPED + 1))
+      skip_row "$f" "excluded by corpus rules"
       continue
     fi
     tier="$(classify_tier "$f")"
     if [[ "$TIER" == "core" && "$tier" != "core" ]]; then
-      printf 'SKIP\t%s\toutside the core tier\n' "$f" >>"$SKIP_ROWS"
-      SKIPPED=$((SKIPPED + 1))
+      skip_row "$f" "outside the core tier"
       continue
     fi
     FILES+=("$f")
@@ -260,6 +262,7 @@ emit_file_facts() {
             ".windsurf .local .env .gitignore .gitattributes .editorconfig " \
             ".npmrc .nvmrc .dockerignore .clinerules .cursorrules", dd, " ")
       for (i in dd) dotdirs[dd[i]] = 1
+      split("must never always required prohibited forbidden", pos, " ")
     }
 
     # YAML frontmatter: only when it opens on line 1.
@@ -285,7 +288,6 @@ emit_file_facts() {
     {
       line = tolower($0)
       # Normative markers. Word-boundary-ish matching without GNU-only \b.
-      split("must never always required prohibited forbidden", pos, " ")
       for (i in pos)
         if (line ~ ("(^|[^a-z])" pos[i] "([^a-z]|$)")) { norm_hits++; seen_marker[pos[i]] = 1 }
       if (line ~ /(^|[^a-z])do not([^a-z]|$)/)   { norm_hits++; seen_marker["do-not"] = 1 }
@@ -345,6 +347,12 @@ lang_hints() {
   local file="$1"
   # ENVIRON rather than `awk -v`, for the reason given in emit_file_facts above.
   IP_FILE_PATH="$file" awk '
+    # One matcher for both tables below: what separates them is which spellings
+    # they carry, not how a spelling is matched.
+    function scan(table,   k) {
+      for (k in table)
+        if ($0 ~ ("(^|[^A-Za-z#+])" k "([^A-Za-z#+]|$)")) seen[sec "\t" table[k]] = 1
+    }
     BEGIN {
       path = ENVIRON["IP_FILE_PATH"]
       # CASE-SENSITIVE, and split into two sets — measured on a 1,137-file
@@ -376,10 +384,8 @@ lang_hints() {
     fence { next }
     /^#+[[:space:]]/ { sec = NR; next }
     {
-      for (k in unambiguous)
-        if ($0 ~ ("(^|[^A-Za-z#+])" k "([^A-Za-z#+]|$)")) seen[sec "\t" unambiguous[k]] = 1
-      for (k in ambiguous)
-        if ($0 ~ ("(^|[^A-Za-z#+])" k "([^A-Za-z#+]|$)")) seen[sec "\t" ambiguous[k]] = 1
+      scan(unambiguous)
+      scan(ambiguous)
     }
     END { for (s in seen) { split(s, p, "\t"); printf "HINT\t%s\t%s\tlang\t%s\n", path, p[1], p[2] } }
   ' "$file"

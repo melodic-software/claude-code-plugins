@@ -1,12 +1,12 @@
 ---
-description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
+description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
 argument-hint: "[audit|fix|update|report]. Default: audit"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
+  summary: Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist
 ---
 
 ## Pre-computed context
@@ -21,20 +21,21 @@ whole always-loaded set and is an estimate, not a measurement.
 
 Deterministic health check for the Claude Code instruction/memory layer. Audits files YOU write that
 shape Claude's behavior, not the entire context window (MCP tools, agents, and skills are covered by
-the `audit` and `automation-gaps` skills in the `claude-config` plugin).
+the `audit` and `audit-automation-gaps` skills in the `claude-config` plugin).
 
 ## Scope
 
 | Entity | Location | Loaded | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Every session, full, both files, when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the root or any directory above it displaces them (the user root's own `~/.claude/CLAUDE.md` does not count); under a `@AGENTS.md` shim it loads as that file's import instead | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
-| Nested `AGENTS.md` | `**/AGENTS.md` below the root | Only through a sibling `CLAUDE.md` that imports or symlinks it | Reachability only (N1); content is not audited |
-| Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
+| Nested `AGENTS.md` | `**/AGENTS.md` below the root | On a Read in that directory, unless a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on its path is read instead; then only through one that imports or symlinks it | Reachability only (N1); content is not audited |
+| Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `audit-automation-gaps` |
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
 from a single scope: [`${CLAUDE_PLUGIN_ROOT}/skills/stateless/context/status.md`](../stateless/context/status.md),
@@ -54,10 +55,12 @@ This audit owns instruction-layer **health**: structure, size, placement, and in
 the memory files against the codified checklist. Whether an instruction's *content* is still
 needed by the current model is the model-era fit question, owned by the `claude-config` plugin's
 `audit-instructions` skill. Prior-model workarounds, over-prescriptive scaffolding, bare
-prohibitions without rationale, reasoning-echo directives, and stale example scaffolding fall
-there. When
-that plugin is installed, route such findings to `/claude-config:audit-instructions`, invoked via
-the Skill tool, rather than
+prohibitions without rationale, reasoning-echo directives, think-carefully steers, vague design
+steers, settled-answers lines on analysis surfaces, and stale example scaffolding fall there.
+Guidance a long-run file *lacks* (when to stop and when to keep going, a finish line, a task file,
+the end-of-run report shape) is that plugin's `audit-prompting-postures`. When
+that plugin is installed, route such findings to `/claude-config:audit-instructions` or
+`/claude-config:audit-prompting-postures`, invoked via the Skill tool, rather than
 judging them against this checklist; when it is not installed, keep each as a criteria-free
 observation in this audit's report (never a checklist finding, never silently dropped) so the
 operator can weigh it against current official prompting guidance.
@@ -82,6 +85,16 @@ repo state; its **judgment tier**
 not in criteria. Label those "judgment candidate" in the report. Criteria derive from official Claude
 Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));
 refresh both via the `update` action.
+
+## Script paths
+
+The `context/` and `reference/` files write each bundled script as `<skill-dir>/scripts/<name>.sh`,
+where `<skill-dir>` is this skill's directory: `${CLAUDE_SKILL_DIR}`. Put that path in place of the
+placeholder before running a command. Those files arrive through the Read tool as plain bytes, so a
+`${…}` token in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference, "Where each variable resolves",
+and the skills page, "Available string substitutions", both verified 2026-09-27; recheck when either
+table adds supporting files to where a `${…}` reference resolves.
 
 ## Audit mode (default)
 
@@ -161,7 +174,8 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 
 ## Complementary workflows
 
-If the `claude-md-management` plugin is installed, its `claude-md-improver` skill audits CLAUDE.md
-structure and content quality, complementary to this health check. Run this audit FIRST to identify
-issues. `revise-claude-md` captures session learnings after a fix pass. Absent that plugin, the
+If the `claude-md-management` plugin from Anthropic's `claude-plugins-official` marketplace is
+installed, its `claude-md-improver` skill audits CLAUDE.md structure and content quality,
+complementary to this health check. Run this audit first to identify issues. Its
+`revise-claude-md` command captures session learnings after a fix pass. Absent that plugin, the
 fix mode here stands on its own.

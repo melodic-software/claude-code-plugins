@@ -77,8 +77,7 @@ export async function analyzeHarvestedRepos(
   } = {},
 ) {
   const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
-  const raw = await fs.readFile(harvestPath, "utf8");
-  const links = JSON.parse(raw);
+  const links = JSON.parse(await fs.readFile(harvestPath, "utf8"));
   const githubUrls = filterGitHubUrls(links);
 
   /** @type {HarvestedRepoAnalysis[]} */

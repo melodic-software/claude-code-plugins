@@ -186,7 +186,7 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data subject
-  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::extract_bash_subject_to subject "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -235,7 +235,7 @@ SEG_TGT_SET=() # 1 when segment i redirects stdout to a file at all
 # RELATIVE redirect target resolves against. Only the scratch-root axis reads it,
 # and only to REFUSE a relative target it can no longer place (see
 # _scratch_abs_target) — so an over-eager match costs an exemption, never a
-# missed block, and the failure direction is the guard's shipped behaviour.
+# missed block, and the failure direction is the guard's shipped behavior.
 #
 # The cd TARGET is deliberately not evaluated: resolving it would mean evaluating
 # arbitrary shell word expansion, which this guard does not do (see
@@ -587,6 +587,8 @@ _norm_path() {
   *) ;; # every other shape proceeds to normalization below
   esac
   p="${p//\\//}"
+  # A leading `//` names a network host on Windows and is implementation-defined on POSIX.
+  [[ "$p" == //* ]] && return 1
   # `C:/x` and `c:` -> the Git Bash spelling `/c/x`, so both spellings compare
   # equal after normalization.
   if [[ "$p" =~ ^([A-Za-z]):(/.*)?$ ]]; then
@@ -848,7 +850,7 @@ scratch_target_exempt() {
   # Place the target absolutely before normalizing. Until #3719 this axis refused
   # every relative target outright; it now resolves one against the payload cwd
   # when — and only when — that cwd is the directory the redirect demonstrably
-  # runs in. _scratch_abs_target owns that judgement and still refuses everything
+  # runs in. _scratch_abs_target owns that judgment and still refuses everything
   # it cannot place, so the fail-closed set only ever shrinks by targets proven
   # placeable.
   abs=$(_scratch_abs_target "$target") || return 1
@@ -929,6 +931,13 @@ scratch_target_exempt() {
 paths_identical() {
   local a="$1" b="$2" na nb
   [[ -n "$a" && -n "$b" ]] || return 1
+  # _norm_path refuses a leading `//`, but POSIX resolves `//tmp/x` and `/tmp/x`
+  # to one file, so the run is collapsed first. Treating the two as identical
+  # can only add a block to this detector, never remove one.
+  a="${a//\\//}"
+  b="${b//\\//}"
+  while [[ "$a" == //* ]]; do a="${a#/}"; done
+  while [[ "$b" == //* ]]; do b="${b#/}"; done
   if _norm_path "$a"; then
     na="$_NORM_PATH"
     if _norm_path "$b"; then
@@ -939,8 +948,6 @@ paths_identical() {
     return 1
   fi
   # Both relative / unexpanded: identity is literal after separator fold.
-  a="${a//\\//}"
-  b="${b//\\//}"
   [[ "$a" == "$b" ]]
 }
 

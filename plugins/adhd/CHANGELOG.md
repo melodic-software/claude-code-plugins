@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-09-23
+
+### Changed
+
+- `clarify` names the styles a decision-table page leaves out (a hero banner, a cream or
+  off-white background, italic accent words in headings, numbered "01 / 02 / 03" section labels,
+  pill-shaped badges), plus any the reader names, and adds a disliked choice to that list before
+  rendering again.
+- `shape` takes the assistant's own next step in the same message as the state line when that
+  step needs no input, and asks only when the step needs the reader or is destructive or hard to
+  undo.
+
 ## [0.4.10]
 
 ### Changed
@@ -59,7 +71,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 ### Changed
 
 - **`clarify`'s boundary splits three ways: structure, altitude, medium.** It previously named one
-  neighbour for everything it is not, routing both "explain this simply" and "ELI5 this" to
+  neighbor for everything it is not, routing both "explain this simply" and "ELI5 this" to
   `education:explain`. Now a prose drop to plain words routes to `education:explain` and a picture
   explainer routes to `education:eli5`, while `clarify` keeps structure. The description, the
   Boundaries section, the altitude note, the not-a-simplifier line, and the README's routing

@@ -36,9 +36,9 @@ function parseFlags(argv) {
     const a = argv[i];
     if (a === "--skip-emit") flags.skipEmit = true;
     else if (a === "--skip-validate") flags.skipValidate = true;
-    else passthrough.push(a);
-    if (VALUE_FLAGS.has(a)) {
-      passthrough.push(argv[++i]);
+    else {
+      passthrough.push(a);
+      if (VALUE_FLAGS.has(a)) passthrough.push(argv[++i]);
     }
   }
   return { flags, passthrough };

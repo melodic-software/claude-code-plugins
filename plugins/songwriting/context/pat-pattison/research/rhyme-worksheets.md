@@ -234,7 +234,7 @@ Pat's step 3, verbatim:
 
 "Look actively" is Pat's phrase from step 2. Each of the following is a move he
 either instructs on page 20 or performs in his seven comments on page 23,
-generalised into an instruction:
+generalized into an instruction:
 
 - Add a better seed word if the search reveals one.
 - Remove a seed word that has poor promise.

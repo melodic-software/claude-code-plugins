@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor the discipline that a tool, library, framework, language, or approach is chosen to fit the actual problem, not reached for out of habit, availability, incumbency, or preconception, then audit the selection in flight and re-derive it from the problem. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
+description: "Re-anchor choosing a tool, library, framework, language, or approach to fit the problem, not habit, incumbency, or preconception; re-derive the choice. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -63,7 +63,7 @@ baseline.
 ## Mandatory routing. No verdict from memory
 
 When the selection is load-bearing, the field survey and the maintenance /
-security / license / adoption judgement must come from CURRENT research, not
+security / license / adoption judgment must come from CURRENT research, not
 training-data recall, a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or

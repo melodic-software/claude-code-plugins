@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for instruction-scan.sh (self-contained — ships with the plugin).
+# Regression tests for instruction-scan.sh (assertions from test-helpers.sh
+# beside this file; both ship with the plugin).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,34 +11,8 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v grep >/dev/null 2>&1; then
   echo "SKIP: grep not installed" >&2
@@ -154,6 +129,21 @@ assert_contains "flags 'without thinking'" "$OUT" "$I8DT:3:I8-c"
 assert_contains "flags 'skip the reasoning'" "$OUT" "$I8DT:4:I8-c"
 assert_not_contains "positive think instruction not flagged as I8-c" "$OUT" ":5:I8-c"
 assert_contains "flags curly-apostrophe 'Don’t think'" "$OUT" "$I8DT:6:I8-c"
+assert_contains "positive think instruction flagged as I8-f" "$OUT" "$I8DT:5:I8-f"
+
+# --- Case 10b: I8-f think-carefully steers flagged, procedures not ------------
+I8TC="$TEST_TMPDIR/i8-thinkcarefully.md"
+cat >"$I8TC" <<'EOF'
+Think step by step before you answer.
+ultrathink on every review.
+Follow these step-by-step instructions to install the tool.
+Think hard about edge cases.
+EOF
+OUT=$(bash "$SCRIPT" "$I8TC")
+assert_contains "flags 'think step by step'" "$OUT" "$I8TC:1:I8-f"
+assert_contains "flags 'ultrathink'" "$OUT" "$I8TC:2:I8-f"
+assert_not_contains "step-by-step procedure not flagged as I8-f" "$OUT" ":3:I8-f"
+assert_contains "flags 'think hard'" "$OUT" "$I8TC:4:I8-f"
 
 # --- Case 11: I8-b conservative-reporting directives flagged -----------------
 I8CV="$TEST_TMPDIR/i8-conservative.md"

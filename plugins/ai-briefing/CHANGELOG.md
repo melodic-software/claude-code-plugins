@@ -3,6 +3,79 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.42] - 2026-09-27
+
+### Changed
+
+- `generate` states three rules in normal register instead of all caps: every bullet renders all its source URLs (`slide-generation.md`), and `meta`/`theme` and the default brand tokens are not redefined per run (`build-pipeline.md`, two sites). The rules are unchanged, and `validate.js` still enforces the URL rule at gate time (#4120).
+
+## [0.7.41] - 2026-09-27
+
+### Fixed
+
+- `generate`'s build pipeline no longer points at "install steps" that `slide-generation.md` "PPTX fallback" never carried: with neither the in-tree pipeline nor a PPTX-generation skill available, it reports the gap and emits markdown only. The unmarked `/ui-ux-pro-max:slides` route in the HTML fallback (`build-pipeline.md`, `slide-generation.md`) now names a slide-layout skill by class, when one is installed (#4119).
+
+## [0.7.40] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `node --version` and `npm --version` at load time.** The build-preflight
+  versions run as pre-computed context, so `check` reads two rows instead of making two Bash
+  calls. Both probes are pre-approved in `allowed-tools`, since a load-time command that is not
+  allowed aborts the skill outside auto mode. `apply install-build-deps` keeps its live guards,
+  and a policy-disabled injection falls back to the Bash probe.
+
+## [0.7.39] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.7.38] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.7.37] - 2026-09-23
+
+### Changed
+
+- `generate` leads its end-of-run report with anything waiting on the user (a missing build
+  prerequisite with its setup command, user-supplied X text the run needs) before the counts and
+  the output path.
+
+## [0.7.36] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.7.35]
+
+### Changed
+
+- The slide build pipeline no longer declares date-holidays, which nothing imported; the lockfile is regenerated with npm and the pipeline reference lists the remaining dependencies.
+
+## [0.7.34]
+
+### Changed
+
+- Share the host normalizer, dotted-quad and ip-literal helpers in the url policy, merge the section overflow filters in validate and drop two producer-less ignore rules (behavior unchanged).
+
+## [0.7.33]
+
+### Changed
+
+- generate build: emit-slides.js chunks every tier through one cap loop and reads tool labels from the matched tool, parse-briefing.js flattens a nested URL test, build-pptx.js drops single-column ternaries that always resolved the same way, brand-overlay.js and run.js drop unreachable guards, build-client-js.js drops an unused chip query and a dead scroll default, and build-css.js drops an empty ruleset and two selectors no DOM can match. Slide data and deck bytes identical apart from the removed dead source.
+
 ## [0.7.32]
 
 ### Changed
@@ -51,7 +124,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   inventory never named, replaced the prev/next and swipe navigation description with the
   sectioned-scroll behavior, pointed the validator gate list at the script's own header instead
   of restating it, replaced the Node 20 requirement and its passed end-of-life trigger with a
-  pointer to the setup preflight, dropped step numbers that no longer match the skill, labelled
+  pointer to the setup preflight, dropped step numbers that no longer match the skill, labeled
   the in-repo prerequisites so consumers take the setup path, removed the stale-reference and
   skill-inventory tables, and lowered all-caps emphasis to plain prose.
 - **generate:** the audience-defaults reference now names the loading step in words rather than
@@ -244,7 +317,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   briefing even when the window produced no items for it, orders the seen-item registry write
   after successful markdown emission, and states that re-running the same window is idempotent by
   the same normalized event identity step 5 deduplicates on. Three of the four existed only in
-  `context/execution-flow.md`, which nothing loaded, so the behaviour they describe was unreachable
+  `context/execution-flow.md`, which nothing loaded, so the behavior they describe was unreachable
   doctrine. The fourth was half-present: `SKILL.md` already said partial collection stays visible,
   but not that outbound requests carry an explicit timeout.
 

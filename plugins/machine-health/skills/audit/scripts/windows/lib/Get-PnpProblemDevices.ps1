@@ -5,8 +5,8 @@
 Parse pnputil /enum-devices /problem output into structured device records.
 
 .DESCRIPTION
-Returns an array of { instance_id, device_description, problem_code,
-problem_status, class_name }. Output format differs slightly between
+Returns an array of { instance_id, device_description, class_name,
+manufacturer, problem_code, problem_status }. Output format differs between
 Windows 10 2004 and Windows 11 23H2+; this parser tolerates both.
 
 Admin strongly preferred -- non-elevated runs get incomplete output. The
@@ -35,13 +35,8 @@ function Get-PnpProblemDevice {
     }
     if (-not $raw) { return @() }
 
-    # Split into device blocks. Each block starts with "Instance ID:".
-    # The FIRST element of the split is always pre-"Instance ID:" preamble
-    # spellchecker:ignore-next-line
-    # (banner text like "Microsoft PnP Utility" and, on healthy systems, any
-    # "no devices have problems" message) -- drop it. When pnputil emits no
-    # device blocks at all, the split produces a single preamble element and
-    # we correctly return @().
+    # The first split element is always the pre-"Instance ID:" banner preamble, or
+    # the whole output when no device has a problem, so skip it.
     $blocks = @($raw -split '(?m)^Instance ID:' | Select-Object -Skip 1 | Where-Object { $_.Trim() })
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 

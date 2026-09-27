@@ -183,7 +183,7 @@ and the filename is fixed by that template: never derive any part of it from the
 **Read to the end or to 256 KB, whichever comes first.** Slices bound each tool result, not their sum.
 Reading a near-cap response through to EOF still puts every byte in the session, so a long or
 hostile article can exhaust the context before the result is ever reported. **256 KB total** is the
-ceiling: a fixed number, not a judgement call, because a budget chosen per invocation can be chosen
+ceiling: a fixed number, not a judgment call, because a budget chosen per invocation can be chosen
 as 5 MB and comply. It is far above any real X Article and far below anything that threatens the
 session. Either way the rule on stopping short is the same: say the result is partial and say where
 it stops. A truncated slice is never presented as the complete post or article.

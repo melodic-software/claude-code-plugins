@@ -161,6 +161,7 @@ into one profile.
   to line start and compare labels against the five strings `gh label list`
   actually returned. Substitute them into `VALID` below:
 
+  <!-- spellchecker:off --><!-- `labelled` is this jq program's own function name -->
   ```bash
   gh label list --limit 200 | grep -i work-class
   # Substitute the five strings the command above actually returned.
@@ -176,6 +177,7 @@ into one profile.
          classified: [.[] | select(labelled)] | length,
          body_only: [.[] | select(trailered and (labelled | not))] | length}'
   ```
+  <!-- spellchecker:on -->
 
   `classified` is the merge-eligible population the rung decision reads;
   `body_only` is the label-migration backlog, never added to it.
@@ -379,10 +381,16 @@ phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
 current alias, so a `sonnet` worker-lane root no longer makes every
 implementer `sonnet`, and `/work-items:work`'s branch-owned fix
-re-dispatches ride the same agent surface. Resolution order is:
-`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter,
-then frontmatter, then the main conversation's model
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27).
+re-dispatches ride the same agent surface. Resolution order is: the
+per-invocation `model` parameter, then frontmatter (`inherit` selects the
+main conversation's model), then `CLAUDE_CODE_SUBAGENT_MODEL` when set to an
+alias or model ID, then the main conversation's model. Setting
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` replaces that order: every subagent runs on
+`CLAUDE_CODE_SUBAGENT_MODEL`, or on the main conversation's model when only
+`_FORCE` is set, and definitions' `model` and per-invocation `model` are
+both ignored
+(<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+2026-09-27).
 
 Two consequences of that order:
 
@@ -395,10 +403,15 @@ Two consequences of that order:
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no
   agent frontmatter covers them.
-- **Never export `CLAUDE_CODE_SUBAGENT_MODEL` for a lane** (any value other
-  than `inherit`, which resolution treats as unset). It outranks the
-  frontmatter bindings and every deliberate per-dispatch override alike,
-  flattening the fast and frontier tiers onto one model.
+- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane.** It overrides
+  the frontmatter bindings and every deliberate per-dispatch override alike,
+  flattening the fast and frontier tiers onto one model, and with
+  `CLAUDE_CODE_SUBAGENT_MODEL` unset (or set to `inherit`, which counts as
+  unset) that model is the lane root's.
+  `CLAUDE_CODE_SUBAGENT_MODEL` alone only fills in where neither a
+  per-dispatch `model` nor frontmatter names one, so it does not flatten the
+  bindings; still leave it unset, since a dispatch that omits both should
+  land on the lane root's model, not on a tier chosen elsewhere.
 
 ```bash
 claude --model sonnet   # worker lane
@@ -507,15 +520,22 @@ No shared state, no contention, and the sharding problem disappears.
 > only for the exceptions the agent frontmatter does not carry: `fable` for conflict
 > resolution and any security-surface work class, unconditionally; `opus`
 > for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never export
-> `CLAUDE_CODE_SUBAGENT_MODEL`. It silently outranks the bindings and
-> every deliberate override alike.
+> `haiku` only for mechanical greps and log pulls. Never set
+> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
+> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
+> unset it puts every subagent on your own model. Leave
+> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
+> or override names a model
+> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+> 2026-09-27).
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
 > to a file in your worktree or a comment on the item. Do not summarize
 > your work back to me. Speak to me only when fully blocked and unable to
-> escalate through the tracker.
+> escalate through the tracker. Never end a turn on a status summary or an
+> offer to continue: status goes in the same message as the next action.
+> Your cycle report leads with escalated items.
 >
 > **One exception: a skill that defines its own return shape wins.** Where a
 > skill's contract specifies what its subagents return, that contract governs
@@ -642,7 +662,10 @@ wakeup ceiling for days rather than finishing.
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >
 > **Return contract.** Subagents return at most two lines: verdict plus
-> identifier. Speak to me only when fully blocked. **A skill that defines its
+> identifier. Speak to me only when fully blocked. Never end a turn on a
+> status summary or an offer to continue: status goes in the same message as
+> the next action. Your cycle report leads with escalated items and PRs
+> waiting on me. **A skill that defines its
 > own return shape wins over this rule.** `/discipline:sweep-all`'s audit
 > forks owe a full findings ledger and may write nothing, so truncating them
 > to two lines would discard exactly what the parent acts on.
@@ -790,7 +813,7 @@ Letting one "primary" shard write it records a partial pass as the whole.
 > the same thing the admission rule forbids. Hand me the exact body-edit
 > command to paste, the same way you hand me the label command.
 >
-> For an item with no trailer, propose a class with your reasoning and
+> For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
 > reversible maintenance such as dependency bumps, lint, format, sync.
 > And a change to any path listed on the `Runtime surfaces` line is not
@@ -984,7 +1007,7 @@ with the operator's signature on them.
 > candidate whatever else it carries, so the resolved human-gated role, not
 > the decision-pending label, is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after, and in that same edit remove the
+> role-less first and labeled after, and in that same edit remove the
 > resolved autonomous-eligible role if the item carries it. Closing an item
 > never cleared its labels, so a carrier closed while autonomous-eligible
 > comes back still wearing that role, and an item wearing both canonical

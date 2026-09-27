@@ -110,8 +110,7 @@ def tried(value: str) -> list[str]:
             candidates.append(converted)
     else:
         candidates.append(native_to_msys(value))
-    seen: set[str] = set()
-    return [c for c in candidates if c and not (c in seen or seen.add(c))]
+    return list(dict.fromkeys(c for c in candidates if c))
 
 
 def resolve_existing(value: str) -> tuple[pathlib.Path, str | None]:

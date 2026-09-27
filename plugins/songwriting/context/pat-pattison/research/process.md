@@ -206,7 +206,7 @@ Two lessons worth keeping separate:
   against the sections around it before judging whether the lines are good.
 - **A structure borrowed from a song you love is still a borrowed structure.**
   The chapter notices its draft bridge matched a specific Paul Simon bridge,
-  considers a second Simon bridge as the fix, and only then recognises the real
+  considers a second Simon bridge as the fix, and only then recognizes the real
   problem was the missing contrast. Liking the source does not make the borrow
   work here.
 

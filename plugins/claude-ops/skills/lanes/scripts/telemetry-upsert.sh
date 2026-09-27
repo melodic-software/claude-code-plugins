@@ -280,13 +280,10 @@ else
   body_canon="$body_parent/$(basename "$BODY_FILE")"
   # The trailing slash in the pattern forces a path-segment boundary, so
   # `/safe` never matches a sibling `/safe-evil/...`.
-  case "$body_canon" in
-  "$safe_canon"/*) : ;;
-  *)
+  [[ "$body_canon" == "$safe_canon"/* ]] || {
     err "body file must resolve under the safe dir ($safe_canon); refusing to read $body_canon"
     exit 3
-    ;;
-  esac
+  }
   body_text="$(cat "$BODY_FILE")"
 fi
 
@@ -486,10 +483,8 @@ if ((verify_read == 0)); then
   verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): ${verify_err_text:-no error text captured}" "$verify_verdict"
 fi
 
-case "$verify_body" in
-*"$SENTINEL"*) : ;;
-*) verify_fail "comment $new_id does not carry the marker sentinel after the write" ;;
-esac
+[[ "$verify_body" == *"$SENTINEL"* ]] ||
+  verify_fail "comment $new_id does not carry the marker sentinel after the write"
 
 # Everything below the sentinel is the caller's body — the sentinel is ours and
 # would otherwise mask a leading `@` in the part that carries the data.

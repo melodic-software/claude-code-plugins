@@ -44,10 +44,8 @@ if (-not $chrome) {
     exit 1
 }
 
-# Restore + raise. SetForegroundWindow returns FALSE when Windows' no-steal-focus
-# policy blocks the request -- and per Microsoft Learn, can also return TRUE
-# while the actual focus assignment fails silently. Confirm with
-# GetForegroundWindow() before claiming success so the caller can retry.
+# SetForegroundWindow can return TRUE while the focus assignment silently fails
+# (Microsoft Learn), so confirm with GetForegroundWindow() before claiming success.
 [void][Win32Focus]::ShowWindow($chrome.MainWindowHandle, [Win32Focus]::SW_RESTORE)
 $setOk = [Win32Focus]::SetForegroundWindow($chrome.MainWindowHandle)
 $actual = [Win32Focus]::GetForegroundWindow()

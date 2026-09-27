@@ -39,10 +39,6 @@ export function dedupeSynthesisDir(synthesisDir) {
   const removed = [];
 
   for (const group of byHash.values()) {
-    if (group.length === 1) {
-      kept.push(group[0]);
-      continue;
-    }
     group.sort((a, b) => synthesisNameQualityScore(b) - synthesisNameQualityScore(a));
     kept.push(group[0]);
     for (const file of group.slice(1)) {

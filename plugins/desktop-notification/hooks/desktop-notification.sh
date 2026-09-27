@@ -36,11 +36,17 @@ set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
+# Kill switch FIRST, above every source: a disabled hook must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
+# below a source.
+[[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-hook::check_enabled "DESKTOP_NOTIFICATION"
 
-# Capture $EPOCHREALTIME immediately after the kill switch so telemetry duration
+# Capture $EPOCHREALTIME after the library loads so telemetry duration
 # covers the hook's work. EPOCHREALTIME is Bash 5.0+; on older bash it is unset,
 # so default to empty — referencing it bare under `set -u` would abort before the
 # advisory exit 0. Empty start => telemetry is skipped, the hook still notifies.
@@ -181,16 +187,12 @@ fi
 if [[ -n "$start" ]] && hook::telemetry_enabled; then
   if ((${#CHANNELS[@]})); then
     ch_json="["
-    __ch_first=1
+    __ch_sep=""
     for __ch in "${CHANNELS[@]}"; do
       __ch_e=""
       hook::json_escape_jq_to __ch_e "$__ch"
-      if ((__ch_first)); then
-        __ch_first=0
-      else
-        ch_json+=","
-      fi
-      ch_json+="\"$__ch_e\""
+      ch_json+="$__ch_sep\"$__ch_e\""
+      __ch_sep=","
     done
     ch_json+="]"
     status="ok"

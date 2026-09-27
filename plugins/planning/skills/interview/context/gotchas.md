@@ -28,6 +28,28 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
 
+- **A bundled recommendation locked by accepting its headline:** a design that also picks a platform, a runtime, and a credential reads as one answer, so a "yes" records one row and locks every part the user never saw. List each part under `Commits you to:` with its own row; a part left unlisted is not decided (SKILL.md "A recommendation that fixes more than one decision lists every part").
+
+- **A hedged reply read as accept-all:** "yes?" or "I think so" signals doubt, so it cannot lock a bundle or a round (SKILL.md "A hedged reply resolves only the headline").
+
+- **An upstream Brief treated as binding:** a prior Brief locked "as a starting point" reads as settled, so its constraints steer every recommendation without the user confirming them for this topic. Record them as `inherited` and ask the ones the contract relies on (SKILL.md "Keep a running constraint ledger").
+
+- **A research design recommended as found:** explore or research output, or an existing implementation, arrives with a recommended design that was never checked against this interview's constraints. It is a candidate until re-derived against the constraint ledger (SKILL.md "Composed artifacts are candidates").
+
+- **Drifting from what to how:** recommendations slide into per-step platforms and token scopes with nothing stopping them. The first question that names a mechanism triggers one question: settle mechanisms now, or at planning (SKILL.md "What, not how: the mechanism tripwire").
+
+- **Past evidence read as the target:** months of metrics describe the old process, not the one the user just changed to. Label each finding past, current, or intended, and never recommend the intended process from past-only evidence (SKILL.md "Label evidence by when it was true").
+
+- **A clean register over unasked assumptions:** the register tracks only questions that were asked, so it grades clean while the draft still rests on hidden defaults and contradictions. Sweep before the confirmation gate (SKILL.md "Sweep for assumptions before Step 3").
+
+## Page surface
+
+- **A stale `ops.json`:** a file left from an earlier wake re-applies its old replies; write it fresh with the Write tool on every wake.
+
+- **A forgotten `handle`:** the page stays on "Claude is working on Qn" and the event is re-delivered on the next arm; every event ends handled.
+
+- **A server restart:** the restart issues a new token, so the armed watcher exits 2; re-arm it after `ensure-running`.
+
 ## Brief contract
 
 - **`lock` mode with hidden gaps:** if synthesis surfaces a true unknown, stop and ask; do not fudge the Brief.

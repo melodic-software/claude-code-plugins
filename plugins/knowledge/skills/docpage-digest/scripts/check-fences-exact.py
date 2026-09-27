@@ -7,7 +7,7 @@ NOT stripped — a per-line ``.strip()`` is how indented-fence corruption and a
 load-bearing trailing space earned a clean quote-gate result.
 
 A clean run prints exactly what it exercised. Zero parsed claims is a failure,
-never PASS. Unrecognised input is exit 2.
+never PASS. Unrecognized input is exit 2.
 
 Exit codes:
   0  all checks passed
@@ -20,7 +20,6 @@ Stdlib only. Python 3.9+.
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 from typing import List, Optional
@@ -28,15 +27,14 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from digest_fences import (  # noqa: E402
     Failures,
-    MIN_PYTHON,
     extract_fences,
-    fail,
     find_section,
     parse_claims,
+    parse_gate_args,
     payload_in_source,
     preview_payload,
     read_text,
-    use_utf8_streams,
+    run_gate,
 )
 
 PROG = "check-fences-exact"
@@ -129,34 +127,20 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     for fence in section_fences:
         if fence.start_line not in claimed_starts:
             failures.add(
-                f"{path}: unlabelled fence at line {fence.start_line} under "
-                f"Key claims; this gate only attests **CN.**-labelled "
-                f"fences, so an unlabelled one is unparsed surface."
+                f"{path}: unlabeled fence at line {fence.start_line} under "
+                f"Key claims; this gate only attests **CN.**-labeled "
+                f"fences, so an unlabeled one is unparsed surface."
             )
 
     return exercised
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog=PROG,
-        description="Gate Key-claims fence payloads against the source, "
-        "without stripping.",
+    args = parse_gate_args(
+        PROG,
+        "Gate Key-claims fence payloads against the source, without stripping.",
+        argv,
     )
-    parser.add_argument(
-        "--source", required=True, help="Immutable source.md / source.txt"
-    )
-    parser.add_argument(
-        "--digest",
-        action="append",
-        default=[],
-        dest="digests",
-        help="Digest file (repeatable)",
-    )
-    args = parser.parse_args(argv)
-    if not args.digests:
-        fail(PROG, 2, "no --digest given; nothing to parse is not a PASS.")
-
     source = read_text(args.source, PROG, "source")
     failures = Failures(PROG)
     exercised = 0
@@ -176,8 +160,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"{len(args.digests)} digest(s), {exercised} **CN.** fence "
         f"payload(s) compared as exact contiguous source substrings with "
         f"NO per-line strip (trailing spaces and indent preserved). "
-        f"Checked: Key claims heading present, ≥1 labelled claim, column-0 "
-        f"fence per label, no unlabelled fences, no blockquote/inline-code "
+        f"Checked: Key claims heading present, ≥1 labeled claim, column-0 "
+        f"fence per label, no unlabeled fences, no blockquote/inline-code "
         f"substitutes. Nothing outside Key claims / **CN.** / fence "
         f"payloads was checked."
     )
@@ -185,19 +169,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        sys.stderr.write(
-            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
-        )
-        sys.exit(2)
-    use_utf8_streams()
-    try:
-        sys.exit(main())
-    except SystemExit:
-        raise
-    except Exception as exc:
-        sys.stderr.write(
-            f"{PROG}: ERROR: internal failure {type(exc).__name__}: {exc}. "
-            f"This is a gate bug; the run is NOT clean.\n"
-        )
-        sys.exit(3)
+    run_gate(PROG, main)

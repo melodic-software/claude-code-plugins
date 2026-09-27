@@ -11,7 +11,7 @@
 #   I10 reasoning-echo directive (show/explain/reproduce your thinking or
 #       reasoning, "think out loud", reasoning_extraction). These tell the model
 #       to emit its internal reasoning as response text.
-#   I8  model-era candidates, three pattern families emitted with per-family ids
+#   I8  model-era candidates, four pattern families emitted with per-family ids
 #       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
 #       unscoped (promotion gate met; fires for every target). The scanner is
 #       model-blind — the model lane adjudicates against the resolved target model
@@ -22,6 +22,8 @@
 #              high-severity", "don't nitpick")
 #         I8-c don't-think / don't-reason directives ("do not think", "don't
 #              reason", "without thinking", "skip the reasoning")
+#         I8-f think-carefully steers ("think carefully", "think step by step",
+#              "ultrathink"); Opus-5.5-scoped
 #       Over-production is by design: restraint clauses, quoted/meta text,
 #       idiomatic uses ("do not think of this as…"), and substring near-misses
 #       ("don't reasonably…") ARE emitted; the fences live in
@@ -86,7 +88,7 @@ Usage: instruction-scan.sh [--count] [--body-only] [--help] FILE...
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason. I23 marks self-estimated context-budget phrasing. I27 marks
+don't-reason, I8-f think-carefully steer. I23 marks self-estimated context-budget phrasing. I27 marks
 effort-for-brevity candidates (effort-lowering directive paired with a brevity
 token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
@@ -151,6 +153,7 @@ I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
+I8_F_ERE="think (very |really )?(carefully|hard|harder|deeply|thoroughly|step[- ]by[- ]step)|${WB_L}ultrathink${WB_R}"
 # I23 self-estimated context-budget phrasing. Deliberately anchored to
 # BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
 # is ordinary vocabulary in any instruction surface discussing sessions, and
@@ -264,6 +267,7 @@ scan_file() {
   collect_rows "$file" I8-a "$I8_A_ERE" -niE
   collect_rows "$file" I8-b "$I8_B_ERE" -niE
   collect_rows "$file" I8-c "$I8_C_ERE" -niE
+  collect_rows "$file" I8-f "$I8_F_ERE" -niE
   collect_rows "$file" I27 "$I27_EFFORT_ERE" -niE "$I27_BREVITY_ERE"
   collect_rows "$file" I28-a "$I28_A_ERE" -nE
   collect_rows "$file" I28-b "$I28_B_ERE" -niE

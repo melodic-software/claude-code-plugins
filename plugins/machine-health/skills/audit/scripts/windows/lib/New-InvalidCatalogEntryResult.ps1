@@ -76,7 +76,7 @@ function New-InvalidCatalogEntryResult {
         $needsAdmin = $Entry.needs_admin
     }
 
-    $firstLine = (($ErrorMessage -split '\r?\n') | Select-Object -First 1)
+    $firstLine = ($ErrorMessage -split '\r?\n') | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($firstLine)) {
         $firstLine = 'Assert-CatalogEntry failed'
     }

@@ -66,11 +66,17 @@ Parse `$ARGUMENTS` to determine the action. Empty argument routes to `auto` (the
 
 Unknown actions route to `auto`; surface the unrecognized request as a one-line side note.
 
-**Default action leans to `me` (relentless prose rounds).** When invoked with no args (or by proactive auto-trigger), bias toward `me`-mode. Drive open decisions through frontier-rounds prose Q&A. Fall back to direct synthesis (`lock`-style) ONLY when context heavily informs against asking: intent already crystal-clear with no open decisions, OR the user signalled "just lock it / stop asking". Auto-detect's synthesize-directly path is for the genuinely-clear case, not the default posture.
+**Default action leans to `me` (relentless prose rounds).** When invoked with no args (or by proactive auto-trigger), bias toward `me`-mode. Drive open decisions through frontier-rounds prose Q&A. Fall back to direct synthesis (`lock`-style) ONLY when context heavily informs against asking: intent already crystal-clear with no open decisions, OR the user signaled "just lock it / stop asking". Auto-detect's synthesize-directly path is for the genuinely-clear case, not the default posture.
 
 **Question surface: inline prose by default.** Rounds render as numbered inline prose. Dictation-friendly, no per-question cap, and each question carries its recommendation, reasoning, and probe in one readable block. `AskUserQuestion` is an opt-in surface, enabled via the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`, default off). When opted in, use it ONLY for a round of ≤4 mutually independent questions that are **simple selections or binary confirms**. A card carries options, not a recommendation's reasoning or a constraint-surfacing probe, so any question needing its basis argued stays prose. Fall back to prose when the frontier exceeds 4, any question in the round depends on another, or a question needs more than a pick. The card cannot express a dependency or a rationale, and chunking a round across multiple cards fragments it. When in doubt, prose.
 
-**Artifact escape hatch for a dense round.** When a round is large or its questions are dense. A wall of prose the user cannot scan. OFFER to render the *whole frontier* as a **self-contained HTML decision table** written to the topic-docs **ephemeral tier**. One OS temp directory per interview run, never the memory slice and never the session scratchpad (the ledger and terminal stay the tracked record; the HTML is a scannable view, not the source of truth, and nothing downstream reads it again). Rows are numbered to the terminal `Q<N>` so the user still answers by number in the terminal. The table preserves the full inline contract. Each recommendation keeps its 2-3 sentence codebase-grounded basis (never a terse label), and the round's closing constraint probe renders with it. So grounding and the challenge mechanism are not lost. A rendering surface for the same frontier, never a round split or a question cap; degrade to a fenced markdown table (same columns and grounding) when HTML rendering is unavailable. Delivery path + column detail: [`context/loop.md`](context/loop.md) "Artifact escape hatch".
+**Question surface: the page.** Configured surface: **`${user_config.surface}`**. If it is `page`, start the page with the command below before the first round and ask no round inline. `page` selects a local page on 127.0.0.1 that this session watches; `terminal` is the default. A value other than `page` or `terminal`, or an unexpanded `user_config` token, falls back to `terminal`, with a one-line note only for a real unknown value. The page is two-way and is the input surface: the user answers each question there and every save reaches this session. The terminal stays a valid input, mirrored onto the page with `record-terminal`. `surface: page` wins over `use_ask_user_question`, which applies only when the surface is `terminal`. The user may ask for the page at any point, whatever the setting. On a dense terminal round, offer the page; when the page cannot start, offer the read-only table. Start it with one command; the data dir resolves through the topic-docs binding, never CWD-relative:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" --dir '<memory_dir>/<topic-slug>/interview-surface' ensure-running --open --emoji-markers '${user_config.use_emoji_question_markers}'
+```
+
+Then write the frontier with `add-round` and arm the watcher as a background Bash task. Write the register's `open` rows yourself in the same step as `add-round`; the frontier-rounds contract (recommendation, basis, alternatives, probe, partial rounds, gates) holds on the page as it does inline. When Python, curl or bash is missing, the port cannot bind, the server stays unreachable after a restart (the watcher exits 2), or the session runs on a remote host the browser cannot reach, render the read-only decision table instead and say in one line which prerequisite failed. Substitution record: claim, non-sensitive `userConfig` values substitute into skill bodies as `user_config.KEY` tokens, and an unset key with a `default` substitutes that default; basis, [plugins-reference "User configuration"](https://code.claude.com/docs/en/plugins-reference#user-configuration): "Non-sensitive values can also be substituted in skill and agent content.", and the `default` row, "Value used when the user provides nothing" (that the default is what substitutes is a reading of that row); as of 2026-09-24; recheck when that section changes or a run shows a literal token. Wake command, events, rules and wrap-up exports: [`context/surface.md`](context/surface.md).
 
 ## Stance: supportive, depth-first, opinionated
 
@@ -95,7 +101,7 @@ When the effort is too big to hold at once AND still too foggy to phrase as shar
 
 **Bulk application work is not a decision set. The interview settles it once, it never executes it.** When the task applies a settled shape across a corpus (every document in a set, every file matching a pattern, every page of a spec), the interview's output is TWO things and no more: the small set of genuinely contested decisions, driven to decisions the normal way, plus an **execution contract**. One line in the session's output artifact, routed by domain like every other output: the Brief's `### Acceptance criteria` in an engineering session, the shared-understanding summary in a general one. Naming the per-unit close-out loop (one source unit at a time: apply, verify, close) and what *closed* means for a unit. NEVER enumerate the per-unit applications as decision rows: an interview that becomes the execution container turns every application step into a decision needing its own adoption ceremony, and the corpus's size becomes the session's length. **Tripwire. Count the candidates against the corpus:** when the candidate question count scales with the number of source units rather than with the number of genuine forks, that is execution masquerading as decisions. Collapse the per-unit rows into the loop, keep only the forks, and say what you collapsed. Distinct from the ballooning frontier above and remedied differently: ballooning routes to `/planning:wayfind`, unit-scaling collapses into the execution contract and hands off to execution.
 
-Tone is collaborative but opinionated. You are not interrogating; you are helping the user think out loud by PROPOSING answers grounded in codebase evidence. When the user gives a definitive answer, lock it. When they hesitate, slow down and offer two or three concrete shapes the answer could take. Every option set names exactly ONE recommended option marked **(RECOMMENDED)** with a one-line basis. The surface follows the "Question surface" rule above: inline prose rounds by default, `AskUserQuestion` only when the user opted in and the round qualifies.
+Tone is collaborative but opinionated. You are not interrogating; you are helping the user think out loud by PROPOSING answers grounded in codebase evidence. When the user gives a definitive answer, lock it. When they hesitate, slow down and offer two or three concrete shapes the answer could take. Every option set names exactly ONE recommended option marked **(RECOMMENDED)** with a one-line basis. The surface follows the two "Question surface" rules above: inline prose rounds by default, the page when `surface` is `page` or the user asks for it, and `AskUserQuestion` only on the terminal, when the user opted in and the round qualifies.
 
 ### Relentless mode (`me`)
 
@@ -109,6 +115,10 @@ Q<N>: <one question>
 
 My recommendation: **<answer>** — <2-3 sentences; grounded in codebase/convention; why it beats the alternatives>.
 
+[Commits you to: <ONLY when the recommendation fixes more than one decision; each part of it, numbered>
+- Q<N+1>: <sub-decision>: <recommended value>
+- Q<N+2>: <sub-decision>: <recommended value>]
+
 Alternatives to consider:
 - (a) <option> — <one-line tradeoff>
 - (b) <option> — <one-line tradeoff>
@@ -119,15 +129,19 @@ Alternatives to consider:
 
 **One verdict marker, at most one context line.** The `My recommendation:` line is the *single* verdict marker for the question. Never stack a second one: no standalone `**(RECOMMENDED)**` badge line above it, and no `(recommended)` tag repeated in the Alternatives list; the recommended answer is named once, on that line. Per-question context is at most ONE line and usually absent. The round-header restate carries shared context, so add a line only when it doesn't reach this question or the session just resumed after a gap.
 
-**Emoji anchors (default on, still configurable).** When `${user_config.use_emoji_question_markers}` is true (the default), prefix the `Q<N>:` line with `❓` and the `My recommendation:` line with `➡️`. When it is false, keep the undecorated shape above. Decoration of the existing single verdict marker, never a second one. Conversational rendering only: the ledger, register, and Brief stay plain, and `Q<N>` remains the answer handle. The option is the plugin's `use_emoji_question_markers` user config; set it false for plain text.
+**A recommendation that fixes more than one decision lists every part.** When the recommended answer also settles other decisions (a design that picks a platform, a runtime, a credential, an identity), list each under `Commits you to:` with its own `Q<N>`. They are parts of the one recommendation, not a second verdict, and each is registered `open` at ask-time like any question. An explicit acceptance of the headline ("Q5 yes", "accept all recommendations") resolves each listed part to its recommended value (on the page, only the parts the user ticks); the user can overturn one by its number. When an accept-shorthand resolves commitment rows, name their `Q<N>` ids in one line. Choosing an alternative or rejecting the headline withdraws the parts, and any sub-decision the chosen alternative implies is asked in the next round. A sub-decision the recommendation assumes but does not list is not decided by any answer to the headline: list it, or keep it out of the recommendation. A question with a `Commits you to:` block is never asked through an `AskUserQuestion` card; on the page, its parts are the question's `commits` entries. Row shape: [`context/loop.md`](context/loop.md) "Commitment rows".
+
+**Emoji anchors (default off, still configurable).** When `${user_config.use_emoji_question_markers}` is true, prefix the `Q<N>:` line with `❓` and the `My recommendation:` line with `➡️`. When it is false (the default), keep the undecorated shape above. Decoration of the existing single verdict marker, never a second one. Conversational rendering only: the ledger, register, and Brief stay plain, and `Q<N>` remains the answer handle. The option is the plugin's `use_emoji_question_markers` user config; set it true for anchors. A user instruction against emoji as formatting wins over the option: keep the plain shape, and the page start command then passes `--emoji-markers false` so the page matches.
 
 **Define session shorthand once, then park it.** When a round introduces session-local shorthand, a coined label, an abbreviation, or cross-repo jargon the user may not share ("lanes", "gate vacuity"), define it in one clause at first use and record it in the ledger's shorthand glossary, then use the term freely. This is ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`), and never touches a project glossary. Ledger shape: [`context/loop.md`](context/loop.md) "Session-shorthand glossary".
 
-**Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier. Re-surface them at the top of the next round, labelled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions. Recompute the frontier before re-asking anything.
+**Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier. Re-surface them at the top of the next round, labeled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions. Recompute the frontier before re-asking anything.
+
+**A hedged reply resolves only the headline.** A reply given with doubt ("yes?", "I think so", "probably") resolves at most the headline of the one question it can be tied to, never that question's `Commits you to:` rows and never the rest of the round. A hedged accept-shorthand ("accept all?") is not an accept-shorthand. Record the headline with a `hedged:` resolution, keep its commitment rows `open`, and echo back in one line what the headline commits to and which rows are still open. A hedged reply that cannot be tied to one question resolves nothing: restate the open rows.
 
 **Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. One exception, and only one: the acceptance-criteria coverage prompt gets no row even when it rides along in a round, because it carries no decision to track. Every real question in that same round is registered exactly as always. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
 
-**Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write: a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing. That is the ordinary consequence of not blocking the round. Check it against the `open` rows: a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken. The floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
+**Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write: a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing. That is the ordinary consequence of not blocking the round. Check it against the `open` and `superseded-by-plan` rows (a superseded row is restated, never resolved by the return): a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken. The floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
 
 **Rounds fire at phase boundaries.** When reached from inside another workflow's phase, emit the whole open set where the caller hands over, not partway through its phase; a mid-phase blocking question is the exception and states its justification in one line. Rationale: [`context/loop.md`](context/loop.md) "Where a round may fire".
 
@@ -159,13 +173,13 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 
 ## Acceptance-criteria capture
 
-Two behaviours ride on the moment acceptance criteria are captured. The first is always on; the
+Two behaviors ride on the moment acceptance criteria are captured. The first is always on; the
 second fires only when the consuming team's convention selects it.
 
 ### Coverage prompt. Always on, asked once
 
 While capturing acceptance criteria, ask ONE question: are the criteria missing an
-**unwanted-behaviour** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
+**unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
 case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
 interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
 whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
@@ -180,7 +194,7 @@ run whose ONLY question was this prompt wrote no register, has nothing to gate, 
 exactly as a run that asked nothing does. Without this, that path would ask a question it is
 forbidden to register and then trip a gate demanding the row.
 
-**The exemption covers this prompt and nothing else.** It is not a licence for a question asked
+**The exemption covers this prompt and nothing else.** It is not a license for a question asked
 beside it. A residue decision, a frontier round, a gap surfaced mid-synthesis, a `blocked` row from
 an unattended run: any OTHER question is a register question as usual. It writes its row at
 ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
@@ -194,7 +208,7 @@ is the user saying stop asking, and reports it unexamined exactly as a non-inter
 
 A run with nobody to answer, a dispatched worker, a forked subagent, a headless invocation, or any
 caller that declared the run unattended, **SKIPS** the ask instead of blocking on it, and the
-session's returned summary states that **unwanted-behaviour and state-driven coverage went
+session's returned summary states that **unwanted-behavior and state-driven coverage went
 unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
 summary. A prompt nobody can answer must not stall the run and must not silently vanish.
 
@@ -221,17 +235,17 @@ bracketed pattern prefix on that same plain-bullet form:
 | `[ubiquitous]` | an always-true requirement, no trigger and no state |
 | `[event-driven]` | `WHEN <trigger>, <response>` |
 | `[state-driven]` | `WHILE <state>, <response>` |
-| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[unwanted-behavior]` | `IF <trigger>, THEN <response>` |
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
 - [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
-The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, and
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
 `optional-feature`. This vocabulary is a contract with whatever reads the tag downstream, and a name
-spelled any other way, `unwanted-behavior`, `unwanted`, `event`, reads as no tag at all and breaks
+spelled any other way, `unwanted_behavior`, `unwanted`, `event`, reads as no tag at all and breaks
 detection silently rather than loudly. The tag prefixes the criterion; it never replaces the
 testable sentence, and an untaggable criterion is a criterion still owed a shape, not a criterion
 owed a sixth pattern.
@@ -314,20 +328,32 @@ Run rounds: restate working understanding → compute the frontier (every open q
 
 Full surfacing-question taxonomy + categorization heuristics in [`context/loop.md`](context/loop.md).
 
+On the page surface, Step 3's confirmation gate runs on the page: post the restatement with a `restate` op and wait for the user's `confirm-understanding` event, per [`context/surface.md`](context/surface.md) "Confirmation gate".
+
 **`me` mode** maintains a **decision-tree ledger**. One live checkbox per branch, ticked on resolve, remaining-open surfaced periodically (not every turn. Keeps the flow clean like the inline format). Persist each answer the moment it locks in (Step 4), loop until zero open consequential branches. Ask via the inline format (Stance "Relentless mode"). Ledger shape + per-round mechanics + reversibility-lens question shape in [`context/loop.md`](context/loop.md) "Decision-tree ledger".
+
+**Keep a running constraint ledger.** The ledger's `## Constraint ledger` section holds one row per constraint. Every constraint the user states is written at once as `confirmed`, the moment it is stated, never batched to Step 4; a constraint taken from an upstream artifact is `inherited` (a prior Brief, a PRD, a design resolution). Every recommendation names the constraints it was checked against on one line under `My recommendation:`, `Checked against: C1, C3` or `Checked against: none`. That line is part of the recommendation, not a second verdict marker and not the question's context line. On the page it opens the question's `facts` field, each constraint named in words, since the page's wording lint flags a bare `C<N>` ([`context/surface.md`](context/surface.md) "Wording lint"). A card has no recommendation line, so a question goes on an `AskUserQuestion` card only when its line would read `Checked against: none`; one that cites a constraint is asked in prose. An `inherited` constraint the contract relies on is asked as a register row at ask-time: the answer flips its tag to `confirmed`, and unattended it takes the ladder (`blocked`, USER-RESERVED, when it is the user's call). In `lock` a relied-on inherited constraint is a gap: STOP and surface it (Step 1.5); in `auto` direct synthesis it makes the path Mixed and is asked in the residue round. Row shape: [`context/loop.md`](context/loop.md) "Constraint ledger".
+
+**Composed artifacts are candidates.** A design from explore or research output, or read from an existing implementation, is a candidate, never a recommendation, until re-derived against the constraint ledger: check it against every row, recommend only what survives, and name the rows on its `Checked against:` line. A research or exploration brief dispatched mid-interview carries the constraint ledger verbatim.
+
+**Label evidence by when it was true.** When a recommendation rests on historical evidence (past metrics, merged PRs, an existing implementation) and the survey finds a recent process change or cannot tell, label each finding `past`, `current`, or `intended` before a recommendation rests on it. A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out. State or ask any currency you cannot establish; past-only evidence never alone grounds a recommendation.
+
+**What, not how: the mechanism tripwire.** "Does not plan implementation" has a trigger. When a question or its recommendation names a mechanism (a tool, an API, a credential or token scope, a runtime, a platform per step), ask once whether the user wants mechanism-level decisions settled now or at planning. Ask it in the same round as the first mechanism-naming question and register it like any other question; until it is answered, recommendations carry no mechanism part. When the answer is "at planning", no later recommendation fixes a mechanism, and every still-`open` mechanism row, commitment rows included, becomes `deferred`: carried to the Brief's `### Deferred questions` under the arbiter rule in an engineering session, listed as deferred in the shared-understanding summary in a general one. When the answer is "now", write `C<N> | confirmed | mechanism decisions settled in this interview | user, round <N>` at once, and the Brief's Constraints records that this topic overrides "does not plan implementation".
+
+**Sweep for assumptions before Step 3.** In `me` and `auto` with a register, including the `auto` Mixed path after its residue round, the loop ends with a fresh-context assumption sweep. Once the frontier is empty, and before the Step 3 register gate and confirmation gate, dispatch a non-fork sub-agent to inventory undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and any composed artifacts. You turn each item into a register row at the next contiguous `Q<N>`, a stated fact, or, for hedged rows, a line in the confirmation restate. Any `open` row it adds returns the run to Step 2, and the next sweep covers only what the new answers changed; Step 3 is reached when a sweep adds no `open` row. A run that asked no question skips it, and so does `lock`; unattended, an item that is the user's decision is `blocked`. The acceptance-criteria coverage prompt is never a sweep item. Scope, item shape, and disposition: [`context/assumption-sweep.md`](context/assumption-sweep.md).
 
 ### Step 3. Recognize the stop condition
 
 Stop when the frontier is empty. Every unknown the task depends on resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
 
-**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
+**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgment, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 ```
 
-Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire the row and re-run. Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**. `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly with no open decision. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
+Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**. `lock` synthesizing with no gap, and equally `auto` routing to synthesize-directly with no open decision. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against.
 
 **One thing is not a question for this purpose: the acceptance-criteria coverage prompt.** It carries no decision, writes no register row, and asking it does not by itself make a register exist or bring this gate into scope, so a synthesize-directly run whose only question was the coverage prompt still skips the gate. Read it narrowly. It exempts that one prompt, never a real question asked in the same round or the same session: any other question still writes its row at ask-time and still brings the gate into scope. See "Acceptance-criteria capture".
 
@@ -338,6 +364,8 @@ Exit 1 (a question is still `open`) and exit 2 (ungradeable) both HALT. Resolve 
 ### Step 4. Persist the contract
 
 Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars, shared with `/planning:prd`, `/planning:design`, `/planning:plan`). The contract lands in the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`); working ledgers land in the memory slice `<memory_dir>/<topic-slug>/` (default `.work/`). Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
+
+**Neither slice is a durable home.** The contract slice is pruned before the branch merges: durable outcomes graduate first, decisions and specs to an ADR or spec through the vault seam and follow-ups to a tracker item, then a final commit deletes `<contract_dir>/<topic-slug>/`, and the topic-docs convention's required check fails a PR that leaves any path under it. That close-out belongs to `/planning:plan` (the binding's "Close-out: the vault seam"). The memory slice self-ignores and never reaches git at all. So when the user asks where to keep something past this branch, never offer either slice: name the graduated destination, an ADR, a spec, or a tracker item, and the contract slice holds it only until that graduation.
 
 **General (non-engineering) sessions** persist a shared-understanding summary, the decisions reached and their rationale, to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and handoff discipline below still applies, with the summary standing in for the Brief.
 

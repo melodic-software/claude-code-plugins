@@ -206,7 +206,7 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
   is never counted twice. Two artifacts covering one function are folded the same way: the hit
   flag is the larger of the two, so a suite that never entered the function cannot report it at 0
   percent beside a file row the other suite already showed as covered. Two Go profiles covering
-  one file merge block by block on the profile's own `start.col,end.col` identity and are totalled
+  one file merge block by block on the profile's own `start.col,end.col` identity and are totaled
   after that, so two test shards that entered different blocks report what they covered between
   them rather than what the luckier shard covered alone.
 - A Go profile and a line artifact naming the same `.go` file do not average or overwrite each

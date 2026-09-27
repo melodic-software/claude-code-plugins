@@ -3,6 +3,64 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.12] - 2026-09-27
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4355): `zod` 4.6.2→4.6.5, `@biomejs/biome` 2.5.13→2.5.14, `@types/node` 26.5.1→26.6.1, `@vitest/coverage-v8` 5.0.0→5.0.1, and `vitest` 5.0.0→5.0.1 (lockfile; the `^5.0.0` range already admitted it). `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the others are development dependencies.
+
+## [0.4.11] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.4.10] - 2026-09-23
+
+### Changed
+
+- **README "Using vault-exec (opt-in)"** replaces its `event-storming` incompatibility note:
+  `event-storming` 0.6.14 and later detect Miro under the user-scope `mcp__miro__` prefix too
+  ([#4380](https://github.com/melodic-software/claude-code-plugins/issues/4380)).
+
+## [0.4.9] - 2026-09-23
+
+### Added
+
+- **README section "Using vault-exec (opt-in)"** documenting a `vault-exec`-wrapped user-scope
+  stdio server as an alternative to storing `miro_api_token` in Claude Code's secure credential
+  storage: enter a non-secret placeholder to satisfy the required option, wrap the plugin's
+  cached server launch with `vault-exec`, and disable the plugin's own server per project with
+  `/mcp` since the wrapped command differs from the plugin's and is not deduplicated by endpoint
+  ([#4342](https://github.com/melodic-software/claude-code-plugins/issues/4342)). No manifest or
+  code change; `miro_api_token` stays `required: true` for consumers who do not opt in.
+
+## [0.4.8] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.4.7]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4201): `zod` 4.5.4→4.6.2, `@biomejs/biome` 2.5.12→2.5.13, `@types/node` 26.4.1→26.5.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies.
+
+## [0.4.6]
+
+### Changed
+
+- The frames and tags tool handlers test for an optional SDK method through one typed capability predicate instead of two inline in-and-typeof checks. Responses and the built bundle behave the same.
+
+## [0.4.5]
+
+### Changed
+
+- Spread the parsed sticky note into the bulk payload, drop the dead item guard in the tag capability check and derive the build root from import.meta.dirname in the server (behavior unchanged; bundle regenerated).
+
 ## [0.4.4]
 
 ### Changed

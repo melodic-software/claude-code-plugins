@@ -474,9 +474,11 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         lenient = argparse.ArgumentParser(prog="probe")
         lenient.add_argument("--required-thing", required=True)
         # The resolved `--help` prints to stdout; keep it out of the test log.
-        with contextlib.redirect_stdout(io.StringIO()):
-            with self.assertRaises(SystemExit) as resolved:
-                lenient.parse_args([self.ABBREVIATION_PROBE])
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit) as resolved,
+        ):
+            lenient.parse_args([self.ABBREVIATION_PROBE])
         self.assertEqual(resolved.exception.code, 0)
 
 
@@ -790,7 +792,7 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
     Its whole value is that a denial there is a FAILED prerequisite rather than an
     INFO note -- which only holds if the target is provably harmless and stays
     pinned to the form the lane actually mandates. The wrapper's own exit-0,
-    no-network behaviour is exercised in bash by
+    no-network behavior is exercised in bash by
     plugins/source-control/scripts/babysit-wrapper-help.test.sh; what is pinned
     here is that the skill still names that exact invocation.
     """

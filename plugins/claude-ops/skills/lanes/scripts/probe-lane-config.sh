@@ -47,7 +47,9 @@ err() { printf 'ERROR: %s\n' "$*" >&2; }
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-while (($#)); do
+# The script takes no options, so every branch below ends the run: there is
+# nothing to shift and nothing a second token could change.
+if (($#)); then
   case "$1" in
   -h | --help)
     usage
@@ -58,16 +60,12 @@ while (($#)); do
     exit 3
     ;;
   esac
-done
+fi
 
 repo_root() {
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  if [[ -n "$root" ]]; then
-    printf '%s\n' "$root"
-  else
-    printf '%s\n' "$PWD"
-  fi
+  printf '%s\n' "${root:-$PWD}"
 }
 
 if [[ -n "${CLAUDE_OPS_LANES_CONFIG:-}" ]]; then

@@ -83,9 +83,9 @@ Verify this machine's prerequisites and platform posture with `/disk-hygiene:set
 ## How the guard is registered
 
 **All three** hook registrations, both wired hooks and the skill-scoped belt, use **shell form**:
-the `command` string names `hooks/run-python-hook.sh` directly with `"shell": "bash"` and no
-`args`, so Claude Code routes them through Git Bash itself instead of resolving the command on
-`PATH`. Exec form does not survive Windows, where a bare `PATH` lookup finds the WSL relay
+the `command` string is `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...` with
+`"shell": "bash"` and no `args`, so Claude Code routes it through Git Bash itself instead of
+resolving the command on `PATH`, and that `bash` is looked up by Git Bash on its own `PATH`. Exec form does not survive Windows, where a bare `PATH` lookup finds the WSL relay
 `System32\bash.exe` before Git Bash, or the zero-length `WindowsApps\python3.exe` App Execution
 Alias stub; the launch fails, and a failed hook launch is non-blocking, so the guard silently
 enforces nothing. The launcher resolves Python itself instead (#1504).
@@ -117,6 +117,12 @@ retroactively scans a prior session's transcript. Every hook registration routes
 `hooks/run-python-hook.sh`, a bash launcher that resolves Python independently of bare `python3` on
 PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable, the detector still
 emits a `systemMessage` even though the guard cannot run (#1504).
+
+**The guard's interpreter and data root arrive with the command.** A `UserPromptExpansion` hook
+(`skills/clean/scripts/engine_context.py`) runs when `/disk-hygiene:clean` expands and hands the
+skill the guard's absolute Python and authorized `--data-root`, resolved by the guard's own code, so
+a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
+guard still judges every call.
 
 **Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves Python
 through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
@@ -376,7 +382,7 @@ measurements below carry the conditions they were taken under.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this does **not** change is the guard's no-interpreter behaviour, the launcher still
+  path. What this does **not** change is the guard's no-interpreter behavior, the launcher still
   exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)

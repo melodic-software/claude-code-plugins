@@ -31,24 +31,22 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    match_path,
+    normalize,
+    require_python,
+    version_in,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "multimetric"
 HALSTEAD_LANES = ("typescript", "python", "bash", "go")
 CYCLOMATIC_LANES = ("bash",)
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -56,16 +54,12 @@ def probe() -> int:
     if not exe:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{NAME} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    if match:
-        print(match.group(1))
+    found = version_in(output)
+    if found is not None:
+        print(found)
         return 0
     print(
         installed_version(exe)
@@ -113,20 +107,8 @@ def installed_version(exe: str) -> str | None:
     return value if out.returncode == 0 and value else None
 
 
-def match_path(location: str, wanted_norm: dict[str, str]) -> str | None:
-    """multimetric keys its files by absolute path; map one back to the path
-    the dispatcher passed, by exact match first and then by segment suffix."""
-    norm = _normalize(location)
-    if norm in wanted_norm:
-        return wanted_norm[norm]
-    for key, original in wanted_norm.items():
-        if norm.endswith("/" + key):
-            return original
-    return None
-
-
 def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict]:
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, dict) or not isinstance(document.get("files"), dict):
         raise ValueError("multimetric did not print a document with a `files` object")
@@ -174,7 +156,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     result = subprocess.run([exe, *files], capture_output=True, text=True, check=False)
     try:
         rows = translate(result.stdout, lane, measure, files)
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+    except (ValueError, TypeError) as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
             f"stderr: {result.stderr.strip()}",
@@ -186,42 +168,28 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    for lane in HALSTEAD_LANES:
+        print(f"{lane}/halstead")
+    for lane in CYCLOMATIC_LANES:
+        print(f"{lane}/cyclomatic")
+
+
+INSTALL_HINT = "multimetric: https://github.com/priv-kweihmann/multimetric (pip install multimetric)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        for lane in HALSTEAD_LANES:
-            print(f"{lane}/halstead")
-        for lane in CYCLOMATIC_LANES:
-            print(f"{lane}/cyclomatic")
-        return 0
-    if verb == "install_hint":
-        print(
-            "multimetric: https://github.com/priv-kweihmann/multimetric (pip install multimetric)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "multimetric.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

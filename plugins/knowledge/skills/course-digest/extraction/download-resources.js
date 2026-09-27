@@ -107,6 +107,11 @@ function resourceFilename(resource) {
   return resource.label || basename(new URL(resource.href).pathname);
 }
 
+/** Deduplicate by href, keeping first-seen order. */
+function uniqueByHref(resources) {
+  return [...new Map(resources.map((r) => [r.href, r])).values()];
+}
+
 function buildDownloadItems({
   uniqueDownloads,
   uniquePdfs,
@@ -172,9 +177,9 @@ async function main() {
   walkModules(modulesDir, buckets);
   const { allDownloads, allPdfs, allArticles } = buckets;
 
-  const uniqueDownloads = [...new Map(allDownloads.map((d) => [d.href, d])).values()];
-  const uniquePdfs = [...new Map(allPdfs.map((p) => [p.href, p])).values()];
-  const uniqueArticles = [...new Map(allArticles.map((a) => [a.href, a])).values()];
+  const uniqueDownloads = uniqueByHref(allDownloads);
+  const uniquePdfs = uniqueByHref(allPdfs);
+  const uniqueArticles = uniqueByHref(allArticles);
 
   log.info("\nResources found:");
   log.info(`  Downloads: ${uniqueDownloads.length} unique files`);

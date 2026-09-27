@@ -9,7 +9,6 @@ import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import {
   deduplicateHarvestedLinks,
   extractUrlsFromText,
-  harvestMetadataLinks,
   mergeHarvestedLinks,
   summarizeHeatmap,
 } from "./harvest-links.js";
@@ -24,13 +23,13 @@ function loadFixture(name) {
   return parseVideoMetadata(JSON.parse(raw));
 }
 
-describe("harvestMetadataLinks", () => {
+describe("metadata harvest through the owning adapter", () => {
   it("tolerates null heatmap and harvests description + chapter links", () => {
     const metadata = loadFixture("null-heatmap.json");
     const heatmap = summarizeHeatmap(metadata.heatmap);
     expect(heatmap.present).toBe(false);
 
-    const links = harvestMetadataLinks(metadata, youtubeAdapter);
+    const links = youtubeAdapter.harvestLinks(metadata);
     const urls = links.map((link) => link.url);
     expect(urls).toContain("https://example.com/docs");
     expect(urls).toContain("https://chapter.example.com");
@@ -43,14 +42,14 @@ describe("harvestMetadataLinks", () => {
     expect(heatmap.present).toBe(true);
     expect(heatmap.peakCount).toBe(3);
 
-    const links = harvestMetadataLinks(metadata, youtubeAdapter);
+    const links = youtubeAdapter.harvestLinks(metadata);
     expect(links.some((l) => l.source === "pinned-comment")).toBe(false);
     expect(links.some((l) => l.url === "https://docs.example.com/guide")).toBe(true);
   });
 
   it("harvests pinned comment links when present", () => {
     const metadata = loadFixture("pinned-present.json");
-    const links = harvestMetadataLinks(metadata, youtubeAdapter);
+    const links = youtubeAdapter.harvestLinks(metadata);
 
     const pinned = links.filter((l) => l.source === "pinned-comment");
     expect(pinned).toHaveLength(1);

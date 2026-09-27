@@ -19,7 +19,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sourceMetadataSubset } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { acquireXMedia, adapter } from "../adapters/x.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 
 const GOLDENS_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -128,7 +127,7 @@ describe("x status golden eval fixture", () => {
           expect(persisted["source:snowflakeAliasing"], goldenCase.name).toBeUndefined();
         }
 
-        const harvested = harvestMetadataLinks(envelope.metadata, adapter).map((link) => link.url);
+        const harvested = adapter.harvestLinks(envelope.metadata).map((link) => link.url);
         for (const url of expected.harvestedLinks) {
           expect(harvested, goldenCase.name).toContain(url);
         }

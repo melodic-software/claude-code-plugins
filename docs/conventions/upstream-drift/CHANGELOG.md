@@ -90,7 +90,7 @@ guidance; no required part, canonical name, or enforceability verdict changed.
   be unstamped is a tracked issue rather than a row. That column is a promise to a reader, and
   tabling an unstamped surface would assert exactly what the reader would then not get.
 - **The fleet's open carriers are recorded where that rule sends them.** A sweep of `plugins/**` for
-  surfaces stating an upstream harness behaviour with no source, date, or trigger found 12 carriers
+  surfaces stating an upstream harness behavior with no source, date, or trigger found 12 carriers
   across 11 plugins, filed with quoted lines at
   [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297), along with the
   files checked and found *conforming*, and the sweep's own limitation (a file-level citation gate

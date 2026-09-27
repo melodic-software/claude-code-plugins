@@ -16,12 +16,11 @@ For each current check result:
  3. Apply the one severity adjustment this engine makes: upgrade WARN -> CRIT
     when the trend-relevant metric worsens by >= 5 (raw units or percentage
     points) against that baseline.
- 4. Record the adjustment reason in `notes` ("trend upgrade: X crossed
-    threshold last week too").
+ 4. Record the adjustment reason in `notes` ("trend upgrade: <metric>: +N vs
+    prior").
 
-Upgrades only. A revert-downgrade was described here before it existed and was
-never built; severity only ever moves up, so callers must not rely on this
-engine to walk one back down.
+Upgrades only: severity never moves back down, so callers must not rely on this
+engine to walk an adjustment back.
 
 Conservative defaults: when in doubt, do not adjust. The rubric explicitly
 prefers the lower severity on ambiguity and relies on trend upgrades to
@@ -54,24 +53,13 @@ function Invoke-TrendAnalysis {
     foreach ($r in $CheckResults) {
         $relevantKey = Get-TrendRelevantKey -CheckId $r.id
 
-        # Extract this check's trend-relevant metric history from the tail
-        # (file order: oldest -> newest, since Read-HistoryJsonl uses
-        # Get-Content -Tail). top_metrics keys are "<check.id>.<detailKey>"
-        # per output-schema.md.
-        #
-        # Only runs in which this check SUCCEEDED contribute a baseline. A failed or
-        # incomplete run still persists whatever partial detail it gathered into
-        # top_metrics -- deliberately, so the human reads the floor in the history
-        # line -- but that figure is a lower bound. Comparing a later complete run
-        # against it reads the recovered difference as growth and upgrades a WARN to
-        # CRIT on nothing. checks_ran is already the repo's authority for "this check
-        # produced a usable result"; Get-CheckLastRun reads it the same way.
+        # Only runs where this check succeeded (checks_ran) give a baseline: a failed run's
+        # partial top_metrics is a lower bound that would upgrade a WARN to CRIT on nothing.
         #
         # Only the most recent qualifying value is ever compared against, so the
         # walk overwrites rather than accumulating: the tail is in file order
         # (oldest -> newest), so the last assignment is the newest baseline.
-        # Reading [0] would compare today against the STALEST entry, which is
-        # the bug the ordering note guards.
+        # Reading [0] would compare today against the stalest entry instead.
         $lastMetric = $null
         if ($relevantKey) {
             $fullKey = "$($r.id).$relevantKey"
@@ -126,7 +114,6 @@ function Invoke-TrendAnalysis {
             adjusted_from = $adjustedFrom
         }
 
-        # Add-Member -Force creates the property if absent or overwrites if present.
         $r | Add-Member -NotePropertyName trend -NotePropertyValue $trend -Force
     }
 

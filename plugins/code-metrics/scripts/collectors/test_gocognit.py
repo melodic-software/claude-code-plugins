@@ -10,54 +10,37 @@ T13; no executable is committed).
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    dash_version_gate,
+    run_adapter,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "gocognit.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "gocognit.json"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "gocognit.json"
 
 
 def make_stub(
     directory: Path, version_line: str = "v1.2.1", capture: Path | None = CAPTURE
 ) -> None:
-    stub = directory / "gocognit"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'case "${1:-}" in -version | --version) '
-        "printf '%s\\n' \""
-        + version_line
-        + '"; exit 0 ;; esac\n'
+    write_stub(
+        directory / "gocognit",
+        dash_version_gate(version_line)
         + (f'cat "{capture}"\n' if capture else "")
         + "exit 0\n",
-        encoding="utf-8",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-gocognit-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
-    )
+    return run_adapter(SCRIPT, "gocognit", *args, path_prefix=path_prefix)
 
 
 class GocognitAdapterTests(unittest.TestCase):

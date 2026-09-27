@@ -66,12 +66,10 @@ export async function spawnYtDlpWithAuthFallback(spawn, buildArgs, options = {})
   const { errorPatterns = NO_ERROR_PATTERNS, allowBrowserCookieProfileFallback = false } = source;
   const spawnOptions = cwd ? { cwd } : {};
 
-  if (!allowBrowserCookieProfileFallback || hasExplicitYtDlpCookieConfig(env)) {
-    return spawnWithAcquireRetry(spawn, "yt-dlp", buildArgs(), spawnOptions);
-  }
+  const mayFallBack = allowBrowserCookieProfileFallback && !hasExplicitYtDlpCookieConfig(env);
 
   let result = await spawnWithAcquireRetry(spawn, "yt-dlp", buildArgs(), spawnOptions);
-  if (result.success) {
+  if (!mayFallBack || result.success) {
     return result;
   }
 

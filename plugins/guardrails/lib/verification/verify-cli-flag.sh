@@ -131,15 +131,13 @@ HELP_OUTPUT=""
 if $USE_CACHE; then
   HELP_OUTPUT=$(<"$CACHE_FILE")
 else
-  # Run `<bin> [<subcmds>...] --help` with timeout 5s. 2>&1 catches binaries
-  # that print --help to stderr (e.g. some legacy tools).
-  if command -v timeout >/dev/null 2>&1; then
-    HELP_OUTPUT=$(timeout 5 "$BIN" "${SUBCMDS[@]}" --help 2>&1)
-    HELP_RC=$?
-  else
-    HELP_OUTPUT=$("$BIN" "${SUBCMDS[@]}" --help 2>&1)
-    HELP_RC=$?
-  fi
+  # Run `<bin> [<subcmds>...] --help` with timeout 5s where `timeout` exists;
+  # an empty prefix array runs the binary directly. 2>&1 catches binaries that
+  # print --help to stderr (e.g. some legacy tools).
+  TIMEOUT_PREFIX=()
+  command -v timeout >/dev/null 2>&1 && TIMEOUT_PREFIX=(timeout 5)
+  HELP_OUTPUT=$("${TIMEOUT_PREFIX[@]}" "$BIN" "${SUBCMDS[@]}" --help 2>&1)
+  HELP_RC=$?
   # Some CLIs return non-zero on --help (e.g. busybox tools, malformed args).
   # Tolerate non-zero as long as output is non-empty and it did not time out.
   if [[ -z "$HELP_OUTPUT" ]] || ((HELP_RC == 124)); then

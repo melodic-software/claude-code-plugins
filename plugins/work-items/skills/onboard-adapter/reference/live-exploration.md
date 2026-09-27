@@ -73,7 +73,7 @@ List items with an explicit page size, and again with none.
 - What is the default page size when none is requested? This is the number that silently
   truncates. (`gh` truncates at 30.)
 - What is the maximum the API accepts? That is `limits.list_items_max`.
-- How is the next page signalled: cursor, link header, or page number? The adapter must
+- How is the next page signaled: cursor, link header, or page number? The adapter must
   follow it to the declared ceiling.
 
 ### Assignment and leases: when `claim` is declared

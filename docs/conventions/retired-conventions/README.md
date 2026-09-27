@@ -23,7 +23,7 @@ PR: that PR appends the record, updates the plugin's CHANGELOG, and (where the s
 re-expressed as a convention doc) rewrites its row in the [config cascade](../config-cascade/README.md)
 Implementers table. Nothing here decides a retirement; it only makes one detectable.
 
-Two neighbouring contracts are cited, not restated. The expression doctrine that decides whether a
+Two neighboring contracts are cited, not restated. The expression doctrine that decides whether a
 surface is a file or a convention doc, and the pointer line that binds the convention home, belong
 to [config cascade](../config-cascade/README.md#expression-doctrine-which-surfaces-are-files-and-which-are-convention-docs).
 Repeated operator declines of a cleanup route to [finding suppression](../finding-suppression/README.md).

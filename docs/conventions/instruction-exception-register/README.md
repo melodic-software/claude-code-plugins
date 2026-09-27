@@ -35,7 +35,7 @@ recoverable by re-promoting it while a deleted rule leaves nothing to re-promote
 Both properties matter, and neither is decoration:
 
 - **Non-exhaustive.** The classes are the recognized floor, never the complete set of things worth
-  keeping. **Omission from this register is not licence to delete.** A rule outside every class is
+  keeping. **Omission from this register is not license to delete.** A rule outside every class is
   judged on its own merits by the auditing skill's normal criteria, exactly as it was before this
   document existed; it does not inherit a deletion warrant from its absence here.
 - **Tighten-only.** A consuming repo or a downstream skill may add protected classes. Nothing that
@@ -65,7 +65,7 @@ changes no behavior, which is the failure mode this table exists to prevent.
   legitimately relocated.
 - Not a suppression record. A finding an operator has judged and accepted is the
   [finding-suppression](../finding-suppression/README.md) convention's axis.
-- Not a licence to keep everything. The subtractive posture stands for every candidate outside the
+- Not a license to keep everything. The subtractive posture stands for every candidate outside the
   protected classes, and compression in place remains the right answer for a protected rule that has
   genuinely grown bloated.
 

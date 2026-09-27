@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. For a heavy verification fan-out, a typed full inventory of the session's claims verified at a configurable depth, use the sibling do-your-research-deep."
+description: "Re-anchor research and no-assumptions discipline, then audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', or at conversation start to set the posture. To verify every claim in the session, use do-your-research-deep."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -24,7 +24,7 @@ per the method doc's ladder: if the consuming project states a
 research/verification discipline in its own `CLAUDE.md` or `.claude/rules/`,
 re-anchor THAT. Otherwise re-anchor this portable baseline:
 
-- **Assert nothing you cannot point to a source for.** A claim labelled
+- **Assert nothing you cannot point to a source for.** A claim labeled
   "known", "obvious", or "from memory" is unverified until a fetched
   source or the live environment backs it.
 - **Verify every concrete specific.** A path, filename, default, flag,
@@ -101,12 +101,12 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
 Correct each forward now: research the unbacked claim, verify the specific
 against the live environment or an authoritative source, re-derive a
 premature solution from the actual problem, and flag whatever stays
-unverifiable rather than smoothing over it. Where your own judgement is
+unverifiable, naming where you looked, rather than smoothing over it. Where your own judgment is
 the suspected source of bias, re-derive in a fresh-context subagent.
 
 ## Escalating to a verification fan-out
 
-When your own judgement is the suspected source of bias across MANY
+When your own judgment is the suspected source of bias across MANY
 load-bearing claims, not just the current one, or a request to
 "fact-check" the whole session wants provable coverage, escalate by invoking
 the sibling `/discipline:do-your-research-deep` via the Skill tool. It enumerates a typed full
@@ -125,5 +125,5 @@ at a configurable depth, and reports a per-item ledger.
 
 - "Verifying" a claim against the same recall that produced it is not
   verification, the research-specific trap. Reach for a real source or the
-  live environment; where your own judgement is the suspect across many
+  live environment; where your own judgment is the suspect across many
   claims, `/discipline:do-your-research-deep` is the fresh-context escalation.

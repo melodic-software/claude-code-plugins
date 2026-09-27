@@ -4,6 +4,210 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.5] - 2026-09-27
+
+### Changed
+
+- `book-distill`'s one-chapter-at-a-time rule, `course-digest`'s gather-before-Phase-3 rule and storage rules, and the Dometrain adapter's instructor rule drop their all-caps and "Critical rule" markers. The rules themselves are unchanged (#4120).
+
+## [0.14.4] - 2026-09-27
+
+### Changed
+
+- **`video-digest` and `course-digest` gather their four dependency probes in one fenced
+  pre-compute block each.** The rows and their labels are unchanged. Each `node -e` probe gains
+  the fallback it lacked, so a host without `node` renders `MISSING - node not found` instead of
+  failing the skill load.
+
+## [0.14.3] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.14.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.14.1] - 2026-09-23
+
+### Changed
+
+- The Anthropic docs profile records a third blog-channel extraction artifact: chart and diagram
+  text (inline SVG `<text>`, image alt text, video captions) is dropped by text extraction, so the
+  raw HTML is kept as `source.html` beside `source.md` and that text is read from it;
+  `docpage-digest` Phase 1 and the checklist template count `source.html` in the rendered
+  channel's file set where the profile requires it. A resumed work root holding only
+  `source.md` keeps it unchanged and fetches `source.html` beside it, noted in the checklist. The title
+  recovery reads `source.html` first. Claude Tag product mechanics are `tag-exempt
+  (consumer-surface)`.
+- The Anthropic docs queue records three blog posts: getting started with loops, code review, and
+  test-impact analysis for agentic CI.
+
+## [0.14.0] - 2026-09-23
+
+### Changed
+
+- `docpage-digest` keeps going between phases that need no input and pauses only when a phase
+  needs the human or the session is ending.
+- The Anthropic docs queue records the Opus 5.5 release notes, prompting guide, and usage guide
+  blog post; the publisher profile now matches `claude.dev/blog` under the same blog rules as
+  `claude.com/blog`.
+- `course-digest`'s per-module agent briefs state when each agent is done and when it returns
+  early, and synthesis checks each claim against the file the agent names for it.
+
+## [0.13.77] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.13.76]
+
+### Removed
+
+- **The video-digest source-liveness harness** (`skills/video-digest/extraction/liveness/`) and its `liveness:offline` and `liveness:live` package scripts, with the repository's scheduled liveness workflow whose runs nobody read. No skill body, pipeline script, or runtime code used the harness.
+
+## [0.13.75]
+
+### Changed
+
+- The repair and vision-gated promotion scripts share one synthesis destination-name normalizer in lib, and the two slice validators report through one shared wrapper. Messages, exit codes and written artifacts are unchanged.
+
+## [0.13.74]
+
+### Changed
+
+- The harvest, transcript, watch and bootstrap-recovery entry points call the adapter's harvestLinks directly instead of through a one-line wrapper, and the harvest-links suite exercises the same behavior through the adapter. Output is unchanged.
+
+## [0.13.73]
+
+### Changed
+
+- The two docpage-digest gate test wrappers run through one sourced library and the two Python gate suites share one harness module. Collected case counts, messages and exit codes are unchanged.
+
+## [0.13.72]
+
+### Changed
+
+- The mux, hotmart, dometrain and teachable adapters resolve their video player selector and probe for the player element through one shared helper instead of four inline copies. Dometrain keeps its non-optional config access, now pinned by a test.
+
+## [0.13.71]
+
+### Changed
+
+- The course-digest browser helper no longer creates and removes a temporary profile directory that nothing read; launch and close keep their call order and every caller passes two arguments. A duration match in build-course-json uses optional chaining for the same result.
+
+## [0.13.70]
+
+### Changed
+
+- The watching pipeline and the watch bootstrap recovery normalize VTT cues through one helper, and the coverage-plan and frame-selection sequences are exposed as named functions instead of being repeated at each call site. Plans, selections, and manifests are unchanged.
+
+## [0.13.69]
+
+### Changed
+
+- The video-digest watch scripts read argv only under their main-module guard and share the selected-frame index and lane JSON reads through one library helper, with identical output and exit codes.
+
+## [0.13.68]
+
+### Changed
+
+- Round seconds through one helper, merge overlapping windows in a single pass and iterate contact-sheet batches by entries in video-digest watching (behavior unchanged).
+
+## [0.13.67]
+
+### Changed
+
+- Merge the proper-noun repair branches behind one guard, hoist the ASR runnable check, return the auto-caption flag directly and share the io stub in the video-digest transcript suite (behavior unchanged).
+
+## [0.13.66]
+
+### Changed
+
+- Index sheet frames by the frame object, drop the single-group dedupe fast path, inline the session end lookup, name the frames-per-sheet constant and return the claim parse directly in the video-digest watch scripts (behavior unchanged).
+
+## [0.13.65]
+
+### Changed
+
+- Share the optional text read, count regex matches through one helper, derive the session frame counts once and collapse the golden part matcher in the video-digest evals (behavior unchanged).
+
+## [0.13.64]
+
+### Changed
+
+- Hoist the transcript degradation metric and the phase order, nest the anchor-name scoring guard, merge the triage-log pushes and share the talk fixture and temp-dir cleanup in the video-digest watch scripts (behavior unchanged).
+
+## [0.13.63]
+
+### Changed
+
+- Inline the single-use file reads, drop the redundant object check on the parsed info and share the fetch stub in video-digest harvesting (behavior unchanged).
+
+## [0.13.62]
+
+### Changed
+
+- Fold the duplicated auth-fallback spawn into one call, share the captions-only pass, staged-failure and metadata entry parsers and hoist the title fallback in video-digest acquisition (behavior unchanged).
+
+## [0.13.61]
+
+### Changed
+
+- Parse http urls through one helper, pass the acquire function directly, hoist the stderr default in the liveness classifier and share the spawn-result stub across the video-digest x adapter and liveness suites (behavior unchanged).
+
+## [0.13.60]
+
+### Changed
+
+- Derive the video-digest run and setup-deps entry-point directory from import.meta.dirname and drop the unused url import (behavior unchanged).
+
+## [0.13.59]
+
+### Changed
+
+- Share the integer check across the map-corpus gates, fold the three link scans into one loop, hoist the fence match and read manifest keys directly after the missing-key gate (behavior unchanged).
+
+## [0.13.58]
+
+### Changed
+
+- Share the gate argument parser and runner between the docpage-digest fence and snippet checks and route their suites through one invoke helper (behavior unchanged).
+
+## [0.13.57]
+
+### Changed
+
+- Resolve the video-player selector and subtitle language through one helper each, inline the date patterns and fold the preflight and resource probes into returned object literals in the course-digest adapters (behavior unchanged).
+
+## [0.13.56]
+
+### Changed
+
+- Share the validation check logger, the href dedup helper and the lesson-failure record, narrow the frame-extraction result to its two read fields and inline the lesson position in course-digest extraction (behavior unchanged).
+
+## [0.13.55]
+
+### Changed
+
+- video-digest extraction: watch-vision-validation.js reads the triage manifest's sheets array through one helper and finds records by key through another, dropping an unused typedef; temp-session-paths.js names its separator normalizer once and drops the unused resolveFramePath export. No behavior change.
+
+## [0.13.54]
+
+### Changed
+
+- course-digest extraction: validators.js counts schema keys with one Map instead of a two-pass scan, meta-tags.js skips a missing property attribute once instead of guarding every test, hotmart.js drops a redundant optional chain, and hotmart.test.js shares its page builders. No behavior change.
+
 ## [0.13.53]
 
 ### Changed
@@ -187,7 +391,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   divergence needs an embedded newline.
 - **`check_linkmap.py`: `ground` is now `rungs_by_url`.** The old name needed a
   comment to say what it held; the new one says it. Mechanical rename, five call
-  sites, no behaviour change.
+  sites, no behavior change.
 - **`check_inventory.py`: `rows_clean` was write-only.** It was incremented and
   never read, so it is removed. The rest of the file's diff is `ruff format`
   output, not hand edits: the pinned formatter reflowed 147 of 148 lines when the
@@ -523,7 +727,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `MISSING` for yt-dlp, ffmpeg, or ImageMagick. On a correctly provisioned machine the context now
   shows `MISSING`, so the skill refuses to run against a toolchain that is installed and working.
   0.13.23 turned a gate that failed open into one that spuriously fails closed. The direction is
-  safer, the behaviour is still wrong.
+  safer, the behavior is still wrong.
 
   The five probes are not equally exposed, and the difference matters for diagnosis. Whether the
   token fires is a race between the tool still writing its banner and `head -1` closing the pipe,
@@ -1263,7 +1467,7 @@ Neither skill declares `allowed-tools`, so no grant changed.
   **same-workload mention**, carry an identical adjudication from two independent verification
   arms. The third, **harness-internal recognition or support** (a harness doc naming the subject in
   describing the harness's own behavior toward it, with no user-reachable path), is new: it rests on
-  one attested instance, and the amendment is labelled as the campaign's own choice rather than an
+  one attested instance, and the amendment is labeled as the campaign's own choice rather than an
   inherited adjudication, because nothing in the corpus ever defined the term. Every such hit is
   still disclosed as a near-miss under 0.10.16's rule, which this appends to rather than replaces.
   Without the definition, an `api-only` tag turned on whether the reader read "harness surface" as
@@ -1295,7 +1499,7 @@ Neither skill declares `allowed-tools`, so no grant changed.
   24 on its own, and the rule had been re-derived per unit rather than written down.
 - **Anthropic profile: the two reproducible `claude.com/blog` extraction artifacts are recorded**
   (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
-  from the canonical URL slug, labelled reconstructed because a slug recovers word boundaries only.
+  from the canonical URL slug, labeled reconstructed because a slug recovers word boundaries only.
   Both reproduced exactly across two blog runs, which is what the earlier deferral was waiting for.
 
 Two classes of item are deliberately **not** applied here, for two different reasons.

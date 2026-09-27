@@ -7,9 +7,7 @@ lookup shared by cadence selection and trend annotation.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CheckLastRun.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CheckLastRun.ps1'
 
     function New-Entry {
         param([string] $RunId, [string[]] $ChecksRan)
@@ -45,9 +43,8 @@ Describe 'Get-CheckLastRun' -Tag 'lib' {
     }
 
     It 'finds a check whose last run is deeper than 8 entries back (justifies the deep cadence tail)' {
-        # A monthly check deferred across many recent runs: its last actual run
-        # sits well beyond the newest 8 entries. The lookup must still find it,
-        # which is why the orchestrator loads a deep history tail for cadence.
+        # A monthly check's last actual run sits beyond the newest 8 entries; the lookup
+        # must still find it, which is why the orchestrator loads a deep tail.
         $tail = @(
             New-Entry -RunId '2026-05-01T00:00:00Z' -ChecksRan @('cert-expiry')
         )
@@ -58,9 +55,8 @@ Describe 'Get-CheckLastRun' -Tag 'lib' {
     }
 
     It 'normalizes a datetime run_id (ConvertFrom-Json coercion) back to parseable ISO 8601' {
-        # ConvertFrom-Json coerces an ISO run_id string to [datetime]; the helper
-        # must re-emit ISO, not a locale-specific "MM/dd/yyyy" string that would
-        # misparse for cadence math on a non-US-locale host.
+        # ConvertFrom-Json coerces an ISO run_id to [datetime]; the helper must re-emit ISO,
+        # not a locale-specific string that would misparse on a non-US-locale host.
         $dt = [datetime]::new(2026, 5, 8, 9, 30, 0, [System.DateTimeKind]::Utc)
         $tail = @([pscustomobject]@{ run_id = $dt; checks_ran = @('disk-space') })
         $result = Get-CheckLastRun -CheckId 'disk-space' -HistoryTail $tail

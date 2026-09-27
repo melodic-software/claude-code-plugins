@@ -1,5 +1,5 @@
 ---
-description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
+description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md and a natively read AGENTS.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
 argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
@@ -34,13 +34,17 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 ## Scope and safety rails
 
 - **Project scope by default.** The experiment strips the *project's* surfaces: project CLAUDE.md /
-  CLAUDE.local.md, `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
+  CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
+  natively once those are gone (**whether a session reads one at all depends on availability and the
+  instruction-files mode, and this body does not restate either**; the four-part record is this
+  plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
+  `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
   operator explicitly opts in per phase-1 prompt, never by default.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.
 - **Reversible by construction.** Tracked-file changes happen on a dedicated experiment branch;
-  untracked/settings changes are backed up to plugin state before modification and restored from
-  that manifest. Nothing is destroyed: git history and the snapshot manifest are the safety net.
+  untracked/settings changes are backed up to plugin state before modification or removal and
+  restored from that manifest. Nothing is destroyed: git history and the snapshot manifest are the safety net.
 - **Human-gated.** Every mutating step (strip, restore, re-add) presents its exact change set and
   waits for operator confirmation. Bare invocation of a phase never mutates silently.
 - **Security posture is out of scope.** Hooks that enforce policy (secrets gates, PR-body contracts,
@@ -66,19 +70,28 @@ means passing its phase commands from inside the same checkout its manifest name
   target model, phase timestamps.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity).
-- `backups/`: pre-strip copies of any non-git-tracked file modified (e.g. settings hook entries).
+- `backups/`: pre-strip copies of any non-git-tracked file modified or removed (settings hook
+  entries, and an untracked instruction file the plan classified behavioral, which git cannot
+  restore and so is never stripped through the git helper).
 
 `status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
 
 ## Phase 1: snapshot
 
 1. Verify a clean working tree; refuse to start on a dirty tree or on the default branch. Create or
-   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`).
+   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). **Clean here means no
+   tracked modification and no unrelated untracked file.** An untracked instruction file from the
+   `instruction-files.sh` list is admitted, and only that: it is the ordinary shape of a
+   `CLAUDE.local.md`, it is what step 3 is about to classify, and a gate that read it as dirt would
+   refuse every repository the manifest backup route at Phase 2 exists for. Admitting it is not
+   waiving it: an untracked file the plan classifies behavioral goes through that route, never
+   through the git helper, and one the plan keeps is left in place like any other kept surface.
 2. Inventory the live project instruction surfaces (the same liveness discipline as
    `audit-instructions` Phase A, lighter: what actually loads in a session here, not what is merely
    on disk). Record line counts per surface.
 3. Classify **every surface the strip plan will touch**: hooks, rules, instruction files
-   (CLAUDE.md / CLAUDE.local.md, `.claude/skills/`, `.claude/agents/`), and project-enabled
+   (CLAUDE.md / CLAUDE.local.md / `.claude/CLAUDE.md`, `AGENTS.md` / `.claude/AGENTS.md`,
+   `.claude/skills/`, `.claude/agents/`), and project-enabled
    plugins alike: `policy` (enforces team/safety policy regardless of model, so kept), `behavioral`
    (corrects or scaffolds model behavior, so stripped), `hybrid` (one unit carrying both, with the
    split named, trimmed and never removed whole), or `convention` (team conventions in git, the
@@ -91,8 +104,8 @@ means passing its phase commands from inside the same checkout its manifest name
    skills, agents, plugins) classify by the class definitions above; `hybrid` applies to any unit
    whose behavioral and policy surfaces can be split in place. Classification is per unit that
    Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction
-   file, where a CLAUDE.md carrying both convention sections and behavioral lines is the common case,
-   is not classified whole: split it in the strip plan, naming which sections are stripped and
+   file, where a CLAUDE.md or an AGENTS.md carrying both convention sections and behavioral lines is
+   the common case, is not classified whole: split it in the strip plan, naming which sections are stripped and
    which are preserved (extracted to a retained file or left in place), so the convention
    carve-out holds at section granularity rather than being deleted wholesale with the file. A
    **hybrid hook entry** gets the same treatment at its own granularity: the strip plan names the
@@ -115,6 +128,43 @@ Apply the confirmed strip plan:
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`.
+- The root instruction files, for a plan that strips them whole, go through
+  [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
+  `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
+  present, and `strip <root> <name>…` `git rm`s the ones the plan classified behavioral, printing
+  what it moved, after checking every one of them is tracked and clean: `git rm` refuses an
+  untracked file and a modified one alike, and either refusal mid-loop would leave the files ahead
+  of it gone and the rest still loading. **An untracked instruction file, the ordinary case for
+  `CLAUDE.local.md`, is not this helper's to strip**, since git holding the undo is what lets it
+  remove anything at all. One the plan classified behavioral takes the same route as the settings
+  entries below: back it up to `backups/`, record the path and its restore in the manifest, and
+  remove it there. The helper names it rather than stripping it, so the bare baseline is still
+  reached, by the path that can actually restore it. **Name the files the plan approved.** A repository can hold
+  a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
+  chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
+  `--all` is there for the case where the plan did approve every one.
+  **Both `AGENTS.md` names are strip CANDIDATES wherever the strip could make them live, and each
+  is then classified like any other file.** Candidacy and classification are separate questions:
+  candidacy asks whether removing the `CLAUDE.md` names would put this file in context, and
+  classification asks what the file is. Neither is answered by "nothing appears to read it today",
+  which is why Phase 1 must consider both names rather than passing over them: a session reads them
+  as the project instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
+  names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim ends the strip with its
+  entire instruction surface still loading, from the file the shim pointed at, unless the plan
+  considered that file at all. **What candidacy is conditional on is whether the strip could make the
+  file live at all.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`,
+  but only in a session where `AGENTS.md` support is available and the instruction-files mode reads
+  one: where availability is known unavailable, or the mode is `claude-md` or `managed-only`, the
+  file stays unread after the strip, so stripping it changes nothing about the baseline being
+  measured and only perturbs the other tools that read it. Leave it out of the candidate set only
+  when a condition is known to rule it out **and** no `CLAUDE.md` imports or symlinks it; a merely
+  unresolved condition keeps it, and so does a shim or import, since that import is itself a live
+  path into context regardless of native support. The conditions carry their dated records in this
+  plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there
+  rather than restating them here. What the classification then says is binding on an `AGENTS.md`
+  exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
+  `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
+  which only moves whole files.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
@@ -159,7 +209,20 @@ rows after real work is a licensed permanent deletion.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
-2. For each group that clears the gate, restore the narrowest instruction that addresses the cause,
+2. For a root instruction file being restored whole,
+   `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
+   is given, and only those. **Name the file the ledger defended; never restore the set.** A
+   restore that returned every stripped file would hand back the instructions the ledger did not
+   defend, which is the whole result this phase exists to protect. **`--all` is the abandon path,
+   never the close path.** Closing an experiment normally leaves the undefended surfaces retired,
+   per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
+   whole experiment back to its pre-strip state and discarding the result: it overwrites what is on
+   disk rather than skipping it, and it removes an instruction file the pre-strip state did not have
+   **and git tracks**. One that was never tracked it names and leaves, since git cannot tell a file
+   the experiment created from one that predated it and was never committed, and deleting the
+   second is unrecoverable; an abandon can therefore leave an untracked file of the experiment's own
+   behind, named on stderr for the operator to remove.
+   For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
@@ -174,7 +237,7 @@ rows after real work is a licensed permanent deletion.
    "no stumble was observed" is the weakest evidence available against it, and the register exists
    because that inference is the one this phase would otherwise make. Restoring a protected rule
    this way is not a failed deletion, so do not count it as a retained surface in the ledger's
-   defence tally; record it as a register hold with its class.
+   defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
    repo's normal PR flow.

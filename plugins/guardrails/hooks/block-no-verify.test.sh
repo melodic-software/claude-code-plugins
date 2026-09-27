@@ -229,7 +229,56 @@ run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")" 2
 run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
   "& { git commit --no-verify }" 2
+# An EXPANDABLE `@"` body is a different shape from the verbatim `@'` body above:
+# `$( … )` inside it is a command position evaluated where it is written, and the
+# body is dropped at intake, so no git-freedom proof can be taken over what is
+# left. This guard carries no allow-list, so it is the one that still refuses the
+# class after `block-noncanonical-commit` defers it.
+run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")" 2
+# The `readonly-ok` relief this guard passes to the classifier does not reach the
+# class: the expandable short-circuit runs BEFORE the read-only narrowing, and it
+# has to, because the body that would prove the command read-only is the very
+# text that was dropped.
+run_pwsh "PS: expandable here-string body running read-only git (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
+# The harshest consequence of that acceptance, pinned where it actually lands: a
+# command naming no git at all is refused here, and this guard consults no
+# allow-list, so nothing narrower than its own kill switch relieves it.
+# block-dangerous-git takes ps-unparsable-herestring-subexpr; this one takes
+# nothing. Pinned so a later narrowing flips a case instead of passing silently.
+run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no allow token here)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
+
+# The commit-guard twin of the comment-tail here-string opener. PowerShell reads
+# `# @"` as comment text, so the `@"` opens nothing and the `--no-verify` commit
+# under it is a live top-level command; the reduction takes the line as an opener
+# and drops that command as here-string body. Measured on the base through this
+# hook: rc 0, with the bypass never seen. A `#` anywhere on a CONFIRMED opener
+# line, before the two-character suffix, now refuses the shape, on a plain
+# substring test of the raw line with no quote pairing. This guard consults no
+# allow-list, so the refusal here is final.
+run_pwsh "PS: --no-verify recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit --no-verify -m x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
+# The apostrophe-straddle spelling, which two per-style quote strips read as a
+# clean opener because the span they delete swallows the real `#`. The raw test
+# never looks at a quote.
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git commit --no-verify -m x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git
@@ -544,7 +593,7 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # dangerous in it. The guard refuses rather than matching because the text it can
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
-# and which executor behaviour applies has not been traced.
+# and which executor behavior applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
@@ -584,7 +633,7 @@ assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
 run "empty command, no NUL (allowed)" "" 0
 
 # --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
 # expressions, neither aware of which style opened first. The single-quote
 # expression matched from the apostrophe inside one double-quoted string to the
 # apostrophe inside the next and DELETED everything between them — including the

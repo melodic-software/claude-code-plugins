@@ -70,59 +70,59 @@ HAVE_AFTER=0
 
 while (($# > 0)); do
   case "$1" in
-    --shim-dir)
-      SHIM_DIR="${2:-}"
-      shift 2
-      ;;
-    --before)
-      BEFORE_COMMAND="${2:-}"
-      HAVE_BEFORE=1
-      shift 2
-      ;;
-    --after)
-      AFTER_COMMAND="${2:-}"
-      HAVE_AFTER=1
-      shift 2
-      ;;
-    --before-label)
-      BEFORE_LABEL="${2:-}"
-      shift 2
-      ;;
-    --after-label)
-      AFTER_LABEL="${2:-}"
-      shift 2
-      ;;
-    --warm)
-      WARM="${2:-}"
-      shift 2
-      ;;
-    --reset-command)
-      RESET_COMMAND="${2:-}"
-      shift 2
-      ;;
-    --tool)
-      PASSTHROUGH+=(--tool "${2:-}")
-      shift 2
-      ;;
-    --stdin)
-      PASSTHROUGH+=(--stdin "${2:-}")
-      shift 2
-      ;;
-    --stdin-file)
-      PASSTHROUGH+=(--stdin-file "${2:-}")
-      shift 2
-      ;;
-    --allow-windows-paths)
-      PASSTHROUGH+=(--allow-windows-paths)
-      shift
-      ;;
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    *)
-      harness_die "unknown argument: $1 (see --help)"
-      ;;
+  --shim-dir)
+    SHIM_DIR="${2:-}"
+    shift 2
+    ;;
+  --before)
+    BEFORE_COMMAND="${2:-}"
+    HAVE_BEFORE=1
+    shift 2
+    ;;
+  --after)
+    AFTER_COMMAND="${2:-}"
+    HAVE_AFTER=1
+    shift 2
+    ;;
+  --before-label)
+    BEFORE_LABEL="${2:-}"
+    shift 2
+    ;;
+  --after-label)
+    AFTER_LABEL="${2:-}"
+    shift 2
+    ;;
+  --warm)
+    WARM="${2:-}"
+    shift 2
+    ;;
+  --reset-command)
+    RESET_COMMAND="${2:-}"
+    shift 2
+    ;;
+  --tool)
+    PASSTHROUGH+=(--tool "${2:-}")
+    shift 2
+    ;;
+  --stdin)
+    PASSTHROUGH+=(--stdin "${2:-}")
+    shift 2
+    ;;
+  --stdin-file)
+    PASSTHROUGH+=(--stdin-file "${2:-}")
+    shift 2
+    ;;
+  --allow-windows-paths)
+    PASSTHROUGH+=(--allow-windows-paths)
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    harness_die "unknown argument: $1 (see --help)"
+    ;;
   esac
 done
 
@@ -144,7 +144,7 @@ CENSUS_COUNT=""
 # failure inside spawn-census.sh can terminate this script rather than a
 # subshell nobody is checking.
 census_run() {
-  local label="$1" command="$2" rc=0 line=""
+  local label="$1" command="$2" rc line
   set +e
   line="$(bash "$CENSUS" --shim-dir "$SHIM_DIR" --label "$label" --ledger-key "$label" \
     "${PASSTHROUGH[@]}" -- bash -c "$command" 2>&1)"
@@ -160,10 +160,9 @@ ARM_WARM=""
 
 run_arm() {
   local label="$1" command="$2"
-  local cold="" warm_first="" i
+  local warm_first="" i
   census_run "$label" "$command"
-  cold="$CENSUS_COUNT"
-  printf '%-14s cold  spawns=%s\n' "$label" "$cold"
+  printf '%-14s cold  spawns=%s\n' "$label" "$CENSUS_COUNT"
 
   for ((i = 1; i <= WARM; i++)); do
     census_run "$label" "$command"

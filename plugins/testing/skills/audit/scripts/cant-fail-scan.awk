@@ -41,6 +41,7 @@ BEGIN {
   # gains nothing from a private copy. Inequality asserts are deliberately
   # absent: Assert.NotEqual(f(2), f(2)) is an always-fail defect, not this rule.
   TAUT_FUNCS = "assert.equal|assert.strictEqual|assert.deepEqual|assert.deepStrictEqual|assertEqual|assertEquals|assertAlmostEqual|Assert.Equal|Assert.StrictEqual|Assert.Same|Assert.AreEqual|Assert.AreSame"
+  split(TAUT_FUNCS, TAUT_NAMES, "|")
 
   if (LANG_ID == "js") {
     # The trailing t.<method> alternative is the AVA / node-tap vocabulary —
@@ -268,7 +269,7 @@ function emit(kind, slug, line, detail) {
 # is what the expressions are read from.
 # ---------------------------------------------------------------------------
 
-function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, names, i, p, fn, expr) {
+function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr) {
   tkind = (raw_line ~ EXEMPT_ERE || prev_raw ~ EXEMPT_ERE) ? "X" : "F"
   # expect(A).toBe(A) family. The masked match position indexes into the RAW
   # line — masking is length-preserving, so the columns align, and an earlier
@@ -293,10 +294,8 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, names, i, p, 
     }
   }
   # two-argument equality helpers, all languages
-  split(TAUT_FUNCS, names, "|")
-  for (i in names) {
-    fn = names[i]
-    if (fn == "") continue
+  for (i in TAUT_NAMES) {
+    fn = TAUT_NAMES[i]
     if (index(masked_line, fn) == 0) continue
     p = index(raw_line, fn)
     if (p == 0) continue
@@ -362,6 +361,19 @@ function append_block(m, r) {
 }
 
 function close_block() { in_test = 0; eval_block() }
+
+# A C# test body starting on this line: a "{" opens a brace body, a "=>" opens
+# an expression body that a trailing ";" closes on the same line.
+function cs_body_start(m) {
+  if (index(m, "{") > 0) {
+    body_open = 1
+    depth = brace_delta(m)
+    if (depth <= 0) close_block()
+  } else if (index(m, "=>") > 0) {
+    expr_body = 1
+    if (m ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
+  }
+}
 
 function cs_method_name(s,    t) {
   t = s
@@ -441,14 +453,7 @@ function cs_method_name(s,    t) {
         if (depth <= 0) close_block()
       } else {
         append_block(masked, raw)
-        if (index(masked, "{") > 0) {
-          body_open = 1
-          depth = brace_delta(masked)
-          if (depth <= 0) close_block()
-        } else if (index(masked, "=>") > 0) {
-          expr_body = 1
-          if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
-        }
+        cs_body_start(masked)
       }
     } else if (pending_attr && masked ~ SIG_ERE && masked !~ ATTR_ANY_ERE) {
       pending_attr = 0
@@ -457,14 +462,7 @@ function cs_method_name(s,    t) {
         open_block(FNR, cs_method_name(masked))
         append_block(masked, raw)
         body_open = 0; expr_body = 0; depth = 0
-        if (index(masked, "{") > 0) {
-          body_open = 1
-          depth = brace_delta(masked)
-          if (depth <= 0) close_block()
-        } else if (index(masked, "=>") > 0) {
-          expr_body = 1
-          if (masked ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
-        }
+        cs_body_start(masked)
       }
     } else {
       if (masked ~ ATTR_ERE) {

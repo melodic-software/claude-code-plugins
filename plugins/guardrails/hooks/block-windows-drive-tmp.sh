@@ -184,14 +184,11 @@ MAX_COMMAND_LEN=16384
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  # Resolved HERE, not at top level: hook::extract_bash_subject runs in a
-  # command substitution, and that fork was being paid on every tool call even
-  # when no telemetry sink is wired — which is the default, and now on the
-  # per-Write surface too, where the helper returns the bare tool name and the
-  # fork buys a constant. Same shape as the plugin's other lazily-resolved
-  # telemetry fields.
+  # Resolved HERE, not at top level, and in this shell: the subject is a
+  # telemetry field, so it is computed only when a sink is wired. Same shape
+  # as the plugin's other lazily-resolved telemetry fields.
   local SUBJECT data
-  SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
   hook::emit_telemetry "block-windows-drive-tmp" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -211,7 +208,7 @@ block() {
 
 # Above this length the command is not parsed — fail closed (same ceiling as the
 # other argv-faithful Bash guards). The ceiling exists because the COMMAND lane
-# below walks the string character by character twice (mask_quoted_redirect_ops,
+# below walks the string character by character twice (mask_quoted_redirect_ops_to,
 # split_shell_segments) before it matches anything. NO EQUIVALENT CEILING GUARDS
 # THE FILE-PATH LANE, and that is a decision rather than an omission: that lane
 # runs three EREs against one string with no tokenization, so length buys no
@@ -300,37 +297,39 @@ has_drive_root_tmp() {
 # Replace `>` that sit inside single- or double-quoted spans so a prose mention
 # such as `git commit -m "echo x > /tmp/x"` is not treated as a redirect, while
 # a real redirect whose *target* is quoted (`echo x > "/tmp/x"`) still matches.
-mask_quoted_redirect_ops() {
-  local s="$1" out="" i=0 c quote=""
-  local -i len=${#s}
-  while ((i < len)); do
-    c="${s:i:1}"
-    if [[ -n "$quote" ]]; then
-      if [[ "$c" == "$quote" ]]; then
-        quote=""
-        out+="$c"
-      elif [[ "$c" == '>' ]]; then
-        out+='#'
+mask_quoted_redirect_ops_to() { # <var> <segment>: the mask, in this shell
+  # Locals under a `__dt_` prefix so the caller's variable name (`s`) cannot
+  # collide with them and take the assignment (the `_to` helper convention).
+  local __dt_dest="$1" __dt_s="$2" __dt_out="" __dt_i=0 __dt_c __dt_quote=""
+  local -i __dt_len=${#__dt_s}
+  while ((__dt_i < __dt_len)); do
+    __dt_c="${__dt_s:__dt_i:1}"
+    if [[ -n "$__dt_quote" ]]; then
+      if [[ "$__dt_c" == "$__dt_quote" ]]; then
+        __dt_quote=""
+        __dt_out+="$__dt_c"
+      elif [[ "$__dt_c" == '>' ]]; then
+        __dt_out+='#'
       else
-        out+="$c"
+        __dt_out+="$__dt_c"
       fi
     else
-      if [[ "$c" == "'" || "$c" == '"' ]]; then
-        quote="$c"
+      if [[ "$__dt_c" == "'" || "$__dt_c" == '"' ]]; then
+        __dt_quote="$__dt_c"
       fi
-      out+="$c"
+      __dt_out+="$__dt_c"
     fi
-    i=$((i + 1))
+    __dt_i=$((__dt_i + 1))
   done
-  printf '%s' "$out"
+  printf -v "$__dt_dest" '%s' "$__dt_out"
 }
 
 # Write-shaped signal: a redirect whose target word is a drive-root tmp path.
 # Covers `> /tmp/x`, `>/tmp/x`, `>>/tmp/x`, `2>/tmp/err`, `&>/tmp/x`.
-# Redirect operators inside quotes are ignored (see mask_quoted_redirect_ops).
+# Redirect operators inside quotes are ignored (see mask_quoted_redirect_ops_to).
 has_redirect_to_drive_root_tmp() {
   local s
-  s=$(mask_quoted_redirect_ops "$1")
+  mask_quoted_redirect_ops_to s "$1"
   # Optional fd digits and optional & (&>), then > or >>, optional space/quotes,
   # then a drive-root tmp path. Angle brackets in the right-boundary class are
   # literal characters (not GNU \< \> word-boundaries) — keep them unescaped so
@@ -495,9 +494,9 @@ if [[ -n "$FILE_PATH" ]]; then
 fi
 
 # --- Command lane: Bash / PowerShell -----------------------------------------
-# Skipped outright on a file-path payload: has_redirect_to_drive_root_tmp runs
-# mask_quoted_redirect_ops in a command substitution, and forking the shell to
-# scan an empty string would be per-Write budget spent to reach a foregone `no`.
+# Skipped outright on a file-path payload: has_redirect_to_drive_root_tmp walks
+# the command character by character, and scanning an empty string would be
+# per-Write budget spent to reach a foregone `no`.
 if [[ -n "$COMMAND" ]]; then
   if has_redirect_to_drive_root_tmp "$NORM"; then
     block "redirect"

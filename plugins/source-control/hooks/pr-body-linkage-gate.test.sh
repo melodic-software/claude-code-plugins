@@ -2,11 +2,10 @@
 # Black-box contract test for pr-body-linkage-gate.sh.
 #
 # Asserts the hook's OWN behavior against expectations transcribed by hand from
-# a reading of the ci-workflows pr-issue-linkage validator — deliberately not a
+# a reading of the ci-workflows pr-issue-linkage validator, deliberately not a
 # claim that the two agree, because nothing here executes the validator. A real
 # mirroring proof needs the validator itself as an oracle, which would mean
-# vendoring a copy of upstream JavaScript into this repo; see the PR that added
-# this file for why that is a separate decision. What these cases DO cover is
+# vendoring a copy of upstream JavaScript into this repo. What these cases DO cover is
 # every shape a hand port gets wrong: comment stripping (terminated and
 # unterminated), a `## Related` section whose content is a deeper subsection,
 # the JavaScript word boundaries that make `#12abc` and `unclosed #5`
@@ -156,6 +155,10 @@ assert_block "a ## Fix that exists only inside a fenced sample is not the sectio
 assert_block "a ## Fix that exists only as indented code is not the section" "$GATED" "gh pr create -t T --body-file indented-fix.md"
 assert_block "a ## Fix that exists only in an inline span is not the section" "$GATED" "gh pr create -t T --body-file inline-fix.md"
 assert_allow "a real ## Fix is not hidden by a later fenced sample" "$GATED" "gh pr create -t T --body-file real-plus-fenced-fix.md"
+printf '%s\n' $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\n\tonly tab-indented code\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/tab-indented-fix.md"
+assert_block "a tab-indented line is code, leaving ## Fix empty" "$GATED" "gh pr create -t T --body-file tab-indented-fix.md"
+assert_allow "a line starting with a lowercase t is not code" "$GATED" \
+  "$(gh_body $'this PR closes #5\n\n## Summary\n\nx\n\n## Fix\n\nthe change\n\n## Verification\n\nx\n\n## Related\n\n- x')"
 # On a line of unmatched, strictly-increasing backtick-run lengths, the
 # pair-after-collect scan must not rescan the remainder from each opener
 # (superlinear): it must finish quickly and still fail-closed on a missing
@@ -218,6 +221,61 @@ assert_allow "No linked issue marker accepted" "$GATED" \
   "$(gh_body $'No linked issue'"$SECTIONS")"
 assert_allow "No related issue: marker accepted" "$GATED" \
   "$(gh_body $'No related issue: drift sweep'"$SECTIONS")"
+
+# Non-closing marker (ci-workflows#544): a `Refs:` / `Relates to:` line of its
+# own is linkage; anything else on that line, or no colon, is not.
+assert_allow "Refs: #N on its own line accepted" "$GATED" \
+  "$(gh_body $'Refs: #1234'"$SECTIONS")"
+assert_allow "Relates to: #N on its own line accepted" "$GATED" \
+  "$(gh_body $'Relates to: #1234'"$SECTIONS")"
+assert_allow "Refs: owner/repo#N accepted" "$GATED" \
+  "$(gh_body $'Refs: melodic-software/standards#5'"$SECTIONS")"
+assert_allow "Refs: marker indented three spaces accepted" "$GATED" \
+  "$(gh_body $'   REFS:  #5  '"$SECTIONS")"
+assert_block "Refs: marker with trailing prose is not linkage" "$GATED" \
+  "$(gh_body $'Refs: #5 for context'"$SECTIONS")"
+assert_block "Refs #N without a colon is not linkage" "$GATED" \
+  "$(gh_body $'Refs #5'"$SECTIONS")"
+assert_block "a closing keyword split across lines is not linkage" "$GATED" \
+  "$(gh_body $'Closes\n#5'"$SECTIONS")"
+
+# Negated closers: GitHub's parser ignores the negation and closes the issue
+# anyway, so CI fails them even beside valid linkage.
+assert_block "negated closer blocks" "$GATED" \
+  "$(gh_body $'This does not close #5.'"$SECTIONS")"
+assert_block "negated closer blocks even beside a Refs: marker" "$GATED" \
+  "$(gh_body $'Refs: #5\n\nThis PR deliberately never fixes #5.'"$SECTIONS")"
+assert_block "negated closer blocks even beside a real closing keyword" "$GATED" \
+  "$(gh_body $'Closes #4\n\nThis is not meant to resolve #5 here.'"$SECTIONS")"
+printf '%s\n' "Refs: #5"$'\n\n'"This doesn't close #5.$SECTIONS" >"$GATED/negated-apostrophe.md"
+assert_block "an n't contraction negates a closer" "$GATED" \
+  "gh pr create -t T --body-file negated-apostrophe.md"
+printf '%s\n' "Refs: #5"$'\n\n'$'This doesn\xe2\x80\x99t close #5.'"$SECTIONS" >"$GATED/negated-typographic.md"
+assert_block "a typographic-apostrophe contraction negates a closer" "$GATED" \
+  "gh pr create -t T --body-file negated-typographic.md"
+assert_allow "\"not only\" is affirmative" "$GATED" \
+  "$(gh_body $'This not only closes #5 but more.'"$SECTIONS")"
+assert_allow "a negation before the last comma does not reach the closer" "$GATED" \
+  "$(gh_body $'Not a draft, closes #5'"$SECTIONS")"
+assert_allow "a negation more than five words back does not reach the closer" "$GATED" \
+  "$(gh_body $'Not one two three four five closes #5'"$SECTIONS")"
+printf '%s\n' $'Closes #4\n\nThe template example `does not close #5` is shown.'"$SECTIONS" >"$GATED/negated-inline.md"
+assert_allow "a negated closer inside inline code is masked" "$GATED" \
+  "gh pr create -t T --body-file negated-inline.md"
+
+run "$GATED" "$(gh_body $'This does not close #5. We never fix #6.\nIt does not close #5 either.'"$SECTIONS")"
+if [[ "$ERR" == *'Negated closing reference ("close #5" (trigger "not"), "fix #6" (trigger "never")).'* &&
+  "$ERR" == *'Missing a native closing keyword (Closes/Fixes/Resolves #N). If this PR references an issue it must not close, put "Refs: #N"'* ]]; then
+  ok "negated-closer message lists each distinct closer once with its trigger, beside the missing-linkage message"
+else
+  fail "negated-closer or missing-linkage message wrong: $ERR"
+fi
+run "$GATED" "$(gh_body "$NO_KEYWORD")"
+if [[ "$ERR" == *'"Refs: #N" (or "Relates to: #N")'* && "$ERR" == *'Refs: #<issue>'* && "$ERR" != *'Negated'* ]]; then
+  ok "missing-linkage message and remedy name the Refs: marker"
+else
+  fail "missing-linkage message or remedy lacks the Refs: marker: $ERR"
+fi
 
 # Word boundaries: JavaScript's \b makes both of these non-matches, so a body
 # carrying only one of them must still block.
@@ -517,9 +575,8 @@ assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crl
 assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
 
 # --- Large bodies stay inside the declared hook timeout ----------------------
-# One fork per body line put a 1000-line body past the 15 s hooks.json timeout,
-# where a cancelled hook silently stops gating. The bound below is deliberately
-# loose so a slow CI runner does not flake; the defect it guards was 18 s.
+# A cancelled hook silently stops gating, so a large body must be judged inside
+# the 15 s hooks.json timeout; the bound is loose so a slow CI runner does not flake.
 #
 # A suffix-copy line split is quadratic in the line count: 16k two-character
 # lines (well under GitHub's body-size limit) exceeded 20 s and fail-opened,
@@ -635,8 +692,10 @@ fi
 # --- Kill switch -------------------------------------------------------------
 
 payload=$(mk_payload "$GATED" "$(gh_body "$NO_RELATED")")
-if (cd "$UNRELATED" && printf '%s' "$payload" |
-  CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" >/dev/null 2>&1); then
+# A here-string, never a pipe: the kill switch exits before reading stdin, and
+# a printf still writing then fails on the closed pipe, which pipefail reports.
+if (cd "$UNRELATED" &&
+  CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" <<<"$payload" >/dev/null 2>&1); then
   ok "kill switch disables the gate"
 else
   fail "kill switch did not disable the gate"

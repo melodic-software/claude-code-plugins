@@ -10,12 +10,8 @@ UNKNOWN CheckResult that severity_counts / latest.json / the report can see.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CatalogEntry.ps1')
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:LibRoot 'New-InvalidCatalogEntryResult.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'Assert-CatalogEntry.ps1', 'Assert-CheckResult.ps1', 'New-InvalidCatalogEntryResult.ps1'
 
     function New-NearlyValidEntry {
         param([hashtable] $Overrides = @{})
@@ -142,9 +138,8 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
 }
 
 Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
-    # Mirrors the validation loop in Invoke-MachineHealthCheck.ps1: continue
-    # past bad entries for availability, but collect synthetic UNKNOWN results
-    # for the reporting path.
+    # Mirrors the orchestrator's validation loop: continue past bad entries, but collect
+    # synthetic UNKNOWN results for the reporting path.
     It 'collects UNKNOWN results for invalid entries and keeps valid ones' {
         $valid = New-NearlyValidEntry -Overrides @{
             id       = 'disk-space'

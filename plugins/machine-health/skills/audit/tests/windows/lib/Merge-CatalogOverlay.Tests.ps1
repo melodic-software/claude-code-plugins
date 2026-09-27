@@ -6,21 +6,17 @@ Unit tests for Merge-CatalogOverlay (machine-local catalog overlay merge).
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Merge-CatalogOverlay.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Merge-CatalogOverlay.ps1'
 
     function New-BaseEntry {
-        param([string] $Id = 'disk-space', [bool] $Enabled = $true)
         return [pscustomobject]@{
-            id               = $Id
+            id               = 'disk-space'
             category         = 'storage'
             os               = @('windows')
             script           = 'scripts/windows/checks/Test-DiskHealth.ps1'
             severity_rules   = 'reference/windows/check-catalog.md#x'
             needs_admin      = $false
-            enabled          = $Enabled
+            enabled          = $true
             deprecated       = $false
             added_on         = '2026-04-22'
             crash_count      = 0

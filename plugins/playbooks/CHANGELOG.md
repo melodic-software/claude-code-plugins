@@ -4,6 +4,165 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.6] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: three hygiene-catalog entries now let the user review findings before anything
+  is fixed, as `next` step 3.3 requires.
+  - `provenance` runs `attribution:audit` with `audit`, the read-only action, instead of `sweep`,
+    which is the fix pipeline and applied fixes during the run. Its notes name
+    `attribution:audit fix <file>` for the approved findings (#4576).
+  - `codebase-health` drops `--fix`. In `codebase-health:audit`, `--fix` applies nothing: it
+    suggests the remediation lanes and says not to invoke them, which contradicted step 3.5. The
+    new notes say the step applies the agreed fixes itself. The `claude-config` and `lint` entries
+    keep `--fix`, because there it applies fixes: after per-fix confirmation in
+    `claude-config:audit`, and format-only in `toolchain:lint` (#4587).
+  - `claude-memory` treats C9 additions as in scope: one line per missing build or test command,
+    verified against the repo's manifest or task runner. Before, every repo whose CLAUDE.md lacked
+    one raised the same exception question (#4614).
+
+## [0.13.5] - 2026-09-27
+
+### Changed
+
+- `repo-sweep`'s hygiene catalog runs `attribution:audit` in its `provenance` entry, since the
+  provenance plugin is now `attribution`. The entry id stays `provenance` so existing sweep
+  checklists still match it.
+
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `review` routes a defect in repo-sweep itself (its SKILL.md, reference files,
+  or scripts) through `/plugin-quality:audit` on `playbooks:repo-sweep` to a `playbooks` issue,
+  and a defect in a skill bundled with Claude Code to Anthropic through `/bug`, not to this
+  repository (#4604).
+
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `next` shows the deliverables each invoked skill's procedure names, produced by
+  running that procedure in full; a summary or a skipped procedure step does not complete the
+  step (#4602). Before fixing, it lists findings on files synced from another repository (the
+  README or file inventory says so, or `git blame` names a `-sync[bot]` author) separately, never
+  edits them, and asks whether to draft an issue in the source repository (#4603).
+
+## [0.13.2] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: a bare skill name is no longer stamped `@builtin` unchecked. A same-named
+  personal or project skill, which replaces the bundled one, is stamped `@personal` or
+  `@project`; otherwise the stamp carries the Claude Code version (`@builtin-2.1.283`), or
+  `@unknown` when `claude --version` prints none. `history.sh` compares bundled-skill stamps like
+  any other version, so an entry last recorded as `@builtin` recommends `rerun` once. The skill doc
+  now allows bare names for bundled skills in catalog `- skill:` lines and says that
+  `catalog.sh` exit 1 means an entry with no `- skill:` line (#4601).
+
+## [0.13.1] - 2026-09-27
+
+### Changed
+
+- **`skill-authoring`**: the authoring guidance gains an "Agent model" section: a plugin agent
+  definition names its `model`, and `inherit` carries a trailing `# reason:` comment on that line.
+
+## [0.13.0] - 2026-09-26
+
+### Added
+
+- **`repo-sweep`**: `/playbooks:repo-sweep` runs a catalog of hygiene skills through one
+  repository per sweep: one branch, one draft PR whose body holds the step checklist, one commit
+  per step with `Playbook-Step` trailers, resumable after `/clear` on any machine. `plan`
+  recommends run, rerun, or not-applicable per catalog entry and opens a bundled selection page;
+  `next` runs the first unticked step; `review` files skill and catalog defects after approval.
+  The `hygiene` catalog ships 31 entries in six phases, 22 checked by default.
+
+## [0.12.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.12.2] - 2026-09-24
+
+### Fixed
+
+- **`skill-authoring`**: the authoring guidance points the hook budget at
+  `docs/conventions/hook-budget/README.md`, which owns it; the rule file it named no longer exists.
+
+## [0.12.1] - 2026-09-23
+
+### Changed
+
+- **`fable-5`**: the orchestration chapter gains "Narrow threads per benchmark or journey", marked
+  as inference: one thread per benchmark or journey, scaling a loop horizontally only after it
+  works on one thread, merging threads that collide, judgment criteria for closing a thread at
+  diminishing returns, room for agent-proposed work with no share stated, one named human owner
+  who steers each thread, a standing brief per thread, a signal the thread can re-run alone, one
+  shared visible place for threads, and a reporting cadence planned ahead of throughput.
+- **`fable-5`**: the execution chapter's feature-flag rule names a kill switch as its rollback
+  case and a ramp or staged exposure as the same case at partial scale, each removed as soon as
+  it is safe. The rule is not loosened.
+- The Opus 5.5 chapter gains "Scope: bolder when the guardrails are named": a careful-on-scope
+  default observed on a comparable unreleased model and unverified on Opus 5.5, with its
+  verification record, and the correction to name the guardrails when asking for a bolder step.
+
+## [0.12.0] - 2026-09-23
+
+### Added
+
+- **`fable-5`**: `reference/model-adaptation/opus-5-5.md`, the Claude Opus 5.5 adaptation
+  chapter: always-on thinking with effort as the depth control, the lower default effort, stopping
+  to report on long runs, delegation and review strengths, the reversed Opus 5 findings, image
+  reading, settled answers in long chats, the new safeguard categories and fallback, fast mode,
+  and what carries over from the Opus 5 chapter.
+
+### Changed
+
+- **`fable-5`**: meta-rule 3 routes Claude Opus 5.5 to its chapter, states that a later version's
+  chapter never substitutes for a missing one, and extends the safeguard-fallback re-resolve to
+  Opus 5.5 sessions. It names the Claude Code fallback targets by category (biology to Opus 5,
+  cybersecurity to Opus 4.8), which is why the Opus 5 and Opus 4.8 chapters stay. The description
+  and the chapter-trigger eval name Opus 5.5.
+- **`fable-5`**: the communication chapter's "No progress theater" now states that a turn does not
+  end on a summary naming the next step, an offer to continue, or a non-blocking choice list; the
+  consent gates are unchanged.
+- **`boris`**: the effort tip's thinking-prompt steers carry an amendment for models that always
+  think: remove "think carefully" lines and change effort instead. The effort-levels tip notes
+  the per-model defaults (`medium` on Opus 5.5).
+- The Opus 5 and Opus 4.8 chapters open with a note that they are kept only as fallback targets
+  for flagged requests. The Opus 5 chapter's thinking-controls bullet now matches the model-config
+  page: `MAX_THINKING_TOKENS=0` has no effect on Opus 5.5 or the Fable models.
+- `reference/prompt-caching.md` lists Opus 5.5 for mid-conversation system messages and
+  per-message effort changes.
+
+## [0.11.6] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.11.5]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.11.4]
+
+### Changed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` restates `claude plugin eval` from its
+  own documentation page, which the previous record named as the event to recheck on. The command
+  is documented, requires a stated minimum Claude Code version, and reads a case format its page
+  says is separate from the `evals/evals.json` the eval loop in that section uses, so the loop is
+  unchanged and a plugin measured as a plugin routes to the command. The record carries the new
+  basis, an as-of of 2026-09-12, and a trigger keyed on the format separation.
+
 ## [0.11.3]
 
 ### Changed
@@ -742,7 +901,7 @@ only after that version increases.
   of the net score is deliberately NOT asserted: the card says only that 0.49 "places it in between
   Opus 4.8 and the two Mythos models", which does not say which way that is.
 
-  The section exists largely to FENCE the neighbouring §"Verification" delta. That section removes
+  The section exists largely to FENCE the neighboring §"Verification" delta. That section removes
   instructed self-re-checks; read broadly it would strip exactly the lookups this finding says are
   needed more. They divide by subject, re-checking work you did versus the provenance of a fact
   you assert, and the section says so explicitly. It also refuses the tempting inference that
@@ -839,7 +998,7 @@ only after that version increases.
   an earlier statement when the error would change the user's code, conclusions, or decisions; for a
   slip that changes nothing, make the fix and move on.
 
-  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighbouring
+  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighboring
   narration-*cadence* bullet is `[CC: harness-covered]`, so the same check ran here against a live
   session system prompt: Claude Code states update cadence, outcome-first ordering, and faithful
   outcome reporting, but carries no rule about narrating corrections, so this one is not covered
@@ -995,7 +1154,7 @@ only after that version increases.
   `skills/fable-5/context/calibration.md` adds "Point at a per-model matrix; never copy one",
   triggered when a per-model table of supported values, defaults, capabilities, or limits is about to
   be written into a chapter, rule, brief, or answer. It is a **volatility** axis, distinct from the
-  surface axis and the channel axis the neighbouring sections own: a table reads as a fact and is
+  surface axis and the channel axis the neighboring sections own: a table reads as a fact and is
   actually a snapshot, so a copy is a fact about the day it was copied with nothing in it saying
   which day that was. The rule is point-at-the-owning-table, and for thinking configuration that
   table is the per-model table on [Troubleshooting
@@ -1004,7 +1163,7 @@ only after that version increases.
   A matrix stated anyway, because the reader cannot act without the values in front of them,
   carries a **re-check trigger naming the next model release**, so a stale row is found by a
   scheduled read rather than by a reader acting on it. The fourth rule connects the section to its
-  neighbour: a vendor matrix is an API-surface fact, so presence in the table is not reachability
+  neighbor: a vendor matrix is an API-surface fact, so presence in the table is not reachability
   where the reader is running.
 
   The worked instance ships with it, verified 2026-08-03 on both sides. **Claude Mythos 5 has its
@@ -1051,7 +1210,7 @@ only after that version increases.
 
 - **`fable-5` calibration gains the channel-authority rule.**
   `skills/fable-5/context/calibration.md` adds "The reference page defines; a vendor post
-  corroborates", a **channel** axis distinct from the surface axis the neighbouring section owns:
+  corroborates", a **channel** axis distinct from the surface axis the neighboring section owns:
   a vendor's own blog or launch post is first-party and still not the authority on what a term
   means, because it is written once and never revised while the page owning the term is maintained
   against the behavior it describes. The rule is cite-the-owning-page, pointer-never-copy, and
@@ -1419,7 +1578,7 @@ from `0.4.0` instead of `0.3.2`.
 
 - `fable-5`: the recommend-an-option rule and the attach-a-recommended-answer rule are both
   narrowed at their own sites: neither fires when the options exist to elicit the ranking
-  criterion itself, because naming a favourite front-loads the judgment being asked for.
+  criterion itself, because naming a favorite front-loads the judgment being asked for.
   The carve-out is defined by the missing criterion, not by a missing preference, and
   resolves without loading another chapter, because trigger-gated loading means the communication
   chapter is often the only one held.

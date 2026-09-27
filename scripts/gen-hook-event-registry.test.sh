@@ -23,10 +23,9 @@ LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
 f=""
 
 # shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
-PRODUCER='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
-RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
-
+RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 # new_fixture -> a repo root carrying the real hooks.json with every producer
 # row stripped (so the base is the nine handlers alone) and the lib.
 new_fixture() { # <out-var>
@@ -34,8 +33,8 @@ new_fixture() { # <out-var>
   fixture_tree::build "$1" --plugins || return 1
   dir="${!1}"
   mkdir -p "$dir/plugins/claude-ops/hooks"
-  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" '
-    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or .command == $ret) | not)))
+  jq --indent 2 --arg prod "$PRODUCER" '
+    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not)))
                | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/claude-ops/hooks/hooks.json"
   cp "$LIB" "$dir/plugins/claude-ops/hooks/"
 }
@@ -68,26 +67,31 @@ else
   fail "a recheck trigger is not the changelog-ingest occasion"
 fi
 
-# The three behavior-changing events are excluded with a reason; the rest observe.
-for ev in WorktreeCreate MessageDisplay FileChanged; do
+# The three behavior-changing events and the two per-tool-call events are
+# excluded with a reason; the rest observe.
+for ev in WorktreeCreate MessageDisplay FileChanged PreToolUse PostToolUse; do
   p=$(jq -r --arg e "$ev" '.[] | select(.name == $e) | .producer' "$REG")
   if [[ "$p" == exclude:* ]]; then ok "$ev is excluded ($p)"; else fail "$ev should be excluded, got: $p"; fi
   rows=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod)] | length' "$HJ")
   if [[ "$rows" == 0 ]]; then ok "$ev has no producer row in hooks.json"; else fail "$ev has $rows producer rows"; fi
 done
 observed=$(jq '[.[] | select(.producer == "observe")] | length' "$REG")
-if ((observed == 30)); then ok "30 events are observable"; else fail "expected 30 observable events, got $observed"; fi
+if ((observed == 28)); then ok "28 events are observable"; else fail "expected 28 observable events, got $observed"; fi
 
-# One producer row per observable event, with statusMessage and timeout.
+# One producer row per observable event, with statusMessage, timeout, and the
+# pinned shell: a shell-form row with no `shell` field defaults to PowerShell on
+# a Windows host without Git Bash, where `[ ... ]`, `$VAR` and `exec` all error.
 missing=0
 while IFS= read -r ev; do
-  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
+  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod and .shell == "bash" and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
   [[ "$c" == 1 ]] || missing=$((missing + 1))
 done < <(jq -r '.[] | select(.producer == "observe") | .name' "$REG")
-if ((missing == 0)); then ok "every observable event has exactly one producer row"; else fail "$missing observable events lack their producer row"; fi
+if ((missing == 0)); then ok "every observable event has exactly one producer row, pinned to bash"; else fail "$missing observable events lack their producer row"; fi
 
 ret=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
 if [[ "$ret" == 1 ]]; then ok "SessionEnd carries the retention row once"; else fail "retention rows on SessionEnd: $ret"; fi
+ret_shell=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | .shell' "$HJ")
+if [[ "$ret_shell" == bash ]]; then ok "the retention row is pinned to bash too"; else fail "retention row shell: $ret_shell"; fi
 ret_timeout=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | has("timeout")' "$HJ")
 if [[ "$ret_timeout" == false ]]; then ok "the retention row carries no timeout (a plugin timeout only lowers the cap)"; else fail "retention row has a timeout"; fi
 
@@ -107,10 +111,26 @@ if [[ "$before" == "$after" ]]; then ok "a second run is idempotent"; else fail 
 out=$(bash "$SCRIPT" --check --root "$f" 2>&1)
 rc=$?
 if ((rc == 0)); then ok "--check is clean on a generated tree"; else fail "--check on a clean tree (rc=$rc): $out"; fi
-jq --indent 2 '.hooks.PostToolUse |= .[:-1]' "$HJ" >"$HJ.drift" && mv "$HJ.drift" "$HJ"
+jq --indent 2 '.hooks.Stop |= .[:-1]' "$HJ" >"$HJ.drift" && mv "$HJ.drift" "$HJ"
 out=$(bash "$SCRIPT" --check --root "$f" 2>&1)
 rc=$?
 if ((rc == 1)) && [[ "$out" == *drift* ]]; then ok "--check fails on a removed producer row"; else fail "--check on drift (rc=$rc): $out"; fi
+
+# --- a legacy ungated retention row is replaced, never doubled ------------------
+new_fixture f
+HJ="$f/plugins/claude-ops/hooks/hooks.json"
+# shellcheck disable=SC2016  # the ungated command as hooks.json carried it
+jq --indent 2 --arg old 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh' \
+  '.hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $old, shell: "bash"}]}])' \
+  "$HJ" >"$HJ.legacy" && mv "$HJ.legacy" "$HJ"
+bash "$SCRIPT" --from "$TABLE" --root "$f" --as-of 2026-09-05 >/dev/null 2>&1
+gated=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
+legacy=$(jq -r --arg ret "$RETENTION" '[.hooks[][] | .hooks[] | select((.command | endswith("/hooks/session-retention.sh")) and .command != $ret)] | length' "$HJ")
+if [[ "$gated" == 1 && "$legacy" == 0 ]]; then
+  ok "a legacy ungated retention row regenerates to one gated row"
+else
+  fail "legacy retention regeneration: gated=$gated legacy=$legacy"
+fi
 
 # --- the category table agrees with session-log-lib.sh -------------------------
 # shellcheck source=../plugins/claude-ops/hooks/session-log-lib.sh
@@ -142,7 +162,7 @@ fi
 new_fixture f
 odd="$(mktemp)"
 FIXTURES+=("$odd")
-{ cat "$TABLE"; } >"$odd"
+cp "$TABLE" "$odd"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution
 sed 's/^| `SessionEnd`  *|/| `MysteryEvent`        |/' "$odd" >"$odd.2" && mv "$odd.2" "$odd"
 out=$(bash "$SCRIPT" --from "$odd" --root "$f" 2>&1)

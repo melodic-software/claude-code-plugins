@@ -38,12 +38,10 @@ self_fail() {
   fail "$@"
 }
 
+# Runs <body> in a child bash and leaves its combined output in `out` and its
+# exit status in `rc` for the assertion that follows.
 run_child() {
-  local body="$1"
-  local out rc
-  out="$(bash -c "$body" 2>&1)" && rc=0 || rc=$?
-  printf '%s\n' "$out"
-  return "$rc"
+  out="$(bash -c "$1" 2>&1)" && rc=0 || rc=$?
 }
 
 # --- sourced-only ---------------------------------------------------------
@@ -61,14 +59,12 @@ fi
 
 # --- fail then report cannot exit 0 ---------------------------------------
 
-out="$(
-  run_child "
-    # shellcheck source=test-harness.sh
-    . \"$HARNESS\"
-    fail \"recorded failure\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  # shellcheck source=test-harness.sh
+  . \"$HARNESS\"
+  fail \"recorded failure\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 FAIL=1"* ]]; then
   self_ok "a recorded failure plus report exits non-zero"
 else
@@ -77,13 +73,11 @@ fi
 
 # --- ok then report exits 0 -----------------------------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"one pass\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"one pass\"
+  test_harness::report
+"
 if [[ "$rc" -eq 0 && "$out" == *"ok: one pass"* && "$out" == *"PASS=1 FAIL=0"* ]]; then
   self_ok "an all-pass suite exits 0 with PASS=1 FAIL=0"
 else
@@ -91,15 +85,13 @@ else
 fi
 
 # Mixed: one fail among passes still exits non-zero.
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"a\"
-    fail \"b\"
-    ok \"c\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"a\"
+  fail \"b\"
+  ok \"c\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"PASS=2 FAIL=1"* ]]; then
   self_ok "mixed pass/fail reports PASS=2 FAIL=1 and exits non-zero"
 else
@@ -108,14 +100,12 @@ fi
 
 # --- EXIT trap installed before the harness is sourced --------------------
 
-out="$(
-  run_child "
-    trap 'echo CLEANUP_BEFORE' EXIT
-    . \"$HARNESS\"
-    fail \"recorded failure\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  trap 'echo CLEANUP_BEFORE' EXIT
+  . \"$HARNESS\"
+  fail \"recorded failure\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 FAIL=1"* && "$out" == *"CLEANUP_BEFORE"* ]]; then
   self_ok "a pre-source cleanup trap still runs and does not let a recorded failure exit 0"
 else
@@ -124,14 +114,12 @@ fi
 
 # --- EXIT trap installed after the harness is sourced ---------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    trap 'echo CLEANUP_AFTER' EXIT
-    fail \"recorded failure\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  trap 'echo CLEANUP_AFTER' EXIT
+  fail \"recorded failure\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 FAIL=1"* && "$out" == *"CLEANUP_AFTER"* ]]; then
   self_ok "a post-source cleanup trap still runs and does not defeat the exit contract"
 else
@@ -140,14 +128,12 @@ fi
 
 # --- failing cleanup does not turn a clean suite red ----------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"clean\"
-    trap 'echo CLEANUP_FAILS; false' EXIT
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"clean\"
+  trap 'echo CLEANUP_FAILS; false' EXIT
+  test_harness::report
+"
 if [[ "$rc" -eq 0 && "$out" == *"PASS=1 FAIL=0"* && "$out" == *"CLEANUP_FAILS"* ]]; then
   self_ok "a failing cleanup trap does not turn a clean suite red"
 else
@@ -156,14 +142,12 @@ fi
 
 # --- succeeding cleanup does not mask a recorded failure ------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    fail \"recorded failure\"
-    trap 'echo CLEANUP_OK' EXIT
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  fail \"recorded failure\"
+  trap 'echo CLEANUP_OK' EXIT
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"PASS=0 FAIL=1"* && "$out" == *"CLEANUP_OK"* ]]; then
   self_ok "a succeeding cleanup trap does not mask a recorded failure"
 else
@@ -172,14 +156,12 @@ fi
 
 # --- summary prints before the caller's EXIT trap -------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"one\"
-    trap 'echo CALLER_TRAP' EXIT
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"one\"
+  trap 'echo CALLER_TRAP' EXIT
+  test_harness::report
+"
 case "$out" in
 *'PASS=1 FAIL=0'*CALLER_TRAP*)
   if [[ "$rc" -eq 0 ]]; then
@@ -195,14 +177,12 @@ esac
 
 # --- printf format specifiers print verbatim ------------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"%s %d %q\"
-    fail \"%s %d %q\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"%s %d %q\"
+  fail \"%s %d %q\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *'ok: %s %d %q'* && "$out" == *'FAIL: %s %d %q'* && "$out" == *"PASS=1 FAIL=1"* ]]; then
   self_ok "a message containing printf format specifiers is printed verbatim"
 else
@@ -211,14 +191,12 @@ fi
 
 # --- summary once despite subshells; subshells do not disturb status ------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"parent-pass\"
-    ( fail \"sub-fail\"; ok \"sub-pass\" )
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"parent-pass\"
+  ( fail \"sub-fail\"; ok \"sub-pass\" )
+  test_harness::report
+"
 summary_count="$(printf '%s\n' "$out" | grep -c '^PASS=')"
 if [[ "$rc" -eq 0 && "$summary_count" -eq 1 && "$out" == *"PASS=1 FAIL=0"* && "$out" == *'ok: parent-pass'* ]]; then
   self_ok "the summary prints exactly once despite subshells, and subshell use does not disturb exit status"
@@ -227,14 +205,12 @@ else
 fi
 
 # Complementary: a parent failure stays non-zero when a subshell records a pass.
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    fail \"parent-fail\"
-    ( ok \"sub-pass\" )
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  fail \"parent-fail\"
+  ( ok \"sub-pass\" )
+  test_harness::report
+"
 summary_count="$(printf '%s\n' "$out" | grep -c '^PASS=')"
 if [[ "$rc" -ne 0 && "$summary_count" -eq 1 && "$out" == *"PASS=0 FAIL=1"* ]]; then
   self_ok "a parent-recorded failure stays non-zero when a subshell records a pass"
@@ -244,19 +220,17 @@ fi
 
 # --- counters accumulate across repeated calls ----------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    ok \"a\"
-    ok \"b\"
-    fail \"c\"
-    ok \"d\"
-    test_harness::report
-    ok \"e\"
-    fail \"f\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  ok \"a\"
+  ok \"b\"
+  fail \"c\"
+  ok \"d\"
+  test_harness::report
+  ok \"e\"
+  fail \"f\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"PASS=3 FAIL=1"* && "$out" == *"PASS=4 FAIL=2"* ]]; then
   self_ok "counters accumulate correctly across repeated calls"
 else
@@ -265,12 +239,10 @@ fi
 
 # --- a suite with no assertions exits 0 -----------------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  test_harness::report
+"
 if [[ "$rc" -eq 0 && "$out" == *"PASS=0 FAIL=0"* ]]; then
   self_ok "a suite with no assertions at all exits 0"
 else
@@ -279,14 +251,12 @@ fi
 
 # --- re-sourcing must not reset recorded failures -------------------------
 
-out="$(
-  run_child "
-    . \"$HARNESS\"
-    fail \"recorded failure\"
-    . \"$HARNESS\"
-    test_harness::report
-  "
-)" && rc=0 || rc=$?
+run_child "
+  . \"$HARNESS\"
+  fail \"recorded failure\"
+  . \"$HARNESS\"
+  test_harness::report
+"
 if [[ "$rc" -ne 0 && "$out" == *"FAIL: recorded failure"* && "$out" == *"PASS=0 FAIL=1"* ]]; then
   self_ok "re-sourcing preserves a previously recorded failure and exits non-zero"
 else

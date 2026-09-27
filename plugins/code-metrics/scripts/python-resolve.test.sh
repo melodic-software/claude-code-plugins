@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression tests for python-resolve.sh: the resolver sets PY as an array,
-# honours the floor read from report.py, and returns 1 when nothing resolves.
+# honors the floor read from report.py, and returns 1 when nothing resolves.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

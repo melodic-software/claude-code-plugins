@@ -1,5 +1,5 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants, the code under test is restored and the restoration verified, tracked source is either byte-identical at the end or the run fails naming what it could not restore, and no test is written by this skill. Generates at most one mutant per changed line, executes the covering tests, then delegates the productive-versus-arid-versus-equivalent judgment to a fresh-context reviewer before reporting; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (also write the survivors as a findings file the review fix pass consumes)."
+description: "Run diff-scoped mutation analysis and report surviving mutants. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per changed line, then a fresh-context reviewer judges productive versus arid versus equivalent; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (write the survivors as a findings file the review fix pass consumes)."
 argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -193,7 +193,9 @@ Every surviving mutant is one of three things, and the difference is a judgment:
 `self-grade` bias class: a context that generated the mutants and ran them is the weakest place to
 decide whether its own findings are worth reporting, and a fork inherits that reasoning rather than
 removing it. Hand over the artifact, the mutated line, its surrounding code, and the tests that
-covered it, never the reasoning that produced the mutant.
+covered it, never the reasoning that produced the mutant. The brief says it is done when every
+handed-over survivor has one of the three verdicts or is marked unclassified, and that it returns
+early rather than guess when the handed-over code is not enough to decide.
 
 For the **equivalence** call specifically, prefer a cross-vendor advisor when one is installed and
 set up (invoked per its own documentation), falling back to the same-vendor fresh-context subagent.

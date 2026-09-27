@@ -181,14 +181,17 @@ export function checkSchema(course) {
   }
 
   if (lessons.length > 1) {
-    const keySets = lessons.map((l) => new Set(Object.keys(l)));
-    const allKeys = new Set(lessons.flatMap((l) => Object.keys(l)));
-    const inconsistent = [];
+    const presentCounts = new Map();
+    for (const lesson of lessons) {
+      for (const key of Object.keys(lesson)) {
+        presentCounts.set(key, (presentCounts.get(key) ?? 0) + 1);
+      }
+    }
 
-    for (const key of allKeys) {
-      const presentCount = keySets.filter((ks) => ks.has(key)).length;
-      if (presentCount > 0 && presentCount < lessons.length) {
-        inconsistent.push({ field: key, present: presentCount, total: lessons.length });
+    const inconsistent = [];
+    for (const [key, present] of presentCounts) {
+      if (present < lessons.length) {
+        inconsistent.push({ field: key, present, total: lessons.length });
       }
     }
 

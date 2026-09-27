@@ -55,7 +55,10 @@ What the model still owns, because the script cannot:
   appends the reload guidance SKILL.md's Report section fixes and answers questions.
 
 The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
-`auto_update` and `catalog_source`, the in-repo and user-scope sweep outcomes with each pair's
+`auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
+ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
+kind; the script never fetches or pulls that checkout, because `claude plugin marketplace update`
+reads a directory as it is and the user owns it), the in-repo and user-scope sweep outcomes with each pair's
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the project-scope
@@ -149,7 +152,7 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-One data point, not a licence to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
+One data point, not a license to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
 sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
 source 3 agreed with source 2 on every id. That establishes the write landed before the re-read on
 that run, not that it is synchronous per call, and not that it holds on another version. Keep
@@ -290,7 +293,7 @@ ERROR: --ids cannot be combined with --all
   Run --ids once per marketplace with --marketplace <name>.
 ```
 
-(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behaviour. The earlier
+(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior. The earlier
 "verified on Claude Code 2.1.240" attribution was a category error. Re-verified 2026-09-05 by
 running the command: the script exits 2 with exactly this text.) `--all` exists for the JSON report, which nests one block per
 marketplace; `--ids` projects a single block, so it takes one marketplace at a time. Loop it.
@@ -707,7 +710,7 @@ routes the user to `converge` for skew this run just created.
 
 **Attribute it to the right step: that needs THREE snapshots, not two.** Steps 2 and 3 both mutate
 versions, so a single pre-Step-2 / post-Step-3 bracket cannot tell which one created a new
-divergence, and labelling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused it.
+divergence, and labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused it.
 Concretely: equal project and user records at `v1`, Step 2 updates the project record to `v2`, Step 3's
 user update fails. The skew is Step 2's, and a two-snapshot diff blames Step 3. Take the
 `divergences[]` read from each of the three `fleet-state.sh` calls the algorithm already makes, the

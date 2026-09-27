@@ -32,6 +32,7 @@ Cross-reference the project's instruction surfaces (`CLAUDE.md`, project rules, 
 - Do the files exist for every file path referenced in docs?
 - Do documented CLI commands still work with current tool versions? (Spot-check with `--help`.)
 - Do identifiers, rule IDs, and package names match their source-of-truth files?
+- Does the documentation contradict itself? The same number, date, name, or count stated two ways, or a date whose stated weekday is wrong. Quote both statements and give both locations.
 
 ### Stale patterns
 

@@ -8,6 +8,7 @@
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
 - [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
+- [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
 - [Versioning](#versioning)
 
 Owner doc for the concerns shared by every **loop lane**: a session that wraps a single-pass
@@ -372,28 +373,29 @@ work class routes to the frontier tier unconditionally.
 The dated resolution of the ordered tiers to live aliases, the artifact the "new model release"
 recheck trigger re-derives. Sourced from live fetches of
 <https://code.claude.com/docs/en/model-config> and
-<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293):
+<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293); the
+resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases:
 
 | Tier | Alias | Resolves to today |
 |---|---|---|
-| frontier | `best` | Fable 5 where the organization has access, else the latest Opus |
-| strong | `opus` | Opus 5 |
+| frontier | `best` | Fable 5.1 where the organization has access, else the latest Opus |
+| strong | `opus` | Opus 5.5 |
 | fast | `sonnet` | Sonnet 5 |
 
 - **frontier binds `best`, not `fable`.** `best` is the docs' live handle for exactly the frontier
-  tier's meaning, "Fable 5 where your organization has access to it, otherwise the latest Opus",
-  so a frontier dispatch self-heals where Fable 5 is unavailable (it requires organization access
+  tier's meaning, "the model the `fable` alias resolves to where Fable is available to you,
+  otherwise the same model as `opus`", so a frontier dispatch self-heals where Fable is unavailable (it requires organization access
   and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
-  a stale pin. Two Fable 5 caveats ride along as **known gaps**: its safety classifiers can trigger
+  a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
   automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
-  tier every security-surface work class routes to, and no lane detects that fallback today; and in
-  non-interactive mode a Fable 5 request that would bill usage credits bills them without a consent
+  tier every security-surface work class routes to, and no lane detects that fallback today (Opus
+  5.5 carries the same classifiers, so the strong tier shares this gap); and in
+  non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
-- **strong binds `opus`.** The docs' own starting recommendation "for complex agentic coding and
-  enterprise work", and Opus 5's reliable knowledge cutoff (May 2026) is four months *fresher* <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
-  than Fable 5's (Jan 2026). For lanes whose subject matter is fast-moving harness behavior, the
-  implementer tier benefits most from the fresher model, so raw capability order (Fable above
-  Opus) deliberately does not decide this binding alone.
+- **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
+  most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff
+  freshness does not separate them, and raw capability order (Fable above Opus) does not decide
+  the binding alone.
 - **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan
   2026 reliable cutoff: enough headroom to orchestrate and to review mechanical items without
   breaching the reviewer floor.
@@ -844,6 +846,79 @@ do anything about the answer.
 **Guard-mode telemetry.** Each lane records the guard's mode, proactive, reactive, or unknown, in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
 tracking surface.
+
+## 7. Operator steering through GitHub state
+
+Lanes run on separate machines under separate Claude accounts, and the peer tools (`SendMessage`,
+`ListAgents`) reach only same-account sessions, so no session can message a lane on another
+machine. The attended operator, a human or an `attend-queue` session, steers a lane only through
+GitHub state the lane already reads: labels, claims, and the PR hold. No agent relays another
+agent's summary; each lane's own telemetry comment is its report of record. The commands below take
+`R=<owner>/<repo>`.
+
+**Read a lane.** `/claude-ops:morning-brief` reads every lane's telemetry comment. To read one
+directly, find the `Lane telemetry: <lane>` issue and print its sentinel comments, one per instance:
+
+```bash
+gh issue list -R "$R" --state open --search '"Lane telemetry: work-loop" in:title' --json number,title
+gh api "repos/$R/issues/<n>/comments" --paginate \
+  --jq '.[] | select(.body | startswith("<!-- claude-ops:lane-telemetry marker=")) | .body'
+```
+
+The telemetry comment is written only by the instance its marker names; the operator never edits
+it. A lane re-reads its durable state block every cycle, so a hand-edited field is overwritten or
+misread. A future `paused_until` is misread harmfully: a restarting instance sees a block that is
+not stale, takes the live-collision branch (§4, instance-collision detection), escalates, and stops.
+
+**Skip an issue (worker lane).** Apply the human-gated role label, resolved from the binding rather
+than typed as a literal (§2), and say why in a plain comment. Run it from a checkout of `$R`: the
+binding resolves from the same root the tracker seam uses.
+
+```bash
+B="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.work-item-tracker.json"
+L=$(jq -r '.config.role_labels["human-gated"] // "needs-human"' "$B" 2>/dev/null || echo needs-human)
+gh issue edit <n> -R "$R" --add-label "$L"
+gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
+```
+
+When an `attend-queue` session writes this comment, or the hold comment below, on the operator's
+behalf, it opens with the
+[AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md); the operator's own words
+need none.
+
+`list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
+next cycle-start snapshot. The comment carries no machine marker, which is what marks the item
+operator-parked rather than lane-escalated (§2). Remove the label to return the item. Any assignee
+also keeps an item off the frontier, and an assignee with no lease comment is never reclaimed, but
+session-start reclaim unassigns the holder of an expired lane lease, which is you when the lanes
+share your GitHub login. Prefer the label, and never write a lease marker by hand: the tracker
+[CONTRACT](../../../plugins/work-items/tools/work-item-tracker/CONTRACT.md#lease-protocol) owns
+claims.
+
+Neither step recalls a worker already dispatched on the item: `/work-items:work` checks labels at
+selection, not after its claim. To keep that work from merging, hold its PR.
+
+**Hold a PR (merge lane).** `do-not-merge` is the only cross-lane hold, and
+[Cross-lane PR hold](#cross-lane-pr-hold) owns its rules. The commands, in the order that section
+requires (freshness read, hold, then explanation):
+
+```bash
+gh pr view <n> -R "$R" --json state,mergedAt
+gh pr edit <n> -R "$R" --add-label do-not-merge
+gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
+```
+
+`babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
+that lane's own invocation overrides it. Remove the label to release the PR.
+
+**Pause a lane: no GitHub control exists.** `paused_until` is written by the lane itself before a
+rate-limit pause and means "do not read my silence as death"; no lane reads it as an instruction.
+The nearest GitHub-state lever is starving the lane: park its remaining issues or hold its PRs. A
+standing lane then idles; a drain lane stops at its drain-terminal state (§4) once every remaining
+item is human-gated or escalated and no PR is in flight.
+
+**Stop a lane: no GitHub control exists.** Stopping is a session action on the lane's own host:
+`/claude-ops:lanes stop <lane>` there, reached from another machine through `/fleet:reach`.
 
 ## Versioning
 

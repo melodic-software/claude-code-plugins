@@ -20,6 +20,12 @@
 #      resolved primary path is asserted absolute before use, so a future
 #      platform-detection regression cannot yield a cwd-relative managed path a
 #      repo could plant inside its own checkout.
+#
+#      The Stop hook's payload-free pre-filter, which runs on every interactive
+#      stop before this file is sourced, keeps its own copy of the three
+#      primaries (the suite pins the copy to the literals below) and only ROUTES
+#      on them; every managed VALUE comes from the uname-selected,
+#      absoluteness-asserted list below.
 #   2. the per-session arm record (gate only) — see lane-stop-gate.sh.
 #   3. the user settings.json, located ONLY from this script's own install path
 #      via the documented `<config>/plugins/cache/<marketplace>/<name>/<ver>`
@@ -65,6 +71,24 @@ gate_resolve_anchor() {
   GATE_PLUGIN_ID_SAFE="${GATE_PLUGIN_ID//[^A-Za-z0-9_-]/-}"
 }
 
+# The plugin root (the hook directory's parent) that each entry script resolves
+# its install from, written into <var>. An already-absolute hook directory needs
+# no process; only the relative spelling pays the `cd` subshell, and a `cd` that
+# fails yields the empty root both callers already treat as unanchored. A drive
+# path has its `\` separators folded to `/`: Claude Code passes CLAUDE_PLUGIN_ROOT
+# backslashed on Windows, and the anchor layout is matched on `/`. Only the drive
+# shape is folded, because on POSIX a `\` is a filename byte.
+#   gate_plugin_root_to <var> <hook-dir>
+gate_plugin_root_to() {
+  local __root
+  case "$2" in
+  /*) __root="$2/.." ;;
+  ?:[/\\]*) __root="${2//\\//}/.." ;;
+  *) __root=$(cd "$2/.." 2>/dev/null && pwd) ;;
+  esac
+  printf -v "$1" '%s' "$__root"
+}
+
 # This plugin's name, from the manifest beside the caller. The manifest sits at
 # a path derived from the caller's own location — the same trust anchor
 # everything else here uses — so a repo cannot redirect it.
@@ -84,12 +108,12 @@ gate_resolve_plugin_name() {
 }
 
 # --- In-process result forms --------------------------------------------------
-# Every path helper below has a `_to <var>` form that writes its result into
-# the caller's variable with `printf -v`, and a print form that delegates to
-# it. The gate hook uses the `_to` forms: a `v=$(gate_x)` capture forks a
-# subshell for a function that is nothing but parameter expansion, and on the
-# Windows Git Bash host this gate is tuned for that fork is a process. The print
-# forms stay for the arm helper and for callers that capture stdout.
+# Every path helper below writes its result into the caller's variable with
+# `printf -v` (the `_to <var>` form). The gate hook uses those: a `v=$(gate_x)`
+# capture forks a subshell for a function that is nothing but parameter
+# expansion, and on the Windows Git Bash host this gate is tuned for that fork
+# is a process. A helper whose result the arm helper or the suites capture from
+# stdout also carries a print form that delegates to the `_to` form.
 
 # Resolve this install's identity from the caller-supplied plugin root: the
 # marketplace-qualified id when the plugins/cache anchor is present, else the
@@ -106,7 +130,7 @@ gate_resolve_install() {
 # This plugin's persistent data directory: install-derived when anchored, else
 # the CLAUDE_PLUGIN_DATA env fallback (a --plugin-dir install). Used ONLY for the
 # marker-consumption ledger, never for enablement or the arm record — those read
-# gate_trusted_data_dir (install-anchored, no env fallback). What a redirected
+# gate_trusted_data_dir_to (install-anchored, no env fallback). What a redirected
 # CLAUDE_PLUGIN_DATA can therefore reach is only the ledger, and only for the
 # MARKER completion channel, which is itself an agent-writable declaration: the
 # marker file lives in the watched checkout. It cannot enable the gate or forge
@@ -123,11 +147,6 @@ gate_data_dir_to() {
     printf -v "$1" '%s' "${CLAUDE_PLUGIN_DATA:-}"
   fi
 }
-gate_data_dir() {
-  local __gate_out
-  gate_data_dir_to __gate_out
-  printf '%s' "$__gate_out"
-}
 
 # Install-derived data directory ONLY — no env fallback. Fails when unanchored.
 # Arm records live here because a record can GRANT gate behavior: an env-derived
@@ -135,11 +154,6 @@ gate_data_dir() {
 gate_trusted_data_dir_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
   printf -v "$1" '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
-}
-gate_trusted_data_dir() {
-  local __gate_out
-  gate_trusted_data_dir_to __gate_out || return 1
-  printf '%s' "$__gate_out"
 }
 
 gate_arm_record_path_to() {
@@ -174,11 +188,6 @@ gate_user_settings_file_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
   printf -v "$1" '%s/settings.json' "$GATE_CONFIG_ROOT"
 }
-gate_user_settings_file() {
-  local __gate_out
-  gate_user_settings_file_to __gate_out || return 1
-  printf '%s' "$__gate_out"
-}
 
 # --- Managed settings ---------------------------------------------------------
 # Fixed per-platform paths (settings docs), primary file first, then the
@@ -195,11 +204,18 @@ gate_user_settings_file() {
 #
 # gate_managed_settings_files_load fills the GATE_MANAGED_FILES array in THIS
 # shell and marks it loaded; the print form below re-derives the list on every
-# call. The `uname -s` it runs is the one process the gate's interactive
-# default path pays, so a caller that needs the list twice in one run (the
-# gate's payload-free pre-filter, then its option resolution) loads it once and
-# gate_managed_options_to reuses the loaded list rather than asking the kernel
-# a second time for an answer that cannot have changed.
+# call. It is the AUTHORITATIVE list — every managed value the gate honors is
+# read from it — so it keeps paying `uname -s`, and a caller that needs it twice
+# in one run loads it once and gate_managed_options_to reuses the loaded list
+# rather than asking the kernel a second time for an answer that cannot have
+# changed. The gate's interactive default path never reaches it: that path is
+# the hook's library-free pre-filter, which spawns nothing at all.
+#
+# One spelling per platform. The pre-filter's copy of these three literals is
+# pinned to them by lane-stop-gate.test.sh.
+readonly GATE_MANAGED_PRIMARY_DARWIN="/Library/Application Support/ClaudeCode/managed-settings.json"
+readonly GATE_MANAGED_PRIMARY_WINDOWS="C:/Program Files/ClaudeCode/managed-settings.json"
+readonly GATE_MANAGED_PRIMARY_LINUX="/etc/claude-code/managed-settings.json"
 GATE_MANAGED_FILES=()
 GATE_MANAGED_FILES_LOADED=0
 gate_managed_settings_files_load() {
@@ -210,9 +226,9 @@ gate_managed_settings_files_load() {
   # gate_resolve_plugin_name): one process for uname, not two.
   { platform=$(uname -s); } 2>/dev/null || platform=""
   case "$platform" in
-  Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
-  MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
-  Linux) primary="/etc/claude-code/managed-settings.json" ;;
+  Darwin) primary="$GATE_MANAGED_PRIMARY_DARWIN" ;;
+  MINGW* | MSYS* | CYGWIN*) primary="$GATE_MANAGED_PRIMARY_WINDOWS" ;;
+  Linux) primary="$GATE_MANAGED_PRIMARY_LINUX" ;;
   *) return 0 ;;
   esac
   # Defense in depth: a managed path MUST be absolute (POSIX /… or a Windows
@@ -261,7 +277,7 @@ gate_managed_settings_files() {
 # channel-F exemplar does, so another marketplace's entry cannot mask this
 # install's; an unanchored one has no qualifier to match and falls back to the
 # manifest name, accepting a bare or any qualified key (last wins). Only
-# managed settings ever reach the name path — gate_user_settings_file has no
+# managed settings ever reach the name path — gate_user_settings_file_to has no
 # location to offer without the anchor.
 # The file is opened by bash (`< file`), not by jq: a native jq on Windows
 # cannot open an MSYS-style path, while a shell redirection always can.

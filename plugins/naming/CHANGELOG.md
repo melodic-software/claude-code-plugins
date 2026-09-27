@@ -3,6 +3,14 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.5.5]
 
 ### Changed
@@ -57,7 +65,7 @@ All notable changes to the `naming` plugin are documented here. Format follows
   project's own declared standards, which are public by construction, so withholding them would
   fight that design rather than improve it. What was taken is the anti-retrofit property without the
   secrecy. The mode now fixes *when* the rubric is settled, not who may see it. Which resolved
-  criteria decide a given name, and how they rank against each other, is a judgement made in this
+  criteria decide a given name, and how they rank against each other, is a judgment made in this
   skill, and it must be made and written down while the pool is still unknown. Criteria fixed after
   the candidates land get shaped by the candidates, and a rubric that already fits the pool cannot
   eliminate anything. The independent judges then score against a standard the pool itself
@@ -130,9 +138,9 @@ All notable changes to the `naming` plugin are documented here. Format follows
   (abbreviation policy, acronym casing, casing style) route to the
   consuming ecosystem's own style guide rather than a house verdict. For
   Claude Code skills, the description drives discovery rather than the name,
-  so the name optimises for human semantic accuracy.
+  so the name optimizes for human semantic accuracy.
 - **Strengthened domain-concept pointer.** When the target is a domain
-  concept, route to a domain-modelling capability to settle what it IS
+  concept, route to a domain-modeling capability to settle what it IS
   before naming it (pointer only).
 - **Research grounding.** `context/sources.md` adds the primary empirical
   sources behind the criteria priority (Feitelson TSE 2022, Alpern 2024

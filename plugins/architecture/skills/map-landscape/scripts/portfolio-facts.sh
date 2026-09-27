@@ -533,8 +533,7 @@ for raw_path in "$@"; do
   dotnet_proj=""
   for pattern in '*.csproj' '*.fsproj' 'global.json'; do
     if find_first "$pattern"; then
-      hit="$FIND_HIT"
-      [[ -z "$dotnet_proj" ]] && dotnet_proj="$hit"
+      dotnet_proj="$FIND_HIT"
       break
     fi
   done
@@ -552,8 +551,6 @@ for raw_path in "$@"; do
       js_runtime="deno"
     fi
     add_family "$js_runtime" "$node_manifest" "$node_scope"
-  else
-    node_manifest=""
   fi
 
   # A pyproject settles the scope on its own. Otherwise a RUNTIME-scope
@@ -587,29 +584,28 @@ for raw_path in "$@"; do
   [[ -n "$py_manifest" ]] && add_family python "$py_manifest" "$py_scope"
 
   go_manifest=""
-  if find_first 'go.mod'; then go_manifest="$FIND_HIT"; else go_manifest=""; fi
+  find_first 'go.mod' && go_manifest="$FIND_HIT"
   [[ -n "$go_manifest" ]] && add_family go "$go_manifest" runtime
 
   rust_manifest=""
-  if find_first 'Cargo.toml'; then rust_manifest="$FIND_HIT"; else rust_manifest=""; fi
+  find_first 'Cargo.toml' && rust_manifest="$FIND_HIT"
   [[ -n "$rust_manifest" ]] && add_family rust "$rust_manifest" runtime
 
   jvm_manifest=""
   for pattern in 'pom.xml' 'build.gradle*'; do
     if find_first "$pattern"; then
-      hit="$FIND_HIT"
-      jvm_manifest="$hit"
+      jvm_manifest="$FIND_HIT"
       break
     fi
   done
   [[ -n "$jvm_manifest" ]] && add_family jvm "$jvm_manifest" runtime
 
   ruby_manifest=""
-  if find_first 'Gemfile'; then ruby_manifest="$FIND_HIT"; else ruby_manifest=""; fi
+  find_first 'Gemfile' && ruby_manifest="$FIND_HIT"
   [[ -n "$ruby_manifest" ]] && add_family ruby "$ruby_manifest" runtime
 
   php_manifest=""
-  if find_first 'composer.json'; then php_manifest="$FIND_HIT"; else php_manifest=""; fi
+  find_first 'composer.json' && php_manifest="$FIND_HIT"
   [[ -n "$php_manifest" ]] && add_family php "$php_manifest" runtime
 
   # `shell` only when no RUNTIME-scope family claimed the repository. A
@@ -618,8 +614,7 @@ for raw_path in "$@"; do
   if [[ ${#runtimes[@]} -eq 0 ]]; then
     for pattern in '*.sh' '*.ps1'; do
       if find_first "$pattern"; then
-        hit="$FIND_HIT"
-        add_family shell "$hit" runtime
+        add_family shell "$FIND_HIT" runtime
         break
       fi
     done

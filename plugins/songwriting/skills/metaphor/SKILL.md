@@ -52,13 +52,13 @@ No action → route on context (a subject named → `collide`; an existing metap
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when the metaphor lands in a line).
+- **Pre-flight:** run response-filter §7 (+ §2 when the metaphor lands in a line).
 - **Options, never a winner.** Surface 6-8 labeled candidates. Label each with its type (expressed
   identity / qualifying / verbal), its linking quality (why it lands), and family distance
   (close / medium / far). The writer picks by emotional intent.
-- **Run the two finder questions explicitly, in the output.** What characteristics does this idea
-  have? What else has those characteristics? The second question is what releases the options;
-  answering it silently and presenting only conclusions skips the generative step.
+- **Show the writer both finder-question lists.** What characteristics does this idea have? What
+  else has those characteristics? Both lists belong in the reply because they are raw material the
+  writer mines for their own options, not just a route to your picks.
 - **Weight the collisions toward verbs.** In any mixed batch, noun×verb candidates should outnumber
   adjective×noun ones.
 - **Take object-writing output as input.** The mined world vocabulary of a song is the raw material
@@ -70,7 +70,7 @@ No action → route on context (a subject named → `collide`; an existing metap
 
 ## Boundary. What this skill must NOT emit
 
-This skill produces figurative language and judgements about it. It does not write the finished
+This skill produces figurative language and judgments about it. It does not write the finished
 lyric line the metaphor lives in.
 
 | If you are about to emit | STOP and route to |
@@ -78,7 +78,7 @@ lyric line the metaphor lives in.
 | A finished verse, chorus, or bridge line | `/songwriting:co-write` line-brainstorm |
 | Sensory raw material to collide | `/songwriting:object-writing generate` |
 | A rhyme partner for the metaphor's key word | `/songwriting:rhyme` |
-| A judgement about where the image belongs structurally | `/songwriting:song-form` |
+| A judgment about where the image belongs structurally | `/songwriting:song-form` |
 
 Routing means invoking that skill, not summarizing what you believe it would say.
 

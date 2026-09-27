@@ -807,7 +807,7 @@ You're SEEING SOMEONE ELSE
 
 <!-- spellchecker:on -->
 
-Pat's analysis of it, complete, in order. The stanzas are unlabelled in print,
+Pat's analysis of it, complete, in order. The stanzas are unlabeled in print,
 but this prose names them: stanzas one and two are the Verses, "Even though
 you're with me / Might as well be by myself" is the Transitional Bridge, and
 the HOOK is the repeated last pair.

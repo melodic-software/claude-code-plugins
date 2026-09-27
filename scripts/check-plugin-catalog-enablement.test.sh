@@ -8,8 +8,7 @@
 #
 # A green run on the current repo tree proves nothing about the gate -- the
 # tree is green by construction once the drift is fixed. These fixtures prove
-# it goes RED on the class that actually shipped (a catalogued plugin with no
-# enabledPlugins key, three times: #2892, #2932, #2985), on the inverse
+# it goes RED on a catalogued plugin with no enabledPlugins key, on the inverse
 # (an enabled id no catalog entry backs), and on unsorted keys; and that an
 # explicit `false` still passes, because an off switch a gate rejects is an
 # off switch nobody can use.
@@ -127,7 +126,7 @@ else
   fail "happy path should pass (rc=$rc): $out"
 fi
 
-# --- 2. The class that shipped: catalogued, enabled nowhere. ----------------
+# --- 2. Catalogued, enabled nowhere. ----------------------------------------
 write_marketplace alpha beta gamma
 printf 'alpha true\ngamma true\n' | write_settings
 out="$(run)"
@@ -138,9 +137,9 @@ else
   fail "plugin enabled nowhere should fail (rc=$rc): $out"
 fi
 
-# --- 2b. The fleet list covers what settings no longer mirrors. -------------
-# This is the post-migration shape: settings carries only deltas (here one
-# opt-out) and the fleet list enables the rest of the catalog.
+# --- 2b. The fleet list covers what settings does not mirror. ---------------
+# Settings carries only deltas (here one opt-out) and the fleet list enables
+# the rest of the catalog.
 write_marketplace alpha beta gamma
 write_fleet alpha@fixture beta@fixture gamma@fixture
 printf 'beta false\n' | write_settings
@@ -237,12 +236,12 @@ else
 fi
 
 # --- 6b. A regex metacharacter in the marketplace name stays literal. -------
-# Suffix stripping must be a literal match, not a pattern. Under the original
-# `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matched any
-# character, so 'alpha@melodicXsoftware' was accepted as this marketplace's
-# key and the genuine 'alpha@melodic.software' entry went unnoticed -- the
-# gate reporting drift that did not exist while missing the shape it exists
-# to catch. Raised as informational by the security review on #3235.
+# Suffix stripping must be a literal match, not a pattern. Under a pattern such
+# as `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matches any
+# character, so 'alpha@melodicXsoftware' is accepted as this marketplace's
+# key and the genuine 'alpha@melodic.software' entry goes unnoticed -- the
+# gate reporting drift that does not exist while missing the shape it exists
+# to catch.
 write_marketplace alpha
 write_bootstrap 'melodic.software'
 {
@@ -270,8 +269,7 @@ write_bootstrap fixture
 # install set with endswith("@" + $n), while this gate derives the suffix from
 # extraKnownMarketplaces. A rename that updates settings and catalog but not
 # the bootstrap leaves `wanted` empty -- cloud sessions install none of the
-# catalog -- with this lane green over it. Raised as P2 by the Codex review on
-# #3235.
+# catalog -- with this lane green over it.
 write_marketplace alpha beta
 printf 'alpha true\nbeta true\n' | write_settings
 write_bootstrap old-market-name
@@ -344,6 +342,71 @@ if [[ $rc -eq 2 ]] && grep -q 'not found' <<<"$out"; then
   ok "a missing marketplace.json exits 2"
 else
   fail "missing marketplace.json should exit 2 (rc=$rc): $out"
+fi
+
+# --- 9. The fetch URL is overridable, and a failed fetch names the routes. ----
+# A curl shim records the URL it was handed and either serves the fixture fleet
+# list or fails the way an offline host does, so no case touches the network.
+SHIM_BIN="$TMP/shim-bin"
+CURL_LOG="$TMP/curl-url.log"
+mkdir -p "$SHIM_BIN"
+cat >"$SHIM_BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+out="" url=""
+while (($#)); do
+  case "$1" in
+  -o) out="$2"; shift ;;
+  https://*) url="$1" ;;
+  esac
+  shift
+done
+printf '%s\n' "$url" >"$CURL_LOG"
+[[ "$SHIM_CURL_MODE" == "ok" ]] || exit 6
+cp "$SHIM_FLEET" "$out"
+EOF
+chmod +x "$SHIM_BIN/curl"
+run_fetch() { # <ok|fail> [fleet-url-override]
+  : >"$CURL_LOG"
+  (
+    cd "$TMP" &&
+      PATH="$SHIM_BIN:$PATH" SHIM_CURL_MODE="$1" SHIM_FLEET="$FLEET" CURL_LOG="$CURL_LOG" \
+        PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
+        PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
+        PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
+        PLUGIN_CATALOG_ENABLEMENT_FLEET_URL="${2:-}" \
+        bash "$SUT" 2>&1
+  )
+}
+write_marketplace alpha
+printf 'alpha true\n' | write_settings
+write_fleet
+default_url='https://raw.githubusercontent.com/melodic-software/standards/main/components/cloud-environment/fleet-plugins.json'
+out="$(run_fetch ok)"
+rc=$?
+if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$default_url" ]]; then
+  ok "with no override the fleet list is fetched from the standards repository"
+else
+  fail "default fetch URL (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
+fi
+
+fork_url='https://raw.githubusercontent.com/example-fork/standards/main/fleet-plugins.json'
+out="$(run_fetch ok "$fork_url")"
+rc=$?
+if [[ $rc -eq 0 ]] && [[ "$(cat "$CURL_LOG")" == "$fork_url" ]]; then
+  ok "PLUGIN_CATALOG_ENABLEMENT_FLEET_URL replaces the fetch URL"
+else
+  fail "fetch URL override not honored (rc=$rc, fetched '$(cat "$CURL_LOG")'): $out"
+fi
+
+out="$(run_fetch fail "$fork_url")"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -Fq "could not fetch the fleet list from $fork_url" <<<"$out" &&
+  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET at a local copy' <<<"$out" &&
+  grep -Fq 'PLUGIN_CATALOG_ENABLEMENT_FLEET_URL' <<<"$out" &&
+  ! grep -q 'none orphaned' <<<"$out"; then
+  ok "an unreachable fleet list exits 2 and names both overrides"
+else
+  fail "unreachable fleet list should exit 2 with the override routes (rc=$rc): $out"
 fi
 
 test_harness::report

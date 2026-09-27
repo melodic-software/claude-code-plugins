@@ -36,12 +36,15 @@ For facilitation knowledge, format guidance, notation, and the no-args interacti
 ## Miro availability & graceful degradation
 
 This skill drives an EventStorming model onto a **Miro board** via the first-party **`miro` plugin**,
-a bundled local-stdio MCP server, enabled separately (`event-storming` does not bundle it). The
-plugin exposes its tools under the **`mcp__plugin_miro_miro__`** prefix, so before any mode runs
-check whether e.g. `mcp__plugin_miro_miro__miro_list_boards` / `mcp__plugin_miro_miro__miro_create_board`
-are callable. A bare `miro_*` name does not resolve for a plugin-bundled server, so the gate must
-probe the prefixed form. Every `miro_*` tool named in this skill and its reference docs denotes that
-plugin's tool under the `mcp__plugin_miro_miro__` prefix.
+a bundled local-stdio MCP server, enabled separately (`event-storming` does not bundle it). Its
+tools resolve under the plugin-provided **`mcp__plugin_miro_<server>__`** prefix (normally
+`mcp__plugin_miro_miro__`), or under **`mcp__<server>__`** when the same server is configured
+directly at user or project scope (normally `mcp__miro__`, the miro README's opt-in override). So
+before any mode runs, check for callable tools whose names end in `__miro_list_boards` and
+`__miro_create_board` under either prefix. Match those Miro-specific tool names, not a server that
+merely happens to be called `miro`; a bare `miro_*` name does not resolve. Every `miro_*` tool named
+in this skill and its reference docs denotes that tool under whichever prefix the gate found.
+Naming basis: `reference/miro-integration.md` "Tool namespace".
 
 - **Miro available** → run normally: create boards, place stickies, screenshot-verify each phase.
 - **Miro absent** → do NOT fail. Tell the user the `miro` plugin isn't enabled, then offer two paths

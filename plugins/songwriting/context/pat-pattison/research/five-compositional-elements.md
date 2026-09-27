@@ -455,7 +455,7 @@ The **fifth element (rhyme type)** was added in *Essential Guide to Rhyming*
 intentionally uses only **perfect rhyme and identity** for all 44
 exercises. Family, additive, and assonance vocabulary is absent from the
 book entirely. **Consonance is the one exception**: Chapter 4 names the
-type once, in passing, analysing Shelley's "Ozymandias": "'Appear' is
+type once, in passing, analyzing Shelley's "Ozymandias": "'Appear' is
 an imperfect rhyme (technically, a Consonance Rhyme) with 'despair' and
 'bare.'" But it never defines it, never lists it among the working types,
 and never asks for it in an exercise.

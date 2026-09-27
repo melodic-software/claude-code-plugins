@@ -13,6 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
+import { indexSelectedFrames, readJsonFile, readLaneJson } from "../lib/watch-frame-index.js";
 import { CELL_IDS } from "../lib/watch-vision-validation.js";
 import { watchStatePath } from "./watch-state.js";
 
@@ -24,17 +25,11 @@ const MID_CELL_INDEX = Math.floor(CELL_IDS.length / 2);
  */
 export function exportSheetFrameIndex(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const selectionPath = lanePath(absSlice, LANES.keyFrames, "selection.json");
   const watchPath = watchStatePath(absSlice);
-  const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
-  const watch = fs.existsSync(watchPath) ? JSON.parse(fs.readFileSync(watchPath, "utf8")) : {};
+  const selection = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
+  const watch = fs.existsSync(watchPath) ? readJsonFile(watchPath) : {};
 
-  const byFile = Object.fromEntries(
-    selection.selectedFrames.map((frame) => [
-      frame.file,
-      { timestampSec: frame.timestampSec, textDense: frame.textDense },
-    ]),
-  );
+  const byFile = indexSelectedFrames(selection);
 
   const sheets = selection.contactSheets.map((sheet, index) => ({
     sheetId: `sheet_${String(index + 1).padStart(3, "0")}`,
@@ -62,9 +57,8 @@ export function exportSheetFrameIndex(sliceDir) {
   return outPath;
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/export-sheet-frame-index.js <slice-dir>");
     process.exit(2);

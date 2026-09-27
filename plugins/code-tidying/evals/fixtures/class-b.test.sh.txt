@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/class-b.sh"
+
+fail=0
+[[ "$(cache_ttl_seconds 2)" == "172800" ]] || {
+  echo "cache_ttl_seconds 2: expected 172800" >&2
+  fail=1
+}
+[[ "$(greeting Ada)" == "Hello, Ada" ]] || {
+  echo "greeting Ada: expected Hello, Ada" >&2
+  fail=1
+}
+exit "$fail"

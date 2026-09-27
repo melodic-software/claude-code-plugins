@@ -2,16 +2,7 @@
 # Regression tests for fetch-failed-logs.sh.
 #
 # Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH
-# that emits fixture data instead of calling the real GitHub API. Covers:
-#
-#   1. Full-run ZIP mode — extracts ##[error] markers per job folder
-#   2. Per-job mode — emits failure markers from plain-text response
-#   3. --raw flag — dumps unfiltered content
-#   4. --keep-zip flag — leaves ZIP under scratch/
-#   5. Size cap (--max-bytes) — aborts with exit 3
-#   6. gh api failure — exits 2
-#   7. Tiny non-ZIP response — exits 2 with diagnostic
-#   8. Missing arguments — exits 1
+# that emits fixture data instead of calling the real GitHub API.
 
 set -uo pipefail
 
@@ -23,7 +14,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=../../../scripts/test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../scripts" && pwd)/test-helpers.sh"
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 # Skip suite if `unzip` (production dep) or `zip` (test fixture builder) is
 # missing. CI runners have them preinstalled. Windows Git Bash users install
@@ -159,11 +150,7 @@ fi
 
 # Case 4: --keep-zip leaves ZIP under scratch
 out=$(run_script 22222 --keep-zip)
-if [[ -f "$TEST_TMPDIR/scratch/run-22222-logs.zip" ]]; then
-  pass "--keep-zip preserves ZIP under scratch/"
-else
-  fail "--keep-zip preserves ZIP under scratch/" "ZIP at scratch/run-22222-logs.zip" "missing"
-fi
+assert_file_exists "--keep-zip preserves ZIP under scratch/" "$TEST_TMPDIR/scratch/run-22222-logs.zip"
 
 # Case 5: Size cap aborts with exit 3
 run_script_with_scratch_silent "$TEST_TMPDIR/scratch5" 33333 --max-bytes 10
@@ -199,7 +186,6 @@ assert_exit "missing run-id and --job exits 1" 1 "$ec"
   printf '2026-05-08T10:02:05.000Z 0 tests passed\n'
   printf '2026-05-08T10:02:06.000Z Retrying download (attempt 2 of 3)\n'
 } >>"$FIXTURE_BUILD/0_build.txt"
-# Rebuild ZIP with extended fixture
 (cd "$FIXTURE_BUILD" && zip -qr "$FIXTURE_ZIP" .)
 
 # Case 9: --errors-only suppresses warnings
@@ -212,11 +198,7 @@ fi
 
 # Case 10: --notices includes ##[notice]
 out=$(run_script 12345 --notices)
-if [[ "$out" == *"##[notice]informational"* ]]; then
-  pass "--notices surfaces notice markers"
-else
-  fail "--notices surfaces notice markers" "informational note included" "$out"
-fi
+assert_contains "--notices surfaces notice markers" "$out" "##[notice]informational"
 
 # Case 11: --groups shows step structure
 out=$(run_script 12345 --groups)
@@ -268,11 +250,7 @@ else
 fi
 # The other direction: a slice running past the header block leaks executable
 # lines into the banner, so the banner must stop before the first one.
-if [[ "$help_out" != *"set -uo pipefail"* ]]; then
-  pass "--help stops at the header block"
-else
-  fail "--help stops at the header block" "no shell options in the banner" "$help_out"
-fi
+assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
 #
@@ -306,6 +284,5 @@ if [[ "${INTEGRATION:-0}" == "1" ]]; then
   fi
 fi
 
-# Final
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

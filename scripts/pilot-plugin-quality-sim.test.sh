@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deterministic consumer-repo simulation for the plugin-quality convention-doc
-# pilot (Phase 2d, ADR 0018). Exercises the SHIPPED helper copies
+# pilot (ADR 0018). Exercises the SHIPPED helper copies
 # (plugins/plugin-quality/lib/*) and the plugin's retirements.yaml against a
 # fixture consumer repository:
 #
@@ -13,7 +13,7 @@
 #   5. --clean with --i-migrated cleans; the delete record cleans; re-run clean
 #   6. a CRLF-authored AGENTS.md also resolves
 #
-# This scripts the deterministic halves of the pilot's licence; the
+# This scripts the deterministic halves of the pilot's license; the
 # model-judgment halves (interview, migration prose, gating) are covered by the
 # setup and audit eval cases. Per-script assertion helpers are deliberately
 # duplicated, not shared: docs/conventions/shell-test-helpers/README.md.

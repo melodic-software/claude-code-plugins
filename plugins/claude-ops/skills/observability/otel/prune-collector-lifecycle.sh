@@ -6,8 +6,8 @@
 # otelcol-contrib Windows service. Command overrides are hermetic test seams.
 
 case "${OSTYPE:-}" in
-  msys* | cygwin* | win*) OS_KIND=windows ;;
-  *) OS_KIND=unsupported ;;
+msys* | cygwin* | win*) OS_KIND=windows ;;
+*) OS_KIND=unsupported ;;
 esac
 readonly OS_KIND
 readonly COLLECTOR_SERVICE_NAME='otelcol-contrib'
@@ -105,9 +105,7 @@ cleanup() {
   # into a failure. Keep the sentinel through this attempt so another prune cannot start while
   # the Collector is still down or restarting.
   if [[ "$STOPPED" == true ]]; then
-    if start_collector; then
-      :
-    else
+    if ! start_collector; then
       err "failed to restart Collector service '$COLLECTOR_SERVICE_NAME'"
       if ((original_rc == 0)); then original_rc=1; fi
     fi

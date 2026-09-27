@@ -3,6 +3,114 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0] - 2026-09-27
+
+### Changed
+
+- **The confidence rank order puts an absent score last: `high` > `medium` > `low` > `unscored`.**
+  `context/severity.md` ranked `unscored` above `low` and told emitters to "emit `high` or omit the
+  field", while the `code-reviewer` agent and fanout's coverage clause told every reviewer to label
+  each finding high, medium, or low. A reviewer that honestly labeled an uncertain finding `low` saw
+  it ranked below one nobody scored. With the new order, "label every finding" is the one rule, and
+  fanout's ranking and cross-surface MAX merge, which both read the order from `severity.md`, now
+  keep a `low` label above a missing one.
+- **`code-reviewer` keeps its `Confidence:` field inside a caller-supplied finding shape.** When the
+  dispatching prompt dictates its own layout (for example `path:line: severity: problem. fix.`),
+  the agent uses that layout and still carries a confidence value per finding. The agent body now
+  cites the severity baseline for the rank order instead of restating it.
+
+## [0.30.8] - 2026-09-27
+
+### Changed
+
+- `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
+
+## [0.30.7] - 2026-09-27
+
+### Changed
+
+- `audit-enforceability`'s crosswalk maps the renamed producer: the rule-id rows and the family
+  row use `attribution/audit/` in place of `provenance/audit/`, and the owner column and
+  verification record name the `attribution:audit` detector, matching the ids the renamed plugin
+  now emits.
+
+## [0.30.6] - 2026-09-27
+
+### Fixed
+
+- The `code-reviewer` agent defers an assertion whose two sides are the same expression to `testing:audit`'s `cant-fail-scan.sh` only when that scan's output for the change set is in its context and reports the assertion. Otherwise it reports the finding itself and says the scan did not run, so a repo without the `testing` plugin, or a review where the audit was not invoked, still gets the finding. Fanout's dedup stage merges the duplicate when both report it.
+
+## [0.30.5] - 2026-09-27
+
+### Changed
+
+- `code-reviewer` agent: the description drops the "proactively, immediately after writing or modifying source files" trigger and names when not to delegate (every edit, typo-sized tweaks, linter-caught issues, security and architecture concerns). A new "Turn budget" section has the agent review the highest-risk files first and end with a `Coverage:` line naming files it did not reach before `maxTurns` ran out.
+
+## [0.30.4] - 2026-09-26
+
+### Changed
+
+- `/review:quality-gate` architecture follow-up: a small or medium pattern issue is fixed in the current change as its own commit, even when unrelated to the task; only a structural one is filed.
+
+## [0.30.3] - 2026-09-25
+
+### Changed
+
+- `/review:quality-gate` scopes the review-fix round: a fix changes exactly the lines its finding names, and any other edit needs its own finding first. The `pr` mode's "Fix valid findings" step points at the same rule.
+
+## [0.30.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.30.1]
+
+### Changed
+
+- **The two CI lane commands name their lane rather than a workflow file.** `/review:code-review`
+  and `/review:security-review` carry summaries describing what each lane reviews, and the
+  code-review body keys its security scoping on whether a separate security lane runs rather than
+  on a named workflow file being present in the consumer. Where no security lane runs, the
+  code-review lane reports security findings itself, so a suppressed finding is not left without a
+  reader. No check, severity, or output format changed.
+
+## [0.30.0] - 2026-09-23
+
+### Changed
+
+- The CI code-review and security-review lanes and `quality-gate` PR mode ask each finding for the
+  file and line, why it is wrong, and how to show it fails; PR mode leads with the findings that
+  would block the merge. Severity tiers are unchanged.
+- `fanout` reads each CRITICAL finding's cited line before it enters the report and drops one the
+  code does not bear out to `low` confidence.
+- `doc-drift-detector` also checks documentation for internal contradictions in numbers, dates,
+  and names, quoting both statements and their locations.
+- `fanout`'s leaf coverage clause states when a leaf is done and to name any part of the change
+  set it could not review.
+
+## [0.29.2] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+### Fixed
+
+- **The close-out acceptance-criteria rollup still classifies the retired EARS tag spelling.**
+  The `planning` vocabulary moves to `unwanted-behavior` in the same change set, so a Brief or
+  PRD written before it carries the British spelling. The exact-name list would have read that
+  as "anything else" and left the pattern cell empty, silently dropping the classification from
+  every older artifact. The retired spelling is now detected and rendered under the current name.
+
+## [0.29.1]
+
+### Changed
+
+- The review emit-stubs script routes its six parent-directory walks through one path-parent helper, extracts the drive letter in a single pass, and drops write-only state and constant-true guards, with byte-identical stubs, findings, and exit codes.
+
 ## [0.29.0]
 
 ### Added
@@ -190,7 +298,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`quality-gate`:** close-out mode's acceptance-criteria rollup gains a requirement-pattern
   column when any of the container's retrieved criteria opens with a bracketed EARS tag. The cell
   carries one of exactly five names, `ubiquitous`, `event-driven`, `state-driven`,
-  `unwanted-behaviour`, `optional-feature`, matching what the planning surfaces emit; a bracket
+  `unwanted-behavior`, `optional-feature`, matching what the planning surfaces emit; a bracket
   holding anything else leaves the cell empty rather than echoing raw text. Detection is a leading
   bracket holding one of those names, so a checklist marker (`- [ ]`) is not read as a tag and no
   flag, lever, or convention key is read at all. Every criterion still gets a
@@ -529,7 +637,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   extra `state=="OPEN"` query plus an open-PR search against the container before rendering,
   reports whatever it finds as **in-flight, not in the basis**, and treats any open PR
   carrying container work as a precondition of the close rather than a footnote. Surfaced by
-  running the mode over container #2933, where six behaviour-changing fixes sat in an open PR
+  running the mode over container #2933, where six behavior-changing fixes sat in an open PR
   and the derived basis showed none of them.
 
 ## [0.25.0]
@@ -1172,7 +1280,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   commands instead execute fixed logic directly", with `/doctor` cited as having been
   "a built-in command rather than a bundled skill" before v2.1.205. The two labels are
   mutually exclusive. `/code-review` **is** a bundled skill; only the "built-in"
-  modifier was wrong, so the fix drops it rather than re-labelling the surface. The
+  modifier was wrong, so the fix drops it rather than re-labeling the surface. The
   heading and opening sentence now read "bundled skill" and link
   <https://code.claude.com/docs/en/skills#bundled-skills>. The plugin's other
   `/code-review` references (`README.md`, `fanout/SKILL.md`,
@@ -1586,8 +1694,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- **Judgement-call labeling in reviewer output formats.** `code-reviewer` and
-  `architecture-guardian` now label design-smell and convention findings as judgement calls,
+- **Judgment-call labeling in reviewer output formats.** `code-reviewer` and
+  `architecture-guardian` now label design-smell and convention findings as judgment calls,
   advisory and reviewer-tier, never as hard violations. Hard-violation framing is reserved for
   findings backed by a documented project rule, a failing check, or a demonstrable defect
   (`architecture-guardian` admits a finding into its Violations bucket only with that backing).

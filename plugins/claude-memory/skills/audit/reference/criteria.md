@@ -7,9 +7,13 @@
 - [Checks for auto-memory (MEMORY.md + topic files)](#checks-for-auto-memory-memorymd--topic-files)
 - [Audit output format](#audit-output-format)
 
-Version: 1.6.0
-Last updated: 2026-08-19
+Version: 1.7.0
+Last updated: 2026-09-20
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
+
+`<skill-dir>` in the commands below is the parent of this file's `reference/` directory. SKILL.md
+"Script paths" renders its absolute path; put it in place of the placeholder before running a
+command.
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
 for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memory).
@@ -20,6 +24,16 @@ To refresh this file against current official guidance, run the skill's `update`
 
 ## Checks for CLAUDE.md and CLAUDE.local.md
 
+Every C-check here applies equally to each project root `AGENTS.md` that discovery emits as an
+`agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`, both of which load at session start and
+between which the doc states no precedence): that file IS the project instructions for the
+session, so the same budget, content and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
+is why a repo under a one-line `@AGENTS.md` shim has no such row (the import already counts inside
+the CLAUDE.md's expanded figure) and a displaced `AGENTS.md` has none either. Cite the finding
+against `AGENTS.md`, not against a CLAUDE.md that is not there. Basis:
+code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md", fetched 2026-09-20; the
+condition and its recheck trigger are recorded in `scripts/lib/agents-md.sh`.
+
 ### C1: Line Budget [FAIL]
 
 **What**: Count the visible lines that load for the file, its `@` imports expanded. Compare to the
@@ -27,7 +41,7 @@ To refresh this file against current official guidance, run the skill's `update`
 
 **How to check**:
 
-1. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/instruction-load-stats.sh" --lines --file <path>`.
+1. Run `bash "<skill-dir>/scripts/instruction-load-stats.sh" --lines --file <path>`.
    It strips block-level HTML comments (kept inside fenced code), expands `@path` imports the way
    the loader does (relative to the importing file, four hops, code spans and fences skipped), and
    counts the non-empty lines that remain. `--breakdown` lists every file that contributed, plus
@@ -199,9 +213,9 @@ instead)."
 
 ### C6: Consistency [FAIL]
 
-**What**: Do any instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules
-files, including across **user and project** scope when both sides are in the
-`discover-instruction-surfaces` population?
+**What**: Do any instructions contradict each other across CLAUDE.md, a root AGENTS.md read in a
+CLAUDE.md's place, CLAUDE.local.md, and rules files, including across **user and project** scope
+when both sides are in the `discover-instruction-surfaces` population?
 
 **How to check**:
 
@@ -362,7 +376,7 @@ already loads would spend budget restating it), so "unreferenced" alone proves n
 `description:` line is the rule naming its own purpose; a rule that has one is never an orphan.
 
 **How to check**: run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` (deterministic
+`bash "<skill-dir>/scripts/orphan-rule-check.sh"` (deterministic
 set-difference: enumerate always-loaded rules without `description:`, `git grep` each basename across
 tracked files excluding the rule's own file; zero hits = orphan). Path-scoped rules are exempt: they
 load only on matching-file Read, so being unreferenced costs nothing per session. WARN per orphan.
@@ -377,26 +391,36 @@ finding, but its fix line names the sync's source rather than a local edit.
 
 ### N1: Nested AGENTS.md reachability [FAIL], deterministic
 
-**What**: A tracked `AGENTS.md` below the repository root that no sibling `CLAUDE.md` or
-`CLAUDE.local.md` reaches by import or symlink. Such a file never loads at any level of the tree,
-however well written, and every static gate around it reports green.
+**What**: A tracked `AGENTS.md` below the repository root that a `CLAUDE.md`, `.claude/CLAUDE.md` or
+`CLAUDE.local.md` on its own path displaces, and that none of them reaches by import or symlink.
+Such a file never loads, however well written, and every static gate around it reports green. A
+nested `AGENTS.md` with none of those files above it is read directly and is not a finding.
 
 **How to check**: run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL line
+`bash "<skill-dir>/scripts/nested-agents-check.sh"` and fold each FAIL line
 into the report. The script enumerates tracked `**/AGENTS.md` below the root (skipping `.claude`,
-`node_modules`, `vendor`, and `.git` trees), and for each asks whether a `CLAUDE.md` or
-`CLAUDE.local.md` in the same directory is the file (symlink) or imports it within four hops, using
-the same import parser C1's expansion uses. The root `AGENTS.md` is the root `CLAUDE.md`'s business
-and is not examined here. Discovery for the C-checks stays depth-1: this check is about the pointer,
-not the nested file's content. FAIL per unwired file; the fix is a one-line `@AGENTS.md` `CLAUDE.md`
-beside it.
+`.codex`, `.cursor`, `.github`, `node_modules`, `vendor`, and `.git` trees, so another tool's own
+instruction files are never reported as a missing Claude shim), and for each asks first whether any
+`CLAUDE.md` or `CLAUDE.local.md` on its path displaces it, and then whether one of them is the file
+(symlink) or imports it within four hops, using the same import parser C1's expansion uses. The root
+`AGENTS.md` is the root `CLAUDE.md`'s business and is not examined here. Discovery for the C-checks
+stays depth-1: this check is about the pointer, not the nested file's content. FAIL per displaced,
+unimported file; the fix is a one-line `@AGENTS.md` `CLAUDE.md` beside it.
 
-**Why**: Official docs: "Claude Code reads `CLAUDE.md`, not `AGENTS.md`. If your repository already
-uses `AGENTS.md` for other coding agents, create a `CLAUDE.md` that imports it", and subdirectory
-files "are included when Claude reads files in those subdirectories" as `CLAUDE.md` /
-`CLAUDE.local.md` (code.claude.com/docs/en/memory, "AGENTS.md" and "How CLAUDE.md files load";
-verified 2026-09-08; recheck trigger: a fetch of that page no longer stating that Claude Code reads
-`CLAUDE.md` rather than `AGENTS.md`).
+**Why**: Official docs: Claude reads `AGENTS.md` "only when you have no `CLAUDE.md` in your working
+directory or above it", counting "a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your
+working directory or any directory above it"; it attaches "a subdirectory's `AGENTS.md`, when Claude
+opens a file there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files
+of its own"; and where reading `AGENTS.md` directly is unavailable, the page says to "import it from
+a `CLAUDE.md`" (code.claude.com/docs/en/memory, "AGENTS.md", "When Claude Code reads AGENTS.md",
+"When AGENTS.md support is unavailable"; verified 2026-09-19; recheck trigger: a fetch of that page
+no longer stating which file names count for that check).
+
+The earlier basis for this check was the same page's sentence "Claude Code reads `CLAUDE.md`, not
+`AGENTS.md`. If your repository already uses `AGENTS.md` for other coding agents, create a
+`CLAUDE.md` that imports it", verified 2026-09-08. That recheck trigger fired: the sentence is gone
+from the page as fetched 2026-09-19, and direct `AGENTS.md` reading shipped in v2.1.277. It is
+quoted here unchanged as the superseded basis, never as a current claim.
 
 ---
 
@@ -404,7 +428,7 @@ verified 2026-09-08; recheck trigger: a fetch of that page no longer stating tha
 
 Every finding proposes a change to a file. When that file is a synced copy of a source elsewhere,
 the change is overwritten by the next sync, so the finding stands but its fix belongs upstream. Run
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>` for each flagged
+`bash "<skill-dir>/scripts/file-provenance.sh" <path>` for each flagged
 repository file: `synced` (a `SYNC-MANAGED` marker in the file, or a last commit by the standards
 sync) makes the report's fix line name the upstream (`owner/repo` when the marker names one) instead
 of a local edit; `local` keeps the ordinary fix line. RD1 does this itself; the judgment-tier checks
@@ -464,7 +488,7 @@ under-count stops it firing at all. The `update` action must not overwrite them.
 
 **How to check**:
 
-1. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh"` for the
+1. Run `bash "<skill-dir>/scripts/memory-index-refs-check.sh"` for the
    deterministic index↔topic-file integrity half (missing targets + orphan topic files)
 2. For entries referencing specific files/features, verify they still exist (judgment half: the
    script checks existence, not content)

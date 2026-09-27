@@ -3,6 +3,56 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.17] - 2026-09-27
+
+### Changed
+
+- `simulation`'s agentic-simulation reference states five rules in normal register: corrective instructions in every agent prompt, the Behavioral Rules heading, the beneficiary persona coming first, the sticky-note content rules heading, and the no-emoji rule. Every rule is unchanged (#4120).
+
+## [0.6.16] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+
+## [0.6.15] - 2026-09-23
+
+### Changed
+
+- **The Structured Thinking corrective prompt asks for output order, not for no planning.** On
+  models whose thinking is always on, "do not plan" cannot be followed; the prompt now asks
+  personas to decide no categories up front and leave the whole unsorted, while related events may
+  still cluster as correction #4 asks; ordering and categorizing stay with Enforce Timeline.
+- **Facilitator re-prompts re-send the specific violated correction with its reason**, instead of
+  escalating to "stronger corrections", which over-applies on current models.
+
+## [0.6.14] - 2026-09-23
+
+### Fixed
+
+- **The Miro availability gates in `methodology` and `simulation` detect a directly configured
+  Miro server.** They match the Miro-specific tool names (`…__miro_list_boards`,
+  `…__miro_create_board`) under either the plugin-provided `mcp__plugin_miro_<server>__` prefix or
+  a user- or project-scope `mcp__<server>__` prefix, so the miro README's opt-in `vault-exec`
+  override no longer reads as Miro absent
+  ([#4380](https://github.com/melodic-software/claude-code-plugins/issues/4380)). One eval per
+  skill covers the user-scope prefix.
+
+## [0.6.13] - 2026-09-23
+
+### Changed
+
+- The simulation's GREY-zone corrective prompt tells personas not to research or double-check
+  their stale events, replacing a "think carefully" phrasing that steered reasoning depth.
+
+## [0.6.12] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.6.11]
 
 ### Changed
@@ -18,7 +68,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
   prose (the README, this changelog, the methodology skill body and its five references, and the
   simulation references) are rewritten as a comma, a period, a colon where a definition or list
   follows, or a restructured sentence. Headings that carried one take the colon or comma form, and
-  each file's own Contents list follows. No workshop phase, sticky colour, notation rule, Miro
+  each file's own Contents list follows. No workshop phase, sticky color, notation rule, Miro
   coordinate, or evaluation criterion changed.
 - **Two Brandolini quotations keep their em dashes** inside ignore markers naming the source, since
   the dashes are his. The `remote-eventstorming.md` pull-quote instead moves its attribution to the

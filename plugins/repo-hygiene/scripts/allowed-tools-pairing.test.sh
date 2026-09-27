@@ -11,25 +11,11 @@
 # non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
 # match a quoted body path, which is how one grant in this repo shipped dead.
 #
-# This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
-# convention rather than a platform limit. `${CLAUDE_PLUGIN_ROOT}` DOES
-# substitute in a plugin skill's `allowed-tools` Bash rules
-# (<https://code.claude.com/docs/en/skills>, fetched 2026-09-12: "In a plugin
-# skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and
-# `${CLAUDE_PLUGIN_DATA}` in the same two places"; upstream fixed it in
-# v2.1.0), so the older "the token is inert there" reason is stale and is not
-# why this rule exists. The reason it still holds: the docs establish
-# substitution, not that such a rule matches at runtime on every host, and this
-# repo does not ship a grant on docs alone
-# (`plugins/discovery/reference/parent-contract.md`).
+# Requiring `${CLAUDE_SKILL_DIR}` in a grant is a repo convention, not a platform limit: no
+# grant ships on docs alone (`plugins/discovery/reference/parent-contract.md`).
 #
-# Two-form split (decide-lane #2237, DEFER): `SKILL.md` uses the paired
-# `${CLAUDE_SKILL_DIR}/scripts/…` form that matches its grants; bundled
-# `context/*.md` files keep the interpreter-led
-# `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` form because substitution
-# of `${CLAUDE_SKILL_DIR}` into on-demand context files is unverified — a wrong
-# conversion expands to `/scripts/…` and fails silently. See
-# `skills/clean/reference/invocation-forms.md`.
+# `SKILL.md` uses the paired `${CLAUDE_SKILL_DIR}/scripts/…` form; bundled `context/*.md`
+# files keep the `bash ${CLAUDE_PLUGIN_ROOT}/…` form. See `skills/clean/reference/invocation-forms.md`.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
@@ -47,7 +33,8 @@ SKILLS=(clean)
 # deliberate narrowing decision, which the pairing checks below cannot catch on
 # their own: a script that is bundled, executable, and mentioned in the body
 # "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green.
+# other assertion here would still pass green. A skill with no arm reports a
+# NOTE at the comparison site rather than comparing nothing.
 # `clean` names one because its grant scope carries real blast radius: only the
 # READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
 # clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
@@ -71,6 +58,9 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
+# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
+# skip, and this path is a declared absence of an allowlist, not of a tool.
+note() { echo "NOTE: $1"; }
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -139,7 +129,7 @@ for skill in "${SKILLS[@]}"; do
   # The destructive guard matches destructive command SHAPES and matches none of
   # the six mutating scripts (nor `git branch -D`, nor `git push --delete`), so a
   # comment here saying they "stay behind the PreToolUse destructive guard" is a
-  # safety claim the code does not honour. Two assertions rather than one: the
+  # safety claim the code does not honor. Two assertions rather than one: the
   # first bans the specific overstatement, the second requires any mention of the
   # guard to state its real scope, so a reworded overstatement cannot slip past.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
@@ -201,6 +191,8 @@ for skill in "${SKILLS[@]}"; do
     expected: $expected
     actual:   $actual"
     fi
+  else
+    note "$skill: names no allowlist, so the granted-set comparison did not run"
   fi
 done
 

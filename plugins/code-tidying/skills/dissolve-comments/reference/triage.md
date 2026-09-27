@@ -18,11 +18,12 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 - Narrates the obvious flow of a block the reader can see
 - Obsolete: describes behavior the code no longer has
 - Commented-out code (version control owns history)
+- Names where the block came from or when it was added (git history owns origin)
 
 Deletion is the complete treatment: no refactor needed, no information lost. This class overlaps
-`/code-tidying:audit-comment-residue`'s four residue shapes (history narration, plan references,
-conversational antecedents, ticket back-references); when that skill has already produced findings,
-its Tier 1 rows are class-A input here.
+`/code-tidying:audit-comment-residue`'s five residue shapes (history narration, plan references,
+conversational antecedents, ticket back-references, origin notes); when that skill has already
+produced findings, its Tier 1 rows are class-A input here.
 
 **Carve-out for issue references.** A comment is class A on the ticket-back-reference shape only
 when the reference is its **whole content**. An issue reference that is a citation inside a
@@ -82,7 +83,8 @@ A comment survives only if **all three** hold:
    reason once, provided the group **enumerates every member by file and line**; the sentence is
    what may be written once, never the naming. What never survives is length spent on
    justification narrative. Posture `balanced` reports an over-budget comment instead of rewriting
-   it; `conservative` proposes the rewrite.
+   it; `conservative` proposes the rewrite; `aggressive` keeps only a warning of consequence and
+   rewrites it to the budget, and `strip` keeps nothing here.
 
 **When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
 under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
@@ -92,8 +94,12 @@ Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a c
 
 Under `safe` mode and posture `conservative` this deletion is **proposed, never applied**. Those
 modes apply class-A deletions only, and a comment that reached this branch is class C whatever its
-test returned. The mode ladder narrows what is applied, and it does not get to be widened by a
-verdict reached inside it.
+test returned. What the run may apply is set by the mode, never by a verdict reached inside it.
+
+Under `aggressive` and `strip` the criteria are not what decides. The survivor list in `SKILL.md`
+does: an exempt surface, a paired record, and (under `aggressive`) a warning of consequence stay,
+and every other comment here is staged and deleted behind the same token proof, recoverable
+rationale or not. Criterion 2 is not evaluated for them, since its answer changes nothing.
 
 **Whole-file verdict.** Where the majority of a file's class-C comments carry contract, negative, or
 operational information, the file is contract-heavy rather than over-narrated. The report states

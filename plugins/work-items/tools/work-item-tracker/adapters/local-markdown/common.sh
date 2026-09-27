@@ -48,7 +48,7 @@ readonly EX_NOT_FOUND=5
 readonly EX_CONFLICT=7
 # The default namespace and the verb-referenced exit codes are consumed by the
 # sourcing verb scripts; export so a standalone lint of this sourced-only file sees
-# them as intentionally external (mirrors lib/json.sh exporting WIT_SCHEMA_VERSION).
+# them as intentionally external.
 export WIT_LOCAL_DEFAULT_NS EX_NOT_FOUND EX_CONFLICT
 
 wit_usage_error() {
@@ -79,12 +79,11 @@ wit_require_local_id() {
 # after arg parsing so --help / usage errors stay offline. Exits 3 (config) when
 # the binding did not supply config.storage_dir.
 wit_need_storage() {
-  [[ -n "${WIT_STORAGE_DIR:-}" ]] ||
-    {
-      printf '%s: config.storage_dir is required for provider local-markdown — see CONTRACT.md Setup\n' \
-        "$(basename "${BASH_SOURCE[1]}")" >&2
-      exit "$EX_CONFIG"
-    }
+  [[ -n "${WIT_STORAGE_DIR:-}" ]] || {
+    printf '%s: config.storage_dir is required for provider local-markdown — see CONTRACT.md Setup\n' \
+      "$(basename "${BASH_SOURCE[1]}")" >&2
+    exit "$EX_CONFIG"
+  }
   mkdir -p "$WIT_STORAGE_DIR"
 }
 

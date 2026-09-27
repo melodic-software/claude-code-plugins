@@ -3,6 +3,101 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.5] - 2026-09-27
+
+### Fixed
+
+- **Script commands in the `context/` and `reference/` files run as written again (#4613).** The
+  `audit` skill's `context/audit.md`, `context/fix.md` and `reference/criteria.md`, and the
+  `stateless` skill's `context/status.md` and `context/purge.md`, wrote each bundled script as
+  `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>.sh`. Claude Code substitutes that token only
+  in a rendered `SKILL.md`; a spoke read later with the Read tool keeps it literal, and the Bash
+  tool's environment has no `CLAUDE_PLUGIN_ROOT`, so each command resolved to
+  `/skills/<skill>/scripts/...` and failed. Discovery, M2, RD1 and N1 then ran only when the model
+  repaired the path by hand. The 16 commands now start from `<skill-dir>`, and each `SKILL.md`
+  renders that directory from `${CLAUDE_SKILL_DIR}` with a dated verification record. No spoke
+  carries the dollar-brace root token any more, so the rule is grep-checkable.
+
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- `audit` routes MCP, agent, and skill coverage to `claude-config`'s `audit-automation-gaps` skill instead of the nonexistent `automation-gaps` (scope paragraph and Scope table). The `claude-md-management` references in "Complementary workflows" and `official-guidance.md` now say the plugin comes from Anthropic's `claude-plugins-official` marketplace, and call `revise-claude-md` a command (#4119).
+
+## [0.13.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.13.2] - 2026-09-23
+
+### Changed
+
+- **`audit` routes more model-era findings out.** Think-carefully steers, vague design steers, and
+  settled-answers lines on analysis surfaces route to `claude-config:audit-instructions`; a
+  long-run file missing a stop rule, finish line, task file, or report shape routes to
+  `claude-config:audit-prompting-postures`.
+
+## [0.13.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.13.0]
+
+### Added
+
+- `discover-instruction-surfaces.sh` emits an `agents-md` project surface for each root `AGENTS.md` that Claude Code reads as the project instructions, so a repository that has dropped its `CLAUDE.md` shim stops inventorying no project surface at all and `/claude-memory:audit` stops reporting nothing to audit. `instruction-load-stats.sh` counts that file's bytes and its `@` imports in the always-loaded set and answers `--lines`/`--bytes` from it by default, and `audit-spine.sh` names it as the project root file. Every C-check applies to it as the project instructions, cited against `AGENTS.md`.
+- Both names the memory page loads at session start are covered: "every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it". The page states no precedence between them, so each file that exists gets its own row and its own bytes; `--lines`/`--bytes` and the spine header answer from the first.
+- The new kind is emitted only where that file is what the session loads. A root `AGENTS.md` that a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` displaces yields no surface row and no bytes, so a repository under a one-line `@AGENTS.md` shim reports exactly what it reported before: the import already carries that content into the `CLAUDE.md` row and its expanded figure, and a second row would count one file twice. The condition is read by one `lib/agents-md.sh` predicate the three scripts share, so their answers cannot disagree.
+  The displacement test walks every ancestor, not just the repository root: a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` above the root suppresses the file exactly as one beside it does, so a check that stopped at the root would report a surface the session never reads. The one `.claude/CLAUDE.md` on that walk which does not count is the user root (`$HOME/.claude`, and a relocated `CLAUDE_CONFIG_DIR`), whose CLAUDE.md keeps loading alongside an `AGENTS.md`; a bare `CLAUDE.md` in that same directory is a different file and counts. Directories are compared by device and inode, because the same one reaches the walk under names that are not equal as strings (a Windows 8.3 short name, a symlinked home, a case difference).
+  The basis is the memory page: "An `AGENTS.md`, and no `CLAUDE.md` or `CLAUDE.local.md` in your working directory or above it | Your `AGENTS.md`", and for the displacing set "Count, so Claude reads them instead of `AGENTS.md`: a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any directory above it", against which a `~/.claude/CLAUDE.md` and `.claude/rules/` files do not count (code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code reads AGENTS.md"; fetched 2026-09-20; recheck when that list changes or the default **Project instructions** value stops being `claude-md-or-agents-md`).
+
+## [0.12.9]
+
+### Changed
+
+- `nested-agents-check.sh` (N1) flags a nested `AGENTS.md` only where a `CLAUDE.md`, `CLAUDE.local.md` or root `.claude/CLAUDE.md` on its own path is read instead of it and none of them imports it. A nested `AGENTS.md` with nothing above it is read directly and is no longer reported as a file that never loads, so a repository with no `CLAUDE.md` at all stops being told to add one.
+- `nested-agents-check.sh` skips the `.codex`, `.cursor` and `.github` trees alongside `.claude`, `node_modules`, `vendor` and `.git`: another tool's `AGENTS.md` is that tool's and must never be given a Claude shim. The check's corpus is `AGENTS.md` files only, so a `CLAUDE.md` in one of those directories was never in scope and is unaffected. The list stays this plugin's own copy, because a plugin never imports a file from a sibling plugin (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
+- The N1 fix route to `/instruction-placement:migrate` is presence-gated with a stated fallback, per `docs/conventions/seam-phrasing/README.md`: where that plugin is absent, removing the root `CLAUDE.md` is named as a repository-wide change outside this fix and left to the operator.
+- Both the blocker walk and the entry-point walk count `.claude/CLAUDE.md` at every level, not only at the repository root. The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any directory above it" (fetched 2026-09-19), so a subdirectory's own `.claude/CLAUDE.md` displaces the `AGENTS.md` beside it, and an import from one wires that file.
+- The N1 finding text, the audit surface table, `context/audit.md`, `context/fix.md` and `reference/criteria.md` name the displacing `CLAUDE.md` as the reason rather than asserting that Claude Code never reads `AGENTS.md`. The fix path routes a repository that wants to drop its shims to `/instruction-placement:migrate` instead of proposing it here.
+- `reference/criteria.md` and `reference/official-guidance.md` keep the quoted Anthropic sentence word for word and label it the superseded basis: its own recheck trigger fired, since the memory page no longer carries it and direct `AGENTS.md` reading shipped in Claude Code 2.1.277.
+
+## [0.12.8]
+
+### Changed
+
+- The ten claude-memory shell suites source one scripts/test-helpers.sh for their counters, asserts, fixture repo and report tail instead of ten inline copies; three suites keep their local assert_contains detail wording. Output and exit codes are byte-identical.
+
+## [0.12.7]
+
+### Changed
+
+- audit-spine, instruction-load-stats and orphan-rule-check decide whether a rule declares paths or a description through one rule-scope library reader. The reader captures the frontmatter before grepping it, so a rule whose body exceeds the pipe buffer is no longer misclassified as always-loaded; every tracked rule is far below that size and the reports are unchanged.
+
+## [0.12.6]
+
+### Changed
+
+- The two stateless memory scripts count topic files through one plugin-level library helper instead of two verbatim null-delimited loops, with identical counts including dotfile and newline-named topics.
+
+## [0.12.5]
+
+### Changed
+
+- audit skill: instruction-load-stats.sh prints uncommented lines directly instead of through an identity awk wrapper and drops a dead root reset after its walk loop, and nested-agents-check.sh returns its wiring test's status directly. No behavior change.
+
+## [0.12.4]
+
+### Changed
+
+- stateless scripts: scope-report.sh prints its scope table through one row helper instead of six inline printf calls, and enumerate-all-projects.sh substitutes the absent-index marker with a parameter default. Output byte-identical.
+
 ## [0.12.3]
 
 ### Fixed
@@ -54,7 +149,7 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   skipped, external imports listed but not expanded). C1 and the pre-computed header use the
   expanded line count, and the report's context-cost line is a bytes / 4 estimate over the whole
   always-loaded set in both scopes (the repository's root files and unscoped rules, and the user
-  scope's `CLAUDE.md` and unscoped rules under `CLAUDE_CONFIG_DIR` or `~/.claude`), labelled as
+  scope's `CLAUDE.md` and unscoped rules under `CLAUDE_CONFIG_DIR` or `~/.claude`), labeled as
   one, in place of a `/context` figure the model cannot obtain.
 - **audit:** `nested-agents-check.sh`, a new deterministic check N1: a tracked `AGENTS.md` below
   the root that no instruction entry point reaches never loads, and is reported as a FAIL with the
@@ -509,9 +604,9 @@ The audit now covers two surfaces it never could before, which is why this is a 
   already states. The `claude project purge` quote asserted `"The command requires Claude Code
   v2.1.124 or later"`, a sentence claude-directory no longer carries and cli-reference never did;
   it is out of the quote, and the retained `v2.1.124+` floor the plugin states elsewhere is
-  labelled a claim with no current upstream source rather than left looking doc-backed. Review
-  extended that reconciliation within the reference file itself: its second, unlabelled `v2.1.124+`
-  mention now defers to the labelled statement instead of restating the floor as doc-backed fact,
+  labeled a claim with no current upstream source rather than left looking doc-backed. Review
+  extended that reconciliation within the reference file itself: its second, unlabeled `v2.1.124+`
+  mention now defers to the labeled statement instead of restating the floor as doc-backed fact,
   and the cli-reference negative carries its own citation: the page is in the file's Sources list
   and documents `claude project purge` with no version requirement (verified 2026-08-08).
 

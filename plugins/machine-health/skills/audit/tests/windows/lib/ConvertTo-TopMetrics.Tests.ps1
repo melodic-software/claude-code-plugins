@@ -2,15 +2,10 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'ConvertTo-TopMetrics.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'ConvertTo-TopMetrics.ps1'
 
     function New-CheckStub {
-        param(
-            [string] $Id = 'foo',
-            $Detail = @{}
-        )
+        param([string] $Id, $Detail)
         [pscustomobject]@{ id = $Id; detail = $Detail }
     }
 }

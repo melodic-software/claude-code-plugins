@@ -95,17 +95,12 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted files: modified/added/renamed/untracked, per git status. Read the NUL-delimited
-    # -z form, which git documents as performing no quoting or backslash-escaping: the default v1
-    # output wraps any path holding a space, a non-ASCII byte, or a control character in quotes and
-    # C-style-escapes it (an é becomes \303\251), and splitting that back apart cannot be done reliably.
-    # Porcelain paths are repo-relative and the cd to repo_root above already ran, so they need no
-    # anchoring.
+    # Read the -z form, which git documents as unquoted and unescaped; the default output
+    # C-escapes unusual paths beyond reliable splitting. Paths are already repo-relative.
     while IFS= read -r -d '' record; do
       [[ -z "$record" ]] && continue
-      # Each record is XY + space + path. A rename/copy emits the NEW path here and the ORIGINAL
-      # as the next record (the reverse of v1's "old -> new" display order), so consume that
-      # second record and drop it rather than auditing a path that no longer exists.
+      # A rename/copy emits the NEW path here and the ORIGINAL as the next record, so consume
+      # and drop that second record rather than audit a path that no longer exists.
       case "${record:0:2}" in
       [RC]? | ?[RC]) IFS= read -r -d '' _ || true ;;
       *) ;;
@@ -128,15 +123,14 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
     EXPANDED+=("$target")
   fi
 done
-TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
 
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
+if [[ ${#EXPANDED[@]} -eq 0 ]]; then
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: no code targets — pass code file paths or edit some tracked code files"
   exit 0
 fi
 
-mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
+mapfile -t SORTED < <(printf '%s\n' "${EXPANDED[@]}" | LC_ALL=C sort -u)
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
@@ -148,13 +142,21 @@ audit_file() {
   local t1=0 t2=0 t3=0
   local prev_line="" line_num=0 shapes shape tier excerpt
 
+  # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
+  # even when the cue sits on another line of the same NOTICE block.
+  local -A license_block=()
+  local n
+  while IFS= read -r n; do
+    [[ -n "$n" ]] && license_block["$n"]=1
+  done < <(cr_license_block_lines "$file")
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
     if cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       continue
     fi
-    shapes="$(cr_detect_shapes "$line" || true)"
+    shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" || true)"
     if [[ -n "$shapes" ]]; then
       excerpt="$(cr_trim_excerpt "$line")"
       while IFS= read -r shape; do

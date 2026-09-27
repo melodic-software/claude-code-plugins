@@ -36,7 +36,8 @@ could actually open, and what each one holds.
   permission plane's own dead config, the `disableAutoMode` type trap, and rules that cannot match
   stay here, in Phase 4: they are read across all five scopes at once, which is this skill's asset
   and not something a project-scope reader can do.
-- The instruction layer (CLAUDE.md, rules, auto-memory) → the `claude-memory` plugin.
+- The instruction layer (CLAUDE.md, a natively read AGENTS.md, rules, auto-memory) → the
+  `claude-memory` plugin.
 
 ## Report-only, permanently
 

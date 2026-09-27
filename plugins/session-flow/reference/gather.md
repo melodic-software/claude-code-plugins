@@ -15,7 +15,7 @@ Consumers: `continue-in-background`, `find-handoff`, `handoff`, `orient`, `retro
 pre-compute block.
 
 **Treat any failure as an unknown value and carry on.** A probe that cannot run yields "unknown",
-never an abort. These probes colour a report; they are not gates.
+never an abort. These probes color a report; they are not gates.
 
 ## Why these are gathered at run time, never pre-computed
 
@@ -30,7 +30,7 @@ refused. Prefer a probe that needs no expansion at all.
 ## The probes
 
 Each consumer names the subset it takes. Where a probe is parameterised, the consumer states the
-value it uses. The differences below are deliberate, not drift to normalise.
+value it uses. The differences below are deliberate, not drift to normalize.
 
 | Probe | Command | Notes |
 |---|---|---|
@@ -52,12 +52,12 @@ value it uses. The differences below are deliberate, not drift to normalise.
 | `running-retro` | yes | yes | yes | `-5` | no |
 | `workflow` | no | yes | yes | `-5` | no |
 
-`orient`'s deeper log is intentional: it synthesises a situation report and reads further back than
+`orient`'s deeper log is intentional: it synthesizes a situation report and reads further back than
 a skill that only stamps a save-point.
 
 ## What this block is NOT
 
-**It is never a gate.** `continue-in-background` makes this explicit and the rule generalises: its
+**It is never a gate.** `continue-in-background` makes this explicit and the rule generalizes: its
 dirty-tree check at delivery step 1 runs its **own** commands and reads a git failure as a reason
 *not* to launch. Never carry this block's shrug, or its non-`-uall` `git status` output, into a
 decision that must fail closed. A probe set whose contract is "carry on when it fails" cannot also

@@ -304,7 +304,7 @@ else
   fail "capture has one row per local branch" "$heads" "$rows"
 fi
 
-# Explicit capture path honoured.
+# Explicit capture path honored.
 explicit_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT' --capture-file '$TEST_TMPDIR/explicit.tsv'")"
 assert_contains "--capture-file path reported" "$explicit_out" "TipCapture: $TEST_TMPDIR/explicit.tsv"
 assert_file_exists "--capture-file written" "$TEST_TMPDIR/explicit.tsv"

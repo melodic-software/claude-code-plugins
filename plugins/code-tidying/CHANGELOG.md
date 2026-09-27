@@ -3,6 +3,224 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.4] - 2026-09-27
+
+### Changed
+
+- A comment in `audit-comment-residue`'s `comment-shapes.sh` names `attribution:audit`, the
+  renamed `provenance:audit`. Comment only; no behavior changes.
+
+## [0.23.3] - 2026-09-27
+
+### Changed
+
+- `audit-dead-code`'s description is under the 1024-codepoint field cap. Every quoted trigger phrase is still there.
+
+## [0.23.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.23.1] - 2026-09-23
+
+### Changed
+
+- **`tidy` drops "after thorough exploration" from the clean-exit rule.** Current models explore
+  proactively; the booster added nothing the rule needs.
+
+## [0.23.0] - 2026-09-23
+
+### Changed
+
+- `batch-simplify`'s summary report opens with the remaining deferrals, the items waiting on the
+  user, before the per-group results.
+- `batch-simplify`'s per-group agent brief states when the agent is done.
+
+## [0.22.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.22.0]
+
+### Added
+
+- **`dissolve-comments` proves `.ps1` and `.psm1` edits, through PowerShell's own parser.** Both
+  `change-shape.py` and `commented-out-code.py` map the two extensions to a native backend: a new
+  `scripts/ps-tokens.ps1` runs under `pwsh` 7 and returns every token as `(Kind, Text)` plus every
+  comment's extent, and the Python side does the filtering so both backends share one filter. A
+  PowerShell deletion or rename now carries a tier-0 or tier-1 proof instead of being a proposal by
+  default (#4304).
+
+  `#Requires` and a line-1 shebang both tokenize as Comment tokens and deleting either leaves the
+  token stream identical, so each is kept as its own leaf and deleting it reads CODE-CHANGED. A
+  newline is kept too, as one leaf per run with the ends trimmed: dropping it outright let
+  `Write-Output $a # c` swallow the line under it as an argument and still read COMMENT-ONLY, while
+  collapsing runs keeps blank lines and reflow invisible. A here-string is a single token, so a `#`
+  inside one is never a comment.
+
+  For RENAME-ONLY the admitted identifier kinds are `Variable` and `SplattedVariable`, not
+  `Identifier`, which is both member names and type names, so `[string]` to `[int]` would otherwise
+  pass as a rename. Three further guards, because a token-shaped edit is not always a rename:
+
+  - **Interpolated references are read out of the string.** `"text $x here"` is one token whose Text
+    carries the variable, so a rename that updated the bare `$x` and missed the interpolated one was
+    invisible and passed as clean. `ps-tokens.ps1` now walks `NestedTokens` and emits each one as an
+    extra leaf, normalizing `${x}` to `$x` so the stale-name and collision guards see the reference
+    whichever spelling it wore. The string token itself is still compared, so a rename that updates
+    both reads CODE-CHANGED; renames touching interpolation demote to proposals.
+  - **Scope changes are not renames.** `$x` to `$global:x` and `$x` to `$env:PATH` are rejected: the
+    sigil-to-last-colon prefix must match on both sides.
+  - **Reserved variables are not rename targets.** `ps-tokens.ps1` reads the names present in a
+    fresh runspace and reports them, so `$null`, `$true`, `$HOME`, `$PID`, `$_` and the rest are
+    rejected on either side of a mapping without a list maintained here going stale.
+  - **Names are compared case-insensitively, as PowerShell compares them.** `classify_leaves` takes
+    a fold for the mapping, collision and stale-name bookkeeping, so `$Old` to `$old` is a
+    respelling rather than a rename, `$old` to `$New` collides with an existing `$new`, and a missed
+    `$Old` reference still fails an `$old` rename. The leaves stay verbatim, so a case-only edit is
+    still a visible difference rather than nothing at all.
+
+  The residual caveat is the one the verdict carries in every language: string-keyed access the
+  tokens cannot see, here `Get-Variable -Name old` and `$PSBoundParameters['old']`.
+
+  **With no `pwsh` on PATH the verdict is exit 2, an unproven edit, never exit 3.** Exit 3 lets a
+  coarser reading layer apply the deletion anyway, which would make a host-less machine looser than
+  today rather than the same.
+
+  The maintained `tree-sitter-powershell` grammar was measured and rejected rather than added as a
+  fallback: 33 ERROR and 1 MISSING node on a 537 KB module and 115 ERROR and 172 MISSING on a 1 MB
+  test file, where the native parser returns zero parse errors on both. `reference/tooling.md`
+  carries the numbers so the next reader does not re-litigate it.
+
+- **`comment-tooling-probe.sh` reports `proof-powershell` as its own row**, naming the host and its
+  version when present and the lost capability when absent.
+
+### Changed
+
+- **Comment-based help is an exempt surface, public or private.** What a module exports lives in
+  `Export-ModuleMember` or a `.psd1` manifest, which the proof does not read, so the exemption
+  covers every help block in `.ps1` and `.psm1`. `commented-out-code.py` skips a help block whole
+  rather than reparsing its prose, and its `DIRECTIVE` list gains `#Requires` and the help keywords.
+  Its marker stripping also learns `<#` and `#>`, so a one-line `<# $x = 1 #>` and a multi-line block
+  reach the parser as code instead of never being read at all.
+
+- **A `CommandAst` is not commented-out-code evidence in PowerShell.** Prose about PowerShell parses
+  as a clean command whether it names a `-Switch` ("the one `-AllowExitCode` judges") or a cmdlet
+  ("`Set-Acl` asks the provider to persist the descriptor"), so admitting it reported 27 findings on
+  a 537 KB module where the shipped evidence set reports 2. That set is the statement and member
+  forms plus a pipeline of two or more elements; the cost is that a commented-out bare command line
+  is missed.
+
+### Fixed
+
+- **The "no grammar" counts in `safety.md` and `SKILL.md` were off by the two PowerShell
+  extensions.** `change-shape.py` now proves 18 of the 28 extensions `scope-code-files.sh` admits
+  and `commented-out-code.py` 14, leaving 10 that neither backend reads.
+
+## [0.21.0]
+
+### Added
+
+- **`audit-comment-residue` gains a fifth residue shape, `origin-note`, at Tier 1.** A comment
+  naming where a block came from or when it was added is a finding: `ported from`, `copied from`,
+  `migrated from`, `adapted from`, `borrowed from`, `lifted from`, `taken from`, and
+  `added`/`merged`/`introduced`/`backported`/`ported` in front of an ISO date. Git history owns
+  origin, so the treatment is delete. The cue must open the comment or a clause inside it and must
+  be a whole word, so `bytes copied from the source buffer` and `helpers exported from index.ts`
+  are not findings. The cue also has to END on a boundary, so `ported fromage` and a date running
+  on into more characters (`Added 2026-09-011`) match nothing; an ISO-8601 time is spelled out, so
+  `Added 2026-09-01T12:00:00Z` still is one. A dated freshness stamp is not this
+  shape either: the cue list carries no bare date and none of the stamp verbs `provenance:audit`
+  keys on.
+
+  `cr_comment_text` now strips the `///` and `//!` doc-comment leaders, which previously sat in the
+  clause-opening position and stopped a cue right behind one from anchoring. That applies to every
+  shape, not just this one.
+
+  Because Tier 1 reads "remove", two comment classes are exempt whatever verb they open with: a
+  marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work rather than residue, and a
+  license or attribution header, whose text the reader may be legally required to keep. The license
+  exemption is BLOCK-scoped: a run of contiguous comment lines in which any line carries
+  `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` beside a year or a
+  `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE
+  header is covered even though the cue sits on another line of the block. The run ends at the first
+  blank line or line of code, and a trailing comment on a code line opens no run. The `Copyright`
+  and `(c)` cues each require that corroboration because both are ordinary words a comment uses, as
+  in "to satisfy the copyright audit" or "the callback signature `f(c)`". The same exemptions are
+  NOT yet wired into `history-narration`, `plan-reference` or `conversational-antecedent`, which
+  still report a license header narrating a change.
+
+### Changed
+
+- The `ticket-pr-residue` treatment says "bare back-reference" where it said "bare provenance", so
+  "provenance" keeps one sense across the repository.
+- `dissolve-comments`' triage reference names origin notes under class A.
+
+## [0.20.0]
+
+### Added
+
+- **`dissolve-comments` gains an aggressive dial.** `aggressive` (a per-run token and a
+  `comment_posture` value) keeps only the exempt surfaces, paired comment-plus-test records, and
+  terse warnings of consequence; every other comment is staged and deleted, rationale included.
+  `strip` (a per-run token) deletes every comment but the exempt surfaces and paired records and
+  rewrites no code. Precedence is `safe`, then `strip`, then `aggressive`, and a token beats the
+  standing posture.
+- **`--notes <path>`** appends the staged commit-message block to an untracked or out-of-repo file.
+  A tracked path is refused and the run continues with the report as the only vehicle.
+- **A calibration eval suite** under `plugins/code-tidying/evals/`, run with `claude plugin eval`:
+  three frozen real sections, invented fixtures per triage class, exempt surfaces, marker rows,
+  Python docstrings, paired records, and the dial interactions.
+
+### Changed
+
+- **"The posture ladder only descends" is replaced by "no knob loosens a gate."** The dials widen
+  what a run removes; they change no proof. Deletions still carry COMMENT-ONLY, function-local
+  renames RENAME-ONLY, tier-2 and tier-3 moves a discovered test net, and an UNPROVABLE file still
+  yields proposals only.
+- **Two rules now hold in every mode:** a comment paired with a regression test is never deleted
+  alone, and an identifier a repo-local marker row pins is never renamed.
+- **The tier tables in `safety.md` and `dissolving-moves.md` agree.** The merged set is 16 moves:
+  tier 2 gains Replace Nested Conditional with Guard Clauses and Introduce Special Case, tier 3
+  gains Inline Function in `safety.md` and Extract Class in `dissolving-moves.md`. The apply-capacity
+  counts read 2 of 16 and 0 of 16.
+- **The `Intentional-removal:` trailer is conditional.** The staged block carries it only where the
+  target repository's own gates read that trailer.
+
+## [0.19.8]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.19.7]
+
+### Changed
+
+- Merge the line-comment leader branches in the comment-shapes library, drop the redundant target array copy in the detector and hoist the tab fixture name in its suite (behavior unchanged).
+
+## [0.19.6]
+
+### Changed
+
+- Enumerate census lines directly, total dedupe drops from the record counts, unpack tree-sitter points and collapse the census exit-code branches in the comment scripts (behavior unchanged).
+
+## [0.19.5]
+
+### Changed
+
+- Anchor scope targets in one loop, count owned files from the collected list and fold the vulture input-error match in the dead-code scan (behavior unchanged).
+
+## [0.19.4]
+
+### Changed
+
+- dissolve-comments wrappers: scope-code-files.sh points at the allowed-tools verification record that change-shape.sh carries instead of repeating it, comment-tooling-probe.sh points at the same anchor, and the six wrapper headers drop their em dashes. Comment-only; every wrapper still execs the same target.
+
 ## [0.19.3]
 
 ### Changed
@@ -261,14 +479,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `git log -L` over the comment's own lines and checks the repo's ADR directory, recording a
   per-comment verdict.
 - **`rank-comment-targets.py`:** exit 3 discarded the census's stderr on the one branch where it
-  was the only actionable output, so a missing analyser exited with stdout **and** stderr empty and
+  was the only actionable output, so a missing analyzer exited with stdout **and** stderr empty and
   was indistinguishable from a tree with nothing to rank. The hint is relayed, with a regression
   test that fails on the previous shape.
 - **`comment-tooling-probe.sh`:** both absent-layer cost strings claimed a line-prefix or grep
   fallback that `comment-census.py` explicitly never performs. They now state the real
   consequence: the census and the ranking cannot run at all.
 - **`comment-census.py`:** an empty record set returned exit 0 with all-zero totals whether the
-  scope was empty or no analyser was installed, so a later count read as an improvement against a
+  scope was empty or no analyzer was installed, so a later count read as an improvement against a
   baseline that was never measured. Layer availability is probed directly now. `unread=True` was
   written and never read; unread files are counted and reported.
 - **`dissolve-comments`, `audit-comment-residue`:** both injected a `${CLAUDE_PLUGIN_ROOT}` script
@@ -300,7 +518,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   with tree-sitter absent, no move dissolves a why) is stated where class B is introduced rather
   than left to be inferred from a zero result.
 - **`dissolve-comments`:** scope reporting lists every dropped path with its reason instead of a
-  per-reason tally only; steps 1, 4 and 7 have explicit exit-3 stops so a missing analyser can no
+  per-reason tally only; steps 1, 4 and 7 have explicit exit-3 stops so a missing analyzer can no
   longer surface as a `+0` delta; `safety.md` documents `change-shape.py`'s exit 2 and the 13 of 28
   in-scope extensions no grammar covers; the over-budget escape clause requires a reason **per
   comment**, not per category.
@@ -375,7 +593,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   instead of widening. Co-located test.
 - **`scripts/comment-census.py`, the comment burden with a token estimate.** Comment lines and
   bytes per file and per language from scc (lines, complexity) and pygments (bytes), byte-identical
-  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labelled as such,
+  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labeled as such,
   `--baseline` for the delta between passes. Co-located test.
 - **`scripts/rank-comment-targets.py`, the repository-rung reading order.** Exposure (size-normalized
   recency-weighted line churn, basename fan-in, raw churn, owner diffusion) times payload (comment
@@ -762,7 +980,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - **`/code-tidying:audit-dead-code`** is a read-only, whole-repo dead-code hunter for the
   category lane-rotated tidying and diff-scoped simplification structurally cannot see:
   code nothing has reached in a long time. Four lanes ship with **honestly unequal**,
-  individually labelled confidence: `knip` (TS/JS: unused files, exports, types, enum
+  individually labeled confidence: `knip` (TS/JS: unused files, exports, types, enum
   members; not class members, which knip 6 rejects), `vulture` (Python, symbol-level,
   high-recall/low-precision with the FP-class suppressions that measurably work
   pre-applied), `gopls check -severity=hint` (Go, **unexported symbols only**, a stated

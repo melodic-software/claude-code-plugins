@@ -19,6 +19,7 @@ import {
   forbiddenSynthesisFileNameReason,
   isForbiddenPipelineSessionSlug,
   isPipelinePlaceholderGapNote,
+  normalizeSynthesisDestName,
 } from "../lib/synthesis-filename.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
 import { slugifyTitle } from "../transcript/derive-video-slug.js";
@@ -78,15 +79,6 @@ function resolveSessionForSource(index, sourceFile) {
     }
   }
   return "misc";
-}
-
-/**
- * @param {string} destName
- * @returns {string}
- */
-function normalizeDestName(destName) {
-  const base = path.basename(destName);
-  return base.endsWith(".png") ? base : `${base}.png`;
 }
 
 /**
@@ -154,7 +146,9 @@ function applyFileRenames(synthesisDir, renamePairs) {
  * @param {object} doc
  */
 function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
-  const promotedNames = new Set(promotedDecisions(doc).map((d) => normalizeDestName(d.destName)));
+  const promotedNames = new Set(
+    promotedDecisions(doc).map((d) => normalizeSynthesisDestName(d.destName)),
+  );
 
   for (const name of fs.readdirSync(synthesisDir)) {
     if (!name.endsWith(".png")) {
@@ -176,7 +170,7 @@ function writePromotionArtifacts(absSlice, doc) {
   /** @type {Record<string, { sourceFile: string, gapNote?: string, session?: string }>} */
   const promotionMap = {};
   for (const row of promotes) {
-    const destName = normalizeDestName(row.destName);
+    const destName = normalizeSynthesisDestName(row.destName);
     if (forbiddenSynthesisFileNameReason(destName)) {
       throw new Error(`still forbidden after repair: ${destName}`);
     }
@@ -197,7 +191,7 @@ function writePromotionArtifacts(absSlice, doc) {
     reviewedAt: new Date().toISOString(),
     model: "repair-synthesis-promotions",
     files: promotes.map((row) => ({
-      name: normalizeDestName(row.destName),
+      name: normalizeSynthesisDestName(row.destName),
       pass: true,
       note: (row.gapNote ?? "vision-gated promotion").slice(0, 120),
     })),
@@ -231,7 +225,7 @@ function repairPromotionRows(doc, reserved, absSlice) {
       continue;
     }
 
-    const oldDest = normalizeDestName(row.destName);
+    const oldDest = normalizeSynthesisDestName(row.destName);
     if (rejectPipelinePlaceholder(row, oldDest)) {
       rejected += 1;
       continue;
@@ -284,10 +278,9 @@ export function repairSynthesisPromotions(sliceDir, { dryRun = false } = {}) {
   return { renamed, rejected, sessionsFixed };
 }
 
-const sliceDir = process.argv[2];
-const dryRun = process.argv.includes("--dry-run");
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
+  const dryRun = process.argv.includes("--dry-run");
   if (!sliceDir) {
     writeStderr("Usage: node watch/repair-synthesis-promotions.js <slice-dir> [--dry-run]");
     process.exit(2);

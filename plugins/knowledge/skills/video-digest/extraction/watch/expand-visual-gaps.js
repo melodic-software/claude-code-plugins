@@ -11,15 +11,14 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { parsePromotedTimestampsSec } from "../evals/check-watch-outcomes.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { readLaneJson } from "../lib/watch-frame-index.js";
 
 /**
  * @param {string} sliceDir
  */
 export function expandVisualGaps(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const sel = JSON.parse(
-    fs.readFileSync(lanePath(absSlice, LANES.keyFrames, "selection.json"), "utf8"),
-  );
+  const sel = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
   const visualFramesPath = lanePath(absSlice, LANES.keyFrames, "visual-frames.md");
   const promoted = parsePromotedTimestampsSec(fs.readFileSync(visualFramesPath, "utf8"));
 
@@ -44,9 +43,8 @@ ${gapRows.join("\n")}
   return { outPath, gapCount: gapRows.length, total: sel.densificationWindows.length };
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/expand-visual-gaps.js <slice-dir>");
     process.exit(2);

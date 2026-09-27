@@ -64,6 +64,8 @@ cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
 INPUT='{"session_id":"sess-42","context_window":{"used_percentage":8}}'
+INPUT_FILE="$WORK/stdin.payload"
+printf '%s' "$INPUT" >"$INPUT_FILE"
 
 # Plant a fake tee that identifies itself, then behaves like the real one:
 # transparent passthrough of stdin, stdout, and exit code.
@@ -105,21 +107,39 @@ EOF
   chmod +x "$path"
 }
 
-# Runner: HOME-scoped invocation; remaining args are the wrapped command.
-# CLAUDE_CONFIG_DIR is cleared so an ambient relocated config dir on the
-# developer's machine cannot leak into the HOME-anchored cases.
-# Captures stdout, stderr, and the exit code.
+# Runner core: feed INPUT on stdin to `env <args>`, capturing stdout, stderr,
+# and the exit code.
 OUT=""
 ERR=""
 RC=0
+run_env() {
+  local errfile="$WORK/stderr.$$"
+  # Fed from a file, never a pipe or a here-string: a shim that finds nothing
+  # to run exits before reading stdin, so a pipe writer fails on the closed
+  # read end, and a here-string appends a trailing newline INPUT does not
+  # have, which would defeat the byte-transparency this suite proves.
+  OUT="$(env "$@" <"$INPUT_FILE" 2>"$errfile")"
+  RC=$?
+  ERR="$(<"$errfile")"
+  rm -f "$errfile"
+}
+
+# HOME-scoped invocation; remaining args are the wrapped command.
+# CLAUDE_CONFIG_DIR is cleared so an ambient relocated config dir on the
+# developer's machine cannot leak into the HOME-anchored cases.
 run() {
   local home="$1"
   shift
-  local errfile="$WORK/stderr.$$"
-  OUT="$(printf '%s' "$INPUT" | env -u CLAUDE_CONFIG_DIR HOME="$home" bash "$SHIM" "$@" 2>"$errfile")"
-  RC=$?
-  ERR="$(cat "$errfile")"
-  rm -f "$errfile"
+  run_env -u CLAUDE_CONFIG_DIR "HOME=$home" bash "$SHIM" "$@"
+}
+
+# Same capture with CLAUDE_CONFIG_DIR SET rather than cleared, for the relocated
+# config-dir cases: $1 = HOME, $2 = the config dir (empty exercises the fallback
+# to $HOME/.claude), remaining args are the wrapped command.
+run_cfg() {
+  local home="$1" cfg="$2"
+  shift 2
+  run_env "HOME=$home" "CLAUDE_CONFIG_DIR=$cfg" bash "$SHIM" "$@"
 }
 
 # --- 1. single installed tee: resolved, and the chain stays transparent -----
@@ -131,6 +151,13 @@ assert_contains "$ERR" "TEE:v1" "resolves the installed tee (marketplace name no
 assert_contains "$OUT" "stdin:$INPUT" "stdin bytes reach the wrapped command"
 assert_contains "$OUT" "RENDER" "wrapped command owns stdout"
 assert_eq "0" "$RC" "wrapped exit code passes through (0)"
+# $(cat) above strips a trailing newline either way, so it cannot catch one
+# added in transit; cmp against the raw capture can.
+CAP1="$WORK/cap1.raw"
+printf '#!/usr/bin/env bash\ncat >"%s"\necho RENDER\n' "$CAP1" >"$H1/capture.sh"
+chmod +x "$H1/capture.sh"
+run "$H1" bash "$H1/capture.sh"
+if cmp -s "$INPUT_FILE" "$CAP1"; then ok "stdin reaches the wrapped command byte-exact (no added newline)"; else fail "stdin reaches the wrapped command byte-exact (no added newline)"; fi
 
 # --- 2. exit code of the wrapped command is preserved, not swallowed --------
 make_wrapped "$H1/render-fail.sh" 3
@@ -229,27 +256,19 @@ CFG="$WORK/cfg-relocated"
 plant_tee "$WORK/reloc" "some-marketplace" "context-guard" "0.1.0" "reloc" >/dev/null
 mv "$WORK/reloc/.claude" "$CFG"
 make_wrapped "$WORK/render-cfg.sh" 0
-errfile="$WORK/stderr.cfg"
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(cat "$errfile")"
+run_cfg "$H7" "$CFG" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:reloc" "CLAUDE_CONFIG_DIR anchors the cache when HOME holds no cache"
 assert_contains "$OUT" "RENDER" "relocated config dir stays transparent"
 assert_eq "0" "$RC" "relocated config dir preserves the wrapped exit code"
 
 # --- 13. CLAUDE_CONFIG_DIR wins over a cache under HOME ---------------------
 plant_tee "$H7" "some-marketplace" "context-guard" "0.1.0" "home" >/dev/null
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(cat "$errfile")"
+run_cfg "$H7" "$CFG" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:reloc" "an explicit CLAUDE_CONFIG_DIR overrides the HOME default"
 assert_not_contains "$ERR" "TEE:home" "the HOME cache is not consulted when CLAUDE_CONFIG_DIR is set"
 
 # --- 14. empty CLAUDE_CONFIG_DIR falls back to HOME -------------------------
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(cat "$errfile")"
-rm -f "$errfile"
+run_cfg "$H7" "" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:home" "an empty CLAUDE_CONFIG_DIR falls back to \$HOME/.claude"
 
 # --- 15. UNINSTALLED plugin: the orphaned tee is not executed ---------------

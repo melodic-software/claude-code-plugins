@@ -7,7 +7,7 @@ year. The short name is used inline and in file headers.
 ## ⚠ WHAT "VERBATIM" COVERS: read this before auditing anything
 
 **Verbatim means the WORDS.** Reproduce Pat's examples, exercises, answer keys,
-tables and analysed lyrics exactly as printed: no paraphrase, no genericizing,
+tables and analyzed lyrics exactly as printed: no paraphrase, no genericizing,
 no invented substitutes.
 
 **It does NOT mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
@@ -15,8 +15,8 @@ no invented substitutes.
 either form is acceptable. The four books are not even consistent with each
 other: the 2009 EPUB prints ASCII apostrophes, the other three print curly.
 
-**Do not sweep, measure, audit, or open work items on punctuation glyphs.** A
-session was spent on exactly that before the owner ruled it out of scope. If a
+**Do not sweep, measure, audit, or open work items on punctuation glyphs.** The
+owner ruled them out of scope. If a
 restoration reproduces the printed words, it is verbatim, full stop. Spend the
 effort on missing content, invented content, and wrong citations instead.
 
@@ -110,7 +110,7 @@ scoped to the chapter containing the figure while the same verse is printed as
 prose six chapters earlier, in Chapter 1, against the figure in Chapter 7. One
 line of it still returns nothing, because the
 text layer misspells a word: **a single line that fails to match when its
-neighbours match means "look for a typo", not "absent".**
+neighbors match means "look for a typo", not "absent".**
 
 **When the scan and the text layer disagree, say so and stop.** Figures are
 photographs of the printed page; the text layer is a reflow of it, and it can

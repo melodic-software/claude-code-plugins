@@ -10,11 +10,10 @@
 - [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice)
 
 Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:researcher` or
-`discovery:intent-tracer` run that is **identical across all three families**. It exists because it
-did not: five statements below were previously carried in two to six copies each, and every one of
-them had drifted apart by the time the drift was audited. The five are the envelope's field list,
-the pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and
-what to do with a partial slice.
+`discovery:intent-tracer` run that is **identical across all three families**. Five statements
+live here and nowhere else, because copies of them drift apart: the envelope's field list, the
+pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
+do with a partial slice.
 
 Four files answer "what does the parent owe", and the split is deliberate:
 
@@ -30,11 +29,12 @@ Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
-Six shared fields. The agent refuses to guess any of them, which is what makes the envelope safe to
+Six shared fields. The agent refuses to guess any of them (a missing `Memory root:` or
+`Turn budget:` line degrades as described below), which is what makes the envelope safe to
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
-Write them as **labelled lines in the dispatch prompt**, not as prose the agent has to parse a
+Write them as **labeled lines in the dispatch prompt**, not as prose the agent has to parse a
 parenthetical out of:
 
 ```text
@@ -44,22 +44,39 @@ Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
 Budget: <the depth this session authorized>
+Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
 Capability flags: nested spawning <available|unavailable>
 ```
 
-**Research adds one more labelled line**, because source breadth is the caller's level and
-the researcher lane is pinned `high` for reasoning:
+**The Budget field is carried on two lines.** `Budget:` states depth in words; `Turn budget:`
+states the turn by which the agent stops gathering, in the same unit as its `maxTurns` (assistant
+turns, where one turn may hold several parallel tool calls). A free-text budget such as "thorough
+single pass" bounds no turn count; a named stop turn leaves the agent turns to write before its
+limit. It can only move the agent's stop turn earlier than the default its own definition names:
+an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
+does not receive it stops gathering at that default.
+
+**Research adds two more labeled lines.** `Source breadth:` because source breadth is the
+caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
+only the caller knows whether the answer will be quoted outside the session:
 
 ```text
 Source breadth: <low|medium|high|xhigh|max>
+Evidence use: <internal|publish>
 ```
 
-The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
-dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
-and trace-intent do not write this line. A research worker that does not receive it treats
-the run as `high` and names that default in the artifact, the same fallback as an
+The parent resolves the `Source breadth:` value from `${CLAUDE_EFFORT}` in the parent skill load
+before dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+and trace-intent write neither line. A research worker that does not receive `Source breadth:`
+treats the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
+
+Write `Evidence use: publish` when the output will be quoted outside this session: a
+pull-request review reply, an issue, a design document, a message to a third party. Otherwise
+`internal`. The line is degradable: a research worker that does not receive it records `internal`
+in the index and says so. What `publish` tightens, and why the value is copied into the index
+rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
 
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
@@ -71,12 +88,25 @@ every return payload is `topic_as_received`. A fourth label for the same envelop
 family's name for its input in one place and the field that verifies it in another, which is exactly
 the drift this file exists to close.
 
+**The worker's model is the parent's call, and it is not an envelope field.** It travels as the
+Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
+named here rather than in the template above. Each worker definition pins a default model:
+`explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
+**pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
+whose scope earns a different model; it replaces the pin in either direction. Every worker spends
+`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading. The pin
+outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
+overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
+[Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"A per-invocation `model` outranks a subagent's frontmatter".
+
 **Memory root is its own line, not derivable from the slice path.** A nested slice is a sub-slice
 for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
 that has to derive it derives-and-flags rather than stopping, so the cost is a recoverable wrong
-guess, not a halt: it is the one envelope field whose absence is degradable. Topic/scope, reason and
-slice path are the hard stop.
+guess, not a halt: it is the one envelope field an agent repairs by deriving a value. The
+`Turn budget:` line is also degradable, but its absence falls back to a fixed default rather than a
+derived guess. Topic/scope, reason and slice path are the hard stop.
 
 ### Capability flags carry what was probed, and nothing else
 
@@ -139,7 +169,7 @@ non-fork subagent starts with no history by design. So the operative rule is:
 
 > **Never rely on seeing an unfilled slot.** Whatever a preloaded body renders as, the agent treats
 > a topic or scope that did not arrive in its dispatch prompt as a **parent-envelope failure it
-> reports rather than repairs**, never as an empty scope to fill in, and never as a licence to run
+> reports rather than repairs**, never as an empty scope to fill in, and never as a license to run
 > a general sweep.
 
 That rule holds whichever way the harness renders the placeholder, which matters because **the
@@ -194,18 +224,21 @@ claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Seven harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Ten harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
 named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
-fetched 2026-09-08.
+fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
+fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
+Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
 
-**One shared recheck trigger covers all seven:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all ten:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
-subagent spawn permissions, or effort substitution, or the CLI major version moves. On any of
-those, re-fetch the page before restating the record, and re-date this section rather than
-editing a claim in place.
+subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
+model resolution, turn-limit output or partial marking, or `SendMessage` resume, or the CLI major
+version moves. On any of those, re-fetch the page before
+restating the record, and re-date this section rather than editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
 
@@ -254,9 +287,10 @@ harness owns and revises; a site that needs it names the page rather than copyin
 causes and different error text, so read the error rather than inferring a depth ceiling from it.
 *Basis.* the same page. A deny rule refuses the spawn: subagents are blocked with an
 `Agent(subagent-name)` entry in the settings `deny` array, and denying the `Agent` tool itself
-prevents delegation entirely. The depth limit works the other way: at the limit "Claude Code
-withholds the `Agent` tool from every subagent except a fork", so a subagent at the limit has no
-tool to call rather than a call that comes back denied, while "A fork at the limit keeps `Agent` in
+prevents delegation entirely. The depth limit works the other way (re-fetched 2026-09-27, quoted
+with link markup removed): at the limit "Claude Code withholds the `Agent` tool from every
+subagent except a fork", so a subagent at the limit has no tool to call rather than a call that
+comes back denied, while "A fork at the limit keeps `Agent` in
 its inherited tool list, but the tool returns an error instead of spawning." *One bound worth
 carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
 it, but "any type list inside the parentheses is ignored".
@@ -279,6 +313,73 @@ effort, and `discovery:researcher` is pinned `high` so reasoning does not degrad
 session tuned down for cost. The worker's substituted value is therefore the pin. The parent
 writes `Source breadth:` from its own load so the table still follows the caller.
 
+### The built-in Explore agent cannot hold this plugin's contract
+
+*Claim.* Built-in Explore is a read-only locator: `Write` and `Edit` are denied, it preloads no
+skill, it skips the CLAUDE.md hierarchy and the parent's git status, and it is one-shot with no
+agent ID to resume. *Basis.*
+[Subagents](https://code.claude.com/docs/en/subagents), built-in subagents: "Tools: read-only
+tools; Write and Edit are denied"; "Explore and Plan skip your CLAUDE.md files and the parent
+session's git status to keep research fast and inexpensive. Every other built-in and custom
+subagent loads both, unless its definition sets the `omitClaudeMd` field"; the what-loads-at-startup
+list, "Preloaded skills: full content of any skill named in the agent's `skills` field. Built-in
+agents don't preload skills"; and "The built-in Explore and Plan agents are one-shot and return no
+agent ID, so Claude can't resume them. Use `general-purpose` or a custom subagent when you need to
+continue the work." The same section gives the thoroughness knob a caller passes: "quick for
+targeted lookups, medium for balanced exploration, or very thorough for comprehensive analysis."
+*Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
+is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
+artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
+token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
+means a truncated run cannot be resumed. Its read depth is a *judgment* this plugin adds rather than
+a documented fact: "Built-in agents have predefined prompts", so how much of a file one read is
+neither stated by the page nor recoverable from its report, and a worker therefore treats every
+scout hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a
+user- or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip. The
+page attributes the skip to "the built-in Explore and Plan agents" while stating every other custom
+subagent loads both, and says elsewhere "Only Explore and Plan skip it" by name. Setting
+`omitClaudeMd: true` on such an override makes the question moot.
+
+### A per-invocation `model` outranks a subagent's frontmatter
+
+*Claim.* Claude Code resolves a subagent's model as per-invocation parameter, then the definition's
+`model` frontmatter (`inherit` selecting the main conversation's model), then
+`CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+collapses all of it. *Basis.*
+[Subagents](https://code.claude.com/docs/en/subagents): "When Claude invokes a subagent, it can
+also pass a `model` parameter for that specific invocation", with that four-step order stated
+verbatim; "Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this order and overrode both
+the per-invocation parameter and the frontmatter, including `model: inherit`"; "While
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
+definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
+it starts a subagent."; "When you omit it, Claude Code picks the model in the subagent model
+order". *Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
+session overrides it per run with the per-call `model`, which replaces the pin in either direction.
+An omitted `model` is not a neutral default: it falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to
+the main conversation's model, so on a machine without the variable an unpinned worker runs on the
+orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
+environment variable, so it is a cost defect in a worker definition.
+
+### A turn-limit stop returns partial output, and the parent can resume the agent
+
+*Claim.* A subagent that reaches `maxTurns` returns its output marked as partial, and the parent
+can resume it with `SendMessage` addressed by agent ID; the resumed run keeps its full history and
+continues where it stopped. The marking needs Claude Code v2.1.246 or later, and an older harness
+may return nothing at all. *Basis.* [Create custom subagents](https://code.claude.com/docs/en/sub-agents),
+quoted with link markup removed: the `maxTurns` field row, "When the subagent reaches the limit,
+Claude Code returns its output marked as partial, and Claude can resume it to continue. The
+partial marking requires Claude Code v2.1.246 or later"; the resume section, "When a subagent
+stops at its `maxTurns` limit, Claude Code marks the returned output as partial. For subagents
+that return an agent ID, Claude Code also notes in the result that Claude can message the subagent
+to continue from where it stopped.", "Claude uses the `SendMessage` tool with the agent's ID or
+name as the `to` field to resume it.", "Resumed subagents retain their full conversation history,
+including all previous tool calls, results, and reasoning.", and "The subagent picks up exactly
+where it stopped rather than starting fresh." *Why the plugin cares.* It is what makes
+[Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice) the first
+rung rather than a hope. *Not verified:* which text the partial output carries. The page says the
+output is "marked as partial" and does not say whether a payload block the agent emitted mid-run
+is part of it, which is why the agents keep the disk marker as the primary stop signal.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
@@ -294,15 +395,16 @@ and exits 0:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # any dispatched route
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" --help   # research only (dispatch or inline)
 ```
 
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
-  before dispatching. Research also probes the coverage checker; trace-intent owes no ledger and so
-  probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
+  before dispatching. Research also probes the coverage and source-applicability checkers;
+  trace-intent owes no ledger and so probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
   as a non-zero gate exit: **halt**. Do not take the inline escape hatch to dodge an un-runnable
   post-dispatch gate.
-- **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
-  checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
+- **Inline research:** still owes the coverage-script exit status for criterion 11 and the
+  source-applicability exit status for criterion 13. Probe both checkers before spending the run; a denied probe **halts**. Reading the ledger instead is the
   silent self-grade the gate exists to prevent.
 - **Inline explore:** no script verdict to self-grade. The three escape-hatch reasons (tight
   iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
@@ -316,7 +418,12 @@ gate itself rather than an interpreter wrapping it:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <slice> --index-name <NAME.md> …
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" <ledger>   # or the .py twin
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <slice> --expect-evidence-use <mode>
 ```
+
+The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
+`python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
+from any open lane; a session that can run no Python interpreter halts on criterion 13.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
 whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another
@@ -366,8 +473,8 @@ adds a direct-path rule for the script paths (and, if useful, the coverage `.py`
 
 ### What this gate does not grade
 
-The memory root's self-ignoring `.gitignore` guard. Stated here because "an obligation nobody
-grades" was previously left implicit, and an unstated gap reads as a covered one:
+The memory root's self-ignoring `.gitignore` guard. Stated here because an unstated gap reads as a
+covered one:
 
 - **`/discovery:setup` owns verify-or-create** for the guard at enable time, and owns the standing
   rule that the consumer's root `.gitignore` is never edited.
@@ -387,21 +494,17 @@ slice. Both also usually leave a **live agent**. The order is:
 > worth keeping. A resume has recovered a complete artifact set from retained context, and the
 > discard-first reading would have re-dispatched a finished run at full cost.
 
-The harness supports this, verified against <https://code.claude.com/docs/en/sub-agents> (raw
-markdown, fetched 2026-08-11):
-
-- "Resumed subagents retain their full conversation history, including all previous tool calls,
-  results, and reasoning. The subagent picks up exactly where it stopped rather than starting
-  fresh."
-- "A completed subagent that receives a `SendMessage` auto-resumes in the background without a new
-  `Agent` invocation."
-- "When a subagent completes, Claude receives its agent ID". Address it by ID, not by name.
+The harness supports this: a subagent that reaches `maxTurns` returns its output marked as
+partial, and `SendMessage` to its agent ID resumes it with its history intact. Address it by ID,
+not by name. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"A turn-limit stop returns partial output, and the parent can resume the agent".
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or
 assigning a fresh sub-slice, when the resume is refused, is unavailable, or comes back without a
 usable payload. It stays mandatory there: a half-marked coverage ledger cannot be told apart from a
-complete one by the coverage script, and a half-written artifact set cannot be told apart from a
-complete one by reading it.
+complete one by the coverage script. An index still marked `Run status: in progress` is refused by
+the acceptance gate, so that partial slice is visible; one with no status line, from an inline or
+older run, still cannot be told apart from a complete one by reading it.
 
 **`truncated` still means the turn-budget stop**, and nothing here widens it. That is the invariant
 the `persistence:` axis was built around: a run that finished its work and could not save it is

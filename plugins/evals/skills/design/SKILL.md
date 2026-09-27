@@ -1,6 +1,6 @@
 ---
-description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and it does not execute evals."
-argument-hint: "[target: app | skill <name> | <path>]"
+description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and not for running or scoring a suite, which is /evals:plugin-eval and the CLI it guides."
+argument-hint: "[target: app | skill <name> | plugin <path>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -16,12 +16,16 @@ and a graded eval suite. Method follows Anthropic's official evaluation guidance
 
 ## Arguments
 
-`$ARGUMENTS` names the target. Two shapes:
+`$ARGUMENTS` names the target. Three shapes:
 
 - **`app`** (or a path/description of an LLM-powered feature): evals for the consumer's own
   LLM-based application behavior.
 - **`skill <name>`**: evals for a consumer-authored Claude Code skill, emitted as
   `evals/evals.json` next to that skill.
+- **`plugin <path>`**: behavioral cases for a whole Claude Code plugin, measured against a
+  no-plugin baseline. This target is not scaffolded here: hand it to `claude plugin eval init`,
+  which interviews for the cases and graders and writes them in the layout its own runner reads.
+  Phase 1 still applies, because criteria come before cases whoever writes them.
 
 No argument → ask which target, with one example of each.
 
@@ -73,6 +77,11 @@ must not exhibit. When the `skill-quality` plugin is installed, validate with
 `/skill-quality:check validate-evals <skill>` (its bundled schema is the contract);
 otherwise state that the file follows the marketplace's evals schema and validation was skipped.
 
+This file is `skill-creator`'s format, which `claude plugin eval` does not read. To measure the same
+skill against a no-plugin baseline instead, wrap it in a directory carrying a minimal
+`.claude-plugin/plugin.json` and run `claude plugin eval init` there; the two suites coexist and
+neither is a migration of the other. Say which one the consumer is asking for before scaffolding.
+
 ## Phase 3: grading hygiene gate
 
 Before finishing, confirm and record in the criteria doc:
@@ -88,16 +97,18 @@ Before finishing, confirm and record in the criteria doc:
 
 ## What this skill does NOT do
 
-- **Does not execute evals.** No marketplace command runs model-graded evals; running the suite is
-  the consumer's tooling (for Claude Code skills, Anthropic's `skill-creator` plugin can run skill
-  evals when installed).
+- **Does not run or score a suite.** Scaffolding is where this skill stops. A plugin suite is run
+  by `claude plugin eval`, which `/evals:plugin-eval` guides; an `evals/evals.json` is run by
+  Anthropic's `skill-creator` plugin when the consumer has it, or by the consumer's own tooling for
+  an app suite.
 - Does not overwrite an existing criteria doc or eval suite without showing the diff and getting
   explicit confirmation.
 - Does not invent baselines. A target with no anchor is recorded as provisional.
 
 ## Next
 
-`/skill-quality:check validate-evals <skill>`. An emitted `evals.json` is what it validates.
+- Scaffolded an `evals/evals.json`: `/skill-quality:check validate-evals <skill>`.
+- Routed a plugin target to `claude plugin eval init`: `/evals:plugin-eval`.
 
 ## Gotchas
 

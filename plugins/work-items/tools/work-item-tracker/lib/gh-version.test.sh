@@ -9,7 +9,8 @@ source "$SCRIPT_DIR/gh-version.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
 STUB_BIN="$(mktemp -d)"
-trap 'rm -rf "$STUB_BIN"' EXIT
+NOGH="$(mktemp -d)" # left empty: the "gh absent from PATH" case
+trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
 
 cat >"$STUB_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -44,8 +45,6 @@ chmod +x "$UNPARSABLE/gh"
 PATH="$UNPARSABLE:$PATH" wit_gh_has_native_surface
 assert_eq "unparsable gh --version fails closed" "1" "$?"
 
-NOGH="$(mktemp -d)"
-trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
 PATH="$NOGH" wit_gh_has_native_surface
 assert_eq "missing gh fails closed" "1" "$?"
 

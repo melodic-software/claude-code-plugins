@@ -42,8 +42,7 @@ process.stdin.on('end', () => {
     // `.claude/Settings.json` to the same file on disk, so a case-sensitive
     // match would let a differently-cased path bypass the checkpoint on
     // exactly the platforms it supports (security-review finding).
-    const isSettings = /(^|\/)\.claude\/settings(\.local)?\.json$/i.test(target)
-      || /(^|\/)managed-settings\.json$/i.test(target);
+    const isSettings = /(^|\/)(\.claude\/settings(\.local)?|managed-settings)\.json$/i.test(target);
     if (!isSettings) process.exit(0);
 
     const home = String(process.env.HOME || process.env.USERPROFILE || '').replace(/\\/g, '/');

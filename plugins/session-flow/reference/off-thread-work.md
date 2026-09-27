@@ -35,7 +35,7 @@ read of the real artifact, not a remembered or inferred one.
 This is the floor. A skill that must judge liveness before acting, asking whether
 a slow-looking job is progressing or hung, layers its own richer active-verification
 protocol on top (see `keep-going`'s "Active-verification protocol"); this file
-establishes only that the judgement starts from the real artifact.
+establishes only that the judgment starts from the real artifact.
 
 ## The inspected output is untrusted data
 

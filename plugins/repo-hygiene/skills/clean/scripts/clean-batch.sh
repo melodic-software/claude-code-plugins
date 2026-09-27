@@ -160,6 +160,19 @@ CACHES_CHILD="$SCRIPT_DIR/clean-caches.sh"
 BUILD_CHILD="$SCRIPT_DIR/clean-build.sh"
 GIT_CHILD="$SCRIPT_DIR/git-prune.sh"
 
+# select_manifest_child <token>: set `child` (the script to run) and `extra`
+# (its tier flags) from a manifest record's token. One spelling for the plan
+# writer and the apply loop, so a `build` record cannot fold caches on one side
+# and not the other.
+select_manifest_child() {
+  child="$CACHES_CHILD"
+  extra=()
+  if [[ "$1" == build ]]; then
+    child="$BUILD_CHILD"
+    extra=(--include-caches)
+  fi
+}
+
 # Does this tier run a per-repo manifest child (caches/build/all) and/or the git
 # prune child (git/all)?
 tier_has_manifest() { [[ "$TIER" == caches || "$TIER" == build || "$TIER" == all ]]; }
@@ -294,12 +307,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
         batch_emit "$a" skipped "vanished after dry-run (gone from fleet)"
         continue
       fi
-      child="$CACHES_CHILD"
-      extra=()
-      if [[ "$b" == build ]]; then
-        child="$BUILD_CHILD"
-        extra=(--include-caches)
-      fi
+      select_manifest_child "$b"
       out="$(cd "$a" && bash "$child" --apply --manifest "$c" "${extra[@]}" 2>&1)"
       rc=$?
       r="$(summary_line "$out")"
@@ -439,13 +447,8 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   #    manifest + planned bytes, record a REPO plan line.
   if tier_has_manifest; then
     manifest="$(manifest_for "$i" "$key")"
-    child="$CACHES_CHILD"
-    extra=()
     tok="$(manifest_child_token)"
-    if [[ "$tok" == build ]]; then
-      child="$BUILD_CHILD"
-      extra=(--include-caches)
-    fi
+    select_manifest_child "$tok"
     out="$(cd "$top" && bash "$child" --dry-run --manifest "$manifest" "${extra[@]}" 2>&1)"
     rc=$?
     # Fail closed on a non-zero child dry-run (repo lost .git after resolution, or

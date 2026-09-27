@@ -42,6 +42,12 @@ run_check() {
   (cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>/dev/null)
 }
 
+# Same run, with stderr folded in: the cases below assert on the diagnostics.
+run_check_out() {
+  local repo="$1"
+  (cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)
+}
+
 # --- consumed via an eval files[] entry -> not an orphan --------------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
@@ -84,7 +90,7 @@ mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"valid.json.bak"* && "$out" != *"ORPHANED FIXTURE"*"fixtures/valid.json is"* ]]; then ok "suffix sibling of a referenced fixture red-lines (bounded basename match)"; else fail "reference-name suffix sibling not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -97,7 +103,7 @@ mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json.bak"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"fixtures/valid.json is"* && "$out" != *"valid.json.bak is"* ]]; then ok "files[] path match is exact (substring of a longer referenced path does not consume)"; else fail "files[] substring path match not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -112,7 +118,7 @@ printf 'x\n' >"$repo/plugins/p/skills/a/evals/fixtures/shared.md"
 printf 'x\n' >"$repo/plugins/p/skills/b/evals/fixtures/shared.md"
 mkdir -p "$repo/plugins/p/skills/a/scripts"
 printf 'assert_on fixtures/shared.md\n' >"$repo/plugins/p/skills/a/scripts/thing.test.sh"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"skills/b/evals/fixtures/shared.md"* && "$out" != *"skills/a/evals/fixtures/shared.md is"* ]]; then ok "sibling skill's same-named fixture is not conflated (test basename scoped to owning skill)"; else fail "sibling-skill basename conflation not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -135,7 +141,7 @@ cat >"$repo/plugins/p/skills/s/evals/evals.json" <<'JSON'
 { "evals": [ { "id": 1, "prompt": "open evals/fixtures/prose-only.md and grade the summary", "files": [] } ] }
 JSON
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/prose-only.md"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"prose-only.md"* ]]; then ok "fixture named only in an eval prompt (empty files[]) is an orphan (consumption scoped to files[])"; else fail "prose-mention wrongly consumed: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -144,7 +150,7 @@ rm -rf "$repo"
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"orphan.md"* ]]; then ok "un-consumed fixture fails --check (synthetic orphan caught)"; else fail "synthetic orphan not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -163,7 +169,7 @@ seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.jsonl"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"valid.json.bak"* && "$out" == *"valid.jsonl"* ]]; then ok "prefix-sibling of a baselined path red-lines (exact-match, no grandfather leak)"; else fail "baseline prefix-leak not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
@@ -172,7 +178,7 @@ rm -rf "$repo"
 mk_repo repo $'plugins/p/skills/s/evals/fixtures/gone.md\n'
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
-out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"* ]]; then ok "stale baseline entry fails --check"; else fail "stale baseline not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"

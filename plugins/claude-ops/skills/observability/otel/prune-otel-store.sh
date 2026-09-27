@@ -175,7 +175,6 @@ main() {
     shift
   done
 
-  # RETENTION_DAYS guard: bare RETENTION_DAYS with CC_OTEL_RETENTION_DAYS unset exits 2.
   if [[ -n "${RETENTION_DAYS:-}" && -z "${CC_OTEL_RETENTION_DAYS:-}" ]]; then
     err "RETENTION_DAYS is not read — use CC_OTEL_RETENTION_DAYS (body window: CC_OTEL_BODY_RETENTION_DAYS). Unset RETENTION_DAYS."
     return 2

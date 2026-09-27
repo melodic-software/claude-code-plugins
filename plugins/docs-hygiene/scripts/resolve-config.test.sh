@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Self-contained tests for resolve-config.sh. No repository test library: this
-# script ships inside the plugin, so its suite has to run wherever the plugin is
-# installed.
+# Self-contained tests for resolve-config.sh: it ships inside the plugin, so the
+# suite must run wherever the plugin is installed.
 #
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.

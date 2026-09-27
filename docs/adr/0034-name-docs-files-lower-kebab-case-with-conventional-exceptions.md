@@ -7,7 +7,7 @@
 
 `docs/` carried three naming forms at once: UPPER-KEBAB (`PLUGIN-PHILOSOPHY.md`,
 `MIGRATION-PLAYBOOK.md`, `CATALOG.md`, eleven more at the root), lower-kebab (every
-`docs/conventions/*/README.md` neighbour, every ADR, every spec), and the conventional uppercase
+`docs/conventions/*/README.md` neighbor, every ADR, every spec), and the conventional uppercase
 names (`README.md`, `CHANGELOG.md`). Every citation had to remember which spelling one file used,
 and the thirteen uppercase root files were the most cited: six absolute GitHub URLs in plugin
 bodies, fifty-four plugin `setup` skills, two `.claude/rules` files, the top-level `README.md`,

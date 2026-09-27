@@ -86,6 +86,17 @@
         "Does not run, repeat, or inline bounded-context discovery heuristics",
         "Does not prescribe a universal glossary or map filename"
       ]
+    },
+    {
+      "id": 8,
+      "name": "user-scope-miro-prefix-runs-board-discovery",
+      "prompt": "Miro is connected as a user-scope MCP server named miro (tools callable as mcp__miro__miro_list_boards); the miro plugin's own server is disabled, so no mcp__plugin_miro_miro__* tool exists. I want to run EventStorming for my team.",
+      "expected_output": "Invoked with no format filter. The Miro availability gate accepts the Miro-specific tool name under the user-scope mcp__miro__ prefix, so Step 1 runs board discovery via mcp__miro__miro_list_boards instead of skipping it.",
+      "files": [],
+      "expectations": [
+        "Output checks for existing Miro boards (board discovery) rather than skipping straight to goal questions because Miro looks absent",
+        "Output does not claim Miro is unavailable or that the miro plugin is not enabled"
+      ]
     }
   ]
 }

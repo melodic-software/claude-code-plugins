@@ -47,14 +47,33 @@ EOF
 # fire-and-forget sink has flushed) or the bound elapses. Polls in 20ms steps so
 # the assertion fires as soon as the write lands instead of racing a fixed sleep
 # (sink dispatch is a freshly-spawned process; spawn latency varies, especially
-# on Windows Git Bash). Returns non-zero on timeout so negative cases can assert.
+# on Windows Git Bash). The default bound is 750 polls (15 s), the same as
+# fin_arm's, since a single spawn has been measured at 3.2 s on a loaded host.
+# Returns non-zero on timeout so negative cases can assert.
 wait_for_sink() {
-  local f="$1" tries="${2:-150}"
+  local f="$1" tries="${2:-750}"
   while ((tries-- > 0)); do
     [[ -s "$f" ]] && return 0
     sleep 0.02
   done
   return 1
+}
+
+# make_logging_shim <dir> <tool> → write an executable <dir>/<tool> that appends
+# one line to <dir>/log per invocation and then execs the real tool, for the
+# spawn-census cases that assert a helper no longer forks it. Returns 1 when
+# there is no real tool on PATH to wrap, so a census can say so rather than
+# assert nothing.
+make_logging_shim() {
+  local dir="$1" tool="$2" real
+  real=$(type -P "$2") || real=""
+  [[ -n "$real" ]] || return 1
+  cat >"$dir/$tool" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$tool" >>"$dir/log"
+exec "$real" "\$@"
+EOF
+  chmod +x "$dir/$tool"
 }
 
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
@@ -202,6 +221,9 @@ else
   done
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
+  done
+  for value in schema_version hook hook_event status; do
+    fail "envelope: $value value not verifiable (no envelope)"
   done
 fi
 
@@ -714,6 +736,95 @@ else
   fail "under_temp_root: root temp candidate discarded — '/' trimmed to empty"
 fi
 
+# --- Test 12e: under_temp_root, drive spellings of the target ----------------
+# Callers hand the target in the Git Bash `/c/...` spelling while candidates
+# normalize to `C:/...`, so on a Windows host the target must be normalized the
+# same way. Candidates and the resolver are stubbed, so these cases run on any
+# host. utr_stub <ostype> <candidate> <target> returns the verdict.
+utr_stub() (
+  # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
+  OSTYPE="$1"
+  _utr_cand="$2"
+  hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$_utr_cand"); }
+  hook::_physical_cached_to() { printf -v "$1" '%s' "$2"; }
+  hook::under_temp_root "$3"
+)
+UTR_CAND="C:/Home/X/AppData/Local/Temp"
+for utr_t in /c/home/x/appdata/local/temp/f C:/home/x/appdata/local/temp/f \
+  /C/Home/X/AppData/Local/Temp/ /c/home/x/appdata/local/temp; do
+  if utr_stub msys "$UTR_CAND" "$utr_t"; then
+    ok "under_temp_root: drive target '$utr_t' matches its temp candidate"
+  else
+    fail "under_temp_root: drive target '$utr_t' missed its temp candidate"
+  fi
+done
+for utr_t in /c/home/x/appdata/local/tempevil/f C:/Home/x/AppData/Local/TempEvil/f \
+  '/c/home/x~1/appdata/local/temp/f' //server/share/home/x/appdata/local/temp/f \
+  /d/home/x/appdata/local/temp/f /c/home/x/appdata/local; do
+  if utr_stub msys "$UTR_CAND" "$utr_t"; then
+    fail "under_temp_root: '$utr_t' wrongly matched the temp candidate"
+  else
+    ok "under_temp_root: '$utr_t' is not under the temp candidate"
+  fi
+done
+if utr_stub msys C:/tmp /c/tmpx; then
+  fail "under_temp_root: /c/tmpx wrongly matched a C:/tmp candidate"
+else
+  ok "under_temp_root: /c/tmpx is not under a C:/tmp candidate"
+fi
+if utr_stub msys C:/tmp /c/tmp/x; then
+  ok "under_temp_root: /c/tmp/x matches a C:/tmp candidate"
+else
+  fail "under_temp_root: /c/tmp/x missed a C:/tmp candidate"
+fi
+# A drive-root candidate normalizes to `C:` and contains every path on that
+# drive, the drive analogue of the `/` arm in Test 12d.
+if utr_stub msys C:/ /c/anything/f; then
+  ok "under_temp_root: drive-root candidate contains a path on its drive"
+else
+  fail "under_temp_root: drive-root candidate missed a path on its drive"
+fi
+if utr_stub msys C:/ /d/anything; then
+  fail "under_temp_root: drive-root candidate matched another drive"
+else
+  ok "under_temp_root: drive-root candidate does not contain another drive"
+fi
+# POSIX hosts leave the target as given: `\` is a filename byte there.
+if utr_stub linux-gnu /tmp '/tmp\x'; then
+  fail "under_temp_root: POSIX target '/tmp\\x' folded into the /tmp candidate"
+else
+  ok "under_temp_root: POSIX target '/tmp\\x' is not folded under /tmp"
+fi
+if utr_stub linux-gnu /tmp /tmp/x; then
+  ok "under_temp_root: POSIX target /tmp/x matches the /tmp candidate"
+else
+  fail "under_temp_root: POSIX target /tmp/x missed the /tmp candidate"
+fi
+# Real host: the long, lowercased Git Bash spelling of TEMP matches the real
+# candidates, including an 8.3 TEMP that the candidate side expands. A TEMP
+# that bash already converted to `/tmp` (as on the GitHub Windows runner) is
+# given back its drive spelling first, which is the shape the harness passes.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE; utr_stub sets it only in its own subshell
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
+  command -v cygpath >/dev/null 2>&1 && [[ -d "${TEMP:-}" ]]; then
+  utr_temp="$TEMP"
+  [[ "$utr_temp" == [A-Za-z]:* ]] || utr_temp=$(cygpath -m "$utr_temp")
+  utr_long=$(cygpath -l -m "$utr_temp")
+  utr_u=$(cygpath -u "$utr_long")
+  utr_u="${utr_u,,}/probe/f"
+  # shellcheck disable=SC2030 # subshell-local by design: the override must not leak into the suite
+  if (
+    export TMPDIR="" TMP="$utr_temp" TEMP="$utr_temp"
+    hook::under_temp_root "$utr_u"
+  ); then
+    ok "under_temp_root: real-host '$utr_u' matches the host temp root"
+  else
+    fail "under_temp_root: real-host '$utr_u' missed the host temp root (TEMP=$TEMP, as $utr_temp)"
+  fi
+else
+  ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
+fi
+
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
 # track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any
@@ -831,6 +942,24 @@ compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
 compact_refuses "trailing backslash escape" '{"a":"x\\\"}'
 compact_refuses "bad \\u hex digits" '{"a":"\uZZZZ"}'
+# The grammar rewrites: each case breaks exactly one production.
+compact_is "nested containers" '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}' '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}'
+compact_refuses "two scalars" '{"a":1 2}'
+compact_refuses "key without colon" '{"a" "b"}'
+compact_refuses "array trailing comma" '{"a":[1,]}'
+compact_refuses "array leading comma" '{"a":[,1]}'
+compact_refuses "two objects in a value" '{"a":{"b":1}{"c":2}}'
+compact_refuses "number key" '{1:2}'
+compact_refuses "extra close" '{"a":1}}'
+compact_refuses "colon in array" '{"a":[1:2]}'
+compact_refuses "chained colon" '{"a":"b":"c"}'
+compact_refuses "member without value" '{"a":1,"b"}'
+compact_refuses "mismatched close" '{"a":[1}]'
+compact_refuses "two roots" '{"a":1}{"b":2}'
+compact_refuses "root member list" '1,"x":1'
+compact_refuses "root closes early" '1},{'
+big14c=$(printf '0,%.0s' {1..5000})
+compact_refuses "structure past the grammar cap" "{\"a\":[${big14c}0]}"
 
 # --- Test 3b: builtin envelope is jq's compact rendering, byte for byte -------
 # The sink receives exactly one line, and re-rendering it with jq -c yields the
@@ -976,6 +1105,65 @@ else
   fail "fast file_path: ${#big12g}-byte payload rc=$rc12g got=[${got12g:-}] (want 0/big.md)"
 fi
 unset got12g rc12g big12g pad12g
+
+# --- Test 12g2: the parse runs in the C locale and restores the caller's -------
+# Raw C1 characters and emoji are legal unescaped JSON string data, and jq
+# passes them through; under C they are ordinary bytes, so the fast path proves
+# them rather than falling back.
+fast_is_jq "raw C1 characters (U+0085, U+009F)" $'{"tool_input":{"file_path":"c1\xc2\x85x.md","content":"\xc2\x9f"}}'
+fast_is_jq "emoji and a space in the value" '{"tool_input":{"file_path":"😀/a b.md","content":"🎉"}}'
+rc12g2=0
+got12g2=""
+hook::_fast_file_path_to got12g2 $'{"tool_input":{"file_path":"c1\xc2\x85x.md"}}' || rc12g2=$?
+if ((rc12g2 == 0)) && [[ "$got12g2" == $'c1\xc2\x85x.md' ]]; then
+  ok "fast file_path: a raw C1 character is proven, not handed to jq"
+else
+  fail "fast file_path: raw C1 rc=$rc12g2 got=[$(printf '%q' "${got12g2:-}")] (want 0)"
+fi
+# Each entry point hands back the caller's LC_ALL exactly: unset stays unset,
+# a set value keeps its value and its export flag, on success and on the
+# early not-proven return alike. `${#mb}` counts characters in the caller's
+# locale, so it moving would mean the caller was left in C.
+lc12g2_check() { # <label> <command...>
+  local label="$1" before_len mb='é日' st=0
+  shift
+  before_len=${#mb}
+  "$@" >/dev/null 2>&1 || st=$?
+  if ((st == 127)); then
+    fail "C locale check $label: command not run"
+  elif [[ "${#mb}" == "$before_len" ]]; then
+    ok "C locale restored after $label (rc $st)"
+  else
+    fail "C locale leaked after $label: \${#mb} $before_len -> ${#mb}"
+  fi
+}
+lc12g2_ok='{"tool_name":"Edit","tool_input":{"file_path":"a.md","new_string":"é"}}'
+lc12g2_bad='{"tool_input":{"file_path":"a.md"},"z":"a\qb"}'
+lc12g2_run() {
+  lc12g2_check "_fast_file_path_to (proven)" hook::_fast_file_path_to got12g2 "$lc12g2_ok"
+  lc12g2_check "_fast_file_path_to (not proven)" hook::_fast_file_path_to got12g2 "$lc12g2_bad"
+  if hook::_fast_fields_supported; then
+    lc12g2_check "_fast_fields (proven)" hook::_fast_fields "$lc12g2_ok" '.tool_name'
+    lc12g2_check "_fast_fields (not proven)" hook::_fast_fields "$lc12g2_bad" '.tool_name'
+  fi
+  lc12g2_check "json_compact_to" hook::json_compact_to got12g2 '{"a":"é"}'
+  lc12g2_check "_json_object_proven" hook::_json_object_proven "$lc12g2_ok"
+}
+(
+  unset LC_ALL
+  lc12g2_run
+  if [[ -z "${LC_ALL+x}" ]]; then ok "C locale: an unset LC_ALL stays unset"; else fail "C locale: LC_ALL left set to [$LC_ALL]"; fi
+)
+(
+  export LC_ALL=C.UTF-8
+  lc12g2_run
+  if [[ "$LC_ALL" == C.UTF-8 && "$(declare -p LC_ALL)" == 'declare -x LC_ALL='* ]]; then
+    ok "C locale: an exported LC_ALL keeps its value and export flag"
+  else
+    fail "C locale: LC_ALL came back as [$(declare -p LC_ALL 2>&1)]"
+  fi
+)
+unset rc12g2 got12g2 lc12g2_ok lc12g2_bad
 
 # --- Test 12h: hook::dirname_to, the builtin dirname of a resolver answer -----
 dirname_is() { # <path> <want>
@@ -1634,8 +1822,7 @@ HOOK_EFFECTIVE_BASE="$gitinv_saved_base"
 # the same FIFO for write, which it does once it has its verdict. Both sides are
 # builtins with redirects; a `cat` would put a spawn back on the very path this
 # exists to keep spawns off. Measured: the pipeline ends at consumer completion
-# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms — so this
-# is also what makes the repeated sampling further down affordable.
+# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms.
 bs_release_fifo="$(mktemp -u)"
 bs_mkfifo_err=$(mkfifo "$bs_release_fifo" 2>&1)
 if [[ -z "$bs_mkfifo_err" ]] && [[ -p "$bs_release_fifo" ]]; then
@@ -1651,15 +1838,15 @@ else
   printf 'WARNING: mkfifo unavailable (%s); buffer_stdin cases fall back to a fixed hold, which is slower and less precise.\n' \
     "${bs_mkfifo_err:-no FIFO created}" >&2
   # No FIFO on this host: fall back to a fixed hold. It has to clear the WORST
-  # case any call site can reach, and the worst is the stall comparison's
-  # unsliced arm. That arm pays TWO whole bounds, not one: unsliced, the first
+  # case any call site can reach, and the worst is the unsliced run of the stall
+  # read-count probe. That run pays TWO whole bounds, not one: unsliced, the first
   # 3.6 s read returns WITH the early bytes and only the second empty one
   # declares the stall (which is the overshoot the sliced form exists to cap —
   # see Test 18g). So 7.2 s of bounds plus three sequential forks, which at the
-  # 3.2 s per-fork figure measured above is ~16.8 s; a measured pass of that arm
+  # 3.2 s per-fork figure measured above is ~16.8 s; a measured unsliced run
   # came in at 10593 ms on a box that was not at its worst. A hold derived from
   # ONE bound (~13.2 s, or a 12 s constant) would sit under that worst case and
-  # truncate the slow arm. 60 s is ~3.5x the derived worst case, so it stays
+  # truncate that run. 60 s is ~3.5x the derived worst case, so it stays
   # adequate. The honest trade: a too-short hold turns a should-pass into a
   # false fail, and a long one costs wall time on a host that reaches it.
   # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
@@ -1805,252 +1992,6 @@ else
   fail "buffer_stdin late-EOF: rc=$bs_rc out=$(cat "$bs_out_file")"
 fi
 
-# ...and it must cost ONE window, not two. Re-arming on progress would otherwise
-# spend a second full window waiting for an EOF this producer never sends,
-# doubling the delay the bound is supposed to cap; the loop therefore stops as
-# soon as the buffer already parses as whole JSON. One window is the floor —
-# until a window expires, a held-open pipe is indistinguishable from a slow one.
-#
-# There is no non-clock proxy to convert this to: both the correct and the
-# reading-on implementations return rc 0 and the identical payload, so latency is
-# the only observable that tells them apart. Everything below is about making a
-# latency comparison that a loaded host cannot SYSTEMATICALLY invert. Not one it
-# cannot invert at all: item 3 below is the correction of exactly that claim, and
-# single deltas of -631 ms and -1012 ms have been measured here. What the
-# machinery buys is that inversions stay isolated samples the estimator discards,
-# instead of a standing offset that survives into the verdict.
-#
-# TWO PROPERTIES DO THE WORK, and a third that was claimed here does not.
-#
-# 1. The slow arm must do strictly MORE work than the fast one in every
-#    dimension. The override therefore performs the real completeness check and
-#    only LIES about the verdict. An override that SKIPS the work
-#    (`json_complete() { return 1; }`) makes the slow arm pay ZERO jq forks
-#    while the fast arm pays one, so on a host where a spawn costs seconds the
-#    "slow" arm wins: measured, 4855 ms fast vs 4330 ms slow, an inverted
-#    result. The ledger is fast = 1 read + 1 fork against slow = 5 reads +
-#    3 forks (two json_complete probes plus the `validated=0` probe at
-#    hook-utils.sh:940, which only the slow arm reaches).
-#
-# 2. The producer must hold its stdout open until the CONSUMER is done. A fixed
-#    `sleep` cannot do that: reaching the slow arm's verdict costs the bound plus
-#    buffer_stdin's startup spawns, and when those spawns outran the hold, EOF cut
-#    the slow arm short and the comparison measured the hold instead of the
-#    behavior (the same run: slow arm 4330 ms against a 3 s hold). bs_hold_open
-#    replaces the sleep with a handshake, so the hold is exactly as long as the
-#    consumer needs and no constant has to be guessed.
-#
-# 3. NOT TRUE, and was asserted here: that more work on the slow side means "no
-#    amount of load can invert" the result. The two arms are separate processes
-#    run SEQUENTIALLY, so they never share a load sample — dominance holds in
-#    expectation, not per sample. Instrumenting buffer_stdin's two startup forks
-#    across four back-to-back runs on an idle box gave 93/92, 762/1277,
-#    1755/3234, 107/100 ms: a 35x swing on ONE fork, up to 3.2 s. The structural
-#    gaps it has to be read against are 1.2 s for this case (one slice against a
-#    whole bound plus a slice) and 2.7 s for the stall case below, so a single
-#    bad fork exceeds one of them outright and eats most of the other. Since each
-#    arm pays several forks, single-sample comparison is not measurable here at
-#    all — which is why these cases take N interleaved samples per arm and
-#    compare an ORDER-BALANCED median of the paired deltas: a median inside each
-#    order group, averaged across the two groups (bs_paired_estimate). The median
-#    is robust to the occasional multi-second fork, which one sample is not, and
-#    the grouping is what keeps a systematic order bias from riding through it.
-#
-# Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
-# producer and the handshake into the measurement.
-
-# bs_median <n> ... — the middle value. Used instead of a mean because the noise
-# is a heavy tail (one 3.2 s fork in four samples), which a mean would swallow.
-# At an even count this returns the LOWER middle rather than averaging the two;
-# every caller here passes an odd-sized group, and where it does not the choice
-# is conservative rather than pass-favoring.
-bs_median() { printf '%s\n' "$@" | sort -n | awk '{v[NR] = $0} END {print v[int((NR + 1) / 2)]}'; }
-
-# bs_paired_estimate <a-first deltas...> -- <b-first deltas...> — prints
-# "<estimate> <a-first median> <b-first median>", the order-balanced estimate of
-# B-minus-A in ms. Returns 1 (printing nothing) if the separator is missing or
-# the two groups are not the same size.
-#
-# Every delta inside ONE group carries the SAME order bias, because every pair in
-# it ran in the same order: +δ where A ran first, since B then paid the
-# second-position penalty, and -δ where B ran first. So a statistic taken
-# symmetrically across the two groups cancels δ exactly, whatever δ is, while the
-# same statistic POOLED over both groups does not — see bs_samples.
-#
-# The median WITHIN each group keeps the outlier rejection a pooled median had:
-# a lone multi-second fork never moves its group's median. The mean ACROSS the
-# two groups is what cancels the bias, and a mean is correct there precisely
-# because its two inputs are equal-sized and oppositely biased. Equal size is the
-# load-bearing precondition, so it is checked rather than assumed — an odd sample
-# count would split 3/2 and cancel only part of the bias.
-bs_paired_estimate() {
-  local -a a_first=() b_first=()
-  local seen_sep=0 arg m_a m_b
-  for arg in "$@"; do
-    if [[ "$arg" == "--" ]]; then
-      seen_sep=1
-      continue
-    fi
-    if ((seen_sep)); then b_first+=("$arg"); else a_first+=("$arg"); fi
-  done
-  ((seen_sep == 1)) || return 1
-  ((${#a_first[@]} > 0)) || return 1
-  ((${#a_first[@]} == ${#b_first[@]})) || return 1
-  m_a=$(bs_median "${a_first[@]}")
-  m_b=$(bs_median "${b_first[@]}")
-  printf '%s %s %s' "$(((m_a + m_b) / 2))" "$m_a" "$m_b"
-}
-
-# bs_paired_verdict <label> <slack-ms> <a-name> <b-name> — asserts that the
-# order-balanced estimate of B-minus-A clears <slack-ms>, reading the two order
-# groups bs_samples just filled. Prints BOTH group medians and every delta, so a
-# marginal pass is visible in the log rather than hidden behind the summary — and
-# so the size of the order bias, which is the gap between the two group medians,
-# is on the record for every run rather than inferred.
-bs_paired_verdict() {
-  local label="$1" slack="$2" a="$3" b="$4" est m_a m_b out detail
-  if ! out=$(bs_paired_estimate "${bs_deltas_a_first[@]}" -- "${bs_deltas_b_first[@]}"); then
-    fail "$label: order groups are not balanced (${#bs_deltas_a_first[@]} vs ${#bs_deltas_b_first[@]}); the sample count must be even"
-    return
-  fi
-  read -r est m_a m_b <<<"$out"
-  detail="slack ${slack} ms; $a-first median ${m_a}, $b-first median ${m_b};"
-  detail="$detail deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
-  if ((est >= slack)); then
-    ok "$label: order-balanced $b-minus-$a is ${est} ms ($detail)"
-  else
-    fail "$label: order-balanced $b-minus-$a is only ${est} ms, under the ${slack} ms slack ($detail)"
-  fi
-}
-
-# bs_samples <n> <fn> <arm-a-arg> <arm-b-arg> — runs <fn> alternately with each
-# argument, INTERLEAVED, so the two arms sample the same load window rather than
-# two different ones. Fills bs_deltas_a_first and bs_deltas_b_first with the
-# per-pair B-minus-A delta, SPLIT BY THE ORDER THE PAIR RAN IN, or empties both
-# if any sample came back untimed. <n> must be EVEN, so the two groups come out
-# the same size and bs_paired_estimate can cancel the order bias with them.
-#
-# The ORDER within each pair alternates, A-then-B on even pairs and B-then-A on
-# odd ones, while the subtraction stays B-minus-A throughout. Running A first
-# every time would put any order-dependent cost — a host that launches later
-# processes more slowly, or a monotonic warm-up or drift across the pair — into
-# every delta with the same sign, and a MEDIAN removes isolated outliers but not
-# a systematic bias. Left uncorrected on a slow-spawning host, that bias is
-# indistinguishable from the behavior gap being measured, so a regression that
-# made the arms equally fast could still clear the slack.
-#
-# ALTERNATION ALONE DOES NOT CANCEL IT. The second-position penalty lands on A
-# for half the pairs and on B for the other half, but it does NOT cancel in the
-# median, which is why the deltas are kept in two groups and combined by
-# bs_paired_estimate instead of pooled. A median pooled over both orders lands
-# INSIDE whichever group is larger and keeps that group's bias in full: at an
-# odd n=5, the 3/2 split puts the pooled median at g+δ, and the majority group
-# is the PASS-favoring one.
-# Driving the shipped helpers with a fully regressed mechanism (true gap zero) on
-# a host with a ±500 ms order bias produced deltas of 500 -500 500 -500 500 and a
-# pooled median of 500 ms — a PASS against the 400 ms slack for a mechanism that
-# had stopped working entirely. The mean of those same five numbers is 100 ms.
-# That reproduction is asserted directly against bs_paired_estimate below.
-bs_deltas_a_first=()
-bs_deltas_b_first=()
-bs_samples() {
-  local n="$1" fn="$2" arg_a="$3" arg_b="$4" i a b
-  bs_deltas_a_first=()
-  bs_deltas_b_first=()
-  for ((i = 0; i < n; i++)); do
-    if ((i % 2 == 0)); then
-      a=$("$fn" "$arg_a")
-      b=$("$fn" "$arg_b")
-    else
-      b=$("$fn" "$arg_b")
-      a=$("$fn" "$arg_a")
-    fi
-    if [[ -z "$a" || -z "$b" ]]; then
-      bs_deltas_a_first=()
-      bs_deltas_b_first=()
-      return 1
-    fi
-    # Which array a delta lands in IS its order group — recorded where the order
-    # is decided, rather than re-derived later from a position in one flat list.
-    if ((i % 2 == 0)); then
-      bs_deltas_a_first+=("$((b - a))")
-    else
-      bs_deltas_b_first+=("$((b - a))")
-    fi
-  done
-}
-
-# --- Test 18b(i): the paired estimator cancels a systematic order bias --------
-# The acceptance test for the correction above, and the one assertion in this
-# neighborhood that needs no clock at all: feed the SHIPPED estimator synthetic
-# deltas describing a fully regressed mechanism — true gap ZERO — measured on a
-# host with a ±500 ms order bias. It must report ~0 and stay under the 400 ms
-# slack the two timing cases use. The pooled median it replaced reported 500 ms
-# for exactly these numbers, i.e. it passed a mechanism that had stopped working.
-#
-# The second vector is the other half of the property: the same ±500 ms bias laid
-# over a REAL 1000 ms gap must still come back as 1000, so the fix cancels the
-# bias rather than deflating the signal along with it. The third asserts the
-# equal-size precondition is enforced, since partial cancellation would be a
-# silent return to the defect.
-bs_est_zero=$(bs_paired_estimate 500 500 500 -- -500 -500 -500)
-bs_est_real=$(bs_paired_estimate 1500 1500 1500 -- 500 500 500)
-bs_est_unbalanced_rc=0
-bs_paired_estimate 500 500 -- -500 >/dev/null || bs_est_unbalanced_rc=$?
-if [[ "${bs_est_zero%% *}" == "0" ]] && ((${bs_est_zero%% *} < 400)) &&
-  [[ "${bs_est_real%% *}" == "1000" ]] && ((bs_est_unbalanced_rc == 1)); then
-  ok "paired estimator: a ±500 ms order bias cancels (zero gap → ${bs_est_zero%% *} ms, under the 400 ms slack; 1000 ms gap → ${bs_est_real%% *} ms), and unequal groups are rejected"
-else
-  fail "paired estimator: zero-gap '$bs_est_zero' (want 0, under 400), real-gap '$bs_est_real' (want 1000), unequal-group rc=$bs_est_unbalanced_rc (want 1)"
-fi
-
-bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
-  local t_file
-  t_file="$(mktemp)"
-  {
-    printf '{"complete":true}'
-    bs_hold_open
-  } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
-      source "$1"
-      eval "$2"
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-      hook::buffer_stdin >/dev/null 2>&1
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
-    bs_release
-  }
-  awk 'NR==1 {s=$0} NR==2 {e=$0}
-       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
-    "$t_file"
-  rm -f "$t_file"
-}
-# Mirrors hook::json_complete's real `printf | jq -e .` body (never a here-string
-# — see that function: a here-string at pipe capacity deadlocks the shell), then
-# returns 1 regardless. Same spawn, opposite verdict.
-# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
-bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-# HOOK_UTILS_TIMING gates the two interleaved-pair CLOCK comparisons in this
-# suite (this late-EOF one and the stall-overshoot one in Test 18g). Each is
-# six pairs of two arms waiting out real bounds, about 80 s of wall time on a
-# hosted runner, and both are advisory by their own terms: the load-independent
-# probes beside them (the chunk-boundary engagement check and the stall
-# read-count check) are the regression guards (#2105). Unset, which is every
-# ordinary run, the comparison is reported as deferred and the probes carry the
-# coverage; the weekly `hook-utils-timing` workflow sets HOOK_UTILS_TIMING=1
-# and runs the comparisons on both operating systems.
-if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
-  ok "buffer_stdin: late-EOF clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the chunk-boundary engagement probe is the regression guard)"
-elif bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
-  bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
-    400 fast slow
-elif [[ -n "${EPOCHREALTIME:-}" ]]; then
-  # On a host that HAS EPOCHREALTIME an empty measurement means the harness
-  # broke, which would silently turn this case into a vacuous pass.
-  fail "late-EOF timing harness produced no measurement"
-else
-  ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
-fi
 rm -f "$bs_rc_file" "$bs_out_file"
 
 # --- Test 18c: hook::buffer_stdin — a large payload is neither blocked nor slow -
@@ -2406,41 +2347,11 @@ rm -f "$bs_rc_file"
 # byte arrived. Armed as a single window, a producer that emits bytes early and
 # then goes quiet is not declared stalled until the SECOND window expires —
 # almost twice the configured bound. Reading the bound in slices caps that
-# overshoot at one slice. Asserted by comparison against a variant with the slice
-# count forced to 1 (the unsliced behavior), sampled as INTERLEAVED PAIRS so the
-# two arms see the same load window. Runner load does NOT cancel: the arms are
-# separate sequential processes that never share a load sample. Interleaving
-# only keeps a load spike from landing systematically on one arm; the estimator
-# is what discards it. The override is asserted to actually engage first — a
-# silently ineffective override would make this a vacuous pass.
-#
-# There is no non-clock proxy: both variants end in the same rc 2 stall with the
-# same empty payload, and only WHEN the stall is declared differs, which is the
-# whole property under test. Three things had to change for the comparison to
-# hold on a loaded host, and the 2026-08-09 runs show all three:
-#
-#  * The HOLD has to outlast the SLOW arm. The unsliced arm read 4293 ms against
-#    a 4 s hold — EOF had cut it off, so the comparison was measuring the hold
-#    rather than the overshoot. bs_hold_open now ends the hold when the consumer
-#    says so, which removes the constant rather than retuning it.
-#  * Unlike the late-EOF case, this one's arms are NOT symmetric in work: the
-#    sliced arm does slice_count+1 reads where the unsliced does 2, and it is the
-#    arm that has to finish FIRST. Every read costs a wakeup, so load taxes
-#    precisely the arm that must win. Measured on Windows Git Bash at ~420 ms per
-#    extra read, so the three extra reads eat ~1.26 s of whatever gap the bound
-#    provides — and that tax is FIXED per read, it does not grow with the bound.
-#    At a 2.4 s bound the gap is 1.8 s, leaving ~0.5 s of true signal against a
-#    400 ms slack: measured, the median came in at 532 ms, a 1.33x margin that
-#    would flake. The bound is therefore 3.6 s, where the gap is 2.7 s (0.9 s
-#    slice + 3.6 s against two 3.6 s bounds) and the tax leaves ~1.4 s — 3.6x the
-#    slack, and clear of the estimator's own sampling error at six pairs. Growing
-#    the bound is the only lever that grows the signal, because the tax does not
-#    scale with it and no tolerance can be set below it.
-#  * ONE sample of each arm decides nothing. The startup-fork swing documented
-#    above the late-EOF case (up to 3.2 s on a single fork) dwarfs even a 1.8 s
-#    gap on a bad sample, so this takes 6 interleaved pairs and compares the
-#    ORDER-BALANCED estimate. Every delta and both group medians are printed, so
-#    a marginal pass — and the order bias itself — is visible per run.
+# overshoot at one slice. Asserted load-independently against a variant with the
+# slice count forced to 1 (the unsliced behavior): the sliced stall path must
+# issue more reads before declaring the stall (#2105). The override is asserted
+# to actually engage first — a silently ineffective override would make this a
+# vacuous pass.
 bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
@@ -2486,29 +2397,27 @@ fi
 #
 # THE LATENCY HALF OF THIS CASE HAS BEEN REMOVED AS UNMEASURABLE. It compared the
 # boundary payload against a deliberately non-boundary one of the same shape, and
-# unlike the two comparisons above, its arms are structurally IDENTICAL — one
-# slice and one jq probe each — so there is no work asymmetry for the tolerance
-# to sit inside, and nothing but the regression separates them. The evidence,
-# collected 2026-08-09 on Windows Git Bash:
+# its arms are structurally IDENTICAL — one slice and one jq probe each — so
+# there is no work asymmetry for a tolerance to sit inside, and nothing but the
+# regression separates them. The evidence, collected 2026-08-09 on Windows Git
+# Bash:
 #
 #  * At a 1.2 s bound with a 400 ms tolerance: failed (1866 vs 1275 ms).
 #  * At a 3.0 s bound with a 1200 ms tolerance — a 2.25 s signal — single samples
 #    on an otherwise idle box gave paired deltas of +2938, +1688, +1110, -2245,
 #    -837 ms. The noise EXCEEDS the signal and straddles zero, so no fixed
 #    tolerance discriminates.
-#  * With the interleaved-sampling machinery the other two cases use (then a
-#    pooled median of five pairs), five interleaved pairs gave +3216, -2886,
-#    -4427, +433, -3850 ms: a 7.6 s spread and a middle value of -2886 ms, i.e. a
-#    systematic 2.9 s offset between two arms that the mechanism says should
-#    match. That offset is unexplained. Setting a tolerance on a number whose
-#    cause is unknown is how this case kept failing, so it is not being retuned
-#    again.
+#  * With interleaved sampling (a pooled median of five pairs), five pairs gave
+#    +3216, -2886, -4427, +433, -3850 ms: a 7.6 s spread and a middle value of
+#    -2886 ms, i.e. a systematic 2.9 s offset between two arms that the mechanism
+#    says should match. That offset is unexplained. Setting a tolerance on a
+#    number whose cause is unknown is how this case kept failing, so it is not
+#    being retuned again.
 #
 # The cause is buffer_stdin's own startup: it spends two command-substitution
 # forks resolving its timeout and slice, and a fork on this platform measured
 # 93 ms to 3234 ms across four back-to-back runs — a single fork's variance
-# exceeds the whole signal. The other two comparisons survive that because their
-# arms differ by several seconds of real work; this one has no such margin.
+# exceeds the whole signal.
 #
 # WHAT THE LATENCY HALF COVERED, stated plainly: a regression that removed the
 # empty-slice completeness check makes an exactly-chunk-sized payload wait out
@@ -2566,8 +2475,11 @@ bs_payload_file="$(mktemp)"
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 bs_make_payload 65536 "$bs_payload_file"
+bs_payload=$(<"$bs_payload_file")
+# The producer writes with the printf builtin: the first byte must not wait on
+# a process spawn, which can outlast the reader's 1.2 s idle bound.
 {
-  cat "$bs_payload_file"
+  printf '%s' "$bs_payload"
   bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
@@ -2576,10 +2488,10 @@ bs_make_payload 65536 "$bs_payload_file"
 }
 bs_rc=$(cat "$bs_rc_file")
 bs_len=$(wc -c <"$bs_out_file")
-if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)); then
+if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)); then
   ok "buffer_stdin: an exactly-chunk-sized payload on a held-open pipe returns whole (rc 0, $bs_len bytes)"
 else
-  fail "buffer_stdin chunk boundary: rc=$bs_rc len=$bs_len (expected rc 0, 65536 bytes)"
+  fail "buffer_stdin chunk boundary: rc=$bs_rc len=$bs_len payload=${#bs_payload} (expected rc 0, 65536 bytes)"
 fi
 rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
@@ -2633,6 +2545,7 @@ bs_payload_file="$(mktemp)"
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 bs_make_payload 65536 "$bs_payload_file"
+bs_payload=$(<"$bs_payload_file")
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_probe_override='hook::json_complete() {
   local verdict=0
@@ -2645,7 +2558,7 @@ bs_probe_override='hook::json_complete() {
 bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
   : >"$bs_probe_file"
   {
-    cat "$bs_payload_file"
+    printf '%s' "$bs_payload" # builtin: the first byte must not wait on a spawn
     bs_hold_open
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
@@ -2677,11 +2590,11 @@ bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
 bs_engagement=""
 for bs_attempt in 1 2 3; do
   bs_probe_run
-  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
     bs_engagement=exercised
     break
   fi
-  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
     bs_engagement=fragmented # tells us nothing either way; try again
     continue
   fi
@@ -2701,7 +2614,7 @@ fragmented)
   ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts (last: $bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
   ;;
 *)
-  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
+  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len payload=${#bs_payload} probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
   ;;
 esac
 rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
@@ -2730,37 +2643,6 @@ else
 fi
 rm -f "$bs_stall_read_file"
 
-# Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
-# (#2105, #2080). The idle-slice probe above is the load-independent guard; this
-# relative check is advisory — fail only when every timed pair contradicts slicing.
-# Gated on HOOK_UTILS_TIMING like the late-EOF comparison (see Test 18b).
-if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
-  ok "buffer_stdin: stall overshoot clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the read-count probe above is the regression guard, #2105)"
-elif bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
-  bs_rel_ok=1
-  bs_rel_detail="deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
-  bs_rel_neg=0
-  bs_rel_pos=0
-  for bs_rel_d in "${bs_deltas_a_first[@]}" "${bs_deltas_b_first[@]}"; do
-    if ((bs_rel_d <= 0)); then
-      bs_rel_ok=0
-      ((bs_rel_neg++))
-    else
-      ((bs_rel_pos++))
-    fi
-  done
-  if ((bs_rel_ok)); then
-    ok "buffer_stdin: unsliced stall exceeds sliced in every interleaved pair ($bs_rel_detail)"
-  elif ((bs_rel_neg > 0 && bs_rel_pos == 0)); then
-    fail "buffer_stdin: unsliced did not exceed sliced in any interleaved pair ($bs_rel_detail) — slicing regression"
-  else
-    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); read-count probe is the regression guard (#2105)"
-  fi
-elif [[ -n "${EPOCHREALTIME:-}" ]]; then
-  fail "stall timing harness produced no measurement"
-else
-  ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
-fi
 rm -f "$bs_release_fifo"
 
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
@@ -3302,6 +3184,7 @@ physical_path_unresolved() {
   cat >"$no_canon" <<'EOF'
 realpath() { return 1; }
 readlink() { return 1; }
+enable -n cd
 EOF
   probe_lib hook::physical_path HOOK_PHYSICAL_PATH_UNRESOLVED "$target" "$no_canon"
   rm -f "$no_canon"
@@ -3317,6 +3200,46 @@ printf 'probe' >"$PP_TARGET"
 physical_path_resolved "$PP_TARGET"
 physical_path_unresolved "$PP_TARGET"
 rm -f "$PP_TARGET"
+
+# hook::_physical_builtin_to answers exactly what realpath answers, or declines
+# (status 1) so the caller runs realpath. Linux only; elsewhere it always declines.
+PB="$(mktemp -d)"
+pb_linux=0
+[[ "$(uname -s)" == Linux ]] && pb_linux=1
+mkdir -p "$PB/real/sub" "$PB/a"
+: >"$PB/real/f.md"
+ln -s real "$PB/ln"
+ln -s ../real "$PB/a/rel"
+ln -s "$PB/real/f.md" "$PB/flink.md"
+# shellcheck disable=SC2016  # the child's script is literal, expanded by the child
+PB_OUT=$(bash -c '
+  source "$1"
+  PB=$2 pb_linux=$3
+  for p in "$PB/ln/f.md" "$PB/ln/sub/../f.md" "$PB/a/rel/sub" "$PB/a/rel/../a" "$PB/real/sub/" /tmp/ /; do
+    v=""
+    if hook::_physical_builtin_to v "$p"; then
+      ((pb_linux)) || echo "answered off Linux: $p"
+      [[ "$v" == "$(realpath -- "$p")" ]] || echo "differs from realpath: $p = $v"
+    elif ((pb_linux)); then
+      echo "declined on Linux: $p"
+    fi
+  done
+  for p in "$PB/flink.md" "$PB/missing.md" "real/f.md" "$PB//real/f.md" "$PB/real/f.md/"; do
+    v=""
+    hook::_physical_builtin_to v "$p" && echo "answered a declined shape: $p = $v"
+  done
+  v=""
+  if hook::_physical_builtin_to v "$PB/ln/f.md" "$PB/ln" /tmp; then
+    [[ "$v" == "$(realpath -- "$PB/ln/f.md" "$PB/ln" /tmp)" ]] || echo "batch differs: $v"
+  fi
+  echo pb-ok
+' _ "$HOOK_DIR/hook-utils.sh" "$PB" "$pb_linux")
+rm -rf "$PB"
+if [[ "$PB_OUT" == pb-ok ]]; then
+  ok "physical_builtin: realpath's answer or a decline, per shape"
+else
+  fail "physical_builtin: $PB_OUT"
+fi
 
 repo_root_resolved() {
   local hint="$1"
@@ -3392,27 +3315,41 @@ CYGEOF
 chmod +x "$RRP_DIR/cyg/cygpath"
 
 # rrp_case <mode> <label> <file> <root> <expected-out> <expected-degraded>
-#   mode nocyg → no cygpath on PATH, helper takes the direct-strip arm
-#   mode cyg   → stub cygpath on PATH, helper takes the normalization arm
+#   mode nocyg    → no cygpath on PATH, helper takes the direct-strip arm
+#   mode cyg      → stub cygpath on PATH and a Git Bash OSTYPE (msys), helper
+#                   takes the normalization arm
+#   mode cygposix → the same stub on PATH under a Linux OSTYPE: the helper only
+#                   looks for cygpath on a Windows bash, so it strips directly
 # One call answers all three channels: the helper writes _out in the child's own
 # shell, so the return code and the degraded global are readable right after it.
 # Only shell builtins are used inside, because PATH is deliberately near-empty.
 rrp_case() {
   local mode="$1" label="$2" file="$3" root="$4" want="$5" want_deg="$6" probe
+  # shellcheck disable=SC2031  # this shell's own OSTYPE; only the child below overrides it
+  local bin="$mode" ostype="$OSTYPE"
+  case "$mode" in
+  cyg) ostype=msys ;;
+  cygposix)
+    bin=cyg
+    ostype=linux-gnu
+    ;;
+  *) ;;
+  esac
   probe=$(
     # $BASH, not a bare `bash`: the PATH below is deliberately near-empty, so a
     # bare name could not be resolved. shellcheck cannot see that the quoted
     # argument is a bash script, so it reads the (correctly) unexpanded $1/$2/$3
     # as a mistake; they are the child's own positional parameters.
     # shellcheck disable=SC2016
-    PATH="$RRP_DIR/$mode" "$BASH" -c '
+    PATH="$RRP_DIR/$bin" "$BASH" -c '
+      OSTYPE="$4"
       # shellcheck source=hook-utils.sh
       source "$1"
       _out=""
       hook::repo_relative_path_to _out "$2" "$3"
       _rc=$?
       printf "%s\n%s\n%s\n" "$_rc" "$HOOK_REPO_RELATIVE_DEGRADED" "$_out"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root" "$ostype"
   )
   local rc flag out
   {
@@ -3452,6 +3389,10 @@ rrp_case nocyg "...and the same inputs degrade without cygpath (control)" /c/rep
 rrp_case cyg "both sides already mixed form" 'C:/repo/a/b.md' 'C:/repo' a/b.md 0
 rrp_case cyg "a root mismatch still redacts through the cygpath arm" /c/elsewhere/b.md 'C:/repo' b.md 1
 rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b.md 1
+# The OSTYPE gate: the same stub on PATH is not consulted off Windows, so the
+# drive-letter case degrades exactly as the nocyg control does.
+rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
+rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
@@ -3801,14 +3742,7 @@ fi
 # --- hook::json_escape / notice_once no longer exec tr ----------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::json_escape $'a\001b"c' >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "json_escape spawned tr ($(wc -l <"$tr_log") times)"
@@ -3855,14 +3789,7 @@ rm -rf "$hu_scratch"
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
@@ -3901,6 +3828,10 @@ if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '.data.session_id // "absent"' "$corr_sink")" == "absent" ]]; then ok "corr (builtin): data untouched"; else fail "corr (builtin): data gained a key"; fi
 else
   fail "corr (builtin): sink empty"
+  for key in session_id prompt_id tool_use_id agent_id; do
+    fail "corr (builtin): $key not verifiable (no envelope)"
+  done
+  fail "corr (builtin): key order not verifiable (no envelope)"
 fi
 rm -f "$corr_sink"
 # jq path: pretty-printed data the compactor declines, same keys.
@@ -3921,6 +3852,7 @@ if [[ -s "$corr_sink" ]]; then
   fi
 else
   fail "corr (jq path): sink empty"
+  fail "corr (jq path): key order not verifiable (no envelope)"
 fi
 rm -f "$corr_sink"
 # Partial and malformed: only well-formed keys appear; a value with a quote,
@@ -4036,7 +3968,7 @@ fi
 rm -f "$corr_sink"
 # The same large payload must not pick up a nested decoy either: past the size
 # gate the walk is skipped for cost, and the head cut is what keeps it safe.
-# This is the half of the gate's behaviour that is a guarantee; the other half
+# This is the half of the gate's behavior that is a guarantee; the other half
 # (a root key after the first container is omitted up here) is a known gap.
 corr_sink="$(mktemp)"
 (
@@ -4104,8 +4036,9 @@ source "$BG_LIB"
 # A stub reader makes the half of hook::begin that runs AFTER a path is
 # admitted reachable for paths no test can create: a file directly under the
 # filesystem root (needs privileges) and a spelling only Windows produces.
+# hook::begin hands it the payload it already buffered, so no pipe feeds it.
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
-  hook::read_file_path() { printf '%s' "$BG_STUB_FILE"; }
+  hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.
@@ -4169,7 +4102,7 @@ bg_want_root="${bg_want_root//$'\r'/}"
 if [[ "$(bg_field "$bg_out" ROOT)" == "$bg_want_root" ]]; then
   ok "begin: REPO_ROOT is anchored at the file, not the process CWD"
 else
-  fail "begin repo root: $(bg_field "$bg_out" ROOT) want $bg_want_root"
+  fail "begin repo root (rc=$bg_rc): $(bg_field "$bg_out" ROOT) want $bg_want_root; output: [$bg_out]"
 fi
 
 # Telemetry-only values stay unresolved with no sink wired: TOOL empty and
@@ -4178,16 +4111,17 @@ if [[ "$(bg_field "$bg_out" TOOL)" == "" &&
 "$(bg_field "$bg_out" REL)" == "$BG_REPO/sub/a.sh" ]]; then
   ok "begin: sink unset → TOOL empty and FILE_REL unresolved"
 else
-  fail "begin sink unset: TOOL=$(bg_field "$bg_out" TOOL) REL=$(bg_field "$bg_out" REL)"
+  fail "begin sink unset (rc=$bg_rc): TOOL=$(bg_field "$bg_out" TOOL) REL=$(bg_field "$bg_out" REL); output: [$bg_out]"
 fi
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" HOOK_TELEMETRY_SINK="$BG_WORK/sink-does-not-run")
 bg_sink_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh" Edit)" sample PostToolUse '*.sh')
+bg_sink_rc=$?
 if [[ "$(bg_field "$bg_sink_out" TOOL)" == "Edit" &&
 "$(bg_field "$bg_sink_out" REL)" == "sub/a.sh" &&
 "$(bg_field "$bg_sink_out" DEGRADED)" == "0" ]]; then
   ok "begin: sink wired → TOOL parsed and FILE_REL made repo-relative"
 else
-  fail "begin sink wired: $bg_sink_out"
+  fail "begin sink wired (rc=$bg_sink_rc): [$bg_sink_out]"
 fi
 
 # --relative resolves the repo-relative path with no sink, because the hook
@@ -4196,26 +4130,27 @@ fi
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_ROOT_VALUE="$BG_WORK/elsewhere")
 bg_deg_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" \
   --relative --repo-root bg_fake_root sample PostToolUse '*.sh')
+bg_deg_rc=$?
 if [[ "$(bg_field "$bg_deg_out" REL)" == "a.sh" &&
 "$(bg_field "$bg_deg_out" DEGRADED)" == "1" ]]; then
   ok "begin: --relative with an unrelated root degrades FILE_REL and flags it"
 else
-  fail "begin degrade: $bg_deg_out"
+  fail "begin degrade (rc=$bg_deg_rc): [$bg_deg_out]"
 fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
 # Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
   bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
+  bg_row_rc=$?
   bg_got_dir="$(bg_field "$bg_row" DIR)"
   bg_got_base="$(bg_field "$bg_row" BASE)"
   if [[ "$bg_got_dir" == "$bg_want_dir" && "$bg_got_base" == "$bg_want_base" ]]; then
     ok "begin: $bg_label → FILE_DIR '$bg_got_dir', FILE_BASE '$bg_got_base'"
   else
-    fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base')"
+    fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base'), rc=$bg_row_rc, output: [$bg_row]"
   fi
 done <<'BGTABLE'
 a file under the filesystem root|/README.md|/|README.md
@@ -4314,29 +4249,26 @@ fi
 rm -rf "$BG_DATA" "$BG_NOJQ"
 
 # Spawn census on the same two payloads: a non-matching edit must not spend a
-# jq beyond hook::buffer_stdin_to's own payload validation, and the unwired
-# path must not spend one to build a telemetry value nothing will read.
+# jq on payload validation, and the unwired path must not spend one to build a
+# telemetry value nothing will read.
 BG_SHIM="$(mktemp -d)"
-bg_real_jq=$(type -P jq) || bg_real_jq=""
-if [[ -n "$bg_real_jq" ]]; then
-  cat >"$BG_SHIM/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$BG_SHIM/log"
-exec "$bg_real_jq" "\$@"
-EOF
-  chmod +x "$BG_SHIM/jq"
+if make_logging_shim "$BG_SHIM" jq; then
   bg_jq_count() {
     : >"$BG_SHIM/log"
     bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" PATH="$BG_SHIM:$PATH")
     bg_run "$@" >/dev/null 2>&1
-    grep -c . "$BG_SHIM/log" 2>/dev/null || printf 0
+    local bg_n
+    bg_n=$(grep -c . "$BG_SHIM/log" 2>/dev/null)
+    printf '%s' "${bg_n:-0}"
   }
   bg_n_skip=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.txt")" sample PostToolUse '*.sh')
   bg_n_run=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse '*.sh')
-  if ((bg_n_skip <= 1)); then
-    ok "begin: a non-matching edit spends $bg_n_skip jq (payload validation only)"
+  # Payload validation of an ordinary object payload is builtin
+  # (hook::_json_object_proven), so neither edit spawns jq at all.
+  if ((bg_n_skip == 0)); then
+    ok "begin: a non-matching edit spends no jq (payload validation is builtin)"
   else
-    fail "begin: a non-matching edit spent $bg_n_skip jq processes, ceiling 1"
+    fail "begin: a non-matching edit spent $bg_n_skip jq processes, want 0"
   fi
   if ((bg_n_run <= bg_n_skip)); then
     ok "begin: an accepted edit with no sink spends no jq beyond that ($bg_n_run)"
@@ -4450,14 +4382,7 @@ fi
 # emitter already builds, on hooks that run on every edit.
 cf_shim="$(mktemp -d)"
 cf_log="$cf_shim/log"
-cf_real_jq=$(command -v jq) || cf_real_jq=""
-if [[ -n "$cf_real_jq" ]]; then
-  cat >"$cf_shim/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$cf_log"
-exec "$cf_real_jq" "\$@"
-EOF
-  chmod +x "$cf_shim/jq"
+if make_logging_shim "$cf_shim" jq; then
   hook::ctx_reset
   hook::ctx_append "census line"
   PATH="$cf_shim:$PATH" hook::ctx_flush PostToolUse >/dev/null
@@ -4503,23 +4428,25 @@ hook::finish "$@"
 printf "REACHED PAST FINISH\n"
 '
 
-# fin_arm <mode> <telemetry-file> <finish-arg...> — run one arm, leaving its
-# stdout in fin_out, its status in fin_rc and any leaked snapshot count in
-# fin_leaked. <mode> is armed (guard armed, file untouched), rewrote (armed,
-# file changed) or unarmed (the guard never ran). Called directly rather than
-# through `$( )` so those three answers land in THIS shell.
+# fin_arm <mode> <sink> <envelope-file> <finish-arg...>: run one arm with
+# <sink> as HOOK_TELEMETRY_SINK, wait for the envelope to land in
+# <envelope-file>, and leave its stdout in fin_out, its status in fin_rc and
+# any leaked snapshot count in fin_leaked. <mode> is armed (guard armed, file
+# untouched), rewrote (armed, file changed) or unarmed (the guard never ran).
+# Called directly rather than through `$( )` so those three answers land in
+# THIS shell.
 fin_rc=0
 fin_leaked=0
 fin_out=""
 fin_arm() {
-  local mode="$1" tel="$2"
-  shift 2
+  local mode="$1" sink="$2" tel="$3"
+  shift 3
   local scratch="$FIN_WORK/scratch.$RANDOM"
   local target="$FIN_WORK/target.$RANDOM"
   mkdir -p "$scratch"
   printf 'original\n' >"$target"
   fin_out=$(
-    TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" HOOK_TELEMETRY_SINK="$tel" \
+    TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" HOOK_TELEMETRY_SINK="$sink" \
       bash -c "$FIN_PROG" _ "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/rewrite-guard.sh" \
       "$target" "$mode" "$@"
   )
@@ -4529,7 +4456,10 @@ fin_arm() {
   # there: a single spawn on this host has been measured between 93 ms and
   # 3.2 s (see the buffer_stdin timing notes above), so a fixed pause sized for
   # the fast case turns a slow-forking host into a flaky suite. The wait costs
-  # nothing when the file is already there, which is the ordinary case.
+  # nothing when the file is already there, which is the ordinary case. Every
+  # arm emits an envelope, so none pays the full bound on a healthy host, and
+  # the wait keeps a late envelope from landing after the next arm truncates
+  # the file.
   local waited=0
   while [[ ! -s "$tel" ]] && ((waited < 150)); do
     sleep 0.1
@@ -4561,6 +4491,8 @@ fin_check() {
     got_changed="unreadable"
   if [[ "$got_changed" == "$want_changed" ]]; then
     ok "finish/$label: data.changed $want_changed"
+  elif [[ ! -s "$tel" ]]; then
+    fail "finish/$label: data.changed not verifiable, no envelope arrived within fin_arm's 15 s poll (want $want_changed)"
   else
     fail "finish/$label: data.changed $got_changed, want $want_changed"
   fi
@@ -4576,12 +4508,12 @@ fin_sink="$(make_sink "$fin_tel")"
 
 # Clean: the tool ran to judgment, nothing changed, nothing to say.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." ok findings array '[]'
 fin_check clean 0 false "$fin_tel"
 
 # Clean after a rewrite: the disclosure is the whole document.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_arm rewrote "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." ok findings array '[]'
 fin_check clean-rewrote 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
   [[ -z "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" ]]; then
@@ -4592,7 +4524,7 @@ fi
 
 # Findings AND a rewrite: both channels, ONE document.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "fixture: a.txt has findings:" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "fixture: a.txt has findings:" \
   --disclose "fixture: reformatted a.txt." ok findings array '["one","two"]'
 fin_check findings 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" == "fixture: a.txt has findings:" ]] &&
@@ -4606,7 +4538,7 @@ fi
 # Consumer-ignored: the tool declined the file, so nothing was rewritten and
 # nothing is said — but the verdict is a known false, not an omitted key.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." skipped findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." skipped findings array '[]'
 fin_check consumer-ignored 0 false "$fin_tel"
 if [[ "$(jq -r '.status' "$fin_tel" 2>/dev/null)" == "skipped" ]]; then
   ok "finish/consumer-ignored: status skipped"
@@ -4617,7 +4549,7 @@ fi
 # Tool break AFTER a rewrite: the break does not swallow the disclosure, and
 # data.changed still records the rewrite the break left on disk.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "fixture: the tool broke:" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "fixture: the tool broke:" \
   --disclose "fixture: reformatted a.txt." skipped findings array '[]'
 fin_check tool-break 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
@@ -4630,22 +4562,22 @@ fi
 # Skipped before the guard was ever armed: no rewrite was attempted, so the
 # verdict is false and there is nothing to release.
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" skipped findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" skipped findings array '[]'
 fin_check skipped 0 false "$fin_tel"
 
 # A caller that decides the verdict itself overrides the guard's, and an empty
 # one omits the key rather than guessing.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --changed true ok findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --changed true ok findings array '[]'
 fin_check changed-override 0 true "$fin_tel"
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" --changed "" ok findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" --changed "" ok findings array '[]'
 fin_check changed-unknown 0 absent "$fin_tel"
 
 # The user-channel message the caller composed follows the disclosure, on its
 # own line, in ONE document with the agent channel.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "ctx" --message "notice text" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "ctx" --message "notice text" \
   --disclose "fixture: reformatted a.txt." ok findings array '[]'
 # CR-stripped: the Windows jq writes stdout in text mode, so the newline
 # inside this two-line value arrives as CRLF where the single-line cases above
@@ -4660,7 +4592,7 @@ fi
 
 # --id names the telemetry hook id when it is not the hook::begin label.
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" --id other-id ok findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" --id other-id ok findings array '[]'
 if [[ "$(jq -r '.hook' "$fin_tel" 2>/dev/null)" == "other-id" ]]; then
   ok "finish: --id overrides HOOK_PLUGIN as the telemetry hook id"
 else
@@ -4775,6 +4707,245 @@ else
 fi
 
 rm -rf "$WU_WORK"
+
+# --- Test 22: hook::_fast_fields answers exactly what the jq program answers --
+# hook::jq_fields_uncached tries the builtin parser first and runs jq only when
+# it cannot prove the answer. Every payload shape below is put through both:
+# the fast path's proven answer must equal the jq path's, field by field and on
+# the NUL flag; a fall-back is always allowed. The jq path is reached by
+# disabling the fast path inside a subshell, so nothing here depends on the
+# order the two are tried in.
+FF_FILTERS=('.tool_input.command' '.tool_name' '.cwd' '.tool_input.file_path' '.tool_input.content' '.hook_event_name')
+fast_fields_is_jq() { # <desc> <payload>
+  local desc="$1" payload="$2" rc=0 src=0 i same=1
+  local -a fast=() slow=()
+  hook::_fast_fields "$payload" "${FF_FILTERS[@]}" || rc=$?
+  if ((rc == 2)); then
+    ok "fast fields: $desc (falls back to jq)"
+    return
+  fi
+  if ((rc != 0)); then
+    fail "fast fields ($desc): rc=$rc"
+    return
+  fi
+  fast=("${HOOK_JQ_FIELDS[@]}")
+  local fnul=$HOOK_JQ_FIELDS_NUL
+  mapfile -d '' slow < <(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "${FF_FILTERS[@]}" || exit $?
+    printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "fast fields ($desc): proven by the fast path but the jq path returned $src"
+    return
+  fi
+  [[ "${slow[0]}" == "$fnul" ]] || same=0
+  ((${#slow[@]} - 1 == ${#fast[@]})) || same=0
+  for ((i = 0; i < ${#fast[@]}; i++)); do
+    [[ "${fast[i]}" == "${slow[i + 1]-}" ]] || same=0
+  done
+  if ((same)); then
+    ok "fast fields: $desc (proven)"
+  else
+    fail "fast fields ($desc): fast [$(printf '%q ' "${fast[@]}")] jq [$(printf '%q ' "${slow[@]:1}")]"
+  fi
+}
+fast_fields_is_jq "Bash payload" '{"session_id":"s","cwd":"C:\\code\\proj","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","description":"probe"}}'
+# shellcheck disable=SC2016  # the $_ is PowerShell's, inside a JSON payload
+fast_fields_is_jq "PowerShell payload with braces and backslashes" '{"tool_name":"PowerShell","cwd":"C:\\Dev","tool_input":{"command":"Get-ChildItem C:\\Dev | Where-Object { $_.Name -like \"*x*\" }"}}'
+fast_fields_is_jq "escapes in the command" '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"a\\nb\" && echo \"\\t\"\\\\x"}}'
+fast_fields_is_jq "CR inside a value is stripped like jq's output" '{"tool_name":"Bash","tool_input":{"command":"a\r\nb"}}'
+fast_fields_is_jq "number and boolean siblings" '{"tool_name":"Bash","tool_input":{"command":"ls","timeout":600000,"run_in_background":true}}'
+fast_fields_is_jq "empty tool_input" '{"tool_name":"Bash","tool_input":{}}'
+fast_fields_is_jq "no tool_input" '{"tool_name":"Bash"}'
+fast_fields_is_jq "null tool_input" '{"tool_name":"Bash","tool_input":null}'
+fast_fields_is_jq "null command" '{"tool_name":"Bash","tool_input":{"command":null}}'
+fast_fields_is_jq "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
+fast_fields_is_jq "Write payload" '{"tool_name":"Write","tool_input":{"file_path":"C:\\repo\\a.md","content":"line1\nline2 {\"x\":[1]}"}}'
+fast_fields_is_jq "pretty-printed payload" "$(jq -n '{tool_name:"Bash",cwd:"/x",tool_input:{command:"git status"}}')"
+fast_fields_is_jq "keys spelled with unicode escapes" '{"tool\u005fname":"Bash","tool_input":{"comm\u0061nd":"x"}}'
+fast_fields_is_jq "non-ASCII value" '{"tool_name":"Bash","tool_input":{"command":"echo é 日本"}}'
+fast_fields_is_jq "tool_input is a string" '{"tool_name":"Bash","tool_input":"x"}'
+fast_fields_is_jq "nested object inside tool_input" '{"tool_name":"Bash","tool_input":{"command":"ls","meta":{"a":1}}}'
+fast_fields_is_jq "key spelled as a value elsewhere" '{"tool_name":"command","tool_input":{"command":"ls"}}'
+fast_fields_is_jq "duplicate key" '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}'
+fast_fields_is_jq "same key at the root and inside" '{"command":"root","tool_name":"Bash","tool_input":{"command":"in"}}'
+fast_fields_is_jq "non-ASCII unicode escape" '{"tool_name":"Bash","tool_input":{"command":"\u00e9"}}'
+fast_fields_is_jq "NUL escape" '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}'
+fast_fields_is_jq "number tool_name" '{"tool_name":5,"tool_input":{"command":"x"}}'
+fast_fields_is_jq "false command" '{"tool_name":"Bash","tool_input":{"command":false}}'
+fast_fields_is_jq "truncated payload" '{"tool_name":"Bash","tool_input":{"command":"x"'
+fast_fields_is_jq "array root" '[{"tool_name":"Bash"}]'
+# The shapes that must NOT be proven, pinned by verdict: a NUL escape (the
+# flag is jq's), a duplicate key (jq takes the last), a non-string value (jq's
+# tostring), a parent that is not an object (a jq error the caller reads as
+# rc 2).
+for ff_case in '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":7}}' \
+  '{"tool_name":"Bash","tool_input":"x"}'; do
+  ff_rc=0
+  hook::_fast_fields "$ff_case" '.tool_input.command' || ff_rc=$?
+  if ((ff_rc == 2)); then
+    ok "fast fields: not proven, jq runs: ${ff_case:19:40}"
+  else
+    fail "fast fields: rc=$ff_rc on a shape only jq may answer: $ff_case"
+  fi
+done
+# An unusual filter shape is never the fast path's to answer.
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"files":[1,2]}}' '.tool_input.files | length' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a non-path filter falls back to jq"; else fail "fast fields: non-path filter rc=$ff_rc"; fi
+# The absence proof: a key nobody spells is "" without jq, and that is jq's
+# answer too (`null // ""`).
+hook::_fast_fields '{"tool_name":"Bash","tool_input":{"command":"ls"}}' '.cwd' '.tool_input.file_path' '.tool_input.command'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "" && "${HOOK_JQ_FIELDS[1]}" == "" && "${HOOK_JQ_FIELDS[2]}" == "ls" ]]; then
+  ok "fast fields: absent keys are proven empty beside a present one"
+else
+  fail "fast fields: absent keys: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+# The public entry point takes the fast path on the common payload: no jq on
+# PATH is needed for it, but the jq presence check still precedes it, so the
+# spawn count is what the dispatcher suite pins; here the answer is pinned.
+hook::jq_fields '{"tool_name":"Bash","tool_input":{"command":"true"}}' '.tool_input.command' '.tool_name'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "true" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: the common Bash payload is answered"
+else
+  fail "jq_fields common payload: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")] nul=$HOOK_JQ_FIELDS_NUL"
+fi
+
+# The skip bound is six times the longest REQUESTED key name, not a fixed 60:
+# an ASCII identifier character's longest escaped spelling is `\uXXXX`. Each
+# case is a differential, so what is pinned is jq's answer rather than this
+# suite's belief about it.
+ff_pair_check() { # <desc> <payload> <filter> <expected>
+  local desc="$1" payload="$2" filter="$3" want="$4" rc=0 src=0 slow
+  hook::_fast_fields "$payload" "$filter" || rc=$?
+  if ((rc != 0)); then
+    fail "$desc: the fast path did not prove it (rc=$rc)"
+    return
+  fi
+  slow=$(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "$filter" || exit $?
+    printf '%s' "${HOOK_JQ_FIELDS[0]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "$desc: proven by the fast path but the jq path returned $src"
+    return
+  fi
+  if [[ "${HOOK_JQ_FIELDS[0]}" == "$want" && "$slow" == "$want" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: fast=[${HOOK_JQ_FIELDS[0]}] jq=[$slow] want=[$want]"
+  fi
+}
+ff_long=""
+ff_gone=""
+for ((ff_i = 0; ff_i < 70; ff_i++)); do
+  ff_long+=k
+  ff_gone+=z
+done
+ff_pair_check "fast fields: a present key name longer than 60 characters is not skipped" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_long" "present"
+ff_pair_check "fast fields: a key name longer than 60 characters that is absent is proven empty" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_gone" ""
+# `hook_event_name` is 15 characters, so its fully escaped spelling is 90 bytes:
+# past the old fixed bound, inside six times the name's own length.
+ff_esc=""
+ff_name=hook_event_name
+for ((ff_i = 0; ff_i < ${#ff_name}; ff_i++)); do
+  printf -v ff_ch '\\u%04x' "'${ff_name:ff_i:1}"
+  ff_esc+=$ff_ch
+done
+ff_pair_check "fast fields: a key spelled entirely with \\u escapes is recognized" \
+  "{\"$ff_esc\":\"PreToolUse\",\"tool_name\":\"Bash\"}" ".$ff_name" "PreToolUse"
+# The guards' `replace_all` read: ` // false | tostring` turns absent and null
+# into `false` and proves a boolean.
+ff_ra='.tool_input.replace_all // false | tostring'
+ff_pair_check "fast fields: // false | tostring on false" '{"tool_input":{"replace_all":false}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on true" '{"tool_input":{"replace_all":true}}' "$ff_ra" "true"
+ff_pair_check "fast fields: // false | tostring on an absent key" '{"tool_input":{"new_string":"x"}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on a null parent" '{"tool_input":null}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on an empty string" '{"tool_input":{"replace_all":""}}' "$ff_ra" ""
+ff_pair_check "fast fields: // false | tostring at the root" '{"replace_all":true}' '.replace_all // false | tostring' "true"
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":1}}' "$ff_ra" || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: // false | tostring on a number falls back to jq"; else fail "fast fields: number rc=$ff_rc"; fi
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":true}}' '.tool_input.replace_all' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a bare boolean read still falls back to jq"; else fail "fast fields: bare boolean rc=$ff_rc"; fi
+
+# The Bash 4.0 floor. hook::_fast_fields indexes with an associative array, so
+# below 4.0 the call site must skip the whole fast path and let jq answer.
+# Forced here by overriding the predicate; hook::_fast_fields is replaced by a
+# tripwire, so a gate that is not wired shows up as a failure rather than as
+# two paths that happen to agree.
+ff_floor_payload='{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","file_path":"/a b","content":"c\nd"}}'
+ff_floor_rc=0
+ff_floor=()
+mapfile -d '' ff_floor < <(
+  hook::_fast_fields_supported() { return 1; }
+  hook::_fast_fields() {
+    printf 'FAST-PATH-RAN-BELOW-FLOOR\0'
+    builtin exit 99
+  }
+  hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || exit $?
+  printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+)
+hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || ff_floor_rc=$?
+ff_same=1
+((ff_floor_rc == 0)) || ff_same=0
+((${#ff_floor[@]} == ${#FF_FILTERS[@]} + 1)) || ff_same=0
+[[ "${ff_floor[0]-}" == "$HOOK_JQ_FIELDS_NUL" ]] || ff_same=0
+for ((ff_i = 0; ff_i < ${#HOOK_JQ_FIELDS[@]}; ff_i++)); do
+  [[ "${ff_floor[ff_i + 1]-}" == "${HOOK_JQ_FIELDS[ff_i]}" ]] || ff_same=0
+done
+if ((ff_same)); then
+  ok "jq_fields: below the Bash 4.0 floor the fast path is skipped and jq answers the same"
+else
+  fail "jq_fields below the floor: got [$(printf '%q ' "${ff_floor[@]}")] want nul=$HOOK_JQ_FIELDS_NUL [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+unset ff_case ff_rc ff_long ff_gone ff_esc ff_name ff_ch ff_i ff_same ff_floor ff_floor_rc ff_floor_payload
+unset -f ff_pair_check
+
+# --- Test 23: hook::emit_document is the one stdout path --------------------
+ed_out=$(hook::emit_channels PreToolUse "ctx" "sys")
+ed_doc=$(hook::emit_document '{"a":1}')
+if [[ "$ed_out" == '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"ctx"},"systemMessage":"sys"}' && "$ed_doc" == '{"a":1}' ]]; then
+  ok "emit_document prints one document with a trailing newline, and emit_channels goes through it"
+else
+  fail "emit_document: channels=[$ed_out] doc=[$ed_doc]"
+fi
+ed_seen=$(
+  hook::emit_document() { printf '<%s>' "$1"; }
+  hook::emit_channels PostToolUse "c1" ""
+  hook::emit_channels PostToolUse "" "s2"
+)
+if [[ "$ed_seen" == '<{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"c1"}}><{"systemMessage":"s2"}>' ]]; then
+  ok "an override of emit_document collects every document emit_channels builds"
+else
+  fail "emit_document override saw: $ed_seen"
+fi
+unset ed_out ed_doc ed_seen
+
+# --- Test 24: hook::extract_bash_subject_to equals the print form -------------
+for es_case in 'Bash|git status' 'Bash|sudo git push' 'Bash|FOO=1 make all' 'Bash|TOKEN="a b" curl x' 'Bash|TOKEN=secret' 'Bash|/usr/bin/env' 'Bash|' 'PowerShell|git status' 'Write|'; do
+  es_tool="${es_case%%|*}"
+  es_cmd="${es_case#*|}"
+  es_to=""
+  hook::extract_bash_subject_to es_to "$es_tool" "$es_cmd"
+  es_print=$(hook::extract_bash_subject "$es_tool" "$es_cmd")
+  if [[ "$es_to" == "$es_print" ]]; then
+    ok "extract_bash_subject_to matches the print form: $es_case -> $es_to"
+  else
+    fail "extract_bash_subject_to [$es_to] vs print form [$es_print] for $es_case"
+  fi
+done
+es_to=""
+hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
+if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
+unset es_case es_tool es_cmd es_to es_print
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

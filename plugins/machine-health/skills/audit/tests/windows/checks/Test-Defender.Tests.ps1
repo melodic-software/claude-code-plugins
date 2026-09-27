@@ -31,20 +31,12 @@ Pins these rubric fixes:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-Defender.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Defender' -AsObject 'Invoke-DefenderAsObject' -MockHelpers
 
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         throw ('Get-MpComputerStatus is not available on this host. ' +
             'Defender module required for Test-Defender.Tests.ps1.')
     }
-
-    function Invoke-DefenderAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 Describe 'Test-Defender -- healthy baseline' -Tag 'check' {
@@ -105,10 +97,8 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
     }
 
     It 'reports INFO at the >7 boundary in passive mode (sigAge=8)' {
-        # Boundary regression guard for the if/elseif refactor in Test-Defender.ps1.
-        # Original code branched on $sigAge -gt 7 first; the refactor collapses passive
-        # mode into a single $sigAge -gt 3 check. Both produce INFO here, but pin the
-        # behavior at the original >7 threshold so a future regression is caught.
+        # Boundary regression guard: passive mode checks $sigAge -gt 3, so pin the
+        # behavior at the >7 threshold too.
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus `
                 -AntivirusSignatureAge 8 `
@@ -177,9 +167,8 @@ Describe 'Test-Defender -- tamper protection' -Tag 'check' {
         Mock Get-MpThreatDetection { @() }
 
         $result = Invoke-DefenderAsObject
-        # Previous code collapsed the whole severity to INFO when passive+RTP-off,
-        # masking a concurrent tamper-protection finding. Tamper protection is
-        # enforced regardless of passive mode -- keep the WARN.
+        # Passive mode with RTP off must not collapse severity to INFO and mask a concurrent
+        # tamper-protection finding: tamper protection applies regardless of passive mode.
         $result.severity | Should -Be 'WARN'
     }
 }

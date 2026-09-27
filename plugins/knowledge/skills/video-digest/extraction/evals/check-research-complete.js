@@ -14,6 +14,15 @@ import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 /**
+ * @param {string} body
+ * @param {RegExp} pattern
+ * @returns {number}
+ */
+function countMatches(body, pattern) {
+  return (body.match(pattern) ?? []).length;
+}
+
+/**
  * @param {string} sliceDir
  * @returns {number}
  */
@@ -46,19 +55,19 @@ export function checkResearchComplete(sliceDir) {
   }
 
   const agenda = fs.readFileSync(agendaPath, "utf8");
-  const pendingRows = (agenda.match(/\|\s*pending\s*\|/gi) ?? []).length;
+  const pendingRows = countMatches(agenda, /\|\s*pending\s*\|/gi);
   if (pendingRows > 0) {
     writeStderr(`FAIL: ${pendingRows} research-agenda rows still pending`);
     return 1;
   }
 
-  const openClaims = (agenda.match(/\|\s*T2\s*\|\s*$/gm) ?? []).length;
+  const openClaims = countMatches(agenda, /\|\s*T2\s*\|\s*$/gm);
   if (openClaims > 0) {
     writeStderr(`WARN: ${openClaims} agenda rows may still be T2-only — verify promotion`);
   }
 
-  const doneRows = (agenda.match(/\|\s*done\s*\|/gi) ?? []).length;
-  const deferredRows = (agenda.match(/\|\s*deferred\s*\|/gi) ?? []).length;
+  const doneRows = countMatches(agenda, /\|\s*done\s*\|/gi);
+  const deferredRows = countMatches(agenda, /\|\s*deferred\s*\|/gi);
   const findingsDir = lanePath(sliceDir, LANES.research, "findings");
   const findingCount = fs.existsSync(findingsDir)
     ? fs.readdirSync(findingsDir).filter((name) => name.endsWith(".md")).length

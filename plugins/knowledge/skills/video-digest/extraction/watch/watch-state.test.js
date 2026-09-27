@@ -17,12 +17,14 @@ import {
   writeWatchState,
 } from "./watch-state.js";
 
-const sampleTalk = () =>
+/** @param {Partial<Parameters<typeof createWatchState>[0]>} [overrides] */
+const sampleTalk = (overrides = {}) =>
   createWatchState({
     videoId: "abc",
     videoSlug: "talk-abc",
     sourceUrl: "https://youtube.com/watch?v=abc",
     title: "Talk",
+    ...overrides,
   });
 
 // Resolved slice dir passed to the prompt builder — deliberately free of the
@@ -136,24 +138,12 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   });
 
   it("persists an explicit --target on the created state", () => {
-    const state = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-      target: "melodic-software/claude-code-plugins",
-    });
+    const state = sampleTalk({ target: "melodic-software/claude-code-plugins" });
     expect(state.target).toBe("melodic-software/claude-code-plugins");
   });
 
   it("tells a resumed session to reuse the recorded target instead of re-asking", () => {
-    let state = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-      target: "acme/webapp",
-    });
+    let state = sampleTalk({ target: "acme/webapp" });
     state = markPhaseComplete(state, "acquire");
     const prompt = buildContinuationPrompt(state, SLICE_DIR);
     expect(prompt).toContain("Resolved: `acme/webapp`");
@@ -170,13 +160,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   it("round-trips target through writeWatchState/readWatchState", async () => {
     const { readFile, writeFile, mkdir } = memoryStore();
     const sliceDir = "/tmp/slice";
-    const initial = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-      target: "acme/webapp",
-    });
+    const initial = sampleTalk({ target: "acme/webapp" });
     await writeWatchState(sliceDir, initial, writeFile, mkdir);
     const loaded = await readWatchState(sliceDir, readFile);
     expect(loaded?.target).toBe("acme/webapp");
@@ -205,13 +189,7 @@ describe("source metadata persistence (source:* envelope subset)", () => {
 
   it("writes no sourceMetadata key for an unflagged run", async () => {
     const { writeFile, readFile, mkdir } = memoryStore();
-    const initial = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-      sourceMetadata: {},
-    });
+    const initial = sampleTalk({ sourceMetadata: {} });
     expect(JSON.stringify(initial)).not.toContain('"sourceMetadata"');
     await writeWatchState("/tmp/slice", initial, writeFile, mkdir);
     const loaded = await readWatchState("/tmp/slice", readFile);

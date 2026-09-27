@@ -36,10 +36,6 @@ const args = parseCliArgs({
 });
 const log = createLogger(resolveLogLevel(args));
 
-/**
- * Select a representative sample of lessons from each module.
- * Picks: first lesson, last lesson, and one from the middle.
- */
 function selectSample(modules) {
   const sampled = [];
   for (const mod of modules) {
@@ -56,7 +52,6 @@ function selectSample(modules) {
   return sampled;
 }
 
-// Fixed-width label + title columns shared by every per-lesson log line below.
 function lessonLogPrefix(label, title) {
   return `  ${label.padEnd(7)}${title.substring(0, 46).padEnd(48)}`;
 }
@@ -165,10 +160,9 @@ async function main() {
   log.info(`  Mode: ${modeLabel}`);
 
   log.info("  Launching Playwright Chromium...\n");
-  const { browser, context, page, authDir, cookieCount } = await launchBrowser({
+  const { browser, context, page, cookieCount } = await launchBrowser({
     headless: /** @type {boolean|undefined} */ (args.headless),
     storageStatePath,
-    profilePrefix: "discover-resources",
   });
   if (cookieCount > 0) log.info(`  Injected ${cookieCount} saved cookies.`);
 
@@ -179,7 +173,7 @@ async function main() {
   const firstVideoLesson = findFirstVideoLesson(course.modules);
   if (!firstVideoLesson) {
     log.error("  ✗ No video lessons found in course.json. Cannot verify authentication.");
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     process.exit(1);
   }
   const authCheckUrl = adapter.buildLessonUrl(course, firstVideoLesson, platformCfg);
@@ -195,7 +189,7 @@ async function main() {
     log.error(
       "  ✗ Not authenticated. Run extract-course.js first to establish the auth session.",
     );
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     process.exit(1);
   }
   log.info("  ✓ Authenticated\n");
@@ -224,7 +218,7 @@ async function main() {
   await inspectAllLessons(lessonList, discoveryCtx);
   const checked = discoveryCtx.checked;
 
-  await closeBrowser(context, authDir, browser);
+  await closeBrowser(context, browser);
 
   const withDownload = report.filter((r) => r.hasDownload).length;
   const withNotes = report.filter((r) => r.hasLessonNotes).length;

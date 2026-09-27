@@ -7,8 +7,7 @@
 # Why: the declared userConfig `default` is unimplemented upstream (#46477 —
 # closed not-planned), so an unset-but-defaulted ${user_config.*} argv token
 # silently drops the ENTIRE hook entry instead of substituting. On a default
-# install the hook never fires — the exact regression disk-hygiene shipped
-# through 0.8.x and #1242 fixed. The channel decision matrix
+# install the hook never fires. The channel decision matrix
 # (docs/conventions/hook-config-delivery/) rules argv out for hooks until
 # upstream implements `default`; this gate pins that rule.
 #
@@ -34,6 +33,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/manifest-path-guard.sh
+. "$SCRIPT_DIR/lib/manifest-path-guard.sh" || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-userconfig-argv: jq is required but not installed" >&2
@@ -80,18 +81,13 @@ flag() {
 }
 
 # scan_manifest_path <plugin-dir> <manifest> <relative hooks path> — trust
-# boundary: a manifest-pointed hook config must stay inside its own plugin
-# directory. Reject absolute paths and any `..` segment (portable string
-# check — no realpath dependency) with a visible skip, so a crafted manifest
-# cannot point this gate at files outside the tree it claims to scan.
+# boundary, the same rule the sibling exec-form gate applies:
+# scripts/lib/manifest-path-guard.sh holds it, and hands back an empty path for
+# a value that leaves the plugin directory, which scan_file then ignores.
 scan_manifest_path() {
-  local plugin="$1" manifest="$2" rel="$3"
-  [[ -n "$rel" ]] || return 0
-  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
-    echo "check-hook-userconfig-argv: skipping out-of-tree hooks path in $manifest: $rel" >&2
-    return 0
-  fi
-  scan_file "$plugin/${rel#./}"
+  local plugin="$1" manifest="$2" rel="$3" path
+  manifest_path_guard::resolve_to path check-hook-userconfig-argv "$manifest" "$plugin" "$rel"
+  scan_file "$path"
 }
 
 # scan_file <repo-relative hook config path> — two passes: a raw-text grep for
@@ -107,7 +103,7 @@ scan_file() {
     while IFS= read -r line; do
       flag "$file" "${line%%:*}"
     done <<<"$hits"
-  elif jq -c . "$file" 2>/dev/null | grep -qF "$TOKEN"; then
+  elif grep -qF "$TOKEN" < <(jq -c . "$file" 2>/dev/null); then
     flag "$file" "escaped token in decoded JSON"
   fi
 }
@@ -133,7 +129,7 @@ for plugin in plugins/*/; do
     done < <(jq -r '.hooks[] | select(type == "string")' "$manifest" 2>/dev/null || true)
     ;;
   object)
-    if jq -c '.hooks' "$manifest" 2>/dev/null | grep -qF "$TOKEN"; then
+    if grep -qF "$TOKEN" < <(jq -c '.hooks' "$manifest" 2>/dev/null); then
       flag "$manifest" "inline hooks object"
     fi
     ;;

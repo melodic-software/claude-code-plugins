@@ -6,7 +6,11 @@ the cursor metadata block that the ladder's middle rung reads back.
 
 ## Run metadata
 
-One paragraph under the title, before the first finding: mode, effort level, scope class, lens
+When any verified finding waits on the operator (a design decision, or a non-local finding whose
+route the operator picks), a `**Needs you**:` line directly under the title names each by finding
+number and the choice it needs. Omit the line when nothing waits.
+
+One paragraph under the title (after any `**Needs you**:` line), before the first finding: mode, effort level, scope class, lens
 count, the models the hunters and gates ran on, the file count, whether the hotspot ranking ran, the
 cursor rung, and the candidate counts (raw, after triage, gated). A reader who sees only this
 paragraph knows how narrow or wide the sample was.

@@ -45,12 +45,16 @@ describe("fetchDeckAttachments", () => {
     fs.writeFileSync(path.join(sliceDir, "source", "harvested-links.json"), JSON.stringify(links));
   }
 
+  /**
+   * @param {() => Promise<unknown>} impl
+   */
+  function stubFetch(impl) {
+    vi.stubGlobal("fetch", vi.fn(impl));
+  }
+
   it("streams a normal attachment to disk", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/spec.pdf" }]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => fakeResponse(Buffer.from("hello world"), { contentLength: "11" })),
-    );
+    stubFetch(async () => fakeResponse(Buffer.from("hello world"), { contentLength: "11" }));
 
     const result = await fetchDeckAttachments(sliceDir);
 
@@ -61,10 +65,7 @@ describe("fetchDeckAttachments", () => {
 
   it("skips when content-length exceeds the cap without downloading", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/huge.zip" }]);
-    const fetchMock = vi.fn(async () =>
-      fakeResponse(Buffer.from("x".repeat(50)), { contentLength: "9999999" }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(async () => fakeResponse(Buffer.from("x".repeat(50)), { contentLength: "9999999" }));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10 });
 
@@ -75,10 +76,7 @@ describe("fetchDeckAttachments", () => {
   it("aborts and removes the partial file when the streamed body exceeds the cap", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/lying.bin" }]);
     // No content-length header — the byte-counting cap must catch it mid-stream.
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => fakeResponse(Buffer.from("x".repeat(100)))),
-    );
+    stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10 });
 
@@ -96,10 +94,7 @@ describe("fetchDeckAttachments", () => {
     fs.writeFileSync(destPath, "previously-good-content");
 
     // Retry that overruns the cap mid-stream — must not clobber the good file.
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => fakeResponse(Buffer.from("x".repeat(100)))),
-    );
+    stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10 });
 
@@ -109,10 +104,7 @@ describe("fetchDeckAttachments", () => {
 
   it("skips a non-ok HTTP response", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/missing.pdf" }]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => fakeResponse(Buffer.from(""), { ok: false, status: 404 })),
-    );
+    stubFetch(async () => fakeResponse(Buffer.from(""), { ok: false, status: 404 }));
 
     const result = await fetchDeckAttachments(sliceDir);
 
@@ -122,12 +114,9 @@ describe("fetchDeckAttachments", () => {
 
   it("skips when fetch itself rejects", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/boom.pdf" }]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("network down");
-      }),
-    );
+    stubFetch(async () => {
+      throw new Error("network down");
+    });
 
     const result = await fetchDeckAttachments(sliceDir);
 

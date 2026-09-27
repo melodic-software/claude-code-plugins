@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for conflict-scan.sh (self-contained — ships with the plugin).
+# Regression tests for conflict-scan.sh (assertions from test-helpers.sh beside
+# this file; both ship with the plugin).
 # The must-not-flag cases are the point of this suite: false positives are the
 # failure mode for a conflict detector, so each suppression rule is pinned here.
 set -uo pipefail
@@ -12,34 +13,8 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v awk >/dev/null 2>&1; then
   echo "SKIP: awk not installed" >&2
@@ -267,7 +242,7 @@ EOF
 assert_contains "a dot inside a token does not truncate the window" \
   "$(bash "$SCRIPT" "$WEBMANDATE" "$DOTTED")" "|WebFetch|"
 
-# --- Case 26: an opt-in gate in a neighbouring sentence must not suppress ---
+# --- Case 26: an opt-in gate in a neighboring sentence must not suppress ---
 # Both token classes appearing in the raw span is not arbitration; the gate has
 # to govern the entity, which means sharing its sentence.
 FARGATE="$TEST_TMPDIR/far-gate.md"
@@ -277,7 +252,7 @@ EOF
 assert_eq "an opt-in gate in the next sentence does not suppress" "1" \
   "$(bash "$SCRIPT" --count "$OPTMANDATE" "$FARGATE")"
 
-# --- Case 27 (MUST NOT FLAG): a mandate in a neighbouring sentence ----------
+# --- Case 27 (MUST NOT FLAG): a mandate in a neighboring sentence ----------
 # A neutral mention beside an unrelated mandate is not a directive about the
 # entity, and pairing it inflates the review queue.
 FARMANDATE="$TEST_TMPDIR/far-mandate.md"

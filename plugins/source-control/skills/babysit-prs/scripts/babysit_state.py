@@ -2,9 +2,9 @@
 """Durable queue-state storage for the babysit-prs engine.
 
 Owns state-dir resolution (flag-only -- no environment fallback), the state
-lock, atomic writes, corrupt-state quarantine, the persisted per-PR
-projection, mutation-ledger merging, the scope-aware `save_state`, persistent
-error quarantine, and cross-cycle sweep counters.
+lock, atomic writes, corrupt-state quarantine, the persisted per-PR projection
+and its lookup, mutation-ledger merging, the scope-aware `save_state`,
+persistent error quarantine, and cross-cycle sweep counters.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
@@ -229,6 +229,19 @@ def persisted_pr_state(pr: dict[str, Any]) -> dict[str, Any]:
         )
         or "",
     }
+
+
+def require_pr_state(state: dict[str, Any], key: str) -> dict[str, Any]:
+    """The stored record for one PR, or a refusal naming the missing key.
+
+    Returns the LIVE record object out of the `prs` map, not a copy, so a
+    guarded CLI that mutates what it gets back writes through to the state it
+    later persists.
+    """
+    pr_state = cast(Any, state.get("prs") or {}).get(key)
+    if not is_json_object(pr_state):
+        raise RuntimeError(f"missing snapshot state for {key}; run --write-state first")
+    return pr_state
 
 
 def mutation_ledger_entry(pr: dict[str, Any]) -> dict[str, Any]:

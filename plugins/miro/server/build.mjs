@@ -10,7 +10,7 @@
 // Code runs `npm ci` in the cached copy whenever the plugin ROOT holds both a
 // package.json and a lockfile, and that install cannot be turned off. Kept here, the
 // lockfile still pins the toolchain for CI and Dependabot, but no consumer's cache
-// materialises this project's devDependencies (plugins-reference.md, "Node.js package
+// materializes this project's devDependencies (plugins-reference.md, "Node.js package
 // dependencies", verified 2026-09-11; recheck when that section changes).
 //
 // The source is the single source of truth; the bundle is generated output. `--check`
@@ -19,10 +19,9 @@
 
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-const root = dirname(fileURLToPath(import.meta.url));
+const root = import.meta.dirname;
 const outfile = join(root, "dist", "index.min.js");
 const checkOnly = process.argv.includes("--check");
 

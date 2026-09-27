@@ -66,15 +66,21 @@ emit_skipped() {
 # around builtins-only normalize_path or around physical_path's print wrapper
 # (Command Substitution, Bash Reference Manual;
 # https://mywiki.wooledge.org/CommandSubstitution). realpath/readlink inside
-# physical_path_to is the necessary resolver.
-__ps_phys=""
+# physical_path_to is the necessary resolver, and an unresolvable path is
+# normalized as written rather than dropped.
+#
+# phys_posix_to <var> <path>: the pair as one `_to` helper; its local carries a
+# `__pf_` prefix so a caller's variable name cannot collide with it.
+phys_posix_to() {
+  local __pf_phys=""
+  hook::physical_path_to __pf_phys "$2" || true
+  hook::normalize_path_to "$1" "$__pf_phys"
+}
+
 FILE_DIR_POSIX=""
-hook::physical_path_to __ps_phys "$FILE_DIR" || true
-hook::normalize_path_to FILE_DIR_POSIX "$__ps_phys"
-__ps_phys=""
+phys_posix_to FILE_DIR_POSIX "$FILE_DIR"
 root=""
-hook::physical_path_to __ps_phys "$REPO_ROOT" || true
-hook::normalize_path_to root "$__ps_phys"
+phys_posix_to root "$REPO_ROOT"
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
 # there, so the settings ceiling matches the file-membership ceiling that
@@ -85,10 +91,7 @@ hook::normalize_path_to root "$__ps_phys"
 # the fallback when unset.
 CEILING="$root"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  __ps_phys=""
-  CEILING=""
-  hook::physical_path_to __ps_phys "$CLAUDE_PROJECT_DIR" || true
-  hook::normalize_path_to CEILING "$__ps_phys"
+  phys_posix_to CEILING "$CLAUDE_PROJECT_DIR"
 fi
 
 # Consumer opt-in: a PSScriptAnalyzerSettings.psd1 that governs the edited file.
@@ -122,14 +125,20 @@ command -v pwsh >/dev/null 2>&1 || emit_skipped
 
 # PowerShell on Windows does not understand MSYS mount paths (/d/...). Convert
 # both the file and the settings path to a mixed drive-letter form (D:/...) that
-# pwsh consumes, when cygpath is available (Git Bash on Windows); on Linux/macOS
-# cygpath is absent and the POSIX paths pwsh already understands pass through.
+# pwsh consumes, when this is a Windows bash with cygpath (Git Bash); on
+# Linux/macOS the POSIX paths pwsh already understands pass through, with no
+# cygpath lookup (a miss probes every PATH directory, /mnt/c ones on WSL).
 to_pwsh_path() {
-  if command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
-  else
-    printf '%s' "$1"
-  fi
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    if command -v cygpath >/dev/null 2>&1; then
+      cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+      return
+    fi
+    ;;
+  *) ;;
+  esac
+  printf '%s' "$1"
 }
 PSSA_FILE_ARG="$(to_pwsh_path "$FILE")"
 PSSA_SETTINGS_ARG="$(to_pwsh_path "$SETTINGS_FOUND")"
@@ -669,7 +678,7 @@ case $PWSH_EXIT in
   done <<<"$PSSA_OUTPUT"
   if [[ "$TRUST_VERDICT" == "GATE" && -n "$TRUST_MARKER_NAME" ]]; then
     trust_state_base="${CLAUDE_PLUGIN_DATA:-}"
-    if command -v cygpath >/dev/null 2>&1 && [[ "$trust_state_base" == [A-Za-z]:\\* ]]; then
+    if [[ "$trust_state_base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
       trust_state_base="$(cygpath -u "$trust_state_base" 2>/dev/null)" || trust_state_base=""
     fi
     [[ -n "$trust_state_base" ]] &&

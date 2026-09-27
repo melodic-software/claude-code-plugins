@@ -80,6 +80,17 @@ export function isPipelinePlaceholderGapNote(gapNote) {
 }
 
 /**
+ * Bare basename of a promotion destName, with the `.png` extension ensured.
+ *
+ * @param {string} destName
+ * @returns {string}
+ */
+export function normalizeSynthesisDestName(destName) {
+  const base = path.basename(destName);
+  return base.endsWith(".png") ? base : `${base}.png`;
+}
+
+/**
  * @param {string} fileName
  * @returns {string|null}
  */

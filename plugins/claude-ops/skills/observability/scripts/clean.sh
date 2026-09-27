@@ -144,13 +144,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$KEEP_DAYS" in
-*[!0-9]*)
-  echo "ERROR: --keep-days must be a non-negative integer (got: $KEEP_DAYS)" >&2
-  exit 2
-  ;;
-*) ;;
-esac
+# Both retention windows are validated the same way, each naming its own flag.
+require_nonneg_int() { # <flag> <value>
+  case "$2" in
+  *[!0-9]*)
+    echo "ERROR: $1 must be a non-negative integer (got: $2)" >&2
+    exit 2
+    ;;
+  *) ;;
+  esac
+}
+
+require_nonneg_int --keep-days "$KEEP_DAYS"
 
 # A contained relative path is the only accepted root shape: the hooks refuse
 # anything else, so a prune there would touch a tree nothing writes to.
@@ -186,7 +191,6 @@ cutoff_iso_days_ago() {
     epoch=$(date -u -d "${days} days ago" +%s) # portability-ok: see if-guard above (#1510)
     date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ   # portability-ok: see if-guard above (#1510)
   else
-    # macOS BSD date
     epoch=$(date -u -v-"${days}"d +%s)
     date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ
   fi
@@ -201,7 +205,6 @@ log() {
 log "clean: keeping entries on/after $CUTOFF_ISO (--keep-days $KEEP_DAYS)"
 [[ "$DRY_RUN" -eq 1 ]] && log "clean: DRY-RUN — no files will be modified"
 
-# Process one file. Args: file_path, timestamp_field.
 prune_file() {
   local file="$1" ts_field="$2"
   # Third arg is an optional per-target cutoff. Absent, the caller's global
@@ -224,7 +227,6 @@ prune_file() {
     return 0
   fi
 
-  # Count what would survive
   local kept_count
   kept_count=$(jq -c --arg cutoff "$CUTOFF_ISO" --arg ts "$ts_field" \
     'select(.[$ts] >= $cutoff)' "$file" 2>/dev/null | wc -l | tr -d ' \r')
@@ -344,13 +346,7 @@ fi
 # somebody else's files, which is why `data-dir` demands an explicit directory
 # and is never guessed.
 if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
-  case "$KEEP_SKILL_USAGE_DAYS" in
-  *[!0-9]*)
-    echo "ERROR: --keep-skill-usage-days must be a non-negative integer (got: $KEEP_SKILL_USAGE_DAYS)" >&2
-    exit 2
-    ;;
-  *) ;;
-  esac
+  require_nonneg_int --keep-skill-usage-days "$KEEP_SKILL_USAGE_DAYS"
 
   case "$SKILL_USAGE_DIR" in
   /* | [A-Za-z]:* | *..*)

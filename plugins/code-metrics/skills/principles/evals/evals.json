@@ -10,7 +10,7 @@
       "expectations": [
         "Loads reference/measures.md first and does not load all four reference files",
         "States the difficulty formula, that it carries no explicit length term, and that a split can move per-file difficulty because each half's operator count and operand-reuse ratio change",
-        "Names the collector behaviour: Halstead from multimetric is per file, not per function",
+        "Names the collector behavior: Halstead from multimetric is per file, not per function",
         "Says no standard sets a Halstead threshold rather than suggesting a number of its own",
         "Renders no verdict on whether 41 is acceptable"
       ]
@@ -32,7 +32,7 @@
     {
       "id": 3,
       "name": "surviving-mutants-routed-through-the-gated-pointer",
-      "prompt": "/code-metrics:principles we are at 95% coverage but reviewers keep finding untested behaviour. How do I measure surviving mutants?",
+      "prompt": "/code-metrics:principles we are at 95% coverage but reviewers keep finding untested behavior. How do I measure surviving mutants?",
       "expected_output": "Explains that coverage counts executed lines and cannot tell you a line was checked, then routes: invoke /mutation-testing:principles and /mutation-testing:audit when the mutation-testing plugin is installed. When it is not installed, states that the concern is out of this plugin's scope, that nothing in this plugin substitutes for it, and does not offer coverage or CRAP as a stand-in.",
       "files": [],
       "expectations": [

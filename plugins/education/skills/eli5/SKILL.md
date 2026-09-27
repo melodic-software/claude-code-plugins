@@ -43,7 +43,8 @@ rather than drawing a plausible diagram of something you did not read.
 Check whether the upstream `eli5` plugin is installed, then take exactly one branch.
 
 **Installed** → invoke its `eli5` skill via the Skill tool (it is addressed
-`eli5:eli5`), passing the grounded topic rather than the user's raw phrasing, so the
+`eli5:eli5`), passing the grounded topic and Step 3's styles to leave out rather
+than the user's raw phrasing, so the
 upstream skill works from what Step 1 established. Check the result against the
 output contract above before returning it. If it comes back without diagrams, or
 leaning on terms a zero-knowledge reader would not have, treat that as the
@@ -89,6 +90,10 @@ Build the explainer directly, to the same contract.
 - When the `artifact-design` and `artifact-diagramming` session skills are
   available, load them before writing the page; they own the visual bar. Without
   them, hold to the same rules directly.
+- **Name the styles to leave out.** No cream or off-white background, italic accent
+  words in headings, numbered "01 / 02 / 03" section labels, or pill-shaped badges,
+  plus any style the user names. When the user dislikes a choice in the result, add it to the list and redo the
+  page.
 
 ### Delivering the page
 

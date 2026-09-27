@@ -4,8 +4,7 @@
 # check-shell-portability.sh and check-skill-portability.sh are twins: both load
 # a `<token> <ere>` data file with awk's `FNR == NR` idiom and then scan a file
 # per invocation, passing BOTH as awk operands. That shape has a silent
-# fail-open, fixed once in #1513 and then not propagated -- the divergence
-# #2914 (finding 2) filed:
+# fail-open:
 #
 #   awk parses an operand shaped like identifier=value as a command-line
 #   VARIABLE ASSIGNMENT, not as a file to open. A token list reached through
@@ -16,10 +15,7 @@
 #
 # The fix is one line -- prefix an unrooted operand with `./`, which is never a
 # valid awk identifier lead character, so the operand can only parse as a
-# filename -- and the bug was that one line living in one of the two twins. At
-# extraction time check-shell-portability.sh guarded both its token list and
-# each scanned file, while check-skill-portability.sh guarded only the scanned
-# file and left its token list exposed to exactly the #1513 fail-open.
+# filename -- and it lives here so neither twin can drop it.
 #
 # WHAT IS DELIBERATELY NOT HERE. The mode dispatch (`<base-ref>` / `--all` /
 # `--paths`) and the awk programs stay in the two gates. They are not near-
@@ -28,7 +24,7 @@
 # check-shell-portability.sh consults a skill-markdown baseline. Hoisting a
 # parameterized dispatcher over those differences would trade a real duplicate
 # for a fake abstraction -- so this file owns the one thing the two genuinely
-# share, and the rest of finding 2's remediation is left as filed.
+# share.
 
 # token_scan::awk_operand <path>
 #
@@ -41,24 +37,15 @@ token_scan::awk_operand() {
   esac
 }
 
-# token_scan::require_token_file <out-var> <path>
+# token_scan::require_token_file <path>
 #
-# Validates that <path> exists and assigns the operand-safe form to <out-var>.
-# Returns 1 (caller exits 2) with the diagnostic both gates already printed
-# verbatim when the file is missing -- a token list that is absent must fail the
-# gate closed, for the same reason one that is silently unopened must: a scan
-# with no patterns is not a clean scan.
-# Every local here carries the `_ts_` prefix for the same correctness reason
-# scripts/lib/changed-files.sh spells out: a nameref resolves in the scope where
-# it is used, so an unprefixed local sharing the caller's chosen out-var name
-# would shadow that caller's variable and swallow the result with no diagnostic.
+# Validates that <path> exists. Returns 1 (caller exits 2) with the diagnostic
+# both gates already printed verbatim when the file is missing -- a token list
+# that is absent must fail the gate closed, for the same reason one that is
+# silently unopened must: a scan with no patterns is not a clean scan.
 token_scan::require_token_file() {
-  local -n _ts_tokens_out="$1"
-  local _ts_path="$2"
-  if [[ ! -f "$_ts_path" ]]; then
-    printf 'Error: token list not found: %s\n' "$_ts_path" >&2
+  if [[ ! -f "$1" ]]; then
+    printf 'Error: token list not found: %s\n' "$1" >&2
     return 1
   fi
-  _ts_tokens_out="$(token_scan::awk_operand "$_ts_path")"
-  return 0
 }

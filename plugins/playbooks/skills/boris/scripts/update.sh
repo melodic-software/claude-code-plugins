@@ -46,7 +46,6 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
-  return 0
 }
 
 check_prereqs() {
@@ -76,10 +75,9 @@ local_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v f="$field" '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == f":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
-# Fetch upstream version from the API.
 fetch_upstream_version() {
   local body
   body=$(curl -sSL --fail --max-time 15 "$VERSION_URL" 2>/dev/null) || return 1
@@ -96,16 +94,14 @@ fetch_upstream_install() {
   printf '%s' "$out"
 }
 
-# Compute SHA256 of a local file path.
 file_sha() {
   local path="$1"
   [[ -f "$path" ]] || return 0
   sha256 "$path" | awk '{print $1}' | tr -d '\r'
 }
 
-# Replace a nested metadata field in the SKILL.md frontmatter.
-# Anchored to the indented key under the metadata: block to avoid matching
-# unrelated top-level keys.
+# Replace a nested metadata field in the SKILL.md frontmatter, anchored to the
+# indented key under the metadata: block so a top-level key never matches.
 replace_metadata_field() {
   local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.tmp"
   # Escape chars special on sed's replacement side (& \ and the | delimiter) so

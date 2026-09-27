@@ -12,29 +12,10 @@ readonly SCRIPT_DIR
 DRIVER="$SCRIPT_DIR/run-spawn-census.sh"
 readonly DRIVER
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-RUN_OUT=""
-RUN_RC=0
-run_driver() {
-  RUN_OUT="$(bash "$DRIVER" "$@" 2>&1)"
-  RUN_RC=$?
-}
+run_driver() { capture bash "$DRIVER" "$@"; }
 
 # Not under the system temporary root: the shim directory rejection would
 # otherwise make every case unrunnable.
@@ -71,7 +52,7 @@ run_driver --shim-dir "$SHIM" --tool sed \
   --before "bash '$WORK/stable.sh' 3" --after "bash '$WORK/stable.sh' 1"
 assert_eq "a stable before/after pair exits 0" "0" "$RUN_RC"
 assert_contains "the counter delta is reported" "delta=-2" "$RUN_OUT"
-assert_contains "the cold run is labelled separately" "cold  spawns=" "$RUN_OUT"
+assert_contains "the cold run is labeled separately" "cold  spawns=" "$RUN_OUT"
 assert_contains "stability is stated, not assumed" "both arms agreed" "$RUN_OUT"
 
 # --- 2. a subject whose WARM runs disagree is a hard failure ---

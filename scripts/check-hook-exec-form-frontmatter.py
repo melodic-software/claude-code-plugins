@@ -7,7 +7,11 @@ owns only the READING of the frontmatter surface, and emits what it finds as
 tab-separated records on stdout:
 
     V<TAB><file><TAB><line><TAB><command>   an exec-form hook object
+    S<TAB><file><TAB><line><TAB><command>   a shell-form hook object (no `args`)
     X<TAB><file><TAB><line><TAB><reason>    frontmatter that could not be read
+
+`scripts/check-hook-slow-shapes.sh` reads the S records; the exec-form gate
+ignores them.
 
 Why a real YAML parser, and why Python
 --------------------------------------
@@ -76,6 +80,18 @@ def frontmatter_of(text: str) -> tuple[str, int] | None:
     return None
 
 
+def merge_targets(value_node):
+    """The mapping nodes a `<<` value names: one node, or a sequence of them.
+
+    Anything else a document puts there (a scalar, an alias to a sequence) names
+    no mapping and contributes no keys.
+    """
+    candidates = (
+        value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
+    )
+    return [source for source in candidates if isinstance(source, yaml.MappingNode)]
+
+
 def mapping_entries(node, seen):
     """Yield (key, value_node, key_node) for a mapping, expanding merge keys.
 
@@ -92,8 +108,8 @@ def mapping_entries(node, seen):
         if not isinstance(key, str):
             continue
         if key == "<<":
-            for source in value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]:
-                if not isinstance(source, yaml.MappingNode) or id(source) in seen:
+            for source in merge_targets(value_node):
+                if id(source) in seen:
                     continue
                 seen.add(id(source))
                 for merged_key, merged_value, _ in mapping_entries(source, seen):
@@ -141,9 +157,8 @@ def merge_sources(node, seen):
     for key_node, value_node in node.value:
         if getattr(key_node, "value", None) != "<<":
             continue
-        candidates = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
-        for source in candidates:
-            if not isinstance(source, yaml.MappingNode) or id(source) in seen:
+        for source in merge_targets(value_node):
+            if id(source) in seen:
                 continue
             seen.add(id(source))
             yield source
@@ -151,7 +166,7 @@ def merge_sources(node, seen):
 
 
 def scan_node(node, path: str, offset: int, seen: set) -> None:
-    """Report every mapping in this subtree carrying both `command` and `args`."""
+    """Report every mapping in this subtree carrying `command` (V with `args`, S without)."""
     if node is None or id(node) in seen:
         return
     seen.add(id(node))
@@ -168,14 +183,28 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
                     f"duplicate `{key}` key inside the hooks declaration; readers disagree on which wins",
                 )
                 return
-        entries = {key: (value, key_node) for key, value, key_node in mapping_entries(node, set())}
+        entries = {
+            key: (value, key_node)
+            for key, value, key_node in mapping_entries(node, set())
+        }
         if "command" in entries and "args" in entries:
             command_node, command_key_node = entries["command"]
             line = command_key_node.start_mark.line + offset
             if isinstance(command_node, yaml.ScalarNode):
                 emit("V", path, line, command_node.value)
             else:
-                emit("X", path, line, "an exec-form hook whose `command` is not a scalar")
+                emit(
+                    "X", path, line, "an exec-form hook whose `command` is not a scalar"
+                )
+        elif "command" in entries:
+            command_node, command_key_node = entries["command"]
+            line = command_key_node.start_mark.line + offset
+            if isinstance(command_node, yaml.ScalarNode):
+                emit("S", path, line, command_node.value)
+            else:
+                emit(
+                    "X", path, line, "a shell-form hook whose `command` is not a scalar"
+                )
         for value_node, _ in entries.values():
             scan_node(value_node, path, offset, seen)
     seen.discard(id(node))
@@ -186,7 +215,12 @@ def scan_file(path: str) -> None:
         with open(path, encoding="utf-8", errors="strict") as handle:
             text = handle.read()
     except (OSError, UnicodeDecodeError) as error:
-        emit("X", path, 1, f"could not be read as UTF-8 text ({error.__class__.__name__})")
+        emit(
+            "X",
+            path,
+            1,
+            f"could not be read as UTF-8 text ({error.__class__.__name__})",
+        )
         return
 
     block = frontmatter_of(text)
@@ -198,7 +232,12 @@ def scan_file(path: str) -> None:
     except yaml.YAMLError as error:
         mark = getattr(error, "problem_mark", None)
         line = (mark.line + offset) if mark is not None else offset
-        emit("X", path, line, "the YAML frontmatter does not parse, so this gate cannot clear it")
+        emit(
+            "X",
+            path,
+            line,
+            "the YAML frontmatter does not parse, so this gate cannot clear it",
+        )
         return
 
     if not isinstance(root, yaml.MappingNode):
@@ -219,10 +258,14 @@ def scan_file(path: str) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
-        print("usage: check-hook-exec-form-frontmatter.py <root> [<root> ...]", file=sys.stderr)
+        print(
+            "usage: check-hook-exec-form-frontmatter.py <root> [<root> ...]",
+            file=sys.stderr,
+        )
         return 2
     for root in argv[1:]:
-        for directory, _, filenames in os.walk(root):
+        for directory, dirnames, filenames in os.walk(root):
+            dirnames.sort()  # walk order is filesystem order otherwise; sorted keeps output stable
             for filename in sorted(filenames):
                 if filename.endswith(".md"):
                     scan_file(os.path.join(directory, filename).replace(os.sep, "/"))

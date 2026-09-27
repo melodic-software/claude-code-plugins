@@ -16,7 +16,7 @@ when you describe broken behavior with no pre-existing reproduction.
    signal that says "bug present / bug fixed". Ten construction strategies, from a
    failing test to a human-in-the-loop script.
 2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described.
-3. **Hypothesise**. Generate 3-5 ranked, falsifiable hypotheses before testing any.
+3. **Hypothesize**. Generate 3-5 ranked, falsifiable hypotheses before testing any.
 4. **Instrument**. One probe per prediction, one variable at a time; tagged debug
    logs that clean up with a single grep. A dedicated performance branch.
 5. **Fix + regression test**. Test at a *correct seam* first; if none exists, that

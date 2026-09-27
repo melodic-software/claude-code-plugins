@@ -1,0 +1,86 @@
+schema_version: "1.1"
+name: real-hook-utils-header-aggressive
+description: aggressive on the lib/hook-utils.sh header keeps the directive, a one-line SSOT warning, and a one-line _to calling convention, and deletes the rest
+tags: [calibration, aggressive, real]
+expected_outcome: The shellcheck directive stays on line 1; the SSOT warning, the _to calling convention, and the kill switch's required placement each survive within the line budget; the library description, fork-cost reasoning, five-printer list, double-sourcing comment, no-fleet-switch rationale, and the hook::is_enabled design rationale are deleted with their narrative staged; the guard and both function bodies are unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive hook-utils-header.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: directive-kept
+    type: regex
+    pattern: '^# shellcheck shell=bash\n'
+    target: { source: file, path: hook-utils-header.sh }
+  - name: ssot-warning-kept
+    type: regex
+    pattern: '#[^\n]*(SSOT|single source)'
+    flags: i
+    target: { source: file, path: hook-utils-header.sh }
+  - name: ssot-sync-kept
+    type: regex
+    pattern: '#[^\n]*sync-hook-utils'
+    target: { source: file, path: hook-utils-header.sh }
+  - name: calling-convention-kept
+    type: regex
+    pattern: '#[^\n]*_to'
+    target: { source: file, path: hook-utils-header.sh }
+  - name: description-deleted
+    type: regex
+    pattern: '#[^\n]*(hook utility library|additionalContext accumulator|telemetry envelope|kill switch, file_path parsing)'
+    flags: i
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: fork-cost-deleted
+    type: regex
+    pattern: '#[^\n]*(CreateProcess|copy-on-write|forks a subshell)'
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: print-helpers-list-deleted
+    type: regex
+    pattern: '#[^\n]*Five helpers still print'
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: double-sourcing-deleted
+    type: regex
+    pattern: '#[^\n]*double-sourcing'
+    flags: i
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: kill-switch-placement-kept
+    type: regex
+    pattern: '#[^\n]*(place after source|before stdin parsing)'
+    flags: i
+    target: { source: file, path: hook-utils-header.sh }
+  - name: fleet-switch-rationale-deleted
+    type: regex
+    pattern: '#[^\n]*(safe-mode|disableAllHooks|fleet)'
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: is-enabled-comment-deleted
+    type: regex
+    pattern: '#[^\n]*(transparent wrapper|statusline|predicate)'
+    flags: i
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]{2,}\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: hook-utils-header.sh }
+  - name: code-intact
+    type: regex
+    pattern: '\[\[ -n "\$\{_HOOK_UTILS_LOADED:-\}" \]\] && return 0\nreadonly _HOOK_UTILS_LOADED=1[\s\S]*hook::is_enabled\(\) \{\n  local var_name="CLAUDE_PLUGIN_OPTION_\$\{1\}_ENABLED"\n  \[\[ "\$\{!var_name:-true\}" == "true" \]\]\n\}\n\nhook::check_enabled\(\) \{\n  hook::is_enabled "\$1" \|\| exit 0\n\}'
+    target: { source: file, path: hook-utils-header.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves the removed rationale, including that a command substitution forks a subshell (a Win32 CreateProcess on Git Bash) so a capture around a _to helper is pure loss, and that the statusline tee needs hook::is_enabled because it is a transparent wrapper that must still pass output through when disabled. FAIL when either reason appears nowhere in the report.

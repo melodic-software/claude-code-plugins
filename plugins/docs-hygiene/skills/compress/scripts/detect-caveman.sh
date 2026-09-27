@@ -25,6 +25,11 @@ operator visibility; SKILL.md pins marketplace `caveman`).
 EOF
 }
 
+emit() {
+  # <available|absent|unknown> <plugin id|none>
+  printf 'Caveman backend: %s\nCaveman plugin id: %s\n' "$1" "$2"
+}
+
 case "${1:-}" in
 -h | --help)
   usage
@@ -34,8 +39,7 @@ case "${1:-}" in
 esac
 
 if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-  printf 'Caveman backend: unknown\n'
-  printf 'Caveman plugin id: none\n'
+  emit unknown none
   exit 0
 fi
 
@@ -52,9 +56,7 @@ plugin_id="$(
 )"
 
 if [[ -n "$plugin_id" ]]; then
-  printf 'Caveman backend: available\n'
-  printf 'Caveman plugin id: %s\n' "$plugin_id"
+  emit available "$plugin_id"
 else
-  printf 'Caveman backend: absent\n'
-  printf 'Caveman plugin id: none\n'
+  emit absent none
 fi

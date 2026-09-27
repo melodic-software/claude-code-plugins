@@ -26,7 +26,12 @@
 #                                            the ONLY loss is the contract file)
 #   tee not found  → one-line notice        (the shim WAS the whole statusline,
 #     and no wrapped args                    so silence would leave a blank bar)
-# It never edits, never writes, and never touches the contract directory.
+# It never edits. It writes exactly one thing: the resolution cache described
+# under RESOLUTION, under the EFFECTIVE config dir, and only when a resolution
+# was found. That is the contract directory only in the default configuration;
+# an operator running a relocated CLAUDE_CONFIG_DIR has the cache beside their
+# relocated plugin cache, while the tee's and the hook's files stay anchored on
+# $HOME. reference/reader-contract.md carries the same qualifier.
 #
 # CACHE ROOT: the cache lives under the EFFECTIVE configuration directory,
 # ${CLAUDE_CONFIG_DIR:-$HOME/.claude} — "Override the configuration directory
@@ -37,14 +42,47 @@
 # dir (the documented multi-account alias), so the shim would silently take the
 # no-tee path forever after they wired it.
 #
-# RESOLUTION: the newest NON-ORPHANED tee by MTIME across marketplaces, which
-# is the most recently installed one — deliberately not a version sort, since
-# version directory names sort lexically ("0.9.0" > "0.10.0") and carry no
-# guarantee of being semver at all. Marketplace directories named temp_* are
-# skipped: the cache holds transient temp_git_*/temp_local_* clones during
-# marketplace operations. Documented limitation: if two DIFFERENT marketplaces
-# both ship a plugin named rate-limit-guard, the most recently installed one
-# wins.
+# RESOLUTION is cache-first. The answer is remembered in ONE file,
+# <effective-config-dir>/<plugin>/.statusline-tee-path, derived from
+# PLUGIN_NAME so that a sibling shim caches under its own name, and written
+# only when the glob below actually ran. A render with a usable cache costs
+# four stat tests and no fork: the cached line is decomposed SEGMENT BY SEGMENT
+# and must name a non-temp_* marketplace, this plugin, a version directory and
+# the tee itself; then the file must exist, its version directory must not be a
+# symlink, and that directory must not carry the orphan marker. Anything
+# failing falls through to the glob, so an empty, truncated, stale or
+# hand-edited cache file costs one walk and never a wrong exec. The segment
+# test is what keeps the cache from widening what the shim will exec: a cache
+# file can only ever name a path at exactly the depth and shape the glob itself
+# produces, dot segments included, since without `dotglob` a `*` matches no
+# leading dot. That revalidation, not the way the file is written, is what
+# makes a concurrent truncate-and-write safe: a reader that sees a torn or
+# empty line simply walks.
+#
+# On a MISS the glob picks the newest NON-ORPHANED tee by MTIME across
+# marketplaces, which is the most recently installed one, deliberately not a
+# version sort, since version directory names sort lexically ("0.9.0" >
+# "0.10.0") and carry no guarantee of being semver at all. Marketplace
+# directories named temp_* are skipped: the cache holds transient
+# temp_git_*/temp_local_* clones during marketplace operations. Documented
+# limitation: if two DIFFERENT marketplaces both ship a plugin named
+# rate-limit-guard, the most recently installed one wins.
+#
+# The CACHE sharpens that limitation, and this is the one thing it makes worse.
+# Installing from marketplace B while an un-orphaned copy from marketplace A is
+# already cached leaves A resolved: the two installs carry different
+# marketplace identities, so nothing orphans A, and a hit never runs the mtime
+# comparison that used to hand the render to B. B takes over once A is orphaned
+# or pruned, or once the cache file is deleted, which reference/
+# reader-contract.md already states a cleanup tool may do freely. Accepted
+# deliberately: re-globbing often enough to notice a second marketplace is the
+# entire cost this cache exists to avoid, and no cheap invalidator
+# distinguishes the case. The cache root's own mtime is not one, since it
+# changes whenever ANY plugin is installed and whenever a temp_* clone appears.
+#
+# Finding NO tee writes
+# nothing and creates nothing: the absence is never cached, so installing the
+# plugin takes effect on the very next render.
 #
 # Verified empirically 2026-07-24: the cache copy does NOT preserve the source
 # file's timestamps — an installed tee carries its INSTALL time (measured: a
@@ -69,11 +107,17 @@
 # scripts/statusline-tee.sh in place. Reproducible on any live cache: every
 # superseded version directory of a plugin carries the marker and the currently
 # installed one does not. A directory can also be marker-less while merely
-# STAGED — a newer version fetched for a pending update — so the marker's
-# absence is not itself a claim of installation; mtime still picks the winner
-# among unmarked candidates, as it did before. If upstream renames or drops the
-# marker, the test finds nothing and resolution falls back to today's
-# mtime-only behavior — a stale tee, never a broken statusline.
+# STAGED (a newer version fetched for a pending update), so the marker's
+# absence is not itself a claim of installation; mtime picks the winner among
+# unmarked candidates whenever the glob runs. Under the cache the marker is
+# also the PRIMARY invalidator rather than only a candidate filter: a cached
+# resolution holds until its version directory is marked orphaned, is pruned,
+# or turns out to be a symlink, so a newer unmarked directory does not take
+# over before one of those fires. An ordinary update marks the superseded
+# directory, so the upgrade path is unaffected; a staged-but-not-installed
+# fetch is the case that changes. If upstream renames or drops the marker, the
+# cached tee lingers until its directory is pruned and the existence test
+# re-globs: a stale tee, never a broken statusline.
 #
 # An alternative authoritative source exists — ~/.claude/plugins/
 # installed_plugins.json maps <plugin>@<marketplace> to the current installPath
@@ -83,14 +127,39 @@
 # documented, and the test is a builtin. Revisit only if upstream documents the
 # file.
 #
-# Pure builtins — glob + `-nt` tests, no subprocesses — because the statusline
-# command runs on every session event and on the refresh interval.
+# SYMLINKED DEVELOPMENT CHECKOUTS are rejected by the cache deliberately. "If
+# you symlink a development checkout into the cache as a plugin's version
+# entry, Claude Code never marks the link as orphaned and never removes it or
+# the folders that hold it" (plugins reference, "Plugin caching and file
+# resolution", https://code.claude.com/docs/en/plugins-reference, fetched
+# 2026-09-21). Neither the orphan test nor the existence test could ever
+# release such an entry, so caching one would pin the dev checkout permanently
+# and installing the real marketplace copy would never take effect. Such a
+# resolution is therefore never WRITTEN, and is rejected on read as well in
+# case an older revision recorded one. Rejecting it on read alone would be
+# worse than no cache at all: the glob would re-elect the same symlink every
+# render and rewrite the file every render, so that operator would pay the
+# failed hit test plus a write on top of the walk. Skipping the write puts them
+# back on exactly the glob behavior at exactly the pre-cache cost.
+#
+# KNOWN GAP: on Windows an unprivileged development checkout is often a
+# junction rather than a symlink, and `-L` does not report a junction. Whether
+# Claude Code also never-orphans a junctioned version entry is unverified, so a
+# junctioned dev checkout may still be pinned on Git Bash.
+#
+# The HIT path is pure builtins, stat tests and parameter expansion with no
+# subprocess at all, because the statusline command runs on every session event
+# and on the refresh interval. A first-time MISS forks twice, `mkdir` and
+# `chmod`, to create this plugin's directory under the effective config dir
+# when it is not already there; the cache write itself is a builtin redirect.
+# Every write is best-effort, so failing to record the answer still execs the
+# tee.
 
 set -uo pipefail
 
 PLUGIN_NAME="rate-limit-guard"
 
-# shim-revision: 3
+# shim-revision: 4
 # Bumped whenever this file's content changes. The installed copy is a
 # BYTE-IDENTICAL copy of this file, so /rate-limit-guard:setup check compares
 # the two directly; the marker is for humans reading the installed copy.
@@ -108,6 +177,55 @@ resolve_tee() {
   fi
 
   local cache="$config_dir/plugins/cache"
+  # Both of these are derived HERE rather than at top level: with HOME and
+  # CLAUDE_CONFIG_DIR both unset there is no config dir to anchor them to, and
+  # `set -u` would abort the shim outright instead of degrading.
+  local cache_dir="$config_dir/$PLUGIN_NAME"
+  local cache_file="$cache_dir/.statusline-tee-path"
+
+  # HIT PATH. The -f guard is load-bearing twice over: an input redirect on an
+  # absent file prints to stderr, which the shim must leave clean, and a failed
+  # redirect would leave `cached` unset for `set -u` to abort on. -f is a stat
+  # test, so it says nothing about READABILITY; 2>/dev/null covers the
+  # mode-000 case and precedes the input redirect for the reason given at the
+  # write below. A nonzero read status is treated as no cached line, which
+  # costs a walk on a file whose last line carries no newline and then rewrites
+  # it with one.
+  if [[ -f "$cache_file" ]]; then
+    local cached=""
+    IFS= read -r cached 2>/dev/null <"$cache_file" || cached=""
+    # SEGMENT decomposition, not one pattern: inside [[ ]] a `*` matches `/`,
+    # so a shape test cannot constrain depth and would accept paths the glob
+    # can never produce. $cache stays QUOTED wherever it is a pattern operand,
+    # or a `*`, `?` or `[` in the operator's own config-dir path would be read
+    # as a pattern.
+    local crest="${cached#"$cache"/}" cmkt="" cplug="" cver=""
+    if [[ "$crest" != "$cached" ]]; then
+      cmkt="${crest%%/*}"
+      crest="${crest#*/}"
+      cplug="${crest%%/*}"
+      crest="${crest#*/}"
+      cver="${crest%%/*}"
+      crest="${crest#*/}"
+      # A segment starting with a dot is rejected because the glob below can
+      # never produce one: without `dotglob`, `*` does not match a leading dot.
+      # Without this test, `.` and `..` pass as a marketplace or a version and
+      # reach two levels ABOVE the cache root, and `..` also defeats the
+      # symlink guard structurally, because a `cdir` ending in `/..` or `/.` is
+      # never itself a link.
+      if [[ -n "$cmkt" && "$cmkt" != temp_* && "$cmkt" != .* && "$cplug" == "$PLUGIN_NAME" ]] &&
+        [[ -n "$cver" && "$cver" != .* && "$crest" == "scripts/statusline-tee.sh" ]]; then
+        local cdir="${cached%/scripts/statusline-tee.sh}"
+        # Present, not a symlinked dev checkout no invalidator could release,
+        # and not marked orphaned by an update or an uninstall.
+        if [[ -f "$cached" && ! -L "$cdir" && ! -e "$cdir/.orphaned_at" ]]; then
+          RESOLVED="$cached"
+          return 0
+        fi
+      fi
+    fi
+  fi
+
   local cand mkt rest
   for cand in "$cache"/*/"$PLUGIN_NAME"/*/scripts/statusline-tee.sh; do
     # An unmatched glob expands to the literal pattern; -f rejects it.
@@ -122,6 +240,31 @@ resolve_tee() {
       RESOLVED="$cand"
     fi
   done
+
+  # Remember the answer. Never a negative entry: finding nothing leaves the
+  # directory uncreated, so a later install takes effect on the next render.
+  [[ -n "$RESOLVED" ]] || return 0
+  # A symlinked version directory is rejected on read, so recording one would
+  # make every later render fail the hit test, re-elect the same symlink, and
+  # rewrite this file: strictly more work than no cache at all. Leaving it
+  # unwritten keeps a development checkout on exactly the pre-cache path.
+  [[ -L "${RESOLVED%/scripts/statusline-tee.sh}" ]] && return 0
+  if [[ ! -d "$cache_dir" ]]; then
+    mkdir -p "$cache_dir" 2>/dev/null || return 0
+    # Owner-only, matching the posture the tee gives its own directory. The two
+    # are the same directory only when CLAUDE_CONFIG_DIR is unset; the tee's is
+    # hard-anchored on $HOME.
+    chmod 700 "$cache_dir" 2>/dev/null || true
+  fi
+  # A pre-planted symlink here would be followed and truncated through, so the
+  # write is skipped rather than aimed at whatever it points to. Losing the
+  # cache costs a glob on the next render; nothing else depends on it.
+  [[ -L "$cache_file" ]] && return 0
+  # 2>/dev/null precedes the output redirect on purpose: redirections apply
+  # left to right, so one placed after it would not yet be in effect when bash
+  # reports a failure to open the target.
+  printf '%s\n' "$RESOLVED" 2>/dev/null >"$cache_file" || true
+  return 0
 }
 
 resolve_tee

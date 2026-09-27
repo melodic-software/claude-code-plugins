@@ -40,7 +40,7 @@ No action → route on context (a structural question → `form`; "write me a br
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §6 (+ §5 for hook/title) before output.
+- **Pre-flight:** run response-filter §6 (+ §5 for hook/title) before output.
 - Name the form and what each section is DOING; recommend the smallest structural change that fixes
   the problem, not a wholesale rewrite.
 - Repetition is repainting, not stagnation, a repeated chorus should mean something new by its
@@ -76,7 +76,7 @@ checks get named as passed rather than run, and a chorus draft ships with zero r
 against a mandatory eight, zero mosaic against a mandatory three, and no object writing behind it.
 Naming a filter box is not running it.
 
-Two section-type rules bind before any line-level judgement here, both from
+Two section-type rules bind before any line-level judgment here, both from
 [repetition](../../context/pat-pattison/research/repetition.md):
 
 - **Verses show; the chorus tells.** Verses carry specific situation, image, and action; the chorus

@@ -1,5 +1,8 @@
 # Running this playbook on Claude Opus 5
 
+This chapter is kept only because Opus 5 is a fallback target for flagged requests from Fable
+and Opus 5.5 sessions; Opus 5.5 is the current Opus.
+
 ## Contents
 
 - [Verification: you already self-verify. Remove instructed re-checks, keep architected review](#verification-you-already-self-verify-remove-instructed-re-checks-keep-architected-review)
@@ -83,7 +86,7 @@ a fact you assert. Read broadly, "you already self-verify" would strip exactly t
 finding says are needed more, not less. The card measures confidence calibration on stated facts,
 which self-verification of your own reasoning does not touch. The card is also silent on whether
 you abstain more or less: it says only that your abstention rate is "closer to Mythos 5 than
-previous Opus models" and gives no direction, so do not infer a licence to answer more freely.
+previous Opus models" and gives no direction, so do not infer a license to answer more freely.
 
 ## Correction narration: fix the slip, announce only what changes a decision
 
@@ -207,11 +210,14 @@ effort content and every other effort claim resolves at those pages. `[CC: direc
   harness-side behavior, so re-probe after CC/API changes). `[CC: direct]`
 - Harness controls (live `code.claude.com/docs/en/model-config` + `/settings`): session toggle
   `Alt+T` (Windows/Linux) / `Option+T` (macOS); global default `alwaysThinkingEnabled` via
-  `/config`; `MAX_THINKING_TOKENS=0` in settings `env` forces thinking off on the Anthropic API,
-  except Fable 5, where thinking cannot be turned off at all (the session toggle,
-  `alwaysThinkingEnabled`, and `MAX_THINKING_TOKENS=0` all have no effect there). Third-party
-  providers omit the `thinking` parameter instead, and adaptive-reasoning models may still think.
-  `[CC: direct]`
+  `/config`; `MAX_THINKING_TOKENS=0` in settings `env` "turns thinking off on the Anthropic API
+  except on Opus 5.5 and Fable models", where thinking cannot be turned off at all (the session
+  toggle, `alwaysThinkingEnabled`, and `MAX_THINKING_TOKENS=0` all have no effect there). It does
+  turn thinking off on Opus 5. Third-party providers omit the `thinking` parameter instead, and
+  adaptive-reasoning models may still think. `[CC: direct]` Verification record: **claim** the
+  exception list above; **basis** the model-config page's thinking table, raw `.md` MD5
+  `459c915e18892813e484986ada64efd7`; **as of** 2026-09-23; **recheck trigger** a re-read of that
+  table naming a different exception list.
 - **The two bullets above compose into one statically checkable config rule.** Neither states it
   alone, so state it here. A configuration pairing a thinking-disable surface
   (`MAX_THINKING_TOKENS=0`, the `/config` thinking toggle, `alwaysThinkingEnabled: false`, or API

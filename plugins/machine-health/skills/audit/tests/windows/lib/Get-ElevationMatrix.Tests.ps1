@@ -2,9 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-ElevationMatrix.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-ElevationMatrix.ps1'
 }
 
 Describe 'Get-ElevationMatrix' -Tag 'lib' {
@@ -28,19 +26,8 @@ Describe 'Get-ElevationMatrix' -Tag 'lib' {
         }
     }
 
-    It 'Get-ElevationMatrixByCheckId filters correctly' {
-        $drivers = Get-ElevationMatrixByCheckId -CheckId 'drivers'
-        $drivers | Should -Not -BeNullOrEmpty
-        foreach ($d in $drivers) { $d.CheckId | Should -Be 'drivers' }
-    }
-
-    It 'Get-ElevationMatrixByCheckId returns empty for unknown id' {
-        $unknown = Get-ElevationMatrixByCheckId -CheckId 'does-not-exist'
-        @($unknown).Count | Should -Be 0
-    }
-
     It 'includes defender-exclusions (admin-gated for Get-MpPreference)' {
-        $entry = Get-ElevationMatrixByCheckId -CheckId 'defender-exclusions'
+        $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq 'defender-exclusions' }
         $entry | Should -Not -BeNullOrEmpty
         $entry.AdminRequired | Should -BeTrue
         $entry.Fields | Should -Contain 'unexpected_path_count'

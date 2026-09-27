@@ -112,29 +112,61 @@ slog_in_checkout() {
 # present-but-different one is left alone and refuses the write, because an
 # operator edited it. Outside a checkout there is nothing to keep clean, so the
 # write proceeds without a guard. Returns 0 when writing is allowed.
+#
+# A fresh guard is created with an exclusive open, so a sibling's file stays
+# intact. The new file is empty until its two bytes land. A reader that
+# samples that window and then finds the file non-empty reads it again; those
+# bytes are `*`. An operator's text is stable across that reread, so it is
+# still refused. Refusing the first sample drops the event: 33 hooks on one
+# fresh guard were landing 32 lines.
 slog_guard_ok() {
-  local slog__root="$1" slog__project="$2" slog__line
+  local slog__root="$1" slog__project="$2" slog__line slog__try slog__other slog__comment
   slog_in_checkout "$slog__project" || return 0
-  if [[ -f "$slog__root/.gitignore" ]]; then
+  for ((slog__try = 0; slog__try < 5; slog__try++)); do
+    if [[ ! -f "$slog__root/.gitignore" ]]; then
+      mkdir -p "$slog__root" 2>/dev/null || return 1
+      # Exclusive create. A truncating `>` would empty a file a sibling has
+      # already opened, and that sibling would then miss the `*` line.
+      if (set -o noclobber; printf '*\n' >"$slog__root/.gitignore") 2>/dev/null; then
+        return 0
+      fi
+      continue
+    fi
+    slog__other=0
+    slog__comment=0
     while IFS= read -r slog__line || [[ -n "$slog__line" ]]; do
       slog__line="${slog__line%$'\r'}"
       case "$slog__line" in
-      '' | '#'*) continue ;;
+      '') continue ;;
+      '#'*) slog__comment=1 ;;
       '*') return 0 ;;
-      *) return 1 ;;
+      *)
+        slog__other=1
+        break
+        ;;
       esac
     done <"$slog__root/.gitignore"
-    # Content but no `*` line (comments only): an operator's file, refused.
-    # No content at all: a sibling producer opened the file a moment ago and
-    # has not written its byte yet (33 hooks fire on one event), or a crash
-    # left it empty; either way the `*` write below is what it needs, and two
-    # writers of the same two bytes cannot disagree.
-    [[ -s "$slog__root/.gitignore" ]] && return 1
-  else
-    mkdir -p "$slog__root" 2>/dev/null || return 1
-  fi
-  printf '*\n' >"$slog__root/.gitignore" 2>/dev/null || return 1
-  return 0
+    if ((slog__other)); then
+      return 1
+    fi
+    # Comments and no `*`: an operator's file. A healed guard is a `*` line,
+    # so this refusal does not wait for another pass.
+    if ((slog__comment)); then
+      return 1
+    fi
+    if [[ -s "$slog__root/.gitignore" ]]; then
+      # The read saw no line and the file now has bytes: a sibling finished
+      # writing `*` after this read opened it.
+      continue
+    fi
+    # Empty: a sibling created it and has not written, or a crash left it
+    # empty. Append the two bytes every healer writes. Append leaves a
+    # sibling's `*` in place, and a file of repeated `*` lines still allows
+    # the write.
+    printf '*\n' >>"$slog__root/.gitignore" 2>/dev/null || return 1
+    return 0
+  done
+  return 1
 }
 
 # slog_valid_id <value>: 0 when <value> is a safe file-name component

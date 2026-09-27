@@ -3,6 +3,27 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3] - 2026-09-27
+
+### Fixed
+
+- `reach`'s Boundary table routes repository fleets to `repo-fleet-hygiene:audit` instead of the bare plugin name (#4119).
+
+## [0.1.2] - 2026-09-23
+
+### Changed
+
+- `reach`: a one-shot remote prompt states what done looks like and what should make the remote
+  turn stop and report, since nobody answers its questions.
+
+## [0.1.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.1.0]
 
 ### Added

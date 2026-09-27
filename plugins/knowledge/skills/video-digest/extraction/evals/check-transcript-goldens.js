@@ -38,11 +38,9 @@ export function clauseMatches(hay, clause, threshold = 0.6) {
 
   if (parts.length === 0) return false;
 
-  const partMatches = (part) => {
-    if (hay.includes(part)) return true;
-    if (part.length > 5 && part.endsWith("ing") && hay.includes(part.slice(0, -3))) return true;
-    return false;
-  };
+  const partMatches = (part) =>
+    hay.includes(part) ||
+    (part.length > 5 && part.endsWith("ing") && hay.includes(part.slice(0, -3)));
 
   const matched = parts.filter((part) => partMatches(part)).length;
   return matched / parts.length >= threshold;

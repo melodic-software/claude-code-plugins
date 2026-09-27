@@ -3,7 +3,18 @@ description: "Verify the rate-limit-guard plugin's wiring on this machine: jq, t
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -22,8 +33,10 @@ conformingly write:
   the value. Do **not** uninstall to reconfigure: that drops this plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
   default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
-  project's directory for a `project`/`local` scope, or the write lands at a scope that does not
-  load. Afterwards rerun `check` in a **fresh session**, because the rendered `${user_config.*}` is
+  project's directory for a `project`/`local` scope, or the rerun adds a second install
+  record at the scope passed and enables the plugin there; the value itself always lands in user
+  settings. A rejected value prints a warning yet exits 0, so read the output.
+  Afterwards rerun `check` in a **fresh session**, because the rendered `${user_config.*}` is
   injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a
   same-session `check` still reports the old value; report the observed effective value, never an
   unobserved change.
@@ -36,8 +49,11 @@ exact statusline edit for the operator to apply by hand**, fully resolved, marke
 operator's, and naming what re-invalidates it. Silence would not be the conforming response on an
 unwritable surface; a printed edit is.
 
-What obliges an `apply` is not configuration at all. The tee's and the hook's machine files under
-`~/.claude/rate-limit-guard/` remain runtime-owned plugin data, not an operator-editable surface,
+What obliges an `apply` is not configuration at all. The machine files under
+`~/.claude/rate-limit-guard/` that the tee and the hook write remain runtime-owned plugin data, not
+an operator-editable surface, and so does the shim's own resolved-tee cache, which follows the
+effective config dir rather than `$HOME` and so sits elsewhere under a relocated
+`CLAUDE_CONFIG_DIR`,
 but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is an owned
 writable artifact this plugin must place, because it is the durable path the operator's own wiring
 names. `apply` writes that one file and nothing else.
@@ -60,7 +76,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
 
-1. **`jq`.** `command -v jq`. FAIL if absent: without it the wrapper cannot tee (it stays
+1. **`jq`.** The pre-computed `jq` row. FAIL if absent: without it the wrapper cannot tee (it stays
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare
@@ -251,7 +267,10 @@ Report both together, in this order, when asked how to back this out:
 
 1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
    the field entirely if the shim was the whole statusline).
-2. **Then remove `~/.claude/rate-limit-guard/`.**
+2. **Then remove `~/.claude/rate-limit-guard/`.** Under a relocated `CLAUDE_CONFIG_DIR`, also remove
+   `<that config dir>/rate-limit-guard/`: the shim's resolved-tee cache follows the effective config
+   dir rather than `$HOME`, so it is the one file this step would otherwise leave behind. Harmless if
+   missed, since nothing reads it once the plugin is gone.
 
 Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
 missing file: `bash <missing-path>` exits 127 and takes the whole statusline down, the exact
@@ -266,6 +285,7 @@ fallback lives in the file that was just deleted.
   the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the contract files. The wrapper and the hook own `rate-limits.json` and
-  `stop-events.jsonl`; `apply` owns only `bin/statusline-shim.sh`.
+  `stop-events.jsonl`, and the shim owns its own `.statusline-tee-path` cache at run time; `apply`
+  owns only `bin/statusline-shim.sh`.
 - Write anywhere outside `~/.claude/rate-limit-guard/`, including the sibling `context-guard`
   directory, whose own setup skill installs that plugin's shim.

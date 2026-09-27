@@ -41,7 +41,7 @@ inside one codebase. Run `/architecture:map-landscape` with no arguments and it
 charts the repository you are in plus every repository its tracked files name,
 one hop out. Your workflows, marketplace sources, module paths, and docs already
 say which systems you build against; the skill reads them rather than requiring
-every neighbour to be checked out beside you.
+every neighbor to be checked out beside you.
 
 Two tested scripts do the collecting. `portfolio-facts.sh` derives owner,
 runtime, target framework, dependencies, tooling, and last touched, each with the
@@ -50,6 +50,10 @@ type trusts exactly one syntax: a workflow `uses:` step, a marketplace source, a
 module path, or a plain citation. Anything no probe could derive stays `unknown`
 rather than becoming a plausible guess, and a repository nobody names produces no
 edge.
+
+A landscape that draws at most two systems or no edges is reported as thin, with
+the reason and what to run instead: `/architecture:improve` or
+`/discovery:explore` when the question is how one repository is built inside.
 
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
@@ -82,7 +86,7 @@ Where nothing is declared and nothing exists, it names the rungs it searched,
 offers two or three common shapes, and writes nothing at all until you pick one:
 this plugin never prescribes a convention to a repository that has none. The
 upstream template catalog is cited by URL for you to read, under its own
-CC BY-NC-SA 4.0 licence; no template prose is copied into this plugin or into
+CC BY-NC-SA 4.0 license; no template prose is copied into this plugin or into
 your records.
 
 ## Invoke

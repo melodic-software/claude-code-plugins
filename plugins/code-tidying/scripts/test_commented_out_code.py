@@ -166,6 +166,47 @@ class Toml(unittest.TestCase):
         self.assertEqual(lines(rows), {3}, rows)
 
 
+@unittest.skipUnless(available(".ps1"), "no PowerShell host (pwsh) on PATH")
+class PowerShell(unittest.TestCase):
+    def test_prose_is_not_flagged_but_code_is(self):
+        src = (
+            "#Requires -Version 7.4\n"
+            "# the quick brown fox jumps over the lazy dog\n"
+            "# Set-Acl asks the provider to persist the descriptor, and the one\n"
+            "# -AllowExitCode judges it\n"
+            "$x = 1\n"
+            "# $y = Get-Item -Path 'a'\n"
+            "# $z = $y.Name\n"
+        )
+        code, rows, err = scan(src, ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {6}, rows)
+        self.assertEqual(rows[0]["end"], 7)
+
+    def test_one_line_block_comment_is_flagged(self):
+        code, rows, err = scan("<# $x = Get-Item -Path 'a' #>\n$y = 1\n", ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {1}, rows)
+
+    def test_multi_line_block_comment_is_flagged(self):
+        src = "<#\n$x = Get-Item -Path 'a'\n$y = $x.Name\n#>\n$z = 1\n"
+        code, rows, err = scan(src, ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {1}, rows)
+
+    def test_comment_based_help_is_not_flagged(self):
+        src = (
+            "<#\n"
+            ".SYNOPSIS\n"
+            "    $result = Invoke-Thing -Name 'a'\n"
+            "#>\n"
+            "$x = 1\n"
+        )
+        code, rows, err = scan(src, ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(rows, [], rows)
+
+
 class Degradation(unittest.TestCase):
     def test_missing_tree_sitter_exits_3(self):
         with tempfile.TemporaryDirectory() as tmp:

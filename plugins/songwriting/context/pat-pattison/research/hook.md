@@ -291,7 +291,7 @@ And after the repeat:
 Pat's in-chapter heading reads "4. Use sound to spotlight the Hook."; both his
 opening list and his closing recap read "4. Use sound to spotlight your HOOK."
 Headings 2, 3 and 4 all differ slightly from their list entries; all are as
-printed and none is normalised here.
+printed and none is normalized here.
 
 See "TARGETING: the named strategy" below for his naming sentence, his two
 examples, and his analysis of the Kevin Cronin bridge.
@@ -473,7 +473,7 @@ Fig `image_rsrc34Y`: `LAST NIGHT'S LOVE` again, scanned `/ / /`.
 
 Not from Chapter 7, but **verified**, and it is Pat's own coinage, not a
 borrowed term. *Writing Better Lyrics* (2009), Chapter 13 ("Dialogue and Point
-of View"), analysing the chorus of "Give Me Wings" by Don Schlitz and Rhonda
+of View"), analyzing the chorus of "Give Me Wings" by Don Schlitz and Rhonda
 Kye Fleming. Pat first writes his own fully-rhyming `abab` alternative fourth
 line, then rejects it:
 

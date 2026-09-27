@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # Tests for inventory.sh (self-contained, ships with the plugin).
 #
-# The behaviour under test is the one the previous revision got wrong: a location
-# the script could not read must report WHY, never 0. A silent zero is
-# indistinguishable from a real absence, which is what made the old output
-# misleading rather than merely incomplete.
+# The behavior under test: a location the script could not read must report
+# WHY, never 0. A silent zero is indistinguishable from a real absence.
 #
-# WHY THIS SUITE PINS EXACT NUMBERS. An earlier revision of this file asserted
-# only status words and banner text, so mutation testing walked straight through
-# it: pinning jq_num to 7, forcing every counting helper to find nothing, leaving
-# plugin_roots empty, setting hook_scripts to 999 and skills_total to 0 all left
-# the suite green. A suite that cannot fail on a wrong number does not protect
+# WHY THIS SUITE PINS EXACT NUMBERS. A suite asserting only status words and
+# banner text stays green when jq_num is pinned to 7, every counting helper finds
+# nothing, plugin_roots is empty, hook_scripts is 999 or skills_total is 0. A suite that cannot fail on a wrong number does not protect
 # the one property this script exists for. Every count below is therefore
 # asserted against a fixture built to a known size, as an exact value and never
 # as "more than zero", and each hook-location row is pinned across all five of
@@ -74,24 +70,22 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 rc=0
-bash "$INVENTORY" --help >/dev/null 2>&1 || rc=$?
+help_out="$(bash "$INVENTORY" --help 2>/dev/null)" || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
-
-help_out="$(bash "$INVENTORY" --help 2>/dev/null)"
 assert_contains "--help documents the never-zero contract" "$help_out" "It never reports that location as 0."
 
 # --- Argument handling --------------------------------------------------------
 #
 # Every argument but -h/--help used to be discarded, so `inventory.sh
 # --plugin-data /x` ran a full audit and exited 0 as though the flag had been
-# honoured. An unrecognised argument is a usage error.
+# honored. An unrecognized argument is a usage error.
 
 rc=0
 bad_out="$(cd "$WORK" && bash "$INVENTORY" --plugin-data /x 2>/dev/null)" || rc=$?
 assert_exit "an unknown argument is a usage error" 2 "$rc"
 assert_eq "an unknown argument prints no inventory" "" "$bad_out"
 bad_err="$(cd "$WORK" && bash "$INVENTORY" --plugin-data /x 2>&1 >/dev/null)"
-assert_contains "the usage error names the argument" "$bad_err" "unrecognised argument: --plugin-data"
+assert_contains "the usage error names the argument" "$bad_err" "unrecognized argument: --plugin-data"
 
 rc=0
 (cd "$WORK" && bash "$INVENTORY" extra-positional >/dev/null 2>&1) || rc=$?
@@ -611,9 +605,8 @@ assert_contains "a plugin-free repo still emits components" "$empty_out" "Compon
 # supply: many plugins, many skills, real settings. The bounds are deliberately
 # one-sided, because the tree grows; the exact numbers are the fixtures' job.
 
-out="$(bash "$INVENTORY" 2>/dev/null)"
 rc=0
-bash "$INVENTORY" >/dev/null 2>&1 || rc=$?
+out="$(bash "$INVENTORY" 2>/dev/null)" || rc=$?
 assert_exit "default run exits 0" 0 "$rc"
 assert_contains "table header present" "$out" "LOCATION"
 assert_contains "table header carries PROBED" "$out" "PROBED"

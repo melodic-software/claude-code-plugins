@@ -3,6 +3,489 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.2] - 2026-09-27
+
+### Changed
+
+- `audit`'s env-var checklist row drops its `**MANDATORY**:` prefix. The row still requires reading `code.claude.com/docs/en/env-vars` verbatim and searching it for each env var name, and still says WebSearch alone is insufficient (#4120).
+
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq`, `curl`, `awk`, and `sort` at load time.** The four `command -v` checks run as
+  pre-computed context, so `check` reads their results instead of making four Bash calls. The FAIL
+  rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
+## [0.49.0] - 2026-09-26
+
+### Added
+
+- **The audit engine labels consent receipts.** An undocumented top-level key recorded in
+  `skills/audit/reference/consent-receipts.json` (keyed by `plugin@marketplace` owner, or
+  `claude-code` for keys the CLI writes; first entry `skipWorkflowUsageWarning`, user scope) is an
+  `ok` row under check `A/consent-receipt`, claim `consent-receipt:<key>`, when the file's scope is
+  one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
+  `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
+  stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
+  name, which also withholds any other owner's label for the key). A key is never labeled when the
+  same file also holds a carriage-return variant of it. A missing or invalid record file, including
+  one whose record fields hold a control character or that lists a key under two owners, is one
+  `not-inspectable` row. An existing
+  `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
+  labeled; the row it retired is no longer a finding.
+
+### Changed
+
+- **The audit engine no longer asks for an explicit `true` or `false` on catalog plugins.** The
+  `drift-new` finding (`new-upstream:<name>@<marketplace>`) is gone. For each marketplace whose
+  catalog has plugins with no `enabledPlugins` entry in any readable scope, the engine emits one
+  `ok` inventory row under check `E/drift-new` (claim `drift-new:<marketplace>`) with the count and
+  an example key.
+- **A disabled plugin is a finding only when an enabled plugin depends on it.** The `info` finding
+  on every `false` key (`disabled-plugin:<key>`) is gone. Every `false` key in the user, project and
+  local files is now an `ok` inventory row with the same claim, noting when a `true` at a higher
+  scope shadows it. A `false` that is the merged value (local over project over user) and that an
+  enabled plugin declares as a direct dependency in its `.claude-plugin/plugin.json` is a `warning`
+  finding, `dependency-disabled:<key>`, on the file holding the `false`, naming the dependents.
+  String (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) dependency forms
+  are read; a bare name resolves to the dependent's marketplace. The manifest is optional, so an
+  install path without `plugin.json` declares no dependencies. An enabled plugin whose install path
+  did not resolve, whose `plugin.json` is not valid JSON, or whose `dependencies` is not an array is
+  a `not-inspectable` row, `dependencies-unread:<key>`.
+  Managed-scope `enabledPlugins` is not merged, and version constraints are not checked. Basis: the
+  plugins/install page (disabling a plugin another enabled plugin needs is refused) and the
+  plugins/dependencies page (a dependent is disabled at the next plugin load), both pinned in
+  `reference/doc-citations.tsv`.
+- **Suppression records keyed to the removed findings no longer match anything.** Records for
+  `disabled-plugin:*` and `new-upstream:*` findings can be deleted from `.claude/audit-pass.md`;
+  those rows are inventory now and carry no finding id. The new finding id to suppress, if wanted,
+  is `dependency-disabled:*`.
+- **`fix-plugin-drift.sh --yes` never adds a key.** NEW upstream plugins print as a
+  `NEW (report only)` list, and the AUTO-ADD plan section is gone.
+- **`fix-plugin-drift.sh` holds an orphan-`false` removal that would expose a `true`.** When the
+  user settings file (or, for an audited `settings.local.json`, its sibling `settings.json`) holds
+  `true` for the key, the removal moves to MANUAL REVIEW, on a dry run too. A lower-precedence file
+  that cannot be read, is not valid JSON, or whose `enabledPlugins` is not an object sends every
+  removal to manual review. A plan with a pending removal says that other developers' user scopes
+  and managed settings were not checked.
+- **`check-plugin-drift.sh` exits 1 only when it finds an orphan.** A run that finds
+  only NEW plugins exits 0, and the summary names `fix-plugin-drift.sh` only when an orphan exists.
+  The orphan-`false` label reads `(false, removal candidate)`.
+- **The drift check reports what it did not diff.** Every `check-plugin-drift.sh` run prints a
+  `Not diffed:` line with the count and the keys whose marketplace the audited file does not
+  declare, including when it declares none. The engine reports the same gap for the project and
+  local files as an `E/drift` `skip` row, `drift-coverage:<file>`; a key whose marketplace no scope
+  registers stays under `unknown-marketplace`.
+- **The fix backup has a new name.** `fix-plugin-drift.sh --yes` writes
+  `<settings>.bak.<UTC stamp>.<random>`, with the random part from `mktemp -u`, in place of
+  `<settings>.<UTC stamp>.bak`. Two applies in the same second each get a backup instead of the
+  second being refused. An ignore rule for `.claude/*.bak` needs to become `.claude/*.bak.*`.
+- **`check-doc-citations.sh` accepts a nested page slug** such as `plugins/install`, creating the
+  fetch subdirectory the page lands in.
+
+### Fixed
+
+- **A plugin or marketplace key holding a carriage return is audited and fixed exactly.** Both
+  drift scripts carry keys as JSON from the settings file and the catalog to the findings and on to
+  the edit, with no `jq -R` line input and no `tr -d '\r'` on a key. A marketplace key ending in a
+  carriage return used to be stripped before the lookup and skipped; `fix-plugin-drift.sh` now
+  removes the carriage-return key and leaves a same-named key without it untouched. The engine's
+  category E rows compare keys in jq as well.
+- **No existing path is written through at the backup name.** The apply is refused when anything
+  already exists at the generated name, and the copy is written on one exclusive open (bash
+  noclobber, which opens a missing name with `O_CREAT|O_EXCL`) under `umask 077`, so a file or
+  symlink planted after that check makes the open fail instead of being followed. No byte is
+  written until the open descriptor is a regular file that is the one at the name. The apply is
+  refused unless the backup is a regular non-symlink file equal to the snapshot, and the refusal on
+  a concurrent change removes the backup only when it is still a regular file.
+- **`check-doc-citations.sh` refuses a manifest slug that could leave its page directory.** Every
+  slug must be lower-case segments joined by `/` (`^[a-z0-9_-]+(/[a-z0-9_-]+)*$`); a `..`
+  segment, a leading `/` or any other shape exits 2 naming the row, before any page is read.
+- **The drift test suites pass on Git Bash with a Windows-form `TMPDIR`.**
+  `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
+  when available and export `TMPDIR` under their own guarded temp directory, and both suites point
+  `HOME` and `CLAUDE_CONFIG_DIR` at a fixture user directory.
+- **Only an orphan whose value is exactly `false` is removed.** `check-plugin-drift.sh` records an
+  orphan's value as the settings file holds it instead of folding it to a boolean, so a `null`,
+  string, number or object value no longer reads as `false`. `fix-plugin-drift.sh` holds `true` and
+  every other value for manual review, including a planned removal whose key has since changed to
+  one, and the engine reports such an orphan as a warning, never as removable.
+- **A `source.repo` that is not `owner/name` is never fetched.** `check-plugin-drift.sh` reports a
+  repo outside GitHub's name characters, or with a `.` or `..` part, as SKIP with the reason
+  `invalid source.repo`, and fetches with `curl --globoff` so the URL is never read as a pattern.
+  Messages print control characters in a marketplace key, settings path or backup path as `?`.
+
+## [0.48.2] - 2026-09-25
+
+### Fixed
+
+- **`fix-plugin-drift.sh` no longer reports "No drift detected" when no marketplace was audited.**
+  Findings whose blocks were all skipped, an `--input` of `[]`, and empty findings from the internal
+  check all print "No marketplace was audited, so there is nothing to report." Any block that is
+  not `ok` is listed under `SKIPPED <n> marketplaces not audited:` with its key and reason (or
+  "no reason given"), above the verdict or the plan, so a partly skipped run says what it did not
+  compare. Every displayed entry prints control characters as `?`, so a name or reason from
+  upstream JSON cannot send escape sequences to the terminal; the edit still uses the raw keys. Only
+  the line-ending carriage return a native-Windows jq appends is stripped from each key, so a
+  carriage return inside a plugin name stays part of the key the edit writes or removes.
+- **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not exactly one
+  array of objects (a top-level object, a string, a zero-byte file, `[1]`, or a second document
+  after the first) exit 2, and so does any plan list jq fails to extract, naming the list, where a
+  failure used to render a truncated plan and exit 0.
+- **`fix-plugin-drift.sh` filters additions and removals against the settings file before
+  rendering the plan.** Manual-review orphans and renames are not filtered. An addition whose key
+  already exists (as `false` or `true`) and a removal whose key is absent are
+  dropped; a removal whose key is now `true` moves to MANUAL REVIEW. The count prints as
+  `FILTERED <n> plan entries no longer match the settings file`. A plan that filters away prints
+  "Nothing to apply" on a dry run and on `--yes`, with no backup and no edit, where a no-op
+  `--input` used to rewrite a compactly formatted file and report "Applied". A dry run whose plan
+  holds only manual-review or rename items also prints "Nothing to apply (no pending removal or
+  addition)." instead of asking for `--yes`, and that line replaces the apply-only "(manual review
+  items only)" wording. A settings file with no `enabledPlugins` filters as an empty map. When a removal or
+  addition is pending, a settings file whose `enabledPlugins` is not an object, or that is not
+  valid JSON, exits 2, on a dry run too.
+- **`fix-plugin-drift.sh --yes` refuses a settings file that changed under it.** The filter, the
+  edit, the line-ending measurement and the backup all come from one snapshot of the settings file
+  taken at plan time. After the backup is written and just before the replace, the live file is
+  compared with that snapshot, and a difference exits 2 with the other writer's bytes left in place
+  and the backup this run just wrote removed. The window between that compare and the replace is
+  documented, not closed. Anything already at the backup path (a file, a symlink including a
+  dangling one, a FIFO or a device node) is refused before the backup is opened, because bash
+  noclobber refuses only an existing regular file; the removal on a refused apply deletes only a
+  regular file at the backup path, never a link. The stage-equals-current refusal now
+  compares the stage against the snapshot and is defensive only, since the filter leaves no entry
+  that would not change the file.
+- **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
+  `Marketplaces declared in the audited file: <n>`, including 0, and an `extraKnownMarketplaces`
+  that cannot be read or is not an object (an array used to be audited as marketplaces named by
+  its indices) exits 2.
+- **Two in-place corrections to the released 0.46.12 entry.** Its "Four changes close it" sentence
+  now counts five and names the stage-equals-current refusal it left out, and its claim that a
+  read-only settings file "comes back read-only" is qualified to platforms that honor mode bits,
+  matching the `fix-plugin-drift.sh` header.
+
+## [0.48.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.48.0] - 2026-09-23
+
+### Added
+
+- **The audit engine reads its upstream sources every run.** It fetches the docs index
+  (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
+  links there, and reads each page verbatim. The document's new `docs` object lists the index and
+  every page with its URL or path, byte count, and state (`read`, `unread` with a reason, or
+  `unparsed`), and `--table` prints it.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched. Fetches are
+  HTTPS only, redirects included (at most 5), and a page whose redirect lands outside the docs
+  origin is `unread` with reason `redirected-off-origin`.
+- **The engine records the Claude Code version.** It runs `claude --version` and carries the
+  result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
+  makes them `skip`.
+- **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
+  project, local, and user settings is looked up on `settings-reference`: by its own heading, or,
+  for a `permissions.*` key, by its name in the `permissions` **Type** bullet. A key found neither
+  way is one finding, claim `undocumented-key:<key>`, whose severity says what the installed
+  `claude` binary showed: `info` when the binary carries the name standalone (bounded by
+  characters that cannot continue an identifier), `warning` when it does not, and `info` when the
+  binary could not be searched (missing, or a shim lacking two known key names) or the name is
+  shorter than four characters or not identifier-shaped. A hit shows the name is in the CLI, not
+  that the CLI reads the key. Keys reach their claim exactly as written, with no tab-separated
+  escaping. A key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` and empty key names are exempt.
+- **A `settings-reference` page that does not parse fails closed.** A page that downloaded but has
+  no heading for `permissions` or `enabledPlugins` (a soft 404, a reshaped page) is recorded with
+  state `unparsed`, not `read`, and every key, value, and version row resting on it is
+  `not-inspectable` rather than a run of undocumented-key findings.
+
+### Changed
+
+- **The `effortLevel` rule is now "value not in the documented set".** The accepted values, and
+  the `disableDeepLinkRegistration` value, come from the key's **Type** bullet on the fetched
+  `settings-reference` instead of a list in the engine, so any undocumented value is flagged, not
+  only `max` and `ultracode`. A value is matched as one whole string, so a multi-line value is
+  never accepted on the strength of one documented line. Claims `effortLevel:<value>` and `disableDeepLinkRegistration:<value>`
+  keep their identity. The matching `audit-checklist.md` rows now point at the Type bullet.
+- **`enforceAvailableModels-without-list` is gated on the version the key requires.** On a Claude
+  Code older than the first "Requires Claude Code" version in the key's section, the row is `ok`
+  with the reason.
+- **Env-var documentation rows are `not-inspectable`, not `skip`, when `env-vars` was not read.**
+  The claim `env-page-not-fetched:<key>` is unchanged.
+- **Default runs use the network.** An offline run reports the unfetched pages `unread` and every
+  row resting on them `not-inspectable`.
+
+### Fixed
+
+- **An env key containing `.` is matched literally on the env-vars page.** The check grepped the
+  key as a regex, so `A.B` matched a documented `AXB`.
+
+## [0.47.1] - 2026-09-23
+
+### Fixed
+
+- **The audit engine no longer reports an env value containing a backslash as a
+  `path-separators` finding.** Its rationale, "forward slashes work on every platform", had no
+  upstream basis: the [env-vars page](https://code.claude.com/docs/en/env-vars) documents
+  `CLAUDE_CODE_GIT_BASH_PATH` as Windows-only and ignores it only when the path is missing or the
+  file is not named `bash.exe`, `sh.exe`, `bash`, or `sh`, and the official examples in
+  [setup](https://code.claude.com/docs/en/setup) and
+  [troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install) use backslashes.
+  The matching `audit-checklist.md` row, the `validation-categories.md` bullet, and the SKILL.md
+  mention are removed.
+
+## [0.47.0] - 2026-09-23
+
+### Added
+
+- **`audit-instructions` catalog 1.22.0 covers Claude Opus 5.5.** New row I8-f flags standing
+  "think carefully" / "think step by step" / `ultrathink` steers on an `opus-5-5` target, seeded by
+  a new `I8-f` scanner family; new check I35 flags a settled-answers instruction on a surface
+  whose later steps can revise earlier ones. I10 (reasoning-echo) and I8-c (don't-think) widen to
+  `opus-5-5`, and I26 gains the Opus 5.5 guide as a third source plus an iterate-the-exclusion-list
+  step. The Opus 5.5 prompting guide joins Sources; the alias example now names `opus-5-5`.
+- **`audit-prompting-postures` checks run shape.** P6 now asks long-running components, and the
+  CLAUDE.md or AGENTS.md of a repo used for long runs, for a finish line and named stops (keep
+  going with status in the same message; stop only when blocked on the human or before a
+  destructive or outward action). P9 covers a task file for long runs, P1 asks fan-out components
+  to check each worker's evidence, and new P11 checks that an end-of-run report leads with what
+  the human owes.
+- **`audit-pass` names what waits on the operator** before the inline headline.
+- **`audit-automation-gaps`' review step** lists only change-blocking problems, each with file,
+  line, why, and how to show it fails.
+
+### Fixed
+
+- **`emit-findings.sh` parses scan-row suffixes `a` through `f`**, so an `I8-f` row declines as
+  `no-severity-crosswalk-row` rather than `unparsable-row`.
+- **`audit-prompting-postures`' description fits the 1,024-character Agent Skills limit** again,
+  with every trigger phrase kept.
+
+## [0.46.15] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.46.14]
+
+### Fixed
+
+- **`unhobble`'s strip and restore cover a root `AGENTS.md`, `.claude/AGENTS.md` and
+  `.claude/CLAUDE.md`.** Under the default instruction-files mode a session reads the `AGENTS.md`
+  names as the project instructions only when no `CLAUDE.md` name displaces them, and the strip
+  removes exactly those names, so a repository
+  whose `CLAUDE.md` is a one-line `@AGENTS.md` shim finished the strip with its whole instruction
+  surface still loading while the skill declared the baseline bare.
+- **New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list
+  of root instruction files both steps read**, and takes its root as an explicit argument rather than
+  resolving the working directory.
+- **`strip` refuses the whole strip, naming the offenders, unless every named file is tracked, clean
+  and comparable.** `git rm` refuses an untracked file and a modified one alike, and a refusal
+  landing mid-loop would leave the files ahead of it gone while the rest kept loading. An
+  `assume-unchanged` or `skip-worktree` bit is its own refusal, naming the `git update-index`
+  invocation that clears it: git stops comparing the worktree copy, so `git diff --quiet` reports
+  clean on an edited file and `git rm` then deletes the edit.
+- **An untracked instruction file, the ordinary case for `CLAUDE.local.md`, is not the helper's to
+  strip.** It is routed to the manifest backup path the experiment already uses for settings, which
+  is where its restore lives, so the bare baseline is reached by the path that can restore it.
+- **Both verbs act only on the names they are given, and `--all` is a separate word.** A plan can
+  classify a `CLAUDE.md` behavioral and an `AGENTS.md` `policy`, and phase 4 re-adds only what the
+  stumble ledger defended. A name the caller approved but the tree does not have exits non-zero
+  rather than recording a bare baseline for a file that still loads, and a repeat is acted on once.
+- **A named `restore` resolves every refusal before it checks anything out**: an unknown name, a ref
+  that is not a commit, a name the ref does not have, or an occupied target exits non-zero with
+  nothing restored. Occupancy is any object rather than a regular file, covers an ancestor that is
+  not a directory, and counts an index entry the filesystem cannot see, which
+  `git checkout <ref> -- <path>` would overwrite.
+- **`restore --all` is the abandon path, not the close path.** It checks out a name the ref has over
+  whatever is on disk, and removes from the worktree and the index a name the ref lacks but git
+  tracks. A name blocked by a symlink, a directory or a non-directory ancestor is reported and
+  stepped over with its index entry still dropped, and one untracked and absent from the ref is left
+  in place and named, git being unable to tell a file the experiment wrote from one that predated it.
+- **New `reference/agents-md-liveness.md` records whether a session reads an `AGENTS.md` at all**,
+  availability then the instruction-files mode, as four-part records cited to the official memory
+  page that the edited bodies point at rather than restate. Three of the four documented
+  unavailability conditions are resolvable, two of them from settings this plugin already reads, and
+  two of the mode's four values read no `AGENTS.md` at all, which makes displacement a condition of
+  the default value alone.
+- **The sites that gated an `AGENTS.md` on displacement alone now gate on availability and the
+  effective mode**: `audit-prompting-postures`'s surface set, `audit-instructions`'s Phase A, I14's
+  Detect set, and I15's exclusion clause and co-residency row. The mode is resolved across the user,
+  `--settings` and managed scopes rather than from one scope's copy, and under
+  `claude-md-and-agents-md` both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live. An
+  unresolved condition keeps the surface in the inventory lanes and leaves it alone in the finding
+  lanes, with `audit-prompting-postures` inventorying it and emitting `NOT-APPLICABLE`, the
+  unresolved condition as the failed predicate, because its Phase C judges every inventoried
+  component.
+- **Phase 1 treats both `AGENTS.md` names as strip candidates wherever the strip could make them
+  live**, rather than passing over them because nothing appears to read the file today. A gate known
+  false with no `CLAUDE.md` importing or symlinking the file excludes it, an unresolved gate or a
+  shim keeps it, and classification then decides: one classified `policy` or `convention` is kept and
+  never named to `strip`.
+- **New `instruction-files.test.sh`** covers the shim repository, a lone `AGENTS.md`, a lone
+  `.claude/AGENTS.md` whose directory the restore has to recreate, an untracked file, a tracked file
+  modified in the worktree and then staged, the `assume-unchanged` bit, the occupancy and obstruction
+  cases, a repository with no instruction files, and the usage errors.
+
+### Changed
+
+- The skills that enumerate the instruction layer name a natively read `AGENTS.md` beside `CLAUDE.md`, the way `audit-instructions`'s body has since 0.46.13: the routing glosses in `audit`, `audit-permission-grants` and `audit-permission-state`, the surface set and description of `audit-prompting-postures`, the enforcement-hierarchy and behavioral-rule lines in `audit-automation-gaps`, the `unhobble` description and scope rails, and the README's skill table, `audit-instructions` section and consumer-conventions note. `audit-instructions`'s own description, summary, Phase A counterpart list and routing bullet are in the sweep too: 0.46.13 changed the body's surface enumerations and left the frontmatter, which is what decides whether the skill is offered for an `AGENTS.md` question at all. The consumer-conventions passages, which tell a skill where to read a repository's own policy, were the ones that silently read nothing in a repository that has migrated its instructions out of `CLAUDE.md`. The two `audit-instructions` reference files are finished too: the redundant-read check's Detect set lists the natively read `AGENTS.md` names, which its own must-not-flag paragraph already exempted conditionally, so an auditor reading Detect literally no longer misses a skill body sending an agent to re-read the startup instructions in an AGENTS.md-canonical repository; I3's always-loaded surface list and its survives-compaction remediation name it; and the two memory-doc source glosses match the page they cite.
+
+## [0.46.13]
+
+### Changed
+
+- `audit-instructions`: the I15 routing table, the I15 routing clause and the SKILL.md boundary clause name a natively read `AGENTS.md` and `.claude/AGENTS.md` as members of the `discover-instruction-surfaces` population, which `claude-memory` 0.13.0 emits as `agents-md` rows. A contradiction whose two halves are an `AGENTS.md` and a project `CLAUDE.md` now routes to `claude-memory`'s C6, the same owner a `claude-md`-anchored pair routes to, instead of falling through to I15 on a literal reading of a list that predated the kind. The C6 paraphrase in `reference/conflict-criteria.md` defers to that discovery rather than restating a file list that can drift from it.
+- `audit-instructions`: the memory-layer surface partition names a natively read `AGENTS.md`, so the I1-I5 hygiene checks route it to `claude-memory:audit` instead of grading it here and double-reporting what that skill's C-checks already cover. The SKILL.md partition clause, the `claude-md` scope filter, the `reference/criteria.md` partition row and the eval that grades the routing all name it, so the skill, its criteria and its eval agree. Phase A inventories `./AGENTS.md`, `./.claude/AGENTS.md` and every nested `AGENTS.md` as their own records, on the same on-demand footing as the nested `CLAUDE.md` files beside them, with displacement tested per file along its own path from the working directory or any directory above it down to the directory holding it rather than once at the root, since a surface with no Phase A record is one no later phase can route or grade, and the I15 co-residency table gives it the residency row gate 1 resolves against, with the guaranteed-pairs set naming it so a pair anchored on it in an AGENTS.md-canonical repo does not resolve as merely conditional.
+
+## [0.46.12]
+
+### Fixed
+
+- **`fix-plugin-drift.sh` stops instead of reporting "No drift detected" when its own check dies.**
+  The internal `check-plugin-drift.sh` call ran under `|| true`. A check that exits 2 (a settings
+  file that is missing or not valid JSON, a missing jq) writes no findings document, and `mktemp`
+  had already created the target as a zero-byte file. `jq empty` accepts an empty document, every
+  count came out 0, and the script printed "No drift detected, nothing to do" and exited 0, so a
+  fatal check read as a clean bill of health. The status is now captured: above 1 is fatal, since
+  1 is the check's own "drift detected". An empty document paired with status 1 is fatal too,
+  because it can only mean a truncated write. Status 0 with no document stays a pass, because the
+  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`. That
+  case names itself on stderr, since the check's own explanation goes to the `/dev/null` this
+  script redirects, and on stdout it now reads "No marketplace was audited" rather than borrowing
+  the clean-audit wording for a run that compared nothing.
+- **`fix-plugin-drift.sh --yes` backs the settings file up before it replaces it.** The only file
+  operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
+  no copy of what the script overwrote. A successful apply now copies the file to
+  `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
+  a copy of what it replaced. The backup is created and filled through ONE descriptor, under
+  `set -C` and a 0077 umask: the `O_EXCL` open refuses an existing path and a symlink alike,
+  including a dangling one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and
+  writing through that same descriptor leaves no window in which the predictable backup path could
+  be unlinked and replaced with a symlink between an exclusive create and a later reopen. The
+  umask stops a verbatim
+  copy of a file that can hold tokens and permission rules inheriting a world-readable mode. The
+  umask is a no-op on MSYS, where mode bits are emulated, so the 0600 result holds on Linux and
+  macOS and not on Git Bash. Backups are never pruned, so a project that tracks `.claude/` may
+  want `.claude/*.bak` ignored. The backup path is named in the summary line.
+- **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
+  With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
+  directory is not a repository, so a session started in a home directory resolved the target to
+  `~/.claude/settings.json` and rewrote the live user file as if it were project scope. The apply
+  path now compares the resolved target against the user config dir's own `settings.json`, and
+  against `$HOME/.claude/settings.json` for a relocated `CLAUDE_CONFIG_DIR`, and exits 2 when they
+  are the same file. Only the inferred path is refused: an explicit `CLAUDE_SETTINGS_FILE` is a
+  deliberate target and still applies, now with a warning naming the waived guard, because a
+  settings file's own `env` block can export that variable and the file under audit is the one
+  that drifted. A dry run still reads and reports either way.
+- **`fix-plugin-drift.sh --yes` refuses a settings path that is a symlink.** The replacement is a
+  rename, which replaces the link rather than the file it names, so a linked `settings.json` was
+  destroyed, the real file went unfixed, and the run still printed "Applied". Resolving the link
+  portably needs a `realpath` and `readlink -f` dance this script does not otherwise carry, so the
+  case is refused with a message naming the path instead of being mishandled quietly.
+- **`fix-plugin-drift.sh --yes` preserves the settings file's line endings.** The edit is a jq
+  read-modify-write, and jq emits whatever its build emits: the native Windows build writes CRLF
+  through a text-mode stdout, an MSYS or Linux build writes LF. Either one rewrites every line
+  ending in a file of the other style while reporting a handful of key changes. The emitted
+  document is now normalized to the line-ending style the original file carried, measured with
+  `tr` because Git Bash grep never matches a carriage return, and revalidated as JSON after the
+  conversion. The rule counts bytes rather than pairing them, so a file with mixed endings comes
+  back uniform in whichever style its majority carried. Indentation and the trailing newline still
+  come from jq.
+- **`fix-plugin-drift.sh --yes` never reports an edit it did not make.** Staging the replacement
+  beside the target introduced a way to report one. The stage is seeded with a `cp -p` of the
+  original to carry its mode, and the two line-ending normalization arms wrote into it through
+  unchecked redirects, so a write that never landed left a stage holding the ORIGINAL bytes: valid
+  JSON, a valid object, past every check, renamed over the settings file, and reported as
+  "Applied" with exit 0. Two inputs reached it. A settings file the operator had made read-only,
+  because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
+  during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
+  run, after which `cp -p` recreated the stage from the original and the normalization input was
+  gone. Five changes close it: both normalization arms are checked and fatal; the signal traps
+  clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
+  after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
+  file is applied and comes back read-only on platforms that honor mode bits; the
+  stage-equals-current refusal compares the stage against the current file and stops before the backup when the two
+  match; and the settings file is read back after the replace
+  and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
+  say-so. The remaining command substitutions in the apply path (the clock for the backup name,
+  the line-ending measurement, the plugin-list encoding) are checked too.
+- **`fix-plugin-drift.sh --yes` replaces the settings file with a same-directory rename.** The
+  staging temporary moved out of `$TMPDIR` and beside the target: on a host where `/tmp` is a
+  separate mount the final `mv` degraded to a copy plus an unlink, where an interruption leaves
+  the settings file truncated. The `EXIT` trap now also catches `INT`, `TERM` and `HUP`, because
+  that temporary sits in the operator's own config directory where nothing else sweeps it up, and
+  both post-edit validations moved from `jq empty`, which exits 0 on a zero-byte file, to
+  `jq -e 'type == "object"'`.
+
+## [0.46.11]
+
+### Changed
+
+- `audit-instructions`: the I-check exemption for "read `AGENTS.md`" instructions and I15's `AGENTS.md` exclusion are both conditional now. A repository with no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it loads its `AGENTS.md` at startup like a `CLAUDE.md` (Claude Code 2.1.277 and later, where support is available), so the file is a real instruction surface there and belongs in the comparison set. The import claim carries its dated record.
+
+## [0.46.10]
+
+### Fixed
+
+- **`check-hook-coverage.sh` resolves a plugin whose registry entry also holds a record for another project.** The install-record filter read `($project | startswith(.projectPath + "/"))`, where the input `.` is the string `$project`, so `.projectPath` raised `Cannot index string with string ("projectPath")` and jq abandoned the whole program with rc 5. `or` short-circuits, so it fired only when a record carried a non-empty `projectPath` differing from the current root. The shared helper discards jq's stderr, so the plugin was silently reported UNRESOLVED on a machine where it is installed and the inventory went partial, which withdraws Category B's third baseline narrowing. The clause now binds the value first, as `(.projectPath as $pp | $project | startswith($pp + "/"))`.
+- **`check-hook-coverage.sh`'s `--json` emitter no longer lets MSYS rewrite the values it encodes.** Every node was built by a native `jq -cn` call binding its values as `--arg`. On Git for Windows each call crosses `CreateProcess` and MSYS rewrites any argument whose tail looks like a POSIX path, so a plugin's shipped hook command `"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` arrived as `"${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/x.sh` and the engine reported `hook-path-missing` for a file that exists; the emitted project root was rewritten the same way. The six emitter sites now go through a `jqn()` wrapper that suppresses the conversion inline, which is safe because not one of them passes a file for jq to open.
+- **`audit-engine.sh` assembles its document off the command line.** The nine payloads were bound to one `jq -n` call as `--argjson` values. The whole argv is one Win32 command line, and a single argument past about 32,760 bytes fails with `Argument list too long`, which left the document empty and every later reader printing nothing while the engine still exited 1 and still wrote `--out`, so a real audit produced no output and said nothing about it. The payloads now ride stdin and are slurped by `jq -s`, and the `--out` writer gets the same treatment while staying independent of the document, so it still succeeds when the assembly does not. The document schema, the row set, the exit codes and the findings file (byte for byte) are unchanged.
+
+## [0.46.9]
+
+### Changed
+
+- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged. The library writes through `printf -v`, so it resolves the same scopes on the stock bash 3.2 that macOS ships.
+
+## [0.46.8]
+
+### Changed
+
+- The eight audit-permission-state test suites source one bundled per-skill test helper for their assertions, stub-PATH builder, and summary tail instead of carrying identical copies, with byte-identical output.
+
+## [0.46.7]
+
+### Changed
+
+- The four audit-instructions test suites source one bundled per-plugin test helper instead of carrying identical assertion blocks, with byte-identical output.
+
+## [0.46.6]
+
+### Changed
+
+- Drop the alias offset in conflict-scan, the dead frontmatter tail loop, the unreachable second is_absolute argument and the unused Section heading field in the audit-instructions scanners (behavior unchanged).
+
+## [0.46.5]
+
+### Changed
+
+- audit-permission-state: permission-state.sh emits settings and registry rules of each kind through one helper, permission-merge.sh emits inert rows through one awk function, automode-entry-diff.sh tests rule classes through one helper and folds its predicted-drop branch, automode-block-lint.sh derives each subject once, two scripts drop write-only counters, and the permission-state and managed-conformance suites drop a duplicated fixture invocation and an unused temp dir. Output byte-identical.
+
+## [0.46.4]
+
+### Changed
+
+- audit-automation-gaps inventory.sh dispatches its arguments through one case and drops an unreachable empty-roots arm, audit-pass run-state.sh drops an unreachable no-reason branch, audit-permission-grants permission-rule-check.sh computes its inert-grant remedy once and unifies its match-loop guards, and the inventory and permission-rule suites share their runners. No behavior change.
+
+## [0.46.3]
+
+### Changed
+
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and color tests. No behavior change.
+
+## [0.46.2]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
 ## [0.46.1]
 
 ### Added
@@ -167,7 +650,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
-  criteria section and the severity table already gave it. It was labelled `P2`, so a reader could
+  criteria section and the severity table already gave it. It was labeled `P2`, so a reader could
   not tell which of the two documented checks had fired and a search for `P2b` in a report found
   nothing.
 - **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
@@ -675,7 +1158,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   evidence available against it. Phase 4 now restores a rule matching a protected class in the
   marketplace's instruction exception register whether or not the ledger logged against it. The
   strip itself stays permitted. It is reversible and branch-local, which is why the experiment may
-  run over a protected rail at all. Register holds are recorded separately from the defence tally,
+  run over a protected rail at all. Register holds are recorded separately from the defense tally,
   so restoring one is not counted as a deletion the ledger defeated.
 - **`audit-instructions`: I1, I4 and I5 gain a hold verdict for protected instruction classes.**
   All three deletion-class criteria remediated to `delete` with no stated exception, which left the
@@ -2658,7 +3141,7 @@ offered as a mechanical `--fix`.
     manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
     fixes the line.
   - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
-    falling back to its own judgement when no instrument is available), a routing condition that
+    falling back to its own judgment when no instrument is available), a routing condition that
     sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
     document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
     than audience: it instructs the opposite of Detect, so it never satisfies Detect at all.
@@ -2873,7 +3356,7 @@ offered as a mechanical `--fix`.
   > In code: default to writing no comments. Never write multi-paragraph docstrings or multi-line comment blocks — one short line max.
   <!-- ai-slop-ignore-end -->
 
-  Its stated obsolescence ("newer models have better judgement and can handle these decisions well
+  Its stated obsolescence ("newer models have better judgment and can handle these decisions well
   without explicit rules") is the model-delta ground, and its replacement, "Write code that reads
   like the surrounding code: match its comment density, naming, and idiom", is an instance of the
   row's positive-reframing remediation, shipped by upstream.
@@ -3174,7 +3657,7 @@ offered as a mechanical `--fix`.
 - **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
   pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
   its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
-  forms against, not on the "phrasings too varied" reason its neighbours carry.
+  forms against, not on the "phrasings too varied" reason its neighbors carry.
 
 - **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
   cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
@@ -3803,7 +4286,7 @@ offered as a mechanical `--fix`.
   suppressor off would delete the only bound on two trimming checks.
 - **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
   never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
-  follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
+  follows its host's enablement and is labeled inline. Every run reports how many `OPINION` checks
   were available, how many did not run, and the argument that enables them.
 - **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
   replacing the body-prose version line. A contract surface with three parse paths now stamps its
@@ -3830,7 +4313,7 @@ offered as a mechanical `--fix`.
   cost on the recommendation, never as a budget threshold.
 - **`audit-instructions` I9 remediation names the interface destination.** Where an example block
   exists to enumerate what a caller may pass, the finding names an argument enumeration, a
-  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labeled as such in the
   finding, never fix-applied; the detection is unchanged and stays officially backed.
 - **`Authority` gloss no longer asserts that every row is `ANTHROPIC-DOCS`.** The two
   `OPINION`-tier rules this release adds are the first that are not; the axis stays a closed

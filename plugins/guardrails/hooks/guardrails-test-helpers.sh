@@ -57,6 +57,28 @@ assert_file_absent() {
   if [[ ! -e "$2" ]]; then ok "$1"; else bad "$1: file exists: $2"; fi
 }
 
+# assert_file_dir_seam <hook-path>. The hook anchors its repo-root lookup on the
+# FILE's directory through a parameter expansion rather than a `dirname` fork,
+# and that expansion must answer as `dirname` did for every shape. For a
+# root-level `/bar.md` the shortest `/*` suffix is the whole string, so the bare
+# expansion is EMPTY and hook::repo_root's `${1:-.}` would anchor on the process
+# CWD, not `/`. That shape cannot reach a hook end to end (hook::read_file_path
+# needs the file to exist and `/` is not writable), so the seam is lifted from
+# the hook source and evaluated against each shape on its own.
+# shellcheck disable=SC2016  # the sed script and the needle are literal hook source text
+assert_file_dir_seam() {
+  local seam fp FILE FILE_DIR
+  seam=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$1")
+  assert_contains "file-dir seam: lifted from the hook" "$seam" 'FILE_DIR="${FILE%/*}"'
+  for fp in /bar.md bar.md /a/b/bar.md; do
+    # shellcheck disable=SC2034  # read by the eval below
+    FILE="$fp"
+    FILE_DIR=""
+    eval "$seam"
+    assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
+  done
+}
+
 # PreToolUse JSON builders. jq -n --arg escapes quotes/backslashes/newlines.
 # MSYS_NO_PATHCONV=1 stops Git Bash translating POSIX file paths for jq's exe.
 write_json() {
@@ -244,6 +266,76 @@ expect_both() {
   shift 2
   expect "$label (direct)" "$expected" --via direct "$@"
   expect "$label (dispatched)" "$expected" --via dispatched "$@"
+}
+
+# --- Write/Edit driver for the advisory PostToolUse guards --------------------
+# Those suites all drive one shape: a Write or Edit payload naming the fixture's
+# TARGET file, with CLAUDE_PROJECT_DIR pinned to the fixture REPO.
+#
+# run <content>: hook stdout+stderr lands in the global OUT; the hook's exit
+# code is RETURNED, so `run ...` then `assert_exit ... "$?"` is the call shape.
+#
+# Never `OUT=$(run ...)`: a command substitution runs the helper in a subshell,
+# so an `RC=$?` assigned inside it never reaches the parent and every
+# `assert_exit` after the call silently compares a stale outer value; the suite
+# would stay green through a hook that regressed to a nonzero exit.
+# HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
+#
+# run_payload <json> is the shared driver call every shape reduces to: one
+# payload, one hook process, stdout and stderr together in OUT, the hook's own
+# exit code returned.
+#
+# Caller contract, set by each suite before its first call:
+#   HOOK    guard under test
+#   REPO    fixture working tree, handed to the hook as CLAUDE_PROJECT_DIR
+#   TARGET  file path the Write/Edit payload names
+run_payload() {
+  # shellcheck disable=SC2154  # HOOK/REPO are a caller contract (set by each test file)
+  guard_invoke --hook "${HOOK_OVERRIDE:-$HOOK}" --merge-stderr --payload "$1" \
+    -- "CLAUDE_PROJECT_DIR=$REPO"
+  # shellcheck disable=SC2034  # OUT is read by the sourcing suite
+  OUT="$GUARD_OUT"
+  return "$GUARD_RC"
+}
+# shellcheck disable=SC2154  # TARGET is a caller contract (set by each test file)
+run() { run_payload "$(write_json "$TARGET" "$1")"; }
+# run_edit <new_string> -> same, as an Edit payload.
+# shellcheck disable=SC2154  # TARGET is a caller contract (set by each test file)
+run_edit() { run_payload "$(edit_json "$TARGET" "$1")"; }
+
+# assert_run_helpers_propagate_exit. Guards the assertion machinery itself:
+# point `run` and `run_edit` at a stub that exits nonzero and the code they
+# return must be that code. An `OUT=$(run ...)` shape with an inner `RC=$?`
+# reads 0 instead, which makes every run-based `assert_exit` in a suite vacuous.
+assert_run_helpers_propagate_exit() {
+  local stub="${TEST_TMPDIR:?assert_run_helpers_propagate_exit needs TEST_TMPDIR}/rc-stub-hook.sh"
+  # shellcheck disable=SC2034  # read by run_payload through dynamic scope
+  local HOOK_OVERRIDE="$stub"
+  printf '#!/usr/bin/env bash\nexit 3\n' >"$stub"
+  run 'anything'
+  assert_exit "run propagates a nonzero hook exit" 3 "$?"
+  run_edit 'anything'
+  assert_exit "run_edit propagates a nonzero hook exit" 3 "$?"
+}
+
+# parity <label> <content> <expected-exit> <needle, or "" for silence>
+# One Write payload driven both ways, alone and under run-guards.sh, asserting
+# the same exit code and the same finding (or the same silence) on both. An
+# advisory guard exits 0 whether or not it found anything, so the exit code
+# alone is not its verdict: the additionalContext document is.
+parity() {
+  local label="$1" content="$2" expected="$3" needle="$4" payload via
+  payload="$(write_json "$TARGET" "$content")"
+  for via in direct dispatched; do
+    guard_invoke --via "$via" --merge-stderr --payload "$payload" \
+      -- "CLAUDE_PROJECT_DIR=$REPO"
+    assert_exit "$label ($via)" "$expected" "$GUARD_RC"
+    if [[ -n "$needle" ]]; then
+      assert_contains "$label ($via): finding survives" "$GUARD_OUT" "$needle"
+    else
+      assert_silent "$label ($via): stays quiet" "$GUARD_OUT"
+    fi
+  done
 }
 
 # make_sink <body> -> path to an executable single-command stub sink running

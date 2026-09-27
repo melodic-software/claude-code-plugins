@@ -185,7 +185,7 @@ default), the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses are NOT set in a s
 - `PREV_LEDGER` / `PREV_SID` ← for cross-session continuity, if this session resumed from a handoff
   chain or an earlier running-retro ledger: resolve the prior ledger and its session id under retro's
   Phase 1.0 continuity gate (same as the checkpoint flow's step 2). A detached/headless observer cannot
-  make that judgement safely (blindly linking the newest handoff could splice an unrelated session), so
+  make that judgment safely (blindly linking the newest handoff could splice an unrelated session), so
   the SessionStart hook leaves these empty and a later in-session checkpoint reconciles them.
 
 The launcher resolves the ledger dir to an absolute path, so a relative `memory_dir` still lands in the

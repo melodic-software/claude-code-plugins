@@ -46,7 +46,7 @@ three regimes:
 architecture the established tools use. Every mutant is written once and selected at run time by an
 environment variable or switch, so there is no Nth write and no Nth revert to observe, and the
 per-mutant hooks those tools expose report a *result*, not a filesystem event. An end-of-run
-comparison loses nothing there: the in-loop check buys localisation and pile-on prevention across
+comparison loses nothing there: the in-loop check buys localization and pile-on prevention across
 many write/revert cycles, and where there was one write neither exists. Never substitute the tool's
 own exit status for the comparison, a harness that restores by writing the file back reports success
 for a write it never re-read.

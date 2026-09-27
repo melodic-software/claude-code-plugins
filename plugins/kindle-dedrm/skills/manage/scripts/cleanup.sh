@@ -20,13 +20,13 @@ MODE="confirm" # confirm | soft | full
 DRY_RUN=0
 for arg in "$@"; do
   case "${arg}" in
-    --soft) MODE="soft" ;;
-    --full) MODE="full" ;;
-    --dry-run) DRY_RUN=1 ;;
-    *)
-      echo "Unknown arg: ${arg}"
-      exit 1
-      ;;
+  --soft) MODE="soft" ;;
+  --full) MODE="full" ;;
+  --dry-run) DRY_RUN=1 ;;
+  *)
+    echo "Unknown arg: ${arg}"
+    exit 1
+    ;;
   esac
 done
 
@@ -40,14 +40,14 @@ ask_yn() {
   local prompt="$1"
   if [[ "${MODE}" == "soft" ]]; then
     case "${prompt}" in
-      *"firewall"* | *"ICACLS"* | *"Kindle for PC uninstall"* | *"Calibre plugin"*) return 1 ;;
-      *) ;;
+    *"firewall"* | *"ICACLS"* | *"Kindle for PC uninstall"* | *"Calibre plugin"*) return 1 ;;
+    *) ;;
     esac
   fi
   if [[ "${MODE}" == "full" ]]; then
     case "${prompt}" in
-      *"Calibre Library"*) return 1 ;;
-      *) ;;
+    *"Calibre Library"*) return 1 ;;
+    *) ;;
     esac
   fi
   echo
@@ -66,23 +66,34 @@ run_or_show() {
   fi
 }
 
+# rm_or_show <rm-flags> <path>...: the array-argument counterpart of
+# run_or_show, for paths that arrive as real array elements rather than as an
+# eval-able string.
+rm_or_show() {
+  local flags="$1"
+  shift
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "[DRY-RUN] would run: rm ${flags} $*"
+  else
+    rm "${flags}" "$@"
+  fi
+}
+
 echo "=== kindle-dedrm: cleanup (mode=${MODE}, dry-run=${DRY_RUN}) ==="
 echo
 echo "Reversal walkthrough. Each item is confirmed independently."
 echo "The user's Calibre Library (decrypted EPUBs) is NEVER offered for deletion."
 echo
 
-# --- 1. Firewall rule ---
 if [[ "${MODE}" != "soft" ]]; then
+  # --- 1. Firewall rule ---
   if ask_yn "Remove firewall rule 'Block Kindle for PC (lock 2.8.0)'?"; then
     run_or_show "pwsh -NoProfile -File '${SCRIPT_DIR}/firewall.ps1' -Action remove"
   else
     echo "  skipped — firewall rule retained"
   fi
-fi
 
-# --- 2. ICACLS deny on updates dir ---
-if [[ "${MODE}" != "soft" ]]; then
+  # --- 2. ICACLS deny on updates dir ---
   if ask_yn "Remove ICACLS deny on ${KINDLE_UPDATES_DIR}?"; then
     run_or_show "bash '${SCRIPT_DIR}/lock-updates.sh' remove"
   else
@@ -123,13 +134,8 @@ DEDRM_ZIPS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*.zip)
 DEDRM_DIRS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*/)
 if [[ -e "${DEDRM_ZIPS[0]}" || -e "${DEDRM_DIRS[0]}" ]]; then
   if ask_yn "Delete DeDRM_tools zip + extracted dir from ${DOWNLOADS_DIR}/?"; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
-      [[ -e "${DEDRM_ZIPS[0]}" ]] && echo "[DRY-RUN] would run: rm -f ${DEDRM_ZIPS[*]}"
-      [[ -e "${DEDRM_DIRS[0]}" ]] && echo "[DRY-RUN] would run: rm -rf ${DEDRM_DIRS[*]}"
-    else
-      [[ -e "${DEDRM_ZIPS[0]}" ]] && rm -f "${DEDRM_ZIPS[@]}"
-      [[ -e "${DEDRM_DIRS[0]}" ]] && rm -rf "${DEDRM_DIRS[@]}"
-    fi
+    [[ -e "${DEDRM_ZIPS[0]}" ]] && rm_or_show -f "${DEDRM_ZIPS[@]}"
+    [[ -e "${DEDRM_DIRS[0]}" ]] && rm_or_show -rf "${DEDRM_DIRS[@]}"
   else
     echo "  skipped — DeDRM_tools archive retained"
   fi
@@ -138,18 +144,14 @@ fi
 KKF_ZIPS=("${DOWNLOADS_DIR}"/Kindle_Key_Finder_*.JH.zip)
 if [[ -e "${KKF_ZIPS[0]}" ]]; then
   if ask_yn "Delete Kindle_Key_Finder zip from ${DOWNLOADS_DIR}/?"; then
-    if [[ "${DRY_RUN}" -eq 1 ]]; then
-      echo "[DRY-RUN] would run: rm -f ${KKF_ZIPS[*]}"
-    else
-      rm -f "${KKF_ZIPS[@]}"
-    fi
+    rm_or_show -f "${KKF_ZIPS[@]}"
   else
     echo "  skipped — Kindle_Key_Finder zip retained"
   fi
 fi
 
-# --- 6. Kindle for PC uninstall (--full only) ---
 if [[ "${MODE}" == "full" ]]; then
+  # --- 6. Kindle for PC uninstall ---
   if [[ -f "${KINDLE_APP_DIR}/uninstall.exe" ]]; then
     cat <<'EOF'
 
@@ -169,10 +171,8 @@ EOF
       echo "  skipped — Kindle for PC retained"
     fi
   fi
-fi
 
-# --- 7. Calibre plugin reminder (--full only) ---
-if [[ "${MODE}" == "full" ]]; then
+  # --- 7. Calibre plugin reminder ---
   cat <<EOF
 
   Calibre plugin removal is GUI-only. To complete cleanup:

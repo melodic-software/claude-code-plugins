@@ -5,6 +5,8 @@
  * Simple DOM read — no network interception needed.
  */
 
+import { hasPlayerElement } from "../player-presence.js";
+
 /**
  * Get the HLS URL from a Mux player element's src property.
  *
@@ -32,5 +34,5 @@ export async function getHlsUrl(page, selector) {
  * @returns {Promise<boolean>}
  */
 export async function hasMuxPlayer(page, selector) {
-  return page.evaluate((sel) => !!document.querySelector(sel), selector).catch(() => false);
+  return hasPlayerElement(page, selector);
 }

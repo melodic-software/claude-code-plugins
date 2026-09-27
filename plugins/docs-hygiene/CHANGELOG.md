@@ -1,5 +1,132 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.3] - 2026-09-27
+
+### Changed
+
+- `compress`'s Phase A worker prompt writes its nine hard rules as "Never ..." instead of all-caps "NEVER ...". Every rule is unchanged, and the write-scope fence (`Touch ONLY <ABSOLUTE-PATH>. FORBIDDEN: ...`) keeps its emphasis (#4120).
+
+## [0.23.2] - 2026-09-27
+
+### Changed
+
+- `audit-noise` names `/attribution:audit` where it named `/provenance:audit`, since the
+  provenance plugin is now `attribution`. The skill body, one eval expectation, and comments in
+  `noise-shapes.sh` and `detect.test.sh` change; detection behavior does not.
+
+## [0.23.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.23.0] - 2026-09-23
+
+### Added
+
+- **`write-for-agents` names the finish line and the stops.** Task-shaped and long-run
+  instructions state when to keep going and when to stop and ask, keep a task file on long runs,
+  and end with a report that leads with what the human owes. The skill also asks for outcomes
+  rather than thinking (think-carefully lines follow `audit-instructions` I8-f for the target
+  model, so they are dropped for Opus 5.5; no requests to reproduce reasoning) and for
+  named design exclusions instead of "avoid a generic look".
+- **`audit-encapsulation`'s opt-in worker fan-out** checks each worker's evidence before accepting
+  its classification.
+
+## [0.22.12]
+
+### Fixed
+
+- **`detect.sh` classifies a repository-root `AGENTS.md` as always-loaded.** `CLAUDE.md`, `CLAUDE.local.md`, and `AGENTS.md` are `tier=always` when the file's directory contains `.git`, including an absolute path to that root file. A repository-root `MEMORY.md` is not session-loaded, so it does not take that test. The same basename nested under another directory stays `invocation`. The repository-root check runs outside the `if`, so a failure there still stops the script. A backtick span is a pointer when, after a `#anchor` is stripped, it contains a slash, ends in `.md`, and uses only path characters; it resolves beside the linking file the way a markdown link does. A command, a flag, or a short token such as `SKILL.md` is not a pointer. The same target on the same line is counted once. Hub reachability uses the same backtick pointers, so a spoke cited as `context/detail.md#section` is not reported as an orphan.
+
+## [0.22.11]
+
+### Fixed
+
+- **The case-collision pass compares one nul-delimited listing.** `git ls-files` without `-z` C-quotes a path that contains a non-ASCII byte, a tab, or a newline, so that quoted text never matched the raw path from the `-z` listing and the collision was missed. Both `scripts/check-docs-naming.sh` and the emitted gate template now read `git ls-files -z` once and fold those same bytes.
+- A case collision on a path that holds a newline is now one finding per path. The raw newline split the finding into several lines on stderr; such a path and its folded form are now shown `%q`-quoted, in both `scripts/check-docs-naming.sh` and the emitted gate template.
+- The emitted-gate suite no longer treats a ShellCheck that rejects `--rcfile` as a dirty emission. That flag is how this repo's `.shellcheckrc` is applied; without it the case is skipped, and a build that accepts the flag still fails the suite when the emitted pair is not clean.
+
+## [0.22.10] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.22.9]
+
+### Fixed
+
+- **`write-for-agents`'s surface reference said Claude Code does not read `AGENTS.md` natively.**
+  It does, since v2.1.277, where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in
+  the working directory or above it. The row now matches `docs/specs/agent-doc-surfaces.md`, which
+  that reference is declared to be fed by, and the cross-tool table stops listing Claude Code as
+  the exception. The availability set is remote-flag gated and moves, so the row points at
+  `instruction-placement`'s `skills/migrate/reference/sources.md` for it instead of restating it
+  where it would rot.
+
+## [0.22.8]
+
+### Fixed
+
+- **`audit-noise`'s `citation` shape now matches the origin notes its own table already claimed.**
+  The cue list gains the origin verbs (`ported from`, `copied from`, `migrated from`, `adapted
+  from`, `borrowed from`, `lifted from`, `taken from`) and the dated forms
+  (`added`/`merged`/`introduced`/`backported`/`ported` before an ISO date). The verb-from cue must
+  open the line, follow a list bullet, or follow a comma, semicolon, colon, or opening parenthesis;
+  the dated cue takes every anchor but the parenthesis. Both must also END on a boundary, so
+  `Ported fromage` and a date running on into more characters (`Added 2026-09-011`) match nothing;
+  an ISO-8601 time is spelled out, so `Added 2026-09-01T12:00:00Z` still is a finding.
+  That keeps ordinary prose such as "the data was copied from the upstream table" out. A line
+  carrying an inline or full reference link, or a bare URL, stands the two new cues down, because a
+  pointer is the artifact `provenance:audit` asks an author to write; a shortcut reference link
+  (`[the guide]` with its definition elsewhere in the file) is not stood down, because the line-level
+  predicate has no view of the file's link definitions. The shape stays Tier 1 and the treatment stays relocate-or-strip. The six
+  pre-existing cues are unchanged and are not stood down.
+
+### Changed
+
+- The `citation` row says "inline origin notes" where it said "inline provenance attribution", and
+  both `ticket-pr-residue` surfaces say "bare back-reference" where they said "bare provenance".
+
+## [0.22.7]
+
+### Changed
+
+- detect.sh and emit-findings.sh in the audit-noise skill validate option values through one sourced lib helper instead of two private copies. Diagnostics, findings and exit codes are unchanged.
+
+## [0.22.6]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.22.5]
+
+### Changed
+
+- Merge the preamble and ticket regexes, hoist the prohibition cues, drop the dead stdout twins and the extra frontmatter tail loop, and share the fixture and runner helpers in audit-noise (behavior unchanged).
+
+## [0.22.4]
+
+### Changed
+
+- Drop the duplicate SKILL.md hub pass in audit-progressive-disclosure and the redundant empty-hits early exit in audit-encapsulation (behavior unchanged).
+
+## [0.22.3]
+
+### Changed
+
+- Emit the compress audit-scan rows and the detect-caveman states through one helper each, expand the basename inline and share the fixture and stub setup in their suites (behavior unchanged).
+
+## [0.22.2]
+
+### Changed
+
+- The `apply-rename.sh` suite builds and audits its fixture tree once and copies the result into each case that starts from the untouched tree, instead of rebuilding the repository and re-running the three audit stages per case. Cases that change the tree before the audit still audit their own tree. The assertions and the executor are unchanged; the suite's wall time on Windows Git Bash drops because most of it was process spawns in the repeated audits.
+
 ## [0.22.1]
 
 ### Changed
@@ -808,9 +935,9 @@
 
 ### Fixed
 
-- **`audit-noise`'s `negation` pairing now recognises a positive supplied as a
+- **`audit-noise`'s `negation` pairing now recognizes a positive supplied as a
   bare imperative after a separator (#3204).** Pairing was a fixed marker list
-  (`instead`, `rather than`, `prefer`, `in place of`, `in favour of`), so a
+  (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`), so a
   correctly paired sentence such as
   `Never confirm a load-bearing deletion — delegate to a fresh subagent` was
   reported as a finding.
@@ -961,7 +1088,7 @@
   than the 31 a line-level gate produced: 38 genuine imperative prohibitions sit as a *later*
   sentence on their line and were being withheld. Sampling those additions found both real findings
   and a residual false-positive class: a positive alternative supplied as a bare imperative after a
-  separator (`Never confirm X — delegate to Y`) is not recognised, because pairing is matched against
+  separator (`Never confirm X — delegate to Y`) is not recognized, because pairing is matched against
   a fixed marker list. #3180 solves that with a closed function-word stoplist; adopting it is #3204.
 
 - **`emit-findings.sh`'s cell escaping is now idempotent.** A naive `gsub` double-escaped a pipe the
@@ -1036,7 +1163,7 @@ Eight review findings on the shape as first written, all reproduced before being
   marker. Sentences are now peeled right-to-left with a greedy leading `.*`, which splits at every
   terminator that IS followed by whitespace; an abbreviation merely over-splits, and over-splitting
   only narrows the window a suppressing marker can act from. The header comment had claimed the
-  opposite behaviour ("over-split … the fail-safe direction") and was wrong.
+  opposite behavior ("over-split … the fail-safe direction") and was wrong.
 
 - **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
   `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing,
@@ -1134,7 +1261,7 @@ Eight review findings on the shape as first written, all reproduced before being
   only ahead of a document locator: a `§` or `#anchor`, a section/chapter/step/table, a link or
   path, an inline-code reference the strip removed, or a named durable document. Tracker nouns are
   deliberately absent from that set, as are nouns for the conversation itself. A decision parked in
-  an issue is provenance, which `ticket-pr-residue` owns and this shape must not launder. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
+  an issue is provenance, which `ticket-pr-residue` owns and this shape must not launder. Followers are compared case-insensitively, so a capitalized `Above` no longer falls
   through. Both first-person actor tests, this one and `plan-reference`'s `in this PR`, admit a
   contracted pronoun in either the straight or the typographic (U+2019) apostrophe, so
   "in this PR we've already switched the default" and "as we've discussed" no longer escape the
@@ -1212,7 +1339,7 @@ Eight review findings on the shape as first written, all reproduced before being
   exists (N=1), and two files asserting the same contract with no declared owner, drifting
   apart (N=2).
 
-  `identify` now rosters candidates in three labelled buckets with the instance count shown
+  `identify` now rosters candidates in three labeled buckets with the instance count shown
   per candidate: **N=1** (inline recap of an existing SSOT), **N=2** (source-of-truth
   bifurcation risk), **N≥3** (Rule of Three met). `verify` Gate 1 assigns that bucket from the
   full-reproduction count and emits it in a new `bucket:` output field;

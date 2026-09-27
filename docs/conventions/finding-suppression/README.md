@@ -244,7 +244,7 @@ A skill reading this surface:
   constituents cannot be recovered from the id they were hashed into.
 - **A one-sided change carries the suppression forward rather than dropping it, but never
   silently.** The alternative extremes were both rejected: re-reporting from scratch churns a
-  judgement the operator still holds, and re-suppressing silently hides the case where the edit *was*
+  judgment the operator still holds, and re-suppressing silently hides the case where the edit *was*
   the fix attempt. `needs-reconfirmation` is what makes carrying-forward safe. Tiered matching over a
   fingerprint that is *stable enough* rather than exact is the prior art here. SARIF devotes
   Appendix B (Normative) to it, and GitHub's documented mismatch behavior is close-and-reopen.

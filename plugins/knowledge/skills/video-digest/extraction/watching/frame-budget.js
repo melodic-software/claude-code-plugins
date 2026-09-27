@@ -2,7 +2,11 @@
  * Frame selection summary — dynamic coverage, no hard truncation.
  */
 
+import { scoreFramePriority } from "./densification.js";
+import { toSelectedFrame } from "./read-policy.js";
+
 /** @typedef {import('./models.js').SelectedFrame} SelectedFrame */
+/** @typedef {import('./models.js').DensificationWindow} DensificationWindow */
 
 /**
  * @typedef {Object} FrameSelectionSummary
@@ -84,4 +88,26 @@ export function summarizeFrameSelection(
     highVolume,
     overCap: false,
   };
+}
+
+/**
+ * Score frame candidates against densification windows and summarize them.
+ *
+ * @param {import('@melodic/video-digestion/frames/models').FrameCandidate[]} frames
+ * @param {object} options
+ * @param {DensificationWindow[]} options.windows
+ * @param {number} [options.targetMinFrames=0]
+ * @param {number} [options.durationSec=0]
+ * @returns {FrameSelectionSummary}
+ */
+export function selectFramesForCoverage(frames, { windows, targetMinFrames = 0, durationSec = 0 }) {
+  const scored = frames.map((frame, index) =>
+    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
+  );
+
+  return summarizeFrameSelection(scored, {
+    targetMinFrames,
+    durationSec,
+    densificationWindowCount: windows.length,
+  });
 }

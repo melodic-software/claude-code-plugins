@@ -29,13 +29,13 @@ I ran `pytest tests/pricing/test_cache.py` locally and everything passes,
 including the two new tests that cover the eviction path and the missed-event
 path. I also deployed the branch to staging and manually pushed a tier import
 through, and confirmed that the price a customer sees updates within about two
-seconds rather than the old behaviour. The load test was run as well and there
+seconds rather than the old behavior. The load test was run as well and there
 was no measurable change in p99 latency.
 
 ## Related
 
 This is basically the follow-up to #118, which is where the stale-price
-behaviour was first reported by the support team, and it also unblocks #131
+behavior was first reported by the support team, and it also unblocks #131
 because that one needs reliable invalidation before the per-region pricing
 work can start. The original design discussion, for anyone who wants the
 background, is in the pricing channel thread from 2026-08-14.

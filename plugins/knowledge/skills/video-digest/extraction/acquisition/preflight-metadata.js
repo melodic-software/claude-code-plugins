@@ -69,9 +69,10 @@ export function escapeTableCell(text) {
  * @returns {string}
  */
 export function truncateTitle(text, max = MAX_QUEUE_TITLE_CHARS) {
-  const chars = [...(text ?? "")];
+  const safe = text ?? "";
+  const chars = [...safe];
   if (chars.length <= max) {
-    return text ?? "";
+    return safe;
   }
   return `${chars.slice(0, max - 1).join("")}…`;
 }

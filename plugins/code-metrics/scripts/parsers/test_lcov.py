@@ -10,33 +10,25 @@ shape no fixture carries write a tracefile into a temporary directory.
 
 from __future__ import annotations
 
-import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from conftest import FIXTURES, parsed_output, run_parser
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "lcov.py"
-FIXTURES = SCRIPT_DIR.parent / "fixtures" / "coverage"
 TS_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts"
 GO_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm-sample.go"
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    return run_parser(SCRIPT, *args)
 
 
 def parsed(*args: str) -> dict:
-    result = run(*args)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return parsed_output(SCRIPT, *args)
 
 
 class ClassicRecordTests(unittest.TestCase):

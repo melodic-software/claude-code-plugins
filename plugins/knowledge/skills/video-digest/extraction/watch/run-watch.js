@@ -32,7 +32,6 @@ import {
   UnsupportedSourceError,
 } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
@@ -169,7 +168,7 @@ export async function runWatchCli(argv) {
     ...(envelope.acquireMetrics ?? {}),
   });
 
-  const harvestedLinks = harvestMetadataLinks(metadata, adapter);
+  const harvestedLinks = adapter.harvestLinks(metadata);
   const written = await writeEnvelopeTranscriptArtifacts({
     sliceDir,
     envelope,
@@ -183,6 +182,9 @@ export async function runWatchCli(argv) {
     written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
     written.transcripts[0] ??
     null;
+  const degradationMetric = written.transcriptDegradation
+    ? { transcriptDegradation: written.transcriptDegradation }
+    : {};
   state = markPhaseComplete(
     state,
     "transcript",
@@ -192,16 +194,12 @@ export async function runWatchCli(argv) {
           cueCount: primaryTranscript.cueCount,
           transcriptCount: written.transcripts.length,
           transcriptStrategy: primaryTranscript.strategy,
-          ...(written.transcriptDegradation
-            ? { transcriptDegradation: written.transcriptDegradation }
-            : {}),
+          ...degradationMetric,
         }
       : {
           skipped: true,
           reason: "no transcript-bearing entries",
-          ...(written.transcriptDegradation
-            ? { transcriptDegradation: written.transcriptDegradation }
-            : {}),
+          ...degradationMetric,
         },
   );
 

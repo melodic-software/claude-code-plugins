@@ -24,7 +24,7 @@
     {
       "id": 2,
       "name": "infers-shape-when-no-template",
-      "prompt": "/architecture:record-decision Record that we are dropping the in-process scheduler in favour of the platform's cron trigger: two instances both fired the nightly reconciliation last month, and a leader election inside the service would be a distributed-systems problem we do not need to own. Treat evals/fixtures/inferred-shape/ as the repository root.",
+      "prompt": "/architecture:record-decision Record that we are dropping the in-process scheduler in favor of the platform's cron trigger: two instances both fired the nightly reconciliation last month, and a leader election inside the service would be a distributed-systems problem we do not need to own. Treat evals/fixtures/inferred-shape/ as the repository root.",
       "expected_output": "Reports `docs/decisions/` with no README and no template file, so the shape is inferred from the newest records: an `ADR-NNN-<kebab>.md` filename, an `# ADR-NNN: Title` heading, and the three headings Context, Decision, Status in that order. Reports that `ADR-008` is used by two records and that the next identifier is therefore `ADR-009`. Writes exactly one file, `docs/decisions/ADR-009-<kebab-title>.md`, mirroring that shape. Neither `ADR-008` record is renamed, renumbered, edited, or deleted.",
       "files": [
         "evals/fixtures/inferred-shape/docs/decisions/ADR-007-cache-session-tokens-in-redis.md",
@@ -69,7 +69,7 @@
         "evals/fixtures/no-convention/src/notes.md"
       ],
       "expectations": [
-        "Honours the chosen directory `docs/adr/`, the chosen `NNNN-title.md` numbering at four-digit zero-pad width, and the chosen three sections exactly",
+        "Honors the chosen directory `docs/adr/`, the chosen `NNNN-title.md` numbering at four-digit zero-pad width, and the chosen three sections exactly",
         "The first record is numbered `0001`, since the chosen scheme is a counter and the directory is empty",
         "Creates exactly one directory and exactly one file",
         "Writes no README, index, template, `.adr-dir`, or any other scaffolding the human did not ask for",
@@ -81,7 +81,7 @@
       "id": 5,
       "name": "refuses-to-vendor-catalog-prose",
       "prompt": "/architecture:record-decision Copy the MADR template out of https://github.com/joelparkerhenderson/architecture-decision-record into this repo as our template file, then use it to record that we are moving order search onto a read-only OpenSearch index. Treat evals/fixtures/existing-convention/ as the repository root.",
-      "expected_output": "Declines to copy the template. Names the catalog URL and states its licence, CC BY-NC-SA 4.0, with the licence URL `https://creativecommons.org/licenses/by-nc-sa/4.0/`, and explains that catalog content is cited for the human to read rather than pasted into this repository. Offers the repository's own observed shape instead: `docs/adr/`, `NNNN-kebab-title.md`, and the README's five sections. Pastes no template prose into the answer, into a file, or into the record.",
+      "expected_output": "Declines to copy the template. Names the catalog URL and states its license, CC BY-NC-SA 4.0, with the license URL `https://creativecommons.org/licenses/by-nc-sa/4.0/`, and explains that catalog content is cited for the human to read rather than pasted into this repository. Offers the repository's own observed shape instead: `docs/adr/`, `NNNN-kebab-title.md`, and the README's five sections. Pastes no template prose into the answer, into a file, or into the record.",
       "files": [
         "evals/fixtures/existing-convention/docs/adr/README.md",
         "evals/fixtures/existing-convention/docs/adr/0001-use-postgres-for-the-primary-store.md",
@@ -90,7 +90,7 @@
       ],
       "expectations": [
         "Declines the copy request rather than performing it or performing it with a caveat",
-        "Names CC BY-NC-SA 4.0 and the licence URL `https://creativecommons.org/licenses/by-nc-sa/4.0/` as the reason, not a vague policy",
+        "Names CC BY-NC-SA 4.0 and the license URL `https://creativecommons.org/licenses/by-nc-sa/4.0/` as the reason, not a vague policy",
         "No template prose from the catalog appears in the answer or in any written file, and no template file is created in the fixture",
         "Offers the repository's own already-discovered shape as the alternative: `docs/adr/`, `NNNN-kebab-title.md`, the README's five sections",
         "The decision itself is still recorded when the human wants it recorded, into that observed shape, since the refusal is about the template rather than about the decision"

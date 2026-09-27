@@ -1,5 +1,4 @@
 // Build ai-meeting-{N}.pptx from slides-data.js using pptxgenjs.
-// Theme: dark navy + electric blue + amber. Strategy: Team All-Hands arc.
 import PptxGenJS from "pptxgenjs";
 import path from "node:path";
 import fs from "node:fs";
@@ -365,8 +364,8 @@ function buildCondensed(s, slide) {
   const rowH = totalH / rowsPerCol;
 
   s.bullets.forEach((b, i) => {
-    const col = useTwoCol ? Math.floor(i / rowsPerCol) : 0;
-    const row = useTwoCol ? i % rowsPerCol : i;
+    const col = Math.floor(i / rowsPerCol);
+    const row = i % rowsPerCol;
     const x = 0.7 + col * (colW + 0.4);
     const y = startY + row * rowH;
 

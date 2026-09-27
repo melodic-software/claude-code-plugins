@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Spawn budget for pr-body-linkage-gate.sh and pr-linkage-mcp-gate.sh (#3509).
+# Spawn budget for the PR-body linkage pair on the Bash and GitHub MCP
+# surfaces: pr-body-linkage-gate.sh and pr-linkage-mcp-gate.sh.
 #
 # WHY A SEPARATE SUITE — the two gates' own contract suites
 # (pr-body-linkage-gate.test.sh, pr-linkage-mcp-gate.test.sh) assert what the
@@ -7,8 +8,8 @@
 # #3509 process creation runs 0.3-0.9 s per spawn and every recorded run of
 # `pr-body-linkage-gate.sh` exceeded its 15 s timeout — a gate that is killed
 # before it renders a verdict protects nothing. The cost is therefore part of
-# the contract, and `.claude/rules/hook-budget.md` states the ceiling it draws
-# on (<= 1 s typical, <= 2 s worst case for a whole PreToolUse matcher).
+# the contract, and `docs/conventions/hook-budget/README.md` states the budget
+# it draws on (k x S: the processes one fire costs, times one no-op spawn).
 #
 # WHY strace AND NOT xtrace — an xtrace command-position count reads the SOURCE
 # positions bash traced, not the processes the kernel created. `$(cmd 2>/dev/null)`

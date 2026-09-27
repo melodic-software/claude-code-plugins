@@ -19,7 +19,10 @@
 # then an unterminated `<!--` swallowing the rest — both, in that order,
 # exactly as the validator does), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
-#       `owner/repo#N`) OR the literal `No linked issue` / `No related issue:`;
+#       `owner/repo#N`), a non-closing `Refs: #N` / `Relates to: #N` marker on
+#       its own line, OR the literal `No linked issue` / `No related issue:`;
+#       and no negated closing reference (`does not close #N`) anywhere, which
+#       GitHub's negation-blind parser would still close on merge;
 #   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
 #       `## Verification`, `## Related` — where a DEEPER heading (`### …`) is
 #       that section's content, not its terminator.
@@ -246,9 +249,8 @@ sole_heredoc_body_to() {
   local start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
   printf -v "$__pbl_dest" '%s' ""
   linkage::split_lines "$text"
-  local -a hd_lines=("${LINKAGE_LINES[@]}")
-  for ((li = 0; li < ${#hd_lines[@]}; li++)); do
-    line="${hd_lines[li]}"
+  for ((li = 0; li < ${#LINKAGE_LINES[@]}; li++)); do
+    line="${LINKAGE_LINES[li]}"
     if ((in_hd)); then
       t="${line%$'\r'}"
       t="${t#"${t%%[![:space:]]*}"}"
@@ -291,7 +293,7 @@ block() {
   for p in "$@"; do echo "  - $p" >&2; done
   echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
   echo "Add to the body:" >&2
-  echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
+  echo "  Closes #<issue>      (or on its own line: Refs: #<issue> to link without closing, or No linked issue)" >&2
   echo "  ## Summary" >&2
   echo "  <what and why>" >&2
   echo "  ## Fix" >&2
@@ -465,6 +467,11 @@ parse_wrapper_flag() {
     env:u | sudo:u | sudo:g | sudo:h | sudo:p | sudo:C | sudo:T | sudo:U | sudo:r | sudo:t)
       WRAP_KIND="value"
       ;;
+    # Prints and exits without running the command; see the long-form arm.
+    sudo:V)
+      WRAP_KIND="terminal"
+      return 0
+      ;;
     # A letter this hook positively knows to be boolean: the cluster continues
     # past it. Anything else is unrecognized, and the caller bails rather than
     # assume — see WRAP_KIND=unknown handling.
@@ -473,11 +480,6 @@ parse_wrapper_flag() {
     # print a pathname instead of running anything, so no PR is created and
     # gating one would be a false block — they fall through to `unknown`, which
     # allows.
-    # Prints and exits without running the command; see the long-form arm.
-    sudo:V)
-      WRAP_KIND="terminal"
-      return 0
-      ;;
     command:p | \
       env:i | env:0 | env:v | sudo:A | sudo:B | sudo:b | sudo:E | sudo:H | sudo:K | \
       sudo:k | sudo:n | sudo:P | sudo:S | sudo:s | sudo:v)

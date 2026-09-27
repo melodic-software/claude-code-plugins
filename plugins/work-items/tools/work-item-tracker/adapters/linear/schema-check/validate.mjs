@@ -77,8 +77,7 @@ const ops = [
     vars: { key: 'ENG' } },
 
   // Labels come from the ROOT issueLabels connection, filtered to this team OR workspace-level
-  // (team: { null: true }), paginated. This replaced a single unpaginated team.labels(first: 250)
-  // page, which could neither see workspace labels nor read past its own first page.
+  // (team: { null: true }), paginated, so workspace labels and pages past the first are both visible.
   { name: 'create-item label resolve (root issueLabels, team-or-workspace)', loc: 'create-item.sh:137-146',
     q: `query($team: ID!, $first: Int!, $after: String) {
     issueLabels(
@@ -128,17 +127,15 @@ const ops = [
 
 let fail = 0;
 for (const op of ops) {
-  let doc, errs;
+  let doc;
   try { doc = parse(op.q); } catch (e) { console.log(`FAIL PARSE  ${op.name} :: ${e.message}`); fail++; continue; }
-  errs = validate(schema, doc);
-  let varErrs = [];
+  let errs = validate(schema, doc);
   if (errs.length === 0) {
     const opDef = doc.definitions.find(d => d.kind === 'OperationDefinition');
     const r = getVariableValues(schema, opDef.variableDefinitions ?? [], op.vars);
-    if (r.errors) varErrs = r.errors;
+    if (r.errors) errs = r.errors;
   }
-  const all = [...errs, ...varErrs];
-  if (all.length) { fail++; console.log(`FAIL        ${op.name}  [${op.loc}]`); for (const e of all) console.log(`              -> ${e.message}`); }
+  if (errs.length) { fail++; console.log(`FAIL        ${op.name}  [${op.loc}]`); for (const e of errs) console.log(`              -> ${e.message}`); }
   else console.log(`OK          ${op.name}  [${op.loc}]`);
 }
 console.log(`\n${ops.length - fail}/${ops.length} operations validate clean against the real schema.`);

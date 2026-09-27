@@ -14,7 +14,6 @@
     "validate": "node validate.js"
   },
   "dependencies": {
-    "date-holidays": "^3.24.4",
     "linkinator": "^7.0.0",
     "node-pptx-parser": "^1.0.1",
     "playwright": "1.61.1",

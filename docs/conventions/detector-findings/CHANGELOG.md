@@ -4,6 +4,35 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.1.3] - 2026-09-27
+
+**Patch, docs-only.** `review`'s `severity.md` now ranks confidence `high` > `medium` > `low` >
+`unscored`, so an omitted `Confidence` ranks last rather than above `low`. Rule 2's rationale said
+emitting `low` ranks a finding below saying nothing; that is no longer true, and the rationale now
+rests on what a detector can grade: a scan that fired is `high`, and it has no partial-verification
+scale for `medium` or `low`. The rule itself, `high` or omitted and never `low`, does not move, and
+no producer's output changes.
+
+## [3.1.2] - 2026-09-27
+
+**Patch, docs-only.** The `provenance` plugin is renamed `attribution`, so its three crosswalk rows
+now carry the `attribution/audit/` plugin segment: `rule-verbatim-copy`, `rule-stamp-expired`, and
+`rule-trigger-less-stamp`, and the verbatim-copy row's remediation names `/attribution:audit fix`.
+The rule-id form `<plugin>/<skill>/rule-<slug>` is unchanged and only this producer's plugin
+segment follows its rename. No producer-owned field's rule, coexistence obligation, tier, or
+enforceability verdict moves.
+
+## [3.1.1] - 2026-09-19
+
+**Patch, docs-only.** The `claude-config:audit-instructions` row described its Case 9b evidence as
+applying *each* `Action` at its own `Location`. The test applies one of the two, the
+coercive-emphasis remedy, by hand, and its `frontmatter is untouched` assertion reads the same
+unmodified fixture twice and so cannot fail. The row now says which remedy is pinned to an outcome
+and which is pinned at the wording level only. The **2 of 2 ratio is unchanged** and was never at
+issue: it rests on Case 9's four positive and two negative `Action` assertions, which were verified
+against the test and hold. No producer-owned field's rule, coexistence obligation, or enforceability
+verdict moves.
+
 ## [3.1.0] - 2026-09-13
 
 **Minor under this contract's own rule.** An existing producer's rule set gains two rows; no
@@ -98,11 +127,11 @@ conformance, which this version makes, and a transitional reading of it does not
   otherwise; it is also not buildable in the conformance gate's shape, because a producer's
   assertions live in its own tree rather than in what it emits.
 - **Two recheck triggers added, event-named like their siblings, and the first has not fired.** A
-  producer labelling the scope on both sides, then a producer declaring where its assertion set
+  producer labeling the scope on both sides, then a producer declaring where its assertion set
   lives. Every tabled producer keys its emit sites on a rule id alone and matches remedies by
   substring where it matches them, so no side carries a scope and the pairing check is not writable
   against any producer yet; claiming it was writable "per producer today" would have asserted of the
-  fleet what no row in it supports. Scope labelling makes the check writable against one producer's
+  fleet what no row in it supports. Scope labeling makes the check writable against one producer's
   layout; a declared assertion location is what lets one gate reach every producer.
 - **A third trigger closes the grandfather clause:** a grandfathered producer's next change to a
   rule's remedy set, adding a rule or editing an emitted remedy's wording or scope. The clause ends
@@ -335,7 +364,7 @@ Both passages are corrected to say what the consumer already does.
   the section directly above it, and the Declared-dispositions table, both turn on the fact that
   `fix-pass-mode.md` "Step 4" states that fence under its **correctness-class** heading and a
   cleanup-class row never passes through it. Read literally the sentence contradicted its own
-  neighbours. It is now scoped to the correctness class, with the consequence this contract owns
+  neighbors. It is now scoped to the correctness class, with the consequence this contract owns
   (settle it once per rule, in the crosswalk) marked as the class-independent half. **This wording
   predates the 2.4.0 release**: it entered with the crosswalk in #2737 on 2026-08-15, and 2.4.0 only
   put a second passage beside it that made the tension legible.
@@ -542,7 +571,7 @@ non-conforming under 2.0.0 and were each conforming under 1.1.0.
   `scripts/check-detector-findings-crosswalk.sh --check` runs in CI behind its own discriminating
   self-test, failing an empty or prose-free test cell, an unqualified or duplicated rule id, a row an
   unescaped pipe has shifted, and a restatement of the findings-file table. It locates the table by
-  its exact header, so a neighbouring table can neither satisfy it nor be dragged into it, and it
+  its exact header, so a neighboring table can neither satisfy it nor be dragged into it, and it
   accepts a **correctly escaped** `\|` inside a cell. This table is prose about rules, which is
   exactly the content that carries pipes, so a gate that rejected the escape the shape requires
   would dead-end an author who did the right thing. Each self-test asserts the failure MESSAGE as

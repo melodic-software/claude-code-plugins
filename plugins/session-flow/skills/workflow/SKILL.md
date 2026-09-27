@@ -66,7 +66,7 @@ Parse the first argument to determine mode; when it is `continue`, parse the sec
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution with `/clear` between stages |
 | `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
-| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation licence to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
+| `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
 
 ## Default mode (no arguments)
 
@@ -116,7 +116,7 @@ context-guard seam has data and conservative when it does not. Mid-stage with a 
 skip this, the default is simply to continue.
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
-that drove it, and executing the routed mechanism takes an explicit per-invocation licence
+that drove it, and executing the routed mechanism takes an explicit per-invocation license
 (`continue auto`, or the user's own words), which expires with the invocation. Its inputs beyond
 the gather above are presence-gated pointers to the siblings that own them; the rules live there.
 

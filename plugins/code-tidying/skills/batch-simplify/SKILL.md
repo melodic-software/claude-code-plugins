@@ -187,6 +187,7 @@ For each group:
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities
    - Instructions to preserve every observable behavior: exit codes, output format, public API, CLI args
    - The ecosystem-specific verification commands to run after changes (see context/reference.md)
+   - A stopping point: *"You are done when every file in your list has been read, each simplification you found is applied or recorded under `## Deferred`, and the verification commands pass."*
    - An escalation clause: *"If you discover mid-task that the requested change is wrong, conflicts with project conventions, or requires touching files outside your file list, STOP and report back instead of improvising."*
    - **Fix-first deferral contract (required):** *"Apply every simplification you identify. Deferral is the exception, and each deferral must name one of these grounds: (a) HUMAN-DECISION, the change turns on a judgment only a human can make (a behavior or public-API question, an ambiguous contract, product intent); (b) TOO-LARGE, a genuinely huge refactor whose scope would dwarf this sweep (a redesign spanning ecosystems, a breaking API migration); (c) CROSS-GROUP, the change requires editing files outside your file list (a later resolution wave in this same run will take it); (d) PROTECTED, the target is in a Phase 2 excluded class. 'Out of scope', 'would dilute the diff', or 'could be a follow-up' are NOT grounds; if you can do it safely and verify it, do it now. Record each deferral in a `## Deferred` section of your final report with this shape per item: `- <path>:<line or range> — <one-line description>. Ground: <HUMAN-DECISION|TOO-LARGE|CROSS-GROUP|PROTECTED>. Reason: <why that ground applies>. Scope: <trivial|small|medium|large>. Category: <refactor|dedup|modernize|perf|cleanup>.` Do not silently skip, if you noticed it, list it. 'Already idiomatic' or 'preserves documented contract' do NOT need to appear. Only candidates you considered actionable but set aside."*
 
@@ -221,7 +222,7 @@ Report the final verification results as a summary table.
 
 ### Phase 8: Summary report
 
-Present a final report. Scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + resolved-in-run and remaining-deferrals sections. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
+Present a final report. It opens with the remaining deferrals, the items waiting on the user; then scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + the resolved-in-run section. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
 
 When any HARD path was lifted, add a `## Lifted HARD exclusions` section naming each path and the channel that lifted it (`override` flag, overrides file, or `hard_exclusions=advisory`). Omit the section when nothing was lifted; never print it empty.
 

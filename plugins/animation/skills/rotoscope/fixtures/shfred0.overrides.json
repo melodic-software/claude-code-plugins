@@ -1,0 +1,18 @@
+{
+  "about": "Per-shot fits for the shfred0 study (239 drawings). Parameters only; the traces come from the video.",
+  "overrides": [
+    {"k": [0, 32], "brush": {"bias": 0.18, "blur": 0.7}, "why": "shot 1 sparse line art: source-only 1.5-2.5x replica-only"},
+    {"k": 31, "brush": {"bias": 0.25}, "why": "all-ink border frame, floor 0.023%"},
+    {"k": [33, 37], "brush": {"bias": 0.12, "blur": 0.7}, "why": "library aisle: bias 0.18 over-fattens"},
+    {"k": [64, 74], "tint": true, "why": "pink 'reading. a lot.' sign and warm paper"},
+    {"k": [78, 97], "brush": {"bias": 0.16}, "why": "office wall, dense dark scene, thin light lines"},
+    {"k": [127, 128], "brush": {"bias": 0.25}, "why": "near-all-ink car interior"},
+    {"k": [167, 174], "brush": {"bias": 0.25}, "why": "near-black rain; border pixels decide a 0.03% floor"},
+    {"k": [188, 196], "brush": {"blur": 0.7}, "why": "sun-ray dashes"},
+    {"k": [192, 196], "brush": {"bias": 0.09}, "why": "dense dashes: replica-only 1.2-1.7x source-only"},
+    {"k": [197, 202], "brush": {"bias": 0.10, "blur": 0.65}, "why": "dashed rays and window grids"},
+    {"k": [203, 217], "sharp": [2.0, 0.6], "levels": [40, 80, 170, 215], "brush": {"bias": 0.12, "blur": 0.5},
+     "why": "skyline tilt/flash: sigma 0.9 over-sharpens dense dashes"},
+    {"k": [218, 238], "brush": {"bias": 0.18}, "why": "dry-brush creature-burst spikes: source-only ~2x replica-only"}
+  ]
+}

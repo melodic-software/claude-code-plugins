@@ -86,10 +86,11 @@ if [[ "${1:-}" == "--default-root" ]]; then
     ;;
   esac
   [[ -n "$docs" && -d "$docs" ]] || exit 1
+  docs_canonical="$(canonicalize "$docs")"
   # The ≠ $HOME guard: an unconfigured/headless box answers the Documents query with $HOME
   # itself; treating that as Documents would scatter workspaces across the home directory.
-  [[ "$(canonicalize "$docs")" != "$(canonicalize "$HOME")" ]] || exit 1
-  printf '%s/Claude Learning\n' "$(canonicalize "$docs")"
+  [[ "$docs_canonical" != "$(canonicalize "$HOME")" ]] || exit 1
+  printf '%s/Claude Learning\n' "$docs_canonical"
   exit 0
 fi
 

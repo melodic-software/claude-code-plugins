@@ -180,7 +180,7 @@ The in-session shortcut to the design→plan gate. Invoke `/planning:design-hand
 
 ### Typed artifacts: dialect and scope label
 
-Typing adds a declared dialect and a scope label to artifacts this skill already emits. It introduces no new artifact and no new file. Everything the **Typed artifact** column does not name, meaning `schema-decisions.md`, `communication-patterns.md`, and every `library` and `module` artifact, stays prose exactly as today: no dialect, no scope label. `component-map.md` is likewise untyped whenever `diagram_dialect.system` is unset; it is written as today's prose, carries no scope label, and a downstream lookup finds nothing rather than an unlabelled diagram.
+Typing adds a declared dialect and a scope label to artifacts this skill already emits. It introduces no new artifact and no new file. Everything the **Typed artifact** column does not name, meaning `schema-decisions.md`, `communication-patterns.md`, and every `library` and `module` artifact, stays prose exactly as today: no dialect, no scope label. `component-map.md` is likewise untyped whenever `diagram_dialect.system` is unset; it is written as today's prose, carries no scope label, and a downstream lookup finds nothing rather than an unlabeled diagram.
 
 `library` and `module` emit no typed artifact and therefore carry no scope label. Their artifacts are type inventories, boundaries, and topology, none of which has a diagram dialect to select.
 

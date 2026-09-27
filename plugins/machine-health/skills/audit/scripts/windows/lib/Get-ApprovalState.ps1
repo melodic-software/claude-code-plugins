@@ -80,8 +80,7 @@ function Read-ApprovalsFromTodo {
 
     $sha = $null
     try {
-        $hashParams = @{ LiteralPath = $TodoPath; Algorithm = 'SHA256'; ErrorAction = 'Stop' }
-        $sha = (Get-FileHash @hashParams).Hash
+        $sha = (Get-FileHash -LiteralPath $TodoPath -Algorithm 'SHA256' -ErrorAction Stop).Hash
     } catch {
         Write-Verbose "Read-ApprovalsFromTodo: unable to hash TODO.md. $($_.Exception.Message)"
     }

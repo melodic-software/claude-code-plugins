@@ -149,15 +149,15 @@ def main() -> int:
         "--model",
         args.model,
         "--poll-seconds",
-        str(args.poll_seconds),
+        args.poll_seconds,
         "--idle-seconds",
-        str(args.idle_seconds),
+        args.idle_seconds,
         "--idle-confirm-seconds",
-        str(args.idle_confirm_seconds),
+        args.idle_confirm_seconds,
         "--max-seconds",
-        str(args.max_seconds),
+        args.max_seconds,
         "--analysis-timeout-seconds",
-        str(args.analysis_timeout_seconds),
+        args.analysis_timeout_seconds,
     ]
     if args.analysis:
         cmd.append("--analysis")

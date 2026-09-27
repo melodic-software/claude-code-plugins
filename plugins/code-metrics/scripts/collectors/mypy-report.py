@@ -29,7 +29,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   is the bare `x`. `module_name` re-derives that rule; checked against a
   real 186-file run of this repository (182 of 182 listed names matched);
 - mypy exits 1 on any type error and still writes the report (design T1), so
-  exit 1 with a readable report is exit 0 here, with the lane row labelled
+  exit 1 with a readable report is exit 0 here, with the lane row labeled
   `mypy-reported-errors` and a note on stderr (which the dispatcher relays as
   the run row's reason) counting the errors and the missing-stub ones, the
   codes `import-untyped` and `import-not-found`. Error lines go to stdout as
@@ -45,7 +45,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   no derived name equals is matched to the one scope file whose derived name
   ends in `.` plus that name, and left out when that is ambiguous;
 - mypy exits 2 on a blocking error (a duplicate module name, a usage or config
-  error) before analysing anything, and still writes a report whose only row
+  error) before analyzing anything, and still writes a report whose only row
   is `Total 0 0 100.00%`. Nothing was measured, so exit 2 is the adapter
   contract's exit 4 (the tool resolved but cannot run on these files) with
   mypy's stderr relayed, never a 100% row. An unwritten or unreadable report on
@@ -79,22 +79,25 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from typing import Optional
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "mypy-report"
 TOOL = "mypy"
 MEASURE = "type_coverage"
 LANE = "python"
 # mypy's exit for a blocking error (duplicate module, usage or config error):
-# it stops before analysing anything and its report carries no measurement.
+# it stops before analyzing anything and its report carries no measurement.
 FATAL_EXIT = 2
 # mypy's own order: a stub beside a module wins (find_sources.PY_EXTENSIONS).
 PY_EXTENSIONS = (".pyi", ".py")
@@ -107,15 +110,10 @@ def probe() -> int:
     if not exe:
         print(f"{TOOL} not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{TOOL} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, TOOL)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -268,7 +266,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 if part.strip()
             )
             print(
-                f"mypy could not analyse these files (exit {FATAL_EXIT}): {said}",
+                f"mypy could not analyze these files (exit {FATAL_EXIT}): {said}",
                 file=sys.stderr,
             )
             return 4
@@ -383,39 +381,24 @@ def match_modules(modules: dict[str, Counts], files: list[str]) -> dict[str, str
     return matched
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+INSTALL_HINT = "mypy: https://mypy.readthedocs.io (pip install mypy, pipx install mypy, or uv tool install mypy)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "mypy: https://mypy.readthedocs.io (pip install mypy, pipx install mypy, or uv tool install mypy)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "mypy-report.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

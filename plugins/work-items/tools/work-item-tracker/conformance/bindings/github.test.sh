@@ -3,10 +3,8 @@
 # github.sh is a sourceable conformance binding — assert it sources cleanly and
 # exposes the cb_setup/cb_teardown contract without touching the network.
 #
-# Like gitea's and linear's, this file does NOT run the abstract suite. The github
-# manifest declares every verb, so the suite creates, claims, and closes real issues
-# in the sandbox repo; github stays an on-demand binding, run by hand against a
-# throwaway target rather than quietly skipped here.
+# It does NOT run the suite: that mutates real sandbox issues, so github stays an
+# on-demand binding run by hand.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,11 +13,7 @@ source "$SCRIPT_DIR/../../tests/lib.sh"
 source "$SCRIPT_DIR/github.sh"
 
 for fn in cb_setup cb_teardown; do
-  if declare -F "$fn" >/dev/null; then
-    pass "github binding exposes $fn"
-  else
-    fail "github binding exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "github binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # No retained default: cb_setup refuses when the target is unset (the guard fires

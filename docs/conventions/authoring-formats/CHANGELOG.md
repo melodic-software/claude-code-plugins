@@ -34,7 +34,7 @@ First release. Registers the concern, declares both keys, and states the resolut
 consuming skills restate.
 
 - **`acceptance_criteria_format`** takes `free-text` (default) or `ears`. `free-text` is today's
-  behaviour; `ears` selects the five EARS patterns as the shape emitted criteria are tagged with.
+  behavior; `ears` selects the five EARS patterns as the shape emitted criteria are tagged with.
 - **`diagram_dialect`, split by artifact kind.** `data` takes `mermaid` (default) or `dbml`;
   `system` takes `likec4` or `c4-plantuml` and has **no default**. The system key is deliberately
   defaultless: a default would make a consumer who never opted in start emitting a C4 container

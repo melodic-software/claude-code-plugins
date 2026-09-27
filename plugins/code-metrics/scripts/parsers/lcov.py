@@ -46,22 +46,11 @@ import json
 import sys
 from typing import Any
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python
+from parser_paths import to_int as _int
+
 FORMAT = "lcov"
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
-
-
-def _int(text: str) -> int | None:
-    try:
-        return int(text.strip())
-    except ValueError:
-        return None
 
 
 def _section() -> dict[str, Any]:
@@ -77,17 +66,6 @@ def _finish(
 ) -> None:
     if not order:
         return
-    functions = []
-    for key in order:
-        functions.append(
-            {
-                "name": key[0],
-                "start_line": starts.get(key, key[1]),
-                "end_line": ends.get(key),
-                "hit": hits.get(key),
-                "lines": None,
-            }
-        )
     # One tracefile can carry several `SF` blocks for the same source file (a
     # concatenation of per-suite runs). The `DA` counts already merge with
     # `max` into the shared section, so the function records must fold the
@@ -97,19 +75,26 @@ def _finish(
     # start line, the same identity the accumulators carry, because one file
     # can hold two functions of the same name at different lines.
     existing = {(f["name"], f["start_line"]): f for f in section["functions"] or []}
-    for function in functions:
-        key = (function["name"], function["start_line"])
-        previous = existing.get(key)
+    for key in order:
+        function = {
+            "name": key[0],
+            "start_line": starts.get(key, key[1]),
+            "end_line": ends.get(key),
+            "hit": hits.get(key),
+            "lines": None,
+        }
+        fold_key = (function["name"], function["start_line"])
+        previous = existing.get(fold_key)
         if previous is None:
-            existing[key] = function
+            existing[fold_key] = function
             continue
         if previous["end_line"] is None:
             previous["end_line"] = function["end_line"]
         counts = [h for h in (previous["hit"], function["hit"]) if h is not None]
         previous["hit"] = max(counts) if counts else None
-    folded = list(existing.values())
-    folded.sort(key=lambda f: (f["start_line"] is None, f["start_line"] or 0))
-    section["functions"] = folded
+    section["functions"] = sorted(
+        existing.values(), key=lambda f: (f["start_line"] is None, f["start_line"] or 0)
+    )
 
 
 def parse(path: str) -> dict[str, dict]:
@@ -153,11 +138,9 @@ def parse(path: str) -> dict[str, dict]:
                 continue
             if record == "DA":
                 fields = rest.split(",")
-                number, count = (
-                    (_int(fields[0]), _int(fields[1]))
-                    if len(fields) >= 2
-                    else (None, None)
-                )
+                if len(fields) < 2:
+                    continue
+                number, count = _int(fields[0]), _int(fields[1])
                 if number is not None and count is not None:
                     previous = section["lines"].get(number, 0)
                     section["lines"][number] = max(previous, count)
@@ -239,9 +222,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("lcov.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python("lcov.py")
     try:
         sys.exit(main(sys.argv[1:]))
     except OSError as exc:

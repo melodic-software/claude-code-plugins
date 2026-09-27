@@ -47,10 +47,17 @@ project() {
 }
 
 # run <project> <payload> [env...]: runs the hook with CLAUDE_PROJECT_DIR set.
+# The body is written to a file before the hook starts, then read back on
+# stdin. The parallel case fans the hook out 33 ways, and a pipe can let one
+# idle read (CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2s) return
+# before printf delivers the body: the hook exits, printf hits a broken pipe,
+# and that fire adds no line. A file has no writer left to race.
 run() {
-  local proj="$1" body="$2"
+  local proj="$1" body="$2" payload_file
   shift 2
-  printf '%s' "$body" | env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" 2>&1
+  payload_file="$(mktemp "$TEST_TMPDIR/payload.XXXXXX")"
+  printf '%s' "$body" >"$payload_file"
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
 # --- default OFF: nothing is read or written --------------------------------
@@ -91,6 +98,17 @@ run "$P" "$(payload sess-xyz SessionStart)" "$ON" >/dev/null
 assert_eq "second event appends to the session file" 2 "$(wc -l <"$LOG" | tr -d ' ')"
 assert_eq "another session gets its own file" 1 "$(wc -l <"$P/.observability/claude/sessions/sess-xyz.jsonl" | tr -d ' ')"
 assert_eq "exactly two session files" 2 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
+
+# --- PostToolBatch: one line per batch, carrying the first call's tool keys ------
+P=$(project batch)
+OUT=$(run "$P" "$(payload sb PostToolBatch '"tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"/x/a.md"},"tool_use_id":"toolu_b1","tool_response":{"content":"a"}},{"tool_name":"Grep","tool_input":{"pattern":"x"},"tool_use_id":"toolu_b2","tool_response":{"content":"b"}}]')" "$ON")
+assert_exit "PostToolBatch → exit 0" 0 "$?"
+BLOG="$P/.observability/claude/sessions/sb.jsonl"
+assert_eq "PostToolBatch → one line for the batch" 1 "$(wc -l <"$BLOG" 2>/dev/null | tr -d ' ')"
+assert_eq "PostToolBatch → hook_event_name" "PostToolBatch" "$(jq -r .hook_event_name "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → category tool" "tool" "$(jq -r .category "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → first entry's tool_name" "Read" "$(jq -r .tool_name "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → first entry's tool_use_id" "toolu_b1" "$(jq -r .tool_use_id "$BLOG" 2>/dev/null)"
 
 # --- the guard is never overwritten when an operator changed it ---------------
 P=$(project guarded)
@@ -249,7 +267,7 @@ assert_eq "512 KB payload → spine written" "PostToolUse" "$(jq -r .hook_event_
 
 # --- 33 parallel fires on one session produce 33 intact lines --------------------
 P=$(project parallel)
-for i in $(seq 1 33); do
+for i in {1..33}; do
   run "$P" "$(payload s12 PostToolUse "\"tool_name\":\"T$i\"")" "$ON" >/dev/null &
 done
 wait

@@ -115,6 +115,8 @@ if git -C "$PROJG" init -q 2>/dev/null; then
   else
     bad "git status clean after hook write"
   fi
+  assert_eq "unborn HEAD keeps branch unknown" "unknown" \
+    "$(jq -r '.branch' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
 fi
 
 # --- user scope writes under HOME ------------------------------------------

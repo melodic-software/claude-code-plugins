@@ -11,11 +11,8 @@ so any drift between the schema and the shipped catalog fails CI.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'ConvertFrom-Jsonc.ps1')
-    . (Join-Path $script:LibRoot 'Assert-CatalogEntry.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'ConvertFrom-Jsonc.ps1', 'Assert-CatalogEntry.ps1'
 
     function New-ValidEntry {
         param([hashtable] $Overrides = @{})
@@ -156,18 +153,8 @@ Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'in
 }
 
 Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
-    # The category enum lives in five places: checks.schema.json,
-    # check-result.schema.json, Assert-CatalogEntry, Assert-CheckResult, and
-    # New-InvalidCatalogEntryResult. A value present in a schema but missing
-    # from a validator rejects every check declaring it (Assert-CatalogEntry
-    # fails; the orchestrator then synthesizes UNKNOWN rather than
-    # dispatching), and a value present in one validator but not the other
-    # admits an overlay entry whose emitted result is then rejected - so all
-    # five copies are compared exactly, in both directions: the validators'
-    # literal $validCategories sets are extracted from the AST and matched
-    # against the schema enums, and each schema value is also accepted
-    # behaviorally. The synthetic-result helper is included so an entry that
-    # fails on another field does not silently reclassify as reliability.
+    # The category enum lives in five places (two schemas, three validators); a difference in any
+    # direction rejects or wrongly admits entries, so all five are compared exactly both ways.
     BeforeAll {
         . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
         . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')

@@ -272,14 +272,12 @@ function New-MockEnvironmentKey {
 }
 
 function New-MachineHealthTempDir {
-    # Creates a uniquely-named scratch directory under the system temp root and
-    # returns its path. Centralizes the pattern repeated across tests that need
-    # a per-test workspace (egress logs, fake history dirs, snapshot fixtures).
+    # Creates a uniquely named scratch directory under the system temp root and
+    # returns its path.
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Prefix = 'machine-health-test')
-    $tmpRoot = [System.IO.Path]::GetTempPath()
-    $path = Join-Path $tmpRoot ("$Prefix-" + [guid]::NewGuid())
+    $path = Join-Path ([System.IO.Path]::GetTempPath()) ("$Prefix-" + [guid]::NewGuid())
     New-Item -ItemType Directory -Path $path -Force | Out-Null
     return $path
 }
@@ -293,20 +291,3 @@ function Remove-MachineHealthTempDir {
         }
     }
 }
-
-Export-ModuleMember -Function @(
-    'New-MachineHealthTempDir'
-    'New-MockBattery'
-    'New-MockDefenderComputerStatus'
-    'New-MockDriver'
-    'New-MockEnvironmentKey'
-    'New-MockEventLogRecord'
-    'New-MockPartition'
-    'New-MockPhysicalDisk'
-    'New-MockReliabilityCounter'
-    'New-MockReliabilityRecord'
-    'New-MockReliabilityStabilityMetric'
-    'New-MockService'
-    'New-MockVolume'
-    'Remove-MachineHealthTempDir'
-)

@@ -25,7 +25,7 @@ kept in sync by a gate is one authored file, however many times it is
 instantiated. Both totals are printed because they answer different
 questions (authoring effort versus what an agent pays to read).
 
-Tokens are estimated as bytes / 4 and labelled as an estimate throughout.
+Tokens are estimated as bytes / 4 and labeled as an estimate throughout.
 
 Usage: comment-census.py [PATH ...] [--top N] [--json] [--baseline FILE]
                          [--layer auto|scc|pygments]
@@ -119,9 +119,8 @@ def scc_counts(files: list[Path]) -> dict[str, dict] | None:
     exe = shutil.which("scc")
     if not exe or not files:
         return None
-    # The file list comes from `git ls-files`, so a tracked name such as
-    # `-o=evil.json` is attacker-chosen. `--` ends scc's flag parsing, and the
-    # `./` prefix keeps a bare relative name from ever reading as a flag.
+    # `git ls-files` names are attacker-chosen (`-o=evil.json`): `--` ends scc's flag
+    # parsing, and the `./` prefix keeps a bare relative name from reading as a flag.
     proc = subprocess.run(
         [
             exe,
@@ -156,7 +155,7 @@ def pygments_available() -> bool:
 
     `pygments_counts` answers this only as a side effect of reading a file, so a
     scope with no readable files cannot distinguish "nothing to read" from "no
-    analyser installed" without asking separately.
+    analyzer installed" without asking separately.
     """
     try:
         import pygments  # noqa: F401
@@ -217,8 +216,8 @@ def pygments_counts(path: Path) -> dict | None:
             body = text.strip("\n")
             if body.strip():
                 comment_bytes += len(body.encode("utf-8"))
-                for i in range(text.count("\n") + 1):
-                    if i < len(text.split("\n")) and text.split("\n")[i].strip():
+                for i, part in enumerate(text.split("\n")):
+                    if part.strip():
                         comment_lines.add(line + i)
         line += text.count("\n")
     return {
@@ -275,14 +274,9 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
                 unread=True,
             )
         records.append(rec)
-    # An empty scope and a missing analyser both yield zero records, and reporting
-    # the second as a clean zero is the worse error: every later count reads as an
-    # improvement against a baseline that was never measured. Probe each layer for
-    # INSTALLED-ness directly. Neither `sources["lines"]` nor the `scc` result can
-    # answer that here: the first stays None when there was simply nothing to read,
-    # and `scc_counts` returns None on an empty file list even when the binary is
-    # present, so using either as the proxy reports an installed analyser as
-    # missing and turns an empty scope into a false hard stop.
+    # Probe each layer for INSTALLED-ness directly: a missing analyzer reported as a clean
+    # zero makes every later count read as an improvement. Neither `sources["lines"]` nor
+    # `scc_counts` can tell, since both come back None on an empty scope too.
     have_layer = (use_scc and scc_available()) or (
         use_pygments and pygments_available()
     )
@@ -301,11 +295,9 @@ def totals(records: list[dict], dedupe: bool) -> dict:
     if dedupe:
         by_hash: dict[str, dict] = {}
         for r in records:
-            if r["sha256"] not in by_hash:
-                by_hash[r["sha256"]] = r
-            else:
-                duplicates += 1
+            by_hash.setdefault(r["sha256"], r)
         chosen = list(by_hash.values())
+        duplicates = len(records) - len(chosen)
     cl = sum(r.get("comment_lines", 0) for r in chosen)
     lines = sum(r.get("lines", 0) for r in chosen)
     cb = sum(r.get("comment_bytes", 0) for r in chosen if "comment_bytes" in r)
@@ -317,9 +309,8 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         "comment_ratio": round(cl / lines, 4) if lines else 0.0,
         "comment_bytes": cb,
         "approx_tokens": cb // 4,
-        # Files no analyser could read count 0 comments and 0 lines, which is
-        # indistinguishable from a genuinely comment-free file in every total
-        # above. Carry the count so the report can say the coverage is partial.
+        # Unreadable files count 0, indistinguishable from comment-free ones in the totals,
+        # so carry the count and let the report say coverage is partial.
         "unread_files": sum(1 for r in chosen if r.get("unread")),
     }
 
@@ -370,7 +361,7 @@ def render(report: dict, top: int) -> str:
     unread = report["deduped"].get("unread_files", 0)
     if unread:
         out.append(
-            f"NOTE: {unread} file(s) no analyser could read are counted as 0 comments — "
+            f"NOTE: {unread} file(s) no analyzer could read are counted as 0 comments — "
             "the totals above are a floor, not a measurement, for those files"
         )
     out.append("")

@@ -22,10 +22,10 @@
 # runtime on every host, and this repo does not ship a grant on docs alone
 # (`plugins/discovery/reference/parent-contract.md`). Until a runtime check
 # exists, the skill-local path is the exercised shape — reachable from a shared
-# `scripts/` location through a thin exec wrapper. dissolve-comments ships four
+# `scripts/` location through a thin exec wrapper. dissolve-comments ships six
 # of those wrappers beside the skill, named so this suite covers them:
-# change-shape.sh, comment-census.sh, commented-out-code.sh,
-# rank-comment-targets.sh.
+# change-shape.sh, comment-census.sh, comment-tooling-probe.sh,
+# commented-out-code.sh, rank-comment-targets.sh, scope-code-files.sh.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
@@ -43,7 +43,8 @@ SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments)
 # deliberate narrowing decision, which the pairing checks below cannot catch on
 # their own: a script that is bundled, executable, and mentioned in the body
 # "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green.
+# other assertion here would still pass green. A skill with no arm reports a
+# NOTE at the comparison site rather than comparing nothing.
 expected_granted() {
   case "$1" in
   *) echo "" ;;
@@ -56,6 +57,9 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
+# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
+# skip, and this path is a declared absence of an allowlist, not of a tool.
+note() { echo "NOTE: $1"; }
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -94,14 +98,9 @@ for skill in "${SKILLS[@]}"; do
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
     fi
-    # An injected ${CLAUDE_PLUGIN_ROOT} script is unmatched by any grant this
-    # gate permits, so under default permissions the injection aborts before
-    # Claude sees the skill. The grant-side checks above cannot catch it — the
-    # grant is simply absent — which is how two skills shipped an ungranted
-    # injection while this gate passed green. Route the shared script through a
-    # skill-local exec wrapper instead. (Not because the token fails to
-    # substitute; see the header. It is that this repo grants only the shape
-    # whose runtime matching is exercised.)
+    # An injected ${CLAUDE_PLUGIN_ROOT} script matches no grant this gate permits, so the
+    # injection aborts under default permissions, and the grant-side checks above cannot
+    # see a grant that is absent. Route it through a skill-local exec wrapper instead.
     if grep -qE '!`[^`]*\$\{CLAUDE_PLUGIN_ROOT\}/scripts/' "$f"; then
       fail "$f: body injects a \${CLAUDE_PLUGIN_ROOT} script no permitted grant covers — add a \${CLAUDE_SKILL_DIR}/scripts wrapper"
     else
@@ -109,8 +108,7 @@ for skill in "${SKILLS[@]}"; do
     fi
   done
 
-  # Each granted script must exist, be executable, and be invoked by the body —
-  # a grant nothing runs is dead weight, and a non-executable target cannot be
+  # A grant nothing runs is dead weight, and a non-executable target cannot be
   # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
   if [[ ${#granted[@]} -eq 0 ]]; then
@@ -140,6 +138,8 @@ for skill in "${SKILLS[@]}"; do
     expected: $expected
     actual:   $actual"
     fi
+  else
+    note "$skill: names no allowlist, so the granted-set comparison did not run"
   fi
 done
 

@@ -113,7 +113,7 @@ def leaves(node, prefix: str = ""):
         yield prefix[:-1], node
 
 
-def default_leaves(defaults: dict) -> "dict[str, object]":
+def default_leaves(defaults: dict) -> dict[str, object]:
     """The consumer-configurable leaves, reserved members dropped at the root."""
     out = {}
     for key, value in defaults.items():
@@ -146,7 +146,7 @@ def render_default(value) -> str:
     return f"{fence}{pad}{escaped}{pad}{fence}"
 
 
-def read_code_span(cell: str) -> "str | None":
+def read_code_span(cell: str) -> str | None:
     """The content of a code-span cell with `\\|` unescaped, or None."""
     match = CODE_SPAN.match(cell.strip())
     if match is None or not match.group("body"):
@@ -157,7 +157,7 @@ def read_code_span(cell: str) -> "str | None":
     return body.replace("\\|", "|")
 
 
-def split_row(line: str) -> "list[str]":
+def split_row(line: str) -> list[str]:
     """The cells of a markdown table row, outer pipes discarded."""
     cells = CELL_SPLIT.split(line.strip())
     if cells and not cells[0].strip():
@@ -167,7 +167,7 @@ def split_row(line: str) -> "list[str]":
     return [cell.strip() for cell in cells]
 
 
-def key_table(doc_text: str) -> "list[tuple[int, list[str]]]":
+def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
     """The first table under `## Keys`, as (1-based line number, cells) rows."""
     lines = doc_text.splitlines()
     start = None
@@ -178,7 +178,7 @@ def key_table(doc_text: str) -> "list[tuple[int, list[str]]]":
     if start is None:
         raise GateError(f"no {SECTION_HEADING!r} heading in the reference document")
 
-    rows: "list[tuple[int, list[str]]]" = []
+    rows: list[tuple[int, list[str]]] = []
     seen_table = False
     for index in range(start, len(lines)):
         line = lines[index]
@@ -215,13 +215,13 @@ def matches(pattern: str, path: str) -> bool:
     return all(WILDCARD.match(w) or w == h for w, h in zip(want, have))
 
 
-def check(defaults: dict, doc_text: str, doc_name: str) -> "list[str]":
+def check(defaults: dict, doc_text: str, doc_name: str) -> list[str]:
     """Every disagreement between the two surfaces, each naming its key."""
-    problems: "list[str]" = []
+    problems: list[str] = []
     expected = default_leaves(defaults)
     rows = key_table(doc_text)
 
-    documented: "dict[str, list[str]]" = {path: [] for path in expected}
+    documented: dict[str, list[str]] = {path: [] for path in expected}
     for lineno, cells in rows:
         if len(cells) < 2:
             problems.append(f"{doc_name}:{lineno}: table row has fewer than two cells")
@@ -233,7 +233,7 @@ def check(defaults: dict, doc_text: str, doc_name: str) -> "list[str]":
                 "every documented key is written as `a.b.c`"
             )
             continue
-        cell = cells[1].strip()
+        cell = cells[1]
         hits = [path for path in expected if matches(key, path)]
         for path in hits:
             documented[path].append(key)
@@ -292,7 +292,7 @@ def check(defaults: dict, doc_text: str, doc_name: str) -> "list[str]":
     return problems
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--defaults", type=Path, default=DEFAULT_DEFAULTS)
     parser.add_argument("--doc", type=Path, default=DEFAULT_DOC)

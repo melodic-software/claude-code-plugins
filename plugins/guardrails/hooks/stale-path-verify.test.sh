@@ -99,41 +99,12 @@ TARGET="$REPO/notes.md"
 
 GUARD_UNDER_TEST="$HOOK"
 
-# run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
-# code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
-#
-# Never `OUT=$(run …)` (#3373): a command substitution runs the helper in a
-# subshell, so an `RC=$?` assigned inside it never reaches the parent and every
-# `assert_exit` after the call silently compares a stale outer value — the
-# suite would stay green through a hook that regressed to a nonzero exit.
-# HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
-#
-# run_payload <json> is the shared driver call every shape below reduces to:
-# one payload, one hook process, stdout and stderr together in OUT, the hook's
-# own exit code returned.
-run_payload() {
-  guard_invoke --hook "${HOOK_OVERRIDE:-$HOOK}" --merge-stderr --payload "$1" \
-    -- "CLAUDE_PROJECT_DIR=$REPO"
-  OUT="$GUARD_OUT"
-  return "$GUARD_RC"
-}
-run() { run_payload "$(write_json "$TARGET" "$1")"; }
-# run_edit <new_string> -> same, as an Edit payload.
-run_edit() { run_payload "$(edit_json "$TARGET" "$1")"; }
+# HOOK, REPO and TARGET above are the caller contract for `run`, `run_edit`,
+# `run_payload` and `parity` in guardrails-test-helpers.sh; HOOK_OVERRIDE lets a
+# case point them at a stub hook and stays unset elsewhere.
 
-# --- The run helpers must carry the hook's exit code out (#3373) -------------
-# Guards the assertion machinery itself: point the helpers at a stub that exits
-# nonzero and the returned code must be that code. Under the old
-# `OUT=$(run …)` + inner `RC=$?` shape this read 0, which is what made every
-# run-based `assert_exit` below vacuous.
-STUB_HOOK="$TEST_TMPDIR/rc-stub-hook.sh"
-printf '#!/usr/bin/env bash\nexit 3\n' >"$STUB_HOOK"
-HOOK_OVERRIDE="$STUB_HOOK"
-run 'anything'
-assert_exit "run propagates a nonzero hook exit" 3 "$?"
-run_edit 'anything'
-assert_exit "run_edit propagates a nonzero hook exit" 3 "$?"
-unset HOOK_OVERRIDE
+# --- The run helpers must carry the hook's exit code out ---------------------
+assert_run_helpers_propagate_exit
 
 # ============================ MUST FIRE =====================================
 
@@ -176,7 +147,7 @@ assert_contains "bare-substring Edit hunk → containing citation recovered" "$O
 
 # Diff-scope is preserved: a PRE-EXISTING unrelated stale citation must NOT fire
 # just because reconstruction read from disk.
-assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
+assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "legacy-emit"
 
 # Diff-scope again, against the harder shape: the hunk is unrelated prose that
@@ -238,8 +209,8 @@ assert_silent "self-overlapping anchor is ambiguous, not unique" "$OUT"
 # `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
 # every occurrence is a place this call edited, so uniqueness must not be required
 # or the guard goes silent on a genuine multi-site staleness. Built inline rather
-# than through edit_json — that helper is shared across guard suites and gated by
-# hook-utils-sync, so this suite's payload variant stays local to it.
+# than through edit_json: that helper is shared across every guard suite in this
+# plugin, so this suite's payload variant stays local to it.
 replall_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
     '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
@@ -525,8 +496,6 @@ assert_exit "skip-worktree + assume-unchanged → exit 0" 0 "$RC"
 assert_silent "lowercase s still carries the skip-worktree exemption → silent" "$OUT"
 git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
 
-git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
-
 # The index check must not swallow a genuine removal. Same repo, same absence from
 # disk — the only difference is that this one is in no index entry either.
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
@@ -719,21 +688,7 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-sta
 assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root_to REPO_ROOT "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
-# The expansion must answer as `dirname` did for every shape. For a root-level
-# `/bar.md` the shortest `/*` suffix is the whole string, so the bare expansion
-# is EMPTY and hook::repo_root's `${1:-.}` would anchor on the process CWD, not
-# `/`. That shape cannot reach the hook end to end (hook::read_file_path needs
-# the file to exist and `/` is not writable), so the seam is lifted from the
-# hook source and evaluated against each shape; its answer must be dirname's.
-FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
-assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
-for fp in /bar.md bar.md /a/b/bar.md; do
-  # shellcheck disable=SC2034  # read by the eval below
-  FILE="$fp"
-  FILE_DIR=""
-  eval "$FILE_DIR_SEAM"
-  assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
-done
+assert_file_dir_seam "$HOOK"
 
 # The whole-index `git ls-files` must not run for a write that cites nothing.
 assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
@@ -772,28 +727,95 @@ fi
 # jq call, and the guard is `source`d into a subshell rather than exec'd.
 #
 # An advisory guard exits 0 whether or not it found anything, so the exit code
-# alone is not its verdict: the additionalContext document is. Each case below
-# asserts both, on both paths.
-#
-# parity <label> <content> <expected-exit> <needle, or "" for silence>
-parity() {
-  local label="$1" content="$2" expected="$3" needle="$4" payload via
-  payload="$(write_json "$TARGET" "$content")"
-  for via in direct dispatched; do
-    guard_invoke --via "$via" --merge-stderr --payload "$payload" \
-      -- "CLAUDE_PROJECT_DIR=$REPO"
-    assert_exit "$label ($via)" "$expected" "$GUARD_RC"
-    if [[ -n "$needle" ]]; then
-      assert_contains "$label ($via): finding survives" "$GUARD_OUT" "$needle"
-    else
-      assert_silent "$label ($via): stays quiet" "$GUARD_OUT"
-    fi
-  done
-}
+# alone is not its verdict: the additionalContext document is. `parity` in
+# guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: deleted path" 'See `docs/gone.md` here.' 0 \
   "STALE_PATH: docs/gone.md"
 parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""
 parity "dispatched parity: renamed-away path" 'Run `tools/legacy-emit.sh` to build.' 0 \
   "STALE_PATH: tools/legacy-emit.sh"
+
+# --- Builtin twins answer what the pipelines answer ------------------------------
+# The twins replace grep/sed/sort/head pipelines for printable-ASCII text. Each
+# case runs both on this host's own grep and sed (GNU on CI Linux, Git Bash on
+# Windows), in a child shell that sources the library and the twins alone.
+# Token sets compare sorted, since the caller only tests membership.
+TWIN_CASES=(
+  'See `docs/gone.md` and `a b` here' '``x`' 'a`b`c`d' '`unclosed docs/gone.md' '````' '` `'
+  $'line one `x.md`\r\nline two `y.md`\r\n' $'\t`tab.md`\t\n   \n\t\n' $'v\vf\f`z.md`'
+  'a- ..ab -x x a.b.c 12 1a -- gone-md gone_md' 'Root `gone.md` and `README.md` x' $'\n\n`a`\n\n`b`\n'
+  'a\b `c:\d` "q" (p) [s] {c} $v ~h' "$(printf '%s\n' {1..45} | sed 's/.*/fix `docs\/gone.md` n&/')" # portability-ok: \b is literal text in a single-quoted test string, not a grep word boundary
+)
+TWIN_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  SPV_OUT=()
+  lines() { ((${#SPV_OUT[@]})) && printf '%s\n' "${SPV_OUT[@]}"; }
+  for t in "${TWIN_CASES[@]}"; do
+    spv_plain "$t" || {
+      printf 'bad %q gate rejected plain text\n' "$t"
+      continue
+    }
+    hook::_c_locale spv__spans "$t"
+    # shellcheck disable=SC2016  # backticks are literal ERE data
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//')" ]] ||
+      printf 'bad %q spans\n' "$t"
+    hook::_c_locale spv__residue_tokens "$t"
+    # shellcheck disable=SC2016  # backticks are literal ERE data
+    [[ "$(lines | LC_ALL=C sort)" == "$(printf '%s' "$t" | sed -E 's/`[^`]*`//g' |
+      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t"
+    hook::_c_locale spv__nonblank "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t"
+    hook::_c_locale spv__nonblank "$t" 40
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t"
+  done
+  for t in 'é `docs/gone.md`' $'esc \x1b[0m `x.md`' $'del \x7f'; do
+    spv_plain "$t" && printf 'bad %q gate accepted\n' "$t"
+  done
+  echo twins-ok
+)
+if [[ "$TWIN_OUT" == twins-ok ]]; then
+  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines"
+else
+  bad "builtin twins differ from the pipelines: $TWIN_OUT"
+fi
+
+# --- The word-anchor split counter answers what the character walk answered --
+# spv_word_occurrences replaced a per-character awk walk for word anchors. The
+# walk is kept here as the reference and run in the hook's locale; the split
+# runs under C. Non-ASCII letters, invalid UTF-8 and CR beside the anchor,
+# underscores, a digit start and a long line are the cases where they could part.
+# spellchecker:off
+OCC_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
+{ p = 1
+  while (p <= length($0)) {
+    if (substr($0, p, 1) !~ /[A-Za-z0-9_]/) { p++; continue }
+    if (p > 1 && substr($0, p - 1, 1) ~ /[A-Za-z0-9_]/) { p++; continue }
+    end = p
+    while (end <= length($0) && substr($0, end, 1) ~ /[A-Za-z0-9_]/) end++
+    if (substr($0, p, end - p) == a) { n++; p = end; continue }
+    p++ } }
+END { print n + 0 }'
+OCC_FILE="$REPO/occ-cases.txt"
+printf 'foo éfoo fooé foo_bar foo\r\n\xfffoo\xff 9foo foo9 _foo x.foo foo-x\n%s foo\n' \
+  "$(printf 'w%.0s ' {1..6000})" >"$OCC_FILE"
+# spellchecker:on
+OCC_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  for loc in C.UTF-8 C; do
+    for a in foo foo_bar 9foo foo9 _foo x w S3MARKb; do
+      want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$OCC_WALK" "$OCC_FILE" 2>/dev/null)
+      got=$(LC_ALL=$loc spv_word_occurrences "$a" "$OCC_FILE" 2>/dev/null)
+      [[ "$want" == "$got" ]] || printf 'bad %s %s walk=%s split=%s\n' "$loc" "$a" "$want" "$got"
+    done
+  done
+  echo occ-ok
+)
+if [[ "$OCC_OUT" == occ-ok ]]; then
+  ok "word-anchor split counter matches the character walk (non-ASCII, invalid UTF-8, CR, long line)"
+else
+  bad "word-anchor split counter differs from the character walk: $OCC_OUT"
+fi
 
 report

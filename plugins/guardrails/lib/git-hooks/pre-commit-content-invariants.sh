@@ -31,10 +31,11 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Chain a pre-existing hook first; its rejection is final.
-if [[ -x "$HOOK_DIR/pre-commit.pre-guardrails" ]]; then
-  "$HOOK_DIR/pre-commit.pre-guardrails" "$@" || exit $?
-elif [[ -f "$HOOK_DIR/pre-commit.pre-guardrails" ]]; then
-  bash "$HOOK_DIR/pre-commit.pre-guardrails" "$@" || exit $?
+PREV_HOOK="$HOOK_DIR/pre-commit.pre-guardrails"
+if [[ -x "$PREV_HOOK" ]]; then
+  "$PREV_HOOK" "$@" || exit $?
+elif [[ -f "$PREV_HOOK" ]]; then
+  bash "$PREV_HOOK" "$@" || exit $?
 fi
 
 # Lib resolution: installed copy lives in guardrails-content-lib/ beside this
@@ -66,25 +67,8 @@ fi
 
 [[ ${#STAGED[@]} -gt 0 ]] || exit 0
 
-# Secret-pattern exemptions (mirror secret-pattern-detection.sh), including
-# tests/fixtures which that guard alone exempts.
-secret_allowlisted() {
-  local f="${1//\\//}"
-  case "$f" in
-  *.claude/hooks/* | *.lefthook/*) return 0 ;;
-  *settings.local.json | *CLAUDE.local.md) return 0 ;;
-  */.venv/* | .venv/* | */node_modules/* | node_modules/*) return 0 ;;
-  *.env.example | *.env.sample | *.env.template) return 0 ;;
-  *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) return 0 ;;
-  *.claude/skills/*/context/* | *.claude/skills/*/completed/*) return 0 ;;
-  */lib/secret-detection/* | */lib/path-detection/*) return 0 ;;
-  */guardrails-content-lib/*) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-
-# Hardcoded-path exemptions — same set MINUS tests/fixtures, which remain
-# subject to hardcoded-path-check.sh.
+# Hardcoded-path exemptions, the base set. tests/fixtures is deliberately NOT
+# here: those paths remain subject to hardcoded-path-check.sh.
 path_allowlisted() {
   local f="${1//\\//}"
   case "$f" in
@@ -96,6 +80,16 @@ path_allowlisted() {
   */lib/secret-detection/* | */lib/path-detection/*) return 0 ;;
   */guardrails-content-lib/*) return 0 ;;
   *) return 1 ;;
+  esac
+}
+
+# Secret-pattern exemptions (mirror secret-pattern-detection.sh): the
+# hardcoded-path set PLUS tests/fixtures, which that guard alone exempts.
+secret_allowlisted() {
+  local f="${1//\\//}"
+  case "$f" in
+  *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) return 0 ;;
+  *) path_allowlisted "$1" ;;
   esac
 }
 
@@ -122,7 +116,7 @@ if [[ -n "$_toplevel" ]]; then
   _tl="$(_normalize_path_cmp "${_toplevel%/}")"
   _home="${HOME:-${USERPROFILE:-}}"
   _home="$(_normalize_path_cmp "${_home%/}")"
-  if [[ -n "$_home" && ("$_tl" == "$_home" || "$_tl" == "$_home"/* || "$_home" == "$_tl" || "$_home" == "$_tl"/*) ]]; then
+  if [[ -n "$_home" && ("$_tl" == "$_home" || "$_tl" == "$_home"/* || "$_home" == "$_tl"/*) ]]; then
     SCAN_ROOT=""
   else
     SCAN_ROOT="$REPO_ROOT"

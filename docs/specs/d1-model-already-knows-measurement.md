@@ -49,7 +49,7 @@ it. A no-op fails as a whole unit; shortening it leaves a shorter no-op."*).
 The harness is committed alongside this record, in
 [`d1-model-already-knows-measurement/`](d1-model-already-knows-measurement/): three scripts plus
 a reproduction recipe. The summary below states the five choices that drive every number; the
-scripts carry the parts prose can only summarise (the fixed imperative-opener, abbreviation,
+scripts carry the parts prose can only summarize (the fixed imperative-opener, abbreviation,
 extension, and emphasis-word lists, and the deterministic ordering the sample is drawn over).
 
 ### Pinned revision
@@ -103,7 +103,7 @@ Flag the sentence when it contains **none** of:
 - a version (`v?\d+\.\d+(\.\d+)?`);
 - any digit;
 - an environment variable (`$NAME` or `${NAME}`);
-- a capitalised token that is neither sentence-initial, nor a member of a fixed
+- a capitalized token that is neither sentence-initial, nor a member of a fixed
   emphasis/function-word list (`NOT_PROPER`), nor all-caps.
 
 Each named constant is in `d1_proxy.py`; the membership of the three lists changes what is
@@ -157,7 +157,7 @@ against the protected-content list in #3118:
 
 Scored both ways, because the contested bucket is the finding rather than noise:
 
-- **94.1%** (174/185), resolving *every* contested call **in the proxy's favour**.
+- **94.1%** (174/185), resolving *every* contested call **in the proxy's favor**.
 - **100%** (185/185), resolving them against it.
 
 **94.1% is the bar #3124 must not exceed.** It is not a target to beat; it is the measurement
@@ -210,7 +210,7 @@ deletion is most damaging.
 The obvious repair, keeping the class and moving it to `audit-instructions`' model-graded lane, fails on
 the ground #3121 itself identified: the test is **model-relative, not reader-relative.** The 11
 contested sentences are contested precisely because no amount of *reading* settles them. Whether
-`Return only what is necessary.` is a no-op is a claim about a specific model's default behaviour,
+`Return only what is necessary.` is a no-op is a claim about a specific model's default behavior,
 answered by running the document without the line and observing what changes.
 
 A model-graded lane would return a confident verdict on a question unfalsifiable from the text, at

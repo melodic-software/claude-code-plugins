@@ -25,7 +25,7 @@ is.
    provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
-   from a surface whose write authority the provider enforces: labelling takes triage or write
+   from a surface whose write authority the provider enforces: labeling takes triage or write
    permission on the base repository, the same permission surface the C5 trust test below keys on,
    while a body is editable by its own author, who need hold none. A trailer supplying the class
    would make the item self-certifying, against the governing rule that "no repo-local
@@ -104,7 +104,9 @@ is.
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
      invocation brief carrying the partitioned head SHA as the merge gate's required
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
-     authorization"); every other non-report-only PR is invoked at `safe` (fixes and reports;
+     authorization"), and the brief tells it to pass the merge gate's `--auto`, which arms
+     auto-merge only once both AI review checks passed on that head and no thread is open
+     (same file, "Merge-lane auto-merge"); every other non-report-only PR is invoked at `safe` (fixes and reports;
      never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
      `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent

@@ -15,9 +15,21 @@
 #
 # A plugin carries the contract iff plugins/<name>/reference/standards-contract.md
 # exists; a new plugin opts in by committing an initial copy of the file there.
+#
+# sync, --check and --print-manifest are the shared engine's, same as the sibling
+# sync-*.sh gates. --check-bump stays here: it also gates the contract's own
+# frontmatter semver and its CHANGELOG, which no other cluster has. Its
+# carrying-plugin manifest walk is still the engine's.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir/.."
+# shellcheck source=lib/sync-cluster.sh
+. "$script_dir/lib/sync-cluster.sh"
+
+sync_cluster_script="sync-standards-contract.sh"
+sync_cluster_manifest_strip='/reference/standards-contract.md'
+sync_cluster_sync_summary=0
 src="docs/conventions/standards/README.md"
 schema="docs/conventions/standards/standards.schema.json"
 changelog="docs/conventions/standards/CHANGELOG.md"
@@ -33,28 +45,10 @@ frontmatter_version() {
 }
 
 mode="${1:-sync}"
-case "$mode" in
-sync)
-  for copy in "${copies[@]}"; do
-    cp "$src" "$copy"
-    echo "synced: $copy"
-  done
-  ;;
---check)
-  drifted=0
-  for copy in "${copies[@]}"; do
-    if ! cmp -s "$src" "$copy"; then
-      echo "DRIFT: $copy differs from $src" >&2
-      drifted=1
-    fi
-  done
-  if [[ "$drifted" -ne 0 ]]; then
-    echo "Run scripts/sync-standards-contract.sh and commit the result." >&2
-    exit 1
-  fi
-  echo "All ${#copies[@]} plugin copies match $src."
-  ;;
---check-bump)
+if [[ "$mode" == "--check-bump" ]]; then
+  # Raised here, not in the shared engine: bash prefixes a ${var:?} diagnostic
+  # with the path and line of the expansion, so the message has to come from the
+  # script the user actually ran.
   base="${2:?usage: sync-standards-contract.sh --check-bump <base-ref>}"
   # The schema is contract surface too — a schema-only change still
   # requires the version, changelog, and carrying-plugin bumps.
@@ -84,39 +78,21 @@ sync)
     stale=1
   fi
 
-  # (a) every carrying plugin must bump so consumers receive the change.
-  for copy in "${copies[@]}"; do
-    manifest="${copy%/reference/standards-contract.md}/.claude-plugin/plugin.json"
-    # A plugin absent at the base ref is new in this change set; its initial
-    # release already carries the new contract.
-    base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
-    if [[ -z "$base_version" ]]; then
-      continue
-    fi
-    head_version=$(jq -r '.version // empty' "$manifest")
-    if [[ "$head_version" == "$base_version" ]]; then
-      echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
-      stale=1
-    fi
-  done
+  # (a) every carrying plugin must bump so consumers receive the change. The
+  # engine assigns through printf -v, which shellcheck cannot follow; declaring
+  # the out-var here is what tells it (SC2154) the name is written.
+  manifest_stale=0
+  sync_cluster::check_manifest_bumps_to manifest_stale "$base"
+  if [[ "$manifest_stale" -ne 0 ]]; then
+    stale=1
+  fi
 
   if [[ "$stale" -ne 0 ]]; then
     echo "Bump the standards-contract frontmatter, add a changelog entry, and bump every carrying plugin." >&2
     exit 1
   fi
   echo "Contract changed vs $base with frontmatter, changelog, and every carrying plugin bumped."
-  ;;
---print-manifest)
-  # Same published surface as scripts/lib/sync-cluster.sh. This script does
-  # not share the cluster engine (it also gates frontmatter + changelog), so
-  # the emit is repeated here rather than forcing it onto that engine.
-  printf 'src\t%s\n' "$src"
-  for copy in "${copies[@]}"; do
-    printf 'copy\t%s\n' "$copy"
-  done
-  ;;
-*)
-  echo "usage: sync-standards-contract.sh [--check | --check-bump <base-ref> | --print-manifest]" >&2
-  exit 2
-  ;;
-esac
+else
+  # sync, --check, --print-manifest and the usage banner are the engine's.
+  sync_cluster::run "$mode"
+fi

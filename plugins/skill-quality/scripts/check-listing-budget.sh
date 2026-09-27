@@ -124,10 +124,11 @@
 set -uo pipefail
 
 # The header comment block above IS the --help text. Print from line 2 to the
-# last consecutive `#` line rather than a hardcoded range, so editing the
-# header can never again silently clip or overrun the help output.
+# last consecutive `#` line rather than a hardcoded range (the same idiom as the
+# sibling checkers), so editing the header can never again silently clip or
+# overrun the help output.
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -147,7 +148,7 @@ fi
 
 # `skill-frontmatter.sh` is deliberately NOT sourced here. Its helpers are
 # per-call `awk`/`tr` execs, which is what makes a pooled run unrunnable (see
-# the measurement note on the scan below); their behaviour is ported into that
+# the measurement note on the scan below); their behavior is ported into that
 # scan's single awk program instead. `check-skill.sh` remains the library's
 # consumer, so the file itself stays shared.
 
@@ -293,8 +294,8 @@ fi
 # each cycle, so a report-only drift watch would silently produce nothing on
 # the one machine where the routine is actually driven (#2216).
 #
-# PARITY, NOT A REWRITE. The program below reimplements, behaviour for
-# behaviour, the four `skill-frontmatter.sh` helpers:
+# PARITY, NOT A REWRITE. The program below reimplements, behavior for
+# behavior, the four `skill-frontmatter.sh` helpers:
 # `skill_frontmatter::extract`, `::field` (including block-scalar unfolding for
 # `|` and `>`, and the quote-aware trailing-comment strip with its
 # doubled-single-quote case), `::strip_quotes` (ONE outer layer, double OR
@@ -303,7 +304,7 @@ fi
 # count, every per-file contribution row, and the report text — which is the
 # property the test suite pins.
 #
-# Two command-substitution behaviours a shell caller of those helpers gets for
+# Two command-substitution behaviors a shell caller of those helpers gets for
 # free are reproduced EXPLICITLY here, because they are load-bearing rather
 # than incidental:
 #   - `fm="$(skill_frontmatter::extract ...)"` strips trailing NEWLINES from

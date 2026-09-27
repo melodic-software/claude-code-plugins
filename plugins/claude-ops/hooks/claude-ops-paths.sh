@@ -206,8 +206,9 @@ claude_ops::record_skill_use() {
     [[ "$verified_log_dir" == "$log_dir" ]]; then
     [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
-    branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    exp_keys=()
+    # No work tree or an unborn HEAD fails the read and records "unknown".
+    branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
+    branch="${branch//$'\r'/}"
     [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")
     slog_record_to line \
       ts s "$ts" \

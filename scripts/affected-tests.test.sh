@@ -22,7 +22,7 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 
 # The builder assigns through a nameref, which shellcheck cannot follow;
 # declaring the out-vars here is what tells it (SC2154) the names are written.
-repo="" repo_renamed="" repo2="" repo3="" shimdir=""
+repo="" repo_renamed="" repo2="" repo3="" repo_merge="" shimdir=""
 
 # write_print_manifest <dest> <src> <copies-glob>
 # A fixture sync script that publishes via --print-manifest. The glob is
@@ -71,6 +71,13 @@ mk_repo() { # <out-var>
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
+  # --jobs N delegates to the SIBLING run-plugin-tests.sh rather than spawning
+  # anything itself, so the fixture carries that sibling too. Its serial
+  # allowlist is empty here: the shipped one names suites this fixture does not
+  # have, and the runner rejects a stale entry rather than ignoring it.
+  cp "$REPO_ROOT/scripts/run-plugin-tests.sh" "$dir/scripts/run-plugin-tests.sh"
+  : >"$dir/scripts/run-plugin-tests-serial.txt"
+
   # A sync manifest that publishes via --print-manifest, with a GLOB copy
   # pattern expanded at invocation time. The selector must read the copy set
   # from that surface rather than knowing the plugin names.
@@ -109,9 +116,48 @@ run_sel() {
   RC=$?
 }
 
-has_line() {
-  printf '%s\n' "$1" | grep -qxF "$2"
-}
+# Captured output is matched in-shell, never piped into a reader: under pipefail
+# an early-exit reader can kill the writer with SIGPIPE (see the pin below).
+# has_line <text> <line>: <line> is one whole line of <text>, matched literally.
+has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
+
+# contains <text> <needle>: <needle> occurs anywhere in <text>, matched literally.
+contains() { [[ $1 == *"$2"* ]]; }
+
+# --- the match helpers hold on an input far larger than a pipe buffer -------
+# A reader that exits on its first match can leave the writer to die of SIGPIPE,
+# and pipefail then reports that 141 as the match failing: a present needle reads
+# as absent, and a negated assertion passes. The needle sits on line 1 of 1 MB.
+filler=x
+for _ in {1..20}; do filler+=$filler; done
+big=$'NEEDLE-LINE\n'"$filler"
+unset filler
+if has_line "$big" NEEDLE-LINE; then
+  ok "has_line finds line 1 of a 1 MB input"
+else
+  fail "has_line missed line 1 of a 1 MB input"
+fi
+if contains "$big" NEEDLE-LINE; then
+  ok "contains finds a needle on line 1 of a 1 MB input"
+else
+  fail "contains missed a needle on line 1 of a 1 MB input"
+fi
+if has_line "$big" ABSENT-LINE || contains "$big" ABSENT-NEEDLE; then
+  fail "a needle absent from a 1 MB input was reported present"
+else
+  ok "a needle absent from a 1 MB input is reported absent by both helpers"
+fi
+unset big
+
+# --- no assertion in this file pipes output into an early-exit grep --------
+# The pin above covers the helpers; this keeps the piped shape from coming back
+# at any other site. Comment lines are skipped, so prose may still name it.
+piped_q="$(grep -nE '^[^#]*\|[[:space:]]*grep[^|]*-[a-zA-Z]*q' "$SELF_DIR/affected-tests.test.sh")"
+case $? in
+0) fail "non-comment lines pipe into grep -q, a SIGPIPE race under pipefail: $piped_q" ;;
+1) ok "no non-comment line in this suite pipes into grep -q" ;;
+*) fail "the piped grep -q guard could not read $SELF_DIR/affected-tests.test.sh" ;;
+esac
 
 # --- co-located mapping ----------------------------------------------------
 mk_repo repo
@@ -183,7 +229,7 @@ sedless="$repo/scripts/sync-widget.sh"
 } >"$sedless"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ZERO copy paths'; then
+if [[ "$RC" -eq 2 ]] && contains "$out" 'ZERO copy paths'; then
   ok "a sync manifest that yields no copies fails loudly"
 else
   fail "empty derivation should exit 2 (rc=$RC): $out"
@@ -194,7 +240,7 @@ rm -rf "$repo"
 mk_repo repo
 out="$(cd "$repo" && bash scripts/affected-tests.sh scripts/zzorphan-tool.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+if [[ "$RC" -eq 1 ]] && contains "$out" 'UNMAPPED'; then
   ok "a file covered by nothing exits non-zero and says so"
 else
   fail "unmapped file should exit 1 with an UNMAPPED report (rc=$RC): $out"
@@ -237,7 +283,7 @@ fi
 
 out="$(cd "$repo" && PATH="$shimdir:$PATH" bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "git grep' failed"; then
+if [[ "$RC" -eq 2 ]] && contains "$out" "git grep' failed"; then
   ok "a failing git grep exits 2 with a diagnostic instead of under-selecting"
 else
   fail "git grep failure should be fatal, not a silent narrow selection (rc=$RC): $out"
@@ -250,7 +296,7 @@ rm -rf "$shimdir"
 for flag in --base --print-fanout; do
   out="$(cd "$repo" && bash scripts/affected-tests.sh "$flag" 2>&1)"
   RC=$?
-  if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q "needs a"; then
+  if [[ "$RC" -eq 2 ]] && contains "$out" "needs a"; then
     ok "$flag with no value exits 2 (usage), not 1"
   else
     fail "$flag with no value should exit 2 (rc=$RC): $out"
@@ -281,7 +327,7 @@ fi
 } >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
+if [[ "$RC" -eq 2 ]] && contains "$out" 'no src='; then
   ok "a sync-*.sh that publishes copies but no src is still fatal"
 else
   fail "half a manifest should exit 2 (rc=$RC): $out"
@@ -301,7 +347,7 @@ fi
 } >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'no src='; then
+if [[ "$RC" -eq 2 ]] && contains "$out" 'no src='; then
   ok "an empty published src with no copies is a half-manifest, not a helper"
 else
   fail "empty src with no copies should exit 2 (rc=$RC): $out"
@@ -345,7 +391,7 @@ rm -f "$repo/scripts/sync-solo.sh" "$repo/lib/solo.sh"
 # trains people to reach for --allow-unmapped.
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh plugins/alpha/hooks/alpha-hook.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 0 ]] && ! printf '%s' "$out" | grep -q 'UNMAPPED'; then
+if [[ "$RC" -eq 0 ]] && ! contains "$out" 'UNMAPPED'; then
   ok "a changed file reached by an earlier file's walk is not reported unmapped"
 else
   fail "shared-walk file falsely unmapped (rc=$RC): $out"
@@ -354,7 +400,7 @@ fi
 # --- a no-suite class is NOT an unmapped failure ---------------------------
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/README.md 2>&1)"
 RC=$?
-if [[ "$RC" -eq 0 ]] && ! printf '%s' "$out" | grep -q 'UNMAPPED'; then
+if [[ "$RC" -eq 0 ]] && ! contains "$out" 'UNMAPPED'; then
   ok "a recorded no-suite path class exits 0 without an unmapped report"
 else
   fail "no-suite class should exit 0 quietly (rc=$RC): $out"
@@ -366,8 +412,8 @@ fi
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/hooks/removed-helper.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 0 ]] &&
-  printf '%s' "$out" | grep -q 'deleted: plugins/alpha/hooks/removed-helper.sh' &&
-  ! printf '%s' "$out" | grep -q 'UNMAPPED'; then
+  contains "$out" 'deleted: plugins/alpha/hooks/removed-helper.sh' &&
+  ! contains "$out" 'UNMAPPED'; then
   ok "a deleted unmapped path exits 0 with a visible deleted note"
 else
   fail "deleted unmapped path should be a note, not an error (rc=$RC): $out"
@@ -414,13 +460,42 @@ else
   fail "untracked file missed by diff mode (rc=$RC): $out"
 fi
 
+# --- a merge in progress diffs against the incoming side, not the fork -----
+# Merging the base branch in leaves HEAD at the pre-merge commit while the
+# working tree already carries the incoming side. A file changed only there is
+# not this change's work and must not be selected; the branch's own edit, left
+# conflicted, still is.
+mk_repo repo_merge
+fork="$(git -C "$repo_merge" rev-parse HEAD)"
+git_test_config "$repo_merge" checkout -q -b incoming
+printf '# incoming\n' >>"$repo_merge/plugins/alpha/hooks/alpha-hook.sh"
+printf '# incoming only\n' >>"$repo_merge/plugins/beta/hooks/beta-hook.sh"
+git_test_config "$repo_merge" commit -qam incoming >/dev/null
+git_test_config "$repo_merge" checkout -q -b feature "$fork"
+printf '# feature\n' >>"$repo_merge/plugins/alpha/hooks/alpha-hook.sh"
+git_test_config "$repo_merge" commit -qam feature >/dev/null
+git_test_config "$repo_merge" merge -q incoming >/dev/null 2>&1
+if [[ ! -f "$repo_merge/.git/MERGE_HEAD" ]]; then
+  fail "fixture: the conflicting merge did not leave MERGE_HEAD behind"
+else
+  run_sel "$repo_merge" --base incoming
+  out="$OUT"
+  if [[ "$RC" -eq 0 ]] &&
+    has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh &&
+    ! has_line "$out" plugins/beta/hooks/beta-hook.test.sh; then
+    ok "mid-merge, a file changed only on the incoming side is not selected"
+  else
+    fail "mid-merge selection charged the incoming side's files (rc=$RC): $out"
+  fi
+fi
+
 # --- a broken diff is fatal, never an empty selection ----------------------
 # A producer running inside a process substitution would confine its fatal exit
 # to the subshell: mapfile would succeed with nothing and the run would report
 # "nothing to select" and exit 0. A validation caller would read that as clean.
 out="$(cd "$repo" && bash scripts/affected-tests.sh --base definitely-not-a-ref 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && ! printf '%s' "$out" | grep -q 'nothing to select'; then
+if [[ "$RC" -eq 2 ]] && ! contains "$out" 'nothing to select'; then
   ok "an unresolvable base ref exits 2 instead of reporting an empty selection"
 else
   fail "broken diff should be fatal (rc=$RC): $out"
@@ -439,7 +514,7 @@ fi
 # --- an absolute path from outside the repo is refused, not swallowed ------
 out="$(cd "$repo" && bash scripts/affected-tests.sh /elsewhere/lib/widget.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'absolute'; then
+if [[ "$RC" -eq 2 ]] && contains "$out" 'absolute'; then
   ok "an absolute path outside the repo is refused out loud"
 else
   fail "foreign absolute path should exit 2 (rc=$RC): $out"
@@ -455,6 +530,38 @@ if [[ "$RC" -eq 0 ]] && grep -q 'lib-widget' "$marker" && grep -q 'beta-hook' "$
 else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
+
+# --- --run --jobs N hands the same selection to run-plugin-tests.sh ---------
+#
+# The property is that the SET of suites executed does not change with the job
+# count; only how many run at once does. A second parallel runner living here
+# is what this option exists to avoid, so the delegation is what is checked:
+# run-plugin-tests.sh owns the worker, the print lock and the serial allowlist.
+: >"$marker"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --jobs 3 lib/widget.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 ]] && grep -q 'lib-widget' "$marker" && grep -q 'beta-hook' "$marker"; then
+  ok "--run --jobs 3 executes the same selection as --run"
+else
+  fail "--run --jobs 3 did not execute the selection (rc=$RC): $(cat "$marker")"
+fi
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --run --jobs 3 lib/widget.sh 2>&1)"
+if contains "$out" 'across up to 3 job(s)'; then
+  ok "--jobs 3 announces the concurrency rather than claiming sequential"
+else
+  fail "--jobs 3 did not report running across jobs: $out"
+fi
+
+for bad in 0 x '' -1; do
+  (cd "$repo" && bash scripts/affected-tests.sh --run --jobs "$bad" lib/widget.sh >/dev/null 2>&1)
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--jobs '$bad' is a usage error, not leg 1 of 1 (rc=2)"
+  else
+    fail "--jobs '$bad' should exit 2, got rc=$RC"
+  fi
+done
 
 # --- --shard is a partition, not a filter -----------------------------------
 # The claim CI makes when it fans one selection across four runners is that the
@@ -474,7 +581,7 @@ select_shard() {
 # EMPTY spec: `--shard=` with nothing after it is what an environment variable
 # that expanded to nothing produces, and a presence test on the value alone
 # would read it as "no shard requested" and run the whole selection on every leg
-# while exiting 0 (claude-code-plugins#3773, Codex P2).
+# while exiting 0.
 select_shard_eq() {
   (cd "$repo" && bash scripts/affected-tests.sh "--shard=$1" -- "${shard_paths[@]}" 2>/dev/null)
 }
@@ -604,9 +711,9 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standar
 done
 
 # Every live sync-*.sh (except the test helper) must implement the surface.
-# Capture stdout first: `cmd | grep -q` under pipefail is a race — grep -q
-# closes the pipe on the first match and a still-writing publisher dies
-# SIGPIPE, which this suite's pipefail then treats as a failed assertion.
+# The publisher's stdout is captured, then matched in-shell with no pipe: an
+# early-exit reader on a pipe can kill a still-writing producer with SIGPIPE,
+# which this suite's pipefail then reports as a failed assertion.
 live_missing=0
 for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
   case "$manifest" in
@@ -619,7 +726,7 @@ for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
     live_missing=1
     continue
   }
-  if ! printf '%s\n' "$live_out" | grep -q $'^src\t'; then
+  if [[ $'\n'$live_out != *$'\n'src$'\t'* ]]; then
     fail "live $manifest --print-manifest did not emit a src line"
     live_missing=1
   fi
@@ -716,6 +823,7 @@ fi
 # to do with the no-suite list. This is the MATCHING rule documented in
 # affected-tests.sh's header, met head-on: naming a file in a suite is exactly
 # what makes the selector consider it covered.
+# The exit status of this head pipe is never read, so its early exit is harmless.
 mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
   'plugins/toolchain/reference/ecosystems/*.yaml' \
   'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
@@ -725,7 +833,7 @@ fi
 for y in ${eco_yaml[@]+"${eco_yaml[@]}"}; do
   out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>&1)"
   RC=$?
-  if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+  if [[ "$RC" -eq 1 ]] && contains "$out" 'UNMAPPED'; then
     ok "reference YAML with no covering lane is UNMAPPED: $y"
   else
     fail "$y should be UNMAPPED, not silently covered (rc=$RC): $out"
@@ -916,8 +1024,7 @@ fi
 # Widening the corpus to four ecosystems introduced an edge that never existed
 # when the reverse lookup was `-- '*.sh'`: a match ACROSS languages. Left
 # uncapped, those coincidental matches chained (js -> ps1 -> sh) and saturated
-# on the far-end hubs — measured at every .js in the repo selecting the same 156
-# of 439 suites. One hop still reaches the suite covering the crossed-to file,
+# on the far-end hubs. One hop still reaches the suite covering the crossed-to file,
 # which is what keeps a .sh wrapper around a .py helper working; what it must
 # NOT do is keep walking from there and drag in that file's own dependents.
 mkdir -p "$repo/eco/hop"
@@ -944,7 +1051,7 @@ fi
 # still need their own lane".
 OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run eco/gadget.js 2>&1)"
 RC=$?
-if [[ "$RC" -eq 3 ]] && printf '%s' "$OUT" | grep -q 'NOT RUN'; then
+if [[ "$RC" -eq 3 ]] && contains "$OUT" 'NOT RUN'; then
   ok "--run reports a non-shell suite as NOT RUN and exits 3"
 else
   fail "--run should exit 3 naming the unrun suite (rc=$RC): $OUT"
@@ -1097,7 +1204,7 @@ git_test_config "$repo3" commit -qm names >/dev/null
 
 out="$(cd "$repo3" && bash scripts/affected-tests.sh plugins/alpha/hooks/get.sh 2>&1)"
 RC=$?
-if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+if [[ "$RC" -eq 1 ]] && contains "$out" 'UNMAPPED'; then
   ok "a basename buried in a longer token is UNMAPPED, not falsely covered"
 else
   fail "get.sh should be UNMAPPED, not covered by widget.sh's suites (rc=$RC): $out"
@@ -1108,7 +1215,7 @@ fi
 # empty stdout is direct evidence that no unrelated suite was borrowed.
 run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
-  ok "the borrowed suites are gone, not merely re-labelled"
+  ok "the borrowed suites are gone, not merely re-labeled"
 else
   fail "get.sh still selects unrelated suites (rc=$RC): $OUT"
 fi
@@ -1178,21 +1285,95 @@ test_linux_block="$(awk '
   job == "test-linux"
 ' "$live_ci")"
 # shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
-if grep -q 'affected-tests\.sh --run --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
+if grep -q 'affected-tests\.sh --run --jobs 3 --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
   grep -q '^    strategy:' <<<"$test_linux_block" &&
   grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_linux_block" &&
   grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_linux_block"; then
-  ok "ci.yml test-linux declares a matrix and passes the leg through to --shard"
+  ok "ci.yml test-linux declares a matrix, runs three suites at a time, and passes the leg through to --shard"
 else
-  fail "ci.yml test-linux no longer fans the affected selection across a matrix"
+  fail "ci.yml test-linux no longer fans the affected selection across a matrix at --jobs 3"
+fi
+
+# --- ci.yml never asks for more than the proven three ------------------------
+# #3694: at --jobs 4 three separate suites failed by producing empty output from
+# an external command. Three is the ceiling, on either path.
+if grep -qE -- '--jobs ([04-9]|[1-9][0-9]+)' "$live_ci"; then
+  fail "ci.yml passes a --jobs count other than 3: $(grep -oE -- '--jobs [0-9]+' "$live_ci" | sort -u | tr '\n' ' ')"
+else
+  ok "ci.yml asks for no more than the proven three concurrent suites (#3694)"
+fi
+
+# --- R7: the autonomy reference tree selects the plugin-contract suite -------
+# Those files are markdown no suite names, so without a path rule they fell to
+# the no-suite *.md class while the contract validator gates them. The scope is
+# pinned both ways: nested files are in, and neither another plugin's
+# reference/ nor an autonomy file outside reference/ is.
+contract_suite=scripts/validate-plugin-contracts.test.sh
+mk_repo repo
+mkdir -p "$repo/plugins/autonomy/reference/sub" "$repo/plugins/beta/reference"
+suite_body plugin-contracts >"$repo/$contract_suite"
+printf '# top\n' >"$repo/plugins/autonomy/reference/top-doc.md"
+printf '# nested\n' >"$repo/plugins/autonomy/reference/sub/nested-doc.md"
+printf '# autonomy\n' >"$repo/plugins/autonomy/README.md"
+printf '# other\n' >"$repo/plugins/beta/reference/other-doc.md"
+git_test_config "$repo" add scripts plugins >/dev/null
+git_test_config "$repo" commit -qm reference >/dev/null
+
+for p in plugins/autonomy/reference/top-doc.md plugins/autonomy/reference/sub/nested-doc.md; do
+  run_sel "$repo" "$p"
+  if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$contract_suite"; then
+    ok "R7: $p selects the plugin-contract suite"
+  else
+    fail "R7: $p did not select the plugin-contract suite (rc=$RC): $OUT"
+  fi
+done
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/autonomy/reference/top-doc.md 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" "select: $contract_suite  (path class:"; then
+  ok "R7: --explain reports the path-class reason"
+else
+  fail "R7: --explain lacks the path-class reason (rc=$RC): $out"
+fi
+
+for p in plugins/beta/reference/other-doc.md plugins/autonomy/README.md; do
+  run_sel "$repo" "$p"
+  if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" "$contract_suite"; then
+    ok "R7 scope: $p does not select the plugin-contract suite"
+  else
+    fail "R7 scope: $p selected the plugin-contract suite or failed (rc=$RC): $OUT"
+  fi
+done
+rm -rf "$repo"
+
+# --- LIVE repo: a real autonomy reference doc selects the contract suite -----
+# The probe doc is discovered, never spelled: a basename written here would make
+# this suite name that file, and R3 would then cover it without R7. The suite
+# path above IS spelled on purpose: renaming the suite selects this file, and
+# this case then fails instead of R7 silently selecting nothing.
+# The assertion is on the R7 reason, not on bare selection: a live doc can also
+# reach the suite through R4 fan-out (a hook naming it), which would pass without
+# R7. The seed is walked first, so R7's reason is the one recorded.
+# The exit status of this head pipe is never read, so its early exit is harmless.
+live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
+if [[ -z "$live_ref" ]]; then
+  fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
+else
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --explain "$live_ref" 2>&1)"
+  RC=$?
+  if [[ "$RC" -eq 0 ]] && contains "$out" "select: $contract_suite  (path class:"; then
+    ok "LIVE R7: $live_ref selects the plugin-contract suite through R7"
+  else
+    fail "LIVE R7: $live_ref did not select the plugin-contract suite through R7 (rc=$RC): $out"
+  fi
 fi
 
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the
-# comment block grew (#3424). Pin a sentence that lives on the last header
+# comment block grew. Pin a sentence that lives on the last header
 # lines so a drifted range cannot come back unnoticed.
 help_out="$(bash scripts/affected-tests.sh --help)"
-if printf '%s' "$help_out" | grep -q 'Both stages fail loud'; then
+if contains "$help_out" 'Both stages fail loud'; then
   ok "--help reaches the end of the header (derived usage)"
 else
   fail "--help truncated before the header's last sentence: $help_out"

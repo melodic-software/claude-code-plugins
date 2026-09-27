@@ -3,24 +3,29 @@
 Execute the codified checklist from [../reference/criteria.md](../reference/criteria.md) against all
 instruction/memory files.
 
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory. SKILL.md
+"Script paths" renders its absolute path; put it in place of the placeholder before running a
+command.
+
 ## Step 1: Discovery
 
 Find files in scope:
 
 ```bash
-# CLAUDE.md and rules files, PROJECT and USER scope, each tagged with its scope.
+# CLAUDE.md, AGENTS.md and rules files, PROJECT and USER scope, each tagged with its scope.
 # The bundled script resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude} the same way the
 # memory-dir resolver does. A bare `find .` sees project scope only and misses
 # ~/.claude/CLAUDE.md and ~/.claude/rules/*.md, which load in every session.
 # C6 owns instruction-content conflicts across this population (including user
 # and project pairs); I15 owns pairs with an anchor outside it.
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
-# Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`
+bash "<skill-dir>/scripts/discover-instruction-surfaces.sh"
+# Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`, kind is
+# claude-md | claude-local-md | agents-md | rule
 
 # Auto-memory — CURRENT repo only. A bare `~/.claude/projects/*/memory/` glob
 # matches every project on a multi-project machine and resolves alphabetical-first
 # to the WRONG repo; the bundled resolver derives this repo's project-dir slug.
-MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
+MEMORY_DIR=$(bash "<skill-dir>/scripts/resolve-memory-dir.sh")
 ls "$MEMORY_DIR"/*.md 2>/dev/null
 ```
 
@@ -34,6 +39,10 @@ Read [../reference/criteria.md](../reference/criteria.md), then execute every ap
 each discovered file. Apply by entity type:
 
 - **C1-C9**: CLAUDE.md and CLAUDE.local.md, at either scope
+- **An `agents-md` row is the project instructions file**, emitted only where the session reads it
+  rather than a CLAUDE.md, so it takes every C-check a project `claude-md` row takes, C9 included.
+  Report it under its own path; never relabel it as a CLAUDE.md finding. A repo under a one-line
+  `@AGENTS.md` shim emits no such row, because the CLAUDE.md row already covers that content
 - **C9 is project-scoped: skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
   file says so directly: C9 applies to project CLAUDE.md only, and `~/.claude/CLAUDE.md` is "not
   repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
@@ -59,26 +68,27 @@ each discovered file. Apply by entity type:
   so a blind existence check false-flags heavily. Judgment is the correct tool for that half
 - **M1-M4**: Auto-memory files (doc-derived health checks)
 - **M2 (deterministic backing)**: run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh"` for
+  `bash "<skill-dir>/scripts/memory-index-refs-check.sh"` for
   index↔topic-file integrity, forward (index links an absent file) AND reverse (topic file present
   but not indexed, the orphan direction). Fold WARN lines into the report; do NOT hand-derive what the
   script computes
 - **RD1**: Always-loaded rules layer (reverse-drift orphan check; deterministic-WARN). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` and fold each WARN
+  `bash "<skill-dir>/scripts/orphan-rule-check.sh"` and fold each WARN
   line into the report. Do NOT re-derive by hand. Each line already carries the file's
   provenance and the matching fix route
 - **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL
+  `bash "<skill-dir>/scripts/nested-agents-check.sh"` and fold each FAIL
   line into the report. Do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
-  check asks only whether each nested file loads at all
+  check asks only whether each nested file loads at all, and it fires only where a `CLAUDE.md` on
+  that file's own path is read instead of it
 - **C1 counts the expanded file**: the pre-computed header's root-file figure comes from
   `instruction-load-stats.sh --lines`, imports expanded. For any other CLAUDE.md in scope, run it
   with `--file <path>`; use `--breakdown` when imports contributed, and carry the per-file rows into
   the finding
 - **Provenance**: for every FAIL or WARN that proposes an edit to a repository file, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>`. A `synced` file
+  `bash "<skill-dir>/scripts/file-provenance.sh" <path>`. A `synced` file
   keeps its finding, and the fix line names the sync's source (criteria.md, "Provenance routing")
-- **One invocation for the whole spine**: `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-spine.sh"`
+- **One invocation for the whole spine**: `bash "<skill-dir>/scripts/audit-spine.sh"`
   prints the header the skill pre-computes plus every spine finding (N1, RD1, M2) in one block. It
   is the same output as the per-check scripts above, so re-running it after a fix is the cheapest
   way to confirm the spine is clean
@@ -100,7 +110,8 @@ skipping the judgment.
 
 After per-file checks, cross-reference every pair of distinct surfaces in the
 discover-instruction-surfaces population for **contradictions** (C6 owns all such pairs). Also
-report **redundancy** where both sides load together in the same session. Concrete passes:
+report **redundancy** where both sides load together in the same session. An `agents-md` row stands
+where a project CLAUDE.md would in every pass below. Concrete passes:
 
 1. Compare each CLAUDE.md (any scope) against every co-resident rule for contradictions
 2. Compare CLAUDE.md against CLAUDE.local.md (same or cross-scope) for contradictions and redundancy
@@ -136,7 +147,7 @@ Present the report to the user with:
 3. WARN findings grouped by check type
 4. INFO findings (informational only)
 5. Estimated context cost: the `instruction-load-stats.sh --tokens` figure (bytes / 4 over the
-   always-loaded set, labelled as an estimate) with the `--breakdown` rows when the reader would act
+   always-loaded set, labeled as an estimate) with the `--breakdown` rows when the reader would act
    on them. The model cannot run `/context`; when the `context-budget` plugin is installed, name
    `/context-budget:audit` as the measured alternative
 

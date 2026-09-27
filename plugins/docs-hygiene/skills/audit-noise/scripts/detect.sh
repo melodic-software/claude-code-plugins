@@ -9,6 +9,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/noise-shapes.sh
 source "$SCRIPT_DIR/lib/noise-shapes.sh"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
 
 PATHS_FILE=""
 TARGETS=()
@@ -34,28 +36,20 @@ invoke one detect.sh process per chunk without a per-file shell loop.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "detect.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     PATHS_FILE="$2"
     shift 2
     ;;
   --offset)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     OFFSET="$2"
     shift 2
     ;;
   --limit)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     LIMIT="$2"
     shift 2
     ;;
@@ -97,11 +91,8 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 # directory are silently skipped.
 resolve_existing_path() {
   local raw="$1"
-  if [[ "$raw" == /* ]]; then
-    printf '%s' "$raw"
-  else
-    printf '%s' "$(pwd)/$raw"
-  fi
+  [[ "$raw" == /* ]] || raw="$PWD/$raw"
+  printf '%s' "$raw"
 }
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -251,9 +242,11 @@ audit_file() {
   # finding_rows is written via nameref in audit_noise_record_finding.
   # shellcheck disable=SC2034
   local -a shapes=() finding_rows=()
-  local shape excerpt line heading_text
+  local shape excerpt line heading_text trimmed uwrapped
   local fence_delim fence_dchar fence_dlen
   local is_heading=0
+  # Held in a variable so the unquoted `)` in `[.)]` is not parsed as bash syntax.
+  local list_item_re='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]'
   # Negation is paragraph-scoped: accumulate soft-wrapped lines, then classify.
   # Other shapes stay line-scoped. Attribution is the first physical line of
   # the triggering sentence — that is where the cue opens, so the fix action
@@ -413,16 +406,13 @@ audit_file() {
     fi
     # A new list item is its own block, not a soft-wrap continuation of the
     # previous item. Flush first so `- Do not use markdown` / `- Prefer HTML.`
-    # cannot pair across items. Hold the regex in a variable so the unquoted
-    # `)` in `[.)]` is not parsed as bash syntax.
-    local list_item_re='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]'
+    # cannot pair across items.
     if [[ "$line" =~ $list_item_re ]] && [[ ${#neg_line_nums[@]} -gt 0 ]]; then
       flush_negation
     fi
     # Accumulate this physical line into the negation paragraph. Offsets are
     # taken on the unwrapped join so a backticked earlier line cannot pull
     # attribution forward. A heading is its own paragraph.
-    local trimmed uwrapped=""
     trimmed="${line#"${line%%[![:space:]]*}"}"
     audit_noise_unwrap_backticks "$trimmed" uwrapped
     if [[ -n "$neg_unwrapped" ]]; then

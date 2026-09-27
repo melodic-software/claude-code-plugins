@@ -116,50 +116,35 @@ ISSUE=""
 BODY_FILE=""
 while (($#)); do
   case "$1" in
+  # Normalize `--opt=value` to `--opt value` for the next pass. Known options only,
+  # so an unknown `--bogus=x` still reaches the catch-all intact.
+  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=*)
+    set -- "${1%%=*}" "${1#*=}" "${@:2}"
+    ;;
   --lane)
     require_value "$@"
     LANE="$2"
     shift 2
-    ;;
-  --lane=*)
-    LANE="${1#*=}"
-    shift
     ;;
   --instance)
     require_value "$@"
     INSTANCE="$2"
     shift 2
     ;;
-  --instance=*)
-    INSTANCE="${1#*=}"
-    shift
-    ;;
   --repo)
     require_value "$@"
     REPO="$2"
     shift 2
-    ;;
-  --repo=*)
-    REPO="${1#*=}"
-    shift
     ;;
   --issue)
     require_value "$@"
     ISSUE="$2"
     shift 2
     ;;
-  --issue=*)
-    ISSUE="${1#*=}"
-    shift
-    ;;
   --body-file)
     require_value "$@"
     BODY_FILE="$2"
     shift 2
-    ;;
-  --body-file=*)
-    BODY_FILE="${1#*=}"
-    shift
     ;;
   -h | --help)
     usage
@@ -193,19 +178,15 @@ case "$INSTANCE" in
 *) : ;;
 esac
 
-# The hostname fallback is a DEFAULT, not a sanitizer: the gate below validates
-# it exactly as it validates a supplied id. The transform is byte-for-byte the
-# one the lanes have always used, because normalizing it would change the marker
-# and orphan every comment written under the fallback.
+# A default, not a sanitizer: the gate below validates it. Keep the transform
+# byte-for-byte; changing it orphans every comment written under the fallback.
 if [[ -z "$INSTANCE" ]]; then
   INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
   err "no lane instance supplied; assuming the sanitized hostname '$INSTANCE'"
 fi
 
-# Validated and REJECTED, never sanitized-and-continued: this is operator-supplied
-# text about to be interpolated into a marker, a shell string, and a jq program.
-# The check runs BEFORE the marker is built, because a lane that validates only
-# after the fact has a guard that does not guard.
+# Rejected, never sanitized: this operator text is interpolated into a marker, a
+# shell string, and a jq program, so it is checked BEFORE the marker is built.
 case "$INSTANCE" in
 "" | -* | *[!a-z0-9-]*)
   err "lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker"
@@ -218,9 +199,8 @@ if ((${#INSTANCE} > 32)); then
   exit 5
 fi
 
-# Validated before it reaches any gh api URL path. A value carrying `..` segments
-# would be normalized by GitHub's API routing and redirect the write to another
-# repository the token can reach.
+# Checked before any gh api URL path: GitHub's routing normalizes `..` segments,
+# redirecting the write to another repository the token can reach.
 if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
   err "--repo must be owner/name (got: '$REPO')"
   exit 6
@@ -252,13 +232,11 @@ fi
 
 BODY_TEXT="$(cat "$BODY_FILE")"
 
-# Compared as a BYTE PREFIX, not as a whole first line: the payload floor is
-# measured over everything below line 1, so the gate reads the same whether that
-# line ends in LF or CRLF.
+# A byte-prefix match, not a whole-line one, so the payload floor below line 1
+# reads the same whether that line ends in LF or CRLF.
 sentinel_ok() {
-  local text="$1" head_bytes payload_bytes
-  head_bytes="$(printf '%s' "$text" | head -c "${#SENT}")"
-  [[ "$head_bytes" == "$SENT" ]] || return 1
+  local text="$1" payload_bytes
+  [[ "$text" == "$SENT"* ]] || return 1
   payload_bytes="$(printf '%s' "$text" | tail -n +2 | wc -c | tr -d ' ')"
   ((payload_bytes >= MIN_PAYLOAD_BYTES))
 }
@@ -269,14 +247,12 @@ if ! sentinel_ok "$BODY_TEXT"; then
 fi
 
 # --- Singleton lookup --------------------------------------------------------
-# `--paginate` is what makes an existing comment on page 2 of a busy tracking
-# issue visible; without it the lane would POST a duplicate every cycle. The
-# match is `startswith` on the FULL sentinel, never `contains`, so a body that
-# merely quotes a sibling instance's sentinel is not adopted.
+# Without `--paginate` a comment past page 1 is invisible and a duplicate posts every
+# cycle. `startswith` on the FULL sentinel, never `contains`: a quoted sibling is not adopted.
 lookup() {
   local pages ids
   pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" 2>/dev/null)" || return 1
-  ids="$(jq -r --arg s "$SENT" '[.[] | select((.body // "") | startswith($s)) | .id] | .[]' <<<"$pages" 2>/dev/null)" || return 1
+  ids="$(jq -r --arg s "$SENT" '.[] | select((.body // "") | startswith($s)) | .id' <<<"$pages" 2>/dev/null)" || return 1
   printf '%s\n' "$ids"
 }
 
@@ -292,7 +268,9 @@ if [[ -z "${LIST//[[:space:]]/}" ]]; then
   LIST="$(lookup)" || LIST=""
 fi
 
-CANON="$(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | head -n1)"
+SORTED="$(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n)"
+mapfile -t IDS <<<"$SORTED"
+CANON="${IDS[0]:-}"
 if [[ -z "$CANON" ]]; then
   err "no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle"
   exit 12
@@ -317,7 +295,7 @@ fi
 
 # --- Duplicate supersede (only after a verified canonical write) -------------
 # `-f body=` here, not `-F body=@`: the tombstone is a literal string, not a file.
-for dup in $(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | tail -n +2); do
+for dup in "${IDS[@]:1}"; do
   gh api --method PATCH "repos/$REPO/issues/comments/$dup" \
     -f body="Superseded duplicate - canonical telemetry comment: $CANON" >/dev/null 2>&1 || true
 done

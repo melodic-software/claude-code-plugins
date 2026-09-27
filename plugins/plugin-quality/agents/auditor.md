@@ -4,6 +4,7 @@ description: "Fresh-context deep-audit specialist for the plugin-quality audit w
 skills:
   - plugin-quality:report
 tools: "Read, Grep, Glob, WebFetch, Bash, Write"
+model: opus
 effort: high
 ---
 You are the plugin-quality auditor: a fresh-context specialist that a main audit session

@@ -14,7 +14,7 @@
         "Writes `docs/architecture/landscape.json` and renders from it with `${CLAUDE_SKILL_DIR}/scripts/render-landscape.sh`, rather than composing landscape.md or portfolio.md by hand",
         "Records the discovery source as the default (current repository plus reference graph), not as an explicit list",
         "acme/ci-workflows appears as a node with a `uses-workflow` edge, and acme/standards with a `cites` edge",
-        "Closes with the fixed report: artifacts, repositories charted, edges by type, unknown count, discovery source, remote state, drift"
+        "Closes with the fixed report: artifacts, repositories charted, edges by type, thin result, unknown count, discovery source, remote state, drift"
       ]
     },
     {
@@ -114,7 +114,7 @@
       "id": 8,
       "name": "structurizr-dialect-from-topic-doc",
       "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe convention home resolves and its architecture topic doc is the structurizr fixture below.",
-      "expected_output": "Passes --dialect structurizr to the render script, which emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements grouped by owner, -> relationships labelled by edge type and count, and views { systemLandscape \"landscape\" { include * autoLayout } }.",
+      "expected_output": "Passes --dialect structurizr to the render script, which emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements grouped by owner, -> relationships labeled by edge type and count, and views { systemLandscape \"landscape\" { include * autoLayout } }.",
       "files": ["evals/fixtures/topic-doc-structurizr.md"],
       "expectations": [
         "Emits `landscape.dsl`, NOT `landscape.md`, because the topic doc declares landscape_dialect: structurizr",
@@ -180,8 +180,23 @@
         "billing keeps runtime dotnet and last_touched 2026-01-01 from the local probe: a local checkout always wins for a fact both sources carry",
         "Does NOT silently replace last_touched with pushed_at for a repository that is checked out here",
         "Any fact that DID come from the remote names the API call or `gh` command in its evidence entry, not a bare 'remote'",
-        "A remote-sourced last_touched is labelled as pushed_at rather than local HEAD, so the two are never conflated",
+        "A remote-sourced last_touched is labeled as pushed_at rather than local HEAD, so the two are never conflated",
         "The record and the closing report both say remote was used, so a later local-only run can explain a moving date"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "a-repository-that-names-nothing-reports-thin",
+      "prompt": "/architecture:map-landscape\n\nThe convention home resolves to the mermaid fixture below. The current repository is a git checkout whose tracked files name no other repository: no workflow `uses:` line, no marketplace source, no module path, no citation. The operator wants to understand how this repository is put together.",
+      "expected_output": "Charts one system with no edges, and the closing report's Thin result line says yes: the subject names no other repository, so a landscape cannot answer how this repository is built inside. It points at /architecture:improve or /discovery:explore for that question and does not offer --remote as a way to get more.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "Quotes the renderer's summary line rather than counting systems and edges by hand: `internal=1`, `edges=0`, `thin=yes`",
+        "The closing report carries a `Thin result` line reading yes, with the reason that the subject names no other repository",
+        "Names `/architecture:improve` or `/discovery:explore` as the tool for how one repository is built inside",
+        "Does NOT offer `--remote` as a remedy: it fills facts for existing nodes and adds no system and no edge",
+        "Does not invent an edge or a neighboring system to make the diagram look fuller"
       ]
     }
   ]

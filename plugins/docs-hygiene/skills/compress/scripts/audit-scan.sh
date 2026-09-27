@@ -46,11 +46,15 @@ fi
 # Phase A LATITUDE; not claimed to be identical). Keep in sync intentionally.
 FLAVOR_RE='just|really|basically|actually|simply|perhaps|somewhat|very|quite|might|in order to|due to the fact that|make use of|it is important to|note that|keep in mind'
 
+emit_row() {
+  # <target> <expected_yield_pct> <classify> <reason>
+  # shellcheck disable=SC2016 # intentional backticks in markdown table cells
+  printf '| `%s` | %s | %s | %s |\n' "$1" "$2" "$3" "$4"
+}
+
 is_signal1_path() {
-  local f="$1" base
-  base="$(basename "$f")"
-  # Repo-relative `.claude/rules/...` has no leading slash; the old
-  # `*/.claude/rules/` glob only matched an absolute or nested path (#3441).
+  local f="$1" base="${1##*/}"
+  # Repo-relative `.claude/rules/...` has no leading slash, so both forms match.
   [[ "$f" == '.claude/rules' || "$f" == '.claude/rules/'* ||
     "$f" == *'/.claude/rules' || "$f" == *'/.claude/rules/'* ]] && return 0
   [[ "$base" == 'AGENTS.md' || "$base" == 'CLAUDE.md' || "$base" == 'SKILL.md' ]] && return 0
@@ -72,28 +76,25 @@ classify_file() {
   local file="$1"
   local words tick_pairs path_hits flavor_hits
   if [[ ! -f "$file" ]]; then
-    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-    printf '| `%s` | — | SKIP | reason=missing |\n' "$file"
+    emit_row "$file" '—' 'SKIP' 'reason=missing'
     return 0
   fi
   words=$(word_count "$file")
 
   if is_signal1_path "$file"; then
     # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-    printf '| `%s` | ≤3%% | SKIP | author-time-disciplined path (signal 1); empirical baseline 3/3 reverted; use `--force` only for targeted sub-3%% diff |\n' "$file"
+    emit_row "$file" '≤3%' 'SKIP' 'author-time-disciplined path (signal 1); empirical baseline 3/3 reverted; use `--force` only for targeted sub-3% diff'
     return 0
   fi
   if grep -Fq 'Prose compression discipline' "$file" 2>/dev/null; then
     # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-    printf '| `%s` | ≤3%% | SKIP | author-time-disciplined; signal 4 cite; empirical baseline 3/3 reverted; use `--force` only for targeted sub-3%% diff |\n' "$file"
+    emit_row "$file" '≤3%' 'SKIP' 'author-time-disciplined; signal 4 cite; empirical baseline 3/3 reverted; use `--force` only for targeted sub-3% diff'
     return 0
   fi
 
   tick_pairs=$(grep -o '`' "$file" 2>/dev/null | wc -l | tr -d ' ')
   tick_pairs=$((tick_pairs / 2))
-  # Occurrence count, not line count: -c reports lines, so two refs on one
-  # line under-counted against the "/kw" density label and the path_dens > 8
-  # threshold (#3441). Same shape as flavor_hits below.
+  # Occurrence count, not line count: -c would count two refs on one line once.
   # Longer @-prefixed alternative first so `@docs/a.md` is one hit, not `@`
   # plus `docs/a.md`.
   path_hits=$(grep -Eo '(@[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml)|@[A-Za-z0-9._/-]+|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
@@ -105,17 +106,14 @@ classify_file() {
   flavor_dens=$((flavor_hits * 1000 / words))
 
   if [[ "$flavor_dens" -lt 5 ]]; then
-    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-    printf '| `%s` | ≤3%% | SKIP | flavor-token density %s/kw < 5; disciplined-by-authorship; empirical baseline 9/9 reverted at 0.02-0.4%% |\n' "$file" "$flavor_dens"
+    emit_row "$file" '≤3%' 'SKIP' "flavor-token density $flavor_dens/kw < 5; disciplined-by-authorship; empirical baseline 9/9 reverted at 0.02-0.4%"
     return 0
   fi
   if [[ "$tick_dens" -gt 10 || "$path_dens" -gt 8 ]]; then
-    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-    printf '| `%s` | 3-7%% | UNCERTAIN | inline-code density %s/kw AND/OR cross-ref density %s/kw; flavor band narrow |\n' "$file" "$tick_dens" "$path_dens"
+    emit_row "$file" '3-7%' 'UNCERTAIN' "inline-code density $tick_dens/kw AND/OR cross-ref density $path_dens/kw; flavor band narrow"
     return 0
   fi
-  # shellcheck disable=SC2016 # intentional backticks in markdown table cells
-  printf '| `%s` | 5-15%% | COMPRESS | verbose-prose baseline; expected flavor cuts on filler/hedging/articles |\n' "$file"
+  emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging/articles'
 }
 
 printf '| target | expected_yield_pct | classify | reason |\n'

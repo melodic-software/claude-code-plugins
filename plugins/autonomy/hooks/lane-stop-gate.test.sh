@@ -130,15 +130,17 @@ run_bare() {
   local input="$1"
   shift
   rm -f "$SETTINGS"
-  (cd "$UNRELATED" && printf '%s' "$input" |
-    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
-      -u CLAUDE_PLUGIN_DATA \
-      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-      "$@" \
-      bash "$HOOK" 2>/dev/null)
+  # Process substitution, not a pipe: the unconfigured path exits without
+  # reading stdin, and a pipe writer's EPIPE would become the status under
+  # pipefail.
+  (cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    "$@" \
+    bash "$HOOK" < <(printf '%s' "$input") 2>/dev/null)
 }
 
 is_block() { printf '%s' "$1" | jq -e '.decision == "block"' >/dev/null 2>&1; }
@@ -213,7 +215,6 @@ if is_block "$OUT"; then fail "custom sentinel → still blocked: $OUT"; else ok
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash dirname cat env printf mktemp mkdir find tr grep sed uname sleep git awk date; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
@@ -984,14 +985,17 @@ if [[ -r "$SETTINGS" ]]; then
   # ordering is still pinned by the CI lanes that run as a normal user.
   ok "SKIP: chmod 000 does not deny for this user — unreadable-source stderr not asserted here"
 else
-  OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
-    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
-      -u CLAUDE_PLUGIN_DATA \
-      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-      bash "$HOOK" 2>"$UNREADABLE_ERR")"
+  # stdin is a file: an unreadable settings file is no gate footprint, so the
+  # hook exits at the pre-filter without reading stdin, and a pipe writer that
+  # has not finished gets EPIPE (jq exits 2 where SIGPIPE is ignored, as on CI
+  # runners), which pipefail would report as the hook's status.
+  OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash "$HOOK" <"$PROBE_PAYLOAD" 2>"$UNREADABLE_ERR")"
   RC=$?
   UNREADABLE_STDERR="$(<"$UNREADABLE_ERR")"
   if [[ -z "$UNREADABLE_STDERR" ]]; then
@@ -1125,6 +1129,169 @@ chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null
 rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 
 # ============================================================================
+# #4415 — the pre-filter runs before any library is sourced.
+# ============================================================================
+# The managed-settings layer is not seam-injectable, so the pre-filter's copy of
+# the three fixed primaries is pinned to the lib's authoritative literals: a
+# path changed in one place and not the other would make the pre-filter answer
+# "not configured" for a host whose managed settings do configure the gate.
+HOOK_TEXT="$(<"$HOOK")"
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  for p in "$GATE_MANAGED_PRIMARY_DARWIN" "$GATE_MANAGED_PRIMARY_WINDOWS" "$GATE_MANAGED_PRIMARY_LINUX"; do
+    [[ "$HOOK_TEXT" == *"\"$p\""* ]] || exit 1
+  done
+); then
+  ok "the pre-filter's managed-settings primaries match the lib's literals"
+else
+  fail "the pre-filter's managed-settings primaries drifted from GATE_MANAGED_PRIMARY_* in the lib"
+fi
+
+# A second staged install whose three libraries are replaced by stubs that
+# record being sourced. Unconfigured, the hook must exit before sourcing any of
+# them; each opt-in source the pre-filter honors must still reach them (the
+# positive control that the stub would have caught a source).
+SRC_ROOT="$(mktemp -d "$WORK/srcprobe.XXXXXX")"
+SRC_DIR="$SRC_ROOT/plugins/cache/melodic/autonomy/9.9.9/hooks"
+SRC_MARK="$WORK/sourced.txt"
+mkdir -p "$SRC_DIR"
+cp "$HOOK" "$SRC_DIR/"
+for lib in hook-utils.sh lane-notify.sh lane-stop-gate-lib.sh; do
+  printf 'printf "%%s\\n" %s >>"%s"\nexit 0\n' "$lib" "$SRC_MARK" >"$SRC_DIR/$lib"
+done
+# src_probe [KEY=VAL ...] — run the stubbed hook; SRC_OUT holds stdout.
+src_probe() {
+  rm -f "$SRC_MARK"
+  SRC_OUT="$(cd "${SRC_CWD:-$UNRELATED}" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    "$@" bash "$SRC_DIR/lane-stop-gate.sh" <"$PROBE_PAYLOAD" 2>&1)"
+  SRC_RC=$?
+}
+rm -f "$SRC_ROOT/settings.json"
+src_probe
+if [[ $SRC_RC -eq 0 && -z "$SRC_OUT" && ! -e "$SRC_MARK" ]]; then
+  ok "unconfigured: silent exit 0 without sourcing any library"
+else
+  fail "unconfigured session sourced a library or spoke (rc=$SRC_RC out=$SRC_OUT sourced=$(cat "$SRC_MARK" 2>/dev/null))"
+fi
+src_probe CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID=probe-arm-id
+if [[ -e "$SRC_MARK" ]]; then ok "arm id env presence reaches the full path"; else fail "arm id env presence exited at the pre-filter"; fi
+src_probe CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true
+if [[ -e "$SRC_MARK" ]]; then ok "enabled env presence reaches the full path"; else fail "enabled env presence exited at the pre-filter"; fi
+printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":false}}}}\n' >"$SRC_ROOT/settings.json"
+src_probe
+if [[ -e "$SRC_MARK" ]]; then ok "anchored user settings mentioning the gate reach the full path"; else fail "anchored user settings were missed by the pre-filter"; fi
+printf '{"pluginConfigs":{}}\n' >"$SRC_ROOT/settings.json"
+src_probe
+if [[ ! -e "$SRC_MARK" ]]; then ok "user settings without the gate key stay on the early exit"; else fail "user settings without the gate key reached the libraries"; fi
+
+# The managed-settings loop, exercised behaviorally. The Windows primary has no
+# leading `/`, so on a POSIX host it resolves against the cwd: a drop-in planted
+# at `<cwd>/C:/Program Files/ClaudeCode/managed-settings.d/` is reachable from a
+# writable test root. The probe dir decides whether that route exists here; on
+# Windows the literal is a real drive path, so the case skips visibly and never
+# writes under C:.
+MANAGED_CWD="$(mktemp -d "$WORK/managedcwd.XXXXXX")"
+mkdir -p "$MANAGED_CWD/C:/lane-stop-gate-probe" 2>/dev/null || true
+if (cd "$MANAGED_CWD" && [[ -d "C:/lane-stop-gate-probe" ]]); then
+  mkdir -p "$MANAGED_CWD/C:/Program Files/ClaudeCode/managed-settings.d"
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":false}}}}\n' \
+    >"$MANAGED_CWD/C:/Program Files/ClaudeCode/managed-settings.d/50-lane.json"
+  SRC_CWD="$MANAGED_CWD" src_probe
+  if [[ -e "$SRC_MARK" ]]; then ok "a managed-settings drop-in mentioning the gate reaches the full path"; else fail "the pre-filter missed a managed-settings drop-in"; fi
+else
+  ok "SKIP: the Windows managed path is a real drive here — drop-in route not exercised"
+fi
+
+# A RELATIVE hook path takes the pre-filter's `cd` branch for the plugin root;
+# an enabled lane invoked that way must still find its settings and block.
+write_settings true
+OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash hooks/lane-stop-gate.sh 2>/dev/null)"
+if is_block "$OUT"; then ok "relative invocation: the pre-filter resolves the anchor and the lane blocks"; else fail "relative invocation lost the enabled lane's block: $OUT"; fi
+
+# A drive path spelled with `\`, as Claude Code passes CLAUDE_PLUGIN_ROOT on
+# Windows, must still resolve the anchor. On Windows the staged install
+# itself is spelled that way. On a POSIX host a drive path resolves against the
+# cwd, so `C:` links to the staged root and the backslashed spelling, a single
+# filename there, links to the version directory beneath it.
+write_settings true
+if command -v cygpath >/dev/null 2>&1; then
+  BS_CWD="$UNRELATED"
+  BS_ROOT="$(cygpath -m "$CACHE_ROOT")"
+  BS_ROOT="${BS_ROOT//\//\\}"
+else
+  BS_CWD="$(mktemp -d "$WORK/bscwd.XXXXXX")"
+  BS_ROOT='C:'
+  ln -s "$CACHE_ROOT" "$BS_CWD/C:"
+  ln -s "C:/plugins/cache/melodic/autonomy/9.9.9" "$BS_CWD/C:\\plugins\\cache\\melodic\\autonomy\\9.9.9"
+fi
+OUT="$(cd "$BS_CWD" && build_input Stop "no token" false |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash "$BS_ROOT\\plugins\\cache\\melodic\\autonomy\\9.9.9/hooks/lane-stop-gate.sh" 2>/dev/null)"
+if is_block "$OUT"; then ok "backslashed drive root: the anchor resolves and the lane blocks"; else fail "backslashed drive root lost the enabled lane's block: $OUT"; fi
+if (cd "$BS_CWD" && bash "$BS_ROOT\\plugins\\cache\\melodic\\autonomy\\9.9.9/hooks/lane-stop-gate-arm.sh" \
+  --id "bs-arm-id-4420" --cwd "$WORK" 2>/dev/null); then
+  ok "backslashed drive root: the arm helper resolves the anchor"
+else
+  fail "backslashed drive root: the arm helper found no anchor"
+fi
+
+# --- The interactive default path launches NO external command --------------
+# The strace case below proves the count where ptrace is available; this proves
+# the same property portably, and is the one that runs on the Windows host the
+# gate is tuned for (where a `$(uname -s)` cost three process creations). Every
+# external name the gate could reach for is replaced by a stub that records
+# itself and exits 99, so a regression names the offender instead of drifting a
+# number.
+NOSPAWN="$(mktemp -d "$WORK/nospawn.XXXXXX")"
+NOSPAWN_MARK="$WORK/nospawn-launched.txt"
+# The stub body uses NO external command: `basename` is itself on this list, so
+# a stub that called one would recurse instead of reporting.
+for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk date cksum find wc; do # portability-ok: a list of stub NAMES, not a date -d invocation
+  # shellcheck disable=SC2016 # $0 is the STUB's own argument, expanded when it runs
+  printf '#!/bin/sh\nprintf "%%s\\n" "$0" >>"%s"\nexit 99\n' "$NOSPAWN_MARK" >"$NOSPAWN/$t"
+  chmod +x "$NOSPAWN/$t"
+done
+rm -f "$SETTINGS" "$NOSPAWN_MARK"
+# stdin is a FILE, not a pipe from build_input: the default path now exits
+# before the writer finishes, and under pipefail the writer's EPIPE would be
+# read as the hook's status.
+NOSPAWN_OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+  -u CLAUDE_PLUGIN_DATA \
+  CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
+  PATH="$NOSPAWN" "$BASH" "$HOOK" <"$PROBE_PAYLOAD" 2>&1)"
+NOSPAWN_RC=$?
+if [[ $NOSPAWN_RC -eq 0 && -z "$NOSPAWN_OUT" ]]; then
+  ok "PATH-shim: the interactive default path still exits 0 silently"
+else
+  fail "PATH-shim: default path (rc=$NOSPAWN_RC out=$NOSPAWN_OUT)"
+fi
+if [[ -s "$NOSPAWN_MARK" ]]; then
+  fail "PATH-shim: the default path launched $(tr '\n' ' ' <"$NOSPAWN_MARK") — it must launch nothing"
+else
+  ok "PATH-shim: the default path launches no external command at all"
+fi
+
+# --- An ENABLED session still resolves its config through the same path -----
+# The saving must come from deferring work the default path cannot use, never
+# from skipping a lookup a lane needs: a trusted-enabled session still blocks.
+write_settings true
+OUT="$(run "$(build_input Stop "no token" false)")"
+if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter lost uname"; else fail "the pre-filter change lost the enabled lane's block: $OUT"; fi
+
+# ============================================================================
 # #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
 # ============================================================================
 # This hook fires on EVERY Stop of every session, gated or not, so its cost on
@@ -1138,11 +1305,13 @@ rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 # (180-2,841 ms each), so the count that binds is this one.
 #
 # Two paths are traced from the staged install:
-#   default (no gate footprint anywhere): EXACTLY 1 creation and 1 launch, the
-#     `uname -s` the managed-settings platform selection rests on (its trust
-#     primitive; $OSTYPE is a variable a repo env block can set). Everything
-#     else this path paid was the hook's own: a subshell per path helper and a
-#     grep per settings file.
+#   default (no gate footprint anywhere): EXACTLY 0 creations and 0 launches.
+#     The last one was the `uname -s` the managed-settings platform selection
+#     rests on; the pre-filter now tests the fixed primary of every platform
+#     with `[[ -f ]]` instead of asking which one to test, and the authoritative
+#     uname-selected load has moved below the pre-filter with the rest of the
+#     evaluated path. Everything else this path pays is builtin: a variable
+#     write per path helper and a read loop per settings file.
 #   enabled (user settings, first stop, no signal → block): a CEILING of 10
 #     creations and 5 launches. This hook's own share is 6 creations: the
 #     payload jq pass (3: process substitution, printf writer, jq),
@@ -1188,15 +1357,15 @@ if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve 
   if trace_hook "$(build_input Stop "no token" false)"; then
     ok "strace: the interactive default path was traced"
     if [[ -z "$TRACE_OUT" ]]; then ok "strace: the traced default path stayed silent (it is the real default path)"; else fail "strace: the traced default path emitted output: $TRACE_OUT"; fi
-    if [[ "$TRACE_CREATIONS" == "1" ]]; then
-      ok "strace: the default path creates exactly 1 process"
+    if [[ "$TRACE_CREATIONS" == "0" ]]; then
+      ok "strace: the default path creates no process at all"
     else
-      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 1 (launches: $TRACE_PROGS)"
+      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 0 (launches: $TRACE_PROGS)"
     fi
-    if [[ "$TRACE_PROGS" == "uname " ]]; then
-      ok "strace: the default path launches only uname"
+    if [[ -z "$TRACE_PROGS" ]]; then
+      ok "strace: the default path launches nothing"
     else
-      fail "strace: default path launched '$TRACE_PROGS', expected only uname"
+      fail "strace: default path launched '$TRACE_PROGS', expected nothing"
     fi
   else
     fail "strace: no usable trace captured for the default path"

@@ -19,7 +19,7 @@ Not a checklist to browse. Read every line. The audit config's per-dimension `ex
 actually see in THIS repo. Apply the same pattern to every claim encountered: extract the claim,
 identify the verification path, run it.
 
-**Critical: verify ALL claims, not just some.** A single line or bullet list often contains multiple
+**Verify all claims, not just some.** A single line or bullet list often contains multiple
 factual claims. Finding one issue on a line does NOT mean other claims on that line are correct.
 Verify each one independently. For example:
 
@@ -54,7 +54,9 @@ keeps each file's verification in a fresh, focused context.
    when the same path also appears as another dimension's primary-source. FORBIDDEN = every other
    primary-source file (except those doubling as verification-sources, per the read-only exception),
    any write, any git op. Each agent applies the claim-extraction method above to its file and
-   returns findings + a verified-count. Use repo-relative paths only (never absolute machine
+   returns findings + a verified-count. It is done when every claim in its file is either a finding or
+counted as verified; it returns early, naming the blocker, when a claim can only be checked against
+a file outside its allowed surface. Use repo-relative paths only (never absolute machine
    paths, agents must audit the current worktree). Throttle in waves so a large enumeration does not
    burst past the concurrency your environment allows.
 

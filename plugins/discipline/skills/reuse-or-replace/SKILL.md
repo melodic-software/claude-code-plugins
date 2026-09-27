@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor the anti-fragmentation discipline that when an established way of doing something already exists, an idiom, structure, naming shape, doc format, or process, new work REUSES it or openly REPLACES it (migrate the old uses, record the decision); never a silent second, parallel way alongside. Then audit the work in flight for unexplained divergence from an established way. Replacing is first-class when evidence backs it, the sin is the SILENT second way, not divergence itself. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
+description: "Re-anchor anti-fragmentation: where an established way exists, new work REUSES it or openly REPLACES it (migrate, record why), never a SILENT second way. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -80,14 +80,14 @@ divergence's blast radius.
 
 ## Scope, the unlintable "approach" level
 
-This skill owns consistency of **how work is done** where judgement, not a
+This skill owns consistency of **how work is done** where judgment, not a
 tool, decides it: code idioms and shapes, module and file structure, naming
 shapes, error-handling and logging approaches, API and interface conventions,
 documentation formats, and process or workflow choices.
 
 **Mechanical style is out of scope**. Indentation, quote style, import
 order, line length, and everything a formatter or linter settles
-deterministically belong to those tools, not to a judgement corrector. This
+deterministically belong to those tools, not to a judgment corrector. This
 skill fires at the level a linter cannot reach: the *approach*, not the
 whitespace.
 

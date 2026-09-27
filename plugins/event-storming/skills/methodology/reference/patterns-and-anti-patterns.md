@@ -112,7 +112,7 @@ Your brain takes shortcuts. It pretends you understand even when you don't. **Th
 
 ### Time-boxed Leadership
 
-Appoint a single person as temporary leader for brief periods (**4-5 minutes**) rather than seeking group consensus. The leader can request quiet time or drive progress using their preferred style. Breaks the "modelling style contest" dynamic where everyone wants to approach the problem differently and nobody moves forward. Rotate leadership at natural transition points. Useful for online Big Picture labeling too. *Source: [eventstorming.com/patterns/time-boxed-leadership](https://www.eventstorming.com/patterns/time-boxed-leadership/) (Dec 2024)*
+Appoint a single person as temporary leader for brief periods (**4-5 minutes**) rather than seeking group consensus. The leader can request quiet time or drive progress using their preferred style. Breaks the "modeling style contest" dynamic where everyone wants to approach the problem differently and nobody moves forward. Rotate leadership at natural transition points. Useful for online Big Picture labeling too. *Source: [eventstorming.com/patterns/time-boxed-leadership](https://www.eventstorming.com/patterns/time-boxed-leadership/) (Dec 2024)*
 
 ### Start from the Center
 

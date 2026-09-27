@@ -45,15 +45,37 @@ to the transcript well before the turn ends. Once-per-turn cadence catches
 the failure just as promptly as once-per-tool-call would, at a small
 fraction of the invocation count.
 
-Bounded-cost transcript read
-=============================
+Incremental transcript read
+============================
 Transcript files grow for the life of a session and are written
 asynchronously (may lag the in-memory conversation — see the hooks docs).
 Reading the whole file on every ``Stop`` would scale invocation cost with
-session length, the same shape of problem D-12 created a different way. This
-module instead seeks to the last ``_MAX_TAIL_BYTES`` of the file, discards
-the (likely-truncated) first partial line, and parses what remains — cost is
-O(cap), not O(session length), regardless of how large the transcript gets.
+session length, the same shape of problem D-12 created a different way. So
+the read is incremental: a per-session cursor (``<session>.cursor`` beside the
+marker, holding ``b<offset>\\n<transcript_path>\\n``) records how far a clean
+scan got, and the next ``Stop`` seeks there and reads only what was appended
+since. The shape follows claude-ops ``hook-failure-audit.sh`` (#4408).
+
+The first scan of a session, and any reset, reads the WHOLE file: a guard
+failure anywhere in it must still warn (#1514), so there is no tail cap. That
+cold read happens once per session, and a byte-level pre-filter skips the JSON
+parse of every line that cannot be a failure record.
+
+Every doubt about the cursor resolves toward a cold rescan, never toward
+silence: a missing, unreadable or malformed cursor (including the offset below
+2 or a non-canonical number), a cursor naming another transcript path, a file
+now shorter than the offset, or no newline just before the offset (the file
+was truncated or replaced). The one case that gets past that check is a
+same-path replacement with a newline at exactly the old offset; its first
+``offset`` bytes are never read. A rescan cannot re-warn: the marker decides.
+
+The cursor covers complete lines only. A final line with no newline is still
+scanned this turn but not counted, so the next ``Stop`` reads it again once
+the harness has finished writing it. And the cursor advances only past a scan
+that found NO failure: a failure warns and writes the marker, and if the
+marker cannot be written the next ``Stop`` rescans the same bytes and re-warns
+with the same count, exactly as the whole-file read did.
+
 Once a warning has fired for a session, the once-per-session marker (see
 below) short-circuits *before* the read, so the amortized per-turn cost for
 the rest of a long session is a single stat() of a small marker file.
@@ -82,6 +104,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -94,7 +117,8 @@ if str(_LIB_DIR) not in sys.path:
 import guard_decision_log  # noqa: E402  (path set above; bounded local record)
 import hook_telemetry  # noqa: E402  (path set above; stdlib-only telemetry emitter)
 
-_MAX_TAIL_BYTES = 2_000_000
+_FAILURE_NEEDLE = b"hook_non_blocking_error"
+_CURSOR_PATTERN = re.compile(r"b([1-9][0-9]{0,14})")
 
 _GUARD_COMMAND_SUBSTRING = "destructive_guard.py"
 _GUARD_DISPLAY_NAME = "destructive_guard.py"
@@ -133,19 +157,20 @@ def _resolve_data_root(argv: list[str]) -> str | None:
     return None
 
 
-def _marker_path_candidates(data_root: str | None, session_id: str) -> list[Path]:
-    safe_session = "".join(
-        ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id
-    ) or "unknown-session"
+def _marker_path_candidates(
+    data_root: str | None, session_id: str, suffix: str = ".warned"
+) -> list[Path]:
+    safe_session = (
+        "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+        or "unknown-session"
+    )
     candidates: list[Path] = []
     if data_root:
-        candidates.append(
-            Path(data_root) / _MARKER_DIRNAME / f"{safe_session}.warned"
-        )
+        candidates.append(Path(data_root) / _MARKER_DIRNAME / f"{safe_session}{suffix}")
     candidates.append(
         Path(tempfile.gettempdir())
         / "disk-hygiene-guard-launch-monitor"
-        / f"{safe_session}.warned"
+        / f"{safe_session}{suffix}"
     )
     return candidates
 
@@ -171,43 +196,61 @@ def _write_marker(marker_paths: list[Path]) -> None:
             continue
 
 
-def _read_tail_from_handle(handle, *, size: int) -> str:
-    if size > _MAX_TAIL_BYTES:
-        offset = size - _MAX_TAIL_BYTES
-        # A newline immediately before the window means the window already
-        # starts on a record boundary; discarding then would throw away a
-        # whole record, which can be the only guard failure in the tail.
-        handle.seek(offset - 1)
-        starts_mid_record = handle.read(1) != b"\n"
-        if starts_mid_record:
-            handle.readline()  # discard the truncated partial first line
-    raw = handle.read()
-    return raw.decode("utf-8", errors="replace")
-
-
-def _read_tail(transcript_path: str) -> str:
-    path = Path(transcript_path)
-    size = path.stat().st_size
-    with path.open("rb") as handle:
-        if size <= _MAX_TAIL_BYTES:
-            return handle.read().decode("utf-8", errors="replace")
-        # Guard failures can land in the head region when a later turn appends
-        # more than _MAX_TAIL_BYTES after them (#1514). Scan complete JSONL
-        # records from the head plus the capped tail window.
-        head_limit = size - _MAX_TAIL_BYTES
-        head_raw = handle.read(head_limit)
-        if head_raw and not head_raw.endswith(b"\n"):
-            head_raw = head_raw.rsplit(b"\n", 1)[0] + b"\n"
-        head_text = head_raw.decode("utf-8", errors="replace")
-        tail_text = _read_tail_from_handle(handle, size=size - head_limit)
-    return head_text + tail_text
-
-
-def _iter_guard_failures(transcript_text: str):
-    for line in transcript_text.splitlines():
-        line = line.strip()
-        if not line:
+def _read_cursor(cursor_paths: list[Path], transcript_path: str) -> int:
+    """Return the offset a clean scan of this transcript reached, or 0."""
+    for path in cursor_paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
             continue
+        offset, _, rest = text.partition("\n")
+        match = _CURSOR_PATTERN.fullmatch(offset)
+        if not match or rest != transcript_path + "\n":
+            return 0
+        return int(match.group(1))
+    return 0
+
+
+def _write_cursor(cursor_paths: list[Path], offset: int, transcript_path: str) -> None:
+    """Best-effort: a cursor that cannot be written only costs a rescan."""
+    for path in cursor_paths:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"b{offset}\n{transcript_path}\n", encoding="utf-8")
+            return
+        except OSError:
+            continue
+
+
+def _read_new(transcript_path: str, cursor: int) -> tuple[bytes, int]:
+    """Return the bytes to scan and the offset the next clean scan may resume at.
+
+    Starts at ``cursor`` when the byte before it is still a newline, else at 0.
+    The returned offset stops after the last newline read.
+    """
+    with open(transcript_path, "rb") as handle:
+        start = 0
+        if cursor >= 2:
+            handle.seek(cursor - 1)
+            if handle.read(1) == b"\n":
+                start = cursor
+        handle.seek(start)
+        data = handle.read()
+    return data, start + data.rfind(b"\n") + 1
+
+
+def _iter_guard_failures(data: bytes):
+    """Yield the ``hook_non_blocking_error`` attachment of each guard failure.
+
+    Lines without the attachment type's name cannot match, so they skip the
+    decode and the JSON parse.
+    """
+    if _FAILURE_NEEDLE not in data:
+        return
+    for raw in data.split(b"\n"):
+        if _FAILURE_NEEDLE not in raw:
+            continue
+        line = raw.decode("utf-8", errors="replace").strip()
         try:
             record = json.loads(line)
         except (json.JSONDecodeError, ValueError):
@@ -224,7 +267,7 @@ def _iter_guard_failures(transcript_text: str):
         command = attachment.get("command")
         if not isinstance(command, str) or _GUARD_COMMAND_SUBSTRING not in command:
             continue
-        yield record, attachment
+        yield attachment
 
 
 def _format_stderr(stderr: object) -> str:
@@ -236,11 +279,11 @@ def _format_stderr(stderr: object) -> str:
     return text
 
 
-def _build_message(failures: list[tuple[dict, dict]]) -> str:
+def _build_message(failures: list[dict]) -> str:
     count = len(failures)
     # Records are scanned in file order (chronological); the last match is
     # the most recent failure.
-    _, latest = failures[-1]
+    latest = failures[-1]
     exit_code = latest.get("exitCode")
     duration_ms = latest.get("durationMs")
     stderr_text = _format_stderr(latest.get("stderr"))
@@ -258,7 +301,7 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
     )
 
 
-def _audit_fields(failures: list[tuple[dict, dict]], session_id: str) -> dict:
+def _audit_fields(failures: list[dict], session_id: str) -> dict:
     """Structured detail for the local decision record.
 
     Deliberately separate from ``telemetry_data``: the telemetry envelope's
@@ -266,7 +309,7 @@ def _audit_fields(failures: list[tuple[dict, dict]], session_id: str) -> dict:
     record is a different consumer with a different need (enough to explain one
     failure without the session's transcript), so neither shapes the other.
     """
-    _, latest = failures[-1]
+    latest = failures[-1]
     return {
         "failure_count": len(failures),
         "session_id": session_id,
@@ -315,9 +358,13 @@ def _run(
         return None, None, None, {}, {}
     if not transcript_path or not isinstance(transcript_path, str):
         return None, None, None, {}, {}
-    transcript_text = _read_tail(transcript_path)
-    failures = list(_iter_guard_failures(transcript_text))
+    cursor_paths = _marker_path_candidates(data_root, str(session_id), ".cursor")
+    data, resume_at = _read_new(
+        transcript_path, _read_cursor(cursor_paths, transcript_path)
+    )
+    failures = list(_iter_guard_failures(data))
     if not failures:
+        _write_cursor(cursor_paths, resume_at, transcript_path)
         return None, None, "ok", {}, {}
     return (
         _build_message(failures),

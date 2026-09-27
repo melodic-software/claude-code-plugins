@@ -55,6 +55,15 @@ opt-in required.
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
   though the hook passes it explicitly, with no advisory noise.
+- **Gitignored paths are still scanned.** typos honors `.gitignore` when it
+  walks a directory, but this hook names the edited file explicitly, and
+  `--force-exclude` covers only typos' own excludes. An edit under `.work/`,
+  `.venv/` or `node_modules/` therefore pays a full scan and reports findings
+  (or, in write mode, applies corrections) even though git ignores the path (reproduced with typos-cli 1.42.1,
+  2026-09-27). To skip such a path, list it in `[files] extend-exclude`
+  ([typos reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#filesextend-exclude)).
+  The hook does not ask `git check-ignore` itself, because that would add a
+  process to every edit.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
@@ -70,6 +79,32 @@ formatter hook also rewrites the same file class (e.g. `markdown-format` on
 reads-then-writes with no locking, so ordering is **last-writer-wins** and a
 nondeterministic clobber is possible. That double opt-in is your call to
 make; the residual overlap class is tracked fleet-wide in #875.
+
+**Timeout tail.** The handler sets `"timeout": 15`, well under the 600-second
+default for a command hook, and Claude Code discards the output of a hook it
+cancels at its timeout ([hooks reference](https://code.claude.com/docs/en/hooks),
+"Timeouts", checked 2026-09-27). In write mode the second typos pass rewrites
+the file before the hook classifies what changed and discloses it, so a cancel
+between the two leaves your file rewritten with no disclosure. The one measured
+case that crossed 15 s, 10,000 residual findings at about 15.7 s, was fixed by
+moving classification to a hash lookup (about 0.6 s); no current case has
+reproduced the window. Report-only mode never writes, so it has no such tail.
+
+## Write paths the hook does not see
+
+The matcher is `Write|Edit|NotebookEdit`, so only those tools reach it. A file
+written through the `Bash` tool (a heredoc, a redirect, `sed -i`), through
+`PowerShell`, or through an MCP filesystem server's write tool is never
+spell-checked. `guardrails`' `block-hook-bypass`, when installed, blocks the
+common Bash redirect and heredoc forms and the PowerShell write cmdlets;
+`sed -i` and other inline-interpreter writes are outside what it detects, and
+it does not see MCP tools. CI is the only gate that sees every path. The
+matcher does not list `MultiEdit`: the
+[tools reference](https://code.claude.com/docs/en/tools-reference) does not
+list it among the built-in tools, and
+[permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
+`MultiEdit` tool" (both checked 2026-09-27; recheck if `MultiEdit` returns to
+the tools reference).
 
 ## Requirements
 
@@ -93,12 +128,17 @@ fixing still runs.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
-where `typos` finds nothing is the figure that counts. Measured on Windows 11 under Git Bash,
-twelve interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+where `typos` finds nothing is the figure that counts. Each row is interleaved trials against an
+interleaved `bash -c :` floor on Windows 11 under Git Bash:
 
-| Event | Fires | Spawn-equivalents | What changed |
-| --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+| Event | Fires | Spawn-equivalents | Measured | What changed |
+| --- | --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+| PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
+
+The 18.7 row is the current figure for this host class. Releases after 0.6.55 have not been
+measured on Windows; see [Hook cost accounting](#hook-cost-accounting) for a same-method Linux
+comparison through 0.6.62.
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
@@ -250,10 +290,25 @@ comparable; the spawn-equivalent ratio is the figure that holds.
 | Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
 | After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
 
-**A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
-work, down 28 percent.** Two `dirname` calls became parameter expansions, and
-the jq that copies `notebook_path` onto `file_path` now runs only for a payload
-that carries one, which no `Write` or `Edit` does.
+**On 0.6.35 a clean edit cost ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of
+reference-host work, down 28 percent.** Two `dirname` calls became parameter
+expansions, and the jq that copies `notebook_path` onto `file_path` now runs only
+for a payload that carries one, which no `Write` or `Edit` does.
+
+**Later figures.** A plugin-quality audit on 2026-09-19 measured **18.7** on
+0.6.55 with the same method on the Windows host (n=8). On 2026-09-27 the same
+method ran on Linux x86_64 (bash 5.2, git 2.43, jq 1.7, typos 1.42.1), with 24
+trials interleaved across three releases in each round:
+
+| Release | Median spawn-equivalents (Linux) | p25 to p75 |
+| --- | --- | --- |
+| 0.6.35 | 35.7 | 31.9 to 37.3 |
+| 0.6.55 | 31.2 | 28.6 to 32.5 |
+| 0.6.62 | 25.0 | 24.1 to 26.0 |
+
+The Linux floor is about 1 ms, so its ratios are noisier than the Windows
+host's and do not compare to its rows. What carries over is the relative
+change: 0.6.62 runs about 30 percent below 0.6.35 on the same host.
 
 **Residual, and why it stays.** The dominant single cost is the `typos` binary's
 own startup, which is the point of the hook. On the measuring host it resolves
@@ -269,8 +324,17 @@ repository's own exclude rules.
 **No extension gate is possible here, and that is deliberate.** `typos` is
 language-agnostic, so the scan has no allowlist to short-circuit on: gating it
 by the write-mode allowlist would stop reporting typos in `Dockerfile`,
-`Makefile`, `.gitignore` and every extensionless file. That is a behaviour
+`Makefile`, `.gitignore` and every extensionless file. That is a behavior
 change, not a saving.
+
+**A disabled hook costs one shell.** The `hooks/hooks.json` row reads
+`typos_format_enabled` itself and exits before the script starts, so the harness's
+shell is the only process a disabled hook creates. Measured in two runs on a Windows
+Git Bash host under different load, 15 interleaved trials each with the switch off, the old row cost 2.5 to 4.0
+times the `bash -c :` floor and the new row about 1.0 times it (medians: 96.1 ms
+against 23.7 ms on a 24.0 ms floor, and 157.6 ms against 62.4 ms on a 61.9 ms floor).
+With the switch on the row `exec`s the script in place of its own shell, so the
+process count is unchanged.
 
 ## License
 

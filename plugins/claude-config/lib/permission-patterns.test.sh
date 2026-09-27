@@ -3,7 +3,7 @@
 # vocabulary shared by audit-permission-grants' check P1 and
 # audit-permission-state's entry diff.
 #
-# The classification behaviour is exercised in depth by the P1 detector's own
+# The classification behavior is exercised in depth by the P1 detector's own
 # suite. What is proved HERE is what only a second consumer needs: the file is
 # safe to source, and its bodies are usable standalone without the detector.
 set -uo pipefail

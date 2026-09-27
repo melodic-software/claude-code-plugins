@@ -65,7 +65,7 @@ So: write the report outside the target root. If a destination inside it is unav
 | Reading | Handoff |
 |---|---|
 | `product-managed-healthy` | Nothing to do. The only lever that shrinks it is lowering `cleanupPeriodDays`, a config change, not a deletion |
-| `age-exceeds-window` | Investigate the sweep's unit for that path first. Never a deletion authorisation |
+| `age-exceeds-window` | Investigate the sweep's unit for that path first. Never a deletion authorization |
 | `settings-unparsable-pauses-sweep` | Fix the JSON. Retention is stopped until you do. `/claude-config:audit` owns settings correctness |
 | Home-root `~/.claude.json` growth | `claude project purge <path>`, the supported command. `--dry-run` previews |
 | `deny-listed` | Stop. Read the ledger, diff against the stored baseline, and confirm with whoever ran the experiment |
@@ -100,7 +100,7 @@ Two calibrations:
   hooks live in each plugin's own manifest, direct-path invocations from `settings.json` bypass the
   plugin system entirely, and enablement is read at session start so a running session keeps what it
   loaded. Any single-file answer will confidently contradict reality. The engine emits
-  `recent_writers`, behavioural evidence that something wrote to the tree, and leaves the verdict
+  `recent_writers`, behavioral evidence that something wrote to the tree, and leaves the verdict
   to `/claude-ops:plugins audit`.
 - **No parsing of sibling-plugin state.** A plugin owns its own state. Those paths are inventoried by
   name, size, and mtime; nothing is opened and no owner is attributed from a directory name.

@@ -60,6 +60,15 @@ err() { printf 'ERROR: %s\n' "$*" >&2; }
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
+# Guard for a space-separated option that consumes the next token: reject a
+# missing value or one that looks like another flag. Called as a bare statement
+# (never in a subshell) so its exit fires for the whole script.
+require_value() { # <flag> <value>
+  [[ -n "${2:-}" && "$2" != -* ]] && return 0
+  err "option '$1' requires a value"
+  exit 3
+}
+
 type -P jq >/dev/null 2>&1 || {
   err "jq not found (required)"
   exit 4
@@ -72,10 +81,7 @@ declare -a WANT_PLUGINS=()
 while (($#)); do
   case "$1" in
   --plugin)
-    [[ -n "${2:-}" && "$2" != -* ]] || {
-      err "option '--plugin' requires a value"
-      exit 3
-    }
+    require_value "$1" "${2:-}"
     WANT_PLUGINS+=("$2")
     shift 2
     ;;
@@ -84,10 +90,7 @@ while (($#)); do
     shift
     ;;
   --repo)
-    [[ -n "${2:-}" && "$2" != -* ]] || {
-      err "option '--repo' requires a value"
-      exit 3
-    }
+    require_value "$1" "${2:-}"
     REPO="$2"
     shift 2
     ;;

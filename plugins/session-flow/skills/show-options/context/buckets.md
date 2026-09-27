@@ -47,7 +47,7 @@ checkout, so artifact absence is not evidence of a skipped stage.
 Everything relevant to this project that sits beyond the Next horizon: testing, review, and
 verification skills early in a session; migration and release skills mid-build. Without this bucket
 they fit nowhere: not Now, not the two-to-three-step Next, not upstream, and not a three-entry
-Spotlight, so the never-omit rule could only be honoured by stretching another bucket's definition
+Spotlight, so the never-omit rule could only be honored by stretching another bucket's definition
 or by dropping them. Both are failures.
 
 **It renders tier 2 only**, bare invocation names with a count, roughly one wrapped line, and that

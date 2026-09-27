@@ -107,7 +107,6 @@ while (($# > 0)); do
     shift
     ;;
   --audit)
-    # Macro: comprehensive observability beyond default error+warning grep.
     SHOW_GROUPS=1
     TIMING=1
     SUSPICIOUS=1
@@ -134,7 +133,7 @@ while (($# > 0)); do
 done
 
 # Compose marker regex based on flags. ERRORS_ONLY suppresses warning;
-# NOTICES adds notice. Default = error + warning (preserving v1 behavior).
+# NOTICES adds notice. Default = error + warning.
 if [[ "$ERRORS_ONLY" -eq 1 && "$NOTICES" -eq 1 ]]; then
   MARKER_RE='##\[(error|notice)\]'
 elif [[ "$ERRORS_ONLY" -eq 1 ]]; then
@@ -236,7 +235,7 @@ else
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
 fi
 
-if [[ -z "$REPO" || "$REPO" != */* ]]; then
+if [[ "$REPO" != */* ]]; then
   printf 'fetch-failed-logs: cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)\n' >&2
   exit 2
 fi
@@ -318,7 +317,6 @@ if [[ "$size" -lt 22 ]]; then
   exit 2
 fi
 
-# Extract to a temporary directory and walk per-job folders.
 EXTRACT_DIR=$(mktemp -d)
 # shellcheck disable=SC2329  # invoked via trap, not direct call
 cleanup_extract() { rm -rf "$EXTRACT_DIR"; }
@@ -366,14 +364,12 @@ grep_group_markers() { grep -E "$GROUP_MARKER_RE" "$1" 2>/dev/null; }
 grep_suspicious() { grep -iE "$SUSPICIOUS_RE" "$1" 2>/dev/null; }
 
 if [[ "$RAW" -eq 1 ]]; then
-  # Dump every text file with a header for orientation.
   for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
     rel="${f#"$EXTRACT_DIR"/}"
     printf '\n===== %s =====\n' "$rel"
     cat "$f"
   done
 else
-  # Walk every .txt file, grep for markers, group output by file.
   found_any=0
   for f in ${TXT_FILES[@]+"${TXT_FILES[@]}"}; do
     rel="${f#"$EXTRACT_DIR"/}"

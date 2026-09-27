@@ -15,11 +15,12 @@ policy that binds them into one sequence.
 ## When it applies: file what you will not fix, nothing else
 
 The default posture is **fix, not file** ([`tracker-seam.md`](tracker-seam.md) "Default = fix, not
-file"): Boy-Scout-scope drift discovered while working belongs in the current change, not the
-tracker. Self-observation filing is the **narrow exception**. A problem is filed only when it is
-genuinely orthogonal to the current item, large enough to need its own planning pass, or needs
-research this lane is not positioned to do. `work`'s post-green review already draws this line for a
-VALID-but-deferred finding ([`../skills/work/SKILL.md`](../skills/work/SKILL.md) "Post-green review
+file"): a small or medium problem discovered while working is fixed in the current change as its
+own commit, even when it is unrelated to the current item. Self-observation filing is the **narrow
+exception**. A problem is filed only when it is structural (large enough to need its own planning
+pass), urgent and real but unable to land in the current change, or blocked on research this lane
+is not positioned to do. No nits, no speculative items.
+`work`'s post-green review already draws this line for a deferred review finding ([`../skills/work/SKILL.md`](../skills/work/SKILL.md) "Post-green review
 pass"); the same test governs every lane.
 
 ## The sequence
@@ -52,21 +53,8 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    truth, so a change to the template lands in one place. The item **title** follows the convention
    in [`issue-conventions.md`](issue-conventions.md).
 
-4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply the raw marker
-   (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under,
-   resolved from the live label set, [`label-taxonomy.md`](label-taxonomy.md)) so the item lands in
-   the triage attention view for evaluation ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md)
-   "Attention view"). Application differs by axis because `priority:` is a single-label group
-   ([`../skills/track/actions/add.md`](../skills/track/actions/add.md) "Build labels list"): on the
-   **Priority** axis the marker *is* the item's priority, so pass it as `--priority needs-triage` on
-   the step-3 `track add` call, replacing the default filing floor (`track add` "Priority", the live
-   `priority:` set's lowest-urgency member) rather than adding a second `priority:` label alongside it
-   (two `priority:` labels is a conflict the GitHub adapter flags and later priority-tier selection
-   cannot resolve); on the **Status** axis the marker is a separate flag applied after creation, and
-   the filing floor stays.
-   **The filer does not self-triage.** Filing surfaces the problem into raw intake; triage verifies,
-   categorizes definitively, and routes it. Auto-application of `needs-triage` to a fresh item lacking
-   a priority label is tracked separately (`#506`); until it lands, the filing lane applies the label.
+4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply `needs-triage` when that exact name exists in the live set ([`label-taxonomy.md`](label-taxonomy.md)). **The filer does not self-triage.** Filing surfaces the problem into raw intake; triage verifies,
+   categorizes definitively, and routes it. The org floor workflow applies the same bare label when an issue opens with no `priority:` label (`#506`). Filing still applies it so the item is in the queue on a repository that does not run that workflow.
 
 ## Mechanical core is already scripted: reference it, do not duplicate
 

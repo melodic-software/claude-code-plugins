@@ -42,6 +42,14 @@ class ProbeTests(unittest.TestCase):
     def write_settings(self, payload: object) -> None:
         self.settings.write_text(json.dumps(payload), encoding="utf-8")
 
+    def write_toggle(
+        self, value: object, key: str = "disk-hygiene@melodic-software"
+    ) -> None:
+        """Settings whose single ``pluginConfigs`` entry carries the toggle."""
+        self.write_settings(
+            {"pluginConfigs": {key: {"options": {"disk_hygiene_enabled": value}}}}
+        )
+
     def run_probe(self, argv: list[str] | None = None) -> dict[str, object]:
         if argv is None:
             argv = ["--settings-file", str(self.settings)]
@@ -59,15 +67,7 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["degraded"])
 
     def test_configured_false_reported_with_provenance(self) -> None:
-        self.write_settings(
-            {
-                "pluginConfigs": {
-                    "disk-hygiene@melodic-software": {
-                        "options": {"disk_hygiene_enabled": False}
-                    }
-                }
-            }
-        )
+        self.write_toggle(False)
         result = self.run_probe()
         self.assertFalse(result["effective"])
         self.assertEqual("configured", result["source"])
@@ -78,23 +78,13 @@ class ProbeTests(unittest.TestCase):
         )
 
     def test_configured_true_reported_as_configured(self) -> None:
-        self.write_settings(
-            {
-                "pluginConfigs": {
-                    "disk-hygiene@melodic-software": {
-                        "options": {"disk_hygiene_enabled": True}
-                    }
-                }
-            }
-        )
+        self.write_toggle(True)
         result = self.run_probe()
         self.assertTrue(result["effective"])
         self.assertEqual("configured", result["source"])
 
     def test_bare_plugin_key_without_marketplace_suffix_matches(self) -> None:
-        self.write_settings(
-            {"pluginConfigs": {"disk-hygiene": {"options": {"disk_hygiene_enabled": False}}}}
-        )
+        self.write_toggle(False, key="disk-hygiene")
         result = self.run_probe()
         self.assertFalse(result["effective"])
         self.assertEqual("configured", result["source"])
@@ -125,15 +115,7 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["degraded"])
 
     def test_string_boolean_values_accepted(self) -> None:
-        self.write_settings(
-            {
-                "pluginConfigs": {
-                    "disk-hygiene@melodic-software": {
-                        "options": {"disk_hygiene_enabled": "False"}
-                    }
-                }
-            }
-        )
+        self.write_toggle("False")
         result = self.run_probe()
         self.assertFalse(result["effective"])
         self.assertEqual("configured", result["source"])
@@ -186,15 +168,7 @@ class ProbeTests(unittest.TestCase):
         self.assertIn("assuming", result["detail"].lower())
 
     def test_invalid_value_type_degrades(self) -> None:
-        self.write_settings(
-            {
-                "pluginConfigs": {
-                    "disk-hygiene@melodic-software": {
-                        "options": {"disk_hygiene_enabled": 42}
-                    }
-                }
-            }
-        )
+        self.write_toggle(42)
         result = self.run_probe()
         self.assertTrue(result["effective"])
         self.assertEqual("indeterminate", result["source"])
@@ -230,15 +204,7 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["degraded"])
 
     def test_default_path_honors_claude_config_dir(self) -> None:
-        self.write_settings(
-            {
-                "pluginConfigs": {
-                    "disk-hygiene@melodic-software": {
-                        "options": {"disk_hygiene_enabled": False}
-                    }
-                }
-            }
-        )
+        self.write_toggle(False)
         with mock.patch.dict(
             "os.environ", {"CLAUDE_CONFIG_DIR": self.tmp.name}, clear=False
         ):
@@ -250,9 +216,7 @@ class ProbeTests(unittest.TestCase):
     def test_output_is_single_line_json(self) -> None:
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            self.assertEqual(
-                0, probe.main(["--settings-file", str(self.settings)])
-            )
+            self.assertEqual(0, probe.main(["--settings-file", str(self.settings)]))
         text = stdout.getvalue()
         self.assertEqual(1, len([line for line in text.splitlines() if line]))
         json.loads(text)

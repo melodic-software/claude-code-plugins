@@ -135,8 +135,8 @@ S2=$(run anchor --excerpt 'never   do X' --heading-path 'Rules')
 assert_eq "1.10a: two identical normalized excerpts under one heading path collide" "$S1" "$S2"
 
 # 1.2: inserting an unrelated paragraph above a finding changes nothing, because
-# the discriminator is the ENCLOSING HEADING PATH and not the neighbouring text.
-assert_eq "1.2: the anchor does not depend on neighbouring content" \
+# the discriminator is the ENCLOSING HEADING PATH and not the neighboring text.
+assert_eq "1.2: the anchor does not depend on neighboring content" \
   "$D1" "$(run anchor --excerpt 'never do X' --heading-path 'Rules')"
 
 NO_HEADING=$(run anchor --excerpt 'never do X')

@@ -29,8 +29,7 @@ function Get-PhysicalDiskReliability {
     try {
         return $Disk | Get-StorageReliabilityCounter -ErrorAction Stop
     } catch {
-        $name = $Disk.FriendlyName
-        Write-Verbose "Get-PhysicalDiskReliability: no counter for '$name'. $($_.Exception.Message)"
+        Write-Verbose "Get-PhysicalDiskReliability: no counter for '$($Disk.FriendlyName)'. $($_.Exception.Message)"
         return $null
     }
 }

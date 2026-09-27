@@ -30,6 +30,7 @@ from babysit_review_trigger import (
 )
 from babysit_state import (
     load_state,
+    require_pr_state,
     resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
@@ -41,12 +42,13 @@ from babysit_util import (
     configure_stdio,
     is_json_object,
     json_object,
+    parse_csv_set,
     parse_timestamp,
 )
 
 
 def _csv(value: str | None) -> frozenset[str]:
-    return frozenset(part.strip() for part in (value or "").split(",") if part.strip())
+    return frozenset(parse_csv_set(value))
 
 
 def build_trigger_config(args: argparse.Namespace) -> ReviewTriggerConfig:
@@ -178,10 +180,11 @@ def existing_trigger(
     comments = fetch_paginated_api(
         f"repos/{repo}/issues/{number}/comments?per_page=100", "PR issue comments"
     )
+    known = known_comment_ids or set()
     for comment in comments:
         if not recognizer.fullmatch(str(comment.get("body") or "")):
             continue
-        if str(comment.get("id")) in (known_comment_ids or set()):
+        if str(comment.get("id")) in known:
             continue
         return comment
     return None
@@ -303,10 +306,7 @@ def run_locked(
         raise RuntimeError("a non-empty review trigger phrase is required")
     require_worker_lease(args, state_dir, repo, number)
     state = load_state(state_path)
-    pr_state_value: Any = cast(Any, state.get("prs") or {}).get(key)
-    if not isinstance(pr_state_value, dict):
-        raise RuntimeError(f"missing snapshot state for {key}; run --write-state first")
-    pr_state = cast(dict[str, Any], pr_state_value)
+    pr_state = require_pr_state(state, key)
     expected_head_sha = resolve_expected_head_sha(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )
@@ -333,8 +333,9 @@ def run_locked(
     if expected_head_sha in request_history:
         raise RuntimeError("a review was already requested for this head SHA")
     prior_attempt = attempt_history.get(expected_head_sha)
-    if is_json_object(prior_attempt) and (
-        prior_attempt.get("status") == "requesting"
+    if (
+        is_json_object(prior_attempt)
+        and prior_attempt.get("status") == "requesting"
         and prior_attempt.get("comment_id") is None
     ):
         raise RuntimeError(

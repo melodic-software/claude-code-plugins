@@ -2,8 +2,6 @@
 # Shared comment-residue detectors for /audit-comment-residue (sourceable; not invoked directly).
 # Shape definitions and treatments: the skill's SKILL.md "Residue shapes and treatments".
 #
-# Residue = comment text that only makes sense outside the code's present state: history
-# narration, plan/session references, conversational antecedents, ticket/PR back-references.
 # Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
 # code (identifiers, string literals) are not flagged.
 
@@ -31,14 +29,9 @@ cr_line_skipped() {
   [[ "$prev" == *'comment-residue-ignore'* || "$line" == *'comment-residue-ignore'* ]]
 }
 
-# Extract the comment portion of a line, or empty if the line carries no recognized comment
-# leader. A leader (`//`, `/*`, `#`, `--`) only opens a comment when it sits OUTSIDE a string
-# literal, so a `//` inside a URL or a residue-shaped phrase inside a quoted string is not
-# mistaken for a comment. The scan tracks "...", '...', and `...` spans (with `\` escapes) up to
-# the first real leader, then returns the remainder verbatim — apostrophes in comment prose
-# ("it's", "no longer") are never treated as strings because the leader has already been found.
-# Heuristic, not a full per-language lexer: escaped quotes inside single-quoted shell strings and
-# other language-specific quoting quirks are approximated, which is sufficient for a read-only audit.
+# Extract the comment portion of a line, or empty. A leader (`//`, `/*`, `#`, `--`) opens a
+# comment only OUTSIDE a "...", '...', or `...` span, so a URL's `//` or a quoted phrase is
+# not a comment. Heuristic, not a per-language lexer: enough for a read-only audit.
 cr_comment_text() {
   local line="${1//$'\r'/}"
   [[ "$line" =~ ^[[:space:]]*#! ]] && return 0 # shebang, not a comment
@@ -66,18 +59,19 @@ cr_comment_text() {
     *) ;;
     esac
     nx="${line:i+1:1}"
-    if [[ "$ch" == '/' && "$nx" == '/' ]]; then
-      printf '%s' "${line:i+2}"
+    if [[ "$ch$nx" == '//' || "$ch$nx" == '--' ]]; then
+      rest="${line:i+2}"
+      # `///` and `//!` are doc-comment leaders. Left in the text they occupy the
+      # clause-opening position, so a cue right behind one would never anchor.
+      [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
+      printf '%s' "$rest"
       return 0
-    elif [[ "$ch" == '/' && "$nx" == '*' ]]; then
+    elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
       printf '%s' "${rest%%\*/*}"
       return 0
     elif [[ "$ch" == '#' ]]; then
       printf '%s' "${line:i+1}"
-      return 0
-    elif [[ "$ch" == '-' && "$nx" == '-' ]]; then
-      printf '%s' "${line:i+2}"
       return 0
     fi
   done
@@ -89,10 +83,46 @@ cr_is_sanctioned_todo() {
   [[ "$1" =~ (TODO|FIXME|HACK|XXX) ]]
 }
 
-# Emit zero or more shape names (one per line on stdout). Return 1 if any emitted (cosmetic;
-# the caller reads stdout).
+# A line whose first non-blank characters are a comment leader. A trailing comment on a code
+# line is NOT one, so a license block never runs on through code.
+cr_is_comment_line() {
+  [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
+}
+
+# License or attribution cue. `copyright` and `(c)` are ordinary words, so each needs a
+# year, a (c)/© sign, or the start of the comment as corroboration.
+cr_has_license_cue() {
+  local lc="${1,,}"
+  [[ "$lc" =~ (spdx-license-identifier|licensed[[:space:]]+under|license:) ]] && return 0
+  [[ "$lc" =~ copyright[[:space:]]*(\(c\)|©|[0-9]{4}) ]] && return 0
+  [[ "$lc" =~ ^[[:space:]]*copyright ]] && return 0
+  [[ "$lc" =~ \(c\)[[:space:]]*[0-9]{4} ]] && return 0
+  return 1
+}
+
+# A contiguous comment run with any license cue is exempt from origin-note whole: a NOTICE
+# header states its license once and attributes on a separate line.
+cr_license_block_lines() {
+  local line n=0 start=0 cue=0 i
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    if cr_is_comment_line "$line"; then
+      ((start == 0)) && start=$n
+      ((cue)) || { cr_has_license_cue "$(cr_comment_text "$line")" && cue=1; }
+      continue
+    fi
+    ((start > 0 && cue)) && for ((i = start; i < n; i++)); do printf '%s\n' "$i"; done
+    start=0
+    cue=0
+  done <"$1"
+  ((start > 0 && cue)) && for ((i = start; i <= n; i++)); do printf '%s\n' "$i"; done
+  return 0
+}
+
+# Emit zero or more shape names, one per line; return 1 if any emitted.
 cr_detect_shapes() {
   local line="$1"
+  local in_license_block="${2:-0}"
   local ct
   ct="$(cr_comment_text "$line")"
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
@@ -124,6 +154,20 @@ cr_detect_shapes() {
     found=1
   fi
 
+  # origin-note (tier 1): the comment names where the block came from or when it was
+  # added. The cue must open the comment or a clause, be whole words, and carry an origin
+  # VERB, so a description ("bytes copied from the buffer") or a bare date is not a finding;
+  # attribution:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
+  # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
+  # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
+  if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
+    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then
+      printf '%s\n' 'origin-note'
+      found=1
+    fi
+  fi
+
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
@@ -139,7 +183,7 @@ cr_detect_shapes() {
 
 cr_shape_tier() {
   case "$1" in
-  history-narration | plan-reference | conversational-antecedent) printf '1' ;;
+  history-narration | plan-reference | conversational-antecedent | origin-note) printf '1' ;;
   ticket-pr-residue) printf '2' ;;
   *) printf '3' ;;
   esac

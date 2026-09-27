@@ -11,19 +11,12 @@ source "$SCRIPT_DIR/common.sh"
 
 for fn in wit_require_jira_id wit_need_jira_config wit_jira_project_in_scope wit_jira_token \
   wit_jira_http wit_jira_require_ok wit_jira_b64 wit_help_if_requested; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # Foreign-provider id is well-formed by the shared grammar but must be rejected here.
-if wit_require_jira_id "github:o/r#1"; then
-  fail "rejects foreign-provider id" "reject" "accepted"
-else
-  pass "rejects foreign-provider id"
-fi
+assert_fails "rejects foreign-provider id" "reject" "accepted" \
+  wit_require_jira_id "github:o/r#1"
 if wit_require_jira_id "jira:acme.atlassian.net/SW2#12"; then
   pass "accepts jira id + sets WIT_ID_* globals"
   assert_eq "id owner is site" "acme.atlassian.net" "$WIT_ID_OWNER"
@@ -38,8 +31,8 @@ assert_eq "b64 of a:b" "YTpi" "$(wit_jira_b64 'a:b')"
 
 # Project-scope membership is pure over WIT_JIRA_PROJECT_KEYS.
 WIT_JIRA_PROJECT_KEYS='["SW2","ABC"]'
-if wit_jira_project_in_scope "SW2"; then pass "in-scope project accepted"; else fail "in-scope project accepted" "in" "out"; fi
-if wit_jira_project_in_scope "OTHER"; then fail "out-of-scope project rejected" "out" "in"; else pass "out-of-scope project rejected"; fi
+assert_succeeds "in-scope project accepted" "in" "out" wit_jira_project_in_scope "SW2"
+assert_fails "out-of-scope project rejected" "out" "in" wit_jira_project_in_scope "OTHER"
 
 # HTTP-status → exit-code mapping is pure; run wit_jira_require_ok in a subshell so
 # its exit does not end this suite, and capture the code it exits with.

@@ -213,6 +213,10 @@ fi
 
 # --- Per-rule classification --------------------------------------------------
 
+# Every shell-shape class is the same question asked of a different alternation
+# from the shared vocabulary: does the rule text match this ERE.
+rule_matches() { printf '%s\n' "$1" | grep -qE "$2"; }
+
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
 monitor_seen=0
 predicted_dropped=""
@@ -246,24 +250,27 @@ while read -r rec kind scopes_field _basis rule; do
     # grant is safe. The Agent branch above already handles its own bare form;
     # this is the same rule for the two shell tools.
     verdict="dropped class=blanket"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_BLANKET_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
     verdict="dropped class=blanket"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
     verdict="dropped class=interpreter-wildcard"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_RUNNER_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_RUNNER_ERE"; then
     verdict="dropped class=package-manager-run"
   elif [[ "$cas_active" == 1 && ("$tool" == "Bash" || "$tool" == "PowerShell") ]]; then
     verdict="suspended reason=classifyAllShell"
   fi
-  if [[ "$verdict" == dropped* ]]; then
-    n_dropped=$((n_dropped + 1))
-    predicted_dropped="${predicted_dropped}${rule}"$'\n'
-  elif [[ "$verdict" == suspended* ]]; then
-    n_suspended=$((n_suspended + 1))
-    predicted_dropped="${predicted_dropped}${rule}"$'\n'
-  else
+  # Every rule that did not carry over is a predicted drop, whichever of the two
+  # labels it carries; only the counter differs.
+  if [[ -z "$verdict" ]]; then
     verdict="kept"
     n_kept=$((n_kept + 1))
+  else
+    predicted_dropped="${predicted_dropped}${rule}"$'\n'
+    if [[ "$verdict" == dropped* ]]; then
+      n_dropped=$((n_dropped + 1))
+    else
+      n_suspended=$((n_suspended + 1))
+    fi
   fi
   diff_lines="${diff_lines}entry-diff $verdict $scopes_field $rule"$'\n'
 done <<<"$records"

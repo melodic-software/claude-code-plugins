@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling fourteen **safety guards** that catch risky agent
+A Claude Code plugin bundling fifteen **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -46,6 +46,7 @@ emit. The [hook budget accounting](#hook-budget-accounting) carries the measurem
 | **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates: `cat > file`, `echo … > file`, inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`), and a same-command staged write whose effective redirect target is reused as an `mv`/`cp` source toward a non-scratch destination. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **block-windows-drive-tmp** | PreToolUse · Bash \| PowerShell **and** Write \| Edit \| MultiEdit \| NotebookEdit | **Blocks** (exit 2) | Windows-only: write targets that are a drive-root temp path: POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp`, which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root. On the **command lane** redirects and write utilities (`mkdir`/`mktemp`/`tee`/`cp`/`Set-Content`/`Out-File`/…) are blocked; on the **file-path lane** (since **0.30.0**) the tool's own `file_path` / `notebook_path` is matched directly, because on a Write the path *is* the write target. Both lanes call one matcher, so the same spellings block and the same ones pass. Does not fire on non-Windows hosts; leaves `%TEMP%` / `$TEMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp`, relative `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2` and UNC `\\server\tmp` alone. |
 | **block-exported-msys-pathconv** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Windows-only: an **exported** `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` (also the `declare -x` / `typeset -x` spellings), which switches off MSYS argv rewriting for every *later* command in the same command string. A later path argument then reaches a Windows-native program unconverted and git resolves its leading `/` against the current drive, so `git worktree add /d/worktrees/x` creates `<current-drive>:\d\worktrees\x` (#2870). Deliberately keys on the environment, not on a path shape: the incident command's path argument was identical to one that had already worked. A prefix whose command word is a **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env … sh -c '…'`) blocks too: the prefix scopes to one *process*, and when that process is an interpreter, one process is every command inside it. A prefix on a **non-shell** command word (`MSYS_NO_PATHCONV=1 git show …`) and a bare assignment are not matched. The first scopes to exactly that command, and the second has no effect at all because the MSYS runtime reads the environment. Does not fire on non-Windows hosts. |
+| **block-root-delete-target** | PreToolUse · Bash | **Blocks** (exit 2) | A recursive `rm` whose target normalizes to a filesystem root. The command is parsed the way the shell builds argv, through launchers (`sudo`, `env`, `timeout`, the util-linux family), child shells (`bash -c`, `su -c`), `eval` and command substitutions, and a segment is judged when its command word is `rm` with a recursive flag. Roots: `/` and `/*`, the MSYS-translated bare backslash in both its quoted (`rm -rf "\\"`, the shape behind the whole-volume loss in anthropics/claude-code#92593, which no permission pattern keyed on `rm -rf /*` matches) and **dangling** (`rm -rf \`) spellings, `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). `--no-preserve-root` is refused whatever it targets. Also refused: an **empty operand** (`rm -rf ""`), a **bare variable operand** made of expansions alone (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries an absolute `cwd`, a target **outside the session's allowed roots**: not under the git toplevel of the payload cwd, and not strictly under a temp root or the session scratchpad (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf {/c,x}`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Not host-gated. The guard's header in `hooks/block-root-delete-target.sh` lists how braces, globs, directory changes and symlinks are judged, the bounds past which it refuses, the known false positives, and the declared gaps, among them PowerShell `Remove-Item -Recurse` ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)). |
 | **cli-flag-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated to `.md`, `.sh`, `.bash`, `.ps1`, `.psm1` | **Advisory** (exit 0) | Hallucinated CLI flags: a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline. A multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too. Its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
@@ -54,13 +55,13 @@ emit. The [hook budget accounting](#hook-budget-accounting) carries the measurem
 | **skill-reference-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated as above, the guard itself scans `.md` only | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own. A reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 | **stale-path-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated as above, the guard itself scans `.md` only | **Advisory** (exit 0) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the working tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. Surfaces via `additionalContext`, never blocks. |
 
-The nine blocking guards feed their stderr message back to Claude as
+The ten blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The five advisory guards surface their findings the same
 way but always allow the operation.
 
 ### Enforceability tiers
 
-Twelve guards are **deterministic**. Their oracle is a mechanical test with no
+Thirteen guards are **deterministic**. Their oracle is a mechanical test with no
 judgment step. Two are **detect-then-judge**, where the oracle is mechanical but
 the conclusion is a human verdict, never an auto-fix: `skill-reference-verify`,
 because globbing a plugins tree is exact only inside a marketplace repo that owns
@@ -120,7 +121,7 @@ out of scope until such a signal exists.
   `block-no-verify` and `block-dangerous-git` refuse any payload whose read
   fields carry a NUL, before they look at the command at all, including one
   that leaves no command text behind. The reason is that the text a guard can
-  read is not dependably the text that would run: two behaviours were measured
+  read is not dependably the text that would run: two behaviors were measured
   and they disagree. bash **discards** a NUL while parsing a command it reads,
   and Node's `child_process` **refuses** a NUL-bearing string outright.
   Which of them, if either, a hook payload reaches has not been traced. Refusing
@@ -208,7 +209,11 @@ out of scope until such a signal exists.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
-  first) and `mcp__github__create_or_update_file`. This closes a real hole: a
+  first) and `mcp__github__create_or_update_file`, and, since **0.37.1**, the
+  same two tools from a plugin-bundled GitHub server, which Claude Code names
+  `mcp__plugin_<plugin>_github__<tool>`
+  ([hooks reference](https://code.claude.com/docs/en/hooks.md), "plugin-bundled
+  MCP server", checked 2026-09-27). This closes a real hole: a
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`
@@ -245,12 +250,19 @@ out of scope until such a signal exists.
   as a static default, because neither has a fixed spelling: the scratchpad path
   carries a session id, so it resolves at run time.
 
-  **Exempting it gives up no protection**, which is the only reason a default is
-  defensible here: `hook::read_file_path`, the entry every `Write|Edit` content
-  guard reads its file through, already declines a temp-tree file from a non-temp
-  project, so those targets were never reachable by the gates this guard exists
-  to protect. Before 0.32.0 they blocked anyway, which cost false positives with
-  no true positive.
+  **Exempting it gives up little protection**, which is the only reason a default
+  is defensible here: guardrails' own `Write|Edit` gates decline most temp-tree
+  files reached from a known project root outside the temp tree.
+  `secret-pattern-detection` declines them by its own check, which resolves the
+  target's physical path and applies a gate never wider than this default;
+  `hardcoded-path-check` and `block-windows-drive-tmp` decline them through their
+  project scope. `Write` still scans some temp targets the Bash redirect exempts
+  (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
+  capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
+  redirects blocked anyway, which cost false positives with no true positive. A
+  target spelled with an 8.3 short name (a component such as `ABCDEF~1`) is
+  scanned on `Write` and blocked for Bash, so a harness scratchpad path spelled
+  that way is covered by neither exemption.
 
   **The memory tier is deliberately NOT a second default.** `<memory_dir>/`
   (default `.work/`) was exempted here during review and removed again, because
@@ -402,6 +414,27 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.34.0, the in-process guard chain.** 2026-09-15, Windows 11 + Git Bash
+(`usr\bin\bash.exe` as the hook shell), host idle. Process creations counted
+exactly with a Windows job object around the harness's own invocation
+(`bash -c "<hooks.json command>"`, PreToolUse payload on stdin), which counts
+every fork and exec alike: on this host every command substitution is a
+process, and an external command is two (the fork, then Cygwin's exec). Chain
+of eight Bash guards, benign `true`: creations **23 -> 3**, isolated p50
+**880 ms -> 297 ms** (n=5). The three that remain are the harness's `bash -c`,
+the `env` its shebang goes through, and bash itself: the guards spawn nothing.
+Same chain, PowerShell `exit 0`: **100 -> 80** creations, **3.3 s -> 2.4 s**;
+the eighty are the `$(…)` captures and `printf | sed` pipelines inside
+`lib/powershell/ps-command.sh`, which is the next cut. What was removed: the
+eight isolation subshells (the guards are sourced into the dispatcher's shell
+and `exit` is a function there), the `$(declare -f)` copy of `hook::jq_fields`,
+the `printf | jq` process substitution that primed the fields (the library now
+proves the common payload's fields with builtins and runs jq only when it
+cannot), and the seven telemetry-subject captures. Decisions: byte-identical
+rc, stdout and stderr against 0.33.11 over the perf baseline's 17-command
+corpus in both tool modes (34 cases) and over every command harvested from the
+eight guard suites.
 
 **0.32.20, forks with no exec in `block-dangerous-git`.** 2026-09-06, Linux CI
 host. A PATH shim counts execs, and a fork that never execs is invisible to
@@ -563,7 +596,7 @@ warmup, interleaved, two rounds: 59.9/65.1 and 61.7/63.3 ms before,
 eight extra file opens. Not measured on a Windows host.
 
 **0.32.14, leftover helper-capture forks on verifiers and PreToolUse
-telemetry.** 2026-09-06, Linux CI host characterised measurable by
+telemetry.** 2026-09-06, Linux CI host characterized measurable by
 `spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
 the leftover `$(hook::repo_root)` / `$(hook::repo_relative_path)` /
 `$(hook::normalize_path)` captures the always-on verifiers and
@@ -587,7 +620,7 @@ Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
 and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.13, leftover tokenizer and path-helper forks.** 2026-09-06, Linux CI host
-characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+characterized measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
 The 0.32.12 PATH-shim and kernel-census tables are unchanged for stdin,
 notice, and json-escape: this drop is the command tokenizer every Bash
 guard runs, plus `_to` forms of `repo_root` / `repo_relative_path`.
@@ -612,7 +645,7 @@ Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
 and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.12, leftover stdin and notice forks.** 2026-09-06, Linux CI host
-characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+characterized measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
 The 0.32.11 PATH-shim table is unchanged: those counters fire only on
 `exec`, and the forks this drop never exec. Kernel census
 `strace -f -e trace=clone,clone3,fork,vfork,execve` on the library
@@ -651,7 +684,7 @@ changed.
 
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, this repository as cwd. Host `spawn_probe`
-characterised as measurable. Wall clock is p50/p95 of 20 samples after 2
+characterized as measurable. Wall clock is p50/p95 of 20 samples after 2
 warmup.
 
 | Counter | before | after |
@@ -682,7 +715,7 @@ probed (`whatchanged`: git.c `DEPRECATED` bit; git 2.51+ honors
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, this repository as cwd. Same-session before
 is `origin/main` at `5101f5a2` (the two guards only). Host `spawn_probe`
-characterised as measurable (min 0.4 ms, spread 2.26×). Wall clock is
+characterized as measurable (min 0.4 ms, spread 2.26×). Wall clock is
 p50/p95 of 20 samples after 2 warmup.
 
 | Counter | before | after |
@@ -715,7 +748,7 @@ changed.
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload. `bash -x` counts
 `source …/ps-command.sh` lines. Wall clock is p50/p95 of 20 samples after 2
-warmup on a host `spawn_probe` characterised as measurable (min 0.5 ms, spread
+warmup on a host `spawn_probe` characterized as measurable (min 0.5 ms, spread
 1.78×).
 
 | Counter | before | after |
@@ -740,7 +773,7 @@ count, and is unchanged.
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload, same host as
 the wall-clock pass. Wall clock is p50/p95 of 20 samples after 2 warmup on a
-host `spawn_probe` characterised as measurable (min 0.5 ms, spread 1.42×).
+host `spawn_probe` characterized as measurable (min 0.5 ms, spread 1.42×).
 
 | Counter | before | after |
 |---|---|---|
@@ -1020,6 +1053,7 @@ others.
 | block-hook-bypass | `block_hook_bypass_enabled` |
 | block-windows-drive-tmp | `block_windows_drive_tmp_enabled` |
 | block-exported-msys-pathconv | `block_exported_msys_pathconv_enabled` |
+| block-root-delete-target | `block_root_delete_target_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | block-convention-violation | `block_convention_gate_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
@@ -1079,6 +1113,9 @@ repo-specific policy of their own:
   machine-local, not a portable repo artifact, and outside a work tree the
   gitignore allowlist below could never exempt it, while secret scanning
   fails **closed** and scans anyway (secrets are dangerous anywhere).
+  Secret scanning still declines a temp-tree file when the project dir is set
+  and lies outside the temp tree, never wider than `block-hook-bypass`'s temp
+  default.
 - **Gitignore is the allowlist.** `hardcoded-path-check` skips any file
   `git check-ignore` matches against your `$CLAUDE_PROJECT_DIR`. Put
   machine-local files (`settings.local.json`, `.venv/`, …) in your
@@ -1178,6 +1215,7 @@ reads it from.
 | `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes |
 | `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\d\...; a prefix on a non-shell command word and a bare assignment are not matched |
+| `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Block a Bash recursive `rm` whose target normalizes to a filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf "\\"` and a dangling `rm -rf \`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). A recursive `rm` carrying `--no-preserve-root` is refused whatever it targets, and long options are matched on any unambiguous prefix as coreutils reads them. The command word is resolved through a launcher and its operand-taking options (`sudo -u bob rm`), and a child shell's operand is re-parsed (`bash -c '...'`). Quoted prose that merely names such a command is not matched, because the command word of that segment is not `rm`. It also refuses an empty operand (`rm -rf ""`), a bare variable operand (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries a cwd, a target that resolves outside the payload cwd's git toplevel and is not strictly under a temp root or the session scratchpad (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Braces are expanded and each alternative judged (`rm -rf {/c,x}`), a glob before the last component is expanded and each match judged as a literal path, and a relative path after a cd it can read but not follow (a relative cd while CDPATH is set, a glob target with no match or several) is refused. The judgment is bounded (512 targets, 256 glob entries, 25 seconds of wall time) and refuses past a bound. A target it cannot place (an expansion other than HOME, a relative path after a non-literal cd) is left alone. PowerShell `Remove-Item -Recurse` is not covered (issue #4516) |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells, so pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
 | `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
@@ -1187,7 +1225,7 @@ reads it from.
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
 | `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
 | `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
-| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all |
+| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
 | `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |

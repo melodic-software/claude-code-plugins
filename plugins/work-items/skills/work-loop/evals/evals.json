@@ -12,7 +12,7 @@
         "Runs the intake sweep via /work-items:triage in its autonomous lane, treating the loop's standing rules as the direction gate and prefixing created comments/items with the AI disclaimer",
         "Admits the C2 item autonomously; human-gates the C3 feature-shaped item and fail-closes the unclassified item",
         "Queues the C3 bug-fix item for first-drain ratification (human-gated role label + machine-marked kind=ratify-c3 comment) because first_drain_complete is false AND the item carries no recorded ratification \u2014 an item with attend-queue's ratification reply dispatches rather than re-queuing",
-        "Files the escalation record with the Write tool (never a shell redirect) for every NEWLY posted marker comment \u2014 the ratify-c3 queueing and the bot-advisory routing included, not step 5's escalations alone \u2014 writing the record BEFORE posting the comment so an interrupted escalation loses the recoverable tracker comment rather than the notification, and writing no second record for a marker that already stands",
+        "Files the escalation record with the Write tool (never a shell redirect) for every NEWLY posted marker comment \u2014 the ratify-c3 queuing and the bot-advisory routing included, not step 5's escalations alone \u2014 writing the record BEFORE posting the comment so an interrupted escalation loses the recoverable tracker comment rather than the notification, and writing no second record for a marker that already stands",
         "Runs the lane-start preflight once before the first cycle, adding the record directory to the clone's untracked info/exclude only when git check-ignore reports it unignored, rather than assuming the consuming repo tracks an ignore rule",
         "Applies the path/topic hard gate: the checksum-recomputation dependency bump is human-gated regardless of classification",
         "Routes workflow-bot-authored advisory issues to the human-gated role by default, and reports (never chases) intake that arrived after the cycle-start snapshot",
@@ -44,7 +44,7 @@
       "id": 3,
       "name": "work-loop-exit-drain-terminal-and-pacing",
       "prompt": "/work-items:work-loop --drain\n\nCycle end. The cycle-start snapshot retained three open ids \u2014 two have open non-draft PRs that GitHub links as closing them, one is human-gated awaiting an escalation answer. No PR is in flight for the human-gated item.",
-      "expected_output": "The exit evaluation runs against the cycle-start snapshot's retained ids only (per reference/mode-drain.md \u2014 no fresh seam read, no separate list-frontier --autonomous limb), using the bound adapter's Open linked PRs operation for close-linkage (open, non-draft PRs; drafts excluded, query mechanics owned by the adapter). The full exit condition is not met (one retained open id has neither closure nor an open non-draft close-linked PR), but every remaining open item is human-gated with no PR in flight \u2014 the drain-terminal state \u2014 so the lane writes its final report (items closed, PR'd, escalated), applies the post-snapshot intake report, updates the telemetry state block, and stops cleanly instead of idling or scheduling another wakeup. Had the loop continued, pacing would be a ScheduleWakeup at cycle end with semantics (clamps, idle backoff, seven-day expiry, cycle-budget behavior) held by citation to the loop-lane convention.",
+      "expected_output": "The exit evaluation runs against the cycle-start snapshot's retained ids only (per reference/mode-drain.md \u2014 no fresh seam read, no separate list-frontier --autonomous limb), using the bound adapter's Open linked PRs operation for close-linkage (open, non-draft PRs; drafts excluded, query mechanics owned by the adapter). The full exit condition is not met (one retained open id has neither closure nor an open non-draft close-linked PR), but every remaining open item is human-gated with no PR in flight \u2014 the drain-terminal state \u2014 so the lane writes its final report (items escalated to a human first, then items closed and PR'd), applies the post-snapshot intake report, updates the telemetry state block, and stops cleanly instead of idling or scheduling another wakeup. Had the loop continued, pacing would be a ScheduleWakeup at cycle end with semantics (clamps, idle backoff, seven-day expiry, cycle-budget behavior) held by citation to the loop-lane convention.",
       "files": [],
       "expectations": [
         "Evaluates the exit condition against the cycle-start snapshot's retained ids only \u2014 per reference/mode-drain.md, not a fresh seam read and not a separate list-frontier --autonomous emptiness limb",
@@ -129,6 +129,20 @@
         "Admits and executes only in-scope items \u2014 #201 and #203 for area:api, #202 for area:docs on the sibling",
         "Binds distinct --instance ids to separate telemetry markers so durable state does not clobber across lanes",
         "Does not treat a launch-prompt Scope line as binding \u2014 only the skill invocation's --scope token is enforced"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "work-loop-in-flight-candidate-skips-ratification-queue",
+      "prompt": "/work-items:work-loop\n\nCycle 1 of a first drain (first_drain_complete is false). The frontier holds two agent-ready C3 bug-fix-shaped candidates with no ratification marker: #310, which GitHub's closedByPullRequestsReferences links to open draft PR #412 via 'Closes #310', and #311, which has no closing PR. The Open linked PRs query for #311 succeeds.",
+      "expected_output": "Before any classification, the admission gate runs the in-flight precondition through the bound adapter's Open linked PRs operation, applying /work-items:work's candidate-discovery exclusion rule by reference with drafts counted. #310 is excluded: no kind=ratify-c3 comment, no escalation, no dispatch, and no label change (it keeps agent-ready and gains no needs-human). The cycle report lists it as 'in flight: #310 (PR #412)'. #311 proceeds to classification and, as an unratified C3 during the first drain, is queued for ratification per reference/c3-ratification-queue.md (comment first, then the human-gated role label replacing the autonomous-eligible one).",
+      "files": [],
+      "expectations": [
+        "Runs the in-flight check before classifying, queuing, escalating, or dispatching any candidate",
+        "Counts the open draft closing PR as in flight and excludes #310 from the ratification queue",
+        "Posts no kind=ratify-c3 comment on #310 and leaves its labels unchanged",
+        "Reports #310 as 'in flight: #310 (PR #412)' in the cycle report",
+        "Queues #311 for C3 ratification with the comment written before the label edit"
       ]
     }
   ]

@@ -1,0 +1,17 @@
+# Read one of this writer's epoch-second stamp files into the NAMED variable, or
+# 0 when the file is absent, unreadable, empty, or holds anything that is not a
+# plain integer. Five call sites read a stamp exactly this way, and the
+# validation is the load-bearing half: bash evaluates the TEXT of an arithmetic
+# operand, so a stamp shaped like `a[$(cmd)]` would run cmd on every render.
+# Naming it once keeps all five spelled identically, the same reason
+# _rlg_bash_at_least exists. Builtins throughout, so no call site pays a
+# process — every one of them is on the render path.
+_rlg_read_stamp() {
+  local _var="$1" _val=0
+  if [[ -f "$2" ]]; then
+    IFS= read -r _val <"$2" || _val=0
+    [[ "$_val" =~ ^[0-9]+$ ]] || _val=0
+  fi
+  printf -v "$_var" '%s' "$_val"
+  return 0
+}

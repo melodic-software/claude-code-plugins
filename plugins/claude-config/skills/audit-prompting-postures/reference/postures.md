@@ -1,6 +1,6 @@
 # Posture catalog
 
-Ten postures. Each row: the applicability predicate (which component purposes it binds), what
+Eleven postures. Each row: the applicability predicate (which component purposes it binds), what
 counts as present, and the guide pointer that owns the recommended wording. Pointers only.
 Wording is fetched live per SKILL.md Phase A; the recheck trigger for every row is a change to its
 cited section.
@@ -20,6 +20,16 @@ carries the wording the proposal uses. Every heading the rows below name is pres
 page. Verified 2026-09-06 against Claude Code 2.1.263 and both subpages as fetched that day.
 Recheck when a row's cited heading disappears from the Fable 5 page, when a newer model subpage
 appears beside these two, or when the best-practices page's model-guidance table gains a row.
+
+A row that names the "Opus 5.5 subpage" means
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>,
+and the "Opus 5.5 usage guide" means the vendor blog
+<https://claude.dev/blog/getting-the-most-out-of-opus-5-5/> (published 2026-09-22), which states
+the same run-shaping advice for CLAUDE.md and Claude Code sessions. Both are fetched lazily, like
+the other subpages. The behaviors they describe (named stops, a finish line, a task file, a report
+that leads with what the human owes) are model-neutral, so proposals citing them carry no model
+condition. Verified 2026-09-23 against the subpage's raw `.md` (28,311 bytes); recheck when a
+cited heading disappears from either page.
 
 ## Purpose classification vocabulary
 
@@ -45,9 +55,13 @@ Classify each component by what its body has the model DO (multiple or none):
 
 - **Predicate:** orchestrating.
 - **Present when:** the component states when delegation is and is not warranted, or caps
-  spawn/concurrency deterministically. Either satisfies.
+  spawn/concurrency deterministically. Either satisfies. A component that fans out an audit,
+  migration, or review across many files also has the orchestrator check each worker's evidence
+  before accepting it and consolidate the results into one table.
 - **Pointer:** main page, "Subagent orchestration"; Opus 5 subpage, "Controlling subagent
-  spawning"; Opus 4.8 subpage, "Controlling subagent spawning".
+  spawning"; Opus 4.8 subpage, "Controlling subagent spawning"; Opus 5.5 subpage, "Capabilities
+  relevant to prompting" (audits and migrations run with parallel subagents); Opus 5.5 usage
+  guide, "Ask it to split big work across subagents".
 
 ### P2: Minimal-scope guardrail
 
@@ -81,11 +95,19 @@ Classify each component by what its body has the model DO (multiple or none):
 ### P6: Autonomy or checkpoint posture
 
 - **Predicate:** long-running (autonomy posture) or user-gated (checkpoint posture). A
-  report-only flow ending at a human gate is NOT-APPLICABLE (see SKILL.md Gotchas).
-- **Present when:** an autonomous component tells the model not to stall on questions mid-run and
-  when a turn may end; an interactive one names the gates worth stopping at.
+  report-only flow ending at a human gate is NOT-APPLICABLE (see SKILL.md Gotchas). A project
+  CLAUDE.md or natively read AGENTS.md is long-running when the repo carries long-running
+  components or its own text invites long runs.
+- **Present when:** an autonomous component states its finish line (what "done" observably is, or
+  that the dispatching brief must state it) and names both kinds of stop: keep going when a step
+  needs no input, with status notes in the same message as the next action rather than a summary
+  that names the next step, an offer to continue, or a list of non-blocking choices; stop and ask
+  only when nothing can move without the human, or before a destructive, hard-to-undo, or outward
+  action. The keep-going half never licenses turning permission prompts or P7's gates off. An
+  interactive one names the gates worth stopping at.
 - **Pointer:** Fable 5 subpage, "Rare cases of early stopping" (autonomous) and "Strong
-  instruction following" (checkpoint block).
+  instruction following" (checkpoint block); Opus 5.5 subpage, "Unattended agentic runs"; Opus 5.5
+  usage guide, "Say what 'done' looks like, then let it run" and "Tell it which stops you want".
 
 ### P7: Destructive-action confirmation
 
@@ -118,11 +140,15 @@ Classify each component by what its body has the model DO (multiple or none):
 
 ### P9: Multi-window state guidance
 
-- **Predicate:** multi-window.
+- **Predicate:** multi-window, or long-running (a run long enough for compaction to summarize
+  older turns).
 - **Present when:** the component prescribes durable structured state (files/git) and how a fresh
-  window re-grounds, rather than relying on conversational memory.
+  window re-grounds, rather than relying on conversational memory. For a long run this includes a
+  task list in a file, ticked as items finish and extended with new ones found, read instead of
+  the scrollback. An existing ledger or state file that does this satisfies it.
 - **Pointer:** main page, "Workflows across multiple context windows" and "State management best
-  practices".
+  practices"; Opus 5.5 subpage, "Unattended agentic runs"; Opus 5.5 usage guide, "Keep the task
+  list in a file".
 
 ### P10: Parallel-tool-call steering
 
@@ -130,3 +156,13 @@ Classify each component by what its body has the model DO (multiple or none):
 - **Present when:** the steering distinguishes independent calls (parallelize) from dependent ones
   (sequence, never placeholder-guess parameters).
 - **Pointer:** main page, "Optimize parallel tool calling".
+
+### P11: End-of-run report leads with what the human owes
+
+- **Predicate:** long-running.
+- **Present when:** the component's final report opens with what is blocked on the human (open
+  decisions, changes to approve), then what changed and what was found, for example under the
+  headings "Blocked on me", "Changed", "Found". An existing report shape that puts the human's
+  items first satisfies it; adapt that shape rather than adding a second one.
+- **Pointer:** Opus 5.5 subpage, "Capabilities relevant to prompting" (communication); Opus 5.5
+  usage guide, "Read what it needs from you first".

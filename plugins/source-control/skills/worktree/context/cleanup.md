@@ -67,7 +67,7 @@ Skipping 4a is the usual reason a previous `/source-control:worktree cleanup` le
 ```bash
 # Orphaned directory: remove the husk — ONLY after it has passed all four
 # qualifying tests below (not a symlink, not a work tree, no `.git` entry,
-# empty). Absence from `git worktree list` is NOT on its own a licence to run
+# empty). Absence from `git worktree list` is NOT on its own a license to run
 # this line.
 rm -rf <path>
 

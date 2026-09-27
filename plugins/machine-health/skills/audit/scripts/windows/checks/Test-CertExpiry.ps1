@@ -22,7 +22,6 @@ try {
     $certs = @(Get-ChildItem -Path Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
             Where-Object {
                 $subj = "$($_.Subject)"
-                # Filter out obvious dev/self-signed junk: CN=localhost, "DO_NOT_TRUST" test certs, etc.
                 $subj -notmatch 'DO_NOT_TRUST' -and $subj -notmatch 'CN=localhost'
             } |
             ForEach-Object {
@@ -36,8 +35,6 @@ try {
                 }
             })
 
-    # Single-pass classification: each cert lands in exactly one bucket,
-    # avoiding repeated Where-Object passes over the same collection.
     $crit = [System.Collections.Generic.List[pscustomobject]]::new()
     $warn = [System.Collections.Generic.List[pscustomobject]]::new()
     $info = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -72,15 +69,10 @@ try {
         expired_count = $expired.Count
         expiring_soon = @($crit + $warn + $expired | Select-Object -First 20)
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Cert expiry check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Cert expiry check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

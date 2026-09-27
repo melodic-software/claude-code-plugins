@@ -109,7 +109,7 @@ Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
    - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
    - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
    - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. For P2 items: do NOT skip. Flag as "New capability. Evaluate for adoption" with brief rationale
+3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
 
 Output: structured table with item, classification, affected files, rationale.
 
@@ -153,7 +153,9 @@ every surface that documents hook events, rules, hook scripts, and reference doc
 
 ### Phase 5. Implement
 
-Execute plan:
+Once the plan is approved, run Phases 5 and 6 without stopping between steps: done means every
+confirmed item is edited and verification passes. Stop and ask only when a check fails for a reason
+you cannot explain or an item needs a change outside the confirmed scope. Execute plan:
 
 1. Edit files per the approved plan
 2. Run the consumer repo's markdown linter on every touched `.md` file (e.g. `npx markdownlint-cli2`), when one is configured
@@ -175,6 +177,9 @@ If user approves:
 The last commit of an `apply` moves the read marker to the top of the applied range, in a subject of
 the form `chore(<scope>): address Claude Code v<A>..<B> changelog`, so `status` reports the new
 marker from the ledger and, until the ledger exists, from that subject.
+
+End the run with a report that leads with what waits on the user (the Phase 7 approval, any item
+deferred or blocked), then what changed and what verification showed.
 
 ---
 

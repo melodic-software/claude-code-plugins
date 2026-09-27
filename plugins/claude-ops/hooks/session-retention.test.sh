@@ -22,12 +22,13 @@ stamp_to() {
 # populate <root> <count>: <count> session files, file i being i days old
 # (file 1 newest), so recency order and age agree and the union rule is exact.
 populate() {
-  local root="$1" n="$2" i st
+  local root="$1" n="$2" i st f
   mkdir -p "$root/sessions"
   for ((i = 1; i <= n; i++)); do
-    printf '{"session_id":"s%03d"}\n' "$i" >"$root/sessions/s$(printf '%03d' "$i").jsonl"
+    printf -v f '%s/sessions/s%03d.jsonl' "$root" "$i"
+    printf '{"session_id":"s%03d"}\n' "$i" >"$f"
     stamp_to st "$i"
-    touch -t "$st" "$root/sessions/s$(printf '%03d' "$i").jsonl"
+    touch -t "$st" "$f"
   done
 }
 

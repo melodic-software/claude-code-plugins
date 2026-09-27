@@ -206,6 +206,17 @@ async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitles
 }
 
 /**
+ * Pass descriptor for the captions-only phase, shared by the staged driver and
+ * the post-ladder caption retry.
+ *
+ * @param {SourceAcquisitionDeclarations} source
+ * @returns {{mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec: number}}
+ */
+function captionsOnlyPass(source) {
+  return { mode: "captions-only", source, sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC };
+}
+
+/**
  * @param {AcquireDeps} deps
  * @param {string} url
  * @param {string} workDir
@@ -220,25 +231,27 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
   const { sleep = sleepMs } = deps;
   const videoStarted = Date.now();
 
+  /**
+   * @param {string} error
+   * @returns {{ok: false, error: string, acquireMetrics: object}}
+   */
+  const failStaged = (error) => ({
+    ok: false,
+    error,
+    acquireMetrics: { stagedAcquire: true, videoPassMs: Date.now() - videoStarted },
+  });
+
   const throttle = deps.withThrottle ?? withAcquireThrottle;
   const videoPass = await throttle(() =>
     runAcquirePass(deps, url, workDir, { mode: "video-only", source }),
   );
   if (!videoPass.spawnResult.success) {
-    return {
-      ok: false,
-      error: videoPass.detail || "yt-dlp video-only pass failed",
-      acquireMetrics: { stagedAcquire: true, videoPassMs: Date.now() - videoStarted },
-    };
+    return failStaged(videoPass.detail || "yt-dlp video-only pass failed");
   }
 
   let artifacts = resolveMediaArtifacts(videoPass.files, videoId);
   if (!artifacts.videoPath) {
-    return {
-      ok: false,
-      error: "yt-dlp did not download video file",
-      acquireMetrics: { stagedAcquire: true, videoPassMs: Date.now() - videoStarted },
-    };
+    return failStaged("yt-dlp did not download video file");
   }
 
   const videoPassMs = Date.now() - videoStarted;
@@ -246,11 +259,7 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
 
   const captionStarted = Date.now();
   const captionPass = await throttle(() =>
-    runAcquirePass(deps, url, workDir, {
-      mode: "captions-only",
-      source,
-      sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC,
-    }),
+    runAcquirePass(deps, url, workDir, captionsOnlyPass(source)),
   );
 
   if (captionPass.spawnResult.success) {
@@ -322,11 +331,7 @@ export async function acquireYouTubeMedia(
 
   if (!captionResult.success && mode === "full" && artifacts.videoPath) {
     const captionRetry = await throttle(() =>
-      runAcquirePass(mergedDeps, url, workDir, {
-        mode: "captions-only",
-        source,
-        sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC,
-      }),
+      runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(source)),
     );
     if (captionRetry.spawnResult.success) {
       artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);

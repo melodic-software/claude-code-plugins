@@ -241,8 +241,25 @@ if [[ -s "$SU_LOG" ]]; then
     "$(head -1 "$SU_LOG" | jq 'has("expansion_type")')"
   assert_eq "skill-usage route: expansion_type recorded when present" "slash_command" \
     "$(tail -1 "$SU_LOG" | jq -r '.expansion_type')"
+  assert_eq "skill-usage route: branch stays unknown outside a repository" "unknown" \
+    "$(head -1 "$SU_LOG" | jq -r '.branch')"
 else
   bad "skill-usage route wrote nothing at $SU_LOG"
+fi
+
+SU_REPO="$TEST_TMPDIR/su-repo"
+mkdir -p "$SU_REPO"
+if git -C "$SU_REPO" init -q 2>/dev/null &&
+  git -C "$SU_REPO" -c user.email=test@example.invalid -c user.name=test \
+    commit -q --allow-empty -m seed 2>/dev/null; then
+  SU_REPO_LOG="$SU_REPO/.claude/observability/skill-usage.jsonl"
+  SU_REPO_BRANCH="$(git -C "$SU_REPO" rev-parse --abbrev-ref HEAD)"
+  export CLAUDE_PROJECT_DIR="$SU_REPO"
+  claude_ops::record_skill_use PostToolUse skill-usage-audit \
+    '{"session_id":"s2"}' one tool '' >/dev/null
+  assert_eq "skill-usage route: branch is the checked-out branch" "$SU_REPO_BRANCH" \
+    "$(head -1 "$SU_REPO_LOG" | jq -r '.branch')"
+  unset CLAUDE_PROJECT_DIR
 fi
 
 NONREPO="$TEST_TMPDIR/nonrepo"

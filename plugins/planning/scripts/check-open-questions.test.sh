@@ -54,6 +54,12 @@ expect_stdout() {
   if [[ "$out" == *"$want"* ]]; then pass "$label"; else fail "$label (stdout: '$out')"; fi
 }
 
+# stderr_of <args...> — the script's stderr alone, for message assertions.
+stderr_of() {
+  # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
+  bash "$SUT" "$@" 2>&1 >/dev/null
+}
+
 # 1. --help exits 0.
 expect_exit "--help exits 0" 0 --help
 
@@ -115,7 +121,7 @@ _No questions asked yet._
 EOF
 )"
 expect_exit "empty register -> 2" 2 --ledger "$empty"
-empty_err="$(bash "$SUT" --ledger "$empty" 2>&1 >/dev/null || true)"
+empty_err="$(stderr_of --ledger "$empty" || true)"
 if [[ "$empty_err" == *"rows inside a fenced block are ignored by design"* ]]; then
   fail "empty register without a fence keeps the generic zero-rows message (stderr: '$empty_err')"
 else
@@ -132,7 +138,7 @@ fence_only="$(
 EOF
 )"
 expect_exit "fence-only register -> 2" 2 --ledger "$fence_only"
-fence_only_err="$(bash "$SUT" --ledger "$fence_only" 2>&1 >/dev/null || true)"
+fence_only_err="$(stderr_of --ledger "$fence_only" || true)"
 if [[ "$fence_only_err" == *"rows inside a fenced block are ignored by design"* && "$fence_only_err" == *"register rows must be unfenced"* ]]; then
   pass "zero-rows error names fenced-block cause"
 else
@@ -341,12 +347,6 @@ open_plus="$(
 EOF
 )"
 expect_exit "open row wins over a passing brief check -> 1" 1 --ledger "$open_plus" --brief "$brief_ok"
-
-# stderr_of <args...> — the script's stderr alone, for message assertions.
-stderr_of() {
-  # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
-  bash "$SUT" "$@" 2>&1 >/dev/null
-}
 
 # heading_lines <file> <pattern> — comma-separated 1-based line numbers of the
 # headings matching <pattern>, computed from the fixture so an assertion never
@@ -606,6 +606,42 @@ cat >"$longer_closer" <<'EOF'
 - Q1 | answered | round 1 | live question | yes
 EOF
 expect_exit "a longer closing fence closes the shorter opener -> 0" 0 --ledger "$longer_closer"
+
+# 41. `superseded-by-plan` is NOT terminal: a plan displaced the user's answer
+#     and the user has not reconfirmed it, so the register is unresolved.
+superseded_only="$(
+  mkledger <<'EOF'
+- Q1 | superseded-by-plan | round 1 | Who writes? | plan proposes: admin only; was: any enrolled user
+EOF
+)"
+expect_exit "superseded-by-plan only -> 1" 1 --ledger "$superseded_only"
+expect_stdout "superseded row is counted" "superseded=1" --ledger "$superseded_only"
+expect_stdout "superseded row grades status=open" "status=open" --ledger "$superseded_only"
+
+# 42. A superseded row blocks even when every other row is terminal.
+superseded_mixed="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | superseded-by-plan | round 1 | What format? | plan proposes: html; was: markdown
+EOF
+)"
+expect_exit "answered + superseded-by-plan -> 1" 1 --ledger "$superseded_mixed"
+expect_stdout "mixed verdict counts open and superseded apart" "open=0 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=1" --ledger "$superseded_mixed"
+
+# 43. The status is case-insensitive like the others.
+superseded_case="$(
+  mkledger <<'EOF'
+- Q1 | Superseded-By-Plan | round 1 | Who writes? | plan proposes: x; was: y
+EOF
+)"
+expect_exit "Superseded-By-Plan casing -> 1" 1 --ledger "$superseded_case"
+expect_stdout "Superseded-By-Plan casing is counted" "superseded=1" --ledger "$superseded_case"
+
+# 44. A clean register reports the field at zero, right after `answered=`.
+expect_stdout "clean verdict places superseded after answered" "answered=1 superseded=0 brief=" --ledger "$clean"
+
+# 45. The ungradeable line carries the field too, in the same position.
+expect_stdout "ungradeable verdict carries superseded=0" "answered=0 superseded=0 brief=unchecked status=ungradeable" --ledger "$noreg"
 
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2

@@ -77,19 +77,14 @@ import json
 import re
 import sys
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python
+
 FORMAT = "go_cover"
 BLOCK = re.compile(
     r"^(?P<file>.+):(?P<start>\d+)\.(?P<start_col>\d+),"
     r"(?P<end>\d+)\.(?P<end_col>\d+) (?P<statements>\d+) (?P<count>\d+)$"
 )
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
 
 
 def parse(path: str) -> dict[str, dict]:
@@ -116,12 +111,9 @@ def parse(path: str) -> dict[str, dict]:
             statements = int(match.group("statements"))
             count = int(match.group("count"))
             per_file = blocks.setdefault(_norm(match.group("file")), {})
-            record = per_file.get(key)
-            if record is None:
-                per_file[key] = [statements, count]
-            else:
-                record[0] = max(record[0], statements)
-                record[1] = max(record[1], count)
+            record = per_file.setdefault(key, [statements, count])
+            record[0] = max(record[0], statements)
+            record[1] = max(record[1], count)
     if not seen_mode:
         raise ValueError("not a Go cover profile (no `mode:` header)")
     return {
@@ -156,9 +148,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("go_cover.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python("go_cover.py")
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ValueError) as exc:

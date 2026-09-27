@@ -1,5 +1,5 @@
 ---
-description: "Verify instruction-placement's prerequisites and resolve its effective configuration for this repository. Confirm that the index target exists AND is actually reachable by Claude Code (it reads CLAUDE.md, not AGENTS.md, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only verification, default) | apply (point at each remediation; writes nothing on its own). Re-runnable and safe."
+description: "Verify instruction-placement's prerequisites and resolve its effective configuration for this repository. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, naming which came from configuration and which from a default. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only verification, default) | apply (point at each remediation; writes nothing on its own). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -17,10 +17,20 @@ explicit and repeatable"): `check` inspects and reports, `apply` points at what 
 
 The warrant is all three criteria, but one carries the weight. **The index target is an external
 referent whose validity cannot be established by a configuration prompt.** A prompt stores the path
-you typed; it cannot tell you that Claude Code will never read it. Claude Code loads `CLAUDE.md`, not
-`AGENTS.md`, so a repository carrying both with no import between them gets a perfectly generated,
-perfectly in-sync index that never enters context, with every other gate green. Verifying that before a first audit
-is this skill's job; `/instruction-placement:check` asks the same question again on every gate run.
+you typed; it cannot tell you that Claude Code will never read it. A `CLAUDE.md`, `.claude/CLAUDE.md`
+or `CLAUDE.local.md` at the root is read *instead of* the `AGENTS.md` beside it, so a repository
+carrying both with no import between them gets a perfectly generated, perfectly in-sync index that
+never enters context, with every other gate green. Verifying that before a first audit is this
+skill's job; `/instruction-placement:check` asks the same question again on every gate run.
+
+- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it;
+  reading it directly needs v2.1.277 or later and is unavailable in some sessions.
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md" and "When AGENTS.md
+  support is unavailable"; canary runs on Claude Code 2.1.278.
+- **As of**: 2026-09-19.
+- **Recheck trigger**: that section changes which file names count for the check, or a release note
+  names `AGENTS.md` or instruction-file loading.
 
 Secondary warrants: `git` backs tracked-file discovery for nested instruction files, and the
 optional empirical load probe needs the Claude Code CLI plus `jq`.
@@ -39,6 +49,7 @@ then root `AGENTS.md`, then root `CLAUDE.md`), then verify reachability:
 | Verdict | Meaning | Say |
 |---|---|---|
 | `LOADED` | Claude Code reaches it | Name the file and the path it was reached by |
+| `NATIVE` | nothing in the repository blocks it | Report it as **unblocked, never as loaded**: no `CLAUDE.md` on its path displaces it, and whether Claude Code read it also depends on version and session kind, which no static check sees. `verify-load.sh` is the only thing that proves it loaded |
 | `UNREACHABLE` | it exists and is never read | **The headline finding.** Name the missing import |
 | target absent | no index home yet | Not a failure. Say which file `apply` would propose |
 
@@ -69,7 +80,8 @@ that is the operator's call, not a setup skill's. `apply` presents the exact cha
 
 | Finding | Proposed remediation |
 |---|---|
-| Index target `UNREACHABLE` | Add `@AGENTS.md` as the first line of the root `CLAUDE.md`, or symlink `CLAUDE.md` → `AGENTS.md`. Show the exact line and its position |
+| Index target `UNREACHABLE` | Add `@AGENTS.md` as the first line of the root `CLAUDE.md`, or symlink `CLAUDE.md` → `AGENTS.md`. Show the exact line and its position. Removing the root `CLAUDE.md` instead is a repository-wide decision, not a setup remediation: route it to `/instruction-placement:migrate` |
+| Index target `NATIVE` | Nothing to do. No root `CLAUDE.md` blocks the target, so Claude Code reads it where `AGENTS.md` support is available. Report it as unblocked, never as verified loaded: run the empirical probe if the operator wants proof |
 | No index home | Name the file `render-index.sh write` would target, and offer to create the block |
 | `git` absent | State the degradation; there is nothing to install on the consumer's behalf |
 | `jq` or CLI absent | Name the tool and that only `verify-load.sh` is affected |
@@ -88,10 +100,19 @@ does not re-verify has not finished.
 - **An optional prerequisite's absence is not a failure.** Only the index-target verdict can make
   this skill report a problem with the repository itself.
 
+## Next
+
+- Prerequisites report ready: `/instruction-placement:audit`.
+- `UNREACHABLE`, and the repository wants `AGENTS.md` to be the content home rather than another
+  import: `/instruction-placement:migrate`.
+- Rules or an index already exist and only need gating: `/instruction-placement:check`.
+
 ## Gotchas
 
 - **`UNREACHABLE` is the finding people do not expect.** Everything else can be green while the
-  index does nothing. Lead with it when it fires; it is the reason this skill exists.
+  index does nothing. Lead with it when it fires; it is the reason this skill exists. It fires only
+  where a root `CLAUDE.md` is read instead of the target; `NATIVE` is the other outcome and is not a
+  finding.
 - **A target that does not exist yet is not unreachable.** Those are different states with different
   remedies. Do not collapse them into one verdict.
 - **Reachability is not sync.** A reachable index can still be stale, and a stale index can still be

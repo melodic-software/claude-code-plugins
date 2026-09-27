@@ -36,13 +36,8 @@ seed_lease() {
   lin_seed_issue 12 started
 }
 
-lease_node() {
-  jq -cn --arg b "$(lin_lease_body "$1" "${2:-kyle}" "$3" "${4:-24}" "${5:-}")" \
-    '[{id: "uuid-comment-mine", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]'
-}
-
 # --- happy path: a live lease renews in place ---
-seed_lease "$(lease_node "$HANDLE" kyle "$NOW" 24)"
+seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "renewing a live lease → exit 0" "0" "$rc"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
@@ -61,7 +56,7 @@ else
 fi
 
 # --- an EXPIRED lease is refused, never revived ---
-seed_lease "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
+seed_lease "$(lin_lease_node "$HANDLE" kyle "$LONG_AGO" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "expired lease → exit 7" "7" "$rc"
 assert_contains "and says why reviving it is wrong" "$(lin_err)" "TTL handoff"
@@ -72,20 +67,20 @@ else
 fi
 
 # --- a SUPERSEDED lease is refused, with its own diagnosis ---
-seed_lease "$(lease_node "$HANDLE" kyle "$NOW" 24 "$NOW")"
+seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24 "$NOW")"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "superseded lease → exit 7" "7" "$rc"
 assert_contains "and says it was superseded" "$(lin_err)" "superseded"
 
 # --- a ttl-0 lease is born expired ---
-seed_lease "$(lease_node "$HANDLE" kyle "$NOW" 0)"
+seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 0)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "$HANDLE")"
 assert_eq "ttl-0 lease cannot be renewed" "7" "$rc"
 
 # --- an unknown handle is a CONFLICT, not a missing item ---
 # A handle from another item means the caller mixed up two claims. Reporting exit 5
 # would say the item vanished, which is a different and misleading problem.
-seed_lease "$(lease_node "$HANDLE" kyle "$NOW" 24)"
+seed_lease "$(lin_lease_node "$HANDLE" kyle "$NOW" 24)"
 rc="$(lin_run "$S" "linear:acme/ENG#12" --lease-comment-id "999999999999")"
 assert_eq "unknown handle → exit 7" "7" "$rc"
 assert_contains "and names the handle" "$(lin_err)" "999999999999"

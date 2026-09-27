@@ -137,9 +137,11 @@ The cost is not a wrong answer, it is deliberation spent reconciling:
 Generally, Claude can interpret the user’s intent to get to the right answer, but Claude must think more carefully about these overlapping and conflicting messages before deciding what to do.
 ```
 
+<!-- spellchecker:off --><!-- quoted verbatim; the source's spelling stands -->
 ```
 And while these constraints were once needed to avoid worst case scenarios, we have since found we can delete many of them and let the model use surrounding context and judgement instead.
 ```
+<!-- spellchecker:on -->
 
 CLAUDE.md's role narrows because other surfaces now exist:
 
@@ -161,20 +163,22 @@ There were a number of previous context engineering best practices that had beco
 ```
 
 The six pairs, as rendered in the strikethrough table figure: Give Claude Rules to Give Claude
-Judgement; Give Claude Examples to Design Interfaces; Put it all upfront to Use Progressive
+<!-- spellchecker:off -->Judgement<!-- spellchecker:on -->; Give Claude Examples to Design Interfaces; Put it all upfront to Use Progressive
 Disclosure; Repeat Yourself to Simple Tool Descriptions; Memory in Claude.MDs to Auto-memory;
 Simple Specs to Rich References.
 
-**1. Rules to judgement.** Early Claude Code shipped strong, sometimes-wrong rules to avoid
+**1. Rules to judgment.** Early Claude Code shipped strong, sometimes-wrong rules to avoid
 worst cases such as deleting files.
 
 ```
 When we first rolled out Claude Code, we needed to be sure that Claude avoided worst case scenarios, such as deleting files. This meant we would give particularly strong guidance that might not always be true,
 ```
 
+<!-- spellchecker:off --><!-- quoted verbatim; the source's spelling stands -->
 ```
 Still, without these guardrails for older models, the comments Claude wrote would be incorrect in many cases and we had to accept this tradeoff. But newer models have better judgement and can handle these decisions well without explicit rules.
 ```
+<!-- spellchecker:on -->
 
 The worked pair, both quoted from Claude Code's system prompt. Old:
 
@@ -335,8 +339,8 @@ Recorded because any guidance derived from P1 inherits them silently.
 - "No measurable loss" presumes an eval harness. Most readers have none, so the article's own
   evidence standard is unavailable to them, and it offers no failure signal and no rollback
   criterion for a deletion that goes too far.
-- Security is absent. Deleting guardrails routes decisions through "surrounding context and
-  judgement", which makes malicious surrounding context an input to judgment, and the one named
+- Security is absent. Deleting guardrails routes decisions through <!-- spellchecker:off -->"surrounding context and
+  judgement"<!-- spellchecker:on -->, which makes malicious surrounding context an input to judgment, and the one named
   worst case (file deletion) is never re-secured.
 - Shared-surface governance is absent. The article's "you" is singular, while CLAUDE.md and
   skills are team artifacts, and conflicting teammate preferences are exactly the conflict class
@@ -681,7 +685,7 @@ claims. The fresh pass read it as additionally asserting lossiness, since the ca
 holds visibly more items than the window, meaning most candidate context should not enter.
 
 **The three calibration prompts (P2, figure 2, "Calibrating the system prompt").** A horizontal
-gradient bar, red at both ends and green in the centre, labeled "Too specific", "Just right",
+gradient bar, red at both ends and green in the center, labeled "Too specific", "Just right",
 "Too vague", with three prompt cards beneath. These are the post's only complete worked system
 prompts, its centerpiece pedagogy, and they exist purely as pixels: the HTML carries only alt
 text and a CDN URL.
@@ -901,7 +905,7 @@ prompt"): the page's HTML carries the alt text and a CDN URL, nothing more. The 
 below was taken from the figure image and then independently re-verified against that image by
 a second reader, who confirmed it faithful with one systematic normalization: the figure renders
 curly quotation marks, the transcription uses straight quotes. Layout, left to right: a
-gradient bar of discrete cells, red at both ends and green in the centre, labeled "Too
+gradient bar of discrete cells, red at both ends and green in the center, labeled "Too
 specific", "Just right", "Too vague", with a marker dropping from each label to its card.
 
 These are figure pixels rather than page bytes, so no byte-exactness gate covers them and none

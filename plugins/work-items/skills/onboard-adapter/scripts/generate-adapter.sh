@@ -5,7 +5,7 @@
 # (/discipline:script-the-deterministic-work). Everything here is mechanical: given a
 # validated spec, the security skeleton, the capabilities manifest, the verb
 # scaffolds, the conformance binding, and the README follow by construction. The
-# judgement — which verbs the provider can honestly support, what its fields mean,
+# judgment — which verbs the provider can honestly support, what its fields mean,
 # what a live instance actually returns — happens in the skill, before this runs, and
 # lands in the spec.
 #
@@ -46,8 +46,7 @@ readonly EX_SPEC=3
 # recorded non-executable, and making them executable then fed them to the repo's
 # ShellCheck lane, which cannot parse a file full of @@PLACEHOLDER@@ tokens. Templates
 # carry no shebang, so neither gate claims them; the generated output gets one here,
-# and `emit` marks it executable. Two templates already opened with
-# `# shellcheck shell=bash` instead — this makes the whole set consistent.
+# and `emit` marks it executable.
 SHEBANG='#!/usr/bin/env bash'
 
 # The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
@@ -154,7 +153,7 @@ CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"
 [[ -n "$DISPLAY_NAME" ]] || die_spec "display_name is required"
-# Constrained here, with its neighbours, for the reason render() states: values are
+# Constrained here, with its neighbors, for the reason render() states: values are
 # substituted LITERALLY and nothing downstream escapes them. display_name is the one
 # free-prose key that reaches all three dangerous context classes in the templates —
 # a single-quoted printf format (`common.sh.tmpl`), a DOUBLE-quoted `${VAR:?…}` where
@@ -194,17 +193,8 @@ SAMPLE_SCOPE="$(sget '.api.sample_scope')"
 # The charset first. sample_scope is substituted LITERALLY into generated shell, and
 # `common.test.sh.tmpl` puts it in a DOUBLE-quoted argument — where `$(…)` still
 # executes and a `"` closes the string outright. quote_safe() below only refuses a
-# single quote, so nothing else stood between the spec and live code in a file whose
-# execution is step 1 of this script's own printed "Next:" instructions. This is the
-# same treatment display_name got above, for the same reason stated there; sample_scope
-# is the one value in this block that never received it, while SAMPLE_HOST, BASE_PATH,
-# SAMPLE_ENV, SAMPLE_ID and PROVIDER all did.
-#
-# Honestly scoped: the spec comes from this skill's own interview, so this is a
-# robustness and supply-chain gap (a hand-edited or shared spec file), not a path a
-# remote attacker reaches. It is worth closing anyway because the generator's stated
-# posture — render() and quote_safe() both say values are inserted literally and
-# nothing downstream escapes them — was not actually true of this one key.
+# single quote, so nothing else stands between the spec and live code in a file whose
+# execution is step 1 of this script's own printed "Next:" instructions.
 #
 # The charset is deliberately wider than any shipped provider needs and still excludes
 # every shell metacharacter: `owner/repo` (gitea `^[A-Za-z0-9][A-Za-z0-9._-]*/…$`,
@@ -341,17 +331,11 @@ check_coherence() {
 }
 check_coherence
 
-# list-items false is coherent but leaves the seam unable to enumerate anything, so
-# list-frontier — the verb every work-selection flow calls — can never succeed. That is
-# a legitimate consume-only posture (the bundled jira adapter is one), but it is a
-# consequence worth naming rather than discovering later.
 if [[ "$(jq -r '.verbs["list-items"]' <<<"$SPEC_JSON")" != "true" ]]; then
   printf 'generate-adapter.sh: note: verbs["list-items"]=false, so list-frontier can never succeed for this provider (exit 6 at the capability gate). Intentional for a consume-only adapter.\n' >&2
 fi
 
 # --- derived values ---
-# (PROVIDER_FUNC / PROVIDER_UPPER / CONFIG_KEY are derived above, where the provider
-# name is validated — the auth-env default needs them during validation.)
 
 # The contract version is the SEAM's, never the spec's — see the header.
 SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
@@ -399,7 +383,7 @@ if [[ -n "$HOST_SUFFIX" ]]; then
   HOST_PIN_POSTURE="pinned in code to \`$HOST_SUFFIX\`. A binding naming a host outside it is refused unless \`allow_custom_domain\` is set."
 else
   HOST_SUFFIX_DOC="none — $DISPLAY_NAME is self-hosted, so there is no vendor domain to pin against"
-  HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
+  HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defense is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
 fi
 
 # --- auth scheme rendering ---
@@ -420,10 +404,8 @@ CONFORMANCE_AUTH_EXTRA=""
 
 case "$AUTH_SCHEME" in
 raw)
-  # Some providers take the credential as the bare Authorization value with no scheme
-  # word at all — Linear's personal API keys are the case that added this. Modelled as
-  # its own scheme rather than as an empty prefix, so the generated header cannot come
-  # out with a stray leading space.
+  # The bare Authorization value with no scheme word. Its own scheme rather than an empty
+  # prefix, so the generated header cannot come out with a stray leading space.
   AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"
   AUTH_HEADER_EXPECT="\"Authorization: \$SECRET\""
   AUTH_HELPERS="
@@ -461,14 +443,8 @@ basic)
   AUTH_CONFIG_READ="  WIT_${PROVIDER_UPPER}_AUTH_USER=\"\$(jq -r '.config.$CONFIG_KEY.auth_user // empty' <<<\"\$ejson\")\""
   AUTH_CONFIG_REQUIRE="  [[ -n \"\$WIT_${PROVIDER_UPPER}_AUTH_USER\" ]] || missing+=\" config.$CONFIG_KEY.auth_user\""
   AUTH_EXPORT_EXTRA=" WIT_${PROVIDER_UPPER}_AUTH_USER"
-  # The conformance binding takes the account identity from the environment, the same
-  # way it takes host and scope. Baked as a literal placeholder it would authenticate
-  # as `ci@example.invalid` against a real throwaway instance and 401 with nothing in
-  # the generated file saying why — the one required value with no way to supply it.
-  # Two different consumers, two different values. The offline test fixture wants a
-  # literal (its binding is a temp file that never reaches a real instance), while the
-  # conformance binding must take the identity from the environment — so they cannot
-  # share one key, and collapsing them emitted `$au` into the test's single-quoted JSON.
+  # Two consumers, two values: the offline fixture takes a literal, while the conformance
+  # binding must read the identity from the environment or it 401s against a real instance.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
   # shellcheck disable=SC2016  # $au is a jq variable bound by --arg in the generated
   # binding, not a shell expansion — it must survive into the emitted file unexpanded.
@@ -541,6 +517,23 @@ mapping_note_for() {
   esac
 }
 
+# opt_loop <flag>=<VAR>… emits the generated option-parsing loop for one verb. Every
+# adapter flag takes a value, so its arm differs from every other only in the flag name
+# and the variable it fills; emitting all fifteen of them from here keeps them
+# identical, including the unknown-argument arm that closes each loop.
+# shellcheck disable=SC2016  # $#/$1/$2 belong to the GENERATED script's own argument
+# loop; single quotes are what keeps them unexpanded on their way into the output.
+opt_loop() {
+  printf 'while [[ $# -gt 0 ]]; do\n  case "$1" in\n'
+  local opt flag
+  for opt in "$@"; do
+    flag="${opt%%=*}"
+    printf '  --%s)\n    [[ $# -ge 2 ]] || wit_usage_error "--%s needs a value"\n    %s="$2"\n    shift 2\n    ;;\n' \
+      "$flag" "$flag" "${opt#*=}"
+  done
+  printf '  *) wit_usage_error "unexpected argument: $1" ;;\n  esac\ndone\n'
+}
+
 # parse_block_for <verb> — the generated argument-parsing code for that verb.
 parse_block_for() {
   local verb="$1"
@@ -561,21 +554,9 @@ ID="\${1:-}"
 shift
 TTL_HOURS=""
 SESSION_ID=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --ttl-hours)
-    [[ \$# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-    TTL_HOURS="\$2"
-    shift 2
-    ;;
-  --session-id)
-    [[ \$# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-    SESSION_ID="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop ttl-hours=TTL_HOURS session-id=SESSION_ID
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -z "\$TTL_HOURS" || "\$TTL_HOURS" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer"
 EOF
@@ -586,60 +567,33 @@ ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
 LEASE_COMMENT_ID=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --lease-comment-id)
-    [[ \$# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
-    LEASE_COMMENT_ID="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop lease-comment-id=LEASE_COMMENT_ID
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ "\$LEASE_COMMENT_ID" =~ ^[0-9]+\$ ]] || wit_usage_error "--lease-comment-id is required and must be numeric"
 EOF
     ;;
-  link-blocks)
+  link-blocks | add-sub-item)
+    # Both edge verbs are `<id> --<flag> <id>`, differing only in the flag and the
+    # variable it fills; emitting them from one arm keeps the two identical.
+    local flag var
+    if [[ "$verb" == "link-blocks" ]]; then
+      flag="blocked-by" var="BLOCKED_BY"
+    else
+      flag="parent" var="PARENT"
+    fi
     cat <<EOF
 ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
-BLOCKED_BY=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --blocked-by)
-    [[ \$# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-    BLOCKED_BY="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-[[ -n "\$BLOCKED_BY" ]] || wit_usage_error "--blocked-by is required"
-wit_require_${PROVIDER_FUNC}_id "\$BLOCKED_BY" || wit_usage_error "not a @@PROVIDER@@ item id: \$BLOCKED_BY"
+$var=""
 EOF
-    ;;
-  add-sub-item)
+    opt_loop "$flag=$var"
     cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-PARENT=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --parent)
-    [[ \$# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    PARENT="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-[[ -n "\$PARENT" ]] || wit_usage_error "--parent is required"
-wit_require_${PROVIDER_FUNC}_id "\$PARENT" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT"
+[[ -n "\$$var" ]] || wit_usage_error "--$flag is required"
+wit_require_${PROVIDER_FUNC}_id "\$$var" || wit_usage_error "not a @@PROVIDER@@ item id: \$$var"
 EOF
     ;;
   create-item)
@@ -651,46 +605,10 @@ TYPE=""
 PARENT=""
 BLOCKED_BY=""
 REPO=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --title)
-    [[ \$# -ge 2 ]] || wit_usage_error "--title needs a value"
-    TITLE="\$2"
-    shift 2
-    ;;
-  --body)
-    [[ \$# -ge 2 ]] || wit_usage_error "--body needs a value"
-    BODY="\$2"
-    shift 2
-    ;;
-  --labels)
-    [[ \$# -ge 2 ]] || wit_usage_error "--labels needs a value"
-    LABELS="\$2"
-    shift 2
-    ;;
-  --type)
-    [[ \$# -ge 2 ]] || wit_usage_error "--type needs a value"
-    TYPE="\$2"
-    shift 2
-    ;;
-  --parent)
-    [[ \$# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    PARENT="\$2"
-    shift 2
-    ;;
-  --blocked-by)
-    [[ \$# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-    BLOCKED_BY="\$2"
-    shift 2
-    ;;
-  --repo)
-    [[ \$# -ge 2 ]] || wit_usage_error "--repo needs a value"
-    REPO="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop title=TITLE body=BODY labels=LABELS type=TYPE parent=PARENT \
+      blocked-by=BLOCKED_BY repo=REPO
+    cat <<EOF
 [[ -n "\$TITLE" ]] || wit_usage_error "--title is required"
 [[ -z "\$PARENT" ]] || wit_require_${PROVIDER_FUNC}_id "\$PARENT" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT"
 EOF
@@ -699,21 +617,9 @@ EOF
     cat <<EOF
 STATE="open"
 REPO=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --state)
-    [[ \$# -ge 2 ]] || wit_usage_error "--state needs a value"
-    STATE="\$2"
-    shift 2
-    ;;
-  --repo)
-    [[ \$# -ge 2 ]] || wit_usage_error "--repo needs a value"
-    REPO="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop state=STATE repo=REPO
+    cat <<EOF
 case "\$STATE" in
 open | closed | all) ;;
 *) wit_usage_error "--state must be one of: open, closed, all" ;;
@@ -726,16 +632,9 @@ PARENT_ID="\${1:-}"
 [[ -n "\$PARENT_ID" ]] || wit_usage_error "\$USAGE"
 shift
 STATE="all"
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --state)
-    [[ \$# -ge 2 ]] || wit_usage_error "--state needs a value"
-    STATE="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop state=STATE
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$PARENT_ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT_ID"
 case "\$STATE" in
 open | closed | all) ;;
@@ -794,7 +693,7 @@ quote_safe() {
 # still reached.
 readonly RENDER_KEYS=(
   SHEBANG
-  PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
+  PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY
   HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
   SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV
   SAMPLE_ID_NUMBER SAMPLE_ID
@@ -806,11 +705,8 @@ readonly RENDER_KEYS=(
 # Sweep every global value through quote_safe HERE, at top level, before the first
 # emit — because a refusal raised from inside render() cannot stop this script. Every
 # render() call is made as `$(render …)`, and `exit` inside a command substitution
-# kills only that subshell. Left to render() alone, a spec whose scope_pattern carried
-# a single quote printed the refusal once per template and then carried on to write a
-# directory of EMPTY, chmod +x scripts, report "Wrote 9 file(s)", print the "Next:"
-# instructions, and exit 0 — the loudest refusal in the script, delivered as success.
-# render() keeps its own per-value call as the backstop for the caller-supplied pairs,
+# kills only that subshell, so a refusal there would still write EMPTY executable
+# scripts and exit 0. render() keeps its own per-value call as the backstop for the caller-supplied pairs,
 # which are generator constants; this sweep is the one that can actually abort.
 for k in "${RENDER_KEYS[@]}"; do
   quote_safe "$k" "${!k-}"
@@ -822,9 +718,7 @@ render() {
   local text
   # `cat` rather than `$(<"$file")`: the redirection form reports a missing
   # template as a bash error carrying THIS script's line number, where `cat`
-  # names only the template path. A prior tidy of this file family was refuted
-  # and reverted for shifting a line number into a diagnostic on a reachable
-  # error path (0.39.24); the saved fork is not worth re-opening that.
+  # names only the template path.
   text="$(cat "$file")"
   local k v
   # Caller-supplied pairs first: they are per-file (verb name, tables) and never

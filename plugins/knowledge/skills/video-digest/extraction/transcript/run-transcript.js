@@ -20,7 +20,6 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { primaryEntry, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "./derive-video-slug.js";
@@ -88,7 +87,7 @@ export async function runTranscriptCli(argv) {
       sliceKey,
       transcriptStrategy: adapter.transcriptStrategy,
       strategyOverride: strategyArg.override,
-      harvestedLinks: harvestMetadataLinks(metadata, adapter),
+      harvestedLinks: adapter.harvestLinks(metadata),
     });
     const primary = primaryEntry(envelope);
     const primaryTranscript =

@@ -43,19 +43,21 @@ assert_equals() {
 }
 
 render() {
-  # $1 output subdirectory, rest passed through
+  # $1 output subdirectory, rest passed through. Stdout lands in $1.out beside
+  # the directory, so the summary line is asserted rather than leaked.
   local dir="$TEST_TMPDIR/$1"
+  local out="$TEST_TMPDIR/$1.out"
   shift
   rm -rf "$dir"
   mkdir -p "$dir"
-  bash "$SCRIPT" --out "$dir" "$@"
+  bash "$SCRIPT" --out "$dir" "$@" >"$out"
 }
 
 # --- The fixture record -----------------------------------------------------
 #
 # Two checked-out repositories under one owner, an edge to a third repository
 # under the same owner that is NOT checked out, and two external targets whose
-# reference counts differ. Hyphens and dots in names exercise alias sanitising.
+# reference counts differ. Hyphens and dots in names exercise alias sanitizing.
 cat >"$TEST_TMPDIR/record.json" <<'JSON'
 {
   "schema_version": 1,
@@ -83,7 +85,7 @@ md="$(cat "$TEST_TMPDIR/mermaid/landscape.md")"
 assert_contains "mermaid: the diagram is a focal-system-free C4Context" "$md" 'C4Context'
 assert_contains "mermaid: with the landscape title" "$md" 'title System Landscape'
 assert_contains "mermaid: the owner becomes an enterprise boundary" "$md" 'Enterprise_Boundary(b0, "acme")'
-assert_contains "mermaid: a dotted name is sanitised into a valid alias" "$md" 'System(acme_billing_api, "billing.api"'
+assert_contains "mermaid: a dotted name is sanitized into a valid alias" "$md" 'System(acme_billing_api, "billing.api"'
 assert_contains "mermaid: a hyphenated one too" "$md" 'System(acme_web_ui, "web-ui"'
 assert_contains "mermaid: the node label is the primary runtime plus the framework" "$md" '"dotnet, net9.0"'
 assert_contains "mermaid: a single runtime with a framework reads the same way" "$md" '"node, >=22"'
@@ -196,7 +198,7 @@ render solo --record "$TEST_TMPDIR/empty.json"
 assert_equals "empty: an edgeless record still renders" "$?" "0"
 solo="$(cat "$TEST_TMPDIR/solo/landscape.md")"
 assert_contains "empty: the one system is drawn" "$solo" 'System(solo, "solo"'
-# An enterprise boundary is captioned with an organisation, so the absence of
+# An enterprise boundary is captioned with an organization, so the absence of
 # one is drawn as no boundary rather than as a boundary named "unknown".
 assert_not_contains "empty: an unknown owner does not become a boundary caption" "$solo" 'Enterprise_Boundary'
 assert_contains "empty: the ownerless system is drawn at the top level instead" "$solo" 'System(solo, "solo"'
@@ -252,7 +254,7 @@ JSON
 render hostile --record "$TEST_TMPDIR/hostile.json"
 hostile="$(cat "$TEST_TMPDIR/hostile/landscape.md")"
 assert_not_contains "injection: the payload cannot close the mermaid literal" "$hostile" '"pwn'
-assert_contains "injection: the system is still drawn, with the value neutralised" \
+assert_contains "injection: the system is still drawn, with the value neutralized" \
   "$hostile" 'System(acme_payments, "payments", "dotnet, net9.0'"'"' } click n1'
 quote_count="$(printf '%s\n' "$hostile" | grep -c '^    System(acme_payments, "payments", "[^"]*")$')"
 assert_equals "injection: the mermaid call has exactly its own four quotes" "$quote_count" "1"
@@ -403,6 +405,67 @@ if markdownlint_usable; then
 else
   pass "lint: markdownlint skipped, the package is not installed here"
 fi
+
+# --- Case group 9a: the summary line ----------------------------------------
+#
+# The artifacts cannot say a landscape is too small to answer much, so the
+# renderer prints one counted line on stdout and the report carries it.
+assert_equals "summary: the main record is not thin" "$(cat "$TEST_TMPDIR/mermaid.out")" \
+  'landscape: internal=3 external=2 drawn_systems=5 edges=4 drawn_edges=4 unresolved_edges=0 thin=no'
+assert_equals "summary: stdout is exactly one line" \
+  "$(wc -l <"$TEST_TMPDIR/mermaid.out" | tr -d ' ')" "1"
+assert_equals "summary: the structurizr dialect prints the same line" \
+  "$(cat "$TEST_TMPDIR/dsl.out")" "$(cat "$TEST_TMPDIR/mermaid.out")"
+assert_equals "summary: a zero cap keeps every external counted and drops their arrows" \
+  "$(cat "$TEST_TMPDIR/uncapped.out")" \
+  'landscape: internal=3 external=2 drawn_systems=3 edges=4 drawn_edges=2 unresolved_edges=0 thin=no'
+assert_equals "summary: one box and no arrows is thin" "$(cat "$TEST_TMPDIR/solo.out")" \
+  'landscape: internal=1 external=0 drawn_systems=1 edges=0 drawn_edges=0 unresolved_edges=0 thin=yes'
+
+cat >"$TEST_TMPDIR/pair.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "current repository plus reference graph",
+  "remote": "not used",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"app","path":"/srv/app","remote":"","owner":"acme","runtime":"node","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}
+  ],
+  "edges": [
+    {"from":"app","to":"acme/lib","type":"cites","relation":"internal","count":1,"files":["README.md"]}
+  ]
+}
+JSON
+render pair --record "$TEST_TMPDIR/pair.json"
+assert_equals "summary: two boxes and one arrow is thin" "$(cat "$TEST_TMPDIR/pair.out")" \
+  'landscape: internal=2 external=0 drawn_systems=2 edges=1 drawn_edges=1 unresolved_edges=0 thin=yes'
+
+# Edges come from one repository. When that repository is not in the record,
+# every edge has a source the diagram cannot draw, though each target is a node.
+cat >"$TEST_TMPDIR/orphan.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "not used",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"app","path":"/srv/app","remote":"","owner":"acme","runtime":"node","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}
+  ],
+  "edges": [
+    {"from":"elsewhere","to":"acme/lib","type":"cites","relation":"internal","count":1,"files":["README.md"]},
+    {"from":"elsewhere","to":"vendor/kit","type":"cites","relation":"external","count":1,"files":["README.md"]}
+  ]
+}
+JSON
+render orphan --record "$TEST_TMPDIR/orphan.json"
+assert_equals "summary: edges from an uncharted repository are unresolved, not drawn" \
+  "$(cat "$TEST_TMPDIR/orphan.out")" \
+  'landscape: internal=2 external=1 drawn_systems=3 edges=2 drawn_edges=0 unresolved_edges=2 thin=yes'
+assert_contains "summary: a target reached only by an unresolved edge is still a node" \
+  "$(cat "$TEST_TMPDIR/orphan/landscape.md")" 'System(acme_lib, "lib"'
+assert_contains "summary: --help documents the line" "$(bash "$SCRIPT" --help 2>&1)" 'unresolved_edges='
 
 # --- Case group 10: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1

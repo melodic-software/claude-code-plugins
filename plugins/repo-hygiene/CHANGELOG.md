@@ -3,6 +3,64 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.50] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `ghq` at load time.** The `command -v ghq` check runs as pre-computed context, so
+  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
+  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
+  still probes live. `git` stays a body probe.
+
+## [0.10.49] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
+## [0.10.48] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.10.47] - 2026-09-23
+
+### Changed
+
+- `clean` batch forms report failed, blocked, and skipped repos with their reasons before the
+  totals. Dry-run-first and the confirmation gates are unchanged.
+
+## [0.10.46] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.10.45]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.10.44]
+
+### Changed
+
+- The repo-hygiene clean scripts share worktree-branch listing and loss counting through clean-common.sh, hoist the merged and open PR regexes into constants, select the manifest child through one helper in both batch loops, and fold the tree-reset success and failure tails behind one flag, with identical output and exit codes.
+
+## [0.10.43]
+
+### Changed
+
+- Count the preserve classes through one helper in remove-path, merge the single-caller token resolver in resolve-clean-action and route the remove-path suite through shared runners (behavior unchanged).
+
 ## [0.10.42]
 
 ### Changed
@@ -93,7 +151,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   row count matches; any failure prints `TipCaptureError:` and no path, so a partial capture can
   never pass for a complete one. `--capture-file PATH` overrides the location. The `.part` is
   created exclusively (`noclobber`), so a stamp-pid collision or an interrupted run is refused
-  rather than interleaved into one file, and rows are recognised by shape (nine columns, a commit
+  rather than interleaved into one file, and rows are recognized by shape (nine columns, a commit
   id second), so a branch whose name begins with `#` is a row, never a miscounted comment that
   fails the seal.
 - `clean`: `git-branch-delete.sh`, the only sanctioned branch-deletion path for the git tier. It
@@ -152,7 +210,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   closes no live bypass. It removes a grant nobody chose: written as "anything that is not
   PowerShell", the dispatch would hand the Bash prefix to a third shell tool added later, before
   anyone decided that tool should have an unblock. The block reason for such a tool now says
-  there is no acknowledgement path instead of naming a spelling the tool cannot honour.
+  there is no acknowledgement path instead of naming a spelling the tool cannot honor.
 - The `clean` skill's documented PowerShell stash drop quotes the `stash@{n}` selector. Bare, pwsh
   reads `@{…}` as splatting syntax and git receives a mangled argument, reporting
   ``unknown switch `e'`` and dropping nothing, so the documented example did not do what it said.

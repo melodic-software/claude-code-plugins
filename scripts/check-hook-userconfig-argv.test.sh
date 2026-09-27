@@ -68,7 +68,7 @@ plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   fail "bare token in hooks/hooks.json should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:'; then
+  if grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:' <<<"$out"; then
     ok "bare token in default hooks.json fails with file:line"
   else
     fail "expected USERCONFIG ARGV with file:line, got: $out"
@@ -104,7 +104,7 @@ plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   fail "manifest-pointed hook file with token should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/config/extra-hooks.json:'; then
+  if grep -q 'USERCONFIG ARGV: plugins/alpha/config/extra-hooks.json:' <<<"$out"; then
     ok "manifest string-path hook config fails"
   else
     fail "expected flag on manifest-pointed file, got: $out"
@@ -130,7 +130,7 @@ plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"hoo
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline manifest hooks object with token should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/.claude-plugin/plugin.json:inline hooks object'; then
+  if grep -q 'USERCONFIG ARGV: plugins/alpha/.claude-plugin/plugin.json:inline hooks object' <<<"$out"; then
     ok "inline manifest hooks object fails"
   else
     fail "expected inline-object flag, got: $out"
@@ -177,7 +177,7 @@ printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv
 if out="$(run_check "$f" 2>&1)"; then
   fail "stale allowlist entry should fail, got success: $out"
 else
-  if echo "$out" | grep -q "STALE BASELINE: .*: 'plugins/alpha/hooks/hooks.json' names no scanned hook config"; then
+  if grep -q "STALE BASELINE: .*: 'plugins/alpha/hooks/hooks.json' names no scanned hook config" <<<"$out"; then
     ok "stale allowlist entry (clean file) fails under the shared STALE BASELINE prefix"
   else
     fail "expected the shared STALE BASELINE diagnostic, got: $out"
@@ -217,7 +217,7 @@ plugin_file "$f" alpha hooks/hooks.json "$ESCAPED_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   fail "escaped token should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:escaped token in decoded JSON'; then
+  if grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:escaped token in decoded JSON' <<<"$out"; then
     ok "JSON-escaped token spelling fails via the decoded pass"
   else
     fail "expected decoded-pass flag, got: $out"
@@ -241,7 +241,7 @@ new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$BARE_HOOK" >"$f/outside.json"
 if out="$(run_check "$f" 2>&1)"; then
-  if echo "$out" | grep -q 'skipping out-of-tree hooks path'; then
+  if grep -q 'skipping out-of-tree hooks path' <<<"$out"; then
     ok "out-of-tree manifest hooks path is skipped with a visible notice"
   else
     fail "expected visible out-of-tree skip notice, got: $out"
@@ -259,8 +259,8 @@ plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   fail "composite (default + manifest-pointed) should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:' &&
-    echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/config/extra-hooks.json:'; then
+  if grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:' <<<"$out" &&
+    grep -q 'USERCONFIG ARGV: plugins/alpha/config/extra-hooks.json:' <<<"$out"; then
     ok "composite case flags both the default and the manifest-pointed config"
   else
     fail "expected both files flagged, got: $out"

@@ -78,10 +78,15 @@ STUB
   chmod +x "$case_dir/path-stub/gh" 2>/dev/null || true
 }
 
+# Run the script for a case directory, with that case's output dir and gh stub.
+run_case() {
+  (cd "$1" && CHECK_ALL_OUTPUT_DIR="$1/check-all-output" PATH="$1/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+}
+
 # --- Case 1: gh always fails → FETCH_FAILED transition ---
 CASE_A="$TEST_TMPDIR/case-a"
 make_case "$CASE_A" $'1\texample-org/example-repo\topen\n' fail
-(cd "$CASE_A" && CHECK_ALL_OUTPUT_DIR="$CASE_A/check-all-output" PATH="$CASE_A/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_A"
 RC=$?
 assert_exit "gh-fail → exit 0" 0 "$RC"
 OUT_FILE="$CASE_A/check-all-output/check-all-results.tsv"
@@ -92,7 +97,7 @@ assert_contains "FETCH_FAILED transition recorded" "$RESULTS" "FETCH_FAILED"
 # --- Case 2: tracked=open + state=CLOSED → OPEN->CLOSED transition ---
 CASE_B="$TEST_TMPDIR/case-b"
 make_case "$CASE_B" $'42\texample-org/example-repo\topen\n' closed
-(cd "$CASE_B" && CHECK_ALL_OUTPUT_DIR="$CASE_B/check-all-output" PATH="$CASE_B/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_B"
 RC=$?
 assert_exit "open→closed → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_B/check-all-output/check-all-results.tsv")
@@ -101,7 +106,7 @@ assert_contains "OPEN->CLOSED transition" "$RESULTS" "OPEN->CLOSED"
 # --- Case 3: tracked=closed + state=OPEN → CLOSED->OPEN transition ---
 CASE_C="$TEST_TMPDIR/case-c"
 make_case "$CASE_C" $'7\texample-org/example-repo\tclosed\n' open
-(cd "$CASE_C" && CHECK_ALL_OUTPUT_DIR="$CASE_C/check-all-output" PATH="$CASE_C/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_C"
 RC=$?
 assert_exit "closed→open → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_C/check-all-output/check-all-results.tsv")
@@ -110,7 +115,7 @@ assert_contains "CLOSED->OPEN transition" "$RESULTS" "CLOSED->OPEN"
 # --- Case 4: tracked=open + state=OPEN → UNCHANGED ---
 CASE_D="$TEST_TMPDIR/case-d"
 make_case "$CASE_D" $'5\texample-org/example-repo\topen\n' open
-(cd "$CASE_D" && CHECK_ALL_OUTPUT_DIR="$CASE_D/check-all-output" PATH="$CASE_D/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_D"
 RC=$?
 assert_exit "unchanged → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_D/check-all-output/check-all-results.tsv")
@@ -120,7 +125,7 @@ assert_contains "UNCHANGED transition" "$RESULTS" "UNCHANGED"
 CASE_E="$TEST_TMPDIR/case-e"
 mkdir -p "$CASE_E/check-all-output"
 printf '' >"$CASE_E/check-all-output/registry-snapshot.tsv"
-(cd "$CASE_E" && CHECK_ALL_OUTPUT_DIR="$CASE_E/check-all-output" PATH="$CASE_E/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_E"
 RC=$?
 assert_exit "empty snapshot → exit 0" 0 "$RC"
 RESULTS=$(cat "$CASE_E/check-all-output/check-all-results.tsv")
@@ -139,7 +144,7 @@ assert_exit "missing snapshot → exit 1" 1 "$RC"
 # --- Case 7: snapshot missing trailing newline → last row still processed ---
 CASE_G="$TEST_TMPDIR/case-g"
 make_case "$CASE_G" $'5\texample-org/example-repo\topen\n42\texample-org/example-repo\tclosed' open
-(cd "$CASE_G" && CHECK_ALL_OUTPUT_DIR="$CASE_G/check-all-output" PATH="$CASE_G/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+run_case "$CASE_G"
 RC=$?
 assert_exit "no trailing newline → exit 0" 0 "$RC"
 RESULTS_FILE="$CASE_G/check-all-output/check-all-results.tsv"

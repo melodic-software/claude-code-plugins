@@ -32,7 +32,7 @@ Shape (Key claims):
 Shape (Prompt snippets):
 
 - A `## Prompt snippets` (or `## Prompt snippets (exact)`) heading.
-- Each snippet is a column-0 fence. A recognised none-marker (`none`, `n/a`,
+- Each snippet is a column-0 fence. A recognized none-marker (`none`, `n/a`,
   `(none)`, `no prompt snippets`) is the only legal empty form.
 
 Blockquotes and inline code spans are forbidden as quote carriers.

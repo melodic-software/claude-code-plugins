@@ -13,6 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
+import { readJsonFile } from "../lib/watch-frame-index.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
@@ -35,7 +36,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
 
   const watchPath = watchStatePath(absSlice);
   if (fs.existsSync(watchPath)) {
-    const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
+    const watch = readJsonFile(watchPath);
     if (watch.tempSession) {
       watch.tempSession = serializeTempSession(watch.tempSession);
       fs.writeFileSync(watchPath, `${JSON.stringify(watch, null, 2)}\n`, "utf8");
@@ -45,7 +46,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
 
   const selectionPath = lanePath(absSlice, LANES.keyFrames, "selection.json");
   if (fs.existsSync(selectionPath)) {
-    const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
+    const selection = readJsonFile(selectionPath);
     if (selection.tempSession) {
       selection.tempSession = serializeTempSession(selection.tempSession);
     }
@@ -66,7 +67,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
 
   const indexPath = lanePath(absSlice, LANES.keyFrames, "sheet-frame-index.json");
   if (fs.existsSync(indexPath)) {
-    const index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
+    const index = readJsonFile(indexPath);
     if (index.sheetsDir) {
       index.sheetsDir = normalizePortableTempPath(index.sheetsDir);
     }
@@ -94,7 +95,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
     "snapshot-meta.json",
   );
   if (fs.existsSync(snapshotMetaPath)) {
-    const meta = JSON.parse(fs.readFileSync(snapshotMetaPath, "utf8"));
+    const meta = readJsonFile(snapshotMetaPath);
     if (meta.sourceDir) {
       meta.sourceDir = normalizePortableTempPath(meta.sourceDir);
       fs.writeFileSync(snapshotMetaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");

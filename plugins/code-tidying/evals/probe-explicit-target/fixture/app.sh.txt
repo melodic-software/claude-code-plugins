@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+unused_flag=1
+counter=0
+# increment counter
+counter=$((counter + 1))
+echo "$counter"

@@ -1,11 +1,11 @@
 ---
-description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesise → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
+description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
 argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
-  summary: Diagnose broken behavior. Reproduce, hypothesise, instrument, fix with regression test
+  summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
 
 ## Repository context. Gather first
@@ -32,9 +32,9 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Hard bugs are won or lost in **Phase 1**. Without a fast, deterministic, agent-runnable signal that says "bug present / bug fixed", every later phase is guessing. Most failed debugging sessions fail because the engineer skipped straight to hypothesising without building a loop.
+Hard bugs are won or lost in **Phase 1**. Without a fast, deterministic, agent-runnable signal that says "bug present / bug fixed", every later phase is guessing. Most failed debugging sessions fail because the engineer skipped straight to hypothesizing without building a loop.
 
-This skill enforces the discipline. Six phases, each with a clear gate before the next. The middle three (hypothesise → instrument → fix) are mechanical once Phase 1 is solid; the bookends (loop, cleanup) are the load-bearing work.
+This skill enforces the discipline. Six phases, each with a clear gate before the next. The middle three (hypothesize → instrument → fix) are mechanical once Phase 1 is solid; the bookends (loop, cleanup) are the load-bearing work.
 
 Scope boundary: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill. Cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
 
@@ -105,7 +105,7 @@ Confirm:
 
 Do not proceed until the bug is reproduced.
 
-## Phase 3: Hypothesise
+## Phase 3: Hypothesize
 
 Generate **3-5 ranked hypotheses** before testing any of them. Single-hypothesis generation anchors on the first plausible idea and wastes the next hour.
 
@@ -147,14 +147,14 @@ A correct seam is one where the test exercises the **real bug pattern as it occu
 
 If a correct seam exists:
 
-1. Turn the minimised repro into a failing test at that seam. Follow your project's test naming + structure conventions
+1. Turn the minimized repro into a failing test at that seam. Follow your project's test naming + structure conventions
 2. Watch it fail (Red), and confirm it fails **for the intended reason**. A test that errors on a
    typo, a bad import, or an unrelated defect is also red, and a fix that turns *that* red green has
    not touched the bug. Read the failure message against the root cause you are targeting; if they
    do not match, repair the test or the reproduction before editing any implementation code
 3. Apply the smallest fix that addresses the **root cause**, not the symptom (Green)
 4. Watch the test pass
-5. Re-run the **Phase 1 feedback loop** against the original (un-minimised) scenario. The test passing is necessary but not sufficient
+5. Re-run the **Phase 1 feedback loop** against the original (un-minimized) scenario. The test passing is necessary but not sufficient
 
 Keep the fix diff focused on the root cause. Leave surrounding cleanup out of this change, even in files you touched. If the fix reveals a design problem, note it for a separate refactor commit or the Phase 6 architectural recommendation.
 

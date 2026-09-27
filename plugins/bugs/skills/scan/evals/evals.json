@@ -36,14 +36,14 @@
       "id": 3,
       "name": "track-flag-files-raw-intake",
       "prompt": "Our .claude/bugs.md declares `filing_posture: allowed`. Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
-      "expected_output": "The posture gate resolves first — the team layer declares `filing_posture: allowed`, so filing is permitted rather than skipped against the bundled manual-only default. After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bugs:scan (lane: entrypoints)', and the needs-triage marker is applied on the correct axis resolved from the live label set — --priority needs-triage on the priority axis, or a status-axis label applied after creation. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
+      "expected_output": "The posture gate resolves first — the team layer declares `filing_posture: allowed`, so filing is permitted rather than skipped against the bundled manual-only default. After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bugs:scan (lane: entrypoints)', and the needs-triage marker is the bare label `needs-triage` from the live set. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
       "files": [],
       "narration": true,
       "expectations": [
         "`filing_posture` is resolved from the config cascade BEFORE any filing, and filing proceeds only because the team layer declares `allowed` — the bundled default is manual-only",
         "A duplicate search over --state all runs BEFORE any item is created, and an open match is commented on rather than duplicated",
         "Each filed item body contains the provenance line `Filed by /bugs:scan (lane: entrypoints)`",
-        "The needs-triage marker is resolved from the live label set and applied on one axis only — `--priority needs-triage` replacing the filing floor, or a status-axis label applied after creation",
+        "The needs-triage marker is the bare label `needs-triage` from the live set",
         "No new label is created under any circumstance",
         "Filing routes through /work-items:track add rather than reaching into another plugin's files or reimplementing the tracker seam",
         "If work-items is not installed or no tracker binding resolves, the run prints a filing-skipped notice and degrades to report-only instead of improvising a filing path"

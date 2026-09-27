@@ -33,9 +33,10 @@
 #     --label     mktemp prefix, for a readable path while debugging.
 #
 # WHY THIS IS NOT IN scripts/lib/test-harness.sh. That file owns the assertion
-# counters and the exit contract, and 33 suites source it for those alone --
-# including suites that build no fixture at all. Folding a git-repo builder into
-# it would put `. scripts/test-git-helpers.sh` on the path of every one of them.
+# counters and the exit contract, and suites across scripts/ source it for those
+# alone -- including suites that build no fixture at all. Folding a git-repo
+# builder into it would put `. scripts/test-git-helpers.sh` on the path of every
+# one of them.
 # The two files answer different questions ("did this assertion pass?" versus
 # "what world does the script under test run in?") and stay separate.
 #
@@ -52,8 +53,7 @@
 # by basename. A file that grants that credit to its sourcers must therefore
 # perform the clear itself; inheriting it through test-git-helpers.sh would
 # leave every sourcer of this file uncredited and re-open the incident the gate
-# exists to stop. The list below is the full seven, not the three-variable
-# spelling that was drifting through the suites.
+# exists to stop. The list below is the full seven.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

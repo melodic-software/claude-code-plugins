@@ -72,11 +72,8 @@ OK_FILE="$(mktemp)"
 write_item "$OK_FILE"
 wit_claim_write "$OK_FILE" "$MARKER_LINE" '["tester"]'
 assert_eq "successful claim write returns 0" "0" "$?"
-if grep -qxF -- "$MARKER_LINE" "$OK_FILE"; then
-  pass "successful claim write keeps the lease marker"
-else
-  fail "successful claim write keeps the lease marker" "marker present" "marker missing"
-fi
+assert_succeeds "successful claim write keeps the lease marker" "marker present" "marker missing" \
+  grep -qxF -- "$MARKER_LINE" "$OK_FILE"
 assert_eq "successful claim write records the assignee" '["tester"]' "$(wit_fm_field "$OK_FILE" assignees)"
 rm -f "$OK_FILE"
 
@@ -87,11 +84,8 @@ write_item "$FAIL_FILE"
 wit_fm_set() { return 1; }
 wit_claim_write "$FAIL_FILE" "$MARKER_LINE" '["tester"]'
 assert_eq "failed assignee write fails the claim" "1" "$?"
-if grep -qxF -- "$MARKER_LINE" "$FAIL_FILE"; then
-  fail "failed assignee write rolls the lease marker back" "no marker" "orphaned marker present"
-else
-  pass "failed assignee write rolls the lease marker back"
-fi
+assert_fails "failed assignee write rolls the lease marker back" "no marker" "orphaned marker present" \
+  grep -qxF -- "$MARKER_LINE" "$FAIL_FILE"
 assert_eq "failed claim leaves assignees empty" "[]" "$(wit_fm_field "$FAIL_FILE" assignees)"
 rm -f "$FAIL_FILE"
 
@@ -109,11 +103,8 @@ RC=$?
 unset -f mktemp
 assert_eq "rollback-blocked claim still fails" "1" "$RC"
 assert_contains "rollback failure is reported, not silently claimed" "$WARN" "rollback of the lease marker failed"
-if grep -qxF -- "$MARKER_LINE" "$FAIL2_FILE"; then
-  pass "rollback-blocked claim leaves the marker (warned, not silent)"
-else
-  fail "rollback-blocked claim leaves the marker (warned, not silent)" "marker present" "marker missing"
-fi
+assert_succeeds "rollback-blocked claim leaves the marker (warned, not silent)" "marker present" "marker missing" \
+  grep -qxF -- "$MARKER_LINE" "$FAIL2_FILE"
 rm -f "$FAIL2_FILE"
 
 [[ $FAILED -eq 0 ]] || exit 1

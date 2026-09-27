@@ -12,6 +12,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { indexSelectedFrames, readLaneJson } from "../lib/watch-frame-index.js";
 
 /**
  * @param {string} sliceDir
@@ -19,11 +20,9 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  */
 export function renderKeyFramesManifest(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const decisionsPath = lanePath(absSlice, LANES.keyFrames, "promotion-decisions.json");
-  const selectionPath = lanePath(absSlice, LANES.keyFrames, "selection.json");
-  const doc = JSON.parse(fs.readFileSync(decisionsPath, "utf8"));
-  const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
-  const byFile = Object.fromEntries(selection.selectedFrames.map((f) => [f.file, f]));
+  const doc = readLaneJson(absSlice, LANES.keyFrames, "promotion-decisions.json");
+  const selection = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
+  const byFile = indexSelectedFrames(selection);
 
   const promotes = doc.decisions.filter((d) => d.verdict === "promote");
 
@@ -50,9 +49,8 @@ export function renderKeyFramesManifest(sliceDir) {
   return outPath;
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/render-key-frames-manifest.js <slice-dir>");
     process.exit(2);

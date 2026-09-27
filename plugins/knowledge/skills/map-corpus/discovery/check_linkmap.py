@@ -24,11 +24,10 @@ import os
 import sys
 from typing import NoReturn
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "lib")
-)
-from gate_common import Failures, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, os.pardir, "lib"))
+from gate_common import Failures, is_int, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
 from parse_discovery import normalize_url  # noqa: E402  (URL identity has ONE owner)
 
 LINKMAP_SCHEMA = "link-map/v1"
@@ -40,6 +39,7 @@ ROW_RUNGS = ("seed",) + DISCOVERY_RUNGS
 LINKMAP_KEYS = {"schema", "topic", "seeds", "bounds", "rows"}
 ROW_KEYS = {"url", "rungs", "classification", "reason"}
 BOUNDS_KEYS = {"max_resources", "notes"}
+DISCOVERY_KEYS = {"schema", "rung", "snapshot", "base_url", "url_count", "urls"}
 
 
 def fail(code: int, message: str) -> NoReturn:
@@ -59,9 +59,6 @@ def load_json(path: str, what: str):
         fail(2, f"{what} {path!r} is not parseable JSON: {exc}.")
 
 
-DISCOVERY_KEYS = {"schema", "rung", "snapshot", "base_url", "url_count", "urls"}
-
-
 def check_discovery_output(path: str, doc) -> tuple:
     """Returns (rung, set-of-urls); anything unrecognized is exit 2."""
     if not isinstance(doc, dict):
@@ -72,30 +69,30 @@ def check_discovery_output(path: str, doc) -> tuple:
     d_missing = DISCOVERY_KEYS - set(doc)
     if d_missing:
         fail(2, f"discovery output {path!r} missing keys {sorted(d_missing)}.")
-    if doc.get("schema") != DISCOVERY_SCHEMA:
+    if doc["schema"] != DISCOVERY_SCHEMA:
         fail(
             2,
-            f"discovery output {path!r} schema is {doc.get('schema')!r}; "
+            f"discovery output {path!r} schema is {doc['schema']!r}; "
             f"expected {DISCOVERY_SCHEMA!r}.",
         )
-    rung = doc.get("rung")
+    rung = doc["rung"]
     if rung not in DISCOVERY_RUNGS:
         fail(
             2,
             f"discovery output {path!r} rung {rung!r} is not one of "
             f"{list(DISCOVERY_RUNGS)}.",
         )
-    urls = doc.get("urls")
+    urls = doc["urls"]
     if (
         not isinstance(urls, list)
         or not urls
         or not all(isinstance(u, str) and u for u in urls)
     ):
         fail(2, f"discovery output {path!r} 'urls' is not a non-empty list of strings.")
-    if doc.get("url_count") != len(urls):
+    if doc["url_count"] != len(urls):
         fail(
             2,
-            f"discovery output {path!r} url_count {doc.get('url_count')!r} "
+            f"discovery output {path!r} url_count {doc['url_count']!r} "
             f"!= len(urls) {len(urls)}; internally inconsistent.",
         )
     return rung, set(urls)
@@ -170,11 +167,7 @@ def main(argv=None) -> int:
     if b_unknown:
         fail(2, f"link map bounds has unknown keys {sorted(b_unknown)}.")
     max_resources = bounds.get("max_resources")
-    if (
-        not isinstance(max_resources, int)
-        or isinstance(max_resources, bool)
-        or max_resources < 1
-    ):
+    if not is_int(max_resources) or max_resources < 1:
         fail(
             2,
             f"bounds.max_resources {max_resources!r} is not a positive "
@@ -212,10 +205,10 @@ def main(argv=None) -> int:
             failures.add(f"{label}: missing keys {sorted(r_missing)}.")
             continue
         url = row["url"]
-        label = f"row[{index}] ({url!r})"
         if not isinstance(url, str) or not url:
             failures.add(f"row[{index}]: url is not a non-empty string.")
             continue
+        label = f"row[{index}] ({url!r})"
         normalized = normalize_url(url)
         if normalized != url:
             failures.add(

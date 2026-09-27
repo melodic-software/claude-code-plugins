@@ -5,6 +5,108 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.71] - 2026-09-24
+
+### Changed
+
+- hooks.json: the PostToolBatch and UserPromptSubmit rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/zone-crossing-inject.sh` instead of `bash ...`, so a `sh -c` wrapper replaces itself with bash instead of forking it: one process fewer per call where Claude Code runs the row through `sh` (Linux, macOS). Under a bash wrapper nothing changes.
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- zone-crossing-inject.sh: the zone resolver is started only when the session's context snapshot is readable. Without one the resolver answered `unknown` at that same check, so the hook's output is unchanged and a second bash is not started.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-guard/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-guard status line.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.7.70] - 2026-09-24
+
+### Fixed
+
+- `hooks/zone-gate.test.sh` feeds a here-string instead of a pipe wherever the subject exits before reading stdin: the kill switch and zone-gate's advisory mode. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). `scripts/statusline-shim.test.sh` (`run_env`) feeds the shim from a payload file instead, since a here-string appends a trailing newline the byte-transparency assertions must not see. Test only; nothing the plugin ships changes.
+
+## [0.7.69] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/zone-gate.sh`, `hooks/zone-crossing-inject.sh` and
+  `hooks/post-compact-mark.sh` through `bash` with `"shell": "bash"`, the #4421 shape, so each fire
+  no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is
+  unchanged (#4442).
+- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
+  before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
+  without parsing the library. Enabled behavior is unchanged.
+
+## [0.7.68] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
+## [0.7.67] - 2026-09-23
+
+### Changed
+
+- The reader contract's auto-compaction exceptions match the current model-config page: Opus 4.8
+  and later compact at 200K only on a 200K window, and native-1M models (Sonnet 5, Fable, Opus 4.7
+  and later on the Anthropic API) compact at about 967K. Re-verified 2026-09-23.
+
+## [0.7.66] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.7.65]
+
+### Changed
+
+- hooks: `zone-crossing-inject.sh` skips the zone resolver when nothing it reads has moved. A `$STATE_DIR/$SESSION.seen` mark, stamped with a redirection and compared with `-nt` (both builtins), records the inputs behind the last COMPLETED resolve; when the snapshot, `zones.json` and the compaction marker are all no newer than it, the fire exits before starting a process. The mark moves only after the markers persist, so a resolver failure, an `unknown` reading and a failed marker write are each retried. The envelope parse now uses `hook::jq_fields`' builtin parser on a payload within its proof ceiling and keeps the single here-string `jq` above it, because the helper's oversize fallback reads through a process substitution and costs four process creations against that `jq`'s two. Process creations under a Windows job object (5 reps, identical across reps; the subject's own floor is 3): small envelope, first fire 11 → 9, repeat with nothing moved 9 → **3**, snapshot rewritten 9 → 7; 150 KB batch payload, 11 → 11, 9 → **5**, 9 → 9. No cell is worse than before. Median wall for the small repeat fire, on a host whose timings are bimodal, 1,448 ms → 237 ms. The one failure mode: a snapshot written DURING a resolve is marked as seen, so its crossing waits for the next statusline render, since the window is the resolve rather than an mtime tick, and a missed crossing is late, never lost, because skipping only ever chooses silence. Crossing messages are byte-identical, asserted against a control session driven through the same zone sequence with no skipped fire. The per-batch budgets the contract test pins move with the paths: the steady fire now spawns nothing (0 commands, 0 process creations, 1 program launch) and a resolving fire spawns the resolver alone (1 command, 2 process creations, 3 program launches).
+- hooks: the same skip also requires EXISTENCE parity, not mtimes alone. The mark carries one line recording whether `zones.json` and the compaction marker existed behind the last completed resolve, read back with the `read` builtin, and the skip is taken only when the three `-nt` tests are false and those flags still match; a mark with no readable line never takes it. `-nt` cannot see a removal, so deleting an override or the compaction marker previously read as nothing having moved and left the stale zone in place until an unrelated snapshot write. Both process budgets are unchanged.
+
+## [0.7.64]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.7.63]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.7.62]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.7.61]
+
+### Changed
+
+- hooks: zone-crossing-inject.sh reads its zone and armed markers through one read_marker helper, post-compact-mark.sh collapses its three-arm marker rename into one guarded mv with a single cleanup, and zone-gate.sh drops a redundant empty-target test from the handoff exemption. Process budgets unchanged. No behavior change.
+
+## [0.7.60]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.7.59]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.7.58]
 
 ### Fixed
@@ -181,7 +283,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   launches pinned at 4 so a fork saving cannot be confused with work removed. The pre-existing
   command-position budget stays; it cannot see these forks, which is how the regression went
   unnoticed. Skipped where `strace` is unavailable.
-- **Redirection-placement behaviour tests.** A malformed `zones.json` drives the resolver's only
+- **Redirection-placement behavior tests.** A malformed `zones.json` drives the resolver's only
   stderr path on this hook's route and pins that the notice reaches neither of the hook's streams,
   that stdout stays one parseable JSON document, and that the shipped default bands still resolve
   and inject; an unparsable payload pins that the payload pass's nonzero status still propagates
@@ -335,7 +437,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
   gate's ~5.3 ms on the reference host. The predicate is inlined with the same
   semantics as `hook::is_enabled`, pinned by the new fleet gate
-  `scripts/check-killswitch-hoist.sh`. Behaviour of an ENABLED gate is
+  `scripts/check-killswitch-hoist.sh`. Behavior of an ENABLED gate is
   unchanged; `hooks/hooks.json` is untouched. (#3719)
 
 ## [0.7.39]
@@ -382,7 +484,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returns, so the shim's own sleep was the floor for both cancellation cases
   and the suite spent most of its wall time waiting on a delay that proved
   nothing. Two seconds exercises the same cancellation window behind the same
-  readiness marker. Test-side only; no hook, script or shipped behaviour
+  readiness marker. Test-side only; no hook, script or shipped behavior
   changes.
 
 ## [0.7.36]
@@ -902,9 +1004,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   withdrawn (#2355).** Two PRs fixed the same defect in parallel and both landed: #2344 shipped
   **0.7.1**, re-arming on a **dwell** (three consecutive strictly-better observations), and #2345
   shipped **0.7.2**, re-arming on a **return to `smart`**, replacing the dwell implementation
-  wholesale. The behaviour on `main` is 0.7.2's and it is tested, but the record of the swap was
+  wholesale. The behavior on `main` is 0.7.2's and it is tested, but the record of the swap was
   lost in the collision, so this release repairs the record. Documentation and tests only: **no
-  behaviour change**, and nothing here alters what the suite demands of the hook's logic.
+  behavior change**, and nothing here alters what the suite demands of the hook's logic.
 
   - **`reference/reader-contract.md` credited the wrong version.** It read "the marker decays only
     when the session returns to `smart` (**since 0.7.1**)". The return-to-`smart` rule is **0.7.2**;
@@ -913,14 +1015,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded, and two
     of its claims are false relative to the version it actually followed.** It was written with
-    0.7.0 as the parent, so "the sole behavioural delta is `acceptable → smart` re-arming" and
+    0.7.0 as the parent, so "the sole behavioral delta is `acceptable → smart` re-arming" and
     "every 0.7.0 assertion still passes unmodified" were verified against 0.7.0 and quietly became
     misleading when 0.7.1 landed first: against 0.7.1's dwell the delta is the whole re-arm rule and
     **13 assertions of this suite differ**, measured against `f57fb788`. Both are scoped in an
     erratum on that entry rather than rewritten. The underlying difference matters and is not
     stylistic: under a three-observation dwell, `acceptable → smart → acceptable`, a genuine
     recovery observed **once**, does not re-inject, which is the exact sequence 0.7.2 exists to
-    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honour a
+    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honor a
     single-observation recovery; 0.7.2 chose the recovery and accepted the residual flap at the
     `smart`/`acceptable` edge. That trade is now stated where the two versions meet.
 
@@ -944,7 +1046,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 written against*. It was authored with **0.7.0** as the parent; by the time it merged the parent was
 **0.7.1's dwell**, and two of its sentences are true only of the former:
 
-- "the sole behavioural delta is `acceptable → smart` re-arming": true against 0.7.0. Against
+- "the sole behavioral delta is `acceptable → smart` re-arming": true against 0.7.0. Against
   0.7.1 the delta is the entire re-arm rule.
 - "Every 0.7.0 assertion … still passes unmodified against the new rule": true, and still true, of
   0.7.0's assertions. It is not a statement about 0.7.1: this suite reports **13 failures** against
@@ -980,8 +1082,8 @@ write-ordering fix.
   is announced at most once, and only a return to `smart` opens a new cycle. A genuine recovery
   followed by a relapse therefore re-injects **exactly once for the band it relapses into, from any
   armed band**, and a flap that never reaches `smart` stays silent however long it oscillates. The
-  `dumb`-band behaviour is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
-  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioural delta is
+  `dumb`-band behavior is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
+  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioral delta is
   `acceptable → smart` re-arming. Every 0.7.0 assertion still passes unmodified against the new
   rule, alongside a new `acceptable → smart → acceptable` session that fails against 0.7.0. Those
   assertions cover the flap, the `dumb → smart → dumb` recovery, and the legacy-state seed.
@@ -1070,7 +1172,7 @@ write-ordering fix.
   silent: one observation is not a sustained improvement, so the armed rank is still `dumb` and
   `acceptable` is not worse than `dumb`. The operator has already been told this session reached
   `dumb`; announcing a better zone afterwards is the noise #2220 is about. The pre-existing test
-  that asserted the old behaviour was updated rather than deleted, and says so at its site.
+  that asserted the old behavior was updated rather than deleted, and says so at its site.
 
 ### Notes
 
@@ -1092,7 +1194,7 @@ write-ordering fix.
   than silently disarming the gate. A 0.7.0 marker holds a bare zone word: the streak parses as 0,
   which is exactly the right starting point, so no migration step and no state-format version are
   needed.
-- No blocking behaviour, no permission, no new hook registration, and no external read or write
+- No blocking behavior, no permission, no new hook registration, and no external read or write
   changes; the plugin's trust surface is untouched.
 
 ## [0.7.0]
@@ -1140,7 +1242,7 @@ write-ordering fix.
   Deliberately preserved, because they do real work and are easy to refactor away: the two-channel
   split with the continuation menu kept out of model context, the hook's refusal to claim an
   operator is present, the inert default posture, the worsening-only latch itself, and
-  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behaviour, no permission, and no
+  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behavior, no permission, and no
   external read or write changes; the plugin's trust surface is untouched.
 
 ## [0.6.6]
@@ -1150,7 +1252,7 @@ write-ordering fix.
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, giving one
   visible skip notice per session and then exit 0, which is the correct posture for every hook in
-  this plugin, so **nothing in this plugin's behaviour changes**. What is new is
+  this plugin, so **nothing in this plugin's behavior changes**. What is new is
   `hook::require_jq_blocking`, a second named function that denies the tool call instead, for the
   narrow class of guards whose job is blocking an irreversible operation (today only two, both in
   `guardrails`). A sibling function rather than a parameter, because a flag's omitted value would
@@ -1167,7 +1269,7 @@ write-ordering fix.
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.6.4]
@@ -1177,7 +1279,7 @@ write-ordering fix.
 - **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
   attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
   file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
-  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  root it documents is `~/.claude/plugins/cache`. The behavior cited is unchanged and still stated
   verbatim; only the section title a reader would search for had moved, which is exactly the kind of
   silent rot that makes a citation unfollowable. The comment now names the current title and records
   the former one so the rename is traceable.
@@ -1192,7 +1294,7 @@ write-ordering fix.
   in the context window". The dead quote is removed and replaced with an explicit sourcing-status
   note; `statusline-tee.sh` carries the same note at its `cli_version` comment. **The floor itself is
   unchanged**: `TOKEN_SEMANTICS_MIN_VERSION` still gates the token shape at `>= 2.1.132`, and no
-  behaviour, test, or zone result moves. Dropping it could only widen which payloads the token shape
+  behavior, test, or zone result moves. Dropping it could only widen which payloads the token shape
   trusts, and the misfire it prevents (a pre-2.1.132 cumulative 170k reading as a plausible current
   occupancy) is silent, so it stays as a deliberate conservative lower bound. Re-source it before any
   change that relaxes it.
@@ -1231,7 +1333,7 @@ write-ordering fix.
   computed from the values as the payload carried them, BEFORE the strip; strip first and the flag
   would read "0" on every payload. Values themselves are unchanged, still stripped, so a scanning
   caller still sees everything after the NUL. This plugin's own hooks do not consult the new global,
-  so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.6.2]
 

@@ -293,10 +293,9 @@ starts_with_shim_prefix() {
 PEELED=""
 peel_shim_prefix() {
   local s="$1"
-  scan "$s" || return 1
-  [[ ${#SCAN_WORDS[@]} -ge 2 ]] || return 1
-  [[ "${SCAN_WORDS[0]}" == "bash" ]] || return 1
-  is_shim_word "${SCAN_WORDS[1]}" || return 1
+  # The recognizer leaves its scan of <s> in the SCAN_* globals, which is where
+  # the remainder's offset comes from.
+  starts_with_shim_prefix "$s" || return 1
   if [[ ${#SCAN_WORDS[@]} -ge 3 ]]; then
     PEELED="${s:${SCAN_STARTS[2]}}"
   else
@@ -329,10 +328,7 @@ has_top_level_syntax() {
   scan "$1" || return 0
   [[ -z "$SCAN_OP" ]] || return 0
   [[ ${#SCAN_RAW[@]} -gt 0 ]] || return 1
-  if [[ "${SCAN_RAW[0]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-    return 0
-  fi
-  return 1
+  [[ "${SCAN_RAW[0]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]
 }
 
 # needs_shell <string>: 0 when the wrap guard fires. Sets WRAP_REASON.
@@ -348,10 +344,7 @@ needs_shell() {
   word="${SCAN_WORDS[0]}"
   # A command word starting with a dash would be read as a flag by `type`, and
   # is not a shape any renderer has; treat it as an ordinary executable.
-  case "$word" in
-  -*) return 1 ;;
-  *) ;;
-  esac
+  [[ "$word" == -* ]] && return 1
   if [[ -n "$(type -P "$word" 2>/dev/null)" ]]; then
     return 1
   fi

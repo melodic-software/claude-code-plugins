@@ -5,46 +5,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/memory-index-refs-check.sh"
 
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
-
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-
-# Fixture git repos must never inherit an outer hook chain's exported git env.
-make_repo() {
-  unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
-  mkdir -p "$1"
-  (cd "$1" && git init -q && git config user.email "test@example.com" && git config user.name "test" && git commit -q --allow-empty -m init)
-}
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 slug_of() {
   local root
@@ -65,9 +27,8 @@ mem_dir_for() {
   mkdir -p "$dir"
   printf '%s' "$dir"
 }
-# CLAUDE_CONFIG_DIR is dropped per run: the resolver honors it over $HOME, so an ambient
-# value from the caller's environment would let the host machine's real memory store
-# answer for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
+# CLAUDE_CONFIG_DIR is dropped per run so the host's real memory store cannot answer
+# for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
 run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "${2:-}"); }
 
 # --- Case 1: --help ---
@@ -138,9 +99,4 @@ OUT=$(cd "$NONREPO" && env -u GIT_DIR -u CLAUDE_CONFIG_DIR HOME="$H7" bash "$SCR
 assert_exit "non-repo exits 0" 0 "$rc"
 assert_contains "non-repo cwd store is checked" "$OUT" "M2-missing"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

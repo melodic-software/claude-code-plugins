@@ -18,7 +18,8 @@
 # out of reach of any file-based check and is the skill's contract to keep.
 #
 # Exit 0 = every registered question is resolved (register is clean)
-# Exit 1 = at least one question is still `open` (the contract is not locked)
+# Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
+#          contract is not locked)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate or
@@ -30,7 +31,10 @@
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
 #   - Q1 | answered | round 1 | <question> | <resolution>
-# Statuses: open | answered | deferred | withdrawn | blocked
+# Statuses: open | answered | deferred | withdrawn | blocked | superseded-by-plan
+# `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
+# the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
+# gate exactly like `open`.
 #
 # --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
 # reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
@@ -49,7 +53,7 @@
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
 
 set -uo pipefail
 
@@ -69,7 +73,6 @@ usage() {
 # counts as whitespace, so a CRLF closer closes). Any other fence-shaped line
 # while a fence is open is content: a four-backtick fence can quote a
 # three-backtick example, and `~~~` inside a backtick fence does not close it.
-# A parity toggle got both wrong and read the quoted example's heading as live.
 fence_awk='
   function fence_line(line,    run, ch, n) {
     if (match(line, /^[[:space:]]*(```+|~~~+)/) == 0) { return 0 }
@@ -141,7 +144,7 @@ brief_named=0
 
 die_ungradeable() {
   echo "error: $1" >&2
-  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 brief=unchecked status=ungradeable"
+  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable"
   exit 2
 }
 
@@ -224,9 +227,15 @@ answered=0
 deferred=0
 withdrawn=0
 blocked=0
+superseded=0
 seen_ids=" "
 deferred_ids=""
 expected=1
+
+# What counts as a CANDIDATE register row, defined once. The fenced branch and
+# the live branch below both test it, and they must agree: a shape skipped as
+# documentation has to be the same shape that would have been graded as data.
+row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
 
 skipped_fenced_row=0
 while IFS= read -r line; do
@@ -237,19 +246,19 @@ while IFS= read -r line; do
   marker="${line%%$'\t'*}"
   line="${line#*$'\t'}"
   if [[ "$marker" == "f" ]]; then
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]]; then
+    if [[ "$line" =~ $row_candidate_re ]]; then
       skipped_fenced_row=1
     fi
     continue
   fi
 
-  # Any non-fenced `- Q<N>` line is a CANDIDATE row; its shape is validated
-  # below. The prefilter deliberately does not require the first pipe: a row
-  # that lost it (`- Q2 open | round 1 | ...`) would otherwise be skipped
-  # silently, the contiguity check would never see the id, and a register with a
-  # dropped question would grade clean — the exact silent drop this gate exists
-  # to refuse. Rows are model-written, so malformed is a real state; it exits 2.
-  [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]] || continue
+  # A candidate row's shape is validated below. The prefilter deliberately does
+  # not require the first pipe: a row that lost it (`- Q2 open | round 1 | ...`)
+  # would otherwise be skipped silently, the contiguity check would never see
+  # the id, and a register with a dropped question would grade clean — the exact
+  # silent drop this gate exists to refuse. Rows are model-written, so malformed
+  # is a real state; it exits 2.
+  [[ "$line" =~ $row_candidate_re ]] || continue
 
   if ! [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]]; then
     die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
@@ -266,7 +275,6 @@ while IFS= read -r line; do
   status_field="${rest%%|*}"
   status_field="${status_field#"${status_field%%[![:space:]]*}"}"
   status_field="${status_field%"${status_field##*[![:space:]]}"}"
-  status_field="$(printf '%s' "$status_field" | tr '[:upper:]' '[:lower:]')"
 
   # Field count without a subprocess per row: on a single record `awk -F'|'`
   # reports NF as the number of `|` separators plus one.
@@ -303,6 +311,10 @@ while IFS= read -r line; do
   expected=$((expected + 1))
 
   registered=$((registered + 1))
+  # Statuses match case-insensitively without a subprocess per row (a `tr` fork
+  # costs over a second per row on a loaded Windows host). nocasematch, not
+  # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
+  shopt -s nocasematch
   case "$status_field" in
   open) open_count=$((open_count + 1)) ;;
   answered) answered=$((answered + 1)) ;;
@@ -311,12 +323,14 @@ while IFS= read -r line; do
     deferred_ids="$deferred_ids$id "
     ;;
   withdrawn) withdrawn=$((withdrawn + 1)) ;;
+  superseded-by-plan) superseded=$((superseded + 1)) ;;
   blocked)
     blocked=$((blocked + 1))
     deferred_ids="$deferred_ids$id "
     ;;
   *) die_ungradeable "unknown status '$status_field' in row: $line ($where)" ;;
   esac
+  shopt -u nocasematch
 done <<<"$section"
 
 if [[ "$registered" -eq 0 ]]; then
@@ -343,44 +357,31 @@ elif [[ "$brief_named" -eq 1 ]]; then
   elif [[ "$brief_matches_status" -ne 0 ]]; then
     die_ungradeable "could not read the headings of: $brief"
   fi
-  brief_where=""
+  # This branch is reached only with rows retired, so a Brief that carries no
+  # deferred-questions section cannot satisfy the lookup.
   if [[ -z "$brief_matches" ]]; then
-    if [[ -n "$deferred_ids" ]]; then
-      die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
-    fi
-    deferred_section=""
-  else
-    # Same one-section rule as the register: two matches are a refusal, not a guess.
-    brief_count="$(match_count "$brief_matches")"
-    if [[ "$brief_count" -gt 1 ]]; then
-      die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
-    fi
-    brief_line="${brief_matches%%$'\t'*}"
-    brief_heading="${brief_matches#*$'\t'}"
-    brief_where=" (deferred questions '$brief_heading' at line $brief_line)"
-    deferred_section="$(extract_section "$brief_line" "$brief")"
-    brief_extract_status=$?
-    if [[ "$brief_extract_status" -eq 4 ]]; then
-      die_ungradeable "unterminated fenced block in the deferred-questions section of: $brief$brief_where"
-    elif [[ "$brief_extract_status" -ne 0 ]]; then
-      die_ungradeable "could not read the deferred-questions section from: $brief$brief_where"
-    fi
+    die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
+  fi
+
+  # Same one-section rule as the register: two matches are a refusal, not a guess.
+  brief_count="$(match_count "$brief_matches")"
+  if [[ "$brief_count" -gt 1 ]]; then
+    die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
+  fi
+  brief_line="${brief_matches%%$'\t'*}"
+  brief_heading="${brief_matches#*$'\t'}"
+  brief_where=" (deferred questions '$brief_heading' at line $brief_line)"
+  deferred_section="$(extract_section "$brief_line" "$brief")"
+  brief_extract_status=$?
+  if [[ "$brief_extract_status" -eq 4 ]]; then
+    die_ungradeable "unterminated fenced block in the deferred-questions section of: $brief$brief_where"
+  elif [[ "$brief_extract_status" -ne 0 ]]; then
+    die_ungradeable "could not read the deferred-questions section from: $brief$brief_where"
   fi
 
   missing=""
-  # The match MUST stay a builtin `[[ =~ ]]`, not `printf | grep -qE`. Under this
-  # script's `set -uo pipefail`, grep -q exits 0 the moment it matches, printf is
-  # then killed by SIGPIPE, and pipefail promotes the whole pipeline to 141 —
-  # which `if !` reads as "id absent" and turns a PRESENT id into a spurious
-  # ungradeable error. It is a RACE against the 64 KB pipe buffer, not a size
-  # threshold: printf only takes SIGPIPE if it still has data to write when grep
-  # exits. Measured on this container, id on the section's first line, 15 runs
-  # per size, counting runs where the pipeline returned nonzero: 2/15 at 64 KB,
-  # 7/15 at 100 KB, then 15/15 at 128 KB and above. So it is intermittent from
-  # roughly the buffer size and deterministic from ~128 KB. The intermittent band
-  # is the dangerous one: a registered question reported missing only sometimes
-  # reads as a transient and invites a re-run instead of an investigation.
-  # The builtin reads the string directly and cannot SIGPIPE.
+  # MUST stay a builtin `[[ =~ ]]`: under pipefail, `printf | grep -qE` on a large
+  # section SIGPIPEs printf, and the 141 reads as a PRESENT id being absent.
   for id in $deferred_ids; do
     if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "
@@ -392,9 +393,9 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
-verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered brief=$brief_state"
+verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 
-if [[ "$open_count" -gt 0 ]]; then
+if [[ $((open_count + superseded)) -gt 0 ]]; then
   echo "$verdict status=open"
   exit 1
 fi

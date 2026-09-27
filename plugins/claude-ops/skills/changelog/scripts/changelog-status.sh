@@ -164,8 +164,14 @@ vmax() { printf '%s\n' "$@" | grep -E "^$VERSION_RE\$" | sort -t. -k1,1n -k2,2n 
 # --- Repository root -----------------------------------------------------------
 # CR-stripped through an empty-means-fall-back test rather than `|| pwd`, so a
 # not-in-a-repo failure still falls back instead of being swallowed by the pipe.
+# An empty toplevel is also what says we are outside a repository, which the
+# git-subject fallback below reads rather than asking git a second time.
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-[[ -n "$repo_root" ]] || repo_root="$(pwd)"
+in_repo=1
+if [[ -z "$repo_root" ]]; then
+  repo_root="$(pwd)"
+  in_repo=0
+fi
 
 # --- Ledger and marker -----------------------------------------------------------
 if [[ -n "$ledger_arg" ]]; then
@@ -186,7 +192,7 @@ if [[ -f "$ledger" ]]; then
   [[ -n "$last" ]] && source="ledger:$ledger"
 fi
 
-if [[ -z "$last" && -n "$(git rev-parse --show-toplevel 2>/dev/null)" ]]; then
+if [[ -z "$last" ]] && ((in_repo)); then
   # SUBJECT only (%s). The version regex below deliberately reaches only the
   # `address Claude Code v<A>[..<B>] changelog` subject form.
   # Only the versions inside the `address Claude Code v<A>[..<B>] changelog` phrase count;
@@ -309,8 +315,9 @@ if ((rel_count == 0)); then
   exit 0
 fi
 
-first="$(printf '%s\n' "${in_range[0]}" | cut -f1)"
-last_in_range="$(printf '%s\n' "${in_range[rel_count - 1]}" | cut -f1)"
+# Each row is "<version>\t<core item count>"; the version is the field before the tab.
+first="${in_range[0]%%$'\t'*}"
+last_in_range="${in_range[rel_count - 1]%%$'\t'*}"
 item_count="$(printf '%s\n' "${in_range[@]}" | awk -F'\t' '{ s += $2 } END { print s + 0 }')"
 versions="$(printf '%s\n' "${in_range[@]}" | cut -f1 | tr '\n' ' ')"
 versions="${versions% }"

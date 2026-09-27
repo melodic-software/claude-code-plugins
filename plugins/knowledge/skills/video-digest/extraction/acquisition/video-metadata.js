@@ -38,26 +38,37 @@ function toSeconds(value) {
 }
 
 /**
+ * Map a raw yt-dlp array field through a per-entry parser, dropping non-object
+ * entries and the ones the parser rejects.
+ *
+ * @template T
+ * @param {unknown} rawEntries
+ * @param {(record: Record<string, unknown>) => T | null} parseEntry
+ * @returns {T[]}
+ */
+function parseEntries(rawEntries, parseEntry) {
+  if (!Array.isArray(rawEntries)) return [];
+
+  return rawEntries
+    .map((entry) => (entry && typeof entry === "object" ? parseEntry(entry) : null))
+    .filter((parsed) => parsed !== null);
+}
+
+/**
  * Parse chapters from yt-dlp info JSON.
  *
  * @param {unknown} rawChapters
  * @returns {VideoChapter[]}
  */
 export function parseChapters(rawChapters) {
-  if (!Array.isArray(rawChapters)) return [];
-
-  return rawChapters
-    .map((chapter) => {
-      if (!chapter || typeof chapter !== "object") return null;
-      const record = /** @type {Record<string, unknown>} */ (chapter);
-      const title = typeof record.title === "string" ? record.title.trim() : "";
-      if (!title) return null;
-      return {
-        startSec: toSeconds(record.start_time ?? record.startTime),
-        title,
-      };
-    })
-    .filter((chapter) => chapter !== null);
+  return parseEntries(rawChapters, (record) => {
+    const title = typeof record.title === "string" ? record.title.trim() : "";
+    if (!title) return null;
+    return {
+      startSec: toSeconds(record.start_time ?? record.startTime),
+      title,
+    };
+  });
 }
 
 /**
@@ -67,20 +78,14 @@ export function parseChapters(rawChapters) {
  * @returns {VideoComment[]}
  */
 export function parseComments(rawComments) {
-  if (!Array.isArray(rawComments)) return [];
-
-  return rawComments
-    .map((comment) => {
-      if (!comment || typeof comment !== "object") return null;
-      const record = /** @type {Record<string, unknown>} */ (comment);
-      const text = typeof record.text === "string" ? record.text.trim() : "";
-      if (!text) return null;
-      return {
-        text,
-        is_pinned: record.is_pinned === true,
-      };
-    })
-    .filter((comment) => comment !== null);
+  return parseEntries(rawComments, (record) => {
+    const text = typeof record.text === "string" ? record.text.trim() : "";
+    if (!text) return null;
+    return {
+      text,
+      is_pinned: record.is_pinned === true,
+    };
+  });
 }
 
 /**

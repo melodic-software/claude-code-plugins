@@ -54,7 +54,7 @@ FILE_ATTRIBUTE_SYSTEM = 0x4
 # "The bytes are not here." Each of these marks a name whose content lives in a
 # provider's cloud rather than on this disk, so its st_size is a REMOTE byte
 # count while local occupancy is roughly zero — and deleting it propagates the
-# delete to the cloud copy, which for an organisation's sync root is the only
+# delete to the cloud copy, which for an organization's sync root is the only
 # copy. FILE_ATTRIBUTE_OFFLINE is the long-standing HSM/remote-storage bit that
 # iCloud and Dropbox eviction reuse; FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS is
 # what the Windows Cloud Files API sets on a dehydrated placeholder.
@@ -161,6 +161,44 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
 def emit(payload: dict[str, Any], code: int = 0) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return code
+
+
+def scan_complete_payload(
+    target: Path,
+    output_path: Path,
+    snapshot: dict[str, Any],
+    policy: dict[str, Any],
+    advisory: dict[str, Any] | None,
+    note: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The ``scan-complete`` stdout payload both scan lanes emit.
+
+    The two lanes differ only in ``note`` and in the root-children fields
+    ``extra`` carries; every other field is the same projection of the same
+    snapshot, so deriving them once is what keeps a field added for one lane
+    from being missing in the other.
+    """
+    entries = snapshot["entries"]
+    hinted = sum(1 for entry in entries if entry["hints"])
+    return {
+        "status": "scan-complete",
+        "target": str(target),
+        **(extra or {}),
+        "snapshot": str(output_path),
+        "entries": len(entries),
+        "hinted_entries": hinted,
+        "unhinted_entries": len(entries) - hinted,
+        "empty_directory_count": snapshot["empty_directory_count"],
+        "target_logical_bytes": snapshot["target_logical_bytes"],
+        "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
+        "truncated_paths": snapshot["truncated_paths"],
+        "children_rollup": snapshot["children_rollup"],
+        "errors": snapshot["errors"],
+        "policy_sources": policy["policy_sources"],
+        "os_autoclean": advisory,
+        "note": note,
+    }
 
 
 def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
@@ -539,7 +577,7 @@ def hard_protection(
         if cloud_placeholder and (current != target or path == target):
             # Its bytes live in the provider's cloud, so deleting it here
             # propagates the delete THERE — for a tenant sync root, to the
-            # organisation's only copy. Nothing local is reclaimed either way.
+            # organization's only copy. Nothing local is reclaimed either way.
             #
             # The target's own iteration is exempted for every OTHER entry, on
             # the same reasoning as target-is-mount-point below: a target that
@@ -779,7 +817,7 @@ def metadata(
     nlink = int(info.st_nlink)
     allocated = allocated_size_from_stat(info)
     if kind == "directory":
-        recorded_logical: int | None = None if not walked else logical_size
+        recorded_logical: int | None = logical_size if walked else None
     else:
         recorded_logical = info.st_size
     qualifiers: list[str] = []
@@ -1777,6 +1815,21 @@ def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
     }
 
 
+def overlaps_accepted_path(
+    candidate: PurePosixPath, accepted: list[PurePosixPath]
+) -> bool:
+    """Whether ``candidate`` is, contains, or sits under an already-accepted path.
+
+    One overlap rule for the two lanes that build an approved set (plan
+    candidates and handoff paths), so neither can admit a pair the other would
+    reject.
+    """
+    return any(
+        candidate == prior or candidate in prior.parents or prior in candidate.parents
+        for prior in accepted
+    )
+
+
 def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
     """Whether ``relative`` is, contains, or lives under a truncated scan path.
 
@@ -1850,10 +1903,7 @@ def validate_plan(
             raise HygieneError(
                 f"candidate path is outside or absent from snapshot: {relative}"
             )
-        if any(
-            pure == prior or pure in prior.parents or prior in pure.parents
-            for prior in seen
-        ):
+        if overlaps_accepted_path(pure, seen):
             raise HygieneError(f"candidate paths overlap: {relative}")
         seen.append(pure)
         if (
@@ -1930,10 +1980,7 @@ def validate_handoff_paths(
             raise HygieneError(
                 f"approved path is outside or absent from snapshot: {relative}"
             )
-        if any(
-            pure == prior or pure in prior.parents or prior in pure.parents
-            for prior in seen
-        ):
+        if overlaps_accepted_path(pure, seen):
             raise HygieneError(f"approved paths overlap: {relative}")
         seen.append(pure)
         normalized.append(relative)
@@ -2658,6 +2705,21 @@ def handle_state(path: Path) -> tuple[str, str | None]:
     return windows_handle_state(path) if os.name == "nt" else posix_handle_state(path)
 
 
+def handle_state_contest_reason(state: str, detail: str | None) -> str | None:
+    """The contested reason a non-clear handle probe carries, or None when clear.
+
+    Shared by the two read-only verdict lanes (approved paths and emptied
+    containers) so an open handle, a denial, and an unverifiable probe cannot
+    be worded differently depending on which one observed it.
+    """
+    if state == "clear":
+        return None
+    if state == "needs_elevation":
+        return "needs-elevation"
+    stem = "live-handle" if state == "open" else "handle-state-unverified"
+    return stem + (f": {detail}" if detail else "")
+
+
 def candidate_handle_state(
     target: Path, path: Path, expected_paths: set[str]
 ) -> tuple[str, str | None]:
@@ -3020,12 +3082,9 @@ def verify_emptied_container(
             state, detail = candidate_handle_state(target, path, handle_paths)
         except (OSError, subprocess.SubprocessError):
             state, detail = "unverified", "handle-probe-failed"
-        if state == "open":
-            contested.add("live-handle" + (f": {detail}" if detail else ""))
-        elif state == "needs_elevation":
-            contested.add("needs-elevation")
-        elif state != "clear":
-            contested.add("handle-state-unverified" + (f": {detail}" if detail else ""))
+        handle_reason = handle_state_contest_reason(state, detail)
+        if handle_reason is not None:
+            contested.add(handle_reason)
     verdict = "drifted" if drifted else "contested" if contested else "clear"
     return {
         "path": relative,
@@ -3263,14 +3322,9 @@ def handoff_verify(
                     state, detail = candidate_handle_state(target, path, expected_paths)
                 except (OSError, subprocess.SubprocessError):
                     state, detail = "unverified", "handle-probe-failed"
-                if state == "open":
-                    contested.add("live-handle" + (f": {detail}" if detail else ""))
-                elif state == "needs_elevation":
-                    contested.add("needs-elevation")
-                elif state != "clear":
-                    contested.add(
-                        "handle-state-unverified" + (f": {detail}" if detail else "")
-                    )
+                handle_reason = handle_state_contest_reason(state, detail)
+                if handle_reason is not None:
+                    contested.add(handle_reason)
             verdict = "drifted" if drifted else "contested" if contested else "clear"
             item = {
                 "path": relative,
@@ -3763,29 +3817,15 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 snapshot["root_children_skipped"] = skipped
                 write_json(output_path, snapshot)
-                hinted = sum(1 for entry in snapshot["entries"] if entry["hints"])
                 return emit(
                     scan_stdout_payload(
-                        {
-                            "status": "scan-complete",
-                            "target": str(target),
-                            "root_children_mode": True,
-                            "root_children_selected": resolved_children,
-                            "snapshot": str(output_path),
-                            "entries": len(snapshot["entries"]),
-                            "hinted_entries": hinted,
-                            "unhinted_entries": len(snapshot["entries"]) - hinted,
-                            "empty_directory_count": snapshot["empty_directory_count"],
-                            "target_logical_bytes": snapshot["target_logical_bytes"],
-                            "target_reclaimable_local_bytes": snapshot[
-                                "target_reclaimable_local_bytes"
-                            ],
-                            "truncated_paths": snapshot["truncated_paths"],
-                            "children_rollup": snapshot["children_rollup"],
-                            "errors": snapshot["errors"],
-                            "policy_sources": policy["policy_sources"],
-                            "os_autoclean": advisory,
-                            "note": (
+                        scan_complete_payload(
+                            target,
+                            output_path,
+                            snapshot,
+                            policy,
+                            advisory,
+                            (
                                 "Root-children mode inventoried only the "
                                 "selected immediate directories; the volume "
                                 "root itself and every skipped "
@@ -3797,7 +3837,11 @@ def main(argv: list[str] | None = None) -> int:
                                 "positional review. Hints are discovery "
                                 "signals, never cleanup verdicts."
                             ),
-                        },
+                            {
+                                "root_children_mode": True,
+                                "root_children_selected": resolved_children,
+                            },
+                        ),
                         args.quiet,
                     )
                 )
@@ -3838,27 +3882,15 @@ def main(argv: list[str] | None = None) -> int:
                     2,
                 )
             write_json(output_path, snapshot)
-            hinted = sum(1 for entry in snapshot["entries"] if entry["hints"])
             return emit(
                 scan_stdout_payload(
-                    {
-                        "status": "scan-complete",
-                        "target": str(target),
-                        "snapshot": str(output_path),
-                        "entries": len(snapshot["entries"]),
-                        "hinted_entries": hinted,
-                        "unhinted_entries": len(snapshot["entries"]) - hinted,
-                        "empty_directory_count": snapshot["empty_directory_count"],
-                        "target_logical_bytes": snapshot["target_logical_bytes"],
-                        "target_reclaimable_local_bytes": snapshot[
-                            "target_reclaimable_local_bytes"
-                        ],
-                        "truncated_paths": snapshot["truncated_paths"],
-                        "children_rollup": snapshot["children_rollup"],
-                        "errors": snapshot["errors"],
-                        "policy_sources": policy["policy_sources"],
-                        "os_autoclean": advisory,
-                        "note": (
+                    scan_complete_payload(
+                        target,
+                        output_path,
+                        snapshot,
+                        policy,
+                        advisory,
+                        (
                             "Safe tidiness is the primary objective; "
                             "reclaimable bytes are a secondary signal. "
                             "empty_directory_count names walked empty "
@@ -3879,7 +3911,7 @@ def main(argv: list[str] | None = None) -> int:
                             "not-walked); target_logical_bytes is the walked "
                             "roll-up and may understate truncated subtrees."
                         ),
-                    },
+                    ),
                     args.quiet,
                 )
             )

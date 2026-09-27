@@ -54,9 +54,9 @@ file, `jq`) causes the hook to silently no-op instead of performing its check. D
 
 This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"**. The
 label names *this* visible-skip rule and nothing more, and this section is its authoritative
-definition. (The `dim-N` numbers are an informal fleet-conformance shorthand, for example dim-8 =
-the uniform setup-skill wave and dim-11 = seam phrasing, with no central registry defining the numbering;
-giving the whole scheme a documented home is a separate follow-up, tracked outside this doc.)
+definition. (The `dim-N` numbers are conformance dimension ids, for example dim-8 = the uniform
+setup-skill wave and dim-11 = seam phrasing; [the conformance registry](../../conformance-dimensions.md)
+defines the numbering.)
 
 **Also required: a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
@@ -163,7 +163,7 @@ that fetch, given so a re-check can find the span; the quoted text is the basis.
    strings, including `additionalContext`, `systemMessage`, and plain stdout, are capped at 10,000
    characters. Output that exceeds this limit is saved to a file and replaced with a preview and
    file path, the same way a large valid Bash result is handled". As of 2026-09-05. Recheck
-   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behaviour
+   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behavior
    under its JSON-output section changed or gone. What it means for a hook: an over-cap disclosure
    is not lost, but it stops being the inline account the content-mutation rule above requires, and
    in write mode the file has already been rewritten by then. A hook that must stay inline caps

@@ -41,8 +41,8 @@
 # and silently reverts the index. It also matters for the pathspec-limited
 # (`--only`) commit form, which records the WORKTREE mode rather than the index.
 #
-# WHY THE INDEX WRITE IS NOT OPTIONAL: under `core.filemode=false` — the default
-# on Windows/NTFS, and confirmed on the machine this was developed on — git
+# WHY THE INDEX WRITE IS NOT OPTIONAL: under `core.filemode=false` (the default
+# on Windows/NTFS) git
 # ignores worktree permission bits entirely and stages every file 100644. On
 # such a repo `chmod +x` alone NEVER reaches the index, so `git update-index
 # --chmod=+x` is the only thing that can produce a 100755 entry. Both writes are
@@ -133,10 +133,7 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ "$#" -gt 0 ]]; do
-      paths+=("$1")
-      shift
-    done
+    paths+=("$@")
     break
     ;;
   *)
@@ -165,7 +162,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   exit 3
 }
 
-# Anchor everything at the repository root. `git diff --cached --name-status`
+# Anchor everything at the repository root. `git diff --cached --raw`
 # always emits paths relative to the REPOSITORY ROOT, but a `git ls-files`
 # pathspec is interpreted relative to the CURRENT DIRECTORY. Run from a
 # subdirectory, those two disagree: every ls-files lookup misses, `stage_line`
@@ -245,7 +242,7 @@ fi
 #
 #        That residual is decided, not overlooked. #2141 weighed three policies
 #        -- keep the gate, drop it for renames too, or make the `A` branch skip
-#        a rename-as-add -- and settled on KEEPING it, with no behaviour change.
+#        a rename-as-add -- and settled on KEEPING it, with no behavior change.
 #        The false positive the gate prevents is real and is pinned by `repo19`
 #        in exec-bit-check.test.sh: a deliberately non-executable sourced
 #        library or template must not be flipped to `100755` because someone

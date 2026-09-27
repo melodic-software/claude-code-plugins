@@ -103,11 +103,10 @@ winner_id=""
 winner_holder=""
 while IFS= read -r row; do
   [[ -n "$row" ]] || continue
-  cid="$(jq -r '.id' <<<"$row")"
   lease_json="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
   [[ -n "$lease_json" ]] || continue
   if wit_lease_is_live "$lease_json" "$now_epoch"; then
-    winner_id="$cid"
+    winner_id="$(jq -r '.id' <<<"$row")"
     winner_holder="$(jq -r '.holder // empty' <<<"$lease_json")"
     break
   fi

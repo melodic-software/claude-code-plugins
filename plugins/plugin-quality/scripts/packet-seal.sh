@@ -79,40 +79,32 @@ usage() {
 # `-type f` walk cannot see one — an all-symlink packet enumerated as EMPTY and
 # then verified as "intact", which is the worst possible answer from an
 # integrity tool. Everything that is not a directory is now enumerated, and
-# symlinks are adjudicated per entry by is_symlink below.
+# symlinks are adjudicated per entry where the manifest is built.
 packet_files() {
   local root="$1"
   (cd "$root" && find . ! -type d 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
 }
 
-# True when <name> is a symlink. A packet entry is never allowed to be one.
-#
-# The rule is "no symlinks", not "no symlinks that escape", deliberately. An
-# evidence packet is written by Write-tool calls and never legitimately contains
-# a link, so the permissive case buys nothing — while resolving a link's real
-# target portably needs `readlink -f`, which is GNU-only and silently absent on
-# BSD userland, exactly where a resolution bug would go unnoticed. Refusing the
-# whole class is simpler, portable, and fails closed: a link's bytes are not the
-# packet's, they can change with nothing in the packet changing, and digesting
-# one would let a link inside an evidence directory make an arbitrary file on
-# the machine read as sealed packet content.
-is_symlink() {
-  [[ -L "$1/$2" ]]
-}
+# GNU coreutils ships sha256sum; macOS ships shasum. Probed once: the answer
+# cannot change mid-run, and the refusal below reads the same probe.
+if command -v sha256sum >/dev/null 2>&1; then
+  digest_tool=sha256sum
+elif command -v shasum >/dev/null 2>&1; then
+  digest_tool=shasum
+else
+  digest_tool=""
+fi
 
-# GNU coreutils ships sha256sum; macOS ships shasum. Emits the bare hex digest.
+# Emits the bare hex digest. Fails closed when no digest tool was found.
 digest_of() {
-  local file="$1"
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum -- "$file" 2>/dev/null | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 -- "$file" 2>/dev/null | awk '{print $1}'
-  else
-    return 2
-  fi
+  case "$digest_tool" in
+  sha256sum) sha256sum -- "$1" 2>/dev/null | awk '{print $1}' ;;
+  shasum) shasum -a 256 -- "$1" 2>/dev/null | awk '{print $1}' ;;
+  *) return 2 ;;
+  esac
 }
 
-command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 || {
+[[ -n "$digest_tool" ]] || {
   case "${1:-}" in
   --help | -h) ;;
   *)
@@ -194,9 +186,19 @@ if [[ "$action" == record ]]; then
     echo "error: cannot write the manifest in: $packet" >&2
     exit 2
   }
+  # A packet entry is never allowed to be a symlink. The rule is "no symlinks",
+  # not "no symlinks that escape", deliberately. An evidence packet is written by
+  # Write-tool calls and never legitimately contains a link, so the permissive
+  # case buys nothing — while resolving a link's real target portably needs
+  # `readlink -f`, which is GNU-only and silently absent on BSD userland, exactly
+  # where a resolution bug would go unnoticed. Refusing the whole class is
+  # simpler, portable, and fails closed: a link's bytes are not the packet's,
+  # they can change with nothing in the packet changing, and digesting one would
+  # let a link inside an evidence directory make an arbitrary file on the machine
+  # read as sealed packet content.
   for name in ${files[@]+"${files[@]}"}; do
     file="$packet/$name"
-    if is_symlink "$packet" "$name"; then
+    if [[ -L "$file" ]]; then
       rm -f -- "$tmp"
       echo "error: packet entry is a symlink: $name" >&2
       echo "       An evidence packet holds its own bytes; sealing a link would certify a file it does not own." >&2

@@ -55,5 +55,5 @@ concise, scannable and objective research, GOV.UK content design, the US
 federal plain-language guidelines, Google's and Microsoft's style guides, and
 BLUF. No upstream article text is vendored. Nielsen Norman Group's terms permit
 short quotes with credit and forbid reposting articles, so this plugin
-summarises and cites. Per-source records live in
+summarizes and cites. Per-source records live in
 `skills/be-concise/reference/sources.md`.

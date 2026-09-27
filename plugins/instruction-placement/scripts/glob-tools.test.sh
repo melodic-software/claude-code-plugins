@@ -33,14 +33,12 @@ assert_contains() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
 }
 
-#   commit_all <dir> [<message>]
 commit_all() {
   git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
   git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
 }
 
 # Build a fixture repo with a known tracked-file set.
-#   fixture_repo <relative-path> [<relative-path>...]
 fixture_repo() {
   local dir
   dir="$(mktemp -d)"
@@ -56,23 +54,15 @@ fixture_repo() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
-# Pull one PATTERN row's field N (1-indexed within the tab-split row).
-# The pattern travels through the ENVIRON array, NOT `awk -v`. POSIX requires a
-# -v assignment to process escape sequences, so a glob carrying a backslash --
-# `photos \[2024/**`, the escaped-literal case this suite exists to pin -- is
-# rewritten before the comparison ever runs. gawk drops the backslash (and says
-# so: "escape sequence `\[' treated as plain `['"), mawk keeps it, so the field
-# match succeeds under one awk and silently returns nothing under the other.
-# ENVIRON values are passed through literally by both.
+# The pattern travels through ENVIRON, not `awk -v`: a -v assignment processes
+# escapes, so gawk rewrites `\[` and the match silently returns nothing.
 row_field() {
   IP_ROW_PAT="$2" awk -F'\t' -v f="$3" \
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
 }
 
-# How many PATTERN rows in a run carry the over-budget status. The budget cases
-# below assert on the COUNT rather than on a named pattern, because which of a
-# rule's globs trips a shared budget is not part of the contract; that the rule
-# trips it at all, and that a separate rule does not, is.
+# Asserted as a COUNT: which of a rule's globs trips a shared budget is not part
+# of the contract, only that the rule trips it and a separate rule does not.
 over_budget_rows() {
   printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
 }
@@ -118,7 +108,6 @@ assert_eq "src/*.ts does not descend into src/deep" "1" "$(row_field "$out" 'src
 out="$(run validate --root "$repo" --glob 'src/deep/c.ts')"
 assert_eq "a literal path matches exactly one file" "1" "$(row_field "$out" 'src/deep/c.ts' 5)"
 
-# A dot in a pattern is a literal dot, not a regex wildcard.
 repo_dot="$(fixture_repo "axts" "a.ts")"
 out="$(run validate --root "$repo_dot" --glob '*.ts')"
 assert_eq "a dot in a glob is literal, not a regex wildcard" "1" "$(row_field "$out" '*.ts' 5)"
@@ -144,7 +133,6 @@ assert_eq "a pattern past the brace budget is over-budget" "over-budget" "$(row_
 run validate --root "$repo" --glob "$bomb" >/dev/null 2>&1
 assert_eq "over-budget exits 1" "1" "$?"
 
-# A brace-free pattern must never be charged against the budget.
 out="$(run validate --root "$repo" --glob '**/*.ts')"
 assert_eq "a brace-free pattern expands to exactly one" "1" "$(row_field "$out" '**/*.ts' 4)"
 
@@ -167,9 +155,8 @@ assert_eq "bad-bracket exits 1" "1" "$?"
 out="$(run validate --root "$repo_br" --glob 'photos \[2024/**')"
 assert_eq "an escaped bracket is treated as a literal" "1" "$(row_field "$out" 'photos \[2024/**' 5)"
 
-# An escaped `]` inside a bracket expression must not end it early. The validity
-# check and the regex builder have to agree on where the expression closes, or a
-# pattern that validates produces a regex matching the wrong set.
+# The validity check and the regex builder have to agree on where the expression
+# closes, or a pattern that validates produces a regex matching the wrong set.
 repo_esc="$(fixture_repo "a1.ts" "ax.ts")"
 out="$(run validate --root "$repo_esc" --glob 'a[1\]].ts')"
 esc_status="$(row_field "$out" 'a[1\]].ts' 6)"
@@ -192,7 +179,6 @@ assert_eq "a glob matching the whole repo is over-broad" "over-broad" "$(row_fie
 run validate --root "$repo" --glob '**/*' >/dev/null 2>&1
 assert_eq "over-broad is a warning, not a failure — exits 0" "0" "$?"
 
-# Breadth is configurable, and the threshold is what moves the verdict.
 out="$(run validate --root "$repo" --glob '**/*.ts' --breadth-max 10)"
 assert_eq "a low breadth ceiling reclassifies a narrow glob" "over-broad" "$(row_field "$out" '**/*.ts' 6)"
 out="$(run validate --root "$repo" --glob '**/*.ts' --breadth-max 99)"
@@ -308,7 +294,6 @@ else
   fail "512+512 expansions in one rule trips the shared budget" "an over-budget row" "$out"
 fi
 
-# Each on its OWN rule is under budget and must not be charged together.
 split_repo="$(fixture_repo "a.ts")"
 mkdir -p "$split_repo/.claude/rules"
 printf -- '---\npaths:\n  - "%s/x.ts"\n---\n\n# One\n' "$nine" >"$split_repo/.claude/rules/one.md"
@@ -318,16 +303,11 @@ out="$(run rules --root "$split_repo")"
 over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
 
-# The same separation for `validate`. Tagging every CLI --glob with the same
-# `<cli>` source would carry the running total from one flag to the next, and
-# two independently-legal globs in one invocation would report the first
-# over-budget. A --glob is nobody's `paths:` list; each is its own unit of one.
 out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts")"
 over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate --glob flags" "0" "$over"
 
-# ...and the real ceiling still fires, so the fix above cannot be a way of
-# never reporting over-budget at all.
+# The real ceiling still fires, so separation cannot mean never reporting it.
 eleven="src/{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}"
 out="$(run validate --root "$split_repo" --glob "$eleven.ts")"
 assert_eq "a single glob over the ceiling is still over-budget" \
@@ -345,7 +325,6 @@ assert_eq "an explicit flag still wins over configuration" "ok" "$(row_field "$o
 out="$(CLAUDE_PLUGIN_OPTION_BREADTH_MAX=nonsense bash "$SCRIPT" validate --root "$repo" --glob '**/*.ts' 2>&1)"
 assert_eq "a nonsense configured value falls back to the default" "ok" "$(row_field "$out" '**/*.ts' 6)"
 
-# A repo with no rules directory is a clean pass, not an error.
 clean_repo="$(fixture_repo "a.ts")"
 out="$(run rules --root "$clean_repo")"
 assert_contains "a repo with no rules tree summarizes zero patterns" "$out" "SUMMARY"
@@ -359,7 +338,6 @@ a="$(run rules --root "$rules_repo")"
 b="$(run rules --root "$rules_repo")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
 
-# A crafted rule file must never execute. `$(...)` in a paths value is data.
 cat >"$rules_repo/.claude/rules/evil.md" <<'EOF'
 ---
 paths:

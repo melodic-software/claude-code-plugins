@@ -201,7 +201,7 @@ an upstream owner, so §12's delegation applies before any verdict is formed.
 
 ## 6. Boundary against existing owners
 
-This lane integrates with three neighbours rather than duplicating them. The distinguishing axis is
+This lane integrates with three neighbors rather than duplicating them. The distinguishing axis is
 **retrospective and evidence-gated** versus **prospective and judgment-gated**: this lane is the only
 one that asks whether a construct should exist *at all* given what the record says it was built for,
 and every verdict it issues cites an evidence tier or is UNPROVEN (§2).

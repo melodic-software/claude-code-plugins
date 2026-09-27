@@ -1,9 +1,6 @@
 # shellcheck shell=bash
-# local-markdown conformance binding — a throwaway temp storage dir, fully offline
-# and clean-at-start (fresh dir each run). This is the fast in-CI conformance path;
-# the GitHub binding stays on-demand. CB_REPO is empty: local-markdown is a
-# single-namespace store, so no --repo is threaded through — this binding leaves
-# CB_REPO at the runner's default (empty, CWD-derivation path) rather than setting it.
+# local-markdown conformance binding: a fresh temp storage dir per run, fully offline.
+# CB_REPO stays at the runner's empty default: a single-namespace store takes no --repo.
 
 CB_BINDING_TMP=""
 CB_STORAGE_TMP=""

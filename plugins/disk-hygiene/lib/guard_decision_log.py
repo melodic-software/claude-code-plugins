@@ -62,7 +62,7 @@ MAX_TEXT_CHARS = 400
 FILE_MODE = 0o600
 DIR_MODE = 0o700
 
-# Opt-out, not opt-in: absent means recording. Recognised off values are exact
+# Opt-out, not opt-in: absent means recording. Recognized off values are exact
 # and lowercase-folded, so a stray value leaves the record ON rather than
 # silently disabling the thing the operator is relying on.
 DISABLE_ENV = "DISK_HYGIENE_GUARD_DECISION_LOG"

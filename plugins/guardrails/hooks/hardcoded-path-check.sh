@@ -95,12 +95,44 @@ hook::jq_fields "$INPUT" \
   '.tool_input.path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
-# text across the byte, so a clean scan would not reflect the bytes carried.
-if ((HOOK_JQ_FIELDS_NUL)); then
+# text across the byte, so a clean scan would not reflect the bytes carried. One
+# verdict for both lanes: the single-file read below and the per-file MCP loop
+# ask the same question of the same helper flag. Never returns.
+hpc_block_nul() {
   echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
   echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
   echo "Fix: reissue the tool call without the embedded NUL." >&2
   exit 2
+}
+
+# The portable-alternatives guidance both violation reports end with, printed on
+# the caller's already-redirected stream. One definition so the two lanes cannot
+# drift apart on the advice they give.
+hpc_print_alternatives() {
+  # shellcheck disable=SC2016  # the `$` spellings are literal advice, not expansions
+  printf 'Use portable alternatives: ~/,  $HOME, $(pwd), $TMPDIR, '
+  printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
+}
+
+# Telemetry labels for a violation report, into the variable named by $1: the
+# block headers only (e.g. "Linux user path detected"), never the matched lines,
+# which carry the actual machine-specific path.
+#
+# Process substitution, not `<<<`. A report is NOT small: each block embeds up to
+# three MATCHED LINES verbatim, and the lib's `head -3` bounds the line COUNT,
+# not the byte count, so one 65KB minified line carrying a hardcoded path makes
+# it payload-sized. A here-string of 65536-65663 bytes deadlocks (see
+# lib/path-detection/hardcoded-path-patterns.sh), and it would deadlock on the
+# blocked path, after the stderr message but before `exit 2`, turning a detected
+# violation into a hook the harness cancels at its timeout.
+hpc_labels_json_to() {
+  local __hpc_labels
+  __hpc_labels=$(grep -E 'detected:$' < <(printf '%s' "$2") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || __hpc_labels='[]'
+  printf -v "$1" '%s' "$__hpc_labels"
+}
+
+if ((HOOK_JQ_FIELDS_NUL)); then
+  hpc_block_nul
 fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
@@ -132,12 +164,17 @@ hpc_path_allowlisted() {
 # branch, hard-denying every path under it. Empty is the lib's documented seam to
 # skip the branch. Native Windows exposes home as %USERPROFILE%, not $HOME, so
 # fall back to it; a missing home leaves the branch active (fail toward
-# detection, never a false negative).
+# detection, never a false negative). A caller that already asked git for
+# <root>'s toplevel passes the answer as $2, so git runs once, not twice.
 hpc_resolve_scan_root() {
   local root="$1" toplevel tl_norm home_norm
   SCAN_ROOT=""
   [[ -n "$root" ]] || return 0
-  toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  if (($# > 1)); then
+    toplevel=$2
+  else
+    toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  fi
   [[ -n "$toplevel" ]] || return 0
   tl_norm=""
   hook::normalize_path_to tl_norm "$toplevel"
@@ -183,14 +220,14 @@ hpc_mcp_lane() {
 
   hpc_resolve_scan_root "${CLAUDE_PROJECT_DIR:-}"
 
-  if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+  if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
     count="${HOOK_JQ_FIELDS[0]}"
     [[ "$count" =~ ^[0-9]+$ ]] || return 0
   fi
 
   for ((i = 0; i < count; i++)); do
-    if [[ "$TOOL" == "mcp__github__push_files" ]]; then
+    if [[ "$TOOL" == *__push_files ]]; then
       # One jq process per file, on a lane that fires only on a GitHub MCP write
       # — never on the Write/Edit path this guard runs on for authored content.
       hook::jq_fields "$INPUT" ".tool_input.files[$i].path" ".tool_input.files[$i].content" || continue
@@ -202,10 +239,7 @@ hpc_mcp_lane() {
     fi
 
     if ((HOOK_JQ_FIELDS_NUL)); then
-      echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
-      echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
-      echo "Fix: reissue the tool call without the embedded NUL." >&2
-      exit 2
+      hpc_block_nul
     fi
 
     [[ -n "$path" && -n "$content" ]] || continue
@@ -226,20 +260,14 @@ hpc_mcp_lane() {
   {
     printf 'Hardcoded machine-specific path(s) in content bound for GitHub:\n\n'
     printf '%s' "$violations"
-    # shellcheck disable=SC2016
-    printf 'Use portable alternatives: ~/,  $HOME, $(pwd), $TMPDIR, '
-    printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
+    hpc_print_alternatives
     printf 'This write goes straight to a repository — there is no local file to\n'
     printf 'fix afterwards, and no pre-commit hook on this path.\n'
   } >&2
 
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
     local labels_json data
-    # Block headers only (e.g. "Linux user path detected"), never the matched
-    # lines — those carry the actual machine-specific path. Process substitution,
-    # not `<<<`: $violations embeds matched lines verbatim and a here-string of
-    # 65536-65663 bytes deadlocks (see lib/path-detection/hardcoded-path-patterns.sh).
-    labels_json=$(grep -E 'detected:$' < <(printf '%s' "$violations") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+    hpc_labels_json_to labels_json "$violations"
     data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
       '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
       data='{"tool":"","file":"","violations":[]}'
@@ -258,7 +286,10 @@ Write | Edit | NotebookEdit) IS_MCP=0 ;;
 # repo, path, message and branch, and NO content. There is nothing for a content
 # guard to scan, and a delete cannot introduce a hardcoded path. Naming it here
 # would claim coverage that consists of skipping every call.
-mcp__github__push_files | mcp__github__create_or_update_file) IS_MCP=1 ;;
+# A GitHub server bundled by a plugin names its tools
+# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
+mcp__github__push_files | mcp__github__create_or_update_file | \
+  mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file) IS_MCP=1 ;;
 *) exit 0 ;;
 esac
 
@@ -292,7 +323,15 @@ NORM_FILE="${FILE//\\//}"
 # errors outside a work tree — leaving only the global kill switch. A bare
 # repo also skips (no working tree means no tracked portable artifacts to
 # protect at this path).
-[[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
+#
+# One git process answers both questions this lane asks of the project dir:
+# line 1 is the work-tree test, line 2 the toplevel hpc_resolve_scan_root needs.
+# Where --show-toplevel fails, git has already printed line 1, so the toplevel
+# is empty, as a separate call's would be.
+_hpc_git="$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null)"
+[[ "${_hpc_git%%$'\n'*}" == "true" ]] || exit 0
+_hpc_toplevel=""
+[[ "$_hpc_git" == *$'\n'* ]] && _hpc_toplevel=${_hpc_git#*$'\n'}
 _scope_file=""
 hook::normalize_path_to _scope_file "$FILE"
 _scope_project=""
@@ -330,23 +369,10 @@ esac
 # The scope guard above guarantees CLAUDE_PROJECT_DIR is set.
 PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 
-# hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
-# literal substring and is never OS-suppressed. That is a valid machine-specific
-# marker ONLY when PROJECT_ROOT sits inside a genuine git checkout whose ROOT is
-# not the user's home (nor an ancestor of it). The comparison is against the
-# discovered TOPLEVEL, not PROJECT_ROOT itself: a project dir can be a
-# subdirectory of its checkout, and when home is itself a checkout (e.g.
-# chezmoi-managed dotfiles) a project dir like $HOME/Desktop would clear a
-# PROJECT_ROOT-only home test and wrongly re-enable the branch, hard-denying
-# every path under it. When the enclosing checkout is home — or the path is not
-# in a checkout at all — skip the branch. Resolve a SCAN_ROOT the scanner uses
-# for it: PROJECT_ROOT when the gate passes (the literal being scanned for is
-# still the project dir), empty otherwise (empty is the lib's documented seam to
-# skip the branch). PROJECT_ROOT is unchanged — telemetry below still uses it for
-# the repo-relative path. Native Windows exposes home as %USERPROFILE%, not $HOME,
-# so fall back to it; a missing home leaves the branch active (fail toward
-# detection, never a false negative).
-hpc_resolve_scan_root "$PROJECT_ROOT"
+# SCAN_ROOT gates hpp::scan_text's repo-path branch; which checkouts earn that
+# branch, and why, is hpc_resolve_scan_root above. PROJECT_ROOT itself is left
+# alone: telemetry below still anchors the repo-relative path on it.
+hpc_resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,
@@ -387,20 +413,9 @@ if [[ -n "$VIOLATIONS" ]]; then
   {
     printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$FILE"
     printf '%s' "$VIOLATIONS"
-    # shellcheck disable=SC2016
-    printf 'Use portable alternatives: ~/,  $HOME, $(pwd), $TMPDIR, '
-    printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
+    hpc_print_alternatives
   } >&2
-  # Telemetry labels = the block headers only (e.g. "Linux user path detected"),
-  # never the matched lines — those carry the actual machine-specific path.
-  # Process substitution, not `<<<`. $VIOLATIONS is NOT small: each block embeds
-  # up to three MATCHED LINES verbatim, and the lib's `head -3` bounds the line
-  # COUNT, not the byte count — one 65KB minified line carrying a hardcoded path
-  # makes $VIOLATIONS payload-sized. A here-string of 65536-65663 bytes deadlocks
-  # (see lib/path-detection/hardcoded-path-patterns.sh), and it would deadlock
-  # HERE, on the blocked path, after the stderr message but before `exit 2` —
-  # turning a detected violation into a hook the harness cancels at its timeout.
-  labels_json=$(grep -E 'detected:$' < <(printf '%s' "$VIOLATIONS") 2>/dev/null | sed 's/:$//' | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+  hpc_labels_json_to labels_json "$VIOLATIONS"
   emit_tel "blocked" "$labels_json"
   exit 2
 fi

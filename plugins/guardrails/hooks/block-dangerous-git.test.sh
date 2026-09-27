@@ -220,7 +220,7 @@ run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias 
 
 # A RELATIVE locating option now resolves against the directory the tool call runs
 # in rather than the hook process's. That is the correct origin, and it is the one
-# behaviour change a reviewer could mistake for a regression.
+# behavior change a reviewer could mistake for a regression.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "relative git -C <basename> with both directories agreeing (unchanged, blocked)" "git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative git -C <basename> resolves against the payload cwd, not the hook process's (object id there, allowed)" "git -C repo-sha1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative --git-dir rebases onto the payload cwd the same way (object id there, allowed)" "git --git-dir=repo-sha1/.git push --force-with-lease=main:$SHA1_OID origin main" 0
@@ -1124,6 +1124,28 @@ pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink"
 pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
   '$out=pwsh $script' "launcher"
 
+# --- A `_to` helper assigns the CALLER's variable, never its own local --------
+# `printf -v` walks bash's dynamic scope outward, so a helper whose own locals
+# share a name with the destination the caller passed assigns that local and
+# leaves the caller's variable untouched: a silent wrong answer rather than an
+# error. `out` is this library's dominant accumulator name, so it is the
+# destination a future caller is most likely to pass. The reference call names a
+# variable no helper declares, so the two results have to agree.
+ps_shadow_probe() {
+  local out="shadowed"
+  "$1" out "$2"
+  printf '%s' "$out"
+}
+# shellcheck disable=SC2016
+ps_shadow_input='x ${a`}b} ("y") w; q'
+for ps_shadow_fn in ps::blank_quoted_spans_to ps::fold_escaped_brace_closers_to \
+  ps::call_site_operand_region_to ps::blank_bracket_interiors_to; do
+  "$ps_shadow_fn" ps_shadow_ref "$ps_shadow_input"
+  # shellcheck disable=SC2154  # assigned indirectly, by the helper's `printf -v`
+  assert_eq "$ps_shadow_fn assigns the caller's out, not its own local" \
+    "$ps_shadow_ref" "$(ps_shadow_probe "$ps_shadow_fn" "$ps_shadow_input")"
+done
+
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
 # no git token). Assert the softened headline on both the no-git-token path and a
@@ -1196,6 +1218,504 @@ run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
   "Invoke-Expression 'Write-Host harmless'; git reset --hard" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
+# --- a quoted git literal in COMPARISON-OPERAND position is data --------------
+# ps::might_invoke_git exempts a quoted literal whose nearest preceding token is a
+# comparison operator, but only in a command that carries no way to execute a
+# computed value. Read-only pipelines that merely NAME git now pass the sink; a
+# command that could turn the compared string back into a command word does not.
+run_pwsh "PS cmp: -eq 'git' in a script block is data (allowed)" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+run_pwsh "PS cmp: -in @('git.exe','bash.exe') is data (allowed)" \
+  "Get-CimInstance Win32_Process | Where-Object { \$_.Name -in @('git.exe','bash.exe') } | Select-Object ProcessId" 0
+run_pwsh "PS cmp: case-prefixed -ceq 'git' is data (allowed)" \
+  "Get-Process | Where-Object { \$_.Name -ceq 'git' } | Select-Object Id" 0
+run_pwsh "PS cmp: -notin list element is data (allowed)" \
+  "Get-Process | ? { \$_.Name -notin @('git','node') }" 0
+run_pwsh "PS cmp: -like 'git*' is data (allowed)" \
+  "Get-Process | ? { \$_.Name -like 'git*' }" 0
+run_pwsh "PS cmp: -match \"^git\\.exe\$\" is data (allowed)" \
+  "Get-Process | ? { \$_.Name -match \"^git\\.exe\$\" } | Select-Object Id" 0
+# Rows the class already allowed — the exemption must not disturb them.
+run_pwsh "PS cmp: no git token at all (allowed)" \
+  "Get-ChildItem | Where-Object { \$_.Length -gt 0 }" 0
+run_pwsh "PS cmp: Get-Process git as an argument (allowed)" \
+  "Get-Process git | Select-Object Id" 0
+run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
+  "Get-ChildItem C:\\code\\proj | Where-Object { \$_.PSIsContainer }" 0
+
+# Counterexamples: every one keeps the quote-intact probe and stays blocked.
+run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
+  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
+  "Start-Process 'git' reset --hard; Get-Process | Where-Object { \$_.Name -eq 'x' }" 2
+run_pwsh "PS cmp: saps 'git' is a call target, not an operand (blocked)" \
+  "saps 'git' -ArgumentList 'push -f' | % { \$_ }" 2
+run_pwsh "PS cmp: cmd /c 'git push --force' is a nested shell (blocked)" \
+  "cmd /c 'git push --force' ; Get-Process | ? { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: computed call of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }" 2
+run_pwsh "PS cmp: dot-source of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { . \$_.Name push -f }" 2
+run_pwsh "PS cmp: iex of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { iex \$_.Name }" 2
+run_pwsh "PS cmp: assignment is not a comparison operator (blocked)" \
+  "\$n = 'git'; & \$n push -f | % { \$_ }" 2
+run_pwsh "PS cmp: pipeline input is not an operand (blocked)" \
+  "'git' | % { & \$_ push -f }" 2
+run_pwsh "PS cmp: cmd /c of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name push -f }" 2
+run_pwsh "PS cmp: bash -c of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { bash -c \$_.Name }" 2
+run_pwsh "PS cmp: quoted launcher calling the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & 'bash' -c \$_.Name }" 2
+run_pwsh "PS cmp: path-shaped call of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & .\\\$_.Name push -f }" 2
+run_pwsh "PS cmp: Invoke-Command around the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Command -ScriptBlock { & \$_.Name } }" 2
+# Executors an enumeration cannot converge on. Each of these reaches a program
+# without a call operator, an evaluator or a shell word, and each is refused by
+# the read-only-cmdlet allowlist rather than by being named — a .NET static
+# member, the automatic InvokeCommand API, a run-time alias, a script block
+# compiled from the value, WMI/CIM process creation, a service binary path, a
+# scheduled-task action, and any launcher that happens to be on PATH.
+run_pwsh "PS cmp: [Diagnostics.Process]::Start of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { [Diagnostics.Process]::Start(\$_.Name,'push --force') }" 2
+run_pwsh "PS cmp: InvokeCommand.InvokeScript of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { \$ExecutionContext.InvokeCommand.InvokeScript(\$_.Name) }" 2
+run_pwsh "PS cmp: an alias minted from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Set-Alias zz \$_.Name }; zz push --force" 2
+run_pwsh "PS cmp: a script block compiled from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { \$sb=[scriptblock]::Create(\$_.Name); \$sb.Invoke() }" 2
+run_pwsh "PS cmp: iwmi Win32_Process Create of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { iwmi -Class Win32_Process -Name Create -ArgumentList \$_.Name }" 2
+run_pwsh "PS cmp: a service binary path from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { nsv -Name z -BinaryPathName \$_.Name }" 2
+run_pwsh "PS cmp: schtasks /tr of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { schtasks /create /tn z /sc once /st 00:00 /tr \$_.Name }" 2
+run_pwsh "PS cmp: wmic process call create of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { wmic process call create \$_.Name }" 2
+run_pwsh "PS cmp: a scheduled-task action from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { New-ScheduledTaskAction -Execute \$_.Name }" 2
+run_pwsh "PS cmp: npx of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { npx \$_.Name }" 2
+run_pwsh "PS cmp: dotnet of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { dotnet \$_.Name }" 2
+run_pwsh "PS cmp: cscript of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { cscript \$_.Name }" 2
+run_pwsh "PS cmp: explorer of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { explorer \$_.Name }" 2
+run_pwsh "PS cmp: ssh running the compared value on a remote host (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { ssh host \$_.Name push -f }" 2
+# The same refusal covers the cmdlets that run a program with no call operator,
+# no evaluator and no shell word.
+run_pwsh "PS cmp: Invoke-Item of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 2
+run_pwsh "PS cmp: the ii alias of Invoke-Item (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { ii \$_.Name }" 2
+run_pwsh "PS cmp: Start-Job around the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Start-Job { \$_.Name } }" 2
+run_pwsh "PS cmp: New-Object process construction beside a comparison (blocked)" \
+  "New-Object System.Diagnostics.Process; Get-Process | ? { \$_.Name -eq 'git' }" 2
+run_pwsh "PS cmp: call of a quoted git literal (blocked)" \
+  "& 'git' commit --no-verify | % { \$_ }" 2
+run_pwsh "PS cmp: quoted subcommand after a bare git (blocked)" \
+  "git 'commit' | % { \$_ }" 2
+# Right-hand operands only: a literal on the LEFT of the operator is ambiguous
+# with a call target (`& 'git' -eq $x` invokes git), so it keeps the probe.
+run_pwsh "PS cmp: left-hand literal keeps the quote-intact probe (blocked)" \
+  "'git' -in \$names | % { \$_ }" 2
+# The list walk is bounded; a list long enough to exhaust it fails closed.
+run_pwsh "PS cmp: over-long operand list fails closed (blocked)" \
+  "Get-Process | ? { \$_.Name -in @('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','git') }" 2
+# The sink message is the unchanged one — the exemption narrows what reaches the
+# sink, it does not soften what the sink says.
+cmp_out="$(pwsh_stderr "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }")"
+assert_contains "PS cmp: blocked counterexample still names could-reach-git" \
+  "$cmp_out" "could reach git"
+
+# Predicate pins — a hook rc of 0 can hide "entered the sink and was waved
+# through by something else", so the mechanism itself is asserted.
+pin_predicate "ps::might_invoke_git: -eq 'git' is data" \
+  ps::might_invoke_git "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
+pin_predicate "ps::might_invoke_git: -in @('git.exe','bash.exe') is data" \
+  ps::might_invoke_git "Get-CimInstance Win32_Process | Where-Object { \$_.Name -in @('git.exe','bash.exe') } | Select-Object ProcessId" 1
+pin_predicate "ps::might_invoke_git: -notin list element is data" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -notin @('git','node') }" 1
+pin_predicate "ps::might_invoke_git: -match \"^git\\.exe\$\" is data" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -match \"^git\\.exe\$\" } | Select-Object Id" 1
+pin_predicate "ps::might_invoke_git: computed call of the compared value still blocks" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }" 0
+pin_predicate "ps::might_invoke_git: bash -c of the compared value still blocks" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -eq 'git' } | % { bash -c \$_.Name }" 0
+pin_predicate "ps::might_invoke_git: call of a quoted git literal still blocks" \
+  ps::might_invoke_git "& 'git' commit --no-verify | % { \$_ }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a comparison pipeline of interrogators is read-only" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: cmd at a command position refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an unrecognized command word refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { npx \$_.Name }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a type literal refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { [Diagnostics.Process]::Start(\$_.Name) }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a method call refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { \$ExecutionContext.InvokeCommand.InvokeScript(\$_.Name) }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a quoted launcher name is an argument, not a command word" \
+  ps::_is_readonly_cmdlet_pipeline "Get-CimInstance Win32_Process | ? { \$_.Name -in @('git.exe','bash.exe') }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a cmdlet argument is not a command word" \
+  ps::_is_readonly_cmdlet_pipeline "Get-CimInstance Win32_Process | Select-Object ProcessId,Name" 0
+pin_sink_trigger "classify: the comparison pipeline still enters the special-construct sink" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' }" "special-construct"
+
+# --- an EXPANDABLE operand is a command position, not data --------------------
+# A double-quoted string is evaluated where it is written, so `"$( … )"` runs a
+# program to build the value the comparison then reads. The walk replaces that
+# span with an inert placeholder, which is precisely what hid the executor from
+# the read-only-pipeline token scan: a security review reproduced the whole
+# family through it. Every shape below therefore stays blocked, and the
+# disqualifier is the `"` itself, not recognition of the executor inside it.
+run_pwsh "PS cmp: expandable operand running cmd /c (blocked)" \
+  "Write-Output (\"x\" -eq \"\$(cmd /c git push --force)\")" 2
+run_pwsh "PS cmp: expandable operand in a Where-Object block (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(cmd /c git push --force)\" }" 2
+run_pwsh "PS cmp: expandable operand running bash -c (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(bash -c 'git push --force')\" }" 2
+run_pwsh "PS cmp: expandable operand running powershell -c (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(powershell -c 'git reset --hard')\" }" 2
+run_pwsh "PS cmp: expandable operand running Start-Process (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Start-Process git -ArgumentList push,--force)\" }" 2
+run_pwsh "PS cmp: expandable operand calling a quoted git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(& 'git' push -f)\" }" 2
+run_pwsh "PS cmp: expandable operand starting a job (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Start-Job { git push -f })\" }" 2
+run_pwsh "PS cmp: expandable operand invoking git.exe (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Invoke-Item git.exe)\" }" 2
+run_pwsh "PS cmp: expandable operand constructing an object beside a git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(New-Object System.Diagnostics.Process)\" -and \$_.Name -eq 'git' }" 2
+run_pwsh "PS cmp: expandable operand running node beside a git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(node -e 'x')\" -and \$_.Name -eq 'git' }" 2
+run_pwsh "PS cmp: expandable operand interpolated into a -like pattern (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -like \"*\$(cmd /c git push -f)*\" }" 2
+run_pwsh "PS cmp: expandable operand as a list element under -in (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -in @(\"\$(cmd /c git reset --hard)\",'git') }" 2
+run_pwsh "PS cmp: expandable operand behind Get-Content and the ? alias (blocked)" \
+  "Get-Content x.txt | ? { \$_ -eq \"\$(cmd /c git clean -fdx)\" }" 2
+run_pwsh "PS cmp: expandable operand in a second Where-Object after an exempt one (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' } | Where-Object { \$_.Path -eq \"\$(cmd /c git push -f)\" }" 2
+run_pwsh "PS cmp: expandable operand mixing a variable and a subexpression (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\${env:ComSpec} \$(cmd /c git push -f)\" }" 2
+# Holes the executor-list gate left open too: the subexpression names git
+# directly, or names an executor no list carried.
+run_pwsh "PS cmp: expandable operand running git directly (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(git push --force)\" }" 2
+run_pwsh "PS cmp: expandable operand scheduling a git task (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(schtasks /create /tn x /tr 'git push -f' /sc once /st 00:00)\" }" 2
+# A `@"` here-string is the OTHER expandable form, and it never reaches the
+# exemption: its body is blanked at intake, so the git token is gone before the
+# probe runs. The refusal therefore sits at the sink, where the blanking happened.
+run_pwsh "PS cmp: expandable here-string operand (blocked)" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @\"" "\$(cmd /c git push --force)" "\"@ }")" 2
+# A VERBATIM here-string body carries no command position and is unchanged.
+run_pwsh "PS cmp: verbatim here-string operand stays data (allowed)" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @'" "git" "'@ }")" 0
+
+# Predicate pins for the disqualifier itself. A hook rc of 2 can hide "blocked by
+# something else entirely", so the gate is asserted directly, including the two
+# cases a raw `"` scan and the opaque placeholder kind each get wrong.
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an expandable operand refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq \"git\" }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a verbatim operand still accepts" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a double quote INSIDE a verbatim string is not an expandable string" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'he said \"hi\"' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an apostrophe INSIDE an expandable string still refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq \"it's\" }" 1
+pin_predicate "ps::might_invoke_git: an expandable operand is not data" \
+  ps::might_invoke_git "Get-Process | Where-Object { \$_.Name -eq \"\$(cmd /c git push --force)\" }" 0
+pin_sink_trigger "classify: the expandable here-string still enters the special-construct sink" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @\"" "\$(cmd /c git push --force)" "\"@ }")" "special-construct"
+
+# --- an expandable here-string BODY is itself a command position ----------------
+# `ps::blank_herestrings` drops every body line before any sink trigger is
+# tested, so a `$( … )` inside an expandable `@"` body was gone from the text the
+# scans read: no trigger fired, the `((PS_HERESTRING_EXPANDABLE)) && return 2`
+# refusal above was never reached, and the command was allowed. The DROP is what
+# has to raise the trigger, because the dropped body is exactly where the command
+# position lives. The gate is the literal `$(`, which over-approximates (a
+# backtick-escaped `$(` is literal text to PowerShell), and over-approximating is
+# the fail-closed direction.
+ps_hs_body="$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")"
+run_pwsh "PS hs: expandable body invoking git push --force (blocked)" "$ps_hs_body" 2
+run_pwsh "PS hs: assignment form of the same body (blocked)" \
+  "$(printf '%s\n%s\n%s' "\$x = @\"" "\$(git push --force)" "\"@")" 2
+# Body lines are dropped one at a time, so the gate is per-line presence of `$(`:
+# the subexpression opener and the git token may sit on different lines.
+run_pwsh "PS hs: subexpression opener and git token on separate body lines (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "Write-Output @\"" "\$(" "git push --force" ")" "\"@")" 2
+# Text after the column-zero closer is preserved, so the pipeline consumer stays
+# visible. The body behind it must still refuse.
+run_pwsh "PS hs: expandable body with a trailing pipeline after the closer (blocked)" \
+  "$(printf '%s\n%s\n%s' "@\"" "\$(git push --force)" "\"@ | Out-File x.txt")" 2
+# `hook::jq_fields` strips CR, so a CRLF payload reaches the classifier as LF-only
+# text and has to reach the same verdict as its LF twin. Asserted at the HOOK
+# boundary, which is the only place that stripping happens. The rc alone does not
+# DISCRIMINATE: leave the CR in and the opener line no longer ends in `@"`, so the
+# body stays in the text and its `(` trips special-construct, refusing for a
+# different reason. The token case below pins WHICH trigger fired, and therefore
+# that the stripping happened at all.
+run_pwsh "PS hs: CRLF-line-ended copy of the same body (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")" 2
+run_pwsh "PS hs: the CRLF copy is refused as a here-string body, not as a stray paren" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# Inner single quotes do not make a here-string body verbatim: PowerShell still
+# expands `$( … )` inside them.
+run_pwsh "PS hs: subexpression inside inner single quotes (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "'\$(git push --force)'" "\"@")" 2
+# A read-only git subexpression is still text the Bash tokenizer never sees, so
+# the read-only narrowing has nothing to narrow on.
+run_pwsh "PS hs: read-only git subexpression in the body (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
+# ACCEPTED OVER-BLOCKS, pinned so a later narrowing flips a case instead of
+# passing silently. No git token appears in either command: the first carries a
+# command position whose output the guard cannot read, and the second is a
+# backtick escape that PowerShell treats as literal text. Modeling backtick
+# escapes inside a dropped body is the parsing this library declines to do.
+run_pwsh "PS hs: body whose only subexpression is non-git (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
+run_pwsh "PS hs: backtick-escaped subexpression in the body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\`\$(git push --force)" "\"@")" 2
+
+# The regression fence. An expandable body with no `$(` carries no command
+# position and a verbatim `@'` body carries none by construction, so none of
+# these may move.
+run_pwsh "PS hs: expandable body with variable interpolation only (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Hello \$name" "\"@")" 0
+run_pwsh "PS hs: expandable commit body with no command position (allowed)" \
+  "$(printf '%s\n%s\n%s' "@\"" "fix: \$subject" "\"@ | git commit -F -")" 0
+run_pwsh "PS hs: braced variable reference is not a subexpression (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\${env:PATH}" "\"@")" 0
+run_pwsh "PS hs: a \$ and a ( separated by a space are not \$( (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "cost is \$ (git)" "\"@")" 0
+run_pwsh "PS hs: verbatim body naming git stays inert (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "git push --force" "'@")" 0
+run_pwsh "PS hs: canonical verbatim commit form (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: thing" "'@ | git commit -F -")" 0
+
+# An rc of 0 cannot tell "never entered the sink" from "entered it and was waved
+# through", so the trigger is pinned on both sides of the fence. The trigger is
+# its OWN name rather than a reuse of special-construct: the allow token is
+# derived from the trigger, and an operator who allowlisted `{}`/`--%` grouping
+# would otherwise have silently allowlisted this class too, which would make the
+# refusal a no-op for exactly the operators most likely to hit it.
+pin_sink_trigger "classify: an expandable body carrying \$( enters the herestring-subexpr sink" \
+  "$ps_hs_body" "herestring-subexpr"
+pin_sink_trigger "classify: an expandable body with no command position enters no sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Hello \$name" "\"@")" ""
+
+# The trigger chain is ordered, and this arm is last, so a command that already
+# had a special construct keeps reporting the construct it had. The #4188 pin
+# above asserts that from the other side.
+run_pwsh "PS hs: the special-construct token does not open the here-string body sink" \
+  "$ps_hs_body" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+# Its own token is the operator's explicit opt-in, and nothing else in the
+# command is visible, so this one is allowed.
+run_pwsh "PS hs: the herestring-subexpr token opens the expandable body" "$ps_hs_body" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# An allow token must not fail-open a plainly visible sibling. The
+# special-construct region walk pairs the `"` of the `@"` opener with the `"` of
+# the `"@` closer, so it cannot see inside a here-string at all: the new arm has
+# to blank the here-string itself, or the caller's re-classification loop makes
+# no progress, exhausts its four attempts and exits 0 with the sibling never
+# checked (the invariant #2667 pinned).
+run_pwsh "PS hs: an unrelated token does not open the sink at all (sibling never reached)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS hs: the matching token does not waive a visible reset --hard sibling either" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# ACCEPTED OVER-BLOCK: the operator opted out of launcher refusals, not out of
+# this one. Blanking the launcher statement leaves the here-string, and the
+# re-classification names it, so the command is refused under the trigger it now
+# reports rather than the one it started with.
+run_pwsh "PS hs: a launcher token does not carry over to the here-string body (blocked)" \
+  "$(printf '%s\n%s\n%s' "pwsh -File build.ps1; Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
+# The realistic casualty of the acceptance above: a commit body built with a
+# subexpression. The remediation the guard already prints, a verbatim `@'` body
+# piped to `git commit -F -`, is the way out.
+run_pwsh "PS hs: commit body built with a subexpression (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "@\"" "fix: bump to \$(node -p 'x')" "\"@ | git commit -F -")" 2
+
+# A `#` on a line this library CONFIRMS as a here-string opener.
+#
+# PowerShell's tokenizer reads a `#` outside a quoted string as the start of a
+# line comment, so the `@"` of `Write-Output x # @"` is comment TEXT and opens
+# nothing: the line under it is a live top-level command. The reduction reads the
+# same line as an opener and DROPS that line as body, so the git command is gone
+# from every scan that follows. Measured on the base through this hook: rc 0,
+# with `git push --force` never seen. Verified against pwsh 7.6.6.
+#
+# The rule is a plain substring test on the RAW opener line: a `#` anywhere
+# before the two-character opener suffix refuses the shape. It decides nothing
+# about whether the `#` is a comment, sits inside a string, or is glued to a
+# token, and it pairs no quotes at all. Pairing is what this defect class keeps
+# defeating, and a pairing walk wrong in one direction ALLOWS a command.
+ps_hs_comment="$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")"
+run_pwsh "PS hs: an opener in a # comment tail leaves the next line live (blocked)" \
+  "$ps_hs_comment" 2
+run_pwsh "PS hs: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git push --force" "'@ fine'")" 2
+run_pwsh "PS hs: reset --hard recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git reset --hard" "\"@ fine\"")" 2
+run_pwsh "PS hs: the @' spelling over reset --hard (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git reset --hard" "'@ fine'")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as
+# LF-only text and has to reach the same verdict as its LF twin.
+run_pwsh "PS hs: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")" 2
+run_pwsh "PS hs: CRLF copy of the @' spelling over reset --hard (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @'" "git reset --hard" "'@ fine'")" 2
+# No literal `git` token anywhere in the command, so the visible-text probe
+# answers no and a fixture carrying a literal `git` would pass with the defect
+# present and pin nothing. The opener is VERBATIM, so the expandable-body
+# refusal and the herestring-subexpr trigger both stay out of it and the new
+# rule is the only thing that can block this.
+run_pwsh "PS hs: a no-literal-git body behind a verbatim commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "\$(& \$g push --force)" "'@ fine'")" 2
+# The apostrophe-straddle spellings. Two independent per-style quote strips
+# delete the span running from the apostrophe in one double-quoted string to the
+# apostrophe in the next, taking the real `#` with it, which is how these read as
+# clean openers. The raw test never looks at a quote, so it refuses both with no
+# pairing whatsoever. Both parse clean in pwsh 7.6.6 with the git line live at
+# top level.
+run_pwsh "PS hs: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git push --force" "\"@\"")" 2
+run_pwsh "PS hs: the minimal apostrophe-straddle spelling of the same erasure (blocked)" \
+  "$(printf '%s\n%s\n%s' "echo \"'\" # ' \" @\"" "git push --force" "\"@\"")" 2
+# ACCEPTED OVER-BLOCKS. Both open a real here-string in PowerShell and carry no
+# comment at all; refusing by shape is the price of taking no position on where
+# the `#` sits. Pinned so a later narrowing flips a case instead of passing
+# silently.
+run_pwsh "PS hs: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+run_pwsh "PS hs: a # glued into a bareword before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "a#b @\"" "hello" "\"@")" 2
+
+# The regression fence. The `#` has to be on the OPENER line, before the suffix,
+# for anything to move.
+run_pwsh "PS hs: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "release # 1" "\"@")" 0
+run_pwsh "PS hs: the verbatim spelling of a body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS hs: the canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS hs: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
+run_pwsh "PS hs: a trailing comment on a non-git command (allowed)" "Write-Output hi # done" 0
+
+# Trigger ATTRIBUTION. The new arm sits AFTER the whole trigger chain, so a
+# command that already routes to the sink keeps the trigger it had and no
+# existing telemetry, remediation line or allow-token attribution moves. The
+# subexpr pin is the measured one: with this arm at the FRONT of the chain, the
+# `$(` body below lost its herestring-subexpr refusal to this trigger's token.
+pin_sink_trigger "classify: a # on a confirmed opener line enters the herestring-comment-char sink" \
+  "$ps_hs_comment" "herestring-comment-char"
+pin_sink_trigger "classify: a construct already in the command keeps its own trigger" \
+  "$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")" "special-construct"
+pin_sink_trigger "classify: an expandable body carrying \$( keeps herestring-subexpr" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" "herestring-subexpr"
+pin_sink_trigger "classify: an opener line with no # enters no sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output x @\"" "hello" "\"@")" ""
+
+# THIS REFUSAL HAS NO ALLOW TOKEN, and the guard refuses on the FLAG at the top
+# of its sink loop, ahead of the allow-list question, so no value of the allow
+# option can reach it. A token cannot be given: every token-granted round spends
+# the SHARED _ps_sink_attempts budget, and a sixth grantable trigger pushes a
+# command that settles in four rounds past the cap, where the loop exits 0 with a
+# plainly visible destructive sibling never checked.
+#
+# The gate payload that measured it: four sink constructs and a live
+# `git reset --hard` on line 1, a commented opener, and a closer line carrying a
+# second opener. Pinned under no token, under the four other sink tokens, and
+# under EVERY existing token at once (the destructive-form tokens included, which
+# is the stack that waives the visible `git reset --hard` once the sink is
+# through with it).
+PS_HS_BUDGET_CHAIN="$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
+  "Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard" \
+  "x # @\"" "\$(y)" "\"@ @\"" "z" "\"@")"
+PS_SINK_TOKENS_4=ps-unparsable-special-construct,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-herestring-subexpr
+PS_ALL_EXISTING_TOKENS="push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr"
+run_pwsh "PS hs: the multi-round budget-chain payload is blocked with no token" \
+  "$PS_HS_BUDGET_CHAIN" 2
+run_pwsh "PS hs: the budget-chain payload is blocked under the four other sink tokens" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_4"
+run_pwsh "PS hs: the budget-chain payload is blocked under EVERY existing token at once" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS"
+# The removed token's literal string is just a string the guard never consults.
+# An operator who copied it from a stale note changes nothing.
+run_pwsh "PS hs: the removed token string does not open the comment-tail shape" \
+  "$ps_hs_comment" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: the removed token string does not open the budget-chain payload" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS,ps-unparsable-herestring-comment-char"
+run_pwsh "PS hs: an unrelated sink token does not open the comment-tail shape either" \
+  "$ps_hs_comment" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS hs: the removed token string does not open the expandable-body sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+# The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
+# before it. A closer line carrying a SECOND opener is joined onto the first
+# opener's prefix by a reduction that never rescans the joined line, so a command
+# whose RAW text has no `#` on any opener line can acquire one on a later round.
+# A check placed before the loop would already be behind that round, and the
+# allow-list question would be asked for a trigger with no arm, whose `*` default
+# empties the command and exits 0.
+run_pwsh "PS hs: a commented opener acquired on a LATER round is still refused" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+run_pwsh "PS hs: and the removed token string does not open that later round" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr,ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: a second opener on the closer line is blocked with no token" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2
+run_pwsh "PS hs: a git command on the commented opener line itself is blocked" \
+  "$(printf '%s\n%s\n%s' "git push --force # @\"" "body" "\"@")" 2
+run_pwsh "PS hs: a visible destructive sibling beside a commented opener is blocked" \
+  "$(printf '%s\n%s\n%s' "git reset --hard; Write-Output x # @'" "body" "'@")" 2
+# Refusing on the flag means the HOOK reports herestring-comment-char even when
+# the classifier named an earlier trigger, so the operator reads the advice for
+# the shape that is actually holding the command. The classifier's own
+# attribution is unchanged and is pinned above.
+PS_HS_COMMENT_PLUS_CONSTRUCT="$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")"
+assert_contains "PS hs: the hook names the comment-char trigger when the flag holds the command" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "on a line that also contains a '#'"
+assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "This sink shape has NO allow token"
+# The shared token-list line is SUPPRESSED for this trigger. Leaving it in would
+# send an operator to set a value the guard never consults on this path.
+assert_absent "PS hs: the shared allow-token line is suppressed for this trigger" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "allow it via the block_dangerous_git_allow option"
+# And it is still printed for a trigger that does have a token.
+assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
+  "$(pwsh_stderr "$ps_hs_body" || true)" \
+  "allow it via the block_dangerous_git_allow option"
+
+# RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
+# the filtered object rather than running a program named by the compared value,
+# so the read-only allowlist admits it and these stay allowed. Pinned so a later
+# narrowing that reaches method dispatch flips a test instead of passing silently.
+run_pwsh "PS cmp: ForEach-Object -MemberName Kill stays where it is (allowed)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | ForEach-Object -MemberName Kill" 0
+run_pwsh "PS cmp: ForEach-Object -MemberName with -ArgumentList stays where it is (allowed)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | ForEach-Object -MemberName Start -ArgumentList push,--force" 0
+
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<<'not json at all' >/dev/null 2>&1) || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
@@ -1214,7 +1734,7 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # dangerous in it. The guard refuses rather than matching because the text it can
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
-# and which executor behaviour applies has not been traced.
+# and which executor behavior applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
@@ -1259,7 +1779,7 @@ assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
 run "empty command, no NUL (allowed)" "" 0
 
 # --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
 # expressions, neither aware of which style opened first. The single-quote
 # expression matched from the apostrophe inside one double-quoted string to the
 # apostrophe inside the next and DELETED everything between them:
