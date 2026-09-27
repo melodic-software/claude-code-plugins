@@ -151,19 +151,19 @@ Stage specific files (never `git add -A`). Then invoke `/source-control:commit` 
 
 Before building PR body, parse branch for the primary (numeric GitHub) issue number and prompt for any additional closures. Keyword line is injected at top of body in §2.4.1.
 
-By default the parser uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
+The parser resolves the grammar itself: the `branch_issue_pattern` key across the three `source-control.md` layers, then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" 2>/dev/null || true)
+ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" || true)
 ```
 
-If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` (a real ERE, not the literal `${user_config…}` token, because this reference file is Read raw and the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
+If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` userConfig value (a real ERE, not the literal `${user_config…}` token, because this reference file is Read raw and the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' 2>/dev/null || true)
+ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
 ```
 
-Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a non-numeric capture, e.g. a bare Jira key, is looked up below, found absent, and dropped to the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used and the name of any layer skipped for an invalid ERE. Relay either to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a non-numeric capture, e.g. a bare Jira key, is looked up below, found absent, and dropped to the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
 
 ```bash
 CLOSES_LINE=""

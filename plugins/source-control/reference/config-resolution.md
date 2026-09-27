@@ -58,6 +58,16 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
   still falls through to the portable default.
+- `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
+  to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
+  number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
+  non-blank line, surrounding backticks stripped. A plain scalar under per-key override;
+  `parse-branch-issue.sh` reads the three layers itself, reports a layer holding an invalid ERE on
+  stderr, and resolves as if that layer were absent. Absent everywhere → the plugin's
+  `branch_issue_pattern` userConfig, then the built-in `<type>/<N>-<slug>` (and
+  `routine-issue-<N>`) convention. That userConfig twin is deprecated: it is still read as a
+  fallback, with a deprecation note on stderr, until a later minor release removes it, no earlier
+  than 2026-12-27.
 
 Absent sections are absent, never empty.
 

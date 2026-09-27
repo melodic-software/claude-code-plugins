@@ -211,7 +211,7 @@
     "branch_issue_pattern": {
       "type": "string",
       "title": "Branch-to-issue grammar (ERE)",
-      "description": "POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^[^/]+/([0-9]+)-' for 'alice/1234-slug' or '-([0-9]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention."
+      "description": "Deprecated: set `branch_issue_pattern` on the layered .claude/source-control.md surface instead; this value is read only as a fallback. POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^[^/]+/([0-9]+)-' for 'alice/1234-slug' or '-([0-9]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention."
     },
     "setup_inference_window": {
       "type": "string",
