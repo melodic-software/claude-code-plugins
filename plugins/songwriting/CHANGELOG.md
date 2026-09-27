@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.34] - 2026-09-27
+
+### Changed
+
+- Seven skills (`co-write`, `diagnose`, `metaphor`, `meter-prosody`, `object-writing`, `rhyme`, `song-form`) label their response-filter step "Pre-flight:" instead of "Pre-flight ALWAYS:". The step still runs before output (#4120).
+
 ## [1.4.33] - 2026-09-27
 
 ### Fixed

@@ -43,7 +43,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 
 ### The 10 LLM-vs-Book Tensions
 
-**Every agent prompt MUST include corrective instructions for the tensions relevant to that phase.** The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with the specific correction the output violated, quoting the offending stickies and restating the reason.
+Every agent prompt must include corrective instructions for the tensions relevant to that phase. The facilitator is responsible for detecting when agents slip back into LLM defaults and re-prompting with the specific correction the output violated, quoting the offending stickies and restating the reason.
 
 #### 1. Completeness Bias → Partial, Siloed Views
 
@@ -136,7 +136,7 @@ Not all corrections apply equally to every phase. Here's the priority map:
 Every agent prompt already includes persona identity, domain context, color/format rules, and round-specific behavior. Add a **Behavioral Rules** section AFTER the persona identity that includes the relevant corrections for the current phase. Example structure:
 
 ```markdown
-## Behavioral Rules (DO NOT OVERRIDE)
+## Behavioral Rules (do not override)
 - You know 30% of this domain. Write ONLY from your expertise. Leave gaps.
 - Each event: 2-5 words, past tense, verb phrase. Not sentences.
 - When you read others' events: find what's WRONG first. Challenge 2-3 events.
@@ -205,7 +205,7 @@ difference that made the two personas worth simulating separately.
 
 ### Standard Persona Catalog
 
-Pick 4-8 from these based on your domain (beneficiary persona is MANDATORY, always first):
+Pick 4-8 from these based on your domain (beneficiary persona is mandatory, always first):
 
 | Persona | Perspective | Typical Concerns | Agent Tone |
 |---------|-------------|-----------------|------------|
@@ -520,9 +520,9 @@ disagreements.
 3. **Domain context**: research relevant to their role, not the full dump, just what THIS persona would know from their professional experience
 4. **Color and format rules**: which colors are allowed this round (e.g., orange only during Chaotic Exploration), event format: `[PersonaName] Event in Past Tense`
 5. **Y-offset**: each persona occupies a distinct y-coordinate row during chaotic exploration
-6. **Sticky note content rules (MANDATORY in every agent prompt):**
+6. **Sticky note content rules (mandatory in every agent prompt):**
    - **Brevity:** 2-5 words per event. Past-tense verb phrases (`Order Placed`, `Payment Failed`). If it doesn't fit on a physical 76x76mm sticky note in thick marker, it's too long. **Key test:** count your words. If >5, split into multiple events or simplify
-   - **No emojis:** Physical sticky notes are handwritten text only. Do NOT prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to ALL board types (BP, PM, DL) and ALL agent prompts. Include this instruction in every subagent prompt that creates stickies
+   - **No emojis:** Physical sticky notes are handwritten text only. Do not prefix stickies with emoji characters (🧑, 📖, 🔵, ⚡, 📊, 🏆, etc.). Plain text only. This applies to all board types (BP, PM, DL) and all agent prompts. Include this instruction in every subagent prompt that creates stickies
    - **No literal newlines:** Do NOT use `\n` in sticky note content. Miro renders these as literal backslash-n, not line breaks. Use ` — ` (em dash with spaces) as separator instead
    - **No type prefixes:** Do NOT add prefixes like "COMMAND:", "EVENT:", "POLICY:" to sticky content. The COLOR is the type indicator, not a text prefix. Write the content only: `Submit Talk Proposal` not `🔵 COMMAND Submit Talk Proposal`
 7. **Round-specific behavior:**

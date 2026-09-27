@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.2] - 2026-09-27
+
+### Changed
+
+- `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+- `babysit-prs`'s loop reference points at the subagent dispatch for ≥3-finding comments without the "MANDATORY" marker; the rule in `review-discipline.md` §2 is unchanged (#4120).
+
 ## [0.61.1] - 2026-09-27
 
 ### Fixed
