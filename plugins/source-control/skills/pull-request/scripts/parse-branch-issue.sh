@@ -21,17 +21,23 @@
 #      `<repo>/.claude/source-control.md` over `$HOME/.claude/source-control.md`.
 #      The value is the section's first non-blank line, surrounding backticks
 #      stripped, or, when that line opens a code fence, the first non-blank line
-#      inside the fence. Headings inside fenced blocks are ignored. Repo root:
-#      CLAUDE_PROJECT_DIR, else `git rev-parse --show-toplevel`.
+#      inside the fence. Headings inside fenced blocks are ignored. A leading
+#      UTF-8 BOM, trailing whitespace, and a closing `#` sequence on the heading
+#      are accepted. Repo root: CLAUDE_PROJECT_DIR, else
+#      `git rev-parse --show-toplevel`.
 #   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
 #      literal `${user_config...}` placeholder), then
 #      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
 #      note on stderr.
 #   3. The built-in default.
-# A layer holding an invalid ERE, a backreference, or an empty or unterminated
-# fence is reported on stderr and skipped; an invalid or backreferencing
-# userConfig value is reported and ignored. Notes name the source and the
-# reason, never the pattern text.
+# A layer whose first value line is a heading or an HTML comment, whose fence
+# is empty or unterminated, or whose pattern breaks a limit (see
+# usable_pattern) is reported on stderr and skipped; a userConfig value that
+# breaks a limit is reported and ignored. A layer holding a near-miss H2 (one
+# whose text contains `branch_issue_pattern` but is not the exact heading, e.g.
+# `## branch_issue_pattern:`) stops resolution: the script prints nothing and
+# exits 1, so a lower source never supplies the wrong issue number. Notes name
+# the source and the reason, never the pattern text.
 # Prints the captured issue id on stdout and exits 0 on match.
 # Exits 1 with no stdout if the branch does not match.
 set -uo pipefail
@@ -58,51 +64,154 @@ FENCE_CLOSE='^(```+|~~~+)$'
 # non-blank line, surrounding whitespace and backticks stripped, or, when that
 # line opens a code fence, the first non-blank line inside the fence. Headings
 # inside fenced blocks are ignored. Prints nothing when the file or the section
-# is absent; an empty or unterminated fence is reported and prints nothing.
+# is absent. Returns 1 (with a note, nothing printed) when the layer must be
+# skipped: an empty or unterminated fence, or a first value line that is a
+# heading or an HTML comment. Returns 3 (with a note) on a near-miss H2 anywhere
+# outside a fence, which stops resolution.
 section_value() {
-  local file="$1" line in_section=0 fence=""
+  local file="$1" line state=0 fence="" value="" first=1
+  # state: 0 before the section, 1 inside it awaiting the value, 2 done.
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
+    if ((first)); then
+      line="${line#$'\xef\xbb\xbf'}"
+      first=0
+    fi
     line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
     if [[ -n "$fence" ]]; then
       if [[ "$line" =~ $FENCE_CLOSE && "${line:0:1}" == "${fence:0:1}" && ${#line} -ge ${#fence} ]]; then
-        if [[ "$in_section" -eq 1 ]]; then
-          note "${file}: ## ${KEY} holds an empty code fence; layer skipped"
-          return 0
+        if [[ "$state" -eq 1 ]]; then
+          if [[ -z "$value" ]]; then
+            note "${file}: ## ${KEY} holds an empty code fence; layer skipped"
+            return 1
+          fi
+          state=2
         fi
         fence=""
-      elif [[ "$in_section" -eq 1 && -n "$line" ]]; then
-        printf '%s\n' "$line"
-        return 0
+      elif [[ "$state" -eq 1 && -z "$value" && -n "$line" ]]; then
+        value="$line"
       fi
       continue
     fi
     if [[ "$line" =~ ^##[[:space:]] ]]; then
-      [[ "$in_section" -eq 1 ]] && return 0
-      [[ "$line" =~ ^##[[:space:]]+${KEY}$ ]] && in_section=1
+      if [[ "$line" =~ ^##[[:space:]]+${KEY}([[:space:]]+#+)?$ ]]; then
+        [[ "$state" -eq 0 ]] && state=1
+      elif [[ "${line,,}" == *"$KEY"* ]]; then
+        note "${file}: near-miss heading for ## ${KEY}; resolution stopped, no issue id emitted"
+        return 3
+      elif [[ "$state" -eq 1 ]]; then
+        state=2
+      fi
       continue
     fi
     if [[ "$line" =~ $FENCE_OPEN ]]; then
       fence="${BASH_REMATCH[1]}"
       continue
     fi
-    [[ "$in_section" -eq 1 && -n "$line" ]] || continue
+    [[ "$state" -eq 1 && -n "$line" ]] || continue
+    if [[ "$line" =~ ^#{1,6}([[:space:]]|$) ]]; then
+      note "${file}: ## ${KEY} starts with a heading, not a pattern; layer skipped"
+      return 1
+    fi
+    if [[ "$line" == '<!--'* ]]; then
+      note "${file}: ## ${KEY} starts with an HTML comment, not a pattern; layer skipped"
+      return 1
+    fi
     while [[ "$line" == \`* ]]; do line="${line#\`}"; done
     while [[ "$line" == *\` ]]; do line="${line%\`}"; done
-    printf '%s\n' "$line"
-    return 0
+    value="$line"
+    state=2
   done <"$file"
-  [[ -n "$fence" && "$in_section" -eq 1 ]] && note "${file}: ## ${KEY} holds an unterminated code fence; layer skipped"
+  if [[ -n "$fence" && "$state" -eq 1 ]]; then
+    note "${file}: ## ${KEY} holds an unterminated code fence; layer skipped"
+    return 1
+  fi
+  [[ -z "$value" ]] || printf '%s\n' "$value"
   return 0
 }
 
-# True when pattern $2 from source $1 is usable: it compiles as an ERE (bash's
-# =~ returns 2 on a bad pattern) and holds no backreference. Otherwise reports
-# the source and the reason.
+# Print the first limit pattern $1 breaks, or nothing. A coarse scan that runs
+# before the pattern is ever compiled, since compiling a large bounded
+# repetition alone can exhaust memory: at most 200 characters, every `{m,n}`
+# bound at most 16, and no quantifier applied to a group whose body already
+# holds a quantifier (`(a+)+`, `(x{0,5}){0,5}`). Escaped characters and bracket
+# expressions are skipped.
+pattern_limit() {
+  local p="$1" i j c d b depth=0 inner rest
+  local n=${#p}
+  local -a has=(0)
+  if ((n > 200)); then
+    echo "is too long (over 200 characters)"
+    return
+  fi
+  for ((i = 0; i < n; i++)); do
+    c="${p:i:1}"
+    case "$c" in
+      \\) i=$((i + 1)) ;;
+      '[')
+        j=$((i + 1))
+        [[ "${p:j:1}" == "^" ]] && j=$((j + 1))
+        [[ "${p:j:1}" == "]" ]] && j=$((j + 1))
+        while ((j < n)); do
+          c="${p:j:1}"
+          d="${p:j+1:1}"
+          if [[ "$c" == "[" && -n "$d" && ":.=" == *"$d"* ]]; then
+            rest="${p:j+2}"
+            [[ "$rest" == *"$d]"* ]] || break
+            rest="${rest%%"$d]"*}"
+            j=$((j + ${#rest} + 4))
+            continue
+          fi
+          [[ "$c" == "]" ]] && break
+          j=$((j + 1))
+        done
+        i=$j
+        ;;
+      '(')
+        depth=$((depth + 1))
+        has[depth]=0
+        ;;
+      ')')
+        ((depth > 0)) || continue
+        inner=${has[depth]}
+        depth=$((depth - 1))
+        if ((inner)); then
+          if [[ "${p:i+1:1}" == [*+?'{'] ]]; then
+            echo "applies a quantifier to a group that holds one (nested quantifier)"
+            return
+          fi
+          has[depth]=1
+        fi
+        ;;
+      '{')
+        if [[ "${p:i}" =~ ^\{([0-9]*)(,([0-9]*))?\} ]]; then
+          for b in "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}"; do
+            if [[ -n "$b" ]] && ((${#b} > 2 || 10#$b > 16)); then
+              echo "has a repetition bound over 16"
+              return
+            fi
+          done
+        fi
+        has[depth]=1
+        ;;
+      '*' | '+' | '?') has[depth]=1 ;;
+      *) ;;
+    esac
+  done
+}
+
+# True when pattern $2 from source $1 is usable: it keeps within the limits
+# pattern_limit checks, holds no backreference, and compiles as an ERE (bash's
+# =~ returns 2 on a bad pattern). Otherwise reports the source and the reason.
 usable_pattern() {
-  local src="$1" value="$2" rc
+  local src="$1" value="$2" rc limit
+  limit="$(pattern_limit "$value")"
+  if [[ -n "$limit" ]]; then
+    note "${src}: ${KEY} ${limit}; skipped"
+    return 1
+  fi
   if [[ "$value" =~ \\[1-9] ]]; then
     note "${src}: ${KEY} uses a backreference, which is not allowed; skipped"
     return 1
@@ -126,6 +235,9 @@ LAYERS+=("${HOME:-}/.claude/source-control.md")
 PATTERN="" SOURCE=""
 for layer in "${LAYERS[@]}"; do
   value="$(section_value "$layer")"
+  # A near-miss heading stops resolution rather than letting a lower source
+  # supply a number the author did not intend.
+  [[ $? -eq 3 ]] && exit 1
   [[ -n "$value" ]] || continue
   if usable_pattern "$layer" "$value"; then
     PATTERN="$value" SOURCE="$layer"

@@ -76,11 +76,17 @@ file.
 **`branch_issue_pattern=<ERE>` writes the branch-to-issue grammar.** It is independent of
 `subject_pattern`: no other key derives from it, and it derives from no other key.
 
-- **Validate before writing.** Reject the value, persisting nothing, when it does not compile as an
-  ERE, holds a backreference (`\1` through `\9`), or has no capture group. `parse-branch-issue.sh`
-  skips a layer that fails either of the first two, with a stderr note; a pattern with no capture
-  group is not skipped but can never yield a number, so the script prints nothing and exits 1. It
-  reads the issue number from the **last** capture group and prints it only when it is all digits.
+- **Validate before writing.** Reject the value, persisting nothing, when it is longer than 200
+  characters, has a `{m}`, `{m,}`, or `{m,n}` bound over 16, applies a quantifier to a group whose
+  body already holds one (`(a+)+`, `([a-z]+-)*`), holds a backreference (`\1` through `\9`), does
+  not compile as an ERE, or has no capture group. Check the first three by reading the value, never
+  by compiling it, since compiling a large bounded repetition can exhaust memory.
+  `parse-branch-issue.sh` applies the same limits and skips a layer that breaks any of the first
+  five, with a stderr note; a pattern with no capture group is not skipped but can never yield a
+  number, so the script prints nothing and exits 1. It reads the issue number from the **last**
+  capture group and prints it only when it is all digits. Write the heading exactly as
+  `## branch_issue_pattern`: a near-miss heading stops resolution
+  ([config-resolution.md](../../../reference/config-resolution.md)).
 - **Alone** (no `subject_pattern=`): write or replace only the `## branch_issue_pattern` section of
   the chosen layer, value in backticks on the first line under the heading (a value that itself
   contains a backtick goes in a fenced code block instead). Every other section and the preamble stay

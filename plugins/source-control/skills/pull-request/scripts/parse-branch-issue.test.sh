@@ -233,6 +233,103 @@ layer "${CASE_REPO}/.claude/source-control.md" 'ZQXMARK(['
 run_cfg "invalid-ERE note omits the raw pattern" \
   "feat/42-x" "" - "42" 0 'source-control\.md' 'ZQXMARK'
 
+# Section parsing. The branch `feat/12-widget-34` makes a wrong source visible:
+# the intended trailing-number pattern gives 34, the built-in default gives 12.
+WN="feat/12-widget-34"
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'\xef\xbb\xbf## branch_issue_pattern\n\n`-([0-9]+)$`\n'
+run_cfg "UTF-8 BOM before the heading resolves" "$WN" "" - "34" 0 empty
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern ##  \n\n`-([0-9]+)$`\n'
+run_cfg "closing hash sequence on the heading resolves" "$WN" "" - "34" 0 empty
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern:\n\n`-([0-9]+)$`\n'
+run_cfg "near-miss heading stops resolution: no output, never the default" \
+  "$WN" "" - "" 1 'source-control\.md.*near-miss heading'
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## Branch_Issue_Pattern\n\n`-([0-9]+)$`\n'
+run_cfg "near-miss heading in other case stops resolution" "$WN" "" - "" 1 'near-miss heading'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern (ERE)\n\n`^feat/([0-9]+)-`\n'
+run_cfg "near-miss team layer stops resolution over a valid user-global layer" \
+  "$WN" "" - "" 1 'source-control\.md.*near-miss heading'
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern:\n\n`^feat/([0-9]+)-`\n'
+run_cfg "valid local layer wins before a near-miss team layer is read" "$WN" "" - "34" 0 empty
+
+new_case
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## notes\n\n```\n## branch_issue_pattern:\n```\n\n## branch_issue_pattern\n\n`-([0-9]+)$`\n'
+run_cfg "near-miss heading inside a fence is ignored" "$WN" "" - "34" 0 empty
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n### note\n`^feat/([0-9]+)-`\n'
+run_cfg "heading as the first value line: layer skipped with a note" \
+  "$WN" "" - "34" 0 'source-control\.md.*heading.*skipped'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n<!-- first number -->\n`^feat/([0-9]+)-`\n'
+run_cfg "HTML comment as the first value line: layer skipped with a note" \
+  "$WN" "" - "34" 0 'source-control\.md.*comment.*skipped'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer_raw "${CASE_REPO}/.claude/source-control.md" $'## branch_issue_pattern\n\n```\n^feat/([0-9]+)-\n'
+run_cfg "unterminated fence with content: layer skipped with a note" \
+  "$WN" "" - "34" 0 'source-control\.md.*unterminated'
+
+# Pattern limits, checked before the pattern is compiled or matched. Each
+# rejected layer falls through to the user-global `-([0-9]+)$` (34).
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" "^feat/([0-9]+)-|$(printf 'z%.0s' {1..190})"
+run_cfg "pattern over 200 characters rejected" "$WN" "" - "34" 0 'source-control\.md.*too long' 'zzzzzzzz'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" '^feat/x{0,17}([0-9]+)-'
+run_cfg "repetition bound over 16 rejected" "$WN" "" - "34" 0 'source-control\.md.*repetition bound' 'x{0,17}'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" '^feat/((1+)+)[0-9]*-'
+run_cfg "quantifier on a group holding a quantifier rejected" "$WN" "" - "34" 0 'source-control\.md.*nested quantifier' '(1+)+'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
+layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/((x{0,255}){0,255})([0-9]+)-'
+run_cfg "large nested bounded repetition rejected before it is compiled" \
+  "$WN" "" - "34" 0 'source-control\.md.*repetition bound' 'x{0,255}'
+
+new_case
+run_cfg "nested-quantifier userConfig ignored, default applies" \
+  "$WN" '^feat/((1+)+)[0-9]*-' - "12" 0 'userConfig.*nested quantifier'
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+run_cfg "documented username-scoped example allowed" "alice/1234-fix" "" - "1234" 0 empty
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "documented trailing-number example allowed" "$WN" "" - "34" 0 empty
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/(routine-issue-)?([0-9]+)-'
+run_cfg "built-in default as a layer value allowed" "chore/routine-issue-555-tidy" "" - "555" 0 empty
+
+new_case
+layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
+run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]

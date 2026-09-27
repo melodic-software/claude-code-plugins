@@ -63,10 +63,27 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
   non-blank line, surrounding backticks stripped, or, when that line opens a code fence, the first
   non-blank line inside the fence. A plain scalar under per-key override;
-  `parse-branch-issue.sh` reads the three layers itself, reports a layer holding an invalid ERE, a
-  backreference, or an empty or unterminated fence on stderr (naming the file and the reason, never
-  the pattern), and resolves as if that layer were absent. A pattern with no capture group, or a
-  last capture that is not all digits, yields no issue number. Absent everywhere → the plugin's
+  `parse-branch-issue.sh` reads the three layers itself. Every note it prints on stderr names the
+  file and the reason, never the pattern. Parsing rules:
+  - A leading UTF-8 BOM and CRLF line endings are accepted, and so are trailing whitespace and a
+    closing `#` sequence on the heading (`## branch_issue_pattern ##`). Headings inside fenced
+    blocks are ignored.
+  - A **near-miss heading** stops resolution: an H2 outside a fence whose text contains
+    `branch_issue_pattern` in any case but is not the exact heading (`## branch_issue_pattern:`,
+    `## Branch_Issue_Pattern`, `## branch_issue_pattern (ERE)`). The script prints a note and no
+    issue number, and exits 1. It does not fall back to a lower layer, the userConfig, or the
+    default, because any of those could close the wrong issue. A higher-precedence layer that
+    already supplied a valid pattern wins, since the lower layer is never read.
+  - A layer is reported and skipped, and resolution continues with the next source, when the
+    section's first value line is a heading or an HTML comment (`<!--`), its fence is empty or
+    unterminated, or its pattern fails validation.
+
+  A pattern passes validation when it compiles as an ERE and keeps within these limits, which are
+  checked before it is compiled: at most 200 characters, every `{m}`, `{m,}`, or `{m,n}` bound at
+  most 16, no quantifier on a group whose body already holds a quantifier (`(a+)+`,
+  `([a-z]+-)*`, `(x{0,5}){0,5}`), and no backreference. The deprecated userConfig value goes
+  through the same checks. A pattern with no capture group, or a last capture that is not all
+  digits, yields no issue number. Absent everywhere → the plugin's
   `branch_issue_pattern` userConfig, then the built-in `<type>/<N>-<slug>` (and
   `routine-issue-<N>`) convention. That userConfig twin is deprecated: it is still read as a
   fallback, with a deprecation note on stderr, until a later minor release removes it, no earlier
