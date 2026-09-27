@@ -104,16 +104,10 @@ a single `#` and a space, outside a code fence), and the
 gate reads only that slot. An `INTENT.md` whose slot still holds the marker is a run that stopped
 before its final write, and the gate refuses it with exit 1, which routes to that same ladder.
 
-What the harness returns at the turn limit:
-
-- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
-  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
-  output marked as partial, and Claude can resume it to continue. The partial marking requires
-  Claude Code v2.1.246 or later".
-- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
-- **As of.** 2026-09-25.
-- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
-  release note names turn-limit output or partial marking.
+At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
+the parent can resume it. Dated record:
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"A turn-limit stop returns partial output, and the parent can resume the agent".
 
 ## The by-value rung is an exception to the halt, not to the gate
 

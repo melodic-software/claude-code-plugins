@@ -279,16 +279,10 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 
 ## Truncation
 
-What the harness returns at the turn limit:
-
-- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
-  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
-  output marked as partial, and Claude can resume it to continue. The partial marking requires
-  Claude Code v2.1.246 or later".
-- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
-- **As of.** 2026-09-25.
-- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
-  release note names turn-limit output or partial marking.
+At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
+the parent can resume it. Dated record:
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"A turn-limit stop returns partial output, and the parent can resume the agent".
 
 A partial marking says the run stopped; it does not say what reached disk. Because the ledger and
 sidecars are written incrementally, a turn-limit stop leaves a half-marked ledger and sidecars for
