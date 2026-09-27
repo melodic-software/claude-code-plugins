@@ -191,6 +191,11 @@ is the deliberate channel, the agent reads it as ground truth; what must not cro
 that produced the work under review. Running the step inline in the main thread, or in a
 conversation fork, satisfies neither property; any other dispatch mechanism must supply both.
 
+The `auditor` definition pins `model: opus`, the default a dispatch gets when it passes no
+`model`. Its verdict is consequential, so it runs at the session's model tier or above: when this
+session's model resolves above `opus`, pass the session's own model as the per-call `model`. Never
+pass one below `opus`.
+
 ### Step 3. Persist-check, then blindspot + candidate findings (subagent output → user)
 
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what

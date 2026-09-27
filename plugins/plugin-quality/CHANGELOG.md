@@ -9,7 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The `auditor` agent pins `model: opus`, so a dispatch that passes no `model` no longer runs on the orchestrator's model. The agent audit checklist's Model check now asks that a definition name its model explicitly and that `inherit` carry a stated reason on the model line.
+- The `auditor` agent pins `model: opus`, so a dispatch that passes no `model` no longer runs on the orchestrator's model. The agent audit checklist's Model check now asks that a definition name its model explicitly and that `inherit` carry a stated reason on the model line. `audit` Step 2 passes the session's own model as the per-call `model` when the session resolves above `opus`, so the verdict never runs below the session's tier.
 
 ## [0.7.23] - 2026-09-25
 
