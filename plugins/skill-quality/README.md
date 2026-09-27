@@ -84,6 +84,13 @@ the reviewer to confirm the description still names that intent, or to restore t
   three `](#` in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
   100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose TOC heuristic
   this check mirrors.
+- `## Next` successor section (advisory). A section placed after `## Gotchas`, last in the file,
+  in neither the one-invocation nor the two-to-four-outcome-bullet shape, or carrying
+  operative-chain phrasing warns. Absence is an INFO note, because most skills are terminal,
+  except on a stage-bearing skill: a `metadata.workflow-stage` of `explore`, `research`, `plan`,
+  `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` and no `Handoff`,
+  `Routing`, `Integration`, or `Skill chaining` heading warns. `contract` is not in that list,
+  because those skills route through the slice they write.
 
 `listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
