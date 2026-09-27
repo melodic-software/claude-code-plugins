@@ -173,14 +173,17 @@
 #     table is an allow-list of names, so an unlisted launcher ends the walk
 #     and its own name is read as the command word. runuser is read by its own
 #     helper, because its getopt permutes: its -c operands are commands (su's
-#     grammar) and, with -u, its non-option words are the command.
-#   * Three sudo spellings: `-R` / `--chroot`, a short cluster ending in an
-#     operand-taking letter (`sudo -Eu bob …`), and an abbreviated long option
-#     (`sudo --us bob …`). Each is read as a flag that takes no operand, so the
-#     word after it becomes the command word. Reading them correctly changes
-#     how sudo lines the guard refuses today are read (`sudo -R rm -rf /` would
-#     take `rm` as the chroot directory), and this guard only ever adds
-#     refusals, so they stay gaps.
+#     grammar) and, with -u, its non-option words are the command. `builtin`,
+#     `doas`'s short clusters and `systemd-run`'s working directory are not
+#     modeled: a service unit runs from `/` (or the user's home) unless
+#     `--scope`, `-d` or `--working-directory` says otherwise, and a relative
+#     operand under it is judged from the payload cwd.
+#   * sudo's `-R` / `--chroot`, a short cluster ending in an operand-taking
+#     letter (`sudo -Eu bob …`), and an abbreviated long option (`sudo --us bob
+#     …`) are judged on two readings, blocking if either does: as a flag, so
+#     the word after it stays the command word (`sudo -R rm -rf /`), and as
+#     taking that word, so the one after is the command (`sudo -R /mnt rm -rf
+#     /`) (#4685).
 #   * A command word split across quoting so the RAW text never spells it.
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
@@ -616,12 +619,17 @@ rdt_is_root() {
 # A short cluster holding a letter runuser rejects, or a long option it does
 # not know or cannot resolve, makes runuser refuse the whole invocation. Once
 # a non-option has been seen, that word is kept as one rather than read as
-# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag and the
-# words stay right when POSIXLY_CORRECT stops getopt at the first non-option.
+# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag.
 # Ahead of every non-option it is dropped, so it never becomes the command
 # word (`runuser -u root --foo rm -rf /`).
+# With RDT_RU_POSIX=1 the words are read the way getopt reads them when
+# POSIXLY_CORRECT is set, which no payload shows because it can be inherited:
+# the first non-option ends the options and every word from it on is kept, so
+# a later `-s env` is an argument, not the shell. Each caller judges both
+# readings (#4685).
 # su shares this option parser, so its arm reads su's argv here too, to find
 # the words that follow a -s program that is not a shell.
+RDT_RU_POSIX=0
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_runuser_argv() {
   local off="$1"
@@ -731,11 +739,27 @@ rdt_runuser_argv() {
       ;;
     *) ;;
     esac
+    if ((RDT_RU_POSIX)); then
+      for ((m = k; m < n; m++)); do
+        RDT_RU_ARGV+=("${a[m]}")
+        RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + m]:-0}")
+      done
+      return 0
+    fi
     RDT_RU_ARGV+=("$w")
     RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + k]:-0}")
     k=$((k + 1))
   done
   return 0
+}
+
+# rdt_ru_key_to <var>: one string that differs whenever two rdt_runuser_argv
+# results do, so a second reading identical to the first is not walked again.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_ru_key_to() {
+  local -n _rk_out="$1"
+  printf -v _rk_out '%q ' "$RDT_RU_U" "$RDT_RU_SHELL" "${#RDT_RU_CMDS[@]}" ${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"} \
+    "${#RDT_RU_ARGV[@]}" ${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"} ${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"}
 }
 
 # rdt_su_shell_run: su and runuser exec their -s / --shell program with the
@@ -765,13 +789,26 @@ rdt_su_shell_run() {
 # it is the last letter; RDT_SC_NEXT is 1 in that second case. A letter whose
 # operand is OPTIONAL (nsenter's `-m`) takes the rest of the cluster and never
 # the next word, so it ends the walk with nothing to report. The letters come
-# from each launcher's getopt string; sudo and doas are a declared gap, and
-# taskset and chroot have no operand-taking short option.
+# from each launcher's getopt string; doas is a declared gap, and taskset,
+# chroot and setpriv have no operand-taking short option. sudo's `-R`, `-a`
+# and `-c` alone are judged here too, because the plain walk steps over them
+# (see the sudo row of the launcher table).
+# env's `-S` is absent: its operand is a command, re-parsed by env's own arm.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_short_cluster_arg() {
   local w="$2" ops opt="" k ch
   RDT_SC_NEXT=0
   case "$1" in
+  sudo)
+    ops="aCcDgpRrTtUu"
+    opt="h"
+    ;;
+  env) ops="aCu" ;;
+  prlimit)
+    ops="po"
+    opt="cdefilmnqrstuvxy"
+    ;;
+  systemd-run) ops="HMCupE" ;;
   chrt) ops="DPTUX" ;;
   flock) ops="wE" ;;
   unshare) ops="RwSGl" ;;
@@ -795,21 +832,42 @@ rdt_short_cluster_arg() {
 
 # rdt_long_takes_arg <launcher> <name>: true when `--<name>`, written without
 # `=`, takes the next word as its operand. getopt_long accepts any unambiguous
-# prefix, so `flock --wa 5` is `flock --wait 5`; an ambiguous prefix is counted
-# as taking one only when every candidate does. The walk judges this reading IN
-# ADDITION to the plain one that steps over the word alone, and blocks if
-# either does, so resolving a prefix can only add refusals.
+# prefix, so `flock --wa 5` is `flock --wait 5`. An ambiguous prefix makes the
+# launcher refuse to run, and it is counted as taking one when any candidate
+# does (`nsenter --t 1` could mean --target), because the walk judges this
+# reading IN ADDITION to the plain one that steps over the word alone, and
+# blocks if either does, so resolving a prefix can only add refusals.
+# An exact flag name never takes one.
 # Each list is the launcher's operand-taking long names, then its flag names.
-# The `ops` lists must stay in sync with each launcher's `optarg` long names.
-# sudo and doas are absent: their abbreviations are a declared gap.
+# The `ops` lists hold every operand-taking long name. The ones missing from a
+# launcher's `optarg` (sudo's `chroot`, `auth-type` and `login-class`, env's
+# `argv0`, `env0-from` and `quoting-style`) are stepped over by the plain walk
+# and taken only here (see the sudo row of the launcher table). doas is
+# absent: it has no long options.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
-  local name="$2" ops fls o nop=0 nfl=0
+  local name="$2" ops fls o nop=0
   [[ -n "$name" ]] || return 1
   case "$1" in
+  sudo)
+    ops="other-user auth-type close-from login-class chdir group host prompt chroot role command-timeout type user"
+    fls="background preserve-env edit set-home login remove-timestamp list preserve-groups shell validate askpass bell help reset-timestamp no-update non-interactive stdin version"
+    ;;
   env)
-    ops="unset chdir"
+    ops="unset chdir argv0 env0-from quoting-style"
     fls="ignore-environment null block-signal default-signal ignore-signal list-signal-handling debug help version"
+    ;;
+  setpriv)
+    ops="inh-caps ambient-caps ruid euid rgid egid reuid regid groups bounding-set securebits pdeathsig ptracer selinux-label apparmor-profile landlock-access landlock-rule list-landlock-rights seccomp-filter" # spellchecker:disable-line
+    fls="dump nnp no-new-privs list-caps clear-groups keep-groups init-groups landlock-support list-landlock-access help reset-env version"
+    ;;
+  prlimit)
+    ops="pid output"
+    fls="as core cpu data fsize locks memlock msgqueue nice nofile nproc rss rtprio rttime sigpending stack version help noheadings raw verbose"
+    ;;
+  systemd-run)
+    ops="host machine capsule unit property description slice expand-environment service-type uid gid nice working-directory root-directory setenv output json job-mode background path-property socket-property timer-property on-active on-boot on-startup on-unit-active on-unit-inactive on-calendar"
+    fls="help version no-ask-password user system scope slice-inherit no-block remain-after-exit wait send-sighup same-dir same-root-dir tty pty pty-late pipe quiet verbose collect shell ignore-failure no-pager on-timezone-change on-clock-change"
     ;;
   timeout)
     ops="signal kill-after"
@@ -863,9 +921,8 @@ rdt_long_takes_arg() {
   done
   for o in $fls; do
     [[ "$o" == "$name" ]] && return 1
-    [[ "$o" == "$name"* ]] && nfl=$((nfl + 1))
   done
-  ((nop > 0 && nfl == 0))
+  ((nop > 0))
 }
 
 # rdt_abbr is 1 inside a RESOLVED walk, where an abbreviated launcher long
@@ -1986,6 +2043,10 @@ rdt_check_segment() {
     # rather than the command (`timeout` takes a duration).
     consume_bare=0
     case "$base" in
+    # sudo's -R / --chroot, -a and -c take an operand too, and are absent on
+    # purpose: reading `sudo -R rm -rf /` as chroot `rm` would drop a refusal.
+    # The plain walk steps over them alone, and the resolved walk takes the
+    # operand (rdt_short_cluster_arg, rdt_long_takes_arg), so both are judged.
     sudo | doas) optarg=" -u --user -g --group -p --prompt -C --close-from -D --chdir -r --role -t --type -T --command-timeout -U --other-user -h --host " ;;
     # The util-linux launchers. Each operand list is read from the tool's own
     # getopt string; an option whose argument is OPTIONAL (nsenter's `-m`,
@@ -2011,30 +2072,65 @@ rdt_check_segment() {
       optarg=" --userspec --groups "
       consume_bare=1
       ;;
+    # setpriv's, prlimit's and systemd-run's getopt strings start with `+`, so
+    # the first non-option is the command. setpriv's operand-taking options are
+    # all long; prlimit's resource options (`--nofile=10`) take their limit
+    # only when attached, so only -p and -o consume a word.
+    setpriv) optarg=" --inh-caps --ambient-caps --ruid --euid --rgid --egid --reuid --regid --groups --bounding-set --securebits --pdeathsig --ptracer --selinux-label --apparmor-profile --landlock-access --landlock-rule --list-landlock-rights --seccomp-filter " ;; # spellchecker:disable-line
+    prlimit) optarg=" -p --pid -o --output " ;;
+    systemd-run) optarg=" -H --host -M --machine -C --capsule -u --unit -p --property --description --slice --expand-environment --service-type --uid --gid --nice --working-directory --root-directory -E --setenv --output --json --job-mode --background --path-property --socket-property --timer-property --on-active --on-boot --on-startup --on-unit-active --on-unit-inactive --on-calendar " ;;
+    # shadow's `sg [-|-l] group [[-c] command]` runs exactly one word through
+    # `sh -c`: the one after the group, or after a `-c` that has a word after
+    # it. Later words are ignored, so that one word is re-parsed like su's -c
+    # operand. `-` and `-l` start from the user's home, as `su -` does.
+    sg)
+      j=$((i + 1))
+      if ((j < n)) && [[ "${words[j]}" == - || "${words[j]}" == -l ]]; then
+        ((RDT_ARM)) && rdt_cd_unknown=1
+        j=$((j + 1))
+      fi
+      ((j < n)) && [[ "${words[j]}" != -* ]] || return 0
+      j=$((j + 1))
+      ((j + 1 < n)) && [[ "${words[j]}" == -c ]] && j=$((j + 1))
+      ((j < n)) && hook::bash_parse_segments "${words[j]}" rdt_check_segment
+      return 0
+      ;;
     # runuser has two grammars and both are judged, blocking if either does:
     # every -c / --command / --session-command operand is a command, and with
     # -u its non-option words are the command. Without -u the first non-option
     # is the user and the rest go to the shell, so they get su's scan. The
     # remapped provenance is saved first, because each parse rebuilds it.
+    # Both getopt readings are judged (see rdt_runuser_argv), the second only
+    # when it differs from the first.
     runuser)
       ((RDT_ARM)) && rdt_note_login ${words[@]+"${words[@]:i+1}"}
-      rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
-      local -a ru_cmds=() ru_argv=() ru_quoted=()
-      local ru_u="$RDT_RU_U" ru_cmd
-      ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
-      ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
-      ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
-      rdt_su_shell_run
-      for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
-        hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+      local -a ru_cmds=() ru_argv=() ru_quoted=() ru_q0=()
+      local ru_u ru_cmd ru_posix ru_key ru_seen=""
+      ru_q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+      for ru_posix in 0 1; do
+        HOOK_SEG_WORD_QUOTED=(${ru_q0[@]+"${ru_q0[@]}"})
+        RDT_RU_POSIX=$ru_posix
+        rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+        RDT_RU_POSIX=0
+        rdt_ru_key_to ru_key
+        [[ "$ru_key" == "$ru_seen" ]] && break
+        ru_seen=$ru_key
+        ru_u="$RDT_RU_U"
+        ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
+        ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
+        ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
+        rdt_su_shell_run
+        for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
+          hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+        done
+        if ((ru_u)); then
+          HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
+          ((${#ru_argv[@]})) && rdt_check_segment "${ru_argv[@]}"
+        elif ((${#ru_argv[@]} > 1)); then
+          HOOK_SEG_WORD_QUOTED=()
+          rdt_check_segment su "${ru_argv[@]:1}"
+        fi
       done
-      if ((ru_u)); then
-        HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
-        ((${#ru_argv[@]})) && rdt_check_segment "${ru_argv[@]}"
-      elif ((${#ru_argv[@]} > 1)); then
-        HOOK_SEG_WORD_QUOTED=()
-        rdt_check_segment su "${ru_argv[@]:1}"
-      fi
       return 0
       ;;
     # `-S` / `--split-string` is absent on purpose: it is not an opaque option
@@ -2123,6 +2219,28 @@ rdt_check_segment() {
             rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
               ${words[@]+"${words[@]:i+1}"}
             return 0
+            ;;
+          --s*)
+            # No other env long option starts with `s`, so every prefix is
+            # --split-string (`env --spl='rm -rf /'`). The split is judged as
+            # an extra reading and the plain walk goes on, so reading the
+            # prefix can only add refusals.
+            sval="${w#--}"
+            if [[ "split-string" == "${sval%%=*}"* ]]; then
+              local -a env_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+              if [[ "$w" == *=* ]]; then
+                hook::env_s_split "${w#*=}"
+                HOOK_SEG_WORD_QUOTED=()
+                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+                  ${words[@]+"${words[@]:i+1}"}
+              elif ((i + 1 < n)); then
+                hook::env_s_split "${words[i + 1]}"
+                HOOK_SEG_WORD_QUOTED=()
+                rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+                  ${words[@]+"${words[@]:i+2}"}
+              fi
+              HOOK_SEG_WORD_QUOTED=(${env_q[@]+"${env_q[@]}"})
+            fi
             ;;
           *) ;;
           esac
@@ -2225,9 +2343,17 @@ rdt_check_segment() {
   # so parsing every candidate is what keeps both readings covered.
   if [[ "$base" == "su" ]]; then
     local k
-    local sulong
+    local sulong su_key su_q0=()
+    su_q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
     rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+    rdt_ru_key_to su_key
     rdt_su_shell_run
+    HOOK_SEG_WORD_QUOTED=(${su_q0[@]+"${su_q0[@]}"})
+    RDT_RU_POSIX=1
+    rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+    RDT_RU_POSIX=0
+    rdt_ru_key_to sulong
+    [[ "$sulong" != "$su_key" ]] && rdt_su_shell_run
     for ((k = i + 1; k < n; k++)); do
       case "${words[k]}" in
       --?*)

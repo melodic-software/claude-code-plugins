@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.6] - 2026-09-27
+
+### Fixed
+
+- **`block-root-delete-target` unwraps `sg`, `setpriv`, `prlimit` and `systemd-run`, and reads more launcher spellings** ([#4685](https://github.com/melodic-software/claude-code-plugins/issues/4685)). Each row below was a recursive delete of `/` that exited 0, and each now exits 2 with or without a payload `cwd`:
+  - `sg root -c 'rm -rf /'` and `sg root 'rm -rf /'`. sg runs the one word after the group (or after `-c`) through `sh -c`, so that word is re-parsed like `su -c`'s. `sg root rm -rf /` runs `rm` alone and stays allowed. `sg -` starts from the user's home, like `su -`.
+  - `setpriv --reuid=0 rm -rf /`, `prlimit --nofile=10 rm -rf /` and `systemd-run rm -rf /`. Their own options are stepped over, and the ones that take an operand take it. prlimit's resource limits bind only when attached (`--nofile=10`), so `prlimit -n rm -rf /` is read as `rm -rf /`.
+  - `env --spl='rm -rf /'`. Every prefix of `--split-string` is split and judged, and the plain reading still runs. `env -a` / `--argv0`, `--env0-from` and `--quoting-style` are judged as taking their operand too.
+  - `nsenter --t 1 rm -rf /*`. An ambiguous long-option prefix is now judged as taking an operand when any candidate takes one, in addition to the plain reading. The real launcher rejects an ambiguous prefix outright.
+  - `POSIXLY_CORRECT=1 su -s env x su -s env x rm -rf /`. su's and runuser's argv are also read the way getopt reads them under `POSIXLY_CORRECT`, which a command can inherit without showing it: options end at the first non-option, so a later `-s env` is an argument.
+  - `sudo -R /mnt rm -rf /`, `sudo --chroot /mnt rm -rf /`, `sudo -Eu bob rm -rf /` and `sudo --us bob rm -rf /`. These were declared gaps. Each is now judged both as a flag and as taking the next word, and blocks if either reading does, so `sudo -R rm -rf /` stays refused. sudo's `-a` and `-c` are read the same way.
+
+  `sg root -c 'ls /'`, `setpriv --reuid=0 ls`, `prlimit --nofile=10 ls` and `systemd-run ls` stay allowed. Replaying the 989 Bash commands the guard suites send, plus these rows, through `main` and this version (without and with a git-checkout `cwd`) found no command `main` refuses that this version allows. The new launchers go through the same depth, reading and deadline budgets. A relative operand under `systemd-run` is still judged from the payload `cwd`, although a service unit runs from `/` unless `--scope`, `-d` or `--working-directory` says otherwise.
+
 ## [0.37.2] - 2026-09-27
 
 ### Changed
