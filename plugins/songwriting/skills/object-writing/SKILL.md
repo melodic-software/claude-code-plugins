@@ -38,7 +38,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when producing lines) before output.
+- **Pre-flight:** run response-filter §7 (+ §2 when producing lines) before output.
 - If the user asks for a prompt, generate one usable timed exercise immediately (default
   90 seconds). Do not assign the full curriculum unless asked. That is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not

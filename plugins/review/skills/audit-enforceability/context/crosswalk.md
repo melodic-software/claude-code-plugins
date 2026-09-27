@@ -62,9 +62,9 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `claude-config/audit-instructions/rule-description-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
 | `claude-config/audit-instructions/rule-sibling-restatement` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
 | `docs-hygiene/audit-noise/rule-negation-without-positive` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `docs-hygiene:audit-noise` detector | the shape is matched by the producing scanner, so the rung is a configuration decision about that scanner |
-| `provenance/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `provenance:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
-| `provenance/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `provenance:audit` detector | expiry is a date comparison the producing script performs |
-| `provenance/audit/rule-trigger-less-stamp` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `provenance:audit` detector | a missing recheck trigger is a structural absence the producing script observes |
+| `attribution/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
+| `attribution/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | expiry is a date comparison the producing script performs |
+| `attribution/audit/rule-trigger-less-stamp` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | a missing recheck trigger is a structural absence the producing script observes |
 
 ### Rule-family rows (prefix match on `<plugin>/<skill>/`)
 
@@ -78,7 +78,7 @@ class instead of falling through to prose.
 | `ai-slop/audit/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `ai-slop:audit` detector | the producing detector is the deterministic check for the whole family |
 | `claude-config/audit-instructions/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `claude-config:audit-instructions` detector | as above |
 | `docs-hygiene/audit-noise/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `docs-hygiene:audit-noise` detector | as above |
-| `provenance/audit/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `provenance:audit` detector | as above |
+| `attribution/audit/` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | as above |
 
 ### Dimension rows (the `## By dimension` heading a row sat under)
 
@@ -99,9 +99,9 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
 - **Basis.** The detector-findings contract, read at
   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>,
   cross-checked against each producer's own emitter script for the ids it constructs at run time.
-  The `provenance:audit` producer holds crosswalk rows in that contract without an adopters-table
+  The `attribution:audit` producer holds crosswalk rows in that contract without an adopters-table
   row, which is why its ids appear here and its adoption status does not.
-- **As of.** 2026-09-06.
+- **As of.** 2026-09-27.
 - **Recheck trigger.** A new producer row lands in that contract's crosswalk, or an existing
   producer's emitter starts constructing an id this table does not list. Either shows up as a
   finding whose id reaches the rule-family step instead of the rule-id step.

@@ -199,6 +199,20 @@
         "Does not run -ConfirmRefresh or -Finish before the user's explicit yes",
         "Does not pass an acknowledgement the user did not type in this conversation"
       ]
+    },
+    {
+      "id": 16,
+      "name": "apply-stops-on-32-bit-exe",
+      "prompt": "/gaming:dlss5 apply D:\\SteamLibrary\\steamapps\\common\\Alien Isolation - put DLSS 5 on Alien: Isolation.",
+      "expected_output": "Runs assess first; AI.exe is a PE32 x86 image (machine 0x14C), so bitness is 32-bit and the verdict is not-a-candidate. Tells the user plainly that the game is 32-bit and NVIDIA ships no 32-bit NGX, so the mod cannot load in it, and that an upscaler mod does not change this. Stops before any confirmation or apply, and offers no flag to skip the verdict.",
+      "files": [],
+      "expectations": [
+        "Runs assess before any apply",
+        "Stops on the not-a-candidate verdict and does not run -Verb apply",
+        "Says the game's exe is 32-bit and the mod needs a 64-bit game",
+        "Does not suggest an upscaler mod as a way past the 32-bit refusal",
+        "Does not offer -Force or any other flag as a way past the verdict"
+      ]
     }
   ]
 }

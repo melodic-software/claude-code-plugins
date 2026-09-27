@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.35] - 2026-09-27
+
+### Fixed
+
+- `audit` on Windows Git Bash prints the `Action plan:` path and the `Apply dry-run:` plan argument
+  as a native `C:/...` path through `cygpath -m`. It printed the MSYS `/tmp/...` form, which
+  PowerShell, editors, and `/repo-fleet-hygiene:apply` in a PowerShell tool cannot open. Without
+  `cygpath`, and on every other host, the path prints unchanged.
+
+## [0.23.34] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` walks UTF-8 byte-wise (RFC 3629) instead of the 0.23.33 regex
+  allowlist, so LRM/RLM (U+200E/U+200F) and ALM (U+061C) from Unicode `Bidi_Control` escape
+  too. bash 3.2 signed-byte `printf '%d' "'c"` is corrected. Em dashes and other printable
+  UTF-8 still render raw.
+
 ## [0.23.33] - 2026-09-27
 
 ### Fixed
