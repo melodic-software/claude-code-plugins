@@ -381,10 +381,16 @@ phase verifiers as the `implementation` plugin's `implementer` /
 `phase-verifier` agents, whose `model` frontmatter binds the strong tier's
 current alias, so a `sonnet` worker-lane root no longer makes every
 implementer `sonnet`, and `/work-items:work`'s branch-owned fix
-re-dispatches ride the same agent surface. Resolution order is:
-`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter,
-then frontmatter, then the main conversation's model
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27).
+re-dispatches ride the same agent surface. Resolution order is: the
+per-invocation `model` parameter, then frontmatter (`inherit` selects the
+main conversation's model), then `CLAUDE_CODE_SUBAGENT_MODEL` when set to an
+alias or model ID, then the main conversation's model. Setting
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` replaces that order: every subagent runs on
+`CLAUDE_CODE_SUBAGENT_MODEL`, or on the main conversation's model when only
+`_FORCE` is set, and definitions' `model` and per-invocation `model` are
+both ignored
+(<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+2026-09-27).
 
 Two consequences of that order:
 
@@ -397,10 +403,15 @@ Two consequences of that order:
   `opus` binding for CI fixes, review-comment work, and judgment calls:
   babysit dispatches do not route through `implement-dispatch`, so no
   agent frontmatter covers them.
-- **Never export `CLAUDE_CODE_SUBAGENT_MODEL` for a lane** (any value other
-  than `inherit`, which resolution treats as unset). It outranks the
-  frontmatter bindings and every deliberate per-dispatch override alike,
-  flattening the fast and frontier tiers onto one model.
+- **Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` for a lane.** It overrides
+  the frontmatter bindings and every deliberate per-dispatch override alike,
+  flattening the fast and frontier tiers onto one model, and with
+  `CLAUDE_CODE_SUBAGENT_MODEL` unset (or set to `inherit`, which counts as
+  unset) that model is the lane root's.
+  `CLAUDE_CODE_SUBAGENT_MODEL` alone only fills in where neither a
+  per-dispatch `model` nor frontmatter names one, so it does not flatten the
+  bindings; still leave it unset, since a dispatch that omits both should
+  land on the lane root's model, not on a tier chosen elsewhere.
 
 ```bash
 claude --model sonnet   # worker lane
@@ -509,9 +520,14 @@ No shared state, no contention, and the sharding problem disappears.
 > only for the exceptions the agent frontmatter does not carry: `fable` for conflict
 > resolution and any security-surface work class, unconditionally; `opus`
 > for a judgment-call dispatch that does not ride the implementer surface;
-> `haiku` only for mechanical greps and log pulls. Never export
-> `CLAUDE_CODE_SUBAGENT_MODEL`. It silently outranks the bindings and
-> every deliberate override alike.
+> `haiku` only for mechanical greps and log pulls. Never set
+> `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`: it silently overrides the bindings and
+> every deliberate override alike, and with `CLAUDE_CODE_SUBAGENT_MODEL`
+> unset it puts every subagent on your own model. Leave
+> `CLAUDE_CODE_SUBAGENT_MODEL` unset too; it only fills in where no binding
+> or override names a model
+> (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
+> 2026-09-27).
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes

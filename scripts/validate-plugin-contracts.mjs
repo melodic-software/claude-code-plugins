@@ -985,23 +985,39 @@ for (const path of pluginFiles) {
 // then the main conversation's model, so an omitted field lands on the
 // orchestrator's model wherever the variable is unset. `inherit` picks that
 // model on purpose and outranks the variable, so it must carry a stated reason
-// on its own line. Basis: https://code.claude.com/docs/en/subagents
-// Scope: plugins/<plugin>/agents/*.md only. No plugin declares a custom
-// `agents` path in plugin.json, so that directory is every agent definition.
+// on the same line. Basis: https://code.claude.com/docs/en/sub-agents#choose-a-model
+// Scope: every .md under plugins/<plugin>/agents/, nested directories included,
+// because plugin agents/ directories are scanned recursively. No plugin declares
+// a custom `agents` path in plugin.json, so that tree is every agent definition.
+// The value must be one plain single-line scalar: a YAML null, a block scalar,
+// a duplicate key, or a comment not set off by whitespace could hide `inherit`.
 const agentDefinitions = pluginFiles.filter((path) => {
   const parts = pluginPathParts(path);
-  return parts.length === 3 && parts[1] === "agents" && parts[2].endsWith(".md");
+  return parts.length >= 3 && parts[1] === "agents" && path.endsWith(".md");
 });
 for (const path of agentDefinitions) {
   const lines = read(path).replace(/^﻿/, "").split(/\r?\n/);
   const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
   const frontmatter = close === -1 ? [] : lines.slice(1, close);
-  const match = frontmatter
-    .map((line) => /^model:[ \t]*(?:"([^"]*)"|'([^']*)'|([^\s#]+))?(.*)$/.exec(line))
-    .find(Boolean);
-  const value = match ? (match[1] ?? match[2] ?? match[3] ?? "") : "";
-  const comment = match?.[4] ?? "";
-  if (!value) {
+  const modelLines = frontmatter.filter((line) => line.startsWith("model:"));
+  if (modelLines.length > 1) {
+    fail(path, "model: appears more than once in frontmatter; keep one model line");
+    continue;
+  }
+  const rest = modelLines[0]?.slice("model:".length) ?? "";
+  const [, dq, sq, bare, comment = ""] =
+    /^[ \t]*(?:"([^"]*)"|'([^']*)'|(\S+))?(.*)$/.exec(rest);
+  const value = dq ?? sq ?? bare ?? "";
+  const malformed =
+    (rest !== "" && !/^[ \t]/.test(rest)) ||
+    (bare !== undefined && /^[|>"'[\]{}&*!%@`]|#/.test(bare)) ||
+    !/^(?:\s*|\s+#.*)$/.test(comment);
+  if (malformed) {
+    fail(
+      path,
+      "model: line is malformed; write `model: <value>` on one line, with whitespace after the colon and before any # comment",
+    );
+  } else if (!value || (bare !== undefined && /^(?:null|~)$/i.test(bare))) {
     fail(path, "agent definitions must name a model in frontmatter (model: <alias or id>)");
   } else if (value.toLowerCase() === "inherit" && !/#\s*reason:\s*\S/.test(comment)) {
     fail(path, "model: inherit needs a trailing `# reason: <why>` comment on the same line");

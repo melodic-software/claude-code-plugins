@@ -77,13 +77,17 @@ Dispatch rules:
    orchestrator's work, not the writers'. The pin is not the fleet tier: every call still names
    the fleet default below explicitly. A subagent's model resolves in this order: the per-call
    `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's
-   model. Stop to ask before spawning if `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on and
-   `CLAUDE_CODE_SUBAGENT_MODEL` names a tier above the fleet default (`_FORCE` ignores both the
-   per-call `model` and the frontmatter).
+   model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` ignores both the per-call `model` and the
+   frontmatter. Stop to ask before spawning when it is on and either `CLAUDE_CODE_SUBAGENT_MODEL`
+   names a tier above the fleet default, or `CLAUDE_CODE_SUBAGENT_MODEL` is unset (or set to
+   `inherit`, which counts as unset), which runs
+   every subagent on the session's model and so puts the fleet on the orchestrator's tier.
 
    *Record.* Claim: the resolution order above, and that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
-   overrides it. Basis: <https://code.claude.com/docs/en/subagents>. Verified 2026-09-27.
-   Recheck: the page changes the order, or a release note names subagent model resolution.
+   overrides it, onto `CLAUDE_CODE_SUBAGENT_MODEL` when that is set and onto the session's model
+   when it is not. Basis: <https://code.claude.com/docs/en/sub-agents#choose-a-model>. Verified
+   2026-09-27. Recheck: the page changes the order or the `_FORCE` behavior, or a release note
+   names subagent model resolution.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Resolve it from the consuming project's own

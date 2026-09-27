@@ -848,6 +848,8 @@ rm -rf "$TMP/.git"
 
 A_NO_MODEL='agent definitions must name a model'
 A_BARE_INHERIT='model: inherit needs a trailing'
+A_DUPLICATE='model: appears more than once'
+A_MALFORMED='model: line is malformed'
 
 # make_agent <plugin> <name> <frontmatter-model-line-or-empty> -- an empty
 # third argument writes no model line at all.
@@ -874,7 +876,8 @@ agent_fail_line() {
 
 # agent_any_fail <name> -- any model failure line for that agent file.
 agent_any_fail() {
-  agent_fail_line "$1" "$A_NO_MODEL" || agent_fail_line "$1" "$A_BARE_INHERIT"
+  agent_fail_line "$1" "$A_NO_MODEL" || agent_fail_line "$1" "$A_BARE_INHERIT" ||
+    agent_fail_line "$1" "$A_DUPLICATE" || agent_fail_line "$1" "$A_MALFORMED"
 }
 
 reset_fixture
@@ -904,6 +907,17 @@ make_agent alpha capital-inherit 'model: Inherit'
 make_agent alpha prefixed-key 'modelFoo: x'
 make_agent alpha nested-model $'metadata:\n  model: opus'
 make_agent alpha hash-in-quotes 'model: "a#b"'
+make_agent alpha spaced-comment 'model: opus  # the reviewer tier'
+mkdir -p "$TMP/plugins/alpha/agents/review"
+make_agent alpha review/nested-no-model ''
+make_agent alpha block-literal $'model: |-\n  inherit'
+make_agent alpha block-folded $'model: >\n  inherit'
+make_agent alpha null-word 'model: null'
+make_agent alpha null-tilde 'model: ~'
+make_agent alpha null-capital 'model: Null'
+make_agent alpha duplicate-model $'model: opus\nmodel: inherit'
+make_agent alpha no-space-colon 'model:opus'
+make_agent alpha glued-hash 'model: inherit#reason: x'
 {
   printf '\xEF\xBB\xBF'
   echo '---'
@@ -992,6 +1006,52 @@ if agent_any_fail hash-in-quotes; then
   fail "a quoted model value containing # should pass: $out"
 else
   ok "a quoted model value containing # is kept whole and passes"
+fi
+
+if agent_any_fail spaced-comment; then
+  fail "a model value followed by whitespace and a # comment should pass: $out"
+else
+  ok "a model value followed by whitespace and a # comment passes"
+fi
+
+if agent_fail_line 'review[/\\]nested-no-model' "$A_NO_MODEL"; then
+  ok "an agent nested under agents/<dir>/ with no model line fails the gate"
+else
+  fail "a nested agent with no model line should fail: $out"
+fi
+
+for name in block-literal block-folded; do
+  if agent_fail_line "$name" "$A_MALFORMED"; then
+    ok "a block-scalar model value ($name) fails as malformed"
+  else
+    fail "a block-scalar model value ($name) should fail as malformed: $out"
+  fi
+done
+
+for name in null-word null-tilde null-capital; do
+  if agent_fail_line "$name" "$A_NO_MODEL"; then
+    ok "a YAML null model value ($name) fails as missing"
+  else
+    fail "a YAML null model value ($name) should fail as missing: $out"
+  fi
+done
+
+if agent_fail_line duplicate-model "$A_DUPLICATE"; then
+  ok "two model: keys in one frontmatter fail as a duplicate"
+else
+  fail "duplicate model: keys should fail: $out"
+fi
+
+if agent_fail_line no-space-colon "$A_MALFORMED"; then
+  ok "model:opus with no whitespace after the colon fails as malformed"
+else
+  fail "model:opus should fail as malformed: $out"
+fi
+
+if agent_fail_line glued-hash "$A_MALFORMED"; then
+  ok "model: inherit#reason: x with no whitespace before # fails as malformed"
+else
+  fail "a # glued to the value should fail as malformed: $out"
 fi
 
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------

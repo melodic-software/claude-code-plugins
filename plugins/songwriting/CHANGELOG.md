@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.33] - 2026-09-27
+
+### Fixed
+
+- `object-writing` rule 6 now also stops to ask when only `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, since that runs every subagent on the session's model and puts the fleet on the orchestrator's tier.
+
 ## [1.4.32] - 2026-09-27
 
 ### Fixed
