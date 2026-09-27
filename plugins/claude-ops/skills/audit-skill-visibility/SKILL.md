@@ -22,11 +22,14 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
 are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
 of the skills it ships. `skillOverrides` governs non-plugin skills, which this
-audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
+audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-27 against
 <https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
-`skillOverrides`") and Claude Code 2.1.263, whose listing resolver returns `on`
-for every plugin-sourced skill before it reads the override map; recheck when
-that section changes.
+`skillOverrides`. Manage those through `/plugin` instead.") and Claude Code 2.1.283,
+whose listing resolver returns `on` for every plugin-sourced skill before it reads the
+override map; recheck when that section changes or a release note says plugin skills
+honor `skillOverrides`. A `skillOverrides` entry already in an operator's settings
+that names a plugin skill therefore never takes effect; `claude-config:audit`
+reports those entries.
 
 Claude Code budgets the model-visible skill listing in characters, at
 `window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,
