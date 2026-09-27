@@ -1950,6 +1950,38 @@ else
   failures=$((failures + 1))
 fi
 
+# Printable UTF-8 renders as itself; controls, C1 controls, line separators, bidi overrides, and
+# malformed bytes are still one %q field (#4208). The caller's locale must not change the answer.
+display_probe_script="$TMP/display-probe.sh"
+cat >"$display_probe_script" <<'EOF'
+. "$1"
+eval "$(sed -n "/^repo_kind_counts_text()/,/^}/p" "$1")"
+F_KIND=(merged-branch)
+F_REPO_IDX=(1)
+print_field Branch "feature/café-über"
+print_field Target "/tmp/Ångström/日本語/😀"
+print_field "Kind counts" "$(repo_kind_counts_text 0)"
+for bad in $'a\nFinding: forged' $'a\033[31m' $'a\xc2\x9b[31m' $'a\xc2\x85b' $'a\xe2\x80\xa8b' \
+  $'a\xe2\x80\xaeb' $'a\xe2\x81\xa6b' $'a\x9bb' $'caf\xc3' $'a\xed\xa0\x80'; do
+  print_field Bad "$bad"
+done
+EOF
+for display_locale in C C.UTF-8; do
+  display_probe="$(LC_ALL="$display_locale" bash "$display_probe_script" "$SCRIPT" 2>/dev/null)"
+  display_readable="$(printf '%s\n' "$display_probe" | sed -n 1,3p)"
+  display_bad_total="$(printf '%s\n' "$display_probe" | grep -c '^Bad: ')"
+  display_bad_escaped="$(printf '%s\n' "$display_probe" | grep -c "^Bad: \\$'")"
+  display_lines="$(printf '%s\n' "$display_probe" | wc -l | tr -d ' ')"
+  if [[ "$display_readable" == $'Branch: feature/café-über\nTarget: /tmp/Ångström/日本語/😀\nKind counts: none' &&
+    "$display_bad_total" -eq 10 && "$display_bad_escaped" -eq 10 && "$display_lines" -eq 13 ]]; then
+    printf 'PASS: display_value keeps printable UTF-8 readable and escapes controls (LC_ALL=%s)\n' \
+      "$display_locale"
+  else
+    printf 'FAIL: display_value under LC_ALL=%s rendered:\n%s\n' "$display_locale" "$display_probe" >&2
+    failures=$((failures + 1))
+  fi
+done
+
 # Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence. Sourcing brings the
 # finding registry and both action predicates in; repo_verdict itself sits past the source guard,
 # so it is still extracted.
