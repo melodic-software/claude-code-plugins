@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.9] - 2026-09-27
+
+### Changed
+
+- `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+
 ## [0.62.8] - 2026-09-28
 
 ### Changed

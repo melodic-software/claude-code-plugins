@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1] - 2026-09-27
+
+### Fixed
+
+- `quality-gate`'s `self` and `downstream` dispatch policies say "must not" instead of "MUST NOT". The producing main thread still never runs the checklist or the downstream steps inline, for the reason each line already gives (#4120).
+
 ## [0.33.0] - 2026-09-28
 
 ### Security

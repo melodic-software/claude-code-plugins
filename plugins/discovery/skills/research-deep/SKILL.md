@@ -1,131 +1,251 @@
----
-description: "Dispatch deep external research to the heaviest isolated execution tier available. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'. For a single small lookup use the research skill directly, which already dispatches its own subagent."
-argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
-user-invocable: true
-disable-model-invocation: false
-metadata:
-  workflow-stage: research
-  summary: Dispatch deep multi-topic research to the heaviest isolated tier
----
+# Native references: presence-gated phrasing for Claude Code's own surfaces
 
-## Repository context. Gather first
+Owner doc for **how a component in this marketplace refers to a native Claude Code surface**,
+whether a built-in CLI command, a bundled skill, a plugin-backed built-in, or a session-provided
+skill, when that surface materially overlaps what the component does. One shape: a read-time
+presence gate that routes, never an assertion that the native thing is there.
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+The problem this closes is specific. A marketplace skill and a native surface can do overlapping
+work, and the model picks between them from descriptions alone. Silence produces duplication; a
+static claim ("Claude Code ships `/doctor`, so use that") produces a false statement in every
+session where the surface is gated off. Both failures are avoided by the same sentence shape.
 
-- Current branch, `git branch --show-current`
+## Boundary
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+This doc owns the phrasing of references **to native surfaces**. It does not own:
 
-## Purpose
+- **Cross-plugin references.** [`seam-phrasing`](../seam-phrasing/README.md) owns the
+  gate + fallback + ownership-framing shape for optional references to *another plugin's* skill.
+  Its three elements are the template this doc specializes; a native surface is not a plugin, which
+  is why the specialization needs its own owner rather than a clause in that doc.
+- **Whether a reference should exist at all.** That is a verdict, and verdicts live in the
+  committed overlap store rendered into [`docs/native-surfaces.md`](../../native-surfaces.md).
+  This doc governs the words once a verdict says a reference is warranted.
+- **The stamp discipline on any upstream fact a reference restates.**
+  [`upstream-drift`](../upstream-drift/README.md) owns the four-part record (claim, basis, as-of
+  date, recheck trigger) and the observability bar its triggers must clear.
+- **Instruction economy.** [`plugin-philosophy`](../../plugin-philosophy.md) owns the rule that
+  every always-loaded description is a per-session tax. This doc keeps the phrase to one clause
+  because of that rule; it does not restate it.
 
-`/discovery:research-deep` is the **dispatcher** for deep external research, a depth/execution variant of the sibling `/discovery:research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
+## Why a gate, and never an assertion
 
-This skill runs **inline (main context)**. It dispatches; the chosen tier provides the context isolation. It must run in main context because that is the only place both of its requirements hold, the `Workflow` tool, absent from every non-fork subagent, and a dependable `Agent` spawn, which no subagent is guaranteed to hold: see the *Dispatching this skill itself* gotcha. The dated record for the tool-filter behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on".
+Native availability varies along at least four independent axes, so any static availability
+sentence is wrong somewhere by construction:
 
-## Topic
+| Axis | Mechanism |
+|---|---|
+| Settings / environment | `disableBundledSkills` and `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` remove bundled skills and workflows; `skillOverrides` maps a name to `on` / `name-only` / `user-invocable-only` / `off`; `DISABLE_DOCTOR_COMMAND` hides `/doctor` specifically |
+| Plan | Some surfaces require a paid or specific plan tier |
+| Platform / provider | Some surfaces are absent on some OSes, and several are unavailable on non-first-party model providers |
+| Host surface | CLI, web/cloud, VS Code, and mobile expose different rosters; terminal-interface commands do not exist in a web session, and a cloud session carries session-provided skills a local CLI does not |
 
-$ARGUMENTS
+Claim, basis, and trigger for that table, per [`upstream-drift`](../upstream-drift/README.md):
+the four axes are documented on `https://code.claude.com/docs/en/settings-reference.md`
+(`disableBundledSkills`, `skillOverrides`), `https://code.claude.com/docs/en/env-vars.md`,
+`https://code.claude.com/docs/en/commands.md` ("Not every command appears for every user.
+Availability depends on your platform, plan, and environment."), and
+`https://code.claude.com/docs/en/cloud-environments.md`; verified 2026-08-23; **recheck trigger**:
+a Claude Code release note or docs change adds, removes, or renames a gating axis, or a
+`skillOverrides` state leaves the four-value set.
 
-If no topic was provided, infer it from the current conversation. Identify the technical claim, decision, or implementation being worked on and research that.
+The consequence is the rule: **a component never states that a native surface is present, absent,
+enabled, or unavailable.** It states what to do *if the surface resolves in the session*, and the
+model reads its own listing to decide.
 
-**Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, and this skill carries the highest exposure of the three because a corrupted topic here is copied into every envelope of an N-way fan-out. What was observed, what is documented, what is not, and the per-topic echo-back check: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question").
+## The description phrase
 
-## Dispatch decision (multi-topic check, then three tiers)
-
-**Multi-topic check. Run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). N ≥ 2 separable topics → do not dispatch an engine on the combined blob. An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly. N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel `discovery:researcher` agents** (Agent tool, one per topic), each dispatched with the full envelope below. **Cap N at roughly a dozen**. Past that, narrow the ask with the user before dispatching. **Give each agent its own sub-slice**. `<memory_dir>/<slug>/<topic-slug>/`, assigned by this session in the dispatch envelope, never chosen by the worker (two workers choosing independently can choose the same one); the memory root travels as its own envelope field, since a worker handed a nested sub-slice path cannot tell from that path alone which ancestor is the configured root. Each writes the normal `RESEARCH.md` index, its sidecars, and its own `research-checklist.md` inside that sub-slice; those filenames are fixed, so N agents pointed at one slice root would overwrite one another's index and ledger rather than producing separable artifacts. **This session owns each topic's post-dispatch boundary. Synthesis is the last step, not the only one.** Close "The post-dispatch boundary" below for **each** topic, then synthesize the slice-root `RESEARCH.md` from the per-topic indexes. Skipping it produces the worst available artifact: a root `RESEARCH.md` presenting claims as gate-passed when the rows that matter were never graded by anyone. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking. Gaps that share claims stay in one topic here; the researcher fans them out inside its own Phase 2 (research discipline, "Per-gap fan-out (Phase 2)").
-
-For a single-topic ask, pick the tier by the task's breadth as the table defines it: a heavy or broad task goes to the workflow engine or, without one, to the isolated subagent; a clearly small task runs inline. Treat an unknown scope as heavy.
-
-| Tier | Condition | Execution |
-|---|---|---|
-| 1. Workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (a built-in deep-research workflow, or one the consuming project ships) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
-| 2. Isolated subagent | No workflow path AND the task is heavy | Dispatch the purpose-built `discovery:researcher` agent with a resolved envelope |
-| 3. Inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Invoke `/discovery:research` via the Skill tool, inline in this session |
-
-- **Heavy/broad** = multi-source, multi-vendor, comparison/migration, unfamiliar domain, or research that would flood main context with 9+ external queries.
-- **Clearly small** = a single verifiable fact from one obvious source. Even here the full `/discovery:research` discipline applies. Task size never reduces depth.
-- **Multi-topic parallel agents** = each topic agent still runs the FULL `/discovery:research` discipline (3 phases, source tiers, falsification), the split changes orchestration, never depth.
-
-### The dispatch envelope. Every `discovery:researcher` spawn carries it
-
-Both paths that spawn a worker, the N-topic fan-out and Tier 2, spawn the same agent with the same envelope, resolved in this session because the agent cannot resolve any of it once started. It refuses to guess, and halts on an absent or ambiguous topic, reason, or slice path.
+The routing-effective surface is the frontmatter `description`, because descriptions load into
+model context by default while bodies load only on invocation. One clause, front-loaded, matching
+this grammar:
 
 ```text
-Agent({
-  subagent_type: "discovery:researcher",
-  description: "Deep research: <topic>",
-  prompt: "Topic: <the resolved research topic>
-           Reason: <the decision this research feeds, and who the output is for — on the N-topic path, the slice of that decision THIS topic answers>
-           Memory slice: <memory_dir>/<slug>/ — on the N-topic path, the <topic-slug>/ sub-slice assigned to THIS topic
-           Memory root: <memory_dir>
-           Budget: <the depth this session authorized>
-           Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
-           Capability flags: nested spawning <available|unavailable>
-           Source breadth: <low|medium|high|xhigh|max, resolved from this session's caller effort; write high if the substitution is a literal placeholder>
-           Evidence use: <publish if the output will be quoted outside this session (a PR reply, an issue, a document for a third party), else internal>"
-})
+When the <class> <name> <surface-noun> resolves in this session, prefer it for <native's job>;
+this skill for <ours>.
 ```
 
-**Envelope fields only.** The agent arrives with `/discovery:research` preloaded and with its effort and turn budget already calibrated to that discipline, so the mandatory disciplines, the citation rule, the outcome gate, including the split that hands its verifier-owned rows to a fresh-context verifier rather than letting the producer grade them, and the shape of its return payload are all its own standing contract. Restating them in the prompt copies a contract that lives in the parent skill and drifts from it the moment that skill changes. One bound to know when filling `Budget`: the researcher's `maxTurns: 40` is fixed in its definition, so the budget field can narrow depth within that ceiling but never widen past it; a task that needs more belongs to Tier 1's workflow engine. `Turn budget:` is the same bound as a number: the turn by which the agent stops gathering and writes, at or below its default stop turn of 30. The agent ignores a higher value and notes it in `open_questions`, and when the line is absent it uses that default. The labels above are the plugin's one envelope template ([`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)); field-by-field rationale for the six shared fields plus `Source breadth` and `Evidence use`, `Memory root` included, is [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
+Four required parts:
 
-### Tier 1. Workflow engine (preferred)
+1. **The gate**: `resolves in this session`. This is the canonical, greppable token. It is a
+   read-time condition on the model's own listing, not a claim about the machine. It names the
+   session rather than the reader: a description is injected into the system prompt, and
+   Anthropic's
+   [skill-authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions)
+   say to always write it in the third person (verified 2026-09-28). `if installed`, `always available`, `Claude Code ships`, and `is built in`
+   are all wrong here: the first is the cross-plugin gate, the rest are assertions.
+2. **The provenance class**: `bundled`, `built-in`, `plugin-backed built-in`, or
+   `session-provided`, named in the sentence. The classes behave differently (different disable
+   switches, different rosters per host), and a reader who cannot tell which one they are looking
+   at cannot check the gate.
+3. **The routing split**: what the native surface is preferred *for*, and what this component is
+   preferred *for*. A gate with no split tells the model a thing exists without telling it when to
+   pick which, which is the duplication the reference exists to stop.
+4. **Self-containment**: the phrase carries its own meaning with no external lookup.
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first, a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination: `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do not re-run the research inline, and do not surface the return as-is, an engine is a producing context like any other, so close the post-dispatch boundary below first.
+Worked example, in the shipped shape:
 
-If no workflow engine resolves, fall through to Tier 2.
+```text
+When the bundled doctor skill resolves in this session, prefer it for the quick native
+health-and-fix pass; this skill for the deep read-only install-tree inventory.
+```
 
-### Tier 2. Isolated subagent fallback
+**Absent is not a fallback state.** Unlike a cross-plugin seam, there is nothing to degrade to: the
+component's own job is the fallback, and the split sentence already says what that job is. Do not
+write "otherwise this skill", which is noise the shared budget pays for.
 
-Dispatch ONE `discovery:researcher` with the envelope above. With a single worker the slice field is the topic's own `<memory_dir>/<slug>/`, a sub-slice is needed here only when that root already holds an unrelated `RESEARCH.md`, per the parent skill's one-writer-per-slice rule.
+### Budget caveat
 
-`discovery:researcher` rather than a `general-purpose` spawn carrying a hand-written description of the discipline: it is the plugin's purpose-built worker for exactly this run, arriving with `/discovery:research` already loaded and with its effort and turn budget calibrated to that discipline, so the run is disciplined and correctly provisioned at turn zero rather than to whatever depth a prompt managed to reproduce. Its tool list also covers what the work needs, which a read-only Explore agent's does not: Phase 3 reaches direct-fetch and MCP tools, and the artifact gets written.
+Descriptions are subject to two limits, and a baked phrase is the best available routing surface,
+not a guaranteed one:
 
-### Tier 3. Inline (clearly small task)
+- the combined `description` + `when_to_use` text is truncated at **1,536 characters** in the
+  listing by default (`skillListingMaxDescChars`); and
+- the listing as a whole is capped at a **share of the context window**
+  (`skillListingBudgetFraction`, default 1%). On overflow the listing keeps every skill *name* and
+  drops whole descriptions, starting with the least-invoked skills.
 
-Invoke `/discovery:research` via the Skill tool, inline in this session. No dispatched *research* tier, no workflow. The full `/discovery:research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
+Basis: `https://code.claude.com/docs/en/skills.md` (Frontmatter reference; Troubleshooting →
+"Skill descriptions are cut short") and `https://code.claude.com/docs/en/settings-reference.md`;
+verified 2026-08-23. **Recheck trigger**: a release or docs change moves the 1,536 default, the
+1% default, or the drop-order rule.
 
-### The post-dispatch boundary. Every dispatching tier owns it
+Two obligations follow. Keep the phrase to one clause, since it spends shared budget every session
+for every consumer. And where a fleet's listing plausibly overflows, the overlap store records a
+per-row *phrase may be budget-dropped* caveat, so nobody later reads a baked phrase as a guarantee
+that the model saw it.
 
-**A dispatched run is not finished when it returns.** No producing context, whether engine, isolated subagent, or topic worker, can complete the `/discovery:research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence, joint inference) or its parent-owned row (project fit). The verifier rows are assigned to a fresh context precisely because a producer may not grade its own choices; project fit needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself. Whether a non-fork subagent holds `Agent` depends on the harness's nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a session property this skill does not design against.
+### Open consideration: the bundled keep-set
 
-So for **every** dispatched run, one per topic on the N-topic path, once on Tier 1 and Tier 2, this session dispatches the sibling verifier against the artifact on disk, applies project fit, and writes both results back into that artifact's index **before** surfacing anything. Surfacing a producer's summary and artifact path directly presents claims as gate-passed when the rows that matter were never graded by anyone. A single-topic ask earns no weaker boundary than a multi-topic one, and an engine earns no weaker boundary than a subagent. On the N-topic path the synthesized root index also goes to a fresh verifier for criterion 12 before it is surfaced, per the research dispatch contract's fan-out section.
+A single-source, unconfirmed read of a shipped build suggests bundled entries may be exempt from
+budget dropping, which would make native/marketplace routing asymmetric under pressure. It is
+recorded here as an open consideration and **nothing in this convention builds on it**: no phrase,
+no verdict, and no registry row may cite it until a live probe confirms it. **Recheck trigger**:
+a live in-session probe confirms or refutes the exemption, or upstream documents the drop order at
+the source level.
 
-**Grade the run off disk before any of that.** Every obligation above acts on an artifact, so all of them are worthless against a dispatch that produced none, and `status: complete` is the producer's claim about its own run. The parent skill's **post-dispatch acceptance gate** is what turns that claim into evidence: create the slice and touch a `.research-dispatch` baseline BEFORE the dispatch. Both shell forms of that one command are in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), and the POSIX one does not run in PowerShell, then `scripts/check-dispatch-artifact.sh --index-name RESEARCH.md` against the slice path this session resolved (never one read out of the payload), then a parent-side regrade of the coverage ledger and of source applicability (`${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py` with `--expect-evidence-use` set to the envelope's value; a Tier 1 engine artifact without the header fields fails it by design, so route that topic to Tier 2). Cite exit statuses; any non-zero halts. **On the N-topic path run it against the sub-slice assigned to each topic, before synthesizing the slice-root index**, the gate grades exactly the path it is handed and never scans, so a sub-slice invocation grades that topic's run while a slice-root invocation would grade only the synthesized index, never any dispatched run. **That one baseline at the slice root serves every sub-slice**, the gate compares each sub-slice index's mtime against the file it is handed, and a baseline touched now is newer than anything an earlier run left anywhere under the slice, so a per-sub-slice baseline is optional, not owed.
+## The Boundary section
 
-Parent-side handling of a `discovery:researcher` return specifically, the gate's steps, the payload checks, and the four obligations stated in full, is the parent skill's contract rather than a second copy here: [`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md) for the gate's steps, and [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md) for the rationale and the recovery ladder.
+The Boundary section is the surface a verdict lands on. **A store row whose verdict is not `defer`
+and whose observation is extraction-evidence lands together with its `## Boundary` section in the
+component's body, in the same change.** A verdict that lives only in the store changes nothing the
+model reads: the registry is a maintainer surface and shipped plugins never carry it, so until the
+body says how the two surfaces relate, the overlap the row records is still silent at runtime.
+The section costs nothing the description phrase costs. Bodies load only on invocation, so a
+Boundary section spends no shared listing budget and changes no routing; the gate the phrase
+earns (below) has no reason to hold the section back.
 
-## Relationship to `/discovery:research` (parent skill)
+The section carries the conclusion: the surfaces by provenance class, the routing split, and the
+mutation gate. The four-part records behind it (the basis each upstream specific rests on, its
+as-of date, its recheck trigger, the extraction or docs evidence) live in a **reference file inside
+the same skill**, linked from the section with a same-plugin relative path, so the body stays short
+and the detail stays reachable. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
+and `/review:fanout` each carry one):
 
-This variant tracks `/discovery:research`'s conventions. Same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
+```markdown
+## Boundary, the bundled `<name>` skill
 
-## Gotchas
+<One sentence naming the surfaces and why they are conflated.>
 
-- **Feeding a multi-topic ask to an engine.** An engine decomposes ONE question into research
-  angles; given N separable topics, every broad agent researches all N shallowly. N× the cost for
-  worse depth. Run the multi-topic check FIRST, before any tier selection.
-- **Dispatching this skill itself.** It must run in main context: `Workflow` is unavailable in every
-  non-fork subagent, and **every** tier needs the `Agent` tool, the N-topic fan-out to spawn topic
-  workers, and all four paths to close the post-dispatch boundary, whose availability inside a
-  subagent depends on the session's nesting allowance, and which, inside a fork, cannot
-  spawn a further fork at all. A dispatched `/discovery:research-deep` therefore risks silently losing Tier 1,
-  the N-topic fan-out, and the verification boundary that makes any tier's artifact trustworthy. The
-  sibling `/discovery:research` is the one that dispatches.
-- **Treating a worker's return as the finished thing.** A `discovery:researcher` return is a pointer
-  plus a payload, and grading that payload is parent-side work this session owes before anything is
-  surfaced, the checks and the obligations are specified in the parent skill's dispatch contract.
-  Accepting a payload without running them surfaces an ungraded run as a gate-passed one.
-- **Assuming the heaviest tier is available.** Tier selection is engine-biased, but it reads what is
-  actually connected this session and degrades to the next tier rather than failing.
+- **`<name>` (<provenance class>)**: what it does, what it mutates, how it is invoked.
+- **`<name>` (<provenance class>)**: same.
 
-## What this skill does NOT do
+**Routing:** <when to prefer each>.
 
-- Does NOT make decisions or write code. Research only; the planning step (or user) decides.
+**Mutation gate:** <which invocations mutate, and the explicit opt-in they require>.
+```
+
+Six properties the section keeps:
+
+1. **Every overlapped surface named in the section, as a code span.** `## Boundary` on its own is
+   a heading any prose satisfies, and several components carry one for a surface this convention
+   has no verdict on. The heading naming the surface is the preferred shape and is what the
+   template above shows; a generic `## Boundary` heading is still accepted when the section text
+   names the surface, which is how one section covers a component that overlaps several. Either
+   way the name is a code span, so a surface whose name is also an ordinary English word (`run`,
+   `design`) is never satisfied by a sentence that happens to use the word.
+2. **Surfaces named by provenance class**, exactly as in the description phrase.
+3. **A mutation gate per surface that mutates.** Naming an overlap without naming what it writes
+   invites an unrequested mutation.
+4. **One owning description, pointers elsewhere.** Where two components in the *same plugin* both
+   overlap the surface, one carries the description and the other points at it with a same-plugin
+   relative link and adds only what is specific to itself. Cross-plugin pointers are forbidden.
+5. **Presence-gated language throughout**: the body inherits the description's gate; it never
+   promotes a surface to available because the body is longer.
+6. **Upstream specifics carry their basis and date**, per
+   [`upstream-drift`](../upstream-drift/README.md).
+
+## Self-containment: shipped plugins never cite the registry
+
+The overlap store and [`docs/native-surfaces.md`](../../native-surfaces.md) live in this
+repository. A plugin installed from the marketplace does **not** have them: a citation would be a
+broken reference at install time, and the reader would be routed to a file that does not exist.
+
+So: baked text repeats what it needs and cites nothing outside its own plugin. The registry is a
+maintainer surface: it records the verdict, the evidence, and the trigger that would change them;
+the component carries the conclusion. The parity check enforces the forward direction
+mechanically: every baked line traces back to a store row, and a claimed Boundary section must name
+that row's surface rather than merely carry the heading. In the other direction the two baked
+surfaces differ. A row without its Boundary section is a defect the self-check fails on, because
+the section costs nothing and can always land in the change that adds the row; a row without a
+description phrase is legal pending state, because the phrase is the budget-priced,
+routing-affecting half and earns its separate gate.
+
+## Enforceability
+
+Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+
+| Judgment | Tier |
+|---|---|
+| A baked native reference traces to a store row | **Deterministic**: built, as the overlap self-check's store↔baked-line parity pass |
+| Every non-`defer` extraction-evidence row has its Boundary section (`baked.boundary_section` true, and a `## Boundary` section in the component naming that row's surface as a code span) | **Deterministic**: built, in the same self-check, as a blocking problem (exit 1). The tier carries no advisory grade: advisory belongs to detect-then-judge, where a tool narrows a set a human then rules on, and nothing here needs a ruling. A consumer gate passes a degraded run because degraded reports what this repository cannot fix by editing its own files; a missing section is fixable in the change that adds the row |
+| Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic**: built, in the same self-check |
+| The phrase uses the presence gate rather than an availability assertion | **Detect-then-judge**: the `resolves in this session` token is greppable, but deciding whether a *different* sentence asserts availability is a judgment about meaning. Candidate check named, not built: flag a component description naming a bundled or built-in surface with no gate token. Build trigger: a second assertion-shaped native reference reaches `main` after this doc |
+| The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design |
+
+## Adopters
+
+| Surface | What it carries |
+|---|---|
+| `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
+| `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
+
+| `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; no description phrase |
+| `/evals:methodology` | `## Boundary` section for the bundled `claude-api` skill's `hillclimb` and `build-eval` subcommands (verdict `complementary`); detail in the skill's eval-design reference |
+| `/playbooks:fable-5` | `## Boundary` section for the bundled `claude-api` skill as the live-facts and cost-audit surface its chapters defer to (verdict `complementary`); detail in the pack's prompt-caching reference chapter |
+| `/review:code-review`, `/review:security-review` | `## Boundary` sections for the bundled `code-review` skill and the native `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file; no description phrase |
+| `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
+| `/testing:run-e2e` | `## Boundary` section for the bundled `run` skill (verdict `complementary`, a look versus evidenced verification); detail in the skill's context file; no description phrase |
+| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
+| `/visualization:visualize`, `/prototype:explore-directions` | `## Boundary` sections for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway page or mockup); detail in the catalog spoke and the skill's `reference/` file; no description phrase |
+
+Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
+unit, each running apply, verify, PR, close, never a single fleet-wide edit, because each phrase
+and spends shared budget. **Boundary sections** are not routing-affecting and spend no budget, so
+Boundary-only baking may land across several plugins in one change; the unit rule does not apply
+to it.
+
+## Versioning
+
+Changing a required part of the description phrase, the canonical gate token, or an enforceability
+verdict is a major change to this contract; additive guidance is minor; clarification is a patch.
+Version history lives in [`CHANGELOG.md`](CHANGELOG.md), which landed with the first recorded
+change; the doc's README-only original state reads as 1.0.
+
+## External authority
+
+- `https://code.claude.com/docs/en/skills.md`: description loading, the per-entry cap, and the
+  listing budget's drop behavior.
+- `https://code.claude.com/docs/en/settings-reference.md`,
+  `https://code.claude.com/docs/en/env-vars.md`: `disableBundledSkills`, `skillOverrides`,
+  `skillListingMaxDescChars`, `skillListingBudgetFraction`, and the env twins.
+- `https://code.claude.com/docs/en/commands.md`,
+  `https://code.claude.com/docs/en/cloud-environments.md`: plan/platform gating and per-host
+  roster differences.
+
+Upstream publishes no convention for deferring to its own surfaces (absence checked 2026-08-23
+against the pages listed above and `https://code.claude.com/docs/llms.txt`), which is why this
+repository owns one.
+ write code. Research only; the planning step (or user) decides.
 - Does NOT skip phases for "simple" topics. Task size does not reduce depth.
 - Does NOT run the deep pass itself in main context. It dispatches; Tier 1 (engine) or Tier 2 (subagent) provides the context isolation.
 

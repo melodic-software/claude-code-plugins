@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.10] - 2026-09-27
+
+### Changed
+
+- `lookup`'s philosophy line drops the anti-laziness clause "even for libraries you 'know.'" It still says to verify against Context7 before claiming how a library works (#4120).
+
 ## [0.5.9] - 2026-09-27
 
 ### Changed

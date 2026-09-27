@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.3] - 2026-09-27
+
+### Changed
+
+- `research-deep` states two routing rules without bold caps: N ≥ 2 separable topics are not dispatched to an engine as one blob, and an engine's return is neither re-run inline nor surfaced as-is. Both rules and their reasons are unchanged (#4120).
+
 ## [0.25.2] - 2026-09-28
 
 ### Changed
