@@ -3377,9 +3377,20 @@ def handoff_verify(
             "checks applied; they are NOT in the approved list, so removing one "
             "needs its own approval, and each is removable only AFTER every "
             "path beneath it is gone. clear/not_clear count the approved paths "
-            "only."
+            "only; not_clear includes gone paths, which do not by themselves "
+            "make the command exit non-zero."
         ),
     }
+
+
+def handoff_verify_blocks(result: dict[str, Any]) -> bool:
+    """True when any approved path's verdict means "do not proceed".
+
+    `gone` is the terminal state verify-one-delete-one drives each approved path
+    to, so from the second round on at least one path reads `gone` while every
+    verdict is correct. Only `drifted` and `contested` block.
+    """
+    return any(item["verdict"] not in {"clear", "gone"} for item in result["verdicts"])
 
 
 def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[str]:
@@ -3926,7 +3937,7 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
-            return emit(result, 3 if result["not_clear"] else 0)
+            return emit(result, 3 if handoff_verify_blocks(result) else 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
