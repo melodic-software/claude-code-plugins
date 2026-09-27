@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.5] - 2026-09-27
+## [0.30.6] - 2026-09-27
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   row use `attribution/audit/` in place of `provenance/audit/`, and the owner column and
   verification record name the `attribution:audit` detector, matching the ids the renamed plugin
   now emits.
+
+## [0.30.5] - 2026-09-27
+
+### Changed
+
+- `code-reviewer` agent: the description drops the "proactively, immediately after writing or modifying source files" trigger and names when not to delegate (every edit, typo-sized tweaks, linter-caught issues, security and architecture concerns). A new "Turn budget" section has the agent review the highest-risk files first and end with a `Coverage:` line naming files it did not reach before `maxTurns` ran out.
 
 ## [0.30.4] - 2026-09-26
 

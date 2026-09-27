@@ -4,13 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.13.2] - 2026-09-27
+## [0.13.3] - 2026-09-27
 
 ### Changed
 
 - `repo-sweep`'s hygiene catalog runs `attribution:audit` in its `provenance` entry, since the
   provenance plugin is now `attribution`. The entry id stays `provenance` so existing sweep
   checklists still match it.
+
+## [0.13.2] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: a bare skill name is no longer stamped `@builtin` unchecked. A same-named
+  personal or project skill, which replaces the bundled one, is stamped `@personal` or
+  `@project`; otherwise the stamp carries the Claude Code version (`@builtin-2.1.283`), or
+  `@unknown` when `claude --version` prints none. `history.sh` compares bundled-skill stamps like
+  any other version, so an entry last recorded as `@builtin` recommends `rerun` once. The skill doc
+  now allows bare names for bundled skills in catalog `- skill:` lines and says that
+  `catalog.sh` exit 1 means an entry with no `- skill:` line (#4601).
 
 ## [0.13.1] - 2026-09-27
 
