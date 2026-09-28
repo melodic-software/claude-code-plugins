@@ -63,7 +63,7 @@ Parse `$ARGUMENTS` to determine the action:
 
 ## Planning Process
 
-## Gates
+### Gates
 
 These hold after a compaction re-attach. Later steps say how to carry them out.
 

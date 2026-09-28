@@ -383,7 +383,7 @@ Load this section from Step 4.5. The hub states the agent-team routing rule and 
 3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap AND no inter-phase dependencies
 4. **Identify Wave B+ (sequential)**. Phases blocked by Wave A outputs
 5. **Recommend shape**. RECOMMEND parallel when ≥2 phases are parallel-safe AND the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
-6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per [context/plan-template.md](context/plan-template.md) "Scope-fencing tables"
+6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" above
 7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
 9. **Assign per-phase execution surface**. Give each phase a routing row (`Phase | Surface | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential

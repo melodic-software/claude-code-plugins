@@ -9,6 +9,29 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`worktree` keeps its action gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The session-id requirement, the stranded-work removal refusal, and the nesting rule sit in the first 20,000 bytes. The audit procedure's later detail points at `context/audit.md`.
 
+## [0.62.10] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
+## [0.62.9] - 2026-09-28
+
+### Changed
+
+- **Blast-radius check before a fix, verdict, or merge on a shared artifact.** When a change
+  touches a reusable workflow or action, shared config, or a published package, the review
+  discipline's D3 lists its consumers and checks the change against each, and D4 states the
+  classification with a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `pull-request` mirrors it in its D3, D4, and readiness gate; `babysit-prs` states it for every
+  tier.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  D4 points to it, and a consequential verdict the evidence cannot settle is withheld as
+  UNCERTAIN, naming the evidence that would settle it.
+
 ## [0.62.8] - 2026-09-28
 
 ### Changed
