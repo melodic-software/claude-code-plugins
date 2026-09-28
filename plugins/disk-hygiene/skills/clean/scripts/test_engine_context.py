@@ -129,11 +129,17 @@ class HooksJsonRegistrationTest(unittest.TestCase):
         return config["hooks"]["UserPromptExpansion"]
 
     def test_row_passes_the_same_plugin_root_argument_as_the_skill_guard(self) -> None:
-        commands = [hook["command"] for row in self.rows() for hook in row["hooks"]]
-        self.assertEqual(1, len(commands), commands)
-        self.assertIn("engine_context.py", commands[0])
-        self.assertIn('--plugin-root "${CLAUDE_PLUGIN_ROOT}"', commands[0])
-        self.assertNotIn("--authorized-data-root", commands[0])
+        (row,) = self.rows()
+        (hook,) = row["hooks"]
+        args = hook["args"]
+        self.assertEqual("node", hook["command"])
+        self.assertTrue(
+            any(str(arg).endswith("/engine_context.py") for arg in args),
+            args,
+        )
+        root_at = args.index("--plugin-root")
+        self.assertEqual("${CLAUDE_PLUGIN_ROOT}", args[root_at + 1])
+        self.assertNotIn("--authorized-data-root", args)
 
     def test_matcher_fires_only_for_the_clean_command(self) -> None:
         (row,) = self.rows()
