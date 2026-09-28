@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.13] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` hygiene** `residue-dissolve`: tighter `applies-when` and Notes for CI-only or
+  sync-managed commented files so the step is not checked when dissolve would apply nothing.
+
 ## [0.13.12] - 2026-09-28
 
 ### Added
