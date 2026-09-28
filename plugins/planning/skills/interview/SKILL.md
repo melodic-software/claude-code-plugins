@@ -1,6 +1,6 @@
 ---
 description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before behavior-changing work with ambiguous intent. Skip mechanical work."
-argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
+argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview scope, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -62,6 +62,7 @@ Parse `$ARGUMENTS` to determine the action. Empty argument routes to `auto` (the
 | `me` | **Force relentless Q&A** | "Interview me", "ask me everything", "relentless". Skip auto-detect; drive EVERY decision-tree branch to a decision, uncapped, no silent assumptions |
 | `me <topic>` | **Force Q&A on narrow topic** | "Interview me about the auth approach". Q&A loop scoped to topic |
 | `lock` | **Force synthesis, no Q&A** | "Stop asking, just write it", "I'm clear, lock the brief". Skip auto-detect, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |
+| `scope` / `scope <topic>` | **Ad hoc scope round** | Short scope Q&A before another skill: ledger + register gate; **no** `PLAN.md` Brief; return `Scope decisions:` for the caller ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)) |
 | `<topic>` | **`auto` on narrow topic** | "Interview the caching approach". Same intelligent default, narrower scope |
 
 Unknown actions route to `auto`; surface the unrecognized request as a one-line side note.
@@ -307,7 +308,7 @@ Survey output: one paragraph "Here is what I see in the repo."
 
 **Classify the domain** from what the survey shows. *engineering* (a build or behavior-change task, or a technical subject that yields a build artifact) or *general* (a decision or idea with no build surface). The deciding signal is the **task/build surface itself**, not the working directory: a general decision raised from inside a code repo is still general, and the engineering machinery must never engage on cwd alone. Repo/cwd is context that breaks the tie only when the task surface is genuinely indeterminate. Then lean engineering inside a code repo, else general. This is inferred, never asked; honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
 
-**Engineering sessions only**. If a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to the top of the Brief capturing why before rewriting, and the commit carrying the rewrite states the pivot rationale. The contract is branch-tracked, so git log is the history). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
+**Engineering sessions only**. If a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to the top of the Brief capturing why before rewriting, and the commit carrying the rewrite states the pivot rationale. The contract is branch-tracked, so git log is the history). A general session or the `scope` action never creates or edits a PLAN.md Brief, so it skips this prompt.
 
 Then route per action.
 
@@ -324,6 +325,7 @@ For `auto`: classify intent against `context/loop.md` "Step 1.5. Auto-detect" cr
 **Unattended path: the guard holds, the run does not idle.** `/planning:interview` can be reached with no human to answer (a loop, a spawned worker, another skill's chain). The condition is **declared by the caller, never sniffed**. There is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user's is recorded `blocked` in the register, written to the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it. The guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".
 
 For `me` / `me <topic>`: skip Step 1.5, force Q&A.
+For `scope` / `scope <topic>`: skip Step 1.5; with no topic, scope the current task. Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
 For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.
 
 ### Step 2. Drive the frontier-rounds loop
@@ -373,9 +375,16 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 
 **General (non-engineering) sessions** persist a shared-understanding summary, the decisions reached and their rationale, to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and handoff discipline below still applies, with the summary standing in for the Brief.
 
-**Engineering sessions** write the Brief section into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the memory slice under `contract_tier: local`), a contract document committed on the task branch as it locks. The rest of this step, everything below, is the Brief machinery and is engineering-only.
+**Engineering sessions** write the Brief section into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the memory slice under `contract_tier: local`), a contract document committed on the task branch as it locks, **except `scope` action**, which never writes `PLAN.md` (see below). The rest of this step, everything below, is the Brief machinery and is engineering-only.
 
-**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
+**`scope` action (ad hoc, no Brief).** When the action is `scope`, do **not** create or edit
+`PLAN.md` in the contract slice. After the Step 3 register gate passes, emit a **`Scope decisions:`**
+section in chat (one `- <question>: <answer>` line per resolved row) and keep the open-question
+ledger in the memory slice as the durable record. The caller owns where those decisions land (for
+example a repo-sweep step commit). Skip the Step 4 `--brief` cross-check and skip `/planning:plan`
+handoff.
+
+**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves, except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
