@@ -15,7 +15,8 @@
 
 Owner doc for **how a recommendation is grounded before it is presented and labeled when it is**.
 A recommendation is grounded in the affected code and in current external consensus, carries a
-visible `Basis:` label, and, when later evidence changes it, is re-stated as old → new → why.
+visible `Basis:` label (or, when consequential and unsettled, is withheld as an open question),
+and, when later evidence changes it, is re-stated as old → new → why.
 
 Several skills already practice parts of this under their own names (see
 [Adopters](#adopters) for the prior art), with no shared definition of the bar or the label. Under
@@ -62,13 +63,15 @@ security. Any other recommendation may rest on judgment, provided its label says
 
 ## Basis label
 
-Each recommendation carries a visible `Basis:` label with one of two values:
+Every recommendation ends in exactly one of three outcomes. The first two are presented with a
+visible `Basis:` label; the third is not presented:
 
 - **verified**, followed by what verified it: a `file:line`, a tool output, or a URL fetched this
   session. Recall and a summary of an unread source do not qualify.
 - **`judgment`**, for a recommendation resting on reasoning without that grounding. Allowed only
-  for a recommendation that is not consequential; see [Routing](#routing) for a consequential one
-  that cannot be settled.
+  for a recommendation that is not consequential.
+- **withheld**, for a consequential recommendation that cannot be settled. It carries no `Basis:`
+  label; it is surfaced as an open question that names the evidence that would settle it.
 
 Example: `Basis: verified, .github/workflows/ci.yml:42 and https://docs.github.com/... (fetched
 this session)`, or `Basis: judgment`.
@@ -76,8 +79,8 @@ this session)`, or `Basis: judgment`.
 ## Re-emitting a changed recommendation
 
 When evidence changes a recommendation the user still has pending, restate it as **old → new →
-why**: the superseded recommendation named as superseded, the replacement with its own `Basis:`,
-and the evidence that moved it. Re-state only the recommendations that moved; name the rest as
+why**: the superseded recommendation named as superseded, the replacement in its own outcome (a
+`Basis:`-labeled recommendation, or the withheld open question), and the evidence that moved it. Re-state only the recommendations that moved; name the rest as
 unchanged in one line. A pending recommendation the session has disproved is worse than none,
 because the user decides against it.
 
@@ -91,16 +94,14 @@ narrowly" in
 When a quick read will not settle the bar, ground through `/discovery:explore` for the local side
 (affected code, consumers, blast radius) and `/discovery:research` for the external side
 (consensus, recency, dissent), when the `discovery` plugin is installed. Without it, do the same
-reads and fetches inline. A non-consequential recommendation left unsettled is labeled `judgment`;
-a consequential one is withheld and surfaced as an open question that names the evidence that
-would settle it.
+reads and fetches inline. A recommendation still unsettled after that takes the `judgment` outcome
+when it is not consequential and the withheld outcome when it is (see [Basis label](#basis-label)).
 
 ## Plugin-shipped copies
 
 A shipped plugin cannot resolve a relative pointer into this repository's `docs/`, because only
 the plugin's own directory is installed. A plugin that applies this contract states its essentials
-(the grounding bar, the consequential threshold, the `Basis:` values, the withhold rule, and the
-re-emit shape) in its own shipped text, once, and links here by absolute URL. The `discipline`
+(the grounding bar, the consequential threshold, the three outcomes, and the re-emit shape) in its own shipped text, once, and links here by absolute URL. The `discipline`
 plugin does so in `plugins/discipline/context/recommendation-basis.md`.
 
 ## Enforceability
@@ -127,8 +128,8 @@ Conforming with this contract's 1.0.0:
 |---|---|
 | `discipline` shipped contract (`plugins/discipline/context/recommendation-basis.md`) | The essentials of this contract, stated once for the plugin's skills. |
 | `discipline` loop, step 4 "Report" (`plugins/discipline/context/re-anchor-audit-correct.md`) | A corrector whose audit changed a pending recommendation re-states it old → new → why. |
-| `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why. |
-| `/discipline:do-your-research-deep` | Recommendations are an inventory type with one ledger row each. |
+| `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why, as verified, judgment, or withheld. |
+| `/discipline:do-your-research-deep` | Recommendations are an inventory type with one ledger row each, including a withheld verdict for an unsettled consequential one. |
 
 Other surfaces adopt on touch.
 

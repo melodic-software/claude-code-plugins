@@ -7,6 +7,6 @@ clarification is a patch.
 ## [1.0.0] - 2026-09-28
 
 Initial contract: what counts as a recommendation, the local and external grounding bar, the
-consequential threshold, the `Basis:` label, and the old → new → why re-statement. Adopted by the
-`discipline` plugin's loop Report step, `/discipline:do-your-research`, and
-`/discipline:do-your-research-deep`.
+consequential threshold, the three outcomes (verified, judgment, withheld), and the old → new →
+why re-statement. Adopted by the `discipline` plugin's loop Report step,
+`/discipline:do-your-research`, and `/discipline:do-your-research-deep`.

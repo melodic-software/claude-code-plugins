@@ -14,11 +14,14 @@ convention, with its boundary and adopters, is
 - **Consequential** means cross-repo, shared infrastructure, irreversible or
   costly to reverse, or security. A consequential recommendation must clear the
   bar; any other may rest on judgment if its label says so.
-- **`Basis:` label**, on every recommendation: `verified` plus what verified
-  it (a `file:line`, tool output, or URL fetched this session), or `judgment`.
-  `judgment` is never allowed on a consequential recommendation.
-- **Cannot settle a consequential one?** Withhold it. Surface it as an open
-  question that names the evidence that would settle it.
+- **Three outcomes.** Every recommendation ends in exactly one:
+  - **verified**: presented with `Basis: verified` plus what verified it (a
+    `file:line`, tool output, or URL fetched this session);
+  - **judgment**: presented with `Basis: judgment`; only for a
+    recommendation that is not consequential;
+  - **withheld**: a consequential recommendation that cannot be settled. It
+    is not presented and carries no `Basis:` label; it is surfaced as an open
+    question that names the evidence that would settle it.
 - **Re-emit.** When evidence changes a pending recommendation, restate it as
-  old → new → why, the replacement carrying its own `Basis:`; name the
-  unchanged ones in one line.
+  old → new → why, where new is a verified or judgment recommendation or the
+  withheld open question; name the unchanged ones in one line.

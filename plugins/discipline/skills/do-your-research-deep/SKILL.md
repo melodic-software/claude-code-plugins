@@ -98,7 +98,8 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    rather than smoothing over it.
 5. **Report a per-item ledger. 100% of the inventory.** One row per checklist
    item (no silent drops), keyed by claim, each carrying:
-   - **verdict**. Verified / corrected / unverifiable;
+   - **verdict**. Verified / corrected / unverifiable, plus withheld for a
+     recommendation row only;
    - **source**. What resolved it: a fetched primary source, the live
      environment, or "internal. Re-derived / needs user confirm" for an item
      with no external referent; for an unverifiable item, where you looked;
@@ -111,9 +112,11 @@ Run this in place of the base skill's inline audit and correct-forward steps:
      a lone source is weaker than a consensus, so note when only one was found;
    - **recency**. For a fact that can go stale (versions, pricing, APIs,
      defaults), the date or version the source reflects.
-   A **recommendation** row also carries its `Basis:` label and, when the
-   verdict is corrected, the re-statement as old → new → why; a verified one
-   says unchanged and why.
+   A **recommendation** row also carries its outcome from the contract:
+   `Basis: verified` or `Basis: judgment` (never on a consequential one),
+   or **withheld**, with no `Basis:` label and the open question naming the
+   evidence that would settle it. A corrected row adds old → new → why; a
+   verified one says unchanged and why.
 
 ## What this skill does NOT do
 

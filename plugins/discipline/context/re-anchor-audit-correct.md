@@ -66,7 +66,8 @@ Run these in order. Skip a step only when its input is genuinely absent
 4. **Report.** One short list: what was corrected, what remains open, and
    an honest "clean" where the audit found nothing. When the audit changed
    a recommendation the user still has pending, re-state it as old → new →
-   why, per [`recommendation-basis.md`](recommendation-basis.md).
+   why, where new may be a withheld open question, per
+   [`recommendation-basis.md`](recommendation-basis.md).
 
 ## Declared step deltas
 

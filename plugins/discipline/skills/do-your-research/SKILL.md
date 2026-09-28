@@ -114,8 +114,9 @@ ground the affected code and its consumers or blast radius through
 `/discovery:explore`, and current consensus through `/discovery:research`,
 when the `discovery` plugin is installed; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
-or unchanged with why, carrying its `Basis:` label; a consequential one that
-stays unsettled is withheld as an open question, never labeled `judgment`.
+or unchanged with why, in one of the contract's three outcomes:
+`Basis: verified`, `Basis: judgment` (never on a consequential one), or
+withheld as an open question naming the evidence that would settle it.
 This runs inside the
 loop's audit and correct-forward steps, so it is not a step delta.
 
