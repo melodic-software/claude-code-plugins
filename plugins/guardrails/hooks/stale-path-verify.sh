@@ -180,6 +180,29 @@ spv_word_occurrences() {
   ' "$2"
 }
 
+# spv_anchor_occurrences <anchor> <file>: how many times <anchor> starts in
+# <file>, overlapping starts included. The advance is one byte past each start,
+# awk's `p = p + i` when `i` is the 1-based index() of an ASCII anchor. No
+# process: the previous counter was an awk over the whole file on every
+# non-word anchor, including a path that contains `/`.
+spv_anchor_occurrences() {
+  local anchor="$1" file="$2" line rest prefix n=0
+  [[ -n "$anchor" && -f "$file" ]] || {
+    printf '0'
+    return 0
+  }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rest=$line
+    while [[ -n "$rest" ]]; do
+      prefix=${rest%%"$anchor"*}
+      [[ "$prefix" == "$rest" ]] && break
+      n=$((n + 1))
+      rest=${rest:$((${#prefix} + 1))}
+    done
+  done <"$file"
+  printf '%s' "$n"
+}
+
 # spv__lines <text>: SPV_LINES = <text>'s non-empty lines.
 # shellcheck disable=SC2329 # reached through hook::_c_locale
 spv__lines() {
@@ -273,10 +296,27 @@ TRACKED_FILES=""
 TRACKED_BUILT=0
 ensure_tracked_files() {
   if ((TRACKED_BUILT == 0)); then
-    local out
+    local out git_dir="" index="" cache=""
+    local -a cached_lines=()
+    # Reuse the list only while the cache is strictly newer than the index, so
+    # a same-tick index rewrite is not trusted.
+    if spv_git_dir_to git_dir; then
+      index="$git_dir/index"
+      cache="$git_dir/guardrails-ls-files"
+    fi
+    if [[ -n "$cache" && -f "$cache" && -f "$index" && "$cache" -nt "$index" ]]; then
+      mapfile -t cached_lines <"$cache"
+      local IFS=$'\n'
+      TRACKED_FILES="${cached_lines[*]-}"
+      TRACKED_BUILT=1
+      return 0
+    fi
     if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
       TRACKED_FILES=${out//$'\r'/}
       TRACKED_BUILT=1
+      if [[ -n "$cache" ]]; then
+        printf '%s\n' "$TRACKED_FILES" >"$cache" 2>/dev/null || :
+      fi
     fi
   fi
 }
@@ -315,9 +355,12 @@ root_basename_is_ambiguous() {
 }
 
 # Reduce a raw token to a repo-relative path candidate, or nothing.
-# Prints the candidate on success; prints nothing when the token is not one.
+# Sets NORM_CAND in this shell. Empty when the token is not a candidate.
+# In-process on purpose: a command substitution would discard the tracked-file
+# cache this function fills, and the next candidate would list the repo again.
 normalize_candidate() {
   local t="$1"
+  NORM_CAND=""
 
   # A code span can hold a whole command; take only single-token spans. NOT
   # because a path cannot contain whitespace — git permits spaces in pathnames —
@@ -388,7 +431,18 @@ normalize_candidate() {
     fi
   fi
 
-  printf '%s' "$t"
+  NORM_CAND=$t
+}
+
+# grep -F -- "$1" "$2": matching lines, no extra process. A quoted needle is
+# literal inside [[ == ]].
+spv_fixed_hits() {
+  SPV_HITS=()
+  local line needle=$1 file=$2
+  [[ -f "$file" && -n "$needle" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == *"$needle"* ]] && SPV_HITS+=("$line")
+  done <"$file"
 }
 
 # Partial-replacement context reconstruction (Edit only), mirroring
@@ -410,6 +464,7 @@ normalize_candidate() {
 # the occurrence-uniqueness gate below — the same gate the sibling guard this
 # function mirrors already carries.
 reconstruct_partial_edit() {
+  RECON_OUT=()
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE code span removed first. A
   # complete span is already handled by the direct scan, and leaving it in would
@@ -466,7 +521,11 @@ reconstruct_partial_edit() {
     if [[ "$anchor" != *' '* && "$anchor" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
       mapfile -t hits < <(grep -w -F -- "$anchor" "$FILE" 2>/dev/null)
     else
-      mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+      spv_fixed_hits "$anchor" "$FILE"
+      hits=()
+      if ((${#SPV_HITS[@]})); then
+        hits=("${SPV_HITS[@]}")
+      fi
     fi
     ((${#hits[@]})) || continue
     # replace_all is the one case where repetition is expected rather than
@@ -484,19 +543,13 @@ reconstruct_partial_edit() {
     # 5, but the two spans overlap and `grep -o` reports 1 — the anchor passes a
     # uniqueness gate it should fail, and reconstruction then scans a line it
     # cannot attribute, recreating the false STALE_PATH this gate exists to
-    # prevent. `index()` walks every start position, overlapping or not.
-    # The anchor crosses into awk via the environment, not `-v`: `-v` processes
-    # escape sequences in the value, so an anchor containing a backslash would
-    # be silently transformed before the comparison.
+    # prevent. The counter walks every start, overlapping or not, and advances
+    # one byte past each start.
     #
-    # A word anchor (awk's own `word` test below, decided here under C so its
-    # ranges are ASCII as awk's are) is counted by splitting each line on
-    # non-word bytes: the same maximal [A-Za-z0-9_] runs the character walk
-    # below finds, in one regex pass per line instead of a regex per character
-    # (a 33 KB file costs ~14 ms by the walk, ~2 by the split). Under C a
-    # non-ASCII byte is a separator, as a non-ASCII character is to the walk.
-    # A `.` or `-` can never sit inside such a run, so an anchor carrying one
-    # counts 0 and needs no awk at all.
+    # A word anchor is counted by splitting each line on non-word bytes: the
+    # same maximal [A-Za-z0-9_] runs a character walk finds. Under C a
+    # non-ASCII byte is a separator. A `.` or `-` can never sit inside such a
+    # run, so an anchor carrying one counts 0 and needs no counter at all.
     if hook::_c_locale spv__word_anchor "$anchor"; then
       [[ "$anchor" != *[.-]* ]] || continue
       occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
@@ -504,32 +557,7 @@ reconstruct_partial_edit() {
       ctx+="${hits[0]}"$'\n'
       continue
     fi
-    occ=$(HOOK_ANCHOR="$anchor" awk '
-      BEGIN {
-        n = 0
-        a = ENVIRON["HOOK_ANCHOR"]
-        word = (index(a, " ") == 0 && a ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-      }
-      {
-        p = 1
-        while (p <= length($0)) {
-          if (word) {
-            if (substr($0, p, 1) !~ /[A-Za-z0-9_]/) { p++; continue }
-            if (p > 1 && substr($0, p - 1, 1) ~ /[A-Za-z0-9_]/) { p++; continue }
-            end = p
-            while (end <= length($0) && substr($0, end, 1) ~ /[A-Za-z0-9_]/) end++
-            if (substr($0, p, end - p) == a) { n++; p = end; continue }
-            p++
-          } else {
-            i = index(substr($0, p), a)
-            if (i == 0) break
-            n++
-            p = p + i
-          }
-        }
-      }
-      END { print n + 0 }
-    ' "$FILE" 2>/dev/null)
+    occ=$(spv_anchor_occurrences "$anchor" "$FILE")
     ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'
   done
@@ -545,7 +573,8 @@ reconstruct_partial_edit() {
   spv_tokens
   for raw in ${SPV_OUT[@]+"${SPV_OUT[@]}"}; do
     [[ -n "$raw" ]] || continue
-    cand=$(normalize_candidate "$raw")
+    normalize_candidate "$raw"
+    cand=$NORM_CAND
     [[ -n "$cand" ]] || continue
     # SUBSTRING match against the CANDIDATE, not the raw span: an Edit can replace
     # part of a segment (`gone` -> `real` turns `docs/gone.md` into `docs/real.md`),
@@ -553,12 +582,53 @@ reconstruct_partial_edit() {
     # the anchor must appear in the thing actually reported.
     for seg in "${toks[@]}"; do
       if [[ "$cand" == *"$seg"* ]]; then
-        printf '%s\n' "$cand"
+        RECON_OUT+=("$cand")
         break
       fi
     done
   done
   SCAN_CONTENT="$saved"
+}
+
+# spv_git_dir_to <var>
+# A normal checkout's .git is a directory. A linked worktree's is a file
+# (`gitdir: …`). Builtin reads only.
+spv_git_dir_to() {
+  local g="$REPO_ROOT/.git" line
+  if [[ -d "$g" ]]; then
+    printf -v "$1" '%s' "$g"
+    return 0
+  fi
+  if [[ -f "$g" ]]; then
+    IFS= read -r line <"$g" || return 1
+    line=${line%$'\r'}
+    [[ "$line" == 'gitdir:'* ]] || return 1
+    line=${line#gitdir:}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$REPO_ROOT/$line"
+    fi
+    printf -v "$1" '%s' "$line"
+    return 0
+  fi
+  return 1
+}
+
+# spv_git_common_to <var> <git-dir>
+# `shallow` lives in the common git dir. A linked worktree records that path
+# in `commondir`; a normal checkout's git dir is the common dir.
+spv_git_common_to() {
+  local line="$2"
+  if [[ -f "$2/commondir" ]]; then
+    IFS= read -r line <"$2/commondir" || return 1
+    line=${line%$'\r'}
+    line=${line%"${line##*[![:space:]]}"}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$2/$line"
+    fi
+  fi
+  printf -v "$1" '%s' "$line"
 }
 
 declare -A DELETED=()
@@ -573,12 +643,41 @@ build_deleted_set() {
   ((DELETED_BUILT)) && return 0
   DELETED_BUILT=1
 
-  # An unborn HEAD has no history to walk.
-  git -C "$REPO_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 || return 0
+  # An unborn HEAD has no history to walk. The sha keys the on-disk set so a
+  # later edit at the same commit does not walk again. The redirect sits on the
+  # group: inside the substitution it would bill a second process for one git.
+  local head_sha="" git_dir="" common="" cache="" p
+  local -a cached_lines=()
+  { head_sha=$(git -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
+  head_sha=${head_sha//$'\r'/}
+  [[ -n "$head_sha" ]] || return 0
 
   # Over truncated history the set is empty and the guard would do nothing while
   # appearing healthy, so the degradation is announced rather than absorbed.
-  if [[ "$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
+  # `.git/shallow` is the file `--is-shallow-repository` reads. A linked
+  # worktree keeps it in the common dir. When the git dir cannot be read, fall
+  # back to the git query.
+  if spv_git_dir_to git_dir && spv_git_common_to common "$git_dir"; then
+    cache="$common/guardrails-deleted-paths"
+    if [[ -e "$common/shallow" ]]; then
+      SHALLOW=1
+      return 0
+    fi
+    # `<sha>\nok\n` plus one deleted path per line. A failed walk is not
+    # cached, so the next fire retries it.
+    if [[ -f "$cache" ]]; then
+      mapfile -t cached_lines <"$cache"
+      if [[ "${cached_lines[0]-}" == "$head_sha" && "${cached_lines[1]-}" == ok ]]; then
+        if ((${#cached_lines[@]} > 2)); then
+          for p in "${cached_lines[@]:2}"; do
+            [[ -n "$p" ]] || continue
+            DELETED["$p"]=1
+          done
+        fi
+        return 0
+      fi
+    fi
+  elif [[ "$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
     SHALLOW=1
     return 0
   fi
@@ -604,11 +703,26 @@ build_deleted_set() {
     return 0
   fi
 
-  local p
-  while IFS= read -r p; do
-    [[ -n "$p" ]] || continue
-    DELETED["$p"]=1
-  done < <(printf '%s\n' "$walk" | tr -d '\r')
+  local rest
+  walk=${walk//$'\r'/}
+  rest=$walk
+  while [[ -n "$rest" ]]; do
+    p=${rest%%$'\n'*}
+    [[ -n "$p" ]] && DELETED["$p"]=1
+    [[ "$rest" == *$'\n'* ]] || break
+    rest=${rest#*$'\n'}
+  done
+
+  if [[ -n "$cache" ]]; then
+    {
+      printf '%s\n' "$head_sha" ok
+      if ((${#DELETED[@]} > 0)); then
+        for p in "${!DELETED[@]}"; do
+          printf '%s\n' "$p"
+        done
+      fi
+    } >"$cache" 2>/dev/null || :
+  fi
 }
 
 # "Did you mean" enrichment, only once a finding exists. A basename match is far
@@ -632,22 +746,19 @@ RAW_TOKENS=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
 # so gating on an empty scan would miss the partial half. Duplicates are harmless
 # — CHECKED dedupes below.
 if [[ "$TOOL" == "Edit" ]]; then
-  mapfile -t -O "${#RAW_TOKENS[@]}" RAW_TOKENS < <(reconstruct_partial_edit)
+  reconstruct_partial_edit
+  if ((${#RECON_OUT[@]})); then
+    RAW_TOKENS+=("${RECON_OUT[@]}")
+  fi
 fi
-# Warm the tracked-file cache in this shell before any `cand=$(normalize_candidate
-# ...)` subshell: assignments inside normalize_candidate would otherwise be
-# discarded and every root-basename probe would re-list the repo (#1446).
-#
-# Only when there is something to adjudicate. `git ls-files` lists the whole
-# index, and a write that cites no inline-code token at all, the common case for
-# this PostToolUse hook, has no candidate for the list to answer about. The warm
-# still happens in THIS shell and still precedes the loop, which is what the
-# subshell-assignment fix requires; it is the unconditional spawn that goes.
+# Warm before the candidate loop, and only when there is something to adjudicate.
+# `git ls-files` lists the whole index; a write that cites no token must not pay it.
 ((${#RAW_TOKENS[@]})) && ensure_tracked_files
 
 for raw in "${RAW_TOKENS[@]}"; do
   [[ -n "$raw" ]] || continue
-  cand=$(normalize_candidate "$raw")
+  normalize_candidate "$raw"
+  cand=$NORM_CAND
   [[ -n "$cand" ]] || continue
 
   [[ -n "${CHECKED[$cand]:-}" ]] && continue
@@ -685,7 +796,9 @@ for raw in "${RAW_TOKENS[@]}"; do
   # Exempting on presence alone therefore suppressed the finding for a real removal
   # a user had not committed yet. Only the skip-worktree letter, in either case,
   # earns the exemption.
-  ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null | tr -d '\r' | cut -c1)
+  ls_line=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null) || ls_line=""
+  ls_line=${ls_line//$'\r'/}
+  ls_tag=${ls_line:0:1}
   [[ "$ls_tag" == [Ss] ]] && continue
 
   MISSING+=("$cand")

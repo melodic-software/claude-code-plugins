@@ -96,7 +96,7 @@ taken, the finding is stated conditionally, not asserted.
 | Timeouts are reasonable (5-30s for formatters, up to 60s for heavy tools) | warning | Compare against known good values |
 | Matcher takes its intended evaluation path | warning | Classify the matcher by its characters, confirm exact-match vs regex matches intent, anchor regex-path matchers with `^…$` |
 | Shell-form path placeholders are quoted | warning | Same page: "Prefer exec form for any hook that references a path placeholder. In shell form, wrap each placeholder in double quotes." Flag a shell-form hook whose project/plugin placeholder is unquoted, in **either** spelling, braced (`${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`) or bare-dollar (`$CLAUDE_PROJECT_DIR`), since both reach the shell and an unquoted path breaks on a space either way. Report exec form as the page's preference, but do **not** flag shell form itself: the page endorses omitting `args` when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, and quoted shell form is a documented, correct spelling |
-| Exec-form `command` resolves on every platform the repo targets | error | Same page: "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." Windows-only constraint: `bash` and `sh` are real executables on macOS/Linux, so flag only for a repo that runs on Windows. There `bash` resolves to the WSL relay `System32\bash.exe` and the launch fails; a failed launch is a non-blocking error, so a gate hook silently enforces nothing. Fixes per the page: a real binary plus the script path in `args` (`"command": "node"`), or shell form with `"shell": "bash"`, which Claude Code routes through Git Bash instead of a PATH lookup |
+| Exec-form `command` resolves on every platform the repo targets | error | Same page: "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." Windows-only constraint: `bash` and `sh` are real executables on macOS/Linux, so flag only for a repo that runs on Windows. There `bash` resolves to the WSL relay `System32\bash.exe` and the launch fails; a failed launch is a non-blocking error, so a gate hook silently enforces nothing. A `.sh` path or a `.cmd`/`.bat` shim as `command` is the same defect: exec form has no shell to honor a shebang. Do not accept bare `bash` with the script in `args` as the fix. Fixes per the page: `"command": "node"` with the script path in `args`, or shell form with `"shell": "bash"`, which Claude Code routes through Git Bash instead of a PATH lookup. **Claim:** the quoted Windows sentence, and that exec form spawns with no shell. **Basis:** [hooks](https://code.claude.com/docs/en/hooks) "Exec form and shell form", the quoted span, fetched as raw `hooks.md` on 2026-09-28 (330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`). **As of:** 2026-09-28. **Recheck:** that Windows sentence changes, or [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) closes (args dropped, the hook still routed through `bash.exe`). This marketplace's `scripts/check-exec-form-windows-probe.sh` checks its own rows; a non-Windows skip does not clear #90495. |
 | No duplicate hooks (same script registered twice for same event) | info | Compare commands within each event |
 | Hook events are valid per official docs | error | Cross-reference against the [hooks reference](https://code.claude.com/docs/en/hooks). Fetch it live rather than trusting a recalled event list |
 | Hook-suppression levers are read and reported | info | Read `disableAllHooks` from the settings-declared layer and `allowManagedHooksOnly` / `strictPluginOnlyCustomization` from the managed layer. Report each as set or unset with the hooks it switches off. `info` because the reading is state, not a defect: a repo may set any of them deliberately. It is not optional, though: **B.1–B.3's third narrowing may not downgrade a missing deny rule on the strength of a hook one of these has already disabled**, so an unread lever means the narrowing is unavailable rather than assumed clear |
@@ -182,6 +182,21 @@ section F resolves environment variables against their own page.
 Model IDs in `modelOverrides` are not validated here: unknown keys are ignored rather than
 rejected, and deciding whether a key is a real Anthropic model ID means resolving it against
 [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview).
+
+### `bashOutputMaxChars`
+
+**Claim:** `bashOutputMaxChars` raises how many characters of a successful Bash or PowerShell
+command Claude receives inline, clamped from 4000 to 128000. Unset, Claude receives up to 30000
+characters. The key requires Claude Code v2.1.261 or later. Do not raise it by default: inline
+output is context cost. `taskOutputMaxChars` was removed in v2.1.277 with the `TaskOutput` tool
+and has no effect on current versions. **Basis:**
+[settings-reference](https://code.claude.com/docs/en/settings-reference#bashoutputmaxchars) and
+the `taskOutputMaxChars` warning on the same page. **As of:** 2026-09-28. **Recheck trigger:**
+that page changes the clamp, the default, or restores `taskOutputMaxChars`.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `bashOutputMaxChars` is unset, or an integer the page's clamp accepts | info | `jq '.bashOutputMaxChars'`. Report a set value as a context-cost choice, not as a defect. Do not recommend raising it. Report `taskOutputMaxChars` as dead on Claude Code v2.1.277 and later |
 
 ### `effort:` and `model:` frontmatter on skills and agents
 

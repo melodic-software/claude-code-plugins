@@ -50,7 +50,7 @@ Records: "effective <kind> scopes=<a,b> precedence_basis=<token> <rule text>",
 "inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>", and "CAVEAT: <text>".
 
 With --merge-only the reader's own NOTE records are dropped, including the one
-stating that server-managed settings have no local path. Read both sections when
+stating where the server-managed settings cache lives. Read both sections when
 the question is what the machine's permission state actually is.
 
 Reads only. Exits 2 when the input carries no scope records at all.
@@ -159,27 +159,67 @@ $1 == "rule" {
 }
 
 # conf records are configuration inventory for downstream consumers (the entry
-# diff), not rules and not surfaces — pass through, merge nothing.
-$1 == "NOTE:" || $1 == "conf" { next }
+# diff), not rules and not surfaces — pass through, merge nothing, except the
+# managed permission-rule lock, which changes which file rules are in effect.
+$1 == "conf" {
+  if ($2 == "managed" && $4 == "allowManagedPermissionRulesOnly" && $5 == "true")
+    managed_rules_only = 1
+  next
+}
+$1 == "NOTE:" { next }
+
+function managed_scopes_only(list,   n, i, parts, out) {
+  n = split(list, parts, ",")
+  out = ""
+  for (i = 1; i <= n; i++) {
+    if (parts[i] == "managed") out = (out == "" ? parts[i] : out "," parts[i])
+  }
+  return out
+}
 
 NF >= 3 {
   n_surfaces++
   status = $3
   if (status == "skipped" || status == "unreadable" || status == "invalid-json") {
     unread[++n_unread] = $1 " " $2 " (" status ") " $4
+    unread_status[n_unread] = status
+    unread_scope[n_unread] = $1
+    unread_surface[n_unread] = $2
   }
 }
 
 END {
   if (n_surfaces == 0) exit 2
 
-  print "CAVEAT: the command-line scope (--settings, --allowedTools, --disallowedTools) ranks above local, project and user settings and has no file to read. This merge is the effective set the settings FILES define."
+  if (managed_rules_only)
+    print "CAVEAT: the command-line scope under allowManagedPermissionRulesOnly: --allowedTools is ignored, and allow, ask, and deny rules in user, project, local, and --settings files are ignored. --disallowedTools and the session deny and ask rules still apply, including after a settings reload (v2.1.257+). This merge keeps managed-file rules only."
+  else
+    print "CAVEAT: the command-line scope (--settings, --allowedTools, --disallowedTools) ranks above local, project and user settings and has no file to read. This merge is the effective set the settings FILES define. When a managed file sets allowManagedPermissionRulesOnly, --allowedTools is ignored and --disallowedTools plus session deny and ask rules are kept across reloads (v2.1.257+); that lock is applied here only when a managed conf record carries it."
   print "CAVEAT: rules are compared by exact text. A broad deny blocks calls that also match a narrower allow, so a narrow allow shadowed only by a broader deny pattern is still reported effective here — the error direction is over-reporting allow."
-  for (i = 1; i <= n_unread; i++)
-    print "CAVEAT: " unread[i] " contributed no rules because it could not be read, not because it is empty. The merged set below is incomplete by that surface."
+  for (i = 1; i <= n_unread; i++) {
+    extra = " The merged set below is incomplete by that surface."
+    if (unread_status[i] == "invalid-json" && unread_scope[i] == "managed" && (unread_surface[i] == "file" || unread_surface[i] == "plist" || unread_surface[i] == "registry" || index(unread_surface[i], "dropin-file:") == 1))
+      extra = " From Claude Code v2.1.259 a managed settings file, drop-in, MDM plist, or HKLM Settings value that cannot be parsed refuses startup (exit 1) and names the source. A malformed HKCU value does not refuse startup; it is a notice in /status. This is not silent non-enforcement." extra
+    else if (unread_status[i] == "invalid-json")
+      extra = " An interactive session shows a Settings Error for a user, project, or local file; after continue, /status names the file. A -p run skips the broken file. An unparsable user settings.json pauses the retention sweep and warns in /status unless managed settings supply cleanupPeriodDays." extra
+    print "CAVEAT: " unread[i] " contributed no rules because it could not be read, not because it is empty." extra
+  }
+
+  if (managed_rules_only) {
+    for (i = 1; i <= n_bare; i++) {
+      split(bare_order[i], b, " ")
+      bk = b[2] SUBSEP b[1]
+      if (managed_scopes_only(scopes[bk]) == "") {
+        if (b[1] == "deny") delete bare_deny[b[2]]
+        else delete bare_ask[b[2]]
+      }
+    }
+  }
 
   for (i = 1; i <= n_bare; i++) {
     split(bare_order[i], b, " ")
+    if (b[1] == "deny" && !(b[2] in bare_deny)) continue
+    if (b[1] == "ask" && !(b[2] in bare_ask)) continue
     if (b[1] == "deny")
       print "NOTE: deny " b[2] " names the whole tool, which removes " b[2] " from the model context entirely. Every other rule naming that tool is reported inert below — including denies, which are moot rather than weakened."
     else
@@ -191,6 +231,23 @@ END {
   for (t = 1; t <= n_texts; t++) {
     text = text_order[t]
     tk = tool[text]
+    if (managed_rules_only) {
+      kept_any = 0
+      for (i = 1; i <= 3; i++) {
+        ik = text SUBSEP kinds[i]
+        if (!((ik) in kind_seen)) continue
+        kept = managed_scopes_only(scopes[ik])
+        if (kept == "") {
+          emit_inert(kinds[i], text, "ignored_by=allowManagedPermissionRulesOnly")
+          delete kind_seen[ik]
+        } else {
+          scopes[ik] = kept
+          n_scopes[ik] = 1
+          kept_any = 1
+        }
+      }
+      if (!kept_any) continue
+    }
     scoped = (text != tk)
     win = ""
     n_kinds = 0
