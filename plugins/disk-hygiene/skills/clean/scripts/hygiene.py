@@ -2183,15 +2183,15 @@ def validate_vcs_evidence(
         raise HygieneError("VCS evidence repositories must be a non-empty array")
     approved_paths = [PurePosixPath(value) for value in approved]
     normalized: dict[str, dict[str, Any]] = {}
+    required = {"path", "remote", "stash_copies"}
     for item in repositories:
-        if not isinstance(item, dict) or set(item) != {
-            "path",
-            "remote",
-            "stash_copies",
-        }:
+        if not isinstance(item, dict) or set(item) not in (
+            required,
+            required | {"accept_unpublished", "reason"},
+        ):
             raise HygieneError(
                 "each VCS evidence repository must contain exactly "
-                "path/remote/stash_copies"
+                "path/remote/stash_copies, plus accept_unpublished/reason together"
             )
         relative = item["path"]
         pure = PurePosixPath(relative) if isinstance(relative, str) else None
@@ -2237,6 +2237,21 @@ def validate_vcs_evidence(
             "remote": remote,
             "stash_copies": copies,
         }
+        if "accept_unpublished" in item:
+            # Relaxes gates 1-2 only, and only for a repository that is itself one
+            # exact approved path: never a nested repository, never a pattern.
+            if item["accept_unpublished"] is not True:
+                raise HygieneError(f"accept_unpublished must be true: {relative}")
+            reason = item["reason"]
+            if not isinstance(reason, str) or not reason.strip():
+                raise HygieneError(
+                    f"accept_unpublished needs a non-empty reason: {relative}"
+                )
+            if relative not in approved:
+                raise HygieneError(
+                    f"accept_unpublished must name an exact approved path: {relative}"
+                )
+            normalized[relative] |= {"accept_unpublished": True, "reason": reason}
     return normalized
 
 
@@ -2672,6 +2687,7 @@ def verify_vcs_checkout_evidence(
     status_passed = not blockers
     heads_passed = not blockers
     stashes_passed = not blockers
+    status_accepted = heads_accepted = False
     approved_paths = [
         target.joinpath(*PurePosixPath(value).parts).resolve(strict=False)
         for value in approved
@@ -2711,17 +2727,37 @@ def verify_vcs_checkout_evidence(
             "--ignored=matching",
             "--ignore-submodules=none",
         )
+        # The operator's accept_unpublished waives only the two content gates:
+        # a status that ran and listed paths, and heads that ran but are not on
+        # a GitHub remote. A probe that failed to run still fails closed.
+        accepted = "accept_unpublished" in config
         clean = status.returncode == 0 and not status.stdout
-        repository_detail["status"] = "clean" if clean else "not-clean-or-unverified"
-        status_details.append(repository_detail)
-        if not clean:
+        if clean:
+            repository_detail["status"] = "clean"
+        elif accepted and status.returncode == 0:
+            repository_detail["status"] = "accepted-unpublished"
+            status_accepted = True
+        else:
+            repository_detail["status"] = "not-clean-or-unverified"
             status_passed = False
             blockers.add("vcs-evidence-status-not-clean")
+        status_details.append(repository_detail)
 
         heads, head_error = local_head_shas(repo)
         if head_error:
             heads_passed = False
             blockers.add("vcs-evidence-local-heads-unverified")
+        elif heads and accepted:
+            heads_accepted = True
+            head_details.extend(
+                {
+                    "repository_path": relative,
+                    "local_head": head["name"],
+                    "sha": head["sha"],
+                    "status": "accepted-unpublished",
+                }
+                for head in heads
+            )
         elif heads and config["remote"] is None:
             heads_passed = False
             blockers.add("vcs-evidence-remote-not-declared")
@@ -2771,12 +2807,17 @@ def verify_vcs_checkout_evidence(
                 stashes_passed = False
                 blockers.add("vcs-evidence-stash-not-duplicated")
 
+    def gate_status(passed: bool, accepted: bool) -> str:
+        if not passed:
+            return "failed"
+        return "accepted-unpublished" if accepted else "passed"
+
     gates["git-status-porcelain-empty"] = {
-        "status": "passed" if status_passed else "failed",
+        "status": gate_status(status_passed, status_accepted),
         "repositories": status_details,
     }
     gates["all-local-heads-on-remote"] = {
-        "status": "passed" if heads_passed else "failed",
+        "status": gate_status(heads_passed, heads_accepted),
         "heads": head_details,
     }
     gates["all-stashes-duplicated"] = {
@@ -2784,9 +2825,10 @@ def verify_vcs_checkout_evidence(
         "stashes": stash_details,
     }
     verified = not blockers and all(
-        gates[name]["status"] == "passed" for name in VCS_EVIDENCE_GATE_NAMES
+        gates[name]["status"] in {"passed", "accepted-unpublished"}
+        for name in VCS_EVIDENCE_GATE_NAMES
     )
-    return {
+    result: dict[str, Any] = {
         "status": "verified" if verified else "failed",
         "gates": gates,
         "blockers": sorted(blockers),
@@ -2794,6 +2836,14 @@ def verify_vcs_checkout_evidence(
             repo.relative_to(target).as_posix() for repo in live_repositories
         ),
     }
+    acknowledgements = [
+        {"repository": relative, "reason": config["reason"]}
+        for relative, config in sorted(configurations.items())
+        if "accept_unpublished" in config
+    ]
+    if acknowledgements:
+        result["accept_unpublished"] = acknowledgements
+    return result
 
 
 def evidence_adjusted_protections(
