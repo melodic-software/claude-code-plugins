@@ -297,6 +297,17 @@ questions:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#test-with-all-models-you-plan-to-use>.
 Verified 2026-09-10. Recheck: the alias list changes.
 
+## Skill model
+
+Frontmatter `model` on a skill is honored for the rest of the current turn, then the session model
+returns. `inherit` keeps the active model. In auto mode, a model auto mode does not support is not
+used and the session keeps its current model. With `context: fork`, the value sets the forked
+subagent instead.
+
+**Record.** Claim: the sentences above. Basis:
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of: 2026-09-28.
+Recheck: that row changes the turn scope, the auto-mode exception, or the `context: fork` rule.
+
 ## Agent model
 
 A plugin agent definition names its `model` in frontmatter. `inherit` is reserved for an agent that
