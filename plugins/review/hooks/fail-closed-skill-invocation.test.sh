@@ -48,7 +48,11 @@ run_hook() {
 # --- tool results -----------------------------------------------------------
 run_tool '{"content":"Execute skill: review:code-review","is_error":true}'
 assert_exit "empty code-review tool result fails closed" 3 $?
-[[ "$(cat /tmp/fail-closed-out.txt)" == "degrade" ]] && ok "tool result prints degrade" || fail "tool result stdout"
+if [[ "$(cat /tmp/fail-closed-out.txt)" == "degrade" ]]; then
+  ok "tool result prints degrade"
+else
+  fail "tool result stdout"
+fi
 
 run_tool '{"content":"Execute skill: review:security-review","is_error":true}'
 assert_exit "empty security-review tool result fails closed" 3 $?
@@ -69,6 +73,7 @@ run_tool '{"error":"something else broke","is_error":true}'
 assert_exit "a different tool error is not this defect" 0 $?
 
 # --- posted text: the #4306 confession, including the wording the old guard missed
+# shellcheck disable=SC2016  # backticks are the literal fixture's markdown code spans, not substitution
 CONFESSION='**Note on process:** the `review:code-review` skill invocation errored out (returned `Execute skill: review:code-review` with no further content, on two attempts with different `args` shapes). I fell back to performing the review directly against the diff (`git diff origin/main...HEAD`).'
 
 run_posted code-review "$CONFESSION"
@@ -83,6 +88,7 @@ assert_exit "a clean review stays exit 0" 0 $?
 run_posted code-review $'review-lane-fail-closed: code-review\nThe skill body never loaded.'
 assert_exit "marker line fails the named lane" 3 $?
 
+# shellcheck disable=SC2016  # backticks are the literal fixture's markdown code span, not substitution
 run_posted code-review 'The token `review-lane-fail-closed: code-review` is the reply the skill asks for.'
 assert_exit "the marker inside a sentence is not a confession" 0 $?
 
@@ -95,12 +101,19 @@ assert_exit "errored invocation plus a hand review fails closed" 3 $?
 # --- hook -------------------------------------------------------------------
 run_hook '{"hook_event_name":"PostToolUseFailure","tool_name":"Skill","error":"Execute skill: review:code-review"}'
 assert_exit "PostToolUseFailure hook exits 0" 0 $?
-python3 -c 'import json,sys; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False; assert d["stopReason"].startswith("review-lane-fail-closed: code-review")'
-[[ $? -eq 0 ]] && ok "PostToolUseFailure stops the lane" || fail "PostToolUseFailure JSON"
+if python3 -c 'import json,sys; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False; assert d["stopReason"].startswith("review-lane-fail-closed: code-review")'; then
+  ok "PostToolUseFailure stops the lane"
+else
+  fail "PostToolUseFailure JSON"
+fi
 
 run_hook '{"hook_event_name":"PostToolUseFailure","tool_name":"Skill","error":"Exit code 1\nnot a skill load"}'
 assert_exit "other Skill failures do not stop the session" 0 $?
-[[ ! -s /tmp/fail-closed-out.txt ]] && ok "other Skill failures print nothing" || fail "unexpected hook stdout"
+if [[ ! -s /tmp/fail-closed-out.txt ]]; then
+  ok "other Skill failures print nothing"
+else
+  fail "unexpected hook stdout"
+fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -110,22 +123,33 @@ printf '%s\n' \
   >"$TMP/lane.txt"
 run_hook "$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","transcript_path":sys.argv[1]}))' "$TMP/lane.txt")"
 assert_exit "PreToolUse in the lane exits 0" 0 $?
-python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False'
-[[ $? -eq 0 ]] && ok "Bash after an empty skill result stops the lane" || fail "PreToolUse did not stop"
+if python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False'; then
+  ok "Bash after an empty skill result stops the lane"
+else
+  fail "PreToolUse did not stop"
+fi
 
 printf '%s\n' \
   'please review this diff' \
   '{"content":"Execute skill: review:code-review","is_error":true}' \
   >"$TMP/seat.txt"
 run_hook "$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","transcript_path":sys.argv[1]}))' "$TMP/seat.txt")"
-[[ ! -s /tmp/fail-closed-out.txt ]] && ok "a seat session is not stopped by the lane hook" || fail "seat session was stopped"
+if [[ ! -s /tmp/fail-closed-out.txt ]]; then
+  ok "a seat session is not stopped by the lane hook"
+else
+  fail "seat session was stopped"
+fi
 
 printf '%s\n' \
   'Invoke /review:code-review now' \
   'Launching skill: review:code-review' \
   >"$TMP/launched.txt"
 run_hook "$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","transcript_path":sys.argv[1]}))' "$TMP/launched.txt")"
-[[ ! -s /tmp/fail-closed-out.txt ]] && ok "Launching skill does not stop later Bash" || fail "launched skill stopped Bash"
+if [[ ! -s /tmp/fail-closed-out.txt ]]; then
+  ok "Launching skill does not stop later Bash"
+else
+  fail "launched skill stopped Bash"
+fi
 
 printf '%s\n' \
   'Invoke /review:code-review now' \
@@ -133,8 +157,11 @@ printf '%s\n' \
   '{"content":"Execute skill: review:code-review","is_error":true}' \
   >"$TMP/again.txt"
 run_hook "$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","transcript_path":sys.argv[1]}))' "$TMP/again.txt")"
-python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False'
-[[ $? -eq 0 ]] && ok "a later empty result still fails closed" || fail "later empty result was ignored"
+if python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["continue"] is False'; then
+  ok "a later empty result still fails closed"
+else
+  fail "later empty result was ignored"
+fi
 
 printf '%s\n' \
   'Invoke /review:code-review now' \
@@ -142,14 +169,25 @@ printf '%s\n' \
   '# CI code review' \
   >"$TMP/body.txt"
 run_hook "$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","transcript_path":sys.argv[1]}))' "$TMP/body.txt")"
-[[ ! -s /tmp/fail-closed-out.txt ]] && ok "Execute skill followed by a body is not empty" || fail "loaded body was treated as empty"
+if [[ ! -s /tmp/fail-closed-out.txt ]]; then
+  ok "Execute skill followed by a body is not empty"
+else
+  fail "loaded body was treated as empty"
+fi
 
 run_hook '{"hook_event_name":"Stop","last_assistant_message":"review-lane-fail-closed: security-review\nThe skill body never loaded."}'
-python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["stopReason"].startswith("review-lane-fail-closed: security-review")'
-[[ $? -eq 0 ]] && ok "Stop blocks a marker reply" || fail "Stop did not block the marker"
+if python3 -c 'import json; d=json.load(open("/tmp/fail-closed-out.txt")); assert d["stopReason"].startswith("review-lane-fail-closed: security-review")'; then
+  ok "Stop blocks a marker reply"
+else
+  fail "Stop did not block the marker"
+fi
 
 run_hook '{"hook_event_name":"Stop","last_assistant_message":"No findings."}'
-[[ ! -s /tmp/fail-closed-out.txt ]] && ok "Stop allows a clean reply" || fail "clean Stop was blocked"
+if [[ ! -s /tmp/fail-closed-out.txt ]]; then
+  ok "Stop allows a clean reply"
+else
+  fail "clean Stop was blocked"
+fi
 
 # --- check-lane fixtures ----------------------------------------------------
 FAIL_CLOSED_BODIES="$(python3 -c 'import json,sys; print(json.dumps([sys.argv[1]]))' "$CONFESSION")" \
@@ -194,7 +232,7 @@ for skill in "$CODE_SKILL" "$SEC_SKILL"; do
   fi
 done
 
-python3 - <<'PY' "$CODE_SKILL" "$SEC_SKILL"
+if python3 - <<'PY' "$CODE_SKILL" "$SEC_SKILL"
 import re, sys
 failed = False
 for path in sys.argv[1:]:
@@ -218,7 +256,11 @@ for path in sys.argv[1:]:
         print(f"ok: {path} description is {len(desc)} characters and keeps the gate")
 sys.exit(1 if failed else 0)
 PY
-[[ $? -eq 0 ]] && ok "descriptions stay inside the cap" || fail "description contract"
+then
+  ok "descriptions stay inside the cap"
+else
+  fail "description contract"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
