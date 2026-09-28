@@ -3,11 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.2] - 2026-09-28
+## [0.63.11] - 2026-09-28
 
 ### Changed
 
 - The session-event-log and session-retention rows are exec form. `hooks/exec-bash.mjs --require-true SESSION_EVENT_LOG_ENABLED` exits 0 before bash when the option is not `true`, so a default-off install does not start Git Bash ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+## [0.63.10] - 2026-09-28
+
+### Added
+
+- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto --permission-prompts none`. Auto mode still decides. A prompt that would have asked a person is denied. Probed on Claude Code 2.1.282: the flag is accepted together with `--bg`.
+- **`/reload-plugins` in headless sessions.** `plugins` `context/scope-semantics.md` records that the command runs in `-p`, the Agent SDK, and the desktop app from Claude Code 2.1.260, only on input typed into the session, and that it does not apply plugin MCP server changes there.
+
+### Changed
+
+- **Lane restart does not use `claude --resume <id> --bg`.** The decline is recorded on `lanes` with the four-part record. Restart stays stop plus a fresh seeded launch.
+- **`audit-native-overlap` nominates the stale sandbox-mask warning.** The seeded `doctor` / `audit-install-state` pair names the `claude doctor` warning for 0-byte placeholders a killed session leaves. That note is a candidate, not a verdict.
 
 ## [0.63.1] - 2026-09-28
 

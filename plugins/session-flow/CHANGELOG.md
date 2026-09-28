@@ -1,10 +1,16 @@
 # Changelog: session-flow plugin
 
-## [0.38.14] - 2026-09-28
+## [0.38.16] - 2026-09-28
 
 ### Changed
 
 - The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.38.15] - 2026-09-28
+
+### Changed
+
+- **Observer analysis passes `--permission-prompts none`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The unattended `claude -p` run keeps `--permission-mode dontAsk` and adds the print-mode flag that denies anything still waiting on a person and tells the model not to retry it. Basis: the headless page's unattended-runs section.
 
 ## [0.38.13] - 2026-09-28
 
