@@ -101,7 +101,7 @@
       ]
     },
     {
-      "id": 8,
+      "id": 9,
       "name": "non-obvious-behavior-keying-d17b",
       "prompt": "/education:quiz-me on the auth middleware change we just merged — I read the diff but want to be sure I caught the subtle behavior shifts.",
       "expected_output": "Authors quiz questions against non-obvious behaviors a reader would skim past in the diff (ordering, failure modes, edge guards), not only against rephrased headings or obvious renames.",
