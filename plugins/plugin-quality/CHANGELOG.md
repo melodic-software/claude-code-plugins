@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.30] - 2026-09-28
+## [0.7.31] - 2026-09-28
 
 ### Changed
 
@@ -14,6 +14,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `skills/audit/reference/evidence-packet.md` lists what `packet-seal.sh verify` proves, how a
   later nonce or `evidence-<n>.md` is a newer snapshot, and that the producing session has no
   obligation to re-seal when the audited world moves.
+
+## [0.7.30] - 2026-09-28
+
+### Added
+
+- **`packet-seal.sh record --acknowledge-divergence` writes `packet.sha256.<n>`
+  and leaves `packet.sha256` in place (#3357).** A reseal over CHANGED bytes
+  still refuses, and the error now says the original manifest stays permanently
+  unsealable so later notes remain UNSEALED. The generation is a forward record,
+  not a laundered seal. `verify` still reports CHANGED against `packet.sha256`.
+  Once a generation exists, an ordinary `record` is refused even if the altered
+  bytes are restored, so the acknowledged divergence cannot be laundered.
+- **`packet-prune.sh` retains `item*.md`, not only `item.md` (#3357).** A second
+  owner's `item-<owner>.md` in the same packet is a deliverable.
+
+### Changed
+
+- **`verify` must be read unpiped (#3357).** The resume rule says a pipe such as
+  `| tail` reports the wrong exit code, and to capture `${PIPESTATUS[0]}`.
+- **The auditor raises a timeline question when live state contradicts a packet
+  claim (#3357).** It does not publish that contradiction as a correction.
+- **Step 5 reports seam resolution (#3357).** Each presence-gated seam is used
+  or fell back, with why, including a disabled `skill-quality:check`.
 
 ## [0.7.29] - 2026-09-28
 

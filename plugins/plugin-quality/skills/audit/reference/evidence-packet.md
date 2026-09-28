@@ -99,6 +99,10 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
     a symlink pointing out of the packet). Integrity unknown: carry it forward as a stated
     limitation rather than reading it as either a pass or a failure.
 
+  Run `verify` unpiped. A pipe such as `| tail` makes `$?` report the last command's status, so an
+  altered packet (exit 1) can read as a clean pass. When a pipe is unavoidable, capture
+  `${PIPESTATUS[0]}` and use that, not `$?`.
+
   Exit **0** means nothing changed *since the seal*. It is not a claim the content is pristine,
   because a rewrite before the first seal is invisible to any digest. It is also not a claim the
   audited world still matches; see [What a sealed packet asserts](#what-a-sealed-packet-asserts).
@@ -202,6 +206,25 @@ These escapes do not hold: a non-`.md` extension evades `markdown-format` but no
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
 evasion.
 
+**Write-once is a discipline, not a filesystem guarantee (#3866).** The producing agent
+holds Write (and the main thread can Edit). Nothing makes a sealed file physically
+unwritable. `packet-seal.sh verify` reports CHANGED after the fact; `record` then refuses
+to reseal, so later files in that packet stay UNSEALED against `packet.sha256`. That
+original manifest is never overwritten. `record --acknowledge-divergence` writes
+`packet.sha256.<n>` for the bytes as they are now and leaves `packet.sha256` in place, so
+`verify` still reports CHANGED. The generation is a forward record, not a clean bill of
+health. Mechanical chmod, or a write proxy that refuses sealed files, is unpaid.
+A sealed packet asserts bytes at seal time, not current world state; see
+[What a sealed packet asserts](#what-a-sealed-packet-asserts). Corrections go in a new file
+(`audit-notes-2.md`, `evidence-<n>.md`), never an edit of a file already on disk. If live
+state contradicts a packet claim about mutable configuration, treat that as a timeline
+question (the world may have moved since the capture), not as a correction that the packet
+was wrong.
+
+| Claim | Basis | As of | Recheck |
+|---|---|---|---|
+| Write-once is an agent discipline with after-the-fact verify. The system does not make sealed files unwritable. Breaking it is terminal for `packet.sha256`. `--acknowledge-divergence` writes `packet.sha256.<n>` and does not replace the original. | `packet-seal.sh` record/verify; `packet-seal.test.sh` acknowledge cases; this section's three rules; `agents/auditor.md` Write grant. | 2026-09-28 | `verify` starts treating `packet.sha256.<n>` as a replacement for `packet.sha256`, or a platform lock makes sealed files unwritable without breaking the documented re-seal of `packet.sha256`. |
+
 ## What a sealed packet asserts
 
 Option A: a sealed packet is a snapshot. The seal proves integrity since the last
@@ -216,7 +239,7 @@ Option A: a sealed packet is a snapshot. The seal proves integrity since the las
   mark an earlier packet superseded when the audited world moves. Write-once remains
   an agent discipline with after-the-fact `verify` ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)):
   a correction is a new file, then a re-seal, never an edit of a sealed file.
-- **Basis:** The operator decision recorded on #3867 (2026-09-28); this file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
+- **Basis:** This file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
   COVERED / NOT COVERED header and exits 0 / 1 / 2 / 3; issue
   [#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867).
 - **As of:** 2026-09-28.
@@ -250,7 +273,8 @@ Option A: a sealed packet is a snapshot. The seal proves integrity since the las
 ### Producer obligations after sealing
 
 - **Packet files:** write-once. Never edit a sealed file. A correction is a new file,
-  then `record` again. `record` refuses to reseal over a `CHANGED` entry.
+  then `record` again. `record` refuses to reseal over a `CHANGED` entry;
+  `--acknowledge-divergence` writes `packet.sha256.<n>` and leaves `packet.sha256` as is.
 - **The audited world:** no obligation to re-seal, delete, or mark the packet
   superseded when later operations change the thing the packet described. The packet
   remains a seal-time snapshot. A same-target re-audit in a later run already gets its
