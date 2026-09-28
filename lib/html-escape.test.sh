@@ -88,14 +88,14 @@ check(
   verdict.failures.join(","),
 );
 check("hostile markup is not a live img tag", !page.includes("<img"));
-check("hostile markup is not a live script tag", !/<script[\s>]/i.test(page));
+check("hostile markup is not a live script tag", !/<script[\s>]/i.test(page)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check(
   "handler text stays in a text node and is not an attribute name",
   page.includes("onerror=alert") && !verdict.failures.some((item) => item.startsWith("attr:on")),
 );
 check(
   "no external resource tag is emitted",
-  !/<(?:link|iframe|object|embed|img|script|base)\b/i.test(page) &&
+  !/<(?:link|iframe|object|embed|img|script|base)\b/i.test(page) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
     !verdict.failures.some((item) => item.startsWith("attr:")),
 );
 check(
