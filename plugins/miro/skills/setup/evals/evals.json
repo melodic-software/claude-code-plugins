@@ -27,6 +27,19 @@
         "Never invokes a create, update, or delete tool",
         "Does not misdiagnose network or service failures as a bad credential"
       ]
+    },
+    {
+      "id": 3,
+      "name": "disabled-plugin-is-not-a-bad-token",
+      "prompt": "/miro:setup \u2014 Miro tools are missing. Is my token wrong?",
+      "expected_output": "Distinguishes a disabled plugin from an enabled server that failed to start or authenticate. It does not diagnose a missing tool list as a bad token, and it still never reads the token or settings.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not conclude the token is wrong from a missing tool list alone",
+        "Distinguishes disabled from enabled-but-failed",
+        "Never reads the token, settings, or environment"
+      ]
     }
   ]
 }
