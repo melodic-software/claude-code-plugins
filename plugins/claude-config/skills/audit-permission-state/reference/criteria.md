@@ -11,7 +11,7 @@
 - [The auto-mode entry diff](#the-auto-mode-entry-diff)
 - [The permission-plane lint](#the-permission-plane-lint)
 - [The `autoMode` block lane](#the-automode-block-lane)
-- [Open upstream discrepancy: carry this caveat on any `ask` finding](#open-upstream-discrepancy-carry-this-caveat-on-any-ask-finding)
+- [Ask rules under auto mode: carry this caveat on any `ask` finding](#ask-rules-under-auto-mode-carry-this-caveat-on-any-ask-finding)
 - [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
 
 Version: 1.1.0
