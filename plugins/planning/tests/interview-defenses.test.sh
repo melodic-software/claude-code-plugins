@@ -512,7 +512,7 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "2a0a3a73f9f2deeb28d899fb737db3dab6de106c0895db3fb1110d1fe5d8f881"
+  "bc000f8d116bad560c8a74646f7d3736aefa7c42d34a8aa5643c30c5bc58a984"
 # Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
 # outlives the branch goes and touches no assumption or Brief rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
