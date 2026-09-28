@@ -3,6 +3,26 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-09-28
+
+### Security
+
+- **"Six read-only agents" now says what is enforced.** None of the six lists `Write` or `Edit`,
+  but `memory: local` makes the harness enable both for memory management with no scope to the
+  memory directory, and `permissionMode` is ignored for plugin subagents. The manifest and README
+  now say "read-only over the reviewed code", and the README states both limits with a dated
+  basis: the `memory` field does nothing when auto memory is off, and the memory-directory
+  restriction is the agents' convention rather than a tool boundary.
+- **Reviewed content is data.** Each agent carries the untrusted-content framing for what it reads,
+  meaning the change set, `REVIEW.md`, rules files, cited documents, logs and tool output: an
+  embedded instruction is reported as a finding and widens nothing. `code-reviewer`,
+  `security-reviewer` and `architecture-guardian` scope "project conventions override this
+  baseline" to review criteria.
+
+### Removed
+
+- The unused `Skill` grant from all six agents' `tools` ([#4263](https://github.com/melodic-software/claude-code-plugins/issues/4263)).
+
 ## [0.31.1] - 2026-09-27
 
 ### Fixed
