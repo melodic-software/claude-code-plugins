@@ -237,6 +237,20 @@ else
   echo "SKIP - symlink containment case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
 fi
 
+# --- a second owner's item-*.md is the same deliverable ---------------------
+
+alias_root="$WORK/alias-item/evidence"
+rm -rf "$WORK/alias-item"
+mkdir -p "$alias_root/s/g/$OLD"
+printf 'findings for the other plugin\n' >"$alias_root/s/g/$OLD/item-plugin-quality.md"
+run 0 "apply runs with item-plugin-quality.md and no item.md" --root "$alias_root" --apply
+has "RETAIN-ITEM" "a second-owner item file retains the packet"
+if [[ -e "$alias_root/s/g/$OLD/item-plugin-quality.md" ]]; then
+  pass "item-plugin-quality.md survives --apply"
+else
+  fail "--apply DELETED item-plugin-quality.md"
+fi
+
 # --- item.md protection is recursive ----------------------------------------
 
 nested="$WORK/nested-item/evidence"
