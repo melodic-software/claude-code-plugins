@@ -191,6 +191,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/token-scan.sh
 . "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
 # shellcheck source=lib/read-list.sh
@@ -325,15 +327,12 @@ baselined() {
 
 files=()
 apply_baseline=0
-if (($# == 0)); then
+if ! gate_entry::classify "$@"; then
   usage
 fi
 
-mode="$1"
-case "$mode" in
---all)
-  shift
-  (($# == 0)) || usage
+case "$GE_MODE" in
+all)
   apply_baseline=1
   while IFS= read -r f; do
     is_scannable "$f" && files+=("$f")
@@ -345,25 +344,13 @@ case "$mode" in
     } | sed 's|^\./||' | sort -u
   )
   ;;
---paths)
-  shift
-  (($# > 0)) || usage
+paths)
   # --paths is the audit tool: scan exactly what was asked, no baseline skip.
-  files=("$@")
+  files=("${GE_PATHS[@]}")
   ;;
--*)
-  usage
-  ;;
-*)
-  # Changed-file mode: <base-ref>.
-  base="$mode"
-  shift
-  (($# == 0)) || usage
+base)
   apply_baseline=1
-  if ! changed_files::verify_base "$base"; then
-    printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
-    exit 2
-  fi
+  base="$GE_REF"
   # The NUL-safe read and the deletion filter live in the shared resolver; a
   # failed diff is fatal there rather than arriving here as an empty scope.
   # Diff plugins/ in addition to *.sh so skill markdown under
@@ -371,18 +358,22 @@ case "$mode" in
   # pathspec alone does not match under git's default (non-pathname) globbing
   # (same rationale as check-skill-portability.sh).
   changed=()
-  changed_files::into changed "$base" -- '*.sh' 'plugins/' || exit 2
+  gate_entry::collect_changed changed "$base" -- '*.sh' 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     is_scannable "$f" || continue
     [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
     files+=("$f")
   done
   ;;
+*)
+  printf 'Error: unrecognized gate mode: %s\n' "$GE_MODE" >&2
+  gate_entry::finish 2
+  ;;
 esac
 
 if ((${#files[@]} == 0)); then
   echo "No shell files in scope — nothing to gate."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # scan_file <path> — print `LINE: token -> text` for each unexcused hit.
@@ -459,7 +450,7 @@ done
 # PRs — same blast-radius contract as the cleaned-up / out-of-set branches.
 if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
   for entry in "${baseline_entries[@]}"; do
-    if [[ "$mode" == "--all" || -n "${files_in_scope[$entry]:-}" ]]; then
+    if [[ "$GE_MODE" == "all" || -n "${files_in_scope[$entry]:-}" ]]; then
       if [[ ! -f "$entry" ]]; then
         echo "STALE BASELINE: $BASELINE: '$entry' names a missing file — remove it" >&2
         violations=$((violations + 1))
@@ -503,6 +494,7 @@ if ((violations > 0)); then
       echo "quote-removal divergence."
     } >&2
   fi
-  exit 1
+  gate_entry::finish 1
 fi
 echo "No unexcused GNU-only constructs in ${#files[@]} shell file(s)."
+gate_entry::finish 0
