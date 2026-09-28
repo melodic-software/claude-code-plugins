@@ -3,6 +3,15 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.7] - 2026-09-28
+
+### Changed
+
+- **Deferred per-file coverage accounting engine** ([#4521](https://github.com/melodic-software/claude-code-plugins/issues/4521)).
+  The skill records the park next to "When coverage is incomplete"; honesty from #4525 and gap
+  closure from #4524 stay the shipped contract until `Summary coverage:` exists. Version 0.23.7
+  serializes with other open code-tidying parks on the same base.
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed

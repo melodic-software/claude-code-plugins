@@ -147,6 +147,15 @@ clean bill. After presenting the lane roster:
 The default stays read-only: no package runner, no network fetch, and no build without consent
 (#4524). Consent-gated lanes that may compile or execute project code remain out of scope here.
 
+Per-file coverage accounting in `dead-code-scan.sh` (`Summary coverage:`, uncovered-file notes) is
+**not shipped**; the engine work stays deferred ([#4521](https://github.com/melodic-software/claude-code-plugins/issues/4521)).
+**Claim:** a clean `Summary total:` does not prove every tracked source file was scanned until that
+engine lands. **Basis:** #4525 (2026-09-28) corrected grep-lane and orphaned-file overclaims and
+documents the no-`package.json` knip gap; #4524 names gaps and offers consent-gated follow-up;
+#4521 records the deferred accounting engine rather than a partial counter. **As of:** 2026-09-28.
+**Recheck:** `dead-code-scan.sh` emits `Summary coverage:` with fixture-backed tests, or an operator
+unpark of #4521.
+
 ## Output schema
 
 The script emits flat records; the adjudicated report is what the human reads.
