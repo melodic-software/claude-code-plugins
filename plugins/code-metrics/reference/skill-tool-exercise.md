@@ -15,8 +15,8 @@ is the path. Static inspection of the five unpaid bodies finds the same
 interpolation tokens the two live passes resolved: `CLAUDE_SKILL_DIR`,
 `CLAUDE_PLUGIN_ROOT`, and (on the four remaining `audit-*` skills) the
 `git branch --show-current` precompute. No leftover template token other than
-those. Defects found in the live pass are tracked separately (#4002, #4003,
-#4066, #4067) and are not this item.
+those. Defects found in the live pass are tracked separately (issues 4002,
+4003, 4066, and 4067) and are not this item.
 
 **Basis:** issue #3848 comments recording the 0.1.8 Skill-tool outcomes for
 `audit-type-debt` and `principles`; skill frontmatter
@@ -48,8 +48,8 @@ mode, plugin 0.1.8, 2026-09-08. Later rows are static against 0.3.19.
 | `audit-coverage` | Unpaid | Same tokens as the two live passes | Unpaid | Unpaid |
 | `setup` | Slash path only (model-hidden) | Unpaid slash render; tokens `CLAUDE_SKILL_DIR` and `CLAUDE_PLUGIN_ROOT` only, no precompute | Unpaid | Not applicable |
 
-Filed from the live rows, not from this record: #4002, #4003 (type-debt
-collector), #4067 (principles wording), #4066 (skill-quality `## Next` gate).
+Filed from the live rows, not from this record: issues 4002 and 4003 (type-debt
+collector), 4067 (principles wording), 4066 (skill-quality Next-section gate).
 
 ## Eval slice
 
