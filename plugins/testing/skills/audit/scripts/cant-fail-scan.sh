@@ -90,7 +90,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path>] [--check [--strict] | --findings | --count | --help]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
   --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
@@ -101,6 +101,7 @@ Usage: cant-fail-scan.sh [--check [--strict] | --findings | --count | --help]
   --findings  emit a detector-findings-conforming findings file on stdout; coverage on stderr;
               refuses (exit 2) when no test file was examined or no branch is checked out
   --count     integer finding count on stdout, coverage block on stderr
+  --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
 testing/audit/rule-mock-only-oracle, and over each Playwright config found,
@@ -113,8 +114,9 @@ EOF
 
 mode="report"
 strict=0
-for arg in "$@"; do
-  case "$arg" in
+FILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
   -h | --help)
     usage
     exit 0
@@ -123,12 +125,22 @@ for arg in "$@"; do
   --findings) mode="findings" ;;
   --count) mode="count" ;;
   --strict) strict=1 ;;
+  --file)
+    if [[ $# -lt 2 || -z "$2" ]]; then
+      printf 'ERROR: --file needs a path\n' >&2
+      usage >&2
+      exit 2
+    fi
+    FILE="$2"
+    shift
+    ;;
   *)
-    printf 'ERROR: unknown argument %s\n' "$arg" >&2
+    printf 'ERROR: unknown argument %s\n' "$1" >&2
     usage >&2
     exit 2
     ;;
   esac
+  shift
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -149,7 +161,15 @@ require_readable "$MASK_AWK" 'shared JavaScript masker'
 require_readable "$CONFIG_AWK" 'runner-config rule engine'
 
 ROOT_SOURCE=""
-if [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
+if [[ -n "$FILE" ]]; then
+  if [[ ! -f "$FILE" ]]; then
+    printf 'ERROR: --file is not a file: %s\n' "$FILE" >&2
+    exit 2
+  fi
+  ROOT="$(cd "$(dirname "$FILE")" && pwd)"
+  FILE="$ROOT/$(basename "$FILE")"
+  ROOT_SOURCE="--file"
+elif [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
   ROOT="$CANT_FAIL_SCAN_ROOT"
   ROOT_SOURCE="\$CANT_FAIL_SCAN_ROOT"
 else
@@ -194,9 +214,10 @@ REPO_PREFIX="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
 # --- Walk ---------------------------------------------------------------------
 # Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
 # (a detector's fixture corpus is deliberately defective test code; scanning it
-# reports planted defects as the consumer's own).
+# reports planted defects as the consumer's own). With --file the walk starts
+# at that one file, so the prune never applies and only its name is tested.
 collect_files() {
-  find "$ROOT" \
+  find "${FILE:-$ROOT}" \
     \( -name .git -o -name node_modules -o -name vendor -o -name dist \
     -o -name build -o -name out -o -name obj -o -name bin -o -name target \
     -o -name .work -o -name __pycache__ -o -name .venv -o -name venv \

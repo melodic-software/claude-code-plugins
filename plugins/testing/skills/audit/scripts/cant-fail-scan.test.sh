@@ -725,6 +725,34 @@ else
 fi
 chmod 600 "$CFGUNREAD/playwright.config.js" 2>/dev/null || true
 
+# --- --file: scan exactly one file ---------------------------------------------
+# One file, the same exit codes as a whole-tree scan, repo-relative Location,
+# and no evals/fixtures prune: the path was named, so it is scanned.
+run_file() {
+  rc=0
+  out="$(bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+run_file --file "$FIX/positive/cant-fail-js.test.js"
+assert_exit "--file report completes (exit 0)" 0 "$rc"
+assert_contains "--file keeps Location repo-relative" "$out" \
+  "plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js.test.js:11: test 'adds numbers' has 0 assertion tokens"
+assert_not_contains "--file scans only the named file" "$out" "test_cant_fail_py.py"
+assert_contains "--file denominator is one file" "$out" "test files: 1 examined of 1 enumerated"
+run_file --file "$FIX/positive/CantFailTests.cs" --check
+assert_exit "--file --check exits 1 on a gating finding" 1 "$rc"
+run_file --check --file "$FIX/negative/test_discriminating_py.py"
+assert_exit "--file --check exits 0 on a clean test file" 0 "$rc"
+run_file --file "$FIX/negative/test_discriminating_py.py" --count
+assert_exit "--file --count completes" 0 "$rc"
+assert_matches "--file --count prints 0" "$out" '^0$'
+run_file --check --file "$SCRIPT_DIR/cant-fail-scan.sh"
+assert_exit "--file on a file no ecosystem claims fails closed (exit 2)" 2 "$rc"
+assert_contains "--file on an unclaimed file reports 0 examined" "$out" "0 test files were examined"
+run_file --file "$TMP_ROOT/no-such.test.js"
+assert_exit "--file on a missing path refuses (exit 2)" 2 "$rc"
+run_file --file
+assert_exit "--file without a value refuses (exit 2)" 2 "$rc"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
