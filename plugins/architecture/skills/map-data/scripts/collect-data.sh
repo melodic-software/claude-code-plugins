@@ -296,7 +296,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     ;;
   *) ;;
   esac
-  [[ -f "$repo/$rel" ]] || continue
+  [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
   case "$rel" in
   *.prisma)
     printf '%s\n' "$rel" >>"$TMP/prisma.txt"
@@ -326,7 +326,7 @@ scan_unshipped() {
   local rel line
   while IFS= read -r rel || [[ -n "$rel" ]]; do
     [[ -n "$rel" ]] || continue
-    [[ -f "$repo/$rel" ]] || continue
+    [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
     if grep -E -q 'models\.Model' "$repo/$rel"; then
       add_mech django model no "$rel"
       unshipped="${unshipped} django"
@@ -338,7 +338,7 @@ scan_unshipped() {
   done <"$TMP/py.txt"
   while IFS= read -r rel || [[ -n "$rel" ]]; do
     [[ -n "$rel" ]] || continue
-    [[ -f "$repo/$rel" ]] || continue
+    [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
     if grep -E -q '\[ForeignKey' "$repo/$rel"; then
       add_mech ef-annotation orm no "$rel"
       unshipped="${unshipped} ef-annotation"
@@ -741,7 +741,7 @@ ef_evidence=""
 set -f
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
-  [[ -f "$repo/$rel" ]] || continue
+  [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
   if ! grep -E -q 'Has(One|Many|ForeignKey)' "$repo/$rel"; then
     continue
   fi

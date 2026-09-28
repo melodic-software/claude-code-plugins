@@ -165,6 +165,17 @@ assert_not_contains "expression-bodied entry does not borrow the next method" "$
 git -C "$repo" rm --quiet src/Transport/Short.cs
 git -C "$repo" commit --quiet -m "drop expression-bodied"
 
+printf 'outside.cs\n' >"$repo/.gitignore"
+printf 'public class Outside\n{\n    public void LinkedEntry()\n    {\n        Helper.Run();\n    }\n}\n' >"$repo/outside.cs"
+ln -s ../../outside.cs "$repo/src/Transport/Linked.cs"
+git -C "$repo" add .gitignore src
+git -C "$repo" commit --quiet -m "symlink"
+linked="$(bash "$COLLECT" --repo "$repo" --entry "LinkedEntry" --out "$TEST_TMPDIR/linked.json" 2>&1)"
+assert_equals "a tracked symlink is not a source" "$?" "3"
+assert_contains "the symlinked entry is not found" "$linked" "refused: entry point not found"
+git -C "$repo" rm --quiet src/Transport/Linked.cs
+git -C "$repo" commit --quiet -m "drop symlink"
+
 cp "$repo/src/Transport/OrdersEndpoint.cs" "$repo/src/Transport/OrdersEndpoint2.cs"
 git -C "$repo" add src
 git -C "$repo" commit --quiet -m "duplicate"

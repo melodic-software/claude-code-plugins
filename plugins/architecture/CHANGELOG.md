@@ -47,7 +47,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   the scan root, so a directory name cannot run a command through GNU sed's `e` flag.
 - The shared redactor treats standalone credential words in a key (`DB_PASS`, `REDIS_AUTH`,
   `ENCRYPTION_KEY`), `key: value` and JSON credential pairs, and token-only URL userinfo as secret.
-- The containers, context, and deployment collectors skip tracked symlinks.
+- The containers, context, data, deployment, events, flow, and states collectors skip tracked
+  symlinks.
 
 ## [0.12.3] - 2026-09-28
 

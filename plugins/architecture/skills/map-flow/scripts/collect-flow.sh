@@ -163,7 +163,7 @@ trap 'rm -f "$list" "$status"' EXIT
 
 while IFS= read -r -d '' rel; do
   case "$rel" in
-  *.cs) printf '%s\n' "$rel" ;;
+  *.cs) [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] && printf '%s\n' "$rel" ;;
   *) ;;
   esac
 done < <(git -C "$repo" ls-files -z --cached) >"$list"

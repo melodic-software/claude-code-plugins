@@ -121,7 +121,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   *.cs) ;;
   *) continue ;;
   esac
-  [[ -f "$root/$rel" ]] || continue
+  [[ -f "$root/$rel" && ! -L "$root/$rel" ]] || continue
   awk -v rel="$rel" '
     function strip(s) { if (match(s, /\/\//)) s = substr(s, 1, RSTART - 1); return s }
     function typearg(s, keyword,    i, rest, depth, out, c) {

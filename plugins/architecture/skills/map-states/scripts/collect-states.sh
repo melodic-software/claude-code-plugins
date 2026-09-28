@@ -113,7 +113,7 @@ fi
 
 : >"$TMP/list"
 while IFS= read -r rel || [[ -n "$rel" ]]; do
-  [[ -n "$rel" && -f "$repo/$rel" ]] || continue
+  [[ -n "$rel" && -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
   case "$rel" in
   states.json|states.md|*/states.json|*/states.md) continue ;;
   *.js|*.mjs|*.cjs|*.ts|*.tsx|*.cs) printf '%s\n' "$rel" ;;
