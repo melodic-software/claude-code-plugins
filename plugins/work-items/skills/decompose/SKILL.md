@@ -102,7 +102,7 @@ Each step is its own ticket with blocking edges (contract blocked by every migra
 Present the proposed breakdown as a numbered list. **work the frontier** (unblocked slices first). For each slice:
 
 - **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
-- **Type**: HITL / AFK
+- **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the slice HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
 - **Blocked by**: which other slices (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)

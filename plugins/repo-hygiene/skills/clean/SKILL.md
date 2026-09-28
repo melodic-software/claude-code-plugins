@@ -34,13 +34,18 @@ hooks:
     # carries its command in the same `.tool_input.command` field Bash uses.
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form (no `args`) on purpose: exec form resolves `command` via PATH,
-        # which on Windows finds the WSL relay (System32\bash.exe) and the guard
-        # never launches, a silent fail-open. Shell form with `shell: bash` makes
-        # Claude Code itself resolve Git Bash on every platform.
+        # Exec form. `command` is `node`. exec-bash.mjs finds Git Bash and
+        # never System32\bash.exe, then runs destructive-guard.sh.
+        # Claim: exec form spawns `command` with `args` and no shell, and a
+        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
+        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
+        # and "Command hook fields".
+        # As of: 2026-09-28.
+        # Recheck: that page stops ignoring `shell` when `args` is set, or a
+        # skill hook gains another placeholder.
         - type: command
-          command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
-          shell: bash
+          command: node
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
 metadata:
   workflow-stage: anytime
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
