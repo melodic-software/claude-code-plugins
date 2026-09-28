@@ -157,6 +157,15 @@ jobs:
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
+  #
+  # Guardrails' 22 hook suites are not in this job (#4527). Six of them failed
+  # on a Windows 11 Git Bash host (block-hook-bypass, block-windows-drive-tmp,
+  # coverage-manifest, hardcoded-path-check, run-guards,
+  # secret-pattern-detection). Two overlap #3683 (host-skip path-form cases;
+  # drive-tmp is a real MSYS gap). Do not add those six here until a Windows
+  # Git Bash host shows they pass. Record:
+  # docs/out-of-scope/guardrails-windows-ci-gap.md.
+  #
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
