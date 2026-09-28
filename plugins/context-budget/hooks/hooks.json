@@ -1,5 +1,5 @@
 {
-  "description": "Asks before a write lands on a Claude Code settings surface, where an unreviewed edit changes the harness itself.",
+  "description": "Asks before a file-editing tool writes a Claude Code settings file, where an unreviewed edit changes the harness itself. Shell writes and files rendered into place by other programs are not seen.",
   "hooks": {
     "PreToolUse": [
       {

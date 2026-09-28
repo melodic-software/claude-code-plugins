@@ -332,6 +332,40 @@ def _fm_value(raw: str) -> str:
     return value
 
 
+def legacy_chain(pred: Doc, limit: int = 1000) -> list[str]:
+    """The chain a shape-1 predecessor implies, oldest first and ending with
+    it: its `previous_handoff` pointers walked back to the first file with
+    none, or to a shape-2 ancestor whose own `chain:` is taken whole. The walk
+    stays in the predecessor's directory, as every pointer must, and stops at a
+    pointer it cannot follow or a cycle, so an old chain yields what it can
+    rather than refusing the successor."""
+    walked = [pred.basename]
+    cursor = pred
+    here = os.path.normcase(os.path.realpath(pred.path.parent))
+    while len(walked) < limit:
+        previous = cursor.frontmatter.get("previous_handoff")
+        if not previous or not HANDOFF_NAME_RE.match(previous) or previous in walked:
+            break
+        path = pred.path.parent / previous
+        if not path.is_file() or (
+            os.path.normcase(os.path.dirname(os.path.realpath(path))) != here
+        ):
+            break
+        try:
+            cursor = parse_doc(path)
+        except (OSError, UnicodeDecodeError):
+            break
+        if cursor.shape in (None, 1):
+            walked.append(cursor.basename)
+            continue
+        if cursor.chain and cursor.chain[-1] == cursor.basename:
+            ancestors = [name for name in cursor.chain if name not in walked]
+            return [*ancestors, *reversed(walked)]
+        walked.append(cursor.basename)
+        break
+    return list(reversed(walked))
+
+
 def parse_doc(path: Path) -> Doc:
     doc = Doc(path=path, lines=_read_lines(path))
     lines = doc.lines
@@ -882,10 +916,14 @@ def validate_doc(
             if doc.chain != expected_chain:
                 message = f"frontmatter: chain must be the predecessor's chain plus this file ({expected_chain})"
                 (f.warn if pred_soft else f.fail)(message)
-        elif doc.chain != [previous, doc.basename]:
-            f.fail(
-                f"frontmatter: a shape-1 predecessor gives chain [{previous!r}, {doc.basename!r}]"
-            )
+        else:
+            # The two-entry form is what `new` wrote before it walked a shape-1
+            # predecessor's pointers; files already written that way stay valid.
+            walked = legacy_chain(pred) + [doc.basename]
+            if doc.chain not in (walked, [previous, doc.basename]):
+                f.fail(
+                    f"frontmatter: a shape-1 predecessor gives chain {walked} (its previous_handoff walk plus this file)"
+                )
 
     titles = doc.titles
     if titles != list(SECTIONS_17):
@@ -1374,7 +1412,7 @@ def build_skeleton(
     if pred is None:
         chain = [target.name]
     elif pred.shape in (None, 1):
-        chain = [pred.basename, target.name]
+        chain = legacy_chain(pred) + [target.name]
     else:
         chain = pred.chain + [target.name]
     hop = len(chain)

@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- Trimmed the nine model-invocable skill descriptions to 500 characters or fewer each, keeping
+  every skill's trigger phrases and its routing pointer (#4657). The plugin's listing-budget
+  aggregate (`check-listing-budget.sh plugins/work-items/skills`) drops from 7,651 to 4,212
+  characters, and the fleet aggregate from 149,643 to 146,204. `decompose` no longer breaches
+  the 1,024-codepoint cap, so its row leaves `scripts/skill-description-cap-baseline.txt`.
+  `setup` is `disable-model-invocation: true`, is never listed, and is unchanged.
+
 ## [0.41.0] - 2026-09-27
 
 ### Added

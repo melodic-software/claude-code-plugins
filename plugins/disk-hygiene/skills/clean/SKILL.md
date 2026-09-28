@@ -397,7 +397,7 @@ Harness mechanics live in one copy, in the safety model, so a fix there cannot l
 restatement behind here. Load [the safety model](reference/safety-model.md) when you need
 them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
 what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
-and the residual fail-open → "Hook launch form".
+and what the guard does when no Python resolves → "Hook launch form".
 
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
