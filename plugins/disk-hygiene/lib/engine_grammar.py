@@ -188,9 +188,11 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 "--root-children",
                 takes_value=False,
                 help=(
-                    "inventory only explicit immediate child directories of the "
-                    "target (OS-managed volume roots and home-style targets); "
-                    "requires --root-child selection before any subtree is audited"
+                    "inventory only explicitly selected immediate child "
+                    "directories of the target; required for an OS-managed "
+                    "volume root (never a whole-root walk) and available on "
+                    "any other directory so approved children can be "
+                    "re-inventoried without walking the rest of the tree"
                 ),
             ),
             Flag(
