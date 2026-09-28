@@ -58,7 +58,8 @@ every branch name, step id, and playbook name you put in a command.
 3. Show the findings: the deliverables each skill's procedure names, in the form it specifies,
    produced by running that procedure in full as the skill states it. A summary of them, or a
    skipped procedure step, does not complete the step. The user reviews them for accuracy before
-   anything is fixed.
+   anything is fixed. Read the skill's own coverage statement (for example audit skills' `Lane:`
+   lines or `Summary coverage:`) and show any uncovered scope alongside the findings.
 4. Ask the scope questions the findings raise as one short numbered list in chat (which
    findings to fix, how far to go). A file synced from another repository is overwritten by the
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
@@ -82,8 +83,10 @@ every branch name, step id, and playbook name you put in a command.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
    `/reload-plugins` before the next step.
-3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): `bash
-   S/tick.sh <id> no-findings <skill@version>...`. No commit.
+3. No change outside `.work/` (`git status --porcelain -- . ':!.work'` is empty): when the
+   skill reported uncovered scope, `bash S/tick.sh <id> partial "<what was not covered>"
+   <skill@version>...` (one line, no commas). When coverage was complete, `bash S/tick.sh <id>
+   no-findings <skill@version>...`. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
