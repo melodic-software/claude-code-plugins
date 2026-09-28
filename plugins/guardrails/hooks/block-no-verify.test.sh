@@ -675,7 +675,16 @@ for granted_bypass in \
   '{ git status; git commit --no-verify -m x }' \
   '{ git remote -v; git commit -n -m x }' \
   "$(printf "{ @'\nx\n'@ | git commit -F - --no-verify }")" \
-  "iex 'git commit --no-verify -m x'"; do
+  "iex 'git commit --no-verify -m x'" \
+  '& { git.exe commit --no-verify -m x }' \
+  '& { C:/Git/bin/git.exe commit --no-verify -m x }' \
+  "& { & 'git' commit --no-verify -m x }" \
+  "\$g='git'; & { & \$g commit --no-verify -m x }" \
+  "\$a=@('--no-verify'); & { git commit @a -m x }" \
+  "iex ('git commit --no-' + 'verify')" \
+  "\$g='git'; & { & \$g commit -m x }" \
+  "& { git commit -m x; git log -1 -join 'y' }" \
+  "& { git commit @params }"; do
   expect "PS #4235: bypass inside a granted region still blocks: $granted_bypass" 2 \
     --tool PowerShell --command "$granted_bypass" \
     -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS" \
@@ -683,6 +692,15 @@ for granted_bypass in \
 done
 expect "PS #4235: a granted region with no bypass flag is allowed" 0 \
   --tool PowerShell --command '& { git status; git commit -m x }' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS"
+expect "PS #4235: a granted read-only remote call is allowed" 0 \
+  --tool PowerShell --command '& { git remote -v }' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS"
+expect "PS #4235: iex on one single-quoted literal with no bypass is allowed" 0 \
+  --tool PowerShell --command "iex 'git status'" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS"
+expect "PS #4235: a no-verify mention in a granted command's message blocks (accepted)" 2 \
+  --tool PowerShell --command "& { git commit -m 'drop no-verify docs' }" \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS"
 expect "PS #4235: an unrelated token does not open the special-construct sink" 2 \
   --tool PowerShell --command '& { git push }' \

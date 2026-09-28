@@ -300,6 +300,46 @@ ps_scan_raw_git_calls() {
   done
 }
 
+# True when a sink token must NOT waive the parse block, judged on the raw text
+# of the WHOLE command rather than on git spellings (`git.exe`, `& $g`, `@a`,
+# a concatenated iex string all hide one): any `no-verify` / `noverify` text; a
+# short-flag cluster holding `n` in a statement that names `commit`; or a
+# dynamically built command (`+`, `-join`, `-f`, a call or dot-source of a
+# variable, quoted name or subexpression, a splat, or iex on anything but one
+# single-quoted literal). A commit message mentioning no-verify blocks too.
+ps_grant_content_unsafe() {
+  local lc="${1//\`/}" seg rest
+  local -a segs=()
+  lc="${lc,,}"
+  [[ "$lc" == *no-verify* || "$lc" == *noverify* ]] && return 0
+  local sep=$'[;|&{}()\n]' short='(^|[[:space:]])-[a-z]*n[a-z]*([[:space:]]|$)'
+  local word_commit='(^|[^[:alnum:]_-])commit([^[:alnum:]_-]|$)'
+  rest="$lc"
+  while [[ "$rest" =~ $sep ]]; do
+    segs+=("${rest%%"${BASH_REMATCH[0]}"*}")
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+  done
+  segs+=("$rest")
+  for seg in "${segs[@]}"; do
+    [[ "$seg" =~ $word_commit && "$seg" =~ $short ]] && return 0
+  done
+  [[ "$lc" == *+* ]] && return 0
+  local joinf='(^|[[:space:])])-(join|f)([[:space:](]|$)'
+  local callop=$'(^|[[:space:];|{(=])[&.][[:space:]]*[$\'"(]'
+  local splat='(^|[^[:alnum:]_$])@[[:alpha:]_]'
+  [[ "$lc" =~ $joinf || "$lc" =~ $callop || "$lc" =~ $splat ]] && return 0
+  local iex='(^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$)'
+  local iex_lit=$'(^|[^[:alnum:]_-])(iex|invoke-expression)[[:space:]]+\'[^\']*\'[[:space:]]*([;|}\n]|$)'
+  rest="$lc"
+  while [[ "$rest" =~ $iex ]]; do
+    [[ "$rest" =~ $iex_lit ]] || return 0
+    seg="${BASH_REMATCH[0]}"
+    [[ "${rest%%"$seg"*}" =~ $iex ]] && return 0
+    rest="${rest#*"$seg"}"
+  done
+  return 1
+}
+
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
@@ -322,6 +362,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   _ps_rc=$?
   _ps_sink_attempts=0
+  _ps_raw_command="$COMMAND"
   # The sink allow-list (#4235), block-dangerous-git's loop narrowed to this
   # guard: a granted ps-unparsable-<trigger> token blanks that opaque region and
   # re-classifies the rest, so a visible `git commit --no-verify` beside it is
@@ -337,7 +378,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     _ps_grantable=0
     case "${PS_SINK_TRIGGER:-}" in
     dynamic-invocation | launcher | special-construct | herestring-unbalanced | herestring-subexpr)
-      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) || _ps_grantable=1
+      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) || ps_grant_content_unsafe "$_ps_raw_command" || _ps_grantable=1
       ;;
     *) ;;
     esac

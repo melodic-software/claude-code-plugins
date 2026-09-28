@@ -40,7 +40,7 @@
     "block_no_verify_allow": {
       "type": "string",
       "title": "block-no-verify allow-list",
-      "description": "Comma-separated PowerShell fail-closed sink shapes block-no-verify sets aside: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr. A granted shape waives only the can't-parse denial: every git call, inside the region or beside it, is still read, so a --no-verify anywhere in the command still blocks; a command still unreadable after five granted rounds is refused whatever the list holds; empty blocks all",
+      "description": "Comma-separated PowerShell fail-closed sink shapes block-no-verify sets aside: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr. A granted shape waives only the can't-parse denial, and only when the whole command's raw text carries no no-verify/noverify text, no -n-style short flag beside commit, and no dynamically built command (string concatenation, -join, -f, a call on a variable or quoted name, a splat, iex on anything but one literal); a commit message mentioning no-verify therefore blocks; a command still unreadable after five granted rounds is refused whatever the list holds; empty blocks all",
       "default": ""
     },
     "block_dangerous_git_enabled": {
