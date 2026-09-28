@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [0.38.4] - 2026-09-28
+
+### Fixed
+
+- **`retro` measures chain coverage against the chain, not the project directory (#3957).**
+  `chain_coverage.available` is now the requested sessions (the walk, under `--chain-from`), plus
+  under `--chain-from` the other transcripts that mention the handoff topic. `--sessions` used to
+  divide by every transcript in the project directory, so a complete 6-hop chain launched from
+  `$HOME` scored 0.032. That count is still reported, as `project_transcripts`, and is never the
+  denominator. A walked session whose transcript is missing now lowers the ratio.
+- **`handoff` records every hop after a legacy predecessor.** `save_point.py new` wrote a two-entry
+  `chain:` when the predecessor was a shape-1 file with no `chain:` of its own. It now walks that
+  file's `previous_handoff` pointers (within its directory, stopping at a cycle or a missing file)
+  and records every hop they reach. `validate` accepts that chain and the two-entry form that
+  existing files already carry.
+
 ## [0.38.3] - 2026-09-27
 
 ### Changed

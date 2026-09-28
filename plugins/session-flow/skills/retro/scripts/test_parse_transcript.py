@@ -477,35 +477,41 @@ def test_multi_session_all_missing_is_error(tmp_path):
     assert all(s["transcript_present"] is False for s in output["sessions"])
 
 
-def test_chain_coverage_reports_the_unwalked_remainder(tmp_path):
-    """A chain covering 2 of 5 project transcripts says so in chain_coverage.
+def test_a_complete_chain_beside_unrelated_transcripts_scores_one(tmp_path):
+    """The denominator is the chain, not the project directory.
 
-    A `previous_handoff` walk stops at the first session that wrote no handoff
-    file, and without this field a 2-of-10 walk reads exactly like a genuine
-    2-session chain.
+    Under a $HOME cwd the project slug holds every session run on the machine;
+    a complete 6-hop chain once scored 0.032 against it. The directory count
+    stays visible as `project_transcripts`, never as the denominator.
     """
-    for sid in ("sid-a", "sid-b", "sid-c", "sid-d", "sid-e"):
+    chain = [f"sid-hop-{i}" for i in range(6)]
+    for sid in chain + [f"sid-unrelated-{i}" for i in range(20)]:
         _write_assistant_event(tmp_path, sid)
-    result = _run_multi(["--sessions", "sid-a", "sid-b", "--base", str(tmp_path)])
+    result = _run_multi(["--sessions", *chain, "--base", str(tmp_path)])
     result.check_returncode()
     output = json.loads(result.stdout)
-    cov = output["chain_coverage"]
-    assert cov["requested"] == 2
-    assert cov["found"] == 2
-    assert cov["available"] == 5
-    assert cov["ratio"] == 0.4
-    # The ratio is also visible without reading the structured field.
-    assert "2 of 5 transcript(s)" in output["summary"]
+    assert output["chain_coverage"] == {
+        "requested": 6,
+        "found": 6,
+        "available": 6,
+        "project_transcripts": 26,
+        "ratio": 1.0,
+    }
+    assert "6 of 6 transcript(s) in the chain" in output["summary"]
 
 
-def test_chain_coverage_full_when_the_walk_saw_everything(tmp_path):
-    """Covering every transcript in the base directory reports ratio 1.0."""
+def test_a_chain_missing_a_transcript_says_so_in_the_ratio(tmp_path):
+    """A walked session whose transcript is gone lowers the ratio."""
     _write_assistant_event(tmp_path, "sid-a")
-    _write_assistant_event(tmp_path, "sid-b")
     result = _run_multi(["--sessions", "sid-a", "sid-b", "--base", str(tmp_path)])
-    result.check_returncode()
     cov = json.loads(result.stdout)["chain_coverage"]
-    assert cov == {"requested": 2, "found": 2, "available": 2, "ratio": 1.0}
+    assert cov == {
+        "requested": 2,
+        "found": 1,
+        "available": 2,
+        "project_transcripts": 1,
+        "ratio": 0.5,
+    }
 
 
 def _write_records(
@@ -549,8 +555,8 @@ def test_unreadable_unrelated_transcript_is_skipped(tmp_path, monkeypatch):
         return real(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_text", read_text)
-    assert module._scan_project(tmp_path, ["sid-chain"], "topic") == (1, [])
-    assert module._scan_project(tmp_path, ["sid-gone"], None) == (2, [])
+    assert module._scan_project(tmp_path, ["sid-chain"], "topic") == (0, 2, [])
+    assert module._scan_project(tmp_path, ["sid-gone"], None) == (0, 2, [])
 
 
 def test_chain_from_scopes_available_to_the_handoff_topic(tmp_path):
@@ -572,6 +578,7 @@ def test_chain_from_scopes_available_to_the_handoff_topic(tmp_path):
         "requested": 1,
         "found": 1,
         "available": 2,
+        "project_transcripts": 5,
         "topic": "ci-perf",
         "ratio": 0.5,
     }
@@ -626,6 +633,7 @@ def test_multi_session_repeated_id_counts_once(tmp_path):
         "requested": 1,
         "found": 1,
         "available": 1,
+        "project_transcripts": 1,
         "ratio": 1.0,
     }
     assert output["aggregate"]["total_assistant_turns"] == 1
