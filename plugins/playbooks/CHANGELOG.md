@@ -4,6 +4,15 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.17] - 2026-09-28
+
+### Changed
+
+- **The `$`-free pre-compute rule applies to blocks that run git**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
+  in a block that never runs git is not that check. The compose gate was already git-only.
+
 ## [0.13.16] - 2026-09-28
 
 ### Added
