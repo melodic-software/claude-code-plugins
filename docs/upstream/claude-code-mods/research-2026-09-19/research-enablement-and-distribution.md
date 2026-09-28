@@ -35,8 +35,8 @@ Reading it:
    this session: a third-party provider, or telemetry opted out)"*. The binary
    caches an earlier session's payload to disk, so the gate can stay on across
    restarts. `BINARY` · HIGH
-4. Where GrowthBook is off — **"a third-party provider"** or telemetry opted out
-   — the gate falls to `false` and only the env var can enable it.
+4. Where GrowthBook is off (**"a third-party provider"** or telemetry opted out),
+   the gate falls to `false` and only the env var can enable it.
    `BINARY` · HIGH. **Naming that trio Bedrock / Vertex / Foundry is `INFERRED`**,
    interpolated from the 2.1.277 CHANGELOG entry about AGENTS.md, not read from
    this string. `repo-primary/VERIFICATION.md` row 6.5.
@@ -71,7 +71,7 @@ README states *"No hooks setting or CLI mode turns it off (`disableAllHooks`,
 not built-ins)"*, and the supported off-switch is `/plugin`. An earlier inference
 mapping the `claude plugin test` refusal string
 (*"disableAllHooks, allowManagedHooksOnly or a policy"*) onto
-`canLoadBuiltinHooksModules` was **withdrawn** — that string sits on the
+`canLoadBuiltinHooksModules` was **withdrawn**: that string sits on the
 user-module path. `SOURCE` · HIGH for the off-switch; the predicate identities
 remain unresolved. `repo-primary/RESEARCH-enablement-and-limits.md` (Conflict C4,
 Gap G3).
@@ -114,7 +114,7 @@ channels. `OBSERVED` · HIGH · `official-docs-changelog/VERIFICATION.md`.
 [DEBUG] $.fs.write (verify-probe): …\markers\marker-fs.txt (48 bytes)
 ```
 
-A `node:fs` channel in module scope left **no** marker — a hooks module cannot
+A `node:fs` channel in module scope left **no** marker; a hooks module cannot
 reach raw `node:fs`; `$` was the only channel that worked.
 
 **Flag unset →** DOES NOT LOAD:
@@ -134,7 +134,7 @@ still discovered and its `hooks.json` still read.
 These are the two operational failure modes, and they are different.
 
 **Silent-inert.** A mod can be installed, enabled, listed by `claude plugin list`
-— and never invoked, with no signal anywhere but `--debug`. The one substantial
+and yet never invoked, with no signal anywhere but `--debug`. The one substantial
 independent migration report (Practical Systems, 2026-09-17, Windows,
 2.1.273/2.1.274) puts it plainly: *"Claude Code never calls `register()`. No
 handlers, no commands, nothing"* and *"`claude plugin list` is telling the truth
@@ -145,7 +145,7 @@ was exported in one terminal only. `COMMUNITY` · HIGH, corroborated `OBSERVED` 
 
 The same report carries two secondary lessons worth copying: an exact-match
 version canary *"red most of the time is one you learn to scroll past"*, and a
-guard silently disarmed when `\b` became a literal backspace — caught only by a
+guard silently disarmed when `\b` became a literal backspace, caught only by a
 test suite asserting **denials**. `COMMUNITY` · HIGH.
 
 **Silent-active.** Because the env var is only an override, an *unset* variable
@@ -189,7 +189,7 @@ decided (`hooksModulesRolloutSource`). `COMMUNITY` `BINARY` · HIGH.
 - **Anthropic's own mods are not marketplace-listed:** *"They are not listed in
   this repository's marketplace; the copies that matter are the ones already in
   your Claude Code."* `SOURCE` · HIGH
-- A working third-party mod installs through the **existing** commands —
+- A working third-party mod installs through the **existing** commands:
   `claude plugin marketplace add`, `claude plugin install`. **This install path
   comes from one community source (`halluton/Mindful-Claude`'s README), not from
   staff.** A case-insensitive grep of all 203 comments in #91870 for
@@ -215,7 +215,7 @@ setting an undocumented env var per process changes that.
 
 | Corpus | Result | Basis |
 |---|---|---|
-| `code.claude.com/docs` — **all 197 English pages** via `llms-full.txt` (9,590,632 bytes) | **0 hits** for `function hook`, `hooks module`, `plugin-types`, `prependPlugins`, `appendPlugins`, `engine.create`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, `sec-default`, `next.to(`, `"modules"` | `OBSERVED` HIGH |
+| `code.claude.com/docs`: **all 197 English pages** via `llms-full.txt` (9,590,632 bytes) | **0 hits** for `function hook`, `hooks module`, `plugin-types`, `prependPlugins`, `appendPlugins`, `engine.create`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, `sec-default`, `next.to(`, `"modules"` | `OBSERVED` HIGH |
 | `CHANGELOG.md` at `main`, 7,158 lines, `## 2.1.278` … `## 0.2.21` | **0 hits** for the same terms, and word-bounded `mods?` → 0 | `OBSERVED` HIGH |
 | Anthropic / Claude blog surfaces | nothing | `OBSERVED` HIGH |
 

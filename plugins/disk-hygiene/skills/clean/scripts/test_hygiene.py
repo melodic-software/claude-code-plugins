@@ -1086,6 +1086,7 @@ class HygieneTests(unittest.TestCase):
             (target / "Windows").mkdir()
             (target / "$SysReset").mkdir()
             (target / "Documents").mkdir()
+            (target / "Users").mkdir()
             link = target / "junction-like"
             link.symlink_to(target / "builds", target_is_directory=True)
             code, payload = self._scan_target(
@@ -1097,11 +1098,10 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(0, code)
             self.assertEqual("root-children-selection-required", payload["status"])
             admitted = {item["name"] for item in payload["admitted_children"]}
-            self.assertEqual({"builds", "tmp"}, admitted)
+            self.assertEqual({"builds", "tmp", "orphan.tmp"}, admitted)
             skipped = {
                 item["name"]: item["reason"] for item in payload["skipped_children"]
             }
-            self.assertEqual("not-a-directory", skipped["orphan.tmp"])
             self.assertEqual("hidden", skipped[".hidden"])
             self.assertEqual("os-owned", skipped["Windows"])
             self.assertEqual("os-owned", skipped["$SysReset"])
@@ -1109,7 +1109,341 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(
                 "symlink-junction-or-reparse-point", skipped["junction-like"]
             )
+            self.assertEqual("os-owned", skipped["Users"])
+            self.assertNotIn("not-a-directory", skipped.values())
+            self.assertEqual(
+                {
+                    "hidden": 1,
+                    "os-owned": 3,
+                    "baseline-protected-name": 1,
+                    "symlink-junction-or-reparse-point": 1,
+                },
+                payload["root_children_skipped"],
+            )
+            orphan = next(
+                item
+                for item in payload["admitted_children"]
+                if item["name"] == "orphan.tmp"
+            )
+            self.assertEqual("file", orphan["kind"])
+            self.assertEqual(1, orphan["logical_size"])
+            self.assertIsInstance(orphan["mtime"], int)
+            self.assertIn("current user's home", payload["note"])
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _root_child_lstat_with_attributes(self, names: dict[str, int]):
+        real_lstat = Path.lstat
+
+        def lstat_with_attributes(self_path: Path) -> object:
+            info = real_lstat(self_path)
+            attributes = names.get(self_path.name)
+            if attributes is None:
+                return info
+            return StatWithAttributes(info, attributes)
+
+        return mock.patch.object(Path, "lstat", lstat_with_attributes)
+
+    def test_root_child_plain_file_is_admitted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "vc_redist.x64.exe"
+            path.write_text("installer", encoding="utf-8")
+            self.assertIsNone(
+                hygiene.root_child_skip_reason(path, exact_names=set())
+            )
+
+    def test_root_child_hidden_file_reports_hidden(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "secret.txt"
+            path.write_text("x", encoding="utf-8")
+            with self._root_child_lstat_with_attributes(
+                {"secret.txt": hygiene.FILE_ATTRIBUTE_HIDDEN}
+            ):
+                self.assertEqual(
+                    "hidden",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
+    def test_root_child_system_file_reports_system(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "weird.sys"
+            path.write_text("x", encoding="utf-8")
+            with self._root_child_lstat_with_attributes(
+                {"weird.sys": hygiene.FILE_ATTRIBUTE_SYSTEM}
+            ):
+                self.assertEqual(
+                    "system",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
+    def test_root_child_symlinked_file_reports_reparse(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "real.txt"
+            target.write_text("x", encoding="utf-8")
+            link = Path(temporary) / "alias.txt"
+            link.symlink_to(target)
+            self.assertEqual(
+                "symlink-junction-or-reparse-point",
+                hygiene.root_child_skip_reason(link, exact_names=set()),
+            )
+
+    def test_root_child_cloud_placeholder_file_is_withheld(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "photo.heic"
+            path.write_text("dehydrated", encoding="utf-8")
+            with self._root_child_lstat_with_attributes(
+                {"photo.heic": hygiene.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS}
+            ):
+                self.assertEqual(
+                    "cloud-placeholder",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
+    def test_linux_swapfile_is_os_owned_by_name(self) -> None:
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("swapfile", "linux")
+        )
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("vmlinuz-6.1.0", "linux")
+        )
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("initrd.img-6.1.0", "linux")
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "swapfile"
+            path.write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "os_key", return_value="linux"):
+                self.assertEqual(
+                    "os-owned",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
+    def test_root_child_selected_file_appears_in_entries_and_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "log.txt").write_text("residue", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children", "--root-child", "log.txt"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual(["log.txt"], payload["root_children_selected"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            entries = {entry["path"]: entry for entry in snapshot["entries"]}
+            self.assertEqual("file", entries["log.txt"]["kind"])
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertTrue(rollup["log.txt"]["walked"])
+            self.assertEqual("file", rollup["log.txt"]["kind"])
+            self.assertIs(type(payload["root_children_skipped"]), dict)
+
+    def test_empty_file_count_counts_zero_byte_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "empty.tmp").write_text("", encoding="utf-8")
+            (root / "full.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(1, snapshot["empty_file_count"])
+            self.assertEqual(1, hygiene.empty_file_count(snapshot["entries"]))
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "fifo creation requires os.mkfifo")
+    def test_root_child_fifo_is_not_regular_file_or_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "pipe"
+            os.mkfifo(path)
+            self.assertEqual(
+                "not-regular-file-or-directory",
+                hygiene.root_child_skip_reason(path, exact_names=set()),
+            )
+
+    def test_root_child_hidden_selection_reports_hidden_not_not_a_directory(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "secret.txt").write_text("x", encoding="utf-8")
+            patches = [
+                *self._os_managed_volume_root_patches(target),
+                self._root_child_lstat_with_attributes(
+                    {"secret.txt": hygiene.FILE_ATTRIBUTE_HIDDEN}
+                ),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                patches,
+                extra_args=["--root-children", "--root-child", "secret.txt"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("withheld (hidden)", payload["error"])
+            self.assertNotIn("not-a-directory", payload["error"])
+
+    def test_preview_of_selected_root_file_clears_on_linux(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            root.mkdir()
+            (root / "log.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(),
+                hygiene.load_policy(None),
+                root_children=["log.txt"],
+            )
+            snapshot["root_children_skipped"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("log.txt")],
+            }
+            target = root.resolve()
+
+            def is_target(path: Path) -> bool:
+                try:
+                    return Path(path).resolve() == target
+                except OSError:
+                    return False
+
+            with (
+                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
+                mock.patch.object(
+                    hygiene,
+                    "is_os_managed_target",
+                    side_effect=lambda path, roots=None, markers=None: is_target(path),
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "mount_state",
+                    side_effect=lambda path, *a, **k: (is_target(path), None),
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertEqual(
+                ["log.txt"], [item["path"] for item in result["candidates"]]
+            )
+
+    def test_preview_of_selected_root_file_is_unsupported_on_windows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            root.mkdir()
+            (root / "log.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(),
+                hygiene.load_policy(None),
+                root_children=["log.txt"],
+            )
+            snapshot["root_children_skipped"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("log.txt")],
+            }
+            target = root.resolve()
+
+            def is_target(path: Path) -> bool:
+                try:
+                    return Path(path).resolve() == target
+                except OSError:
+                    return False
+
+            with (
+                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
+                mock.patch.object(
+                    hygiene,
+                    "is_os_managed_target",
+                    side_effect=lambda path, roots=None, markers=None: is_target(path),
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "mount_state",
+                    side_effect=lambda path, *a, **k: (is_target(path), None),
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                mock.patch.object(
+                    hygiene,
+                    "execution_blockers",
+                    return_value=["execution-platform-unsupported"],
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "execution-platform-unsupported",
+                result["candidates"][0]["blockers"],
+            )
+
+    def test_preview_blocks_selected_root_file_with_open_handle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            root.mkdir()
+            (root / "log.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(),
+                hygiene.load_policy(None),
+                root_children=["log.txt"],
+            )
+            snapshot["root_children_skipped"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("log.txt")],
+            }
+            target = root.resolve()
+
+            def is_target(path: Path) -> bool:
+                try:
+                    return Path(path).resolve() == target
+                except OSError:
+                    return False
+
+            with (
+                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
+                mock.patch.object(
+                    hygiene,
+                    "is_os_managed_target",
+                    side_effect=lambda path, roots=None, markers=None: is_target(path),
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "mount_state",
+                    side_effect=lambda path, *a, **k: (is_target(path), None),
+                ),
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(
+                    hygiene,
+                    "handle_state",
+                    return_value=("open", "lsof-reported-open-file"),
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("blocked", result["status"])
+            self.assertTrue(
+                any(
+                    value.startswith("live-handle")
+                    for value in result["candidates"][0]["blockers"]
+                )
+            )
 
     def test_root_children_scans_only_selected_admitted_directories(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1195,6 +1529,8 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("root_children_skipped", payload["note"])
             # The documented quiet field set applies to this mode too.
             self.assertIn("empty_directory_count", payload)
+            self.assertIn("empty_file_count", payload)
+            self.assertIn("root_children_skipped", payload)
             self.assertIs(type(payload["truncated_paths"]), int)
             self.assertEqual(["builds"], payload["root_children_selected"])
             snapshot = json.loads(
@@ -1220,7 +1556,8 @@ class HygieneTests(unittest.TestCase):
                 extra_args=["--root-children", "--root-child", "Windows"],
             )
             self.assertEqual(2, code)
-            self.assertIn("not an admitted immediate child", payload["error"])
+            self.assertIn("withheld (os-owned)", payload["error"])
+            self.assertNotIn("not-a-directory", payload["error"])
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1334,23 +1671,21 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(["Cache"], folded)
 
-    def test_root_children_on_non_volume_target_lists_immediate_children(self) -> None:
+    def test_os_managed_non_volume_target_still_rejects_root_children(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            target = base / "home"
+            target = base / "windows-subdir"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            (target / "AppData").mkdir()
-            (target / ".cache").mkdir()
-            (target / "Documents").mkdir()
+            (target / "Temp").mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
                 [
                     mock.patch.object(hygiene, "is_volume_root", return_value=False),
                     mock.patch.object(
-                        hygiene, "is_os_managed_target", return_value=False
+                        hygiene, "is_os_managed_target", return_value=True
                     ),
                     mock.patch.object(
                         hygiene, "mount_state", return_value=(False, None)
@@ -1358,42 +1693,79 @@ class HygieneTests(unittest.TestCase):
                 ],
                 extra_args=["--root-children"],
             )
-            self.assertEqual(0, code)
-            self.assertEqual("root-children-selection-required", payload["status"])
-            admitted = {item["name"] for item in payload["admitted_children"]}
-            self.assertEqual({".cache", "AppData"}, admitted)
-            skipped = {
-                item["name"]: item["reason"] for item in payload["skipped_children"]
-            }
-            self.assertEqual("baseline-protected-name", skipped["Documents"])
-
-    def test_root_children_on_non_os_volume_root_still_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-            target = base / "dev-drive-root"
-            data_root = base / "plugin-data"
-            target.mkdir()
-            data_root.mkdir()
-            code, payload = self._scan_target(
-                target,
-                data_root,
-                self._non_os_volume_root_patches(),
-                extra_args=["--root-children"],
-            )
             self.assertEqual(2, code)
-            self.assertIn("OS-managed", payload["error"])
+            self.assertIn("volume-root target", payload["error"])
 
-    def test_home_root_children_inventories_selected_subtree(self) -> None:
+    def test_root_children_selects_immediate_children_of_a_non_os_target(self) -> None:
+        """A home (or any non-OS directory) can re-inventory approved children.
+
+        Depth-1 of the parent leaves those children truncated-not-inventoried.
+        --root-children on that same parent inventories only the named
+        children, including hidden ones volume-root mode would withhold.
+        """
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             target = base / "home"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            deep = target / "AppData" / "Local" / "pkg"
-            deep.mkdir(parents=True)
-            (deep / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
             (target / "Documents").mkdir()
+            (target / "tmp").mkdir()
+            (target / "loose.tmp").write_text("never", encoding="utf-8")
+            home_patches = [
+                mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                home_patches,
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertIn(".dotnet", admitted)
+            self.assertIn("scratch", admitted)
+            self.assertIn("AppData", admitted)
+            self.assertIn("tmp", admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual("not-a-directory", skipped["loose.tmp"])
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_on_home_inventories_approved_hidden_children(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1409,17 +1781,73 @@ class HygieneTests(unittest.TestCase):
                 extra_args=[
                     "--root-children",
                     "--root-child",
-                    "AppData",
+                    ".dotnet",
+                    "--root-child",
+                    "scratch",
                 ],
             )
             self.assertEqual(0, code)
             self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue(payload["root_children_mode"])
+            self.assertEqual([".dotnet", "scratch"], payload["root_children_selected"])
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")
             )
             paths = {entry["path"] for entry in snapshot["entries"]}
-            self.assertIn("AppData/Local/pkg/orphan.tmp", paths)
-            self.assertNotIn("Documents", paths)
+            self.assertIn(".dotnet", paths)
+            self.assertIn(".dotnet/sdk", paths)
+            self.assertIn(".dotnet/sdk/deep", paths)
+            self.assertIn(".dotnet/sdk/deep/tool.dll", paths)
+            self.assertIn("scratch", paths)
+            self.assertIn("scratch/orphan.tmp", paths)
+            self.assertNotIn("AppData", paths)
+            self.assertNotIn("AppData/nested/cache.tmp", paths)
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual({".dotnet", "scratch"}, set(rollup))
+            self.assertTrue(rollup[".dotnet"]["walked"])
+            self.assertTrue(rollup["scratch"]["walked"])
+
+    def test_root_children_home_snapshot_clears_truncated_handoff_block(
+        self,
+    ) -> None:
+        """Approved home children become previewable once re-inventoried."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "home"
+            nested = root / "scratch" / "deep"
+            nested.mkdir(parents=True)
+            (nested / "orphan.tmp").write_text("x", encoding="utf-8")
+            policy = hygiene.load_policy(None)
+            bounded = hygiene.scan_tree(root.resolve(), policy, max_depth=1)
+            truncated = hygiene.preview(
+                bounded,
+                {
+                    "version": 1,
+                    "tier": "high",
+                    "candidates": [candidate("scratch")],
+                },
+            )
+            self.assertIn(
+                "truncated-not-inventoried",
+                truncated["candidates"][0]["blockers"],
+            )
+            inventoried = hygiene.scan_tree(
+                root.resolve(), policy, root_children=["scratch"]
+            )
+            inventoried["root_children_skipped"] = []
+            with mock.patch.object(hygiene, "execution_blockers", return_value=[]):
+                result = hygiene.preview(
+                    inventoried,
+                    {
+                        "version": 1,
+                        "tier": "high",
+                        "candidates": [candidate("scratch/deep/orphan.tmp")],
+                    },
+                )
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertNotIn(
+                "truncated-not-inventoried",
+                result["candidates"][0]["blockers"],
+            )
 
     def test_root_child_requires_root_children_flag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2305,6 +2733,40 @@ class HygieneTests(unittest.TestCase):
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
 
+    def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for index in range(4):
+                (root / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual([], snapshot["entries"])
+            self.assertEqual("sizes-only", snapshot["inventory_mode"])
+            self.assertEqual("exact", snapshot["rollup_precision"])
+            child = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "file-0.txt"
+            )
+            self.assertTrue(child["walked"])
+
+    def test_sizes_only_depth_cut_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            nested = root / "child"
+            nested.mkdir()
+            (nested / "deep.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1, sizes_only=True
+            )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+            child_row = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "child"
+            )
+            self.assertFalse(child_row["walked"])
+
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -2954,6 +3416,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "hinted_entries",
                 "unhinted_entries",
                 "empty_directory_count",
+                "empty_file_count",
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
@@ -8111,6 +8574,9 @@ class GuardTests(unittest.TestCase):
             f"{base} --root-children --root-child builds --root-child tmp",
             f"{base} --root-children --root-child builds --max-depth 1",
             f"{base} --confirmed-large-scan --root-children --root-child builds",
+            f'{base} --root-children --root-child "loose file.txt"',
+            f"{base} --sizes-only",
+            f"{base} --sizes-only --max-depth 2",
         )
         denied = (
             f"{base} --root-child builds",
