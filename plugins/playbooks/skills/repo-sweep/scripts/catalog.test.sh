@@ -48,11 +48,11 @@ printf '%s\n' \
   >"$cat_file"
 
 T=$'\t'
-expected="dead-code${T}Phase 1: code${T}code-tidying:audit-dead-code${T}.${T}true${T}#4503${T}repo has source code
-residue-dissolve${T}Phase 2: prose${T}code-tidying:audit-comment-residue, code-tidying:dissolve-comments${T}${T}false${T}${T}always"
+expected="dead-code${T}Phase 1: code${T}code-tidying:audit-dead-code${T}.${T}true${T}#4503${T}repo has source code${T}
+residue-dissolve${T}Phase 2: prose${T}code-tidying:audit-comment-residue, code-tidying:dissolve-comments${T}${T}false${T}${T}always${T}"
 assert_eq "TSV rows in file order; override text never parsed as a key" "$expected" "$(bash "$SCRIPT" "$cat_file")"
-assert_eq "every row keeps 7 columns, empty fields included" "7
-7" "$(bash "$SCRIPT" "$cat_file" | awk -F'\t' '{print NF}')"
+assert_eq "every row keeps 8 columns, empty fields included" "8
+8" "$(bash "$SCRIPT" "$cat_file" | awk -F'\t' '{print NF}')"
 
 assert_eq "--override prints the block, blank edges trimmed" "Stay on the current branch.
 - skill: not-a-key:ignored" "$(bash "$SCRIPT" --override dead-code "$cat_file")"

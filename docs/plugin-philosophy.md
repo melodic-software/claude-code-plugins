@@ -1232,6 +1232,33 @@ name is not the same underlying value across models):
   verified 2026-08-10; recheck trigger: a Claude Code release changes the effort-change
   confirmation flow, or that section is reworded).
 
+**Pinned `effort: high` agents (recorded decision, #4253).** Option A: keep the pins. Document
+the operator cost. Do not unpark a funded sweep that drops or lowers them.
+
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers. There is no per-invocation `effort` on Agent-tool
+  dispatch, so a frontmatter pin is the only supported way to hold the lane, and the only
+  supported way to lower it is to edit the definition. That is the operator cost: the cheapest
+  lever (lower effort) is unavailable on those workers without a source change. Keep the pins.
+  A funded sweep that drops or lowers some of them, or exposes a `userConfig` effort key, stays
+  parked.
+- **Basis:** The eleven defs on origin/main (2026-09-28): `implementation` `implementer` and
+  `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`; `review`
+  `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
+  `ecosystem-specialist`, and `security-reviewer`. The Agent-tool gap in this section
+  ("a generic Agent-tool dispatch carries no effort control"). Upstream: lowering effort beat
+  an architecture change, and `low` is named for simpler subagent tasks
+  ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Issue
+  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253). Also pinned
+  `high`, outside the filed eleven: `plugin-quality` `auditor`, `songwriting` `object-writer`.
+  Not in the eleven: `discovery` `research-verifier` and `planning` `plan-reviewer` pin
+  `medium`.
+- **As of:** 2026-09-28.
+- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer funds a
+  sweep that drops or lowers a named pin, or a plugin ships a `userConfig` effort key that
+  actually reaches the worker.
+
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
 "which in adaptive mode includes how often and how deeply it thinks". Upstream states the resulting

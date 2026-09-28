@@ -7,6 +7,18 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 ### Changed
 
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: destination enumerations,
+  silent-failure ladders, and shim-removal mechanics. `setup` is
+  `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
+  plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
+  or merged.
+
+## [0.15.12] - 2026-09-28
+
+### Changed
+
 - **Cutover-check re-read (#4281), this repo only, canary skipped.** Condition 1
   is `[MET]`: the 2.1.282 pin's `tengu_agents_md_mod` code default is `var W=!0`,
   and the env-vars feature-flag list no longer carries the AGENTS.md bullet
