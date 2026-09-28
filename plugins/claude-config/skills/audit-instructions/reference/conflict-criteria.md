@@ -4,6 +4,7 @@
 
 - [Sources](#sources)
 - [Boundary: what C6's population actually is](#boundary-what-c6s-population-actually-is)
+- [Boundary: user-request axis declined](#boundary-user-request-axis-declined)
 - [Prerequisite: co-residency](#prerequisite-co-residency)
 - [Prerequisite: effective liveness, which the tree does not determine](#prerequisite-effective-liveness-which-the-tree-does-not-determine)
 - [Known limit: the plugin-source tree and the installed cache](#known-limit-the-plugin-source-tree-and-the-installed-cache)
@@ -16,7 +17,7 @@
 - [Worked examples](#worked-examples)
 - [Output format](#output-format)
 
-Version: 1.6.1
+Version: 1.6.2
 Last updated: 2026-09-28
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
@@ -112,6 +113,31 @@ performs for content-fit findings.
 The rule remains **route on the population a check actually enumerates, never on the name of the
 layer**: a boundary drawn from a label rather than from the incumbent's discovery script leaves whole
 pair classes audited by neither skill. When that script's population moves, this table moves with it.
+
+## Boundary: user-request axis declined
+
+**Rejected (#3565).** I15's comparison set is **resident instruction surfaces**.
+A "standing instructions versus plausible user requests" axis is a boundary
+reopen, not an extension of the five gates.
+
+The Unhobbling Claude user-request clash in [criteria.md](criteria.md)'s I15
+Source block is corroboration of reasoning cost ("Claude must think more
+carefully about these overlapping and conflicting messages"), not a second
+population. Gate 5 already asks whether a realistic prompt fires **both sides
+of a surface pair**. It does not enumerate hypothetical user requests, because
+that population is unbounded and no official doc defines the check (OPINION-tier).
+Gate 1 has no residency row for a request that has not been issued.
+
+- **Claim:** I15 does not gain a user-request-conflict axis; the participant
+  boundary stays resident surfaces.
+- **Basis:** signed-off Q3/C9 of the context-engineering integration contract
+  (readable in the body of PR #3588): I15 scopes conflict detection to
+  resident-surface pairs by recorded design. #3565 acceptance: reject updates
+  this file rather than adding default-off fixtures.
+- **As of:** 2026-09-28.
+- **Recheck:** an official Anthropic page defines a check over standing
+  instructions versus a bounded request population, or a maintainer accepts
+  an OPINION-tier detector with an enumerated fixture set.
 
 ## Prerequisite: co-residency
 

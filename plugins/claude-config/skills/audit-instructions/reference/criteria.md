@@ -949,6 +949,9 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   as appropriate,' or 'DO NOT add comments'", with the cost stated even for the resolved case:
   "Claude must think more carefully about these overlapping and conflicting messages before
   deciding what to do." So a conflict taxes reasoning even when no arbitrary pick occurs.
+  That article's user-request clash is corroboration of cost, not a comparison-set expansion:
+  standing instructions versus plausible user requests was adjudicated and rejected (#3565;
+  [conflict-criteria.md](conflict-criteria.md) "Boundary: user-request axis declined").
 
 ### I16: Definition-site locality
 

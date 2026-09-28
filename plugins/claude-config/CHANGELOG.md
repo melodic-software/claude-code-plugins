@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15: reject the user-request-conflict axis (#3565).**
+  Standing instructions versus plausible user requests is a boundary reopen, not
+  an extension. I15's comparison set stays resident instruction surfaces. Gate 5
+  still requires a realistic prompt that fires both sides of a *surface pair*;
+  it does not invent a second population of hypothetical requests. `conflict-criteria.md`
+  1.6.2.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed
