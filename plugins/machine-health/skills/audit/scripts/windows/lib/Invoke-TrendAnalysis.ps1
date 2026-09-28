@@ -13,11 +13,12 @@ For each current check result:
  2. Attach a `trend` field: { last_run, delta, adjusted_from } -- the shape
     catalog/schemas/check-result.schema.json fixes (additionalProperties:false).
     adjusted_from carries the pre-adjustment severity when step 3 upgrades.
- 3. Apply the one severity adjustment this engine makes: upgrade WARN -> CRIT
-    when the trend-relevant metric worsens by >= 5 (raw units or percentage
-    points) against that baseline.
+ 3. Apply the severity adjustments this engine makes, both WARN -> CRIT: the
+    trend-relevant metric worsens by >= 5 (raw units or percentage points)
+    against that baseline, or drivers repeats CodeIntegrity events across
+    consecutive runs (Get-CodeIntegrityRepeat).
  4. Record the adjustment reason in `notes` ("trend upgrade: <metric>: +N vs
-    prior").
+    prior", or "trend upgrade: repeat: ...").
 
 Upgrades only: severity never moves back down, so callers must not rely on this
 engine to walk an adjustment back.
@@ -108,6 +109,16 @@ function Invoke-TrendAnalysis {
             }
         }
 
+        if ($r.severity -eq 'WARN' -and $r.id -eq 'drivers') {
+            $repeatText = Get-CodeIntegrityRepeat -Result $r -HistoryTail $HistoryTail
+            if ($repeatText) {
+                $adjustedFrom = $r.severity
+                $r.severity = 'CRIT'
+                $note = "trend upgrade: repeat: $repeatText"
+                $r.notes = $r.notes ? "$($r.notes); $note" : $note
+            }
+        }
+
         $trend = [ordered]@{
             last_run      = $lastRun
             delta         = $deltaText
@@ -146,6 +157,50 @@ function Get-TrendRelevantKey {
         'drive-root-litter' { return 'residue_count' }
         default { return $null }
     }
+}
+
+function Get-CodeIntegrityRepeat {
+    <#
+    .SYNOPSIS
+    The note text when drivers saw CodeIntegrity events this run AND in the most
+    recent prior run where it ran, with a newer event now; $null otherwise.
+
+    .DESCRIPTION
+    The check caps a single reading at WARN (check-catalog.md section 8). A repeat is a
+    newer event than the prior run's newest, so the same event re-read inside
+    the 7-day window never counts twice. A prior run recorded before the check
+    emitted code_integrity_newest_event_unix carries no marker and never upgrades.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)] $Result,
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $HistoryTail
+    )
+
+    $detail = $Result.detail
+    if (-not $detail) { return $null }
+    $countProp = $detail.PSObject.Properties['code_integrity_event_count']
+    $newestProp = $detail.PSObject.Properties['code_integrity_newest_event_unix']
+    if (-not $countProp -or -not $newestProp -or $null -eq $newestProp.Value) { return $null }
+    if ([long]$countProp.Value -le 0) { return $null }
+
+    $prior = $null
+    foreach ($h in $HistoryTail) {
+        if (-not $h.PSObject.Properties['checks_ran']) { continue }
+        if (@($h.checks_ran) -notcontains $Result.id) { continue }
+        $prior = $h
+    }
+    if (-not $prior -or -not $prior.PSObject.Properties['top_metrics']) { return $null }
+
+    $metrics = $prior.top_metrics
+    $priorCount = $metrics.PSObject.Properties['drivers.code_integrity_event_count']
+    $priorNewest = $metrics.PSObject.Properties['drivers.code_integrity_newest_event_unix']
+    if (-not $priorCount -or -not $priorNewest -or $null -eq $priorNewest.Value) { return $null }
+    if ([long]$priorCount.Value -le 0) { return $null }
+    if ([long]$newestProp.Value -le [long]$priorNewest.Value) { return $null }
+
+    return "CodeIntegrity events in consecutive runs ($($countProp.Value) now, $($priorCount.Value) prior, newer event since)"
 }
 
 function Test-WorseningTrend {
