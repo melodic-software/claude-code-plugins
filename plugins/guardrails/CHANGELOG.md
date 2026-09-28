@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.3] - 2026-09-28
+
+### Changed
+
+- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as typos-format #4677). Blocking guards stay synchronous. The k × S targets are not set here.
+
 ## [0.40.2] - 2026-09-28
 
 ### Fixed

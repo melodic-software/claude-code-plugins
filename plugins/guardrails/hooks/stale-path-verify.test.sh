@@ -811,4 +811,45 @@ else
   bad "word-anchor split counter differs from the character walk: $OCC_OUT"
 fi
 
+# A second fire at the same HEAD must not walk history again. The finding stays.
+SPV_GIT_LOG="$TEST_TMPDIR/stale-git.log"
+SPV_REAL_GIT=$(type -P git)
+SPV_GIT_SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$SPV_GIT_SHIM"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>%q\nexec %q "$@"\n' \
+  "$SPV_GIT_LOG" "$SPV_REAL_GIT" >"$SPV_GIT_SHIM/git"
+chmod +x "$SPV_GIT_SHIM/git"
+rm -f "$REPO/.git/guardrails-deleted-paths"
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: cold fire still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+COLD_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+if [[ "$COLD_LOGS" -ge 1 ]]; then
+  ok "deleted-path cache: a cold fire walks history"
+else
+  bad "deleted-path cache: cold fire did not walk history"
+fi
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: a repeat fire still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+WARM_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+assert_eq "deleted-path cache: a repeat fire at the same HEAD does not walk history" \
+  0 "$WARM_LOGS"
+git_c "$REPO" commit --allow-empty -qm "cache key moves with HEAD" >/dev/null 2>&1
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: a new HEAD still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+NEW_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+if [[ "$NEW_LOGS" -ge 1 ]]; then
+  ok "deleted-path cache: a new HEAD walks history again"
+else
+  bad "deleted-path cache: a new HEAD reused the previous set"
+fi
+
 report
