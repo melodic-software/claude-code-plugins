@@ -26,8 +26,14 @@ they held is in `## Brief`, `## Open questions`, and Phase 4 below.
   Boundary section); the sweep units' Boundary work is already done, so each unit is its
   description phrase, Native step, or suggest sentence only, and Phase 5 through Phase 11 shrink
   accordingly.
-- Units 2 to 9 are deferred as filed (#4049 to #4056) with the notes above recorded on each issue.
-  Unit 2 is C4 (`work-class: structural`, `needs-human`); a person reviews and merges it.
+- Units 3 to 9 (#4050 to #4056) continue as filed. Unit 2 (#4049) is parked unpaid
+  (2026-09-28): the store still has no required `integration` field (schema 1, 22
+  rows as of that date) and native-references stays 1.1.0 without wrap/suggest
+  grammars. Skill-body Native step and suggest sentences already shipped by later
+  units stand; the contract expansion they wait on does not. Ledger:
+  [`docs/out-of-scope/native-overlap-integration-axis.md`](../out-of-scope/native-overlap-integration-axis.md).
+  Recheck: a maintainer funds the schema plus convention major bump and unparks
+  #4049. Unit 2 remains C4 (`work-class: structural`, `needs-human`) until then.
 
 ## Brief
 
