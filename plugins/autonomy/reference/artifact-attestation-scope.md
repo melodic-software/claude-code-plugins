@@ -1,4 +1,4 @@
-# Agent-run artifact attestation — out of scope (#4703)
+# Agent-run artifact attestation: out of scope (#4703)
 
 **Decision (2026-09-28):** Signed, verifiable attestation of what instructions, review prompts,
 workflows, and agent runs produced a commit (SLSA-style artifact provenance for AI sessions) is
