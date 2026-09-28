@@ -110,6 +110,13 @@ ruff_config_here() {
 CONFIG_DIR=""
 hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" ruff_config_here || emit_skipped
 
+# A file the repository gitignores is neither rewritten nor reported unless
+# ruff_format_lint_gitignored is set: a rewrite there has no `git checkout` to
+# undo it. Ruff's own respect-gitignore does not reach a path passed
+# explicitly, even under --force-exclude, so the hook decides.
+hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
+  emit_skipped
+
 # Resolve the Ruff binary from the repo's own virtual environment (.venv,
 # walking up from the file; bin/ on POSIX, Scripts/ on Windows) or PATH — never
 # `uvx`/`pipx run`, which would download Ruff on a per-edit hook. Absent -> skip

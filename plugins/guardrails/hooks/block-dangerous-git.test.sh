@@ -475,6 +475,32 @@ run "sh -c 'git push --force' (shell -c wrapper, blocked)" "sh -c 'git push --fo
 run "bash -c compound (wrapped operator chain, blocked)" "bash -c 'git status && git clean -fd'" 2
 run "bash -c 'git status' (wrapped read-only, allowed)" "bash -c 'git status'" 0
 run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
+# wsl runs its command line in a Linux distro: through the default shell, or as
+# argv after -e / --exec / --shell-type none (#4242).
+run "wsl git reset --hard (blocked)" "wsl git reset --hard" 2
+run "wsl.exe -e git reset --hard (blocked)" "wsl.exe -e git reset --hard" 2
+run "wsl git clean -fdx (blocked)" "wsl git clean -fdx" 2
+run "wsl.exe -- git push --force origin main (blocked)" "wsl.exe -- git push --force origin main" 2
+run "WSL.EXE -d Ubuntu -u root --cd / git reset --hard (run options, blocked)" \
+  "WSL.EXE -d Ubuntu -u root --cd / git reset --hard" 2
+run "wsl --shell-type none git reset --hard (blocked)" "wsl --shell-type none git reset --hard" 2
+run "wsl -e sh -c 'git reset --hard' (nested shell, blocked)" "wsl -e sh -c 'git reset --hard'" 2
+run "wsl bash -c 'git reset --hard' (default shell keeps the nested operand, blocked)" \
+  "wsl bash -c 'git reset --hard'" 2
+run "wsl ~ git reset --hard (legacy home argument, blocked)" "wsl ~ git reset --hard" 2
+run "wsl git status '&&' git clean -fd (bare operator reaches the distro shell, blocked)" \
+  "wsl git status '&&' git clean -fd" 2
+# Git Bash double-quotes a word carrying whitespace when it builds wsl's Windows
+# command line, so the distro shell reads this as one command word.
+run "wsl 'git status && git clean -fd' (one quoted command word, allowed)" \
+  "wsl 'git status && git clean -fd'" 0
+run "wsl --bogus git reset --hard (unknown option stepped over, blocked)" "wsl --bogus git reset --hard" 2
+run "wsl -e git commit -m 'a; git reset --hard' (exec argv keeps the message, allowed)" \
+  "wsl -e git commit -m 'a; git reset --hard'" 0
+run "wsl echo hi (allowed)" "wsl echo hi" 0
+run "wsl git status (allowed)" "wsl git status" 0
+run "wsl --install -d Ubuntu (management verb, allowed)" "wsl --install -d Ubuntu" 0
+run "wsl (no command line, allowed)" "wsl" 0
 run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FOO git push --force" 2
 run "bash -O extglob -c 'git reset --hard' (shopt operand, blocked)" "bash -O extglob -c 'git reset --hard'" 2
 run "bash --rcfile /dev/null -c 'git reset --hard' (rcfile operand, blocked)" "bash --rcfile /dev/null -c 'git reset --hard'" 2
@@ -743,6 +769,8 @@ run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
 run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
 run_pwsh "PS: git push --force-with-lease=main:<40-hex> (immutable expectation, allowed)" "git push --force-with-lease=main:0123456789abcdef0123456789abcdef01234567" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
+run_pwsh "PS: wsl.exe -e git reset --hard (launcher sink, blocked — #4242)" "wsl.exe -e git reset --hard" 2
+run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
@@ -1673,6 +1701,13 @@ run_pwsh "PS hs: the removed token string does not open the expandable-body sink
 # here-string opener with trailing whitespace is a special construct whose
 # region walk makes no progress, so under that one token every round was spent
 # on it and the `git reset --hard` beside it was never read.
+#
+# #4683: a trailing-space opener is not confirmed, so `"@` at column zero is
+# herestring-orphan-closer (no allow token). PS_BUDGET_NOPROGRESS and
+# PS_BUDGET_FIVE_TRIGGERS still exit 2, now as that shape, which is the
+# monotone over-block. The budget-exhausted *message* is pinned on the
+# quoted-call no-progress shape, which still spends five granted rounds on
+# itself without acquiring an untrusted flag.
 PS_BUDGET_NOPROGRESS="$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')"
 PS_BUDGET_FIVE_TRIGGERS="$(printf '%s\n%s\n%s' 'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard; Write-Output @" ' "\$(y)" '"@')"
 PS_SINK_TOKENS_5=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
@@ -1689,8 +1724,8 @@ run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-guard_invoke --tool PowerShell --command "$PS_BUDGET_FIVE_TRIGGERS" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
-  -- "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+guard_invoke --tool PowerShell --command "\$a=& 'git reset --hard'" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
 assert_contains "PS budget: the refusal names the exhausted budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
 assert_contains "PS budget: and says no allow token clears it" "$GUARD_ERR" "No allow token clears this"
 assert_absent "PS budget: it does not point at an allow token" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
@@ -1701,8 +1736,10 @@ run_pwsh "PS budget: three granted triggers then git status are still allowed" \
 run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-run_pwsh "PS budget: a no-progress construct beside a harmless line stays allowed (git-free)" \
-  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 0 \
+# Trailing-space opener is unconfirmed, so `"@` at column zero is orphan closer
+# even with no git and even with the special-construct token (#4683).
+run_pwsh "PS budget: a no-progress construct beside a harmless line is refused as orphan closer (git-free)" \
+  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 
 # The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
@@ -1744,6 +1781,112 @@ assert_absent "PS hs: the shared allow-token line is suppressed for this trigger
 assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
   "$(pwsh_stderr "$ps_hs_body" || true)" \
   "allow it via the block_dangerous_git_allow option"
+
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+# Same no-token flag as herestring-comment-char. Prefix test is a plain substring
+# on the RAW opener line (`'`, `"`, `\`, backtick); `<#` anywhere earlier refuses
+# the next confirmed opener; a CR not followed by LF is read on the raw command
+# and, because hook::jq_fields strips CR from COMMAND, on INPUT.
+ps_hs_quote_prefix="$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git push --force" "\"@")"
+ps_hs_backslash_prefix="$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git push --force" "\"@")"
+ps_hs_comment_span="$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git push --force" "\"@")"
+ps_hs_shape9="$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")"
+ps_hs_bare_cr=$'Write-Output hi\rgit push --force'
+run_pwsh "PS hs: a quote on a confirmed opener prefix is refused (blocked)" \
+  "$ps_hs_quote_prefix" 2
+run_pwsh "PS hs: a backslash on a confirmed opener prefix is refused (blocked)" \
+  "$ps_hs_backslash_prefix" 2
+run_pwsh "PS hs: a <# earlier than a confirmed opener is refused (blocked)" \
+  "$ps_hs_comment_span" 2
+run_pwsh "PS hs: shape 9 — a commented opener behind {} with no git is refused (blocked)" \
+  "$ps_hs_shape9" 2
+run_pwsh "PS hs: a bare CR hiding git push --force is refused (blocked)" \
+  "$ps_hs_bare_cr" 2
+run_pwsh "PS hs: CRLF canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS hs: the removed opener-untrusted token string does not open the shape" \
+  "$ps_hs_backslash_prefix" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-untrusted
+run_pwsh "PS hs: the removed comment-span token string does not open the shape" \
+  "$ps_hs_comment_span" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-span
+run_pwsh "PS hs: the removed bare-cr token string does not open the shape" \
+  "$ps_hs_bare_cr" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-bare-cr
+pin_sink_trigger "classify: a quote on a confirmed opener prefix is herestring-opener-untrusted" \
+  "$ps_hs_quote_prefix" "herestring-opener-untrusted"
+pin_sink_trigger "classify: a backslash on a confirmed opener prefix is herestring-opener-untrusted" \
+  "$ps_hs_backslash_prefix" "herestring-opener-untrusted"
+pin_sink_trigger "classify: a <# earlier than a confirmed opener is herestring-comment-span" \
+  "$ps_hs_comment_span" "herestring-comment-span"
+pin_sink_trigger "classify: a bare CR is the bare-cr sink" \
+  "$ps_hs_bare_cr" "bare-cr"
+pin_sink_trigger "classify: shape 9 keeps special-construct as the first trigger" \
+  "$ps_hs_shape9" "special-construct"
+pin_predicate "ps::has_bare_cr: lone CR is bare" \
+  ps::has_bare_cr $'hi\rlo' 0
+pin_predicate "ps::has_bare_cr: CR then LF is CRLF" \
+  ps::has_bare_cr $'hi\r\nlo' 1
+pin_predicate "ps::payload_has_bare_cr: JSON \\r is a bare CR" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\rgit push"}}' 0
+pin_predicate "ps::payload_has_bare_cr: JSON \\r\\n is CRLF" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\r\nlo"}}' 1
+assert_contains "PS hs: the hook names opener-untrusted when a quote holds the command" \
+  "$(pwsh_stderr "$ps_hs_quote_prefix" || true)" \
+  "quote, backslash, or backtick"
+assert_contains "PS hs: the hook names comment-span when a <# holds the command" \
+  "$(pwsh_stderr "$ps_hs_comment_span" || true)" \
+  "'<#' block-comment opener"
+assert_contains "PS hs: the hook names bare-cr when a CR holds the command" \
+  "$(pwsh_stderr "$ps_hs_bare_cr" || true)" \
+  "carriage return that is not part of a CRLF pair"
+assert_contains "PS hs: opener-untrusted says the shape has no allow token" \
+  "$(pwsh_stderr "$ps_hs_backslash_prefix" || true)" \
+  "This sink shape has NO allow token"
+
+# Exact payloads from the #4683 table. Class-level refusals must catch each
+# phantom opener / bare CR that hid git on main (rc 0), and the CRLF canonical
+# commit here-string must stay allowed. Shapes 1, 3, 4 and 5 were withdrawn as
+# distinct bypasses: their literal-git and parse-clean variants stay blocked.
+ps_4683_shape9="$(printf '%s\n%s\n%s' "Write-Host {x} # @'" "git push --force" "'@")"
+ps_4683_shape2="$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "git push --force" '"@')"
+ps_4683_bare_cr="$(printf 'Write-Output x\rgit push --force')"
+ps_4683_a1="$(printf '%s\n%s\n%s' "Write-Output \"a\\'b'\" c\" @\"" "git push --force" '"@')"
+ps_4683_a2="$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "git push --force" "'@")"
+ps_4683_n1="$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "git push --force" "'@")"
+ps_4683_b1="$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; git push --force" "'@")"
+ps_4683_s5="$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "git push --force" "'@")"
+ps_4683_n2="$(printf '%s\n%s\n%s\n%s' "Write-Output \"it's\" @'" "it's" "'@" "git push --force")"
+run_pwsh "PS #4683 shape 9: commented opener behind grouping (blocked)" "$ps_4683_shape9" 2
+run_pwsh "PS #4683 shape 2: backslash-escaped quote before opener (blocked)" "$ps_4683_shape2" 2
+run_pwsh "PS #4683 table bare CR hiding git push --force (blocked)" "$ps_4683_bare_cr" 2
+run_pwsh "PS #4683 A1: mixed quotes and backslash before opener (blocked)" "$ps_4683_a1" 2
+run_pwsh "PS #4683 A2: apostrophe-straddle before a verbatim opener (blocked)" "$ps_4683_a2" 2
+run_pwsh "PS #4683 N1: quote-then-opener on one line (blocked)" "$ps_4683_n1" 2
+run_pwsh "PS #4683 B1: backtick before opener (blocked)" "$ps_4683_b1" 2
+run_pwsh "PS #4683 S5: block comment opened before a verbatim opener (blocked)" "$ps_4683_s5" 2
+run_pwsh "PS #4683 N2: unconfirmed opener plus orphan closer (blocked)" "$ps_4683_n2" 2
+run_pwsh "PS #4683 shape 1/4 literal git call-op (blocked)" "& 'git' push --force" 2
+run_pwsh "PS #4683 shape 1/4 literal git.exe (blocked)" "git.exe push --force" 2
+run_pwsh "PS #4683 shape 3/5 parse-clean force push (blocked)" "git push --force" 2
+run_pwsh "PS #4683 shape 3/5 parse-clean reset --hard (blocked)" "git reset --hard" 2
+run_pwsh "PS #4683 the removed orphan-closer token string does not open N2" \
+  "$ps_4683_n2" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-orphan-closer
+pin_sink_trigger "classify: #4683 shape 2 names herestring-opener-untrusted" \
+  "$ps_4683_shape2" "herestring-opener-untrusted"
+pin_sink_trigger "classify: #4683 S5 names herestring-comment-span" \
+  "$ps_4683_s5" "herestring-comment-span"
+pin_sink_trigger "classify: #4683 N2 names herestring-orphan-closer" \
+  "$ps_4683_n2" "herestring-orphan-closer"
+pin_sink_trigger "classify: #4683 table bare CR names bare-cr" \
+  "$ps_4683_bare_cr" "bare-cr"
+assert_contains "PS #4683 N2 names the orphan closer in the refusal" \
+  "$(pwsh_stderr "$ps_4683_n2" || true)" \
+  "closer ('@ or \"@) at column zero"
+assert_contains "PS #4683 N2 says the shape has no allow token" \
+  "$(pwsh_stderr "$ps_4683_n2" || true)" \
+  "This sink shape has NO allow token"
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,

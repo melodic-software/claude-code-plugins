@@ -148,7 +148,7 @@ recheck trigger: the store page showing a release date or U2U publishing its own
 
 - 128x128 screen, fixed 16-color palette, 8x8 sprites on one 128x128 sheet (256 sprites; 128-255
   share memory with the lower map half), 8 flags per sprite.
-- Spec: `columns: 16`, frames 8x8, palette = the 16 PICO-8 colors only. The renderer writes PNG,
+- Spec: `columns: 16`, frames 8x8, `"palette": "pico-8"` (the bundled preset of the 16 system colors). The renderer writes PNG,
   not a cart; importing into a cart is outside this reference.
 - Verification record: basis = [PICO-8 manual](https://www.lexaloffle.com/dl/docs/pico-8_manual.html)
   (states v0.2.7); as-of 2026-09-23; recheck trigger: the manual's version line moving past 0.2.7.

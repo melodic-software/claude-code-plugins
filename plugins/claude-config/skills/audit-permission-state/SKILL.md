@@ -1,5 +1,5 @@
 ---
-description: "Report the Claude Code permission state actually in effect. Discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy), merges them into the effective allow/ask/deny set with each rule's source and precedence mechanic named, and classifies which allow rules auto mode drops on entry. Use when: 'what permissions are actually in effect' or 'show me my effective permissions' (including which settings file a rule comes from and what scopes were checked); 'which of my rules survive auto mode' (the entry diff); 'is my managed policy being read'; or before changing a permission rule whose source is unknown. An allow rule ignored because of its shape is `audit-permission-grants`. Report-only, never writes any settings file."
+description: "Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
 argument-hint: "(none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced"
 user-invocable: true
 disable-model-invocation: false
@@ -248,7 +248,18 @@ every rule string it prints came from a file it read. It ships no security floor
 **Completeness is bounded on every run.** Server-managed settings are delivered at sign-in and have no
 local path, so "managed" means the local surfaces only; a surface that could not be read gets its own
 note saying so, because an administrator reading silence as "no policy deployed" is the failure this
-report exists to prevent.
+report exists to prevent. The note routes that diagnosis to `/status` (Setting sources, and the
+Organization policy line for a policy that did not load, a policy-helper failure, or a credential
+that is signed in but not the one in use) and to `claude doctor`, which shows the same Organization
+policy line.
+
+**Record.** Claim: `/status` and `claude doctor` carry an Organization policy line that says why
+the organization's policy could not be loaded, and `/status` marks the credential that is not in
+use. Basis: <https://code.claude.com/docs/en/managed-settings#read-the-source-in-status> and the
+`/status` row of <https://code.claude.com/docs/en/commands>, plus the managed-settings page's
+statement that `claude doctor`'s Organization policy line says where the policy loaded from or why
+it did not (Claude Code v2.1.261 or later). As of: 2026-09-28. Recheck: those pages drop the
+Organization policy line or stop naming `/status` as the place a managed source is shown.
 
 ## Reading the output honestly
 

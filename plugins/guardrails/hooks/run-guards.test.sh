@@ -516,6 +516,18 @@ assert_contains "alias chain: the first guard's reason is on stderr" "$ERR" "blo
 assert_contains "alias chain: the second guard's reason is on stderr too (its memo was reset)" \
   "$ERR" "$(head -1 <<<"$alias_alone_err")"
 
+# --- dual-blocked PowerShell sink: both denials print (#4236) ----------------
+# Invoke-Command { git reset --hard } is unparsable (special-construct) and
+# mutating. block-no-verify and block-dangerous-git both refuse it. Stopping
+# the chain at the first exit 2 would hide the second lever; the dispatcher
+# keeps walking so the operator sees both. Over-length (#4528) remains the
+# one first-block short-circuit.
+DUAL_PS=$(pwsh_command_json 'Invoke-Command -ScriptBlock { git reset --hard }')
+run "$DUAL_PS" --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh
+assert_exit "PS dual sink: dispatched pair denies" 2 "$RC"
+assert_contains "PS dual sink: block-no-verify reason is on stderr" "$ERR" "block_no_verify_enabled"
+assert_contains "PS dual sink: block-dangerous-git reason is on stderr too" "$ERR" "block_dangerous_git_enabled"
+
 # --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')
 alone_rc=0

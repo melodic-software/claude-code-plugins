@@ -337,6 +337,21 @@
         "Points to a graduated destination for durable content (ADR, spec, or tracker item), noting that /planning:plan's close-out does the graduation",
         "Still writes the Brief into the contract slice as the working contract for the branch"
       ]
+    },
+    {
+      "id": 25,
+      "name": "out-of-band-return-supersedes-before-the-reply",
+      "prompt": "/planning:interview me — I want to add rate limiting to our public REST API.\n\n[the first round is asked as Q1 (limit scope: per API key or per IP), Q2 (response when throttled), Q3 (where counters live — recommended: in-process memory, because the survey found a single API instance), and Q4 (whether internal callers are exempt). A sub-agent is dispatched to confirm the deployment topology; Q5 (counter consistency across instances) is downstream of that lookup and is held. Before the user replies, the sub-agent's return is queued: the production manifest runs the API as three replicas behind a load balancer. In the same turn, the user replies:] Q1 per API key. Q3 go with your recommendation. Haven't thought about the others yet.",
+      "expected_output": "The queued sub-agent return is processed before the reply, against the register as it stood before the reply, while Q3 was still `open`. The return contradicts Q3's recommendation, so the skill restates Q3, names in-process memory as the superseded recommendation, and gives a replacement (a shared store such as Redis) with its own basis in the three-replica manifest. The user's \"go with your recommendation\" answered the superseded recommendation, so it is revalidated against the replacement rather than recorded as settled. Q1 is recorded `answered` as per API key. Q2 and Q4 get one line naming them as still open and unchanged, and only Q3 is re-presented in full. Q5 was downstream of the lookup and is now asked; nothing else waited on the lookup.",
+      "files": [],
+      "expectations": [
+        "The queued return is evaluated before the same-turn reply: Q3 is NOT recorded `answered` with in-process memory, and the response does not treat the user's \"go with your recommendation\" as settling Q3",
+        "The restated Q3 names in-process memory as superseded and gives the replacement recommendation its own basis drawn from the three-replica manifest",
+        "The user's Q3 answer is revalidated against the replacement recommendation, for example by asking whether the recommendation they accepted still stands now that it has changed",
+        "Re-presentation is narrow: Q2 and Q4 appear as a one-line pointer (still open, unchanged), and only Q3 is re-printed in full; the round is not re-printed as a whole",
+        "Q1 is recorded `answered` (per API key) from the reply",
+        "Asking Q2 and Q4 was not held for the lookup, and Q5, which was downstream of it, is asked once the return lands"
+      ]
     }
   ]
 }

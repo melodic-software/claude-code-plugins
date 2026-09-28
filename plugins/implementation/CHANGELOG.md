@@ -15,6 +15,50 @@ All notable changes to the `implementation` plugin are documented here. Format f
   Bash, and briefs no longer carry that invocation form by hand. On a host without the
   PowerShell tool the entry resolves to nothing and Bash remains (#4272).
 
+## [0.19.6] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` run-end keeps the Step 5 `/verification:confirm` route; post-phase
+  worker/verifier pairing is parked
+  ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).**
+  `skills/implement-dispatch/reference/run-end-outcome-verify.md` records Option A and the
+  unpaid route.
+
+## [0.19.5] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` keeps the per-phase fresh-context verifier mandate; an opt-out is
+  parked ([#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)).**
+  `skills/implement-dispatch/reference/phase-verifier-mandate.md` records Option A and that the
+  verifier does not replace implement Step 5's end gate.
+
+## [0.19.4] - 2026-09-28
+
+### Fixed
+
+- **`implement-dispatch`: a wave's fences are composed together before dispatch.** Each brief
+  enumerated its own ALLOWED and FORBIDDEN paths, but nothing compared the rows of one wave, so a
+  path in one row's ALLOWED set and nobody's FORBIDDEN list could be edited by two rows without
+  tripping the divergence-escalation clause. The rows of a wave now hold ALLOWED sets that are
+  disjoint by file path written (not by worktree), each row's FORBIDDEN list carries its siblings'
+  paths, briefs list paths without naming an owner, and rows that will not split disjointly run in
+  sequential waves.
+
+## [0.19.3] - 2026-09-28
+
+### Fixed
+
+- **`implement`: the phase-boundary ritual invokes the handoff last.** Step 4 invoked
+  `/session-flow:handoff`, whose STOP gate ends the turn, as item 2, before the status summary,
+  the commit and the resume prompt, so the documented order could not be followed. The ritual
+  now runs verify and mark, status summary, commit, then the handoff entry (or the fallback
+  note) as the final item. The status summary points at the handoff by its `phase-N` topic,
+  since the file does not exist yet when it is written, and the resume prompt is the handoff's
+  own copy region, with the same two skip conditions. `implement-dispatch` cites the commit as
+  Step 4 item 3 (#3711).
+
 ## [0.19.2] - 2026-09-27
 
 ### Added

@@ -41,7 +41,9 @@ branch name. Form and collision rules are the contract's.
 ## Guards
 
 The memory root's self-ignore guard applies on first write (verify-or-create `.gitignore` with
-`*`, announced). The contract also defines **invalid roots at which the guard does not run**; they
+`*`, announced). Create the guard file with the Write tool, never a shell redirect such as
+`printf '*\n' > <memory_dir>/.gitignore`: the `guardrails` plugin denies an `echo`/`printf`
+redirect to a file because it bypasses the Write/Edit hooks. The contract also defines **invalid roots at which the guard does not run**; they
 are enumerated in its
 [Runtime guards](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards)
 section and deliberately not listed here, so this binding cannot drift from them. Create the topic
