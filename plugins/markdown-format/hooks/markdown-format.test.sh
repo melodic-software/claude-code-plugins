@@ -300,8 +300,8 @@ fi
 # stderr — official semantics for a canceled / non-zero hook with no output.
 # Registration must refuse that launch. Official hooks + permissions (fetched
 # 2026-08-21): if is exactly one permission rule; Edit(path) covers Write;
-# Write(path) is never consulted; shell form without shell: bash falls through
-# to PowerShell on Windows when Git Bash is not detected.
+# Write(path) is never consulted. The row is exec form: command is node, and
+# exec-bash.mjs finds Git Bash. Bare bash is not a legal exec-form command.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   HANDLERS="$(jq -c '
@@ -310,24 +310,20 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[].if] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(.if | startswith("Write("))] | length' <<<"$HANDLERS")"
-  ARGS_PRESENT="$(jq '[.[] | select(has("args"))] | length' <<<"$HANDLERS")"
-  SHELL_OK="$(jq '[.[] | select(.shell == "bash")] | length' <<<"$HANDLERS")"
-  CMD_OK="$(jq --arg needle '${CLAUDE_PLUGIN_ROOT}' '
+  NODE_OK="$(jq --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh' --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' '
     [.[] | select(
-      (.command | contains($needle)) and
-      (.command | contains("markdown-format.sh")) and
-      (.command | contains("\"${CLAUDE_PLUGIN_ROOT}\""))
+      .command == "node" and
+      ((.args // [])[0] == $launcher) and
+      ((.args // []) | index($script))
     )] | length
   ' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "2" &&
     "$IF_VALUES" == "Edit(*.md) Edit(*.mdc)" &&
     "$WRITE_IF" == "0" &&
-    "$ARGS_PRESENT" == "0" &&
-    "$SHELL_OK" == "2" &&
-    "$CMD_OK" == "2" ]]; then
-    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), shell form, shell bash"
+    "$NODE_OK" == "2" ]]; then
+    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), through node and exec-bash.mjs"
   else
-    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF args=$ARGS_PRESENT shell=$SHELL_OK cmd=$CMD_OK"
+    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF node_ok=$NODE_OK"
   fi
 else
   fail "hooks.json launch-gate assertions need jq and $HOOKS_JSON"
