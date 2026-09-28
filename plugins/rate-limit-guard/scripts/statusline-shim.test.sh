@@ -721,7 +721,7 @@ H25="$WORK/h25"
 WREC="$(plant_tee "$H25" "mkt" "rate-limit-guard" "0.8.1" "winrec")"
 plant_tee "$H25" "mkt" "rate-limit-guard" "0.8.9" "winstaged" >/dev/null
 touch -t 202501010000 "$WREC"
-write_record "$H25/.claude" "mkt" 'C:\\Users\\<user>\\.claude\\plugins\\cache\\mkt\\rate-limit-guard\\0.8.1'
+write_record "$H25/.claude" "mkt" 'C:\\Users\\<user>\\.claude\\plugins\\cache\\mkt\\rate-limit-guard\\0.8.1' # portability-ok: angle-bracket user placeholder in a JSON path, not a GNU word boundary
 make_wrapped "$H25/render.sh" 0
 run "$H25" bash "$H25/render.sh"
 assert_contains "$ERR" "TEE:winrec" "a backslash-escaped Windows installPath names the installed version"
