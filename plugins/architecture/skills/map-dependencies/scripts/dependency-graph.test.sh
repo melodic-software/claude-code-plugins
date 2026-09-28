@@ -140,19 +140,21 @@ using Lib;
 class Program { static void Main() {} }
 CS
 printf '%s\n' '{ "dependencies": { "left-pad": "1.0.0" } }' >"$basic/package.json"
-cat >"$basic/App.sln" <<'SLN'
+sibling_sln_path='..\Sibling\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
+cat >"$basic/App.sln" <<SLN
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App", "src\App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sibling", "..\Sibling\Sibling.csproj", "{22222222-2222-2222-2222-222222222222}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sibling", "$sibling_sln_path", "{22222222-2222-2222-2222-222222222222}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 SLN
 mkdir -p "$basic/nest"
-cat >"$basic/nest/App.slnx" <<'SLNX'
+lib_slnx_path='..\src\Lib\Lib.csproj' # portability-ok: Windows path fixture; \s is the src segment, not a GNU grep class
+cat >"$basic/nest/App.slnx" <<SLNX
 <Solution>
-  <Project Path="..\src\Lib\Lib.csproj" />
+  <Project Path="$lib_slnx_path" />
   <Project Path="..\..\nope\Nope.csproj" />
 </Solution>
 SLNX
@@ -177,7 +179,7 @@ assert_contains "basic: outside target keeps the declared path" "$basic_json" '"
 assert_not_contains "basic: outside reference is not the decoy project" "$basic_json" '"to":"src/Outside/Outside.csproj"'
 assert_contains "basic: decoy project is still a node because the file exists" "$basic_json" '"id":"src/Outside/Outside.csproj"'
 assert_contains "basic: solution membership outside the root is a finding" "$basic_json" '"kind":"unresolved-membership"'
-assert_contains "basic: solution finding keeps the declared path" "$basic_json" '..\\Sibling\\Sibling.csproj'
+assert_contains "basic: solution finding keeps the declared path" "$basic_json" '..\\Sibling\\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
 assert_not_contains "basic: solution path is not resolved onto the decoy sibling" "$basic_json" '"to":"src/Sibling/Sibling.csproj"'
 assert_not_contains "basic: a using in Program.cs is not an edge" "$basic_json" 'Program.cs'
 assert_contains "basic: unread node manifest is named, not drawn as empty" "$basic_json" 'Not read: node (package.json)'
@@ -235,7 +237,7 @@ assert_contains "both external flags names the conflict" "$both" "mutually exclu
 
 cycle="$(make_tree cycle)"
 mkdir -p "$cycle/a" "$cycle/b" "$cycle/c"
-printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="..\b\B.csproj" /></ItemGroup></Project>' >"$cycle/a/A.csproj"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="..\b\B.csproj" /></ItemGroup></Project>' >"$cycle/a/A.csproj" # portability-ok: Windows path fixture; \b is the b segment, not a GNU grep word boundary
 printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="..\c\C.csproj" /></ItemGroup></Project>' >"$cycle/b/B.csproj"
 printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="..\a\A.csproj" /></ItemGroup></Project>' >"$cycle/c/C.csproj"
 cycle_json="$(bash "$GRAPH" "$cycle")"

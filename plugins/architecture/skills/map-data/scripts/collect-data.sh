@@ -754,9 +754,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   for part in "${statements[@]}"; do
     [[ "$part" == *HasOne* || "$part" == *HasMany* || "$part" == *HasForeignKey* ]] || continue
     configured="" one="" many="" fk=""
-    [[ "$part" =~ Entity\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && configured="${BASH_REMATCH[1]}"
-    [[ "$part" =~ HasOne\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && one="${BASH_REMATCH[1]}"
-    [[ "$part" =~ HasMany\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && many="${BASH_REMATCH[1]}"
+    [[ "$part" =~ Entity\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && configured="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
+    [[ "$part" =~ HasOne\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && one="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
+    [[ "$part" =~ HasMany\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && many="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasForeignKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && fk="${BASH_REMATCH[1]}"
     if [[ -z "$configured" || -z "$fk" ]]; then
       ef_bad=1

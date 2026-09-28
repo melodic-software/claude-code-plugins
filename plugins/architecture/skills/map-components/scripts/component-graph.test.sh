@@ -65,9 +65,10 @@ write_proj "$root/src/domain/Billing.Domain/Billing.Domain.csproj" '<Project Sdk
 </Project>'
 # Same file name as a project that exists, but the Include does not point here.
 write_proj "$root/other/Nope/Nope.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+worker_ref='    <ProjectReference Include="..\..\worker\Billing.Worker.Core\Billing.Worker.Core.csproj" />' # portability-ok: Windows path fixture; \w is the worker segment, not a GNU grep class
 write_proj "$root/src/host/Billing.Worker/Billing.Worker.csproj" '<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\worker\Billing.Worker.Core\Billing.Worker.Core.csproj" />
+'"$worker_ref"'
   </ItemGroup>
 </Project>'
 write_proj "$root/src/worker/Billing.Worker.Core/Billing.Worker.Core.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
