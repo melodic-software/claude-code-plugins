@@ -11,7 +11,6 @@
   `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
   `docs/specs/agent-doc-surfaces.md` gains the same rows.
 
-
 ## [0.23.8] - 2026-09-28
 
 ### Changed
