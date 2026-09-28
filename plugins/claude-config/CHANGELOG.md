@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Changed
+
+- **Managed-policy diagnosis routes to `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `audit-permission-state` still cannot see server-managed settings, which have no local path. The note now sends the operator to `/status` (Setting sources and the Organization policy line) and to `claude doctor`, which shows the same line, for a policy that did not load, a policy-helper failure, or a credential that is signed in but not in use.
+
 ## [0.51.6] - 2026-09-28
 
 ### Changed
