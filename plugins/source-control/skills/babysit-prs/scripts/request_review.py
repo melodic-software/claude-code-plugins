@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-import babysit_lease as leases
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
@@ -29,14 +28,12 @@ from babysit_review_trigger import (
     trigger_regex,
 )
 from babysit_state import (
-    load_state,
-    require_pr_state,
-    resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
     state_path_for,
     write_state,
 )
+from guarded_mutation import begin_guarded_mutation, require_worker_lease
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     configure_stdio,
@@ -149,25 +146,6 @@ def validate_current_candidate(
             "completion; refusing to post another review trigger"
         )
     return current
-
-
-def require_worker_lease(
-    args: argparse.Namespace,
-    state_dir: Path,
-    repo: str,
-    number: int,
-    *,
-    renew: bool = False,
-) -> None:
-    if not args.apply:
-        return
-    path = leases.lease_path(state_dir, "worker", f"{repo}#{number}")
-    with state_lock(path):
-        token = getattr(args, "lease_token", None)
-        if renew:
-            leases.heartbeat(path, token, None, leases.DEFAULT_WORKER_TTL_SECONDS)
-        else:
-            leases.require_owned_lease(path, token)
 
 
 def existing_trigger(
@@ -298,18 +276,16 @@ def run(args: argparse.Namespace) -> dict[str, object]:
 def run_locked(
     args: argparse.Namespace, state_dir: Path, state_path: Path
 ) -> dict[str, object]:
-    repo, number = parse_repo_number(args.pr)
-    key = f"{repo}#{number}"
+    # Parse before the phrase check so a malformed --pr still refuses first,
+    # the same order as before the preamble moved into the helper. The helper
+    # parses again; both calls are pure.
+    parse_repo_number(args.pr)
     config = build_trigger_config(args)
     recognizer = trigger_regex(config.trigger_phrase)
     if recognizer is None:
         raise RuntimeError("a non-empty review trigger phrase is required")
-    require_worker_lease(args, state_dir, repo, number)
-    state = load_state(state_path)
-    pr_state = require_pr_state(state, key)
-    expected_head_sha = resolve_expected_head_sha(
-        str(pr_state.get("head_sha") or ""), args.expected_head_sha
-    )
+    opened = begin_guarded_mutation(args, state_dir, state_path)
+    repo, number, key, state, pr_state, expected_head_sha = opened
     mutation_policy = json_object(pr_state.get("mutation_policy"))
     if not mutation_policy.get("review_trigger_allowed"):
         raise RuntimeError(
