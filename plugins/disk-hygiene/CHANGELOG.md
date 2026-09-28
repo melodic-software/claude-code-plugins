@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-09-28
+
+### Fixed
+
+- **`preview` no longer exits 3 on Windows and macOS when the only blocker is the platform.** When every blocker on every candidate is `execution-platform-unsupported`, a fact about the host that is identical for every path, preview now exits 0 and reports `outcome: manual-handoff-lane`, the lane the operator is routed to. Previously the mandatory preview step failed on every run there, which trained operators to ignore its exit code. Any other blocker still exits 3 with `outcome: blocked`, including when the platform blocker is also present. A ready preview reports `outcome: explicit-approval`. `status`, the blocker lists, and the approval token are unchanged, and `apply` still refuses a platform-blocked preview.
+
 ## [0.25.1] - 2026-09-28
 
 ### Changed

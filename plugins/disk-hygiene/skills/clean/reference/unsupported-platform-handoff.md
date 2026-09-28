@@ -14,7 +14,9 @@ steps.
 ## The gated manual lane
 
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
-the engine never deletes there. The default outcome is the report. The manual lane is gated by
+the engine never deletes there. When that is the only blocker on every candidate, preview exits 0
+with `outcome: manual-handoff-lane`. Any other blocker exits 3 with `outcome: blocked`, which
+means do not proceed, even when the platform blocker is also present. The default outcome is the report. The manual lane is gated by
 an execution request exactly as the engine lane is: `--execute`, or the user's own in-session
 request after the report (see [Arguments and boundaries](../SKILL.md#arguments-and-boundaries)).
 Without one, no deletion lane may be offered on any platform. If, and only if, an execution
