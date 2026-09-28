@@ -280,6 +280,18 @@ the same three creations as before (median 117 ms); a 2 KB payload costs about
 5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
 hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
 is still owed, and the default stays off until it is taken.
+
+**Claim:** the four Windows Git Bash figures #3757 named (kill-switch parallel wall
+with logging off and on, concurrent `>>` appends of one line under 4 KB, `ls -t`
+ordering at one-second NTFS resolution, late-EOF stall on a held-open pipe) are
+unpaid; default-off remains the consumer posture until they exist; Linux CI
+figures must not be copied into those rows. **Basis:** this README already states
+the Linux kill-switch floor (2.42 ms against 2.08 ms) and that Windows Git Bash
+is the host `docs/conventions/hook-budget` binds the budget to; this checkout
+has no Windows Git Bash host, so a probe here would manufacture the evidence the
+issue exists to prevent being assumed. **As of:** 2026-09-28. **Recheck:** dated
+Windows Git Bash figures land in this section for all four rows, or the
+hook-budget convention stops binding wall time to that host.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch in shell form, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and

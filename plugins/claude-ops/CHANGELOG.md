@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.14] - 2026-09-28
+
+### Changed
+
+- **Windows Git Bash hook-log figures stay owed; default-off is load-bearing**
+  ([#3757](https://github.com/melodic-software/claude-code-plugins/issues/3757)). The four
+  probes (kill-switch parallel wall, concurrent `>>` appends under 4 KB, NTFS `ls -t`
+  same-second ordering, late-EOF stall) were not taken. Linux numbers are not a substitute.
+  Serializes after in-flight 0.62.13 tips (#3533, #4050).
+
 ## [0.62.12] - 2026-09-28
 
 ### Changed
