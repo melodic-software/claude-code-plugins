@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.41] - 2026-09-28
+
+### Changed
+
+- **`sync` verb stays parked** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
+  Option A: do not add a fleet skill that switches canonical checkouts to the remote default
+  branch and `--ff-only` pulls them. `audit` stays read-only; `apply` still only deletes merged
+  local branches and worktrees.
+
 ## [0.23.40] - 2026-09-28
 
 ### Added

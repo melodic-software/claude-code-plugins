@@ -43,10 +43,19 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Conformance against the configured worktree root | `repo-fleet-hygiene`, reading the convention owned by `source-control` | Shipped |
 | Complete exact branch merge evidence via GraphQL | `repo-fleet-hygiene` | Shipped |
 | Merged remote-branch reporting and its separate safety gate | `repo-fleet-hygiene` | Tracked by [#2607](https://github.com/melodic-software/claude-code-plugins/issues/2607); follow-up PR [#2645](https://github.com/melodic-software/claude-code-plugins/pull/2645) |
+| Fast-forward every canonical checkout onto the remote default branch (`sync`) | `repo-fleet-hygiene` | Parked. [#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992) Option A: no structural sync verb until funded |
 
 Rows marked "not yet shipped" are contracts, not commands this version accepts. Their linked child
 issues become the shipping record when merged; until then, the audit preserves the current detailed
 report and exact per-repository handoffs.
+
+**Claim:** there is no `repo-fleet-hygiene:sync` verb. `audit` stays read-only; `apply` still only
+deletes merged local branches and worktrees from a prior plan. Canonical checkouts are not switched
+or `--ff-only` pulled by this plugin. **Basis:** #3992 (`work-class: structural`, `needs-human`).
+The issue names a new skill, an existing-branch mode on `worktree-create.sh`, and a six-rung
+no-scope resolver that `audit` would also adopt. Option A parks that structural verb rather than
+shipping it unpaid. **As of:** 2026-09-28. **Recheck:** a maintainer funds
+`/repo-fleet-hygiene:sync` as its own issue, or unparks #3992.
 
 ## Actions
 
