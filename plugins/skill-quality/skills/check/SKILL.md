@@ -280,15 +280,14 @@ tool. This gate does not automate that reachability check; author and review aga
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
   (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.
-- Check 25 (description/verb-contract polarity) is an advisory heuristic, never a FAIL. It
-  flags a listing-surface mismatch between the description lead (before `Use when:`) and the
-  Naming verb contract or the body: a report-only leaf (`audit`/`scan`) whose lead advertises
-  mutation without an explicit override, a mutate leaf (`clean`/`tidy`/`fix`) whose lead
-  claims read-only/report-only, a read-only lead whose body mutates on bare invocation, or a
-  mutate-advertising lead whose body claims the skill never mutates. `--fix` in the listing
-  is the compliant override shape and clears a report-only verb. Out of scope: whether any
-  `audit` skill should gain a `--fix` path, and any rename. A WARN is a candidate to
-  hand-verify, not a mandate to rewrite the fleet. Trigger phrases, "read-only by default",
+- Check 25 (description/verb-contract polarity) FAILs on a listing-surface mismatch between the
+  description lead (before `Use when:`) and the Naming verb contract or the body: a report-only
+  leaf (`audit`/`scan`) whose lead advertises mutation without an explicit override, a mutate leaf
+  (`clean`/`tidy`/`fix`) whose lead claims read-only/report-only, a read-only lead whose body
+  mutates on bare invocation, or a mutate-advertising lead whose body claims the skill never
+  mutates. `--fix` in the listing is the compliant override shape and clears a report-only verb.
+  Out of scope: whether any `audit` skill should gain a `--fix` path, and any rename. Trigger
+  phrases, "read-only by default",
   the noun "remediation", and a negated "or rewrites" list do not advertise mutation.
 - `check-evals-quality.sh` requires `jq` (exit 2 without it, and the schema validation of
   `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:

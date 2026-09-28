@@ -1,5 +1,11 @@
 # Changelog for the ecosystem-commands convention
 
+## Consumers table, 2026-09-28
+
+- **`code-metrics` reads `globs` and `enabled` only (#3847).** The contract gains a Consumers
+  table for plugins that take lane membership without running a verb. Schema unchanged, so no
+  version bump.
+
 ## [1.3.0] - 2026-08-15
 
 Additive schema change: new optional `code-fix-cmd` key for semantic/code-changing autofixes
