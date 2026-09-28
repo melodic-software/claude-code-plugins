@@ -3,6 +3,33 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.10] - 2026-09-28
+
+### Added
+
+- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto --permission-prompts none`. Auto mode still decides. A prompt that would have asked a person is denied. Probed on Claude Code 2.1.282: the flag is accepted together with `--bg`.
+- **`/reload-plugins` in headless sessions.** `plugins` `context/scope-semantics.md` records that the command runs in `-p`, the Agent SDK, and the desktop app from Claude Code 2.1.260, only on input typed into the session, and that it does not apply plugin MCP server changes there.
+
+### Changed
+
+- **Lane restart does not use `claude --resume <id> --bg`.** The decline is recorded on `lanes` with the four-part record. Restart stays stop plus a fresh seeded launch.
+- **`audit-native-overlap` nominates the stale sandbox-mask warning.** The seeded `doctor` / `audit-install-state` pair names the `claude doctor` warning for 0-byte placeholders a killed session leaves. That note is a candidate, not a verdict.
+
+## [0.63.0] - 2026-09-28
+
+### Added
+
+- **`audit-native-overlap`: every store row carries `integration`**
+  ([#4049](https://github.com/melodic-software/claude-code-plugins/issues/4049)).
+  The field is `route`, `wrap`, or `suggest`, required beside `verdict`. Class rules:
+  a built-in command takes `route` or `suggest`; a bundled skill, plugin-backed built-in,
+  or marketplace plugin takes `route` or `wrap`; a bundled skill marked
+  `model-invocation-disabled` takes `suggest`; a session skill takes `route`; a `defer`
+  verdict takes `route` and overrides the marker rule. `wrap` and `suggest` rows name the
+  observed invocation mode in evidence. `baked` gains `native_step` and `suggest_sentence`.
+  The generated view renders an Integration column. native-references moves to 2.0.0 for
+  the Native step grammar, the suggest sentence, and the built gate-token check.
+
 ## [0.62.17] - 2026-09-28
 
 ### Changed

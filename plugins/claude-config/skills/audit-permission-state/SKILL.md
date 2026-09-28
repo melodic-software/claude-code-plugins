@@ -248,7 +248,18 @@ every rule string it prints came from a file it read. It ships no security floor
 **Completeness is bounded on every run.** Server-managed settings are delivered at sign-in and have no
 local path, so "managed" means the local surfaces only; a surface that could not be read gets its own
 note saying so, because an administrator reading silence as "no policy deployed" is the failure this
-report exists to prevent.
+report exists to prevent. The note routes that diagnosis to `/status` (Setting sources, and the
+Organization policy line for a policy that did not load, a policy-helper failure, or a credential
+that is signed in but not the one in use) and to `claude doctor`, which shows the same Organization
+policy line.
+
+**Record.** Claim: `/status` and `claude doctor` carry an Organization policy line that says why
+the organization's policy could not be loaded, and `/status` marks the credential that is not in
+use. Basis: <https://code.claude.com/docs/en/managed-settings#read-the-source-in-status> and the
+`/status` row of <https://code.claude.com/docs/en/commands>, plus the managed-settings page's
+statement that `claude doctor`'s Organization policy line says where the policy loaded from or why
+it did not (Claude Code v2.1.261 or later). As of: 2026-09-28. Recheck: those pages drop the
+Organization policy line or stop naming `/status` as the place a managed source is shown.
 
 ## Reading the output honestly
 
