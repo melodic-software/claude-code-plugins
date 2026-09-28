@@ -334,6 +334,8 @@
 # CI, so a broken detector cannot mask a regression behind a green canary --
 # the same never-skip, self-test-first, fail-closed shape the ci.yml gates use.
 set -uo pipefail
+# shellcheck source=lib/changed-files.sh
+source "${BASH_SOURCE[0]%/*}/lib/changed-files.sh"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || {
   echo "check-silent-revert: cannot reach the repository root" >&2
@@ -1112,7 +1114,7 @@ verify_known_incidents() {
     *) ;;
     esac
     verified=$((verified + 1))
-    if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
+    if ! changed_files::verify_base "$sha"; then
       die "incident commit $sha is unreachable -- the canary self-check needs full history (fetch-depth: 0)"
     fi
 
@@ -1533,7 +1535,7 @@ verify_restoration() {
 
   local where="the working tree"
   if [[ -n "$rev" ]]; then
-    git rev-parse --verify --quiet "${rev}^{commit}" >/dev/null ||
+    changed_files::verify_base "$rev" ||
       die "cannot resolve rev '$rev' -- the restoration assertion needs full history (fetch-depth: 0)"
     where="$rev"
   fi
@@ -1578,7 +1580,7 @@ verify_restoration() {
     # resolve is either a shallow clone (in which case this mode cannot run) or
     # a typo, and a matched typo on a row and its marker would otherwise assert
     # content for an incident that never happened.
-    git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null ||
+    changed_files::verify_base "$sha" ||
       die "incident commit $sha is unreachable -- the restoration assertion needs full history (fetch-depth: 0)"
     # A `fires` row with no marker is refused rather than skipped. Skipping it
     # would let this whole assertion be satisfied by recording markers for one

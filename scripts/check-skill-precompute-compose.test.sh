@@ -235,7 +235,9 @@ git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm tip >/dev/null
 subtree="$(git -C "$f" rev-parse "$base:plugins")"
 rm -f "$f/.git/objects/${subtree:0:2}/${subtree:2}"
-if git -C "$f" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+# shellcheck source=lib/changed-files.sh
+source "$SELF_DIR/lib/changed-files.sh"
+if (cd "$f" && changed_files::verify_base "$base"); then
   ok "the fixture's base ref still validates (the failure is in the diff, not the ref)"
 else
   fail "fixture setup: the base ref stopped resolving, so this asserts the wrong thing"

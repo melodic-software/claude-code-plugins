@@ -162,10 +162,9 @@ if ((HARVEST)); then
 fi
 
 # --- the two trees -----------------------------------------------------------
-if ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
-  echo "$PROG: base ref not resolvable: $BASE_REF" >&2
-  exit 2
-fi
+# shellcheck source=lib/gate-entry.sh
+source "$SCRIPT_DIR/lib/gate-entry.sh"
+gate_entry::require_commit "$BASE_REF" "$PROG: base ref not resolvable: $BASE_REF"
 mkdir -p "$WORK/base" || exit 2
 if ! git archive --format=tar "$BASE_REF" plugins/guardrails | tar -xf - -C "$WORK/base"; then
   echo "$PROG: could not extract plugins/guardrails from $BASE_REF" >&2

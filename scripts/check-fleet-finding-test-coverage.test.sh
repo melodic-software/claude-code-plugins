@@ -218,8 +218,9 @@ rm -rf "$repo"
 
 # Historical proof (#2656): the gate must go red against the two commits that
 # shipped the coverage gap. Point FLEET_FINDING_* at trees extracted from git.
-if git rev-parse --verify --quiet "cc58cbc5^{commit}" >/dev/null 2>&1 &&
-  git rev-parse --verify --quiet "6f0a3110^{commit}" >/dev/null 2>&1; then
+# shellcheck source=lib/changed-files.sh
+source "$SELF_DIR/lib/changed-files.sh"
+if changed_files::verify_base cc58cbc5 && changed_files::verify_base 6f0a3110; then
   fixture_tree::build hist --sut "$SCRIPT"
   # Empty baseline: prove the raw invariant fails on both trees.
   : >"$hist/scripts/fleet-finding-test-coverage-baseline.txt"
