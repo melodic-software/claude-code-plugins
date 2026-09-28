@@ -2396,6 +2396,40 @@ class HygieneTests(unittest.TestCase):
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
 
+    def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for index in range(4):
+                (root / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual([], snapshot["entries"])
+            self.assertEqual("sizes-only", snapshot["inventory_mode"])
+            self.assertEqual("exact", snapshot["rollup_precision"])
+            child = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "file-0.txt"
+            )
+            self.assertTrue(child["walked"])
+
+    def test_sizes_only_depth_cut_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            nested = root / "child"
+            nested.mkdir()
+            (nested / "deep.txt").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1, sizes_only=True
+            )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+            child_row = next(
+                row for row in snapshot["children_rollup"] if row["name"] == "child"
+            )
+            self.assertFalse(child_row["walked"])
+
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -8202,6 +8236,8 @@ class GuardTests(unittest.TestCase):
             f"{base} --root-children --root-child builds --root-child tmp",
             f"{base} --root-children --root-child builds --max-depth 1",
             f"{base} --confirmed-large-scan --root-children --root-child builds",
+            f"{base} --sizes-only",
+            f"{base} --sizes-only --max-depth 2",
         )
         denied = (
             f"{base} --root-child builds",
