@@ -460,6 +460,28 @@ run "commit msg mentioning python3 -c open (allowed)" \
 run "python3 -c single-quoted open write (blocked)" \
   "python3 -c 'open(\"x\",\"w\").write(\"a\")'" 2
 
+# --- A child shell's -c operand is a command, re-parsed (#4243) --------------
+# The same text one level down in `bash -c` / `sh -c` is the same write, so the
+# operand's segments are judged like the top level's.
+run "bash -c echo > file (blocked)" "bash -c 'echo secret > a.txt'" 2
+run "sh -c echo > file (blocked)" "sh -c 'echo secret > a.txt'" 2
+run "bash -c cat heredoc > file (blocked)" \
+  "$(printf "bash -c 'cat > a.txt <<EOF\nsecret\nEOF'")" 2
+run "bash -lc printf > file (blocked)" "bash -lc 'printf %s x > a.txt'" 2
+run "FOO=1 /bin/bash -c echo > file (prefixed shell path, blocked)" \
+  "FOO=1 /bin/bash -c 'echo x > a.txt'" 2
+run "bash -c nested sh -c echo > file (blocked)" \
+  "bash -c \"sh -c 'echo x > a.txt'\"" 2
+run "bash -c python3 -c write (blocked)" \
+  "bash -c \"python3 -c 'open(\\\"x\\\",\\\"w\\\").write(1)'\"" 2
+run "bash -c staged write then mv (blocked)" "bash -c 'echo x > f; mv f dst'" 2
+run "bash -c git status (allowed)" "bash -c 'git status'" 0
+run "bash -c echo (no redirect, allowed)" "bash -c 'echo hi'" 0
+run "bash -c echo > /dev/null (discard, allowed)" "bash -c 'echo x > /dev/null'" 0
+run "bash -c sort > out (non-producer, allowed)" "bash -c 'sort a > out'" 0
+run "echo prose naming bash -c echo > f (allowed)" "echo \"bash -c 'echo x > f'\"" 0
+run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
+
 # --- Case-insensitive command-token detection (matters on Windows) ----------
 run "uppercase CAT > file (blocked)" "CAT > foo.txt" 2
 run "uppercase ECHO > file (blocked)" "ECHO hello > foo.txt" 2
@@ -1095,6 +1117,32 @@ run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+run_pwsh "PS: Set-Content recovered from behind a quote-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a backslash-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a <# then opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: shape 9 — a commented opener behind {} with no write (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
+run_pwsh "PS: a bare CR hiding Set-Content (blocked)" \
+  $'Write-Output hi\rSet-Content f.txt x' 2
+run_pwsh "PS: CRLF canonical verbatim here-string with no write (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @'" "hello" "'@")" 0
+run_pwsh "PS #4683 shape 2: Set-Content behind backslash-escaped quote opener (blocked)" \
+  "$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "Set-Content f.txt x" '"@')" 2
+run_pwsh "PS #4683 table bare CR hiding Set-Content (blocked)" \
+  "$(printf 'Write-Output x\rSet-Content f.txt x')" 2
+run_pwsh "PS #4683 A2: Set-Content behind apostrophe-straddle opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 N1: Set-Content behind quote-then-opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 B1: Set-Content behind backtick opener (blocked)" \
+  "$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; Set-Content f.txt x" "'@")" 2
+run_pwsh "PS #4683 S5: Set-Content behind block-comment opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "Set-Content f.txt x" "'@")" 2
+
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
 run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
@@ -1333,82 +1381,239 @@ run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
 run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
   "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 
-# The block message is shell-agnostic (no 'Bash' assumption).
-psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
-assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
-assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
-assert_contains "PS write block names kill switch" "$psout" "block_hook_bypass_enabled"
-assert_contains "PS write block names isolated Write/Edit refusal" "$psout" "main checkout"
-assert_contains "PS write block names scratch_roots remedy" "$psout" "block_hook_bypass_scratch_roots"
-assert_contains "PS write block names session --settings" "$psout" "--settings"
-assert_contains "PS write block marks kill switch operator-only" "$psout" "not actionable by the blocked agent"
-assert_contains "PS write block warns kill switch is user-scoped" "$psout" "user-scoped"
-assert_contains "PS write block warns kill switch persists across repositories" "$psout" "every repository"
-assert_contains "PS write block tells operator to re-enable kill switch" "$psout" "Re-enable it"
+# --- The block message (#4679) ----------------------------------------------
+# stderr is the model channel on exit 2, so it carries what the blocked agent can
+# act on and nothing else. Every assertion here reads stderr ALONE (GUARD_ERR):
+# a 2>&1 capture also catches the stdout systemMessage and would pass on text
+# the agent never receives.
+MSG_USE="Use the Write or Edit tool instead of a shell file-write workaround."
+MSG_REMEDY_SCRATCH="If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots."
+MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only."
+MSG_POINTER="Operator levers for this guard: the guardrails README, block-hook-bypass."
+MSG_PROJ=/srv/repo
+MSG_CFG=/srv/cfg
+# Pinned so the plugin data default has one spelling, and no data dir, so the
+# once-per-session latch fails open and every block here emits its notice.
+MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
+  CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 
-# --- Enforcement-scope disclosure -------------------------------------------
-# The message asserted "use Write or Edit instead" with no scope, so it read as
-# "shell file writes are blocked" when the guard is deliberately producer-scoped
-# over one command string. Both lanes must carry the scope, and the behavior
-# the scope describes is pinned below it so message and reality move together.
-scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
-assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
-assert_contains "bash block names isolated Write/Edit refusal" "$scopeout" "main checkout"
-assert_contains "bash block names scratch_roots remedy" "$scopeout" "block_hook_bypass_scratch_roots"
-assert_contains "bash block names session --settings" "$scopeout" "--settings"
-assert_contains "bash block marks kill switch operator-only" "$scopeout" \
-  "not actionable by the blocked agent"
-assert_contains "bash block warns kill switch is user-scoped" "$scopeout" "user-scoped"
-assert_contains "bash block warns kill switch persists across repositories" "$scopeout" \
-  "every repository"
-assert_contains "bash block tells operator to re-enable kill switch" "$scopeout" "Re-enable it"
-# Exit-2 hosts discard systemMessage; the operator levers must survive on stderr.
-scope_err="$TEST_TMPDIR/block-stderr.txt"
-bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" >/dev/null 2>"$scope_err" || true
-scope_err_txt=$(cat "$scope_err")
-assert_contains "stderr carries isolated Write/Edit refusal" "$scope_err_txt" "main checkout"
-assert_contains "stderr carries scratch_roots remedy" "$scope_err_txt" "block_hook_bypass_scratch_roots"
-assert_contains "stderr carries session --settings" "$scope_err_txt" "--settings"
-assert_contains "stderr marks kill switch operator-only" "$scope_err_txt" \
-  "not actionable by the blocked agent"
-assert_contains "stderr warns kill switch is user-scoped" "$scope_err_txt" "user-scoped"
-assert_contains "stderr tells operator to re-enable kill switch" "$scope_err_txt" "Re-enable it"
-assert_contains "bash block states its scope" "$scopeout" \
-  "only this command string is inspected"
-assert_contains "bash block names the invoked-script gap" "$scopeout" \
-  "inside an invoked script file"
-# The note states the ENFORCED surface, so it is pinned at the shipped width, not
-# at a remembered one. #2217 widened the python lane past the literal `python3 -c`
-# and this assertion went on pinning the obsolete claim — the assertion is what
-# should have caught the drift, so it now names both the family and the stdin form.
-assert_contains "bash block names the interpreter family it covers" "$scopeout" \
-  "python/python3/py/pypy with -c"
-assert_contains "bash block names the stdin form it covers" "$scopeout" \
-  "python3 - <<PY"
-assert_contains "bash block names the no-dash stdin residual" "$scopeout" \
-  "python3 <<PY"
-assert_contains "bash block still limits interpreter coverage" "$scopeout" "only"
-assert_contains "bash block names the tee gap" "$scopeout" "POSIX tee"
-assert_contains "bash block names other-interpreter gap" "$scopeout" "node -e"
-psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
-assert_contains "powershell block states its scope" "$psscope" \
-  "only this command string is inspected"
-assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Object"
-assert_contains "powershell block names the interpreter family it covers" "$psscope" \
-  "python/python3/py/pypy with -c"
+# PowerShell and python lanes: never a scratch root, so no reason line, no root
+# list, and a remedy that does not name block_hook_bypass_scratch_roots.
+guard_invoke --tool PowerShell --command "Set-Content f.txt 'x'" -- "${MSG_ENV[@]}"
+assert_exit "message: PowerShell write blocks" 2 "$GUARD_RC"
+assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
+  "BLOCKED: PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
+  -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \
+  "BLOCKED: python inline-code file write bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+# The live report: a stdin heredoc on the Bash tool printed the scratch-root
+# advice and the whole Bash scope note.
+MSG_PY_HEREDOC=$(printf 'python3 - <<\x27EOF\x27\nopen("/tmp/claude-0/x/scratchpad/f","w").write("a")\nEOF')
+guard_invoke --command "$MSG_PY_HEREDOC" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_exit "message: Bash python heredoc write blocks" 2 "$GUARD_RC"
+assert_eq "message: Bash python heredoc stderr is verdict, remedy, pointer" \
+  "BLOCKED: python inline-code file write bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+assert_absent "message: python lane never names the scratch-roots option" \
+  "$GUARD_ERR" "block_hook_bypass_scratch_roots"
 
-# The behavior the scope note describes. A write inside an invoked script is
-# not inspected, and a redirect whose producer is another program is allowed by
-# the producer-scoped design — so the note must not promise either is blocked.
+# Bash echo lane, quoted scratchpad target, project outside the temp tree: the
+# quoted reason, then the roots that WOULD have exempted an unquoted literal
+# target. The quoted reason already says quoting is never exempt, so the roots
+# line does not repeat it.
+guard_invoke --command "echo x > \"/tmp/claude-0/-srv-repo/abc/scratchpad/probe.txt\"" \
+  -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_exit "message: quoted scratchpad target blocks" 2 "$GUARD_RC"
+assert_eq "message: quoted scratchpad stderr is exactly lines 1 to 5 and the pointer" \
+  "BLOCKED: echo/printf > file write bypasses Write/Edit hooks
+$MSG_USE
+A quoted or escaped target is never scratch-exempt.
+An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory.
+$MSG_REMEDY_SCRATCH
+$MSG_POINTER" "$GUARD_ERR"
+assert_contains "message: the latch-less block still emits the operator notice" \
+  "$GUARD_OUT" '"systemMessage"'
+
+# One reason line per refusal code. <label> <expected reason line> <command>
+# [env word ...]; the line sits third on stderr, right after the remedy.
+reason_is() {
+  local label="$1" want="$2" command="$3"
+  shift 3
+  guard_invoke --command "$command" -- "${MSG_ENV[@]}" "$@"
+  assert_exit "reason: $label blocks" 2 "$GUARD_RC"
+  assert_eq "reason: $label" "$want" "$(sed -n 3p <<<"$GUARD_ERR")"
+}
+reason_is "no root and no project" \
+  "No scratch root is configured and the project root is unknown." "printf 'x' > out.log"
+reason_is "relative target with no cwd" \
+  "A relative target is not exempt after a directory change or without a known cwd; use an absolute path." \
+  "echo x > out.log" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "variable-carried target" \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
+  "echo x > \$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "variable under an absolute prefix" \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
+  "echo x > /tmp/\$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "absolute target outside every root" \
+  "The target is not under an exempt root." \
+  "echo x > /srv/repo/notes.md" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+# A literal target outside every root is told that a literal path under the
+# temp tree is exempt with no configuration, and that a variable-carried or
+# quoted operand is not (#4118).
+assert_eq "reason: literal target outside every root names the temp route and the residual" \
+  "An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory; a quoted or variable-carried one never is." \
+  "$(sed -n 4p <<<"$GUARD_ERR")"
+# A variable-carried target's reason already names the residual; the roots line
+# does not repeat it.
+guard_invoke --command "echo x > /tmp/\$f" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_eq "reason: variable-carried target's roots line carries no repeat" \
+  "An unquoted literal target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory." \
+  "$(sed -n 4p <<<"$GUARD_ERR")"
+# A temp-rooted project turns the temp default off; that is the reason, not "not
+# under an exempt root", and the root list no longer offers the temp tree.
+reason_is "temp-rooted project" \
+  "The project root is itself under the temp directory, so the temp directory is not exempt." \
+  "echo x > /tmp/bhb-msg/out.txt" "CLAUDE_PROJECT_DIR=/tmp/bhb-msg-proj"
+assert_absent "reason: temp-rooted project does not offer the temp tree" \
+  "$GUARD_ERR" "the OS temp directory"
+# The staged lane names its operand as the move destination, on the reason and
+# on the root list.
+reason_is "staged move destination outside every root" \
+  "The move destination is not under an exempt root." \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x /srv/out.json" \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
+assert_contains "reason: staged lane's root list names the move destination" \
+  "$GUARD_ERR" "An unquoted literal move destination under these roots is exempt: /tmp/scratch; a quoted or variable-carried one never is."
+# An earlier refusal that did not block (a quoted destination with no staged
+# source) must not become the blocking segment's reason.
+reason_is "the blocking destination's reason wins over an earlier refusal" \
+  "The move destination is not under an exempt root." \
+  "jq . f > /tmp/scratch/x && mv a \"/tmp/q\" && mv /tmp/scratch/x /srv/out.json" \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
+
+# The enforced scope and the operator levers are neither channel's per-block
+# content: the scope lives in the README, the levers on the latched notice.
+for scope_cmd in "printf 'x' > out.log" "Set-Content f.txt 'x'"; do
+  scope_tool=Bash
+  [[ "$scope_cmd" == Set-Content* ]] && scope_tool=PowerShell
+  guard_invoke --tool "$scope_tool" --command "$scope_cmd" -- "${MSG_ENV[@]}"
+  for gone in "POSIX tee" "node -e" "only this command string is inspected" \
+    "block_hook_bypass_enabled" "--settings"; do
+    assert_absent "message ($scope_tool): stderr carries no '$gone'" "$GUARD_ERR" "$gone"
+  done
+  scope_sys=$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")
+  for gone in "POSIX tee" "node -e" "only this command string is inspected"; do
+    assert_absent "message ($scope_tool): systemMessage carries no '$gone'" "$scope_sys" "$gone"
+  done
+  assert_contains "message ($scope_tool): systemMessage lists the levers narrowest first" \
+    "$scope_sys" "(1) block_hook_bypass_scratch_roots"
+  assert_contains "message ($scope_tool): systemMessage names the session-scoped lever" \
+    "$scope_sys" "(2) a session-scoped disable via claude --settings"
+  assert_contains "message ($scope_tool): systemMessage names the user-global switch last" \
+    "$scope_sys" "(3) the user-global block_hook_bypass_enabled switch"
+  assert_contains "message ($scope_tool): systemMessage says deterrent, not sandbox" \
+    "$scope_sys" "not a sandbox"
+done
+README_TXT=$(<"$HOOK_DIR/../README.md")
+for residual in "\`tee\` / \`tee -a\`" "\`node -e\`" "cross-tool-call staging" \
+  "(\`install\`, \`rsync\`, \`dd\`)"; do
+  assert_contains "README keeps the scope the block no longer prints: $residual" \
+    "$README_TXT" "$residual"
+done
+
+# --- The operator notice latches once per (session, agent) ------------------
+# hook::notice_once keys the marker on session and agent; this guard declines
+# its every-8 renewal, so the eighth block stays silent too. Other guards'
+# renewal is untouched: lib/hook-utils.sh is not changed, only this caller.
+LATCH_DIR="$TEST_TMPDIR/latch-data"
+LATCH_PAYLOAD='{"session_id":"latch-s1","tool_name":"Bash","tool_input":{"command":"echo x > notes.md"}}'
+latch_docs=0
+for _ in 1 2 3 4 5 6 7 8 9; do
+  guard_invoke --payload "$LATCH_PAYLOAD" -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR"
+  [[ "$GUARD_OUT" == *'"systemMessage"'* ]] && latch_docs=$((latch_docs + 1))
+done
+assert_exit "latch: the ninth block still blocks" 2 "$GUARD_RC"
+assert_eq "latch: nine blocks in one session emit one notice, no renewal on the eighth" \
+  1 "$latch_docs"
+assert_contains "latch: stderr keeps the README pointer after the notice latched" \
+  "$GUARD_ERR" "$MSG_POINTER"
+if [[ -f "$LATCH_DIR/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent" ]]; then
+  ok "latch: the marker is keyed on session and agent"
+else
+  bad "latch: no marker at $LATCH_DIR/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent"
+fi
+guard_invoke --payload "${LATCH_PAYLOAD/latch-s1/latch-s2}" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR"
+assert_contains "latch: a new session gets its own notice" "$GUARD_OUT" '"systemMessage"'
+# Under the dispatcher the notice reaches the merged document once, then latches.
+LATCH_DIR2="$TEST_TMPDIR/latch-data-dispatched"
+guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR2"
+assert_exit "latch (dispatched): first block blocks" 2 "$GUARD_RC"
+assert_contains "latch (dispatched): first block carries the notice" "$GUARD_OUT" '"systemMessage"'
+guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR2"
+assert_absent "latch (dispatched): second block emits no notice" "$GUARD_OUT" "levers, narrowest first"
+# Without jq the guard cannot read the payload and allows (hook::require_jq), so
+# the latch must not be spent on a run that never blocked: the next block with jq
+# back still carries the notice. run_guards::emit_one keeps one document there.
+LATCH_NOJQ_PATH=""
+IFS=: read -r -a latch_path_dirs <<<"$PATH"
+for d in "${latch_path_dirs[@]}"; do
+  [[ -n "$d" ]] || continue
+  if [[ -x "$d/jq" || -x "$d/jq.exe" ]]; then
+    shim="$TEST_TMPDIR/latch-nojq-$(printf '%s' "$d" | tr -c 'A-Za-z0-9' _)"
+    mkdir -p "$shim"
+    for f in "$d"/*; do
+      base="${f##*/}"
+      [[ "$base" == jq || "$base" == jq.exe ]] && continue
+      [[ -x "$f" ]] || continue
+      ln -s "$f" "$shim/$base" 2>/dev/null || true
+    done
+    LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$shim"
+  else
+    LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
+  fi
+done
+if PATH="$LATCH_NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+  bad "latch: could not build a PATH without jq"
+else
+  LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"
+  guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+    -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR3" "PATH=$LATCH_NOJQ_PATH"
+  assert_exit "latch (dispatched, no jq): the guard skips" 0 "$GUARD_RC"
+  # portability-ok: grep -c counts harness output lines, not a grep -P invocation
+  assert_eq "latch (dispatched, no jq): one document on stdout" 1 "$(grep -c '^{' <<<"$GUARD_OUT")"
+  assert_file_absent "latch (dispatched, no jq): the notice marker is not spent" \
+    "$LATCH_DIR3/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent"
+  guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+    -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR3"
+  assert_contains "latch (dispatched): jq back, the first block carries the notice" \
+    "$GUARD_OUT" "levers, narrowest first"
+fi
+
+# The behavior the README scope entry describes. A write inside an invoked script
+# is not inspected, and a redirect whose producer is another program is allowed
+# by the producer-scoped design, so neither may be promised as blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
 run "invoked script with its own redirect (allowed)" "bash execute.sh >> run.log" 0
-run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0
+run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0 # portability-ok: sort of a fixture filename, not a sort -V invocation
 run "cat with input files is not a heredoc write (allowed)" "cat a.txt b.txt > c.txt" 0
 # tee and other inline-interpreter writes are outside the modeled surface.
 run "tee pipe write (accepted floor — allowed)" 'echo "*" | tee .gitignore' 0
 run "tee -a append (accepted floor — allowed)" 'echo "*" | tee -a .gitignore' 0
 run "node -e write (accepted floor — allowed)" \
   "node -e \"require('fs').writeFileSync('f.txt','a')\"" 0
+# portability-ok: test fixture command string containing sed -i, not an unsuffixed sed -i invocation
 run "sed -i in-place write (accepted floor — allowed)" \
   "sed -i 's/a/b/' f.txt" 0 # portability-ok: test fixture command string containing sed -i, not an unsuffixed sed -i invocation
 run "dd of= write (accepted floor — allowed)" "dd of=f.txt <<< x" 0
@@ -1548,9 +1753,9 @@ run "scratch: quoted content, unquoted target (allowed)" \
 # (1) Segment-scoped now: a quote in an unrelated LATER segment is that segment's
 #     business. Segment 1's target is a plain path strictly under the root.
 run "scratch: quote in an unrelated later segment keeps it (allowed)" \
-  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
+  "echo x > /tmp/scratch/f && grep foo \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch" # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "scratch: the same compound with no quotes keeps it (allowed)" \
-  "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch"
+  "echo x > /tmp/scratch/f && grep foo notes.txt" 0 "$SCRATCH_ENV=/tmp/scratch" # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "scratch: quote in a later ;-segment keeps it (allowed)" \
   "echo x > /tmp/scratch/f; cat \"notes.txt\"" 0 "$SCRATCH_ENV=/tmp/scratch"
 # (2) Keyed on the redirect OPERAND now: a `>` inside quoted CONTENT is content,
@@ -1798,6 +2003,14 @@ else
   run_cwd "symlink: escape out of the temp default still blocks" \
     "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
     "$PROJ_ENV=$SYMLINK_PROJ"
+  # The block says why a temp-looking target was not exempt. A checkout under the
+  # temp tree turns the default off, which is a different reason.
+  if [[ "$SYMLINK_PROJ" == /tmp/* ]]; then
+    printf 'SKIP: resolves-outside reason not asserted (checkout under /tmp: %s)\n' "$SYMLINK_PROJ"
+  else
+    assert_contains "symlink: the reason is that the target resolves outside the root" \
+      "$GUARD_ERR" "The target resolves outside the exempt root."
+  fi
   # The same root, not traversing the symlink, stays exempt: the fix must not
   # turn the exemption off wholesale.
   run_cwd "symlink: a genuine temp write in the same root stays allowed" \
@@ -1864,6 +2077,10 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
       "echo secret > $WIN_JDIR/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
     run_cwd "windows temp: a sibling of the junction stays allowed" \
       "echo probe > $WIN_JDIR/scratch.txt" "$WIN_JPROJ" 0 "$PROJ_ENV=$WIN_JPROJ"
+    if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
+      run_cwd "windows temp: an 8.3 spelling through the junction into the project blocks" \
+        "echo secret > $WIN_SHORT/bhb-junction-$$/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
+    fi
   else
     printf 'SKIP: Windows junction escape not asserted (mklink //J failed or the link is not seen as a link; no coverage here, not a pass)\n'
   fi
@@ -1872,17 +2089,138 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
     cmd //c rmdir "$(cygpath -w "$WIN_JDIR/to-proj")" >/dev/null 2>&1
   rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
-    # Documented residual: an 8.3-spelled target is refused by _norm_path's
-    # fail-closed rule for any operand carrying `~`, before the temp compare
-    # runs, so the harness's own 8.3 scratchpad spelling stays blocked.
-    run_cwd "windows temp: an 8.3 short-name target is still refused" \
-      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    # The harness hands out its scratchpad in TEMP's own spelling, which on a
+    # volume that generates short names is the 8.3 one (#4678).
+    run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
+      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \
+      "echo hello > $WIN_SHORT/bhb-nope~9/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: an 8.3 target with a temp-rooted project blocks" \
+      "echo hello > $WIN_SHORT/bhb-proj-$$/src/main.py" "$WIN_LONG/bhb-proj-$$" 2 "$PROJ_ENV=$WIN_LONG/bhb-proj-$$"
+    run_cwd "windows temp: an 8.3 staging redirect moved by its long spelling blocks" \
+      "jq . a.json > $WIN_SHORT/bhb-stage-$$.txt && mv $WIN_LONG/bhb-stage-$$.txt src/a.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: a long staging redirect moved by its 8.3 spelling blocks" \
+      "jq . a.json > $WIN_LONG/bhb-stage-$$.txt && mv $WIN_SHORT/bhb-stage-$$.txt src/a.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
   else
     printf 'SKIP: 8.3 temp target not asserted (TEMP has no short-name spelling on this volume; no coverage here, not a pass)\n'
+  fi
+  if [[ -d C:/PROGRA~1 ]]; then
+    run_cwd "windows temp: an existing 8.3 path outside temp blocks" \
+      "echo hello > C:/progra~1/bhb-probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  else
+    printf 'SKIP: existing 8.3 path outside temp not asserted (C:/PROGRA~1 has no short name on this volume; no coverage here, not a pass)\n'
   fi
 else
   printf 'SKIP: Windows drive-path temp default not asserted (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)\n'
 fi
+
+# --- 8.3 short-name temp spellings, simulated (#4678) ------------------------
+# The branch is Windows-only, and the Windows CI lane does not run this suite
+# (#4527), so it is also driven here with OSTYPE forced to cygwin. A symlink
+# named in the 8.3 shape stands in for the short alias: the resolver expands it
+# to the long directory as cygpath -l expands a real short name, which is the
+# only property the branch relies on. The fixture is spelled all lowercase for
+# the segment scan's case fold. `/usr` is the outside-temp directory a link
+# escapes to: it exists on every host this suite runs on, and nothing is
+# written there, since the hook only judges the command.
+S83="/tmp/bhb-4678-$$"
+S83_WIN=(OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ")
+rm -rf "$S83"
+mkdir -p "$S83/longname/claude"
+if [[ ! -d /usr ]] || ! ln -s "$S83/longname" "$S83/longna~1" 2>/dev/null ||
+  ! test -L "$S83/longna~1" || ! ln -s /usr "$S83/tousr~1" 2>/dev/null; then
+  printf 'SKIP: 8.3 simulation not asserted (no symlink could be made on this host; no coverage here, not a pass)\n'
+else
+  run_cwd "8.3 sim: short-name temp target allowed with a non-temp project root" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: no project root keeps the block" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 2 OSTYPE=cygwin "TEMP=$S83/longna~1"
+  run_cwd "8.3 sim: a temp-rooted project keeps the block" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$S83/longname" 2 \
+    OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$S83/longname"
+  run_cwd "8.3 sim: a nonexistent name~9 component under temp blocks" \
+    "echo hello > $S83/longna~1/nope~9/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: an x~ component under temp blocks" \
+    "echo hello > $S83/longna~1/x~/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: an a~b component under temp blocks" \
+    "echo hello > $S83/longna~1/a~b/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  # shellcheck disable=SC2088 # the literal tilde spellings are the operands under test
+  for S83_T in "~/x" "~root/x" "~+/x"; do
+    run_cwd "8.3 sim: '$S83_T' blocks" "echo hello > $S83_T" "$S83/longna~1" 2 "${S83_WIN[@]}"
+  done
+  run_cwd "8.3 sim: a short alias under temp that links out of temp blocks" \
+    "echo secret > $S83/tousr~1/bhb-4678/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
+  # An existing short path outside temp needs a writable directory outside
+  # temp: the repo's gitignored memory tier, unless the checkout itself sits
+  # under temp, where that directory is not outside it.
+  S83_PROJ="$(cd "$HOOK_DIR/../../.." && pwd -P)/.work/bhb-4678-proj-$$"
+  case "$S83_PROJ" in
+  /tmp/* | /var/tmp/* | /private/*)
+    printf 'SKIP: existing short path outside temp not asserted (the checkout sits under temp at %s; no coverage here, not a pass)\n' "$S83_PROJ"
+    ;;
+  *)
+    if [[ "$S83_PROJ" == "${S83_PROJ,,}" ]] && mkdir -p "$S83_PROJ/src" &&
+      ln -s "$S83_PROJ/src" "$S83_PROJ/srcali~1" 2>/dev/null; then
+      run_cwd "8.3 sim: an existing short path outside temp blocks" \
+        "echo secret > $S83_PROJ/srcali~1/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
+    else
+      printf 'SKIP: existing short path outside temp not asserted (no lowercase writable link under %s; no coverage here, not a pass)\n' "$S83_PROJ"
+    fi
+    rm -f "$S83_PROJ/srcali~1"
+    rm -rf "$S83_PROJ"
+    ;;
+  esac
+  run_cwd "8.3 sim: a ~ target matched only by a configured root blocks" \
+    "echo hello > /var/jobtmp/progra~1/f" "$PROJ" 2 "${S83_WIN[@]}" "$SCRATCH_ENV=/var/jobtmp"
+  run_cwd "8.3 sim: a short-name mv destination outside temp blocks" \
+    "echo hi > $S83/longna~1/x && mv $S83/longna~1/x $S83/tousr~1/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  # One file under two spellings is one path to the staged-move detector, in
+  # both directions. `jq` is an unmodeled producer, so its redirect is allowed
+  # and only the move can block.
+  run_cwd "8.3 sim: short staging redirect moved by its long spelling blocks" \
+    "jq . a.json > $S83/longna~1/x && mv $S83/longname/x src/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: long staging redirect moved by its short spelling blocks" \
+    "jq . a.json > $S83/longname/x && mv $S83/longna~1/x src/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: a different file under the other spelling stays allowed" \
+    "jq . a.json > $S83/longna~1/x && mv $S83/longname/y src/a.py" "$PROJ" 0 "${S83_WIN[@]}"
+  # A miss spends no resolver: a shim logs every resolver the hook spawns. The
+  # hit beside it shows the shim is on the path the hook takes.
+  S83_SHIM="$TEST_TMPDIR/s83-shim"
+  S83_LOG="$TEST_TMPDIR/s83-shim.log"
+  mkdir -p "$S83_SHIM"
+  for S83_BIN in realpath readlink cygpath; do
+    S83_REAL=$(command -v "$S83_BIN") || continue
+    printf '#!/usr/bin/env bash\nprintf "%%s\\n" %s >>"%s"\nexec "%s" "$@"\n' \
+      "$S83_BIN" "$S83_LOG" "$S83_REAL" >"$S83_SHIM/$S83_BIN"
+    chmod +x "$S83_SHIM/$S83_BIN"
+  done
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: a plain target outside temp blocks" \
+    "echo hello > /srv/plain/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  S83_BASE=$(<"$S83_LOG")
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: a ~ target outside every temp spelling blocks" \
+    "echo hello > /srv/progra~1/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  # The block message names the temp tree, which resolves the temp candidates
+  # once. The short-name miss must not add a resolver of its own.
+  assert_eq "8.3 sim: that miss spawned no resolver" "$S83_BASE" "$(<"$S83_LOG")"
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: shim run of the allowed short-name target" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  if [[ -s "$S83_LOG" ]]; then ok "8.3 sim: the hit spawned a resolver"; else bad "8.3 sim: the hit spawned no resolver"; fi
+  # POSIX is untouched: `~` is a filename byte there and still fails closed.
+  # shellcheck disable=SC2031 # reads the host's real OSTYPE
+  if [[ "${OSTYPE:-}" != msys* && "${OSTYPE:-}" != cygwin* && "${OSTYPE:-}" != win32 ]]; then
+    run_cwd "8.3 sim: posix host, short-name temp target still blocks" \
+      "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 2 "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ"
+    run_cwd "8.3 sim: posix host, /tmp/a~1/f still blocks" \
+      "echo hello > /tmp/a~1/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+    run_cwd "8.3 sim: posix host, a mixed-spelling staged move keeps the lexical answer" \
+      "jq . a.json > $S83/longna~1/x && mv $S83/longname/x src/a.py" "$PROJ" 0 "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ"
+  fi
+fi
+rm -f "$S83/longna~1" "$S83/tousr~1"
+rm -rf "$S83"
 
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
@@ -2071,8 +2409,8 @@ PY_NL_BODY=$(printf 'gh pr create --body "line one\necho x > f\nline three"')
 run "#2217: multi-line PR body mentioning a write (allowed)" "$PY_NL_BODY" 0
 PY_NL_MSG=$(printf 'git commit -m "subject\n\ncat > notes.md is a bypass\n"')
 run "#2217: multi-line commit message mentioning a write (allowed)" "$PY_NL_MSG" 0
-PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l')
-run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0
+PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l') # portability-ok: grep of a fixture filename, not a grep -P invocation
+run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0 # portability-ok: grep of a fixture filename, not a grep -P invocation
 PY_NL_DEVNULL=$(printf 'echo "a\nb" > /dev/null')
 run "#2217: multi-line span discarded to /dev/null (allowed)" "$PY_NL_DEVNULL" 0
 PY_NL_PIPE=$(printf 'printf \x27a\nb\x27 | wc -c')
@@ -2081,7 +2419,7 @@ PY_NL_DANGLE=$(printf 'git status ; echo "dangling')
 run "#2217: unterminated quote at end of command (allowed)" "$PY_NL_DANGLE" 0
 # Already blocked pre-#2217; the segment split it relies on is a real
 # separator on the closing line, so it must keep blocking.
-PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt')
+PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt') # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THEN" 2
 
 # THE ONE ROW THAT MOVES THE OTHER WAY, pinned deliberately. Fusing the two
@@ -2223,8 +2561,9 @@ run "#2731: jq > /tmp && mv //tmp dest (blocked)" \
   "jq . f > /tmp/x && mv //tmp/x out.json" 2
 run "#2731: curl > tmp && cp tmp dest (blocked)" \
   "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
+# portability-ok: sort of a fixture filename, not a sort -V invocation
 run "#2731: sort > tmp && mv -f tmp dest (blocked)" \
-  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2
+  "sort f > /tmp/sorted && mv -f /tmp/sorted out.txt" 2 # portability-ok: sort of a fixture filename, not a sort -V invocation
 run "#2731: mv -t dest form (blocked)" \
   "jq . f > /tmp/x && mv -t plugins/x.json /tmp/x" 2
 run "#2731: ordinary rename, no prior redirect (allowed)" \
@@ -2243,12 +2582,9 @@ run "#2731: install mover residual (allowed — not mv|cp)" \
   "jq . f > /tmp/x && install /tmp/x dest.txt" 0
 run "#2731: multi-source cp keeps sources distinct (blocked)" \
   "jq . f > /tmp/x && cp /tmp/x /tmp/other destdir/" 2
-# Scope note names the new lane and the residuals it still cannot see.
+# The verdict names the lane; the residuals it cannot see are in the README.
 scopeout=$(bash "$HOOK" <<<"$(command_json 'jq . f > /tmp/x && mv /tmp/x dest')" 2>&1 >/dev/null) || true
 assert_contains "#2731: block names staged-write-move form" "$scopeout" "staged write"
-assert_contains "#2731: scope names same-command staged move" "$scopeout" "same-command staged"
-assert_contains "#2731: scope names cross-tool-call residual" "$scopeout" "cross-tool-call"
-assert_contains "#2731: scope names other movers residual" "$scopeout" "install, rsync, dd"
 
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 nul_rc=0
@@ -2403,13 +2739,13 @@ strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXEC
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
-  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log")
-  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
+  CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
 }
 if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
   printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
   for benign in 'git status --short' \
-    $'git status --short && git diff --stat | head\nsort f > out; cat README.md'; do
+    $'git status --short && git diff --stat | head\nsort f > out; cat README.md'; do # portability-ok: sort of a fixture filename, not a sort -V invocation
     strace_census "$(command_json "$benign")" "$TEST_TMPDIR/noop-guard.sh"
     noop_rc=$CENSUS_RC noop_cre=$CENSUS_CREATIONS noop_exe=$CENSUS_EXECVE
     strace_census "$(command_json "$benign")" block-hook-bypass.sh

@@ -49,7 +49,8 @@ its own workflow because nothing gates on it and, inside `ci.yml`, it was the
 longest job in the run: time-to-green is measured to the run's completion, so an
 advisory lane was setting the number. It re-derives its own `run_windows` from
 the same detector and the same two filter groups `ci.yml` uses, because job
-outputs do not cross workflow files; the two rows are kept byte-identical. The metadata checks (Conventional Commits title,
+outputs do not cross workflow files; the two rows are kept byte-identical. The
+metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `pr-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
@@ -59,6 +60,45 @@ no automated review, by design.
 runners and balanced on measured wall time; every gate keeps the name it always
 had, and each half carries its own `aggregate-hygiene-results.sh` feed over
 exactly its own gate steps.
+
+## Time-to-green target
+
+This repository keeps the standing CI performance target here so GOAL.md in
+github-iac has a plain-English home that is not the snapshot tooling.
+
+**Claim:** keep the affected-only six-job workflow (changes, lint, test-linux,
+test-windows non-required, hook-utils, ci-status) under **p50 5 minutes** and
+**p95 12 minutes**, measured per pull-request head SHA from the first required-check
+workflow created to the last one green, using the first successful *full* run per
+required workflow (not a later contract-only skip). After two consecutive passing
+snapshots, each target ratchets to 90 percent of the value achieved, never below
+the longest single test suite after parallelisation. Ownership of GOAL.md,
+`snapshot.sh`, and `targets.tsv` stays in github-iac; this issue tracker is the
+explanation, not a second measurement pipeline. **Basis:**
+[#3932](https://github.com/melodic-software/claude-code-plugins/issues/3932);
+melodic-software/github-iac#378; the 2026-09-14 rescore of time-to-green onto the
+earliest successful full run. **As of:** 2026-09-28. **Recheck:** github-iac
+`docs/topics/ci-perf/GOAL.md` or `snapshots/targets.tsv` changes the numbers, or
+`ci.yml` gains or drops a required job.
+
+## Contract-only `ci-status`
+
+A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
+runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
+the `ci-lanes` commit status on the head SHA. The composite waits up to 540 s
+for an in-flight full run, then ends on a settled `success`, `failure`, or
+`error`.
+
+**Operator remedy.** When a contract-only `ci-status` is red:
+
+- If `ci-lanes` on that SHA is already `success`, re-run the red contract-only
+  `ci` run. An empty commit is the wrong move.
+- If `ci-lanes` is `failure` or missing, re-run the full workflow.
+
+A body edit while a failed full run is being re-run can still read the old
+failure without waiting (#4670). Distinguishing that re-run from a
+contract-only sibling is a ci-workflows composite change; this repository
+pins the composite and documents the remedy until that pin moves.
 
 ## Toolchain integrity
 

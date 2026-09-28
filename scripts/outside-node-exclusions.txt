@@ -1,0 +1,3 @@
+# Not suites. Eval fixtures for the testing plugin's audit skill: vacuous or
+# can't-fail corpora. A blanket `node --test` sweep would execute them. #3703
+plugins/testing/skills/audit/evals/fixtures/

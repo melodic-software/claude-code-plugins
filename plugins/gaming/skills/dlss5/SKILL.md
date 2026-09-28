@@ -96,7 +96,11 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
      `note`, `awacy` (the AreWeAntiCheatYet commit read and its matching entries) and `steam` (the
      store page read); plus `acknowledgementRequired`;
    - `upscalers` (each upscaler DLL found, with `family` DLSS, FSR or XeSS, and its version; the
-     mod's own copies do not count), `dx12`, `proxyCollisions`, `freeProxies`, `steamAppId`;
+     mod's own copies do not count), `proxyCollisions`, `freeProxies`, `steamAppId`;
+   - `dx12` (`true`, `false`, or `null` for unknown), `bitness` (`64-bit`, `32-bit`, `mixed`,
+     `unknown`) and `executables`: each exe's PE `machine`, `format`, `managed`, `dx12` and
+     `dx12Basis`, read from its PE header and import tables
+     (`reference/candidate-selection.md`, Bitness and DirectX 12);
    - `preset`: the effective preset, with each ini key's `source` (`shipped-base`, `shipped`,
      `local-base` or `local`). `preset.key` is the matching per-game preset, or null when only the
      bases apply. `presetError` names a preset file that failed validation; report it. A broken
@@ -106,11 +110,15 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
      its current pin, as in `status`.
 2. `refused`: the directory is under `WindowsApps`. Stop and say why
    (`reference/launchers.md`). Nothing clears this.
-3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
-   the user plainly: "This game has no upscaler for the mod to hook, so it will not help." A 2D or
-   pixel-art game such as Stardew Valley is the typical case. Stop, before any anti-cheat review.
-   The only way forward is the user's: a wiki-listed upscaler mod, then `assess` again
-   (`reference/candidate-selection.md`). There is no flag that skips this verdict.
+3. `not-a-candidate`: report each of `refusals`, then stop, before any anti-cheat review. There
+   is no flag that skips this verdict.
+   - No upscaler: the game ships no DLSS, FSR 2+ or XeSS, so the **in-process OptiScaler route**
+     has nothing to hook. Tell the user plainly. Name whether `bitness` blocks in-process NR
+     (32-bit). For 64-bit no-upscaler titles, point to the manual **DLSS5-Feeder** path documented
+     in [`reference/feeder-route.md`](reference/feeder-route.md); `apply` does not install Feeder
+     today (#4592). Wiki-listed upscaler mods remain another path (`reference/candidate-selection.md`).
+   - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so the mod cannot load in the
+     game at all. Tell the user plainly; an upscaler mod does not change this.
 4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
 5. `eligible`: report the launcher, the game name and the anti-cheat status with every signal and
    every `unchecked` line. `none-disclosed` carries its `note`: say it means no kernel anti-cheat
@@ -173,8 +181,8 @@ it.
 5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when
    `preset.key` is not null, plus the four acknowledgement parameters when the review ran. The
    script rereads every anti-cheat source and refuses before any write on: an existing manifest
-   (`remove` first), no `*.exe`, a `WindowsApps` path, over 2000 files, no upscaler DLL (not a
-   candidate), a preset key off the allow-list or allow-listed only for another build,
+   (`remove` first), no `*.exe`, a `WindowsApps` path, every `*.exe` 32-bit (not a candidate),
+   over 2000 files, no upscaler DLL (not a candidate), a preset key off the allow-list or allow-listed only for another build,
    `AutoCapture` in a preset, a value of the wrong type, one hotkey bound to two actions, a
    destination
    collision, a missing build file (run `/gaming:setup apply`), a refused runtime DLL, an
@@ -192,8 +200,8 @@ it.
 
 ### Research a preset (no preset matched)
 
-1. Start from the `assess` JSON: `upscalers`, `dx12`, `steamAppId`, and the engine the path
-   suggests.
+1. Start from the `assess` JSON: `upscalers`, `dx12` (`null` is unknown, not DX11; read the
+   game's API from a trusted source then), `steamAppId`, and the engine the path suggests.
 2. Read only the trusted sources in the "Per-game config sources" table of
    `reference/candidate-selection.md`: the OptiScaler wiki's per-game page, the forks' README and
    `INSTALL-DLSSNR.md` game notes, and the fork issue trackers (one user's values each). Never use

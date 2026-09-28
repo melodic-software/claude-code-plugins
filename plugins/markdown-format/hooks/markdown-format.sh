@@ -3,10 +3,13 @@
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
 # hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc) — Edit() is the
 # permission-rule form that covers Write as well; a Write(path) rule is never
-# matched (https://docs.claude.com/en/docs/claude-code/permissions, fetched
-# 2026-08-21). The in-script extension check stays: the if filter is one rule
-# per handler and fails open on an unparsable payload, so a non-Markdown path
-# can still reach this script.
+# matched (https://code.claude.com/docs/en/permissions, fetched 2026-09-27).
+# The in-script extension check stays because the hooks reference calls the if
+# filter best-effort. Its one documented fail-open is Bash-specific ("When
+# Claude Code can't determine which commands the Bash input runs, it runs your
+# hook regardless of the pattern", https://code.claude.com/docs/en/hooks,
+# fetched 2026-09-27) and names no file-tool equivalent, so the check guards an
+# undocumented miss and a direct invocation rather than a known one.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -35,6 +38,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$HOOK_DIR/rewrite-guard.sh"
 
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
@@ -93,8 +98,7 @@ markdownlint_config_here() {
 }
 
 markdownlint_config_discoverable() {
-  local root start
-  # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+  local root start home
   local hit=""
   hook::dirname_to start "$1"
   start="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
@@ -104,7 +108,27 @@ markdownlint_config_discoverable() {
   # that the lint run's own discovery never reads, and adopt their config as
   # this repository's opt-in.
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
-  hook::walk_up_to hit "$start" "$root" markdownlint_config_here
+  hook::walk_up_to hit "$start" "$root" markdownlint_config_here || return 1
+  # A root from the CLAUDE_PROJECT_DIR last resort (see resolve_repo_root_to)
+  # is often the user's home directory: a session started there has no working
+  # tree to stop at, so a personal ~/.markdownlint-cli2.jsonc would opt in every
+  # .md under the home tree, evidence packets and ~/.claude notes included
+  # (#4246). A config at the home directory or above it is personal editor
+  # configuration, not a project's opt-in, so on that root it does not open the
+  # gate. A config below home still does: that is the unpacked archive or
+  # vendored copy the last resort exists for. A working-tree root found by git
+  # or the `.git` walk is never subject to this, so a dotfiles repository rooted
+  # at home keeps its config. An unresolvable HOME applies no ceiling. The walk
+  # stops at the nearest config, so a hit at or above home means none sits
+  # below it.
+  ((${ROOT_FROM_PROJECT_DIR_FALLBACK:-0})) || return 0
+  [[ -n "${HOME:-}" ]] || return 0
+  home="$(cd "$HOME" 2>/dev/null && pwd -P)" || return 0
+  [[ "$hit" == / ]] && return 1
+  case "$home" in
+  "$hit" | "$hit"/*) return 1 ;;
+  *) return 0 ;;
+  esac
 }
 
 # A `.git` entry, accepted as a directory (ordinary clone) or as a FILE, which
@@ -143,7 +167,7 @@ git_dir_entry_here() {
 # (https://git-scm.com/docs/gitrepository-layout, "$GIT_DIR", fetched
 # 2026-08-09). Reading the filesystem rather than asking git also means an
 # inherited GIT_DIR/GIT_WORK_TREE cannot make some other repository answer —
-# the same protection hook::in_git_working_tree and file_is_gitignored buy by
+# the same protection hook::in_git_working_tree and hook::file_is_gitignored buy by
 # unsetting those, here for free.
 #
 # CLAUDE_PROJECT_DIR is the last resort, for a project that is no working tree
@@ -182,10 +206,12 @@ resolve_repo_root_to() {
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     printf -v "$__md_dest" '%s' "$CLAUDE_PROJECT_DIR"
+    ROOT_FROM_PROJECT_DIR_FALLBACK=1
     return 0
   fi
   printf -v "$__md_dest" '%s' "$root"
 }
+ROOT_FROM_PROJECT_DIR_FALLBACK=0
 
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
@@ -230,8 +256,7 @@ opt_in_decided_without_jq() {
 # hook has nothing to do on.
 #
 # hooks.json already gates launch with if: Edit(*.md)/Edit(*.mdc); the glob
-# list here remains because that filter is one rule per handler and fails open
-# on an unparsable payload.
+# list here remains because that filter is best-effort (see the header).
 #
 # --repo-root because hook::repo_root_to's hint fallback is the wrong ceiling
 # for a config-discovery walk; see resolve_repo_root_to above.
@@ -282,7 +307,7 @@ physically_inside() {
 # edit on a git-less POSIX host — silently, repo-wide, and although git is not
 # a documented prerequisite of this hook (README "Requirements" lists Bash, jq
 # and markdownlint-cli2; the setup skill checks those). An undecidable verdict
-# therefore lints, the same direction file_is_gitignored takes below for the
+# therefore lints, the same direction hook::file_is_gitignored takes below for the
 # same reason.
 #
 # The fail-open is bounded, but NOT by the opt-in gate alone, and the escaping
@@ -373,38 +398,15 @@ fi
 # the question. A session running inside a linked worktree under a path the
 # parent repository ignores (`.claude/worktrees/**` is a common one) would then
 # read every file it edits as ignored.
-file_is_gitignored() {
-  local dir="${FILE%/*}" base="${FILE##*/}"
-
-  command -v git >/dev/null 2>&1 || return 1
-  [[ -n "$base" && "$dir" != "$FILE" ]] || return 1
-
-  # `git check-ignore` consults the index unless --no-index is passed, so a
-  # TRACKED file that happens to match an exclude pattern is reported as not
-  # ignored — which is the wanted answer: a file under version control is part
-  # of the reviewable artifact whatever the patterns say. Exit 0 = ignored,
-  # 1 = not ignored, 128 = error; only 0 skips.
-  # https://git-scm.com/docs/git-check-ignore (fetched 2026-08-08)
-  (
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    cd "$dir" 2>/dev/null || exit 1
-    git check-ignore -q -- "./$base" 2>/dev/null
-  )
-}
-
-# Opt-out for the scope escape above, read from the CLAUDE_PLUGIN_OPTION_<KEY>
+# Opt-out for the scope escape, read from the CLAUDE_PLUGIN_OPTION_<KEY>
 # environment mirror rather than a `${user_config.*}` placeholder — shell-form
 # hook commands reject that substitution outright, and every option is exported
 # to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference,
 # "User configuration", https://code.claude.com/docs/en/plugins-reference,
 # fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
-LINT_GITIGNORED=0
-[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" == "true" ]] &&
-  LINT_GITIGNORED=1
-
-if ((LINT_GITIGNORED == 0)) && file_is_gitignored; then
+# Shared helper: hook::gitignored_out_of_scope in rewrite-guard.sh (#4671).
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
   # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
   # verdict — the repository declared this path out of scope in its own
   # .gitignore, and announcing the skip on every scratch-file edit would spend
@@ -1155,6 +1157,10 @@ case "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS:-}" in
 *) MAX_FINDINGS="${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS}" ;;
 esac
 
+# --fix rewrites the file in place before anything below discloses it. Claude
+# Code cancels a hook at its hooks.json `timeout` and discards its output, so a
+# cancel landing after the write and before hook::finish leaves a rewrite no
+# channel reports. README "Timeout tail" records the window.
 FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1)
 LINT_RC=$?
 # Parameter expansion, not `basename`, for the reason given at the source line

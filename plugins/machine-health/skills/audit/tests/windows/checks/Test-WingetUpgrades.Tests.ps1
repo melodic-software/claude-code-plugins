@@ -22,6 +22,10 @@ Pins the Batch 1 hotfix landing:
 
 4. The check forwards its -LogPath to Get-CisaKevCache so the CISA fetch
    lands in the run's egress audit trail (urls_called).
+
+5. A KEV match is name-only (the feed carries no affected-version range), so it
+   reports WARN with the CVE list, never CRIT, and the summary counts distinct
+   upgrades separately from matched CVE rows.
 #>
 
 BeforeAll {
@@ -123,7 +127,7 @@ Describe 'Test-WingetUpgrades -- upgrade count severity' -Tag 'check' {
 }
 
 Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'check' {
-    It 'CRITs on a single ID match regardless of upgrade count' {
+    It 'WARNs, never CRITs, on a single name-only ID match, listing the CVE' {
         Mock Get-WingetPackageUpdate {
             New-WingetResult -Upgrades @(
                 New-UpgradeRecord -Name 'Mock App' -Id 'Mock.App'
@@ -137,9 +141,34 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         }
 
         $result = Invoke-WingetUpgradesAsObject
-        $result.severity | Should -Be 'CRIT'
+        $result.severity | Should -Be 'WARN'
         $result.detail.kev_match_count | Should -Be 1
         $result.detail.kev_matches[0].cve_id | Should -Be 'CVE-2025-12345'
+        $result.detail.kev_matches[0].match_basis | Should -Be 'name-only'
+        $result.summary | Should -Match 'CVE-2025-12345'
+        $result.summary | Should -Match 'installed versions not compared'
+    }
+
+    It 'counts one upgrade matched against three KEV rows as one upgrade and three CVE entries' {
+        Mock Get-WingetPackageUpdate {
+            New-WingetResult -Upgrades @(
+                New-UpgradeRecord -Name 'Google Chrome' -Id 'Google.Chrome'
+            )
+        }
+        Mock Get-CisaKevCache {
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2020-16017' -VendorProject 'Google' -Product 'Chrome'
+                New-KevRecord -CveId 'CVE-2021-21166' -VendorProject 'Google' -Product 'Chrome'
+                New-KevRecord -CveId 'CVE-2022-0609' -VendorProject 'Google' -Product 'Chrome'
+            )
+        }
+
+        $result = Invoke-WingetUpgradesAsObject
+        $result.severity | Should -Be 'WARN'
+        $result.detail.kev_match_count | Should -Be 3
+        $result.detail.kev_upgrade_count | Should -Be 1
+        $result.summary | Should -Match '^1 upgrade\(s\) name-match CISA KEV \(3 matched CVE entries: '
+        $result.summary | Should -Not -Match '3 upgrade'
     }
 
     It 'does NOT match "WSL" against Microsoft/Windows KEV (regression for the 170-false-positive bug)' {
@@ -175,7 +204,7 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         }
 
         $result = Invoke-WingetUpgradesAsObject
-        $result.severity | Should -Be 'CRIT'
+        $result.severity | Should -Be 'WARN'
         $result.detail.kev_match_count | Should -Be 1
     }
 
@@ -192,7 +221,7 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         }
 
         $result = Invoke-WingetUpgradesAsObject
-        $result.severity | Should -Be 'CRIT'
+        $result.severity | Should -Be 'WARN'
         $result.detail.kev_match_count | Should -Be 1
     }
 
@@ -209,7 +238,7 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         }
 
         $result = Invoke-WingetUpgradesAsObject
-        $result.severity | Should -Be 'CRIT'
+        $result.severity | Should -Be 'WARN'
         $result.detail.kev_match_count | Should -Be 1
     }
 

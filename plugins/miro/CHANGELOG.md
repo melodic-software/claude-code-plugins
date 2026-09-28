@@ -3,6 +3,18 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.13] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.4.12] - 2026-09-27
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4355): `zod` 4.6.2→4.6.5, `@biomejs/biome` 2.5.13→2.5.14, `@types/node` 26.5.1→26.6.1, `@vitest/coverage-v8` 5.0.0→5.0.1, and `vitest` 5.0.0→5.0.1 (lockfile; the `^5.0.0` range already admitted it). `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the others are development dependencies.
+
 ## [0.4.11] - 2026-09-25
 
 ### Changed

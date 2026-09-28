@@ -4,6 +4,167 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.19] - 2026-09-28
+
+### Added
+
+- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
+
+## [0.13.17] - 2026-09-28
+
+### Changed
+
+- **`boris` effort hold matches the current model-config page**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The 2026-08-02 amendment said first-running Fable 5, Opus 4.8, or Opus 4.7 holds that model's
+  default, and that Opus 5 has no such hold. Re-read 2026-09-28: that hold sentence is gone.
+  Opus 5.5 starts at `medium` and ignores a top-level user `effortLevel`; that key still applies
+  on Opus 5, Fable 5.1, and earlier models. `reference/autonomy.md` records the page.
+
+## [0.13.16] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `boris` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.13.15] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** skips `/session-flow:orchestrate` and `/discipline:use-your-skills` when a
+  catalog entry sets `- prime: false` (`catalog.sh` eighth column; `testing-audit` in `hygiene`).
+
+## [0.13.14] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep`**: record partial skill coverage with `tick.sh partial` and recommend `rerun` in
+  `history.sh` instead of treating the step as a clean `no findings` run (`reference/next.md`).
+
+## [0.13.13] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` hygiene** `residue-dissolve`: tighter `applies-when` and Notes for CI-only or
+  sync-managed commented files so the step is not checked when dissolve would apply nothing.
+
+## [0.13.12] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` Arguments.** Named `arguments` are positional aliases. The section records
+  the 0-based `$N` rule, the empty-name expansion, and the single-backslash escape from the
+  official substitutions section, and points the unescaped-`$N` gate at that section.
+  A remainder, a phrase, a variadic tail, or a position-independent flag stays in `$ARGUMENTS`.
+  `planning:prd` and `session-flow:workflow` name their ordered slots;
+  `knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` do not
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+
+## [0.13.11] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** re-checks each entry's `applies-when` before running the step; when it
+  fails, ticks `not applicable: <evidence>` instead of running the skill (`tick.sh`, `history.sh`
+  ignores those lines for version history).
+
+## [0.13.10] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` review**: dispatch an independent reviewer agent with procedure files and step
+  artifacts only; merge its classified findings with the user's report before filing issues
+  (`reference/review.md`, `SKILL.md`).
+
+## [0.13.9] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next**: do not tick before the user reviews findings; when a step leaves only
+  report-only tiers, tick `no fix-eligible findings (N report-only)` instead of `no findings`
+  (`tick.sh report-only`, `reference/next.md`).
+
+## [0.13.8] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` records the skill version the session ran, not the one installed since.** A
+  session keeps the plugin versions it loaded, so after a mid-session update
+  `skill-version.sh` named a version that never ran, in the checklist line and the
+  `Playbook-Step` trailer. `skill-version.sh` takes `--dir <loaded-dir>` before a
+  `plugin:skill`: it reads the nearest `plugin.json` at or above the Skill tool's base
+  directory, falls back to the `cache/<marketplace>/<plugin>/<version>/` path segment, and says
+  on stderr when that differs from the `installed_plugins.json` record. `next` passes each
+  skill's loaded directory and stops after a `Plugin updated` notice until the user reloads.
+  `REPO_SWEEP_PLUGIN_DIRS` is now documented in `SKILL.md`, not only in the script header.
+
+## [0.13.7] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: the `hygiene` catalog's `overengineering` entry passes
+  `agent-instructions repo-hooks vcs-hooks ci-lanes gate-scripts satellite-workflows` to the audit
+  and to realign, so a single-repo sweep no longer walks all ten layers. A new note sends
+  `agent-hooks`, `branch-protection`, `forge-apps`, and `external-integrations` to a separate org- or
+  machine-level pass (#4597).
+
+## [0.13.6] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: three hygiene-catalog entries now let the user review findings before anything
+  is fixed, as `next` step 3.3 requires.
+  - `provenance` runs `attribution:audit` with `audit`, the read-only action, instead of `sweep`,
+    which is the fix pipeline and applied fixes during the run. Its notes name
+    `attribution:audit fix <file>` for the approved findings (#4576).
+  - `codebase-health` drops `--fix`. In `codebase-health:audit`, `--fix` applies nothing: it
+    suggests the remediation lanes and says not to invoke them, which contradicted step 3.5. The
+    new notes say the step applies the agreed fixes itself. The `claude-config` and `lint` entries
+    keep `--fix`, because there it applies fixes: after per-fix confirmation in
+    `claude-config:audit`, and format-only in `toolchain:lint` (#4587).
+  - `claude-memory` treats C9 additions as in scope: one line per missing build or test command,
+    verified against the repo's manifest or task runner. Before, every repo whose CLAUDE.md lacked
+    one raised the same exception question (#4614).
+
+## [0.13.5] - 2026-09-27
+
+### Changed
+
+- `repo-sweep`'s hygiene catalog runs `attribution:audit` in its `provenance` entry, since the
+  provenance plugin is now `attribution`. The entry id stays `provenance` so existing sweep
+  checklists still match it.
+
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `review` routes a defect in repo-sweep itself (its SKILL.md, reference files,
+  or scripts) through `/plugin-quality:audit` on `playbooks:repo-sweep` to a `playbooks` issue,
+  and a defect in a skill bundled with Claude Code to Anthropic through `/bug`, not to this
+  repository (#4604).
+
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `next` shows the deliverables each invoked skill's procedure names, produced by
+  running that procedure in full; a summary or a skipped procedure step does not complete the
+  step (#4602). Before fixing, it lists findings on files synced from another repository (the
+  README or file inventory says so, or `git blame` names a `-sync[bot]` author) separately, never
+  edits them, and asks whether to draft an issue in the source repository (#4603).
+
+## [0.13.2] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: a bare skill name is no longer stamped `@builtin` unchecked. A same-named
+  personal or project skill, which replaces the bundled one, is stamped `@personal` or
+  `@project`; otherwise the stamp carries the Claude Code version (`@builtin-2.1.283`), or
+  `@unknown` when `claude --version` prints none. `history.sh` compares bundled-skill stamps like
+  any other version, so an entry last recorded as `@builtin` recommends `rerun` once. The skill doc
+  now allows bare names for bundled skills in catalog `- skill:` lines and says that
+  `catalog.sh` exit 1 means an entry with no `- skill:` line (#4601).
+
 ## [0.13.1] - 2026-09-27
 
 ### Changed

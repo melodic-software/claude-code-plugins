@@ -3,7 +3,18 @@ description: "Verify the rate-limit-guard plugin's wiring on this machine: jq, t
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -65,7 +76,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
 
-1. **`jq`.** `command -v jq`. FAIL if absent: without it the wrapper cannot tee (it stays
+1. **`jq`.** The pre-computed `jq` row. FAIL if absent: without it the wrapper cannot tee (it stays
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare

@@ -13,7 +13,9 @@ Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:res
 `discovery:intent-tracer` run that is **identical across all three families**. Five statements
 live here and nowhere else, because copies of them drift apart: the envelope's field list, the
 pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
-do with a partial slice.
+do with a partial slice. One exception is deliberate: `skills/research/SKILL.md` carries the
+research envelope's labeled lines and both baseline commands, so a research parent can dispatch
+without reading this file. `scripts/contract.test.sh` fails when that copy and this file disagree.
 
 Four files answer "what does the parent owe", and the split is deliberate:
 
@@ -94,7 +96,9 @@ named here rather than in the template above. Each worker definition pins a defa
 `explorer` runs on `sonnet`, `researcher` and `intent-tracer` on `opus`. The default is still to
 **pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
 whose scope earns a different model; it replaces the pin in either direction. Every worker spends
-`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading. The pin
+`maxTurns: 40` at `effort: high`, and the explorer's are spent almost entirely on reading; why 40
+stays is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
+completion budget". The pin
 outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
 overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
@@ -224,7 +228,7 @@ claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Ten harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Eleven harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
@@ -232,11 +236,13 @@ named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agen
 fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the subagents page
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
+Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
 
-**One shared recheck trigger covers all ten:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all eleven:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
 subagent spawn permissions, effort substitution, built-in subagent capabilities, subagent
-model resolution, turn-limit output or partial marking, or `SendMessage` resume, or the CLI major
+model resolution, per-invocation subagent parameters, turn-limit output or partial marking, or
+`SendMessage` resume, or the CLI major
 version moves. On any of those, re-fetch the page before
 restating the record, and re-date this section rather than editing a claim in place.
 
@@ -380,12 +386,42 @@ rung rather than a hope. *Not verified:* which text the partial output carries. 
 output is "marked as partial" and does not say whether a payload block the agent emitted mid-run
 is part of it, which is why the agents keep the disk marker as the primary stop signal.
 
+### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
+
+*Claim.* A subagent's `maxTurns` comes from its definition, and the parent cannot change it for
+one dispatch. Every worker definition here sets `maxTurns: 40`. The number is a checkpoint and a
+runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
+gathering at its own stop turn to write before the limit, and a run that still reaches the limit
+completes through the resume in the record above. *Basis.*
+[Create custom subagents](https://code.claude.com/docs/en/sub-agents) lists `maxTurns` as a
+frontmatter field, "Maximum number of agentic turns before the subagent stops". The Agent tool
+call parameters it documents, such as `model` and `name`, include no `maxTurns`. An `--agents`
+JSON definition does accept `maxTurns`, but that route is "Current session", "Pass JSON when
+launching Claude Code", so it defines an agent for the whole session rather than widening one
+dispatch. The CLI's `--max-turns` is a different setting:
+[CLI reference](https://code.claude.com/docs/en/cli-reference), "Limit the number of agentic
+turns (print mode only). Exits with an error when the limit is reached. No limit by default."
+*Why the plugin cares.* No documented or measured basis exists for a different number. Raising
+it would size the budget to a guess, and removing it would drop the guard on unattended runs,
+while a limit stop now returns partial output the parent resumes. `contract.test.sh` holds the
+three definitions to the value this record names, and to a stop turn below it. *Recheck, in
+addition to the shared trigger:* the Agent tool documents a per-invocation `maxTurns`, a resume
+fails to recover a run that reached the limit, or a turns-to-complete distribution is measured
+after the explorer stops re-reading files it already read. Change the number only on one of
+those, and change it here and in all three definitions together.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
 the gate has to *run*, including an inline research run that still owes criterion 11's script
 verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
 `--help` probe.
+
+The gate is owed by whatever dispatched the agent, including a direct dispatch of
+`discovery:researcher` that never loaded `/discovery:research` to keep its own context small. That
+dispatcher Reads the skill's "Post-dispatch acceptance gate" section before believing the payload;
+the researcher's payload names the section in `gate_owed:` so the obligation arrives even when the
+skill body did not.
 
 ### Pre-flight, before a route that owes a gate
 
@@ -397,6 +433,11 @@ and exits 0:
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" --help   # research only (dispatch or inline)
 ```
+
+Run the probes a route owes as **one** call, chained with `&&` (`;` in PowerShell), so a session
+without allow rules sees one permission prompt rather than one per script. The allow rules under
+"Operator setup" below match `--help` as well as a real gate run, so after setup the probes do not
+prompt at all.
 
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
   before dispatching. Research also probes the coverage and source-applicability checkers;
@@ -433,6 +474,18 @@ twin is the non-bash alternative for criterion 11; it shares the `.sh` exit cont
 and the greppable summary line. Either implementation's exit status is the verdict; a table reading
 is never a substitute for either.
 
+**In PowerShell, read `$LASTEXITCODE` before piping.** Piping a gate through a filtering cmdlet
+(`… | Select-Object -First 20`) can leave `$LASTEXITCODE` empty or stale, because the pipeline can
+stop the native command before it exits. Run the gate on its own, capture the code, then filter the
+captured output:
+
+```powershell
+$out = & "<plugin root>/scripts/check-dispatch-artifact.sh" <slice> --index-name RESEARCH.md --newer-than <baseline>
+$code = $LASTEXITCODE
+$out | Select-Object -First 20
+"exit=$code"
+```
+
 When every lane that could run a gate is denied: **halt**. Report that the gate could not run. Do
 not proceed, do not self-grade, and do not invent an `UNGRADED` that continues the workflow.
 Anything that lets the run proceed without a script exit reintroduces the defect.
@@ -464,12 +517,46 @@ So the honest statement is the one the rest of this plugin already makes about u
 > reading of the directory or of the coverage ledger. The context most motivated to call the run
 > finished is the one that would be doing the reading.
 
-**Operator setup, once, optional.** The documented way to cover a multi-turn command is settings,
-not frontmatter: "To pre-approve tools for the whole session rather than a single turn, add allow
-rules to those permission settings instead." An operator who wants this gate to run without a prompt
-adds a direct-path rule for the script paths (and, if useful, the coverage `.py`) to their own
-`~/.claude/settings.json`. The plugin cannot ship it: a plugin's `settings.json` supports only the
-`agent` and `subagentStatusLine` keys.
+**Operator setup, once per installed version, optional.** The documented way to cover a
+multi-turn command is settings, not frontmatter: "To pre-approve tools for the whole session rather
+than a single turn, add allow rules to those permission settings instead." The plugin cannot ship
+them: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys. So the
+operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup apply` offers to do
+it with `<plugin root>` already filled in. The rules, with `<plugin root>` replaced by the absolute
+path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"<plugin root>/scripts/check-dispatch-artifact.sh\" *)",
+      "Bash(\"<plugin root>/scripts/check-coverage-complete.sh\" *)",
+      "Bash(\"<plugin root>/scripts/check-source-applicability.py\" *)",
+      "Bash(<plugin root>/scripts/check-dispatch-artifact.sh *)",
+      "Bash(<plugin root>/scripts/check-coverage-complete.sh *)",
+      "Bash(<plugin root>/scripts/check-source-applicability.py *)"
+    ]
+  }
+}
+```
+
+The quoted and unquoted forms are both listed because a Bash rule matches the command text as
+written, quotes included, and the invocation forms above quote the path while a hand-typed call may
+not. Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
+The trailing space-and-`*` covers `--help` and every gate argument.
+
+**Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
+the version (`…/discovery/<version>/`), so these rules stop matching after an update, the gates
+prompt again, and re-running `/discovery:setup apply` refreshes them. Writing `…/discovery/*/scripts/…`
+instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
+as written", a `*` "matches any text, including spaces", and it "warns at startup about an allow rule
+with a `*` before the subcommand". A `*` in the path's version segment is before the program name
+ends, so it can stand in for `../../../usr/bin/<any program> <any arguments>` and the rule would
+approve that program. A prompt after an update is the safe failure; an arbitrary-program allow rule
+is not. *Claim:* a mid-path `*` in a Bash allow rule matches any text and draws a startup warning.
+*Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched 2026-09-28.
+*As of:* 2026-09-28. *Recheck when:* that section documents path normalization or a `*` that stops
+at `/`, which would make a version wildcard safe.
 
 ### What this gate does not grade
 

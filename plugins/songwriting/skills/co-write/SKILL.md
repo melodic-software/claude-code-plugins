@@ -56,7 +56,7 @@ No action → open the co-write protocol (No-Free-Zone session opener).
 
 ## Handlers
 
-- **Pre-flight ALWAYS:** run response-filter §5 + §2 (+ §4 when facilitating) before output.
+- **Pre-flight:** run response-filter §5 + §2 (+ §4 when facilitating) before output.
 - Co-write facilitation is coaching, not monologue: keep the No-Free-Zone discipline. No idea is
   free, every suggestion earns its place; surface choice points, do not decide for the writers.
 - Line/section brainstorm writes each option to a labeled menu (per the `variations`/`worksheets`

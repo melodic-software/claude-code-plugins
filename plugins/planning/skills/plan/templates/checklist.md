@@ -6,7 +6,7 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 - [ ] Step 1: Prerequisite check. Brief locked (PLAN.md Brief section exists OR equivalent crisp framing); exploration + research done or explicitly waived; design gate evaluated
 - [ ] Step 2: Formulate the plan. Phases with verifiable Sanity Checks per phase; estimate scope; identify parallelism
-- [ ] Step 3: Plan stress-test (MANDATORY, never skip). Dispatch a fresh-context plan-reviewer sub-agent per context/plan-reviewer.md
+- [ ] Step 3: Plan stress-test (never skip). Surface cost, then dispatch the plan-reviewer agent per context/plan-reviewer.md
 - [ ] Step 3b: Assess blast radius (LOW / MEDIUM / HIGH / CRITICAL). This gates whether Step 4 runs
 - [ ] Step 4: Formal stress-test + research-iterate (CONDITIONAL on Step 3b ≥ MEDIUM). Invoke `/planning:devils-advocate` and targeted research on contested claims
 - [ ] Step 4.5: Execution-shape analysis (default ON for multi-phase plans). Emit scope-fencing tables + per-phase routing table
@@ -16,7 +16,7 @@ Copy into `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`; the t
 
 ## Skip criteria
 
-- Step 3 NEVER skipped (mandatory: stress-test before presenting)
+- Step 3 never skipped (stress-test before presenting)
 - Step 4 SKIPPED when Step 3b verdict = LOW blast radius and no trigger matches
 - Step 4.5 SKIPPED when the plan is single-phase (no parallelism axis, all-main-session default)
 - Step 4.6 SKIPPED when no unilateral decisions were made (user approved every choice during Q&A)

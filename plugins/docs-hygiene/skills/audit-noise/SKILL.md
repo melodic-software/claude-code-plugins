@@ -1,5 +1,5 @@
 ---
-description: "Classify tracked markdown for nine noise shapes: historical citations, ghost refs, \"Why this file exists\" preambles, hard-coupled consumer lists, scope/loading meta-commentary, plan/changeset references, conversational antecedents, tracker/PR back-references, and prohibitions with no alternative. Emits Tier 1 (remove/relocate), Tier 2 (review), Tier 3 (legitimate) findings with treatment guidance; read-only. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'strip conversational residue from a doc', 'find negations without a positive', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md. Not for prose flavor (/compress), structural markdown lint, or the same shapes in code comments (/code-tidying:audit-comment-residue, which owns non-markdown files)."
+description: "Read-only audit of tracked markdown for nine noise shapes, like historical citations, ghost refs, why-this-file-exists preambles, tracker back-references, and conversational residue, tiered by treatment. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'strip conversational residue from a doc', 'find negations without a positive', 'sweep a rule/skill/convention doc for noise'. Code comments: /code-tidying:audit-comment-residue."
 argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -31,7 +31,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 ## Pre-computed context
 
-Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
+Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(status:|Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
 
@@ -67,7 +67,7 @@ Only a page that passes admission proceeds to the nine in-page NOISE shapes belo
 
 | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|
-| `citation`, historical citations | Dated incident citations, inline **origin notes** ("ported from X", "Merged 2026-07-24 from Y"), migration/rename narration ("Empirically observed 2026-…", "was renamed to", "we pivoted from") when the current form suffices | 1 | Relocate to a per-file `## Sources` / `## History` footer; strip when non-load-bearing (version control preserves history). Keep inline only when the date is load-bearing (methodology or freshness stamp). The origin cues are clause-anchored on both sides; this one adds a list-bullet anchor, requires column 0 where the code-side sibling allows leading whitespace, and stands down on a line carrying a link (inline or reference-style) or a bare URL, because a pointer is what `/provenance:audit` asks an author to write. That stand-down covers a pointer, not the other two sanctioned forms: an attribution naming a work rather than a location ("Copied from Kent Beck, *Tidy First?*, chapter 3") is matched, as is a clause-leading descriptive use ("Copied from the source buffer, the bytes are then hashed"). Both land on relocate rather than delete, and `## Sources` is already an exempt section, so relocating either one is terminal |
+| `citation`, historical citations | Dated incident citations, inline **origin notes** ("ported from X", "Merged 2026-07-24 from Y"), migration/rename narration ("Empirically observed 2026-…", "was renamed to", "we pivoted from") when the current form suffices | 1 | Relocate to a per-file `## Sources` / `## History` footer; strip when non-load-bearing (version control preserves history). Keep inline only when the date is load-bearing (methodology or freshness stamp). The origin cues are clause-anchored on both sides; this one adds a list-bullet anchor, requires column 0 where the code-side sibling allows leading whitespace, and stands down on a line carrying a link (inline or reference-style) or a bare URL, because a pointer is what `/attribution:audit` asks an author to write. That stand-down covers a pointer, not the other two sanctioned forms: an attribution naming a work rather than a location ("Copied from Kent Beck, *Tidy First?*, chapter 3") is matched, as is a clause-leading descriptive use ("Copied from the source buffer, the bytes are then hashed"). Both land on relocate rather than delete, and `## Sources` is already an exempt section, so relocating either one is terminal |
 | `ghost-ref`, refs into slice-scoped working paths | Concrete paths into a topic-docs work slice, including memory slices (`.work/<slug>/`), branch-pruned contract slices (`docs/topics/<slug>/`), and concrete children of the concern-scoped roots, cited from durable surfaces, plus any citation of the retired `.claude/notes/` location. The citing document outlives the slice, so slice retirement breaks the reference; this holds whether or not the consumer's memory tier is gitignored | 2 | 3-way classify: promote the content to a durable home, replace with a durable pointer (a commit-SHA permalink or the carrying/pruning PR number), or strip. Exemptions apply per matched path, never per line: slot-variable forms (`<slug>` as a schema placeholder, not a literal name) and the bare concern-scoped roots (`.work/handoffs/`, `.work/reviews/`, `.work/running-retros/`, `.work/overengineering/`, `.work/enforceability/`, `.work/exports/`, `.work/lanes/`, reserved first-level names under the memory root per the topic-docs convention, with nothing concrete after) are NOT ghost refs. A concrete child under a concern root flags |
 | `preamble`, "Why this file exists" openers | Opening section explaining motivation/history/rationale | 2 | Diataxis classify: KEEP on Explanation-quadrant files (rule bodies, ADRs, convention rationale); STRIP on Reference-quadrant files (data tables, registries, cheat-sheets), replacing with a 1-sentence orientation |
 | `enum-list`, hard-coupled consumer lists | Tables/lists hardcoding N specific consumers that drift on every add/remove ("the following five skills…", bulleted `/skill — role` rosters) | 1 | Replace with a runtime derivation (a grep/list command cited inline) or a category citation; hardcode only when both fail |
@@ -113,9 +113,12 @@ sibling divergences it owns.
    real drift this report called clean). Never report a fully-clean result from
    scanner-flagged files alone: the scanner is a structural matcher, not a complete
    reading of the shape table, and judgment is required for paraphrases it still
-   misses. Fan out a small number of concurrent
-   subagents with one fresh-context verification pass over the merged verdicts; report first.
-   this skill stays read-only either way, and the author applies any treatment edits only after
+   misses. Size the judgment pass to the corpus. When every file fits one inline reading (tens
+   of files, not the hundreds that make a fan-out pay for itself), read every file in the main
+   session and skip both the fan-out and the verification pass: a full reading already covers
+   the scanner-negative sample, and a subagent's verdicts would need re-reading anyway. Above
+   that, fan out a small number of concurrent subagents with one fresh-context verification pass
+   over the merged verdicts. Report first. This skill stays read-only either way, and the author applies any treatment edits only after
    reviewing the report (report-vs-fix-as-you-go is the author's call; report-first is the
    accuracy-preferred default because repeating shapes get one corpus-wide treatment decision).
    Unattended (no human to confirm), surface the offer as

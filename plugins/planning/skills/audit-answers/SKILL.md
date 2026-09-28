@@ -1,5 +1,5 @@
 ---
-description: "Adversarially validate a completed /planning:interview's answers with independent fresh-context agents. Runs over any filled decision ledger, hand-answered or auto-accepted. Validators re-examine each answer with its rationale withheld and return a per-answer verdict (confirmed / challenged / reclassified-to-human), so only doubtful answers come back as real questions; open branches are filled with the recommended answers first, holding the never-auto floor. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Not for stress-testing a plan artifact (that is '/planning:devils-advocate') or asking the human the first time ('/planning:interview'); needs a filled interview ledger."
+description: "Validate a filled /planning:interview ledger with fresh-context agents that re-check each answer blind to its rationale; only doubtful ones come back. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Plans: '/planning:devils-advocate'; first-time questions: '/planning:interview'."
 argument-hint: "[topic] (no args reads the current topic's interview ledger)"
 user-invocable: true
 disable-model-invocation: false
@@ -53,6 +53,9 @@ Validation needs a complete answer set. If the interview is already fully answer
 - a Deferred question tagged **`USER-RESERVED`** stays **deferred**. It is a carry-forward item whose arbiter re-confirms at the `/planning:plan` approval gate *with plan-time context*, so it is not auto-accepted, not validated, and **not turned into an audit question here**; it passes through untouched, arbiter tag intact.
 - a decision the interview's **auto-guard** class covers, a genuine user choice with real tradeoffs and no codebase answer, is held out of the auto-accept and routed to the human as a real question in the confirm round (Step 4).
 - a register row at **`superseded-by-plan`** (a plan change displaced the user's answer) is held out of the auto-accept, never validated into `answered`, and routed to the human as a real question showing both the proposed and the displaced answer. Only the user's reply to that row moves it.
+- a register row whose resolution carries `hedged:` anywhere (including the page's `free-text: hedged:` export) is validated, but it never closes on a CONFIRMED verdict: it is routed to the human in the Step 4 confirm round whatever the validators return. Its `open` commitment rows are held out of the auto-accept like any other floor item.
+
+A `free-text:` row is validated like any answer and flagged in its verdict, so the human sees which answers were given in the user's own words rather than picked from the authored options.
 
 Everything else enters the provisional set as an accepted answer for validation.
 
@@ -78,7 +81,8 @@ Validators also flag **shaky dependency chains**, an answer whose soundness rest
 
 Merge the validators' verdicts. Independence means one dissent is signal: any CHALLENGED or RECLASSIFIED from *any* validator wins over another's CONFIRMED.
 
-- **CONFIRMED by all** → collapse to a one-line summary per answer. The human skims, does not re-decide.
+- **CONFIRMED by all** → collapse to a one-line summary per answer. The human skims, does not re-decide. A `free-text:` row in this block keeps its flag.
+- **`hedged:` rows** → real questions whatever the verdict, restating what the headline commits to and which of its rows are still open.
 - **CHALLENGED / RECLASSIFIED / auto-guard-held / `superseded-by-plan` decisions** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
 - **USER-RESERVED deferred questions** → listed as carry-forward items (arbiter tag intact), NOT resolved here. They re-confirm at the `/planning:plan` approval gate with plan-time context, so asking them now would strip that context and rewrite the Brief prematurely.
 

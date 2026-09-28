@@ -85,7 +85,7 @@ SHIM
 chmod +x "$PROBE_BIN/sed"
 
 # No interpreter resolves under this PATH, so the launcher takes its documented
-# guard fail-open (exit 0). Whether it reads the engine is independent of that.
+# no-interpreter posture. Whether it reads the engine is independent of that.
 for stub in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 127\n' >"$PROBE_BIN/$stub"
   chmod +x "$PROBE_BIN/$stub"
@@ -97,7 +97,7 @@ RUN_PYTHON_HOOK_SED="$SED_REAL" \
   PATH="$PROBE_BIN:$PATH" \
   bash "$LAUNCHER" \
   "$SCRIPT_DIR/../skills/clean/scripts/destructive_guard.py" \
-  --mode engine-gate >/dev/null 2>&1 || true
+  --mode engine-gate </dev/null >/dev/null 2>&1 || true
 
 engine_reads=0
 for call in "$PROBE_CALLS"/call-*; do
@@ -329,7 +329,7 @@ else
   assert_eq "an expired record is re-resolved" "1" "$ttl_calls"
 
   # A corrupt record must fall back to full resolution — never to "no
-  # interpreter", which is the guard's silent fail-open.
+  # interpreter", which denies the call or lets it through unchecked.
   cache_launch >/dev/null
   printf 'this is not a cache record\n' >"$cache_record"
   corrupt_calls="$(cache_launch)"
@@ -433,7 +433,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-for hook_name in destructive_guard.py guard_launch_monitor.py; do
+for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py; do
   entry="$(jq -c --arg target "$hook_name" '
     .hooks | to_entries[] | .value[]? | .hooks[]? |
     select(.command | contains($target))
@@ -491,6 +491,8 @@ MONITOR_OUT="$(
 )"
 assert_contains "monitor mode warns when python is unavailable" "systemMessage" "$MONITOR_OUT"
 assert_contains "monitor mode names the guard" "destructive guard" "$MONITOR_OUT"
+assert_eq "monitor mode's no-interpreter output is valid JSON" "true" \
+  "$(jq -e 'has("systemMessage")' <<<"$MONITOR_OUT" 2>/dev/null || echo false)"
 
 # --- the `py -3` branch validates the path it is handed ---
 #
@@ -514,12 +516,104 @@ PY_OUT="$(
 assert_contains "a py -3 result that is not an interpreter is refused" \
   "systemMessage" "$PY_OUT"
 
-# --- guard mode without python is silent success ---
-GUARD_RC=0
-PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" \
-  "$SCRIPT_DIR/../skills/clean/scripts/destructive_guard.py" \
-  --mode engine-gate >/dev/null 2>&1 || GUARD_RC=$?
-assert_eq "guard mode exits 0 when python is unavailable" "0" "$GUARD_RC"
+# --- guard mode without python: a guard that could not run says so (#3861) ---
+#
+# Before #3861 every guard row exited 0 with no output here, which Claude Code
+# reads as "ran and allowed". Each row must now be distinguishable from that at
+# the call: a deny (exit 2, reason on stderr) or a proceed that carries a notice.
+NOPY_DIR="$(mktemp -d)"
+trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN" "$NOPY_DIR"' EXIT
+GUARD="$SCRIPT_DIR/../skills/clean/scripts/destructive_guard.py"
+
+# `nopy_guard <payload> <launcher args...>`: run the guard row with no interpreter
+# on PATH, capturing rc, stdout and stderr into NOPY_RC / NOPY_OUT / NOPY_ERR.
+nopy_guard() {
+  local payload="$1"
+  shift
+  NOPY_RC=0
+  TMPDIR="$NOPY_DIR/tmp" PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" "$@" \
+    <<<"$payload" >"$NOPY_DIR/out" 2>"$NOPY_DIR/err" || NOPY_RC=$?
+  NOPY_OUT="$(<"$NOPY_DIR/out")"
+  NOPY_ERR="$(<"$NOPY_DIR/err")"
+}
+mkdir -p "$NOPY_DIR/tmp" "$NOPY_DIR/data"
+
+engine_payload='{"session_id":"s-engine","tool_name":"Bash","tool_input":{"command":"python3 /p/skills/clean/scripts/hygiene.py apply --token x"}}'
+nopy_guard "$engine_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
+  "$GUARD" --mode engine-gate
+assert_eq "engine-gate without python denies a command naming the engine" "2" "$NOPY_RC"
+assert_contains "the engine deny says the guard could not run" "could not run" "$NOPY_ERR"
+assert_contains "the engine deny names the remedy" "/disk-hygiene:setup check" "$NOPY_ERR"
+assert_eq "the engine deny prints no allow-shaped stdout" "" "$NOPY_OUT"
+
+# shellcheck disable=SC2016  # a literal PowerShell variable, deliberately unexpanded
+upper_payload='{"session_id":"s-upper","tool_name":"PowerShell","tool_input":{"command":"& $py C:\\p\\HYGIENE.PY scan ."}}'
+nopy_guard "$upper_payload" "$GUARD" --mode=engine-gate
+assert_eq "engine-gate without python matches the engine case-insensitively" "2" "$NOPY_RC"
+
+nopy_guard "" "$GUARD" --mode engine-gate
+assert_eq "engine-gate without python denies when no payload was seen" "2" "$NOPY_RC"
+
+# shellcheck disable=SC2016  # a literal PowerShell variable, deliberately unexpanded
+plain_payload='{"session_id":"s-plain","tool_name":"PowerShell","tool_input":{"command":"& $tool --version"}}'
+nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
+  "$GUARD" --mode engine-gate
+assert_eq "engine-gate without python lets a marker-free command proceed" "0" "$NOPY_RC"
+assert_eq "the marker-free proceed carries a systemMessage" "true" \
+  "$(jq -e '.systemMessage | test("could not run")' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
+assert_eq "the marker-free proceed carries additionalContext" "true" \
+  "$(jq -e '.hookSpecificOutput.hookEventName == "PreToolUse" and (.hookSpecificOutput.additionalContext | test("could not run"))' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
+assert_eq "the marker-free proceed makes no permission decision" "false" \
+  "$(jq -r '.hookSpecificOutput | has("permissionDecision")' <<<"$NOPY_OUT" 2>/dev/null)"
+nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
+  "$GUARD" --mode engine-gate
+assert_eq "the marker-free notice is once per session: rc" "0" "$NOPY_RC"
+assert_eq "the marker-free notice is once per session: silent after the first" "" "$NOPY_OUT"
+nopy_guard "${plain_payload/s-plain/s-other}" --marker-root "$NOPY_DIR/data" \
+  --launch-marker guard-launch-monitor "$GUARD" --mode engine-gate
+assert_contains "a new session gets its own notice" "systemMessage" "$NOPY_OUT"
+
+nopy_guard '{"tool_name":"PowerShell","tool_input":{"command":"Get-ChildItem"}}' \
+  "$GUARD" --mode engine-gate
+assert_contains "a payload with no session id re-notices rather than going silent" \
+  "systemMessage" "$NOPY_OUT"
+
+nopy_guard "$plain_payload" "$GUARD" --plugin-root /p
+assert_eq "belt mode without python denies even a marker-free command" "2" "$NOPY_RC"
+assert_contains "the belt deny says the guard could not run" "could not run" "$NOPY_ERR"
+nopy_guard "$plain_payload" "$GUARD" --mode belt
+assert_eq "an explicit belt mode without python denies" "2" "$NOPY_RC"
+nopy_guard "$plain_payload" "$GUARD" --mode bogus
+assert_eq "an unrecognized mode without python denies, as resolve_mode falls back to belt" "2" "$NOPY_RC"
+
+# The registered rows, verbatim: each engine-gate row in hooks.json must reach
+# the engine-gate branch, and the skill-frontmatter belt must reach the belt one.
+HOOKS_JSON="$SCRIPT_DIR/hooks.json"
+while IFS= read -r registered; do
+  row="${registered//\$\{CLAUDE_PLUGIN_ROOT\}/$SCRIPT_DIR/..}"
+  row="${row//\$\{CLAUDE_PLUGIN_DATA\}/$NOPY_DIR/data}"
+  eval "set -- ${row#bash }"
+  nopy_guard "$engine_payload" "${@:2}"
+  assert_eq "registered engine-gate row denies an engine command without python" "2" "$NOPY_RC"
+done < <(jq -r '.hooks.PreToolUse[].hooks[].command' "$HOOKS_JSON")
+belt_row="$(sed -n "s/^ *command: '\(.*destructive_guard.py.*\)'$/\1/p" \
+  "$SCRIPT_DIR/../skills/clean/SKILL.md")"
+[[ -n "$belt_row" ]] || fail "could not read the belt registration from SKILL.md"
+belt_row="${belt_row//\$\{CLAUDE_PLUGIN_ROOT\}/$SCRIPT_DIR/..}"
+eval "set -- ${belt_row#bash }"
+nopy_guard "$plain_payload" "${@:2}"
+assert_eq "the registered belt row denies without python" "2" "$NOPY_RC"
+
+# --- /disk-hygiene:clean does not expand without python ---
+CONTEXT_OUT="$(
+  PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" \
+    "$SCRIPT_DIR/../skills/clean/scripts/engine_context.py" --plugin-root /p \
+    </dev/null 2>/dev/null || true
+)"
+assert_eq "the clean expansion is blocked without python" "block" \
+  "$(jq -r '.decision // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
+assert_contains "the expansion block names the remedy" "/disk-hygiene:setup check" \
+  "$(jq -r '.reason // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
 
 # --- happy path execs the target script when python is available ---
 if command -v python3 >/dev/null 2>&1 &&

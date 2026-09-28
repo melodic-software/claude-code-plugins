@@ -5,6 +5,13 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Schema validation parked, 2026-09-28
+
+- **Machine enforcement stays unpaid ([#3410](https://github.com/melodic-software/claude-code-plugins/issues/3410)).**
+  `envelope.schema.json` remains a contract-doc. No producer, sink, or CI path executes it. A
+  schema-driven check that replaces the transcribed field-list loops is parked until funded.
+  No `schema_version` bump: envelope fields are unchanged.
+
 ## [1.1] - 2026-09-05
 
 Additive minor: four optional correlation keys on the envelope spine (#3758, closing the thread #930

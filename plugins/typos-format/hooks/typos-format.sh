@@ -84,6 +84,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$HOOK_DIR/rewrite-guard.sh"
 
 # The whole prologue: the start stamp, the buffered payload, the jq gate, the
 # parsed path with its basename and directory, the repo root (the CWD typos
@@ -118,6 +120,14 @@ hook::begin --relative --notebook typos-format PostToolUse
 emit_skipped() {
   hook::finish skipped findings array '[]' applied array '[]'
 }
+
+# A file the repository gitignores is neither reported nor rewritten unless
+# typos_format_lint_gitignored is set. The extra git spawn is the cost of
+# hook-precision rule 6; write mode has no `git checkout` undo for a scratch
+# file.
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
+  emit_skipped
+fi
 
 # Existence check only, no canonicalization: git already answers an absolute
 # path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.

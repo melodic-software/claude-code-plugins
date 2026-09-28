@@ -1,5 +1,5 @@
 ---
-description: "Break a plan, spec, or PRD into independently-grabbable work items using vertical-slice (tracer-bullet) decomposition, with HITL/AFK classification and dependency ordering. Use when the user wants a plan, PRD, or brief broken (decomposed, split, vertical-sliced) into tickets or work items; wants the spec published to the tracker as a container; or wants an existing decomposition re-sliced or rerouted because the spec changed. Reads a PLAN.md, PRD.md, item body, or the conversation; drafts thin end-to-end slices, classifies each AFK (agent-ready) vs HITL (needs-human), gets approval, then publishes blockers-first via the seam with native dependency edges, optionally (opt-in at approval) under a spec container carrying the Brief with slices as native sub-items. Also owns re-decompose (rerouting) when mid-flight review shows the spec is wrong: close obsolete unimplemented slices, keep implemented ones, edit the spec, regenerate the rest. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:scan-todos (TODO sweep)."
+description: "Break a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
 argument-hint: "[source]. Empty = topic PLAN.md; prd = topic PRD.md; #<number> = item body; or conversation context"
 user-invocable: true
 disable-model-invocation: false
@@ -80,7 +80,7 @@ The human-gated label (default `needs-human`) is what keeps a slice out of auton
 | Investigation type | Resolves | Routes to |
 |--------------------|----------|-----------|
 | research | External unknown (best practice, library choice, API behavior) | `/discovery:research` |
-| prototype | Feasibility or design-feel unknown | `/prototype` |
+| prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel), when that plugin is installed |
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 
 Build slices blocked on an unresolved decision list the investigation ticket in "Blocked by". Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.

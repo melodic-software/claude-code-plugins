@@ -1,5 +1,157 @@
 # Changelog: discovery plugin
 
+## [0.25.2] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the six listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: phase enumerations, dispatch
+  mechanics, and restated skip lists. `check-listing-budget.sh plugins/discovery/skills` goes
+  from 4,376 to 2,372 characters. The research description still orders single-topic
+  routing before multi-topic `research-deep`. No skill is renamed or merged, and `setup` stays
+  `disable-model-invocation: true`.
+
+## [0.25.1] - 2026-09-28
+
+### Fixed
+
+- **The acceptance gates can run without a prompt, and setup offers the rules**
+  ([#4233](https://github.com/melodic-software/claude-code-plugins/issues/4233)).
+  `reference/parent-contract.md` "Operator setup" now prints six direct-path allow rules (quoted
+  and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers), and
+  `/discovery:setup` reports whether they are present, stale, or absent, and in an interactive
+  `apply` offers to write them to `~/.claude/settings.json`. The rules pin the installed version's
+  cache directory rather than wildcarding it: a `*` in the path's version segment sits before the
+  program name ends, so it can stand in for `../../usr/bin/<program> <arguments>`, and Claude Code
+  warns about such rules at startup. After an update, re-run `apply` to refresh them.
+- **The pre-flight `--help` probes run as one chained call**, so a session without allow rules
+  sees one prompt instead of three; the allow rules cover the probes and the gates alike.
+- **The PowerShell exit code is read before piping.** "How to invoke" warns that piping a gate
+  through `Select-Object -First` can leave `$LASTEXITCODE` empty or stale, and shows capturing it
+  first.
+- **A research parent can dispatch from `research/SKILL.md` alone.** The hub now carries the
+  envelope's labeled lines and both baseline commands. `scripts/contract.test.sh` fails when that
+  copy and the parent contract disagree.
+- **Local folders outside a repository and machine state belong to research.** The research and
+  explore descriptions both say so, and research cites such reads as Tier 0 primaries.
+- **Research names the no-project-root case.** An interactive run asks where the artifact goes; a
+  non-interactive run writes under `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` and announces the
+  path.
+- **Research looks up the branch only without a topic argument.** An explicit topic makes no
+  `git branch` call.
+
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **Research Phase 2 fans out per gap when nesting is available.** One topic with several gaps had
+  no fan-out path: research-deep splits only topics that share no claims, and the "parallel
+  workers for breadth within a phase" principle had no step that fired it, so a five-gap brief ran
+  serially under one 40-turn limit and left on-point primaries unfetched. With `nested spawning
+  available` and 3 or more numbered gaps, the researcher now dispatches one generic gap worker per
+  gap, or per group of gaps sharing a primary (capped at 5), in one turn. Workers gather and return
+  URLs, on-disk artifact paths and quoted spans, never verdicts; the researcher keeps the
+  falsification query, confirms each cited primary from its artifact before counting it as Tier
+  0/1, and leaves unanswered gaps open. Recipe: the discipline file's new "Per-gap fan-out (Phase
+  2)". The researcher's parallel-worker clause and research-deep's multi-topic check point at it,
+  and `contract.test.sh` pins all four. The discipline file gains a Contents block now that it passes 300 lines (#4151).
+
+## [0.24.10] - 2026-09-28
+
+### Changed
+
+- **A direct dispatch of `researcher` learns the gate it owes.** The post-dispatch acceptance gate
+  lives in the research skill body, and a parent that dispatches `discovery:researcher` without
+  loading the skill (to keep its own context small) never reads it. `researcher.md` now states
+  that whatever dispatched it owes the gate and points at the skill's "Post-dispatch acceptance
+  gate" and the parent contract's "Running the acceptance gate". Its return payload carries a
+  fixed `gate_owed:` line naming the three gate scripts and the section, so the obligation arrives
+  in band. The parent contract says the same for a direct dispatcher. `contract.test.sh` section
+  15 pins all three (#4275).
+
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **`discovery:research-verifier`**, a read-only agent (`Read, Grep, Glob, WebFetch, WebSearch`,
+  `model: sonnet`) that grades a research artifact's verifier-owned outcome-gate rows (currently
+  4, 7 and 12) in a fresh context and returns the literal `verification:` line the parent writes
+  into `RESEARCH.md`. The research skill carries a copyable dispatch block for it right after the
+  acceptance gate (#4231).
+
+### Changed
+
+- **The research index records verification state, and a skip is recorded.** `RESEARCH.md`
+  frontmatter carries `verification:`: the researcher writes `pending` in its first write, and the
+  parent replaces it with the verifier's line or, on the cost path, with `skipped (cost)`. `pending`
+  left after the post-dispatch boundary closes is the one wrong value (#4231).
+- **`check-dispatch-artifact.sh` prints `verification=<value>`** on its own line after a usable
+  verdict, read from the index frontmatter (`unrecorded` when absent). It never changes the exit
+  status (#4231).
+- `agents/tool-honesty.test.sh` owes a `persistence:` axis only from agents whose allowlist holds
+  `Write`, and accepts `target_as_received:` as the echo-back field.
+
+## [0.24.8] - 2026-09-28
+
+### Changed
+
+- **Dispatched agents read each file once.** `explorer`, `researcher`, and `intent-tracer` now
+  state in "Write early; reserve your last turns" that a file already read this run is in context
+  and is re-read only to see a change the agent made. A scan followed by a later full read of the
+  same file becomes one read, and file contents go through `Read` and `Grep` rather than Bash
+  `cat`, `sed -n`, or `grep`. The researcher applies the same rule to fetched pages. One measured
+  explorer run spent 8 redundant full reads and 2 scan-then-read pairs, roughly a quarter of its
+  turns, re-reading files it already held. `contract.test.sh` section 13 asserts the rule in all
+  three agents (#4258).
+
+## [0.24.7] - 2026-09-27
+
+### Added
+
+- `report` is the return contract for an agent a plugin skill dispatches: problems first, one fenced block, every claim graded off disk by the parent. `explorer`, `intent-tracer`, and `researcher` preload `discovery:report`. The canonical copy lives here; implementation and plugin-quality ship byte-identical copies.
+
+## [0.24.6] - 2026-09-27
+
+### Changed
+
+- **`maxTurns: 40` has a recorded basis and one owner.** The raise to 40 was recorded "on parity
+  grounds only". The parent contract's harness facts now carry an eleventh dated record: a
+  subagent's `maxTurns` comes from its definition, the Agent tool documents no per-invocation
+  `maxTurns`, and `--agents` JSON defines a session-wide agent at launch, so a parent cannot widen
+  one dispatch. 40 stays as a checkpoint and runaway guard, not a completion budget: each agent
+  stops gathering at its stop turn (30, from 0.23.0's "Write early; reserve your last turns"
+  rule), and a run that reaches the limit returns output marked partial that the parent resumes
+  with `SendMessage`. The number
+  changes only when the Agent tool documents a per-invocation `maxTurns`, a resume fails to
+  recover a limit stop, or a turns-to-complete distribution is measured after the explorer's
+  redundant re-reads are fixed (#4258). `contract.test.sh` section 7 no longer asserts only
+  `explorer maxTurns >= researcher maxTurns`; it asserts all three definitions equal the value the
+  record names (#4257).
+
+## [0.24.5] - 2026-09-27
+
+### Changed
+
+- `research-deep` states two routing rules without bold caps: N ≥ 2 separable topics are not dispatched to an engine as one blob, and an engine's return is neither re-run inline nor surfaced as-is. Both rules and their reasons are unchanged (#4120).
+
+## [0.24.4] - 2026-09-27
+
+### Fixed
+
+- Parent contract: the depth-limit quote ("Claude Code withholds the `Agent` tool from every subagent except a fork") is marked as quoted with link markup removed and re-dated against the sub-agents page fetched 2026-09-27.
+
+## [0.24.3] - 2026-09-27
+
+### Changed
+
+- **`setup` reads `.claude/topic-docs.yaml` at load time.** `check`'s read of the concern file
+  runs as pre-computed context from the session's working directory, so `check` reads it from the
+  skill instead of spending a call. The path is relative, with no `$` expansion, so the block also
+  loads from a worktree-isolated agent. When the working directory is not the repository root, or
+  the injection is policy-disabled, `check` reads the file directly as before. `apply`'s
+  post-write verification still re-reads the file live.
+
 ## [0.24.2] - 2026-09-27
 
 ### Fixed
@@ -12,9 +164,6 @@
   `maxTurns: 40` with no payload; resuming it by agent ID with `SendMessage` recovers the run.
 - **Agents:** each worker states why it keeps re-emitting its payload block: the docs do not say
   which text a partial return carries, and the block rides on a turn already spent on a write.
-- **Depth-limit quote:** the parent contract marks "Claude Code withholds the `Agent` tool from
-  every subagent except a fork" as quoted with link markup removed, re-dated against the
-  sub-agents page fetched 2026-09-27.
 
 ## [0.24.1] - 2026-09-27
 
