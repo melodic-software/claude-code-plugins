@@ -1,0 +1,19 @@
+{
+  "skill_name": "produce",
+  "evals": [
+    {
+      "id": 1,
+      "name": "boards-before-render",
+      "prompt": "Produce a one-minute woodcut film called Harbor in ~/films/harbor from the woodcut-ink pack. Start from a brief.",
+      "expected_output": "Initializes the production directory, writes the brief and storyboard, and stops for approval. Does not render before boards/APPROVED exists.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs produce.py init with --title and --style woodcut-ink",
+        "Shows the storyboard and waits for the user to write boards/APPROVED",
+        "Does not run render.py before produce.py gate exits 0",
+        "Passes shots.json to inkstats.py --shots and does not also pass --cuts"
+      ]
+    }
+  ]
+}

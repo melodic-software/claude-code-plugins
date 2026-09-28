@@ -6,7 +6,8 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
   <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else BASE_FPS), or a
             rotoscope work dir
             (src/dNNN.png timed by d/index.json; the last drawing holds until that index's duration)
-  --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
+  --cuts    shot boundaries: a shots.json path (each shot's start; shots.json owns the cut times) or
+            T,T,.. seconds. Each shot is a column of the table. Without --cuts, columns are --seg seconds
             long (default 3.35). Columns are for reading only: the check judges the whole film.
   --region  measure only this box of every frame (a prop, a dark field); --t keeps only frames with T0 <= t < T1
   --json    write the summary: per statistic p10/p50/p90 over drawings, the timing values, and per column medians
@@ -88,6 +89,7 @@ import cv2
 import numpy as np
 
 import decode
+import shots
 import workdir
 
 SEG = 3.35
@@ -429,6 +431,22 @@ def load_pack(p):
     return json.load(open(p / 'style.json' if p.is_dir() else p, encoding='utf-8'))
 
 
+def shot_cuts(path):
+    """Interior shot boundaries from a produce shots.json. The file owns the cuts."""
+    path = Path(path)
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        sys.exit(f'inkstats: cannot read {path}: {exc}')
+    shots = data.get('shots') if isinstance(data, dict) else None
+    if not isinstance(shots, list) or len(shots) < 1:
+        sys.exit(f'inkstats: {path} has no shots')
+    try:
+        return [float(shot['t0']) for shot in shots[1:]]
+    except (KeyError, TypeError, ValueError):
+        sys.exit(f'inkstats: {path} shots need a numeric t0')
+
+
 def nums(s, n=None):
     v = [float(x) for x in s.replace('-', ',').split(',')] if s else None
     if v and n and len(v) != n:
@@ -468,19 +486,23 @@ def main(argv=None):
     ap.add_argument('--fps', type=float)
     ap.add_argument('--seg', type=float, default=SEG)
     ap.add_argument('--cuts')
+    ap.add_argument('--shots', type=Path, help='shots.json; owns the cut times. Refused together with --cuts')
     ap.add_argument('--region')
     ap.add_argument('--t')
     ap.add_argument('--json', type=Path)
     ap.add_argument('--rows', type=Path)
     ap.add_argument('--pack', type=Path)
     a = ap.parse_args(argv)
+    if a.shots and a.cuts:
+        sys.exit('inkstats: pass --shots or --cuts, not both')
+    cut_spec = str(a.shots) if a.shots else a.cuts
     pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
     region = [int(v) for v in nums(a.region, 4)] if a.region else None
     meta = Path(a.film) / 'render.json'
     fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or BASE_FPS
     rows = measure(a.film, fps, region, nums(a.t, 2))
     base = pack['knobs']['frame_rate']['base_fps'] if pack else fps   # holds are counted on the style's rate
-    m = summary(rows, nums(a.cuts), a.seg, base)
+    m = summary(rows, shots.shot_starts(cut_spec), a.seg, base)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n', encoding='utf-8')
     if a.rows:

@@ -76,6 +76,13 @@ Repeat 5-7 until the check passes and the crops read as the style. Tune the scen
 check, never the check against the scene. `inkstats.py` also measures any film with no pack
 (`--json` for the full summary), which is how to compare two films.
 
+## Next
+
+/animation:produce <production dir>
+
+It takes this pack's bands and makes the boards, the shots and the delivered file. The boards are
+approved before anything renders.
+
 ## Gotchas
 
 - A post filter must not be what passes the check. Blur, noise, stripes and dry-brush overlays move
