@@ -202,6 +202,25 @@ window is the resolve, not an mtime tick. A missed crossing is therefore late, n
 converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
 manufacture an injection the full path would not have made.
 
+#### Rewritten-snapshot coalesce (parked, #4392)
+
+The skip above is mtime-based. When the snapshot, `zones.json`, and compaction marker have not
+moved, the hook already exits through builtins (one process: the hook bash). The remaining gap
+is a PostToolBatch fire whose snapshot was rewritten (fresh `captured_at` from the statusline
+tee) while the zone did not change: that path still starts the zone resolver and jq.
+PostToolBatch itself still fires once per tool batch (about 16 times per turn in the #4392
+OTEL window).
+
+**Claim:** coalescing PostToolBatch so a no-crossing fire costs one process even when the
+snapshot was rewritten stays parked. The unchanged-snapshot skip stays. Do not ship a builtin
+zone compare, a tee-cached zone, or a once-per-turn throttle unpaid. **Basis:** #4392
+(`needs-human`). `/performance:goal` is human-gated by design and the PostToolBatch k x S
+target is an acceptance criterion; the three remaining shapes change crossing latency or file
+layout. `zone-gate.sh` and the UserPromptSubmit row are out of this park unless a funded
+option covers them for free. Option A parks rather than shipping that coalesce unpaid.
+**As of:** 2026-09-28. **Recheck:** a maintainer funds the coalesce after `/performance:goal`
+sets the PostToolBatch target and picks option 1, 2, or 3 on #4392, or unparks #4392.
+
 #### The cost this pass added: a temp file on payloads over 64KiB
 
 The saving is not free, and the charge is disk rather than CPU. Two of the five removed process
