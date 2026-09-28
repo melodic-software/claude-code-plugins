@@ -459,11 +459,14 @@ expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires
 
 ${request}
 " >"$case_dir/prompt.md"
+      # portability-ok: \s is read by the eval grader's own regex engine, never
+      # shell grep/sed; kept out of the emitted YAML so the grader files stay clean.
+      local match_re="\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\""
       if [[ "$expect" == "true" ]]; then
         printf '%s\n' "---
 type: tool_used
 tool: Skill
-input_match: '\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\"' # portability-ok: \\s is read by the eval grader's own regex engine, never shell grep/sed
+input_match: '${match_re}'
 min: 1
 ---
 " >"$case_dir/graders/skill-fired.md"
@@ -471,7 +474,7 @@ min: 1
         printf '%s\n' "---
 type: tool_used
 tool: Skill
-input_match: '\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\"' # portability-ok: \\s is read by the eval grader's own regex engine, never shell grep/sed
+input_match: '${match_re}'
 min: 0
 max: 0
 arm: both
