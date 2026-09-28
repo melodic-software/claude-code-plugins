@@ -3,6 +3,21 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.11] - 2026-09-28
+
+### Changed
+
+- **Cutover-check re-read (#4281), this repo only, canary skipped.** Condition 1
+  is `[MET]`: the 2.1.282 pin's `tengu_agents_md_mod` code default is `var W=!0`,
+  and the env-vars feature-flag list no longer carries the AGENTS.md bullet
+  (`https://code.claude.com/docs/en/env-vars.md`, fetched 2026-09-28, 507,134
+  bytes). `skills/migrate/reference/sources.md` records both. Condition 3 was
+  `[UNREACH]` (`--skip-canary`). Condition 4 had one new unacknowledged row,
+  `user-scope.sh` listing `~/.claude/CLAUDE.md`; that row is now acknowledged
+  because the migration does not remove the user-scope file. Shim removal stays
+  blocked: the other nine repos were not named, and the canary did not run.
+  The standing issue stays open.
+
 ## [0.15.10] - 2026-09-28
 
 ### Changed

@@ -14,35 +14,39 @@ the bytes rather than paraphrased.
 
 - **Claim**: reading `AGENTS.md` directly is gated on the GrowthBook flag `tengu_agents_md_mod`. In
   the shipped bundle the built-in plugin exports `isOnByDefault`, whose value is a minifier-assigned
-  identifier declared once nearby as `!0` (true) or `!1` (false). In Claude Code 2.1.278 that
-  identifier is `W` and the window around the flag string reads
-  `isOnByDefault:()=>W` and `var W=!1;var B=()=>oX()&&Gl("tengu_agents_md_mod",W)`, so the **code
-  default is false**.
-- **Basis**: the installed bundle at `~/.local/bin/claude`, 2.1.278, read as bytes: the flag string
-  occurs twice, and the second occurrence (byte offset 226701892 on this build) is the code site.
-  Offsets and the identifier are per build and per host, so the check resolves both at run time and
-  hardcodes neither.
-- **As of**: 2026-09-20.
+  identifier declared once nearby as `!0` (true) or `!1` (false). On the marketplace pin
+  Claude Code 2.1.282 that identifier is `W` and the window reads
+  `isOnByDefault:()=>W` with `var W=!0`, so the **code default is true**. The 2026-09-20 read of
+  2.1.278 was `var W=!1` (default false) at a different offset; that build is not the pin anymore.
+- **Basis**: `cutover-check.sh` against `node_modules/@anthropic-ai/claude-code/bin/claude.exe`
+  (package version 2.1.282, the `package.json` devDependency). It printed
+  `bundle ... offset 225456771: "tengu_agents_md_mod",W with isOnByDefault:()=>W, var W=!0`
+  and `[MET]` for condition 1 on that default alone. Offsets and the identifier stay per build;
+  the check resolves both at run time and hardcodes neither.
+- **As of**: 2026-09-28.
 - **Recheck trigger**: any Claude Code version bump, a bundle where no window around the flag string
   carries `isOnByDefault`, or a window where the captured identifier resolves ambiguously. Each of
   those is `[UNREACH]` for the check, never `[MET]`.
 
 ## The documented feature-flag dependency
 
-- **Claim**: `env-vars` carries the section `## Features that need feature-flag fetching`, and one
-  of its bullets is the AGENTS.md one, verbatim: "Have Claude Code
-  [read `AGENTS.md` files](/docs/en/memory#agents-md) as project instructions; it loads `CLAUDE.md`
-  files only". Fetching is skipped for a session setting `DISABLE_GROWTHBOOK`, `DISABLE_TELEMETRY`,
-  `DO_NOT_TRACK` or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, a session on a third-party provider,
-  and a Claude apps gateway session. The same page's subsection "First session after an install or
-  upgrade" states a flag-gated feature can be missing in that first session.
-- **Basis**: `https://code.claude.com/docs/en/env-vars.md`, fetched 2026-09-20, 496,249 bytes, the
-  section at line 502. The slug appears in `llms.txt` and the body's first heading is
-  "Environment variables", so the page is the one requested.
-- **As of**: 2026-09-20.
-- **Recheck trigger**: the heading is renamed or removed, or the AGENTS.md bullet leaves the list.
-  A missing heading is `[UNREACH]` for the check, because the absence of a heading cannot be read as
-  the absence of the dependency.
+- **Claim**: `env-vars` still carries the section `## Features that need feature-flag fetching`,
+  and the subsection "First session after an install or upgrade" is still after it. The AGENTS.md
+  bullet is **gone**. The fetched page contains no `AGENTS.md` string. The 2026-09-20 bullet,
+  "Have Claude Code [read `AGENTS.md` files](/docs/en/memory#agents-md) as project instructions; it
+  loads `CLAUDE.md` files only", is not on the page. `cutover-check.sh` treats a missing bullet,
+  with the tail marker present and no other `AGENTS.md` plus `flag` tie, as condition 1 `[MET]`
+  even when the code default is false. On 2.1.282 the code default is also true, so either probe
+  is enough.
+- **Basis**: `https://code.claude.com/docs/en/env-vars.md`, fetched 2026-09-28, 507,134 bytes. The
+  feature-flag section starts at the same heading. `awk` over that section prints no `AGENTS` line.
+  `cutover-check.sh --env-vars-file` of that fetch printed
+  `env-vars: heading found, AGENTS.md bullet absent` and condition 1 `[MET]`.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: the heading is renamed or removed, the AGENTS.md bullet returns, or the page
+  ties `AGENTS.md` to a flag outside that section (the check then reports `[UNREACH]`, not `[MET]`).
+  A missing heading is `[UNREACH]`, because the absence of a heading cannot be read as the absence
+  of the dependency.
 
 ## The minimum CLI version
 
