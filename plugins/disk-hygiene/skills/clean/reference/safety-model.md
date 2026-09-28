@@ -395,6 +395,27 @@ on the user's next message, but its `hooks` do not, so "skill-scoped" is true of
 false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
 the same session (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
 retracted by finishing the cleanup. Only the session's end clears it.
+
+That persistence is the threat model, not a defect. After `/disk-hygiene:clean` is invoked, the belt
+exists to keep the model from mutating outside the engine's containment on the Bash lane, which is
+the only apply lane. Deny-by-default stays. Sessions that never invoked the skill are already
+unconstrained on Bash except for the always-on engine-gate (engine invocations only); the
+session-never-invoked wording false-positive was fixed in 0.23.4 (#3348). The platform inversion
+(Windows: Bash cannot `apply`, PowerShell can delete) stays the documented inverse tradeoff:
+PowerShell deletion spellings are hook-`ask`. Subagent reach of skill-frontmatter hooks is
+build-specific; do not treat a subagent as an escape hatch, and the belt denial text is forbidden
+from claiming non-inheritance.
+
+**Claim:** the sanctioned recovery from the session belt is a new session; PowerShell is the
+in-session read-only support lane; there is no in-session Bash override; re-scoping the Bash
+allowlist (for `gh` / `git` / other inspection after skill load) is parked. **Basis:** #3856;
+kyle-sexton 2026-09-19 on v0.23.12 (Windows: after `/disk-hygiene:clean` the belt denied unrelated
+`gh` calls; recovery was a new session / PowerShell); the issue records that an override everyone
+uses is not an override. #3855 Option A (no emergency mode) removes the reason to scope the belt
+differently under pressure. **As of:** 2026-09-28. **Recheck:** an operator funds a classifier
+allowlist for named read-only Bash heads, Claude Code documents a skill-hook disable/unload API,
+or the hooks page documents subagent inheritance of skill-frontmatter hooks.
+
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
 and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables

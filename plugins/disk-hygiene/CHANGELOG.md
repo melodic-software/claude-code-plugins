@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Changed
+
+- **Session-belt deny-by-default stays; the sanctioned recovery is a new session**
+  ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). Option A:
+  after `/disk-hygiene:clean` loads, Bash stays the exact-engine allowlist; PowerShell stays
+  the in-session read-only support lane; there is no in-session Bash override (an override
+  everyone uses is not an override). Re-scoping the classifier is parked until the owner
+  funds it. Serializes after #3855 (0.27.1).
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

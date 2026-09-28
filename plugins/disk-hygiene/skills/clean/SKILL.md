@@ -432,6 +432,9 @@ and what the guard does when no Python resolves → "Hook launch form".
   apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
   interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+  There is no in-session Bash override; if the belt is in the way of unrelated work, start a new
+  session (PowerShell remains the in-session read-only support lane). The recorded Option A lives
+  in [the safety model](reference/safety-model.md).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

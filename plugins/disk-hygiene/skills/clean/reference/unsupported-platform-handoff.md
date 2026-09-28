@@ -163,5 +163,6 @@ harness-level "while the skill is active" window for hooks. So once `/disk-hygie
 has run, the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
 unrelated later work in the same session, not only to this cleanup. Say so when a later,
 unrelated command is blocked or prompted, rather than treating it as a surprise; the session's own
-end is what clears it. Both registration surfaces, the kill switch, and what the belt does and does not
-bound: see [`safety-model.md`](safety-model.md).
+end is what clears it. There is no in-session Bash override (#3856 Option A). Both registration
+surfaces, the kill switch, and what the belt does and does not bound: see
+[`safety-model.md`](safety-model.md).
