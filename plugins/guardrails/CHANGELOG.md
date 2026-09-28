@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.3] - 2026-09-27
+## [0.38.4] - 2026-09-27
 
 ### Fixed
 
@@ -16,6 +16,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - `sudo -R /mnt rm -rf /`, `sudo --chroot /mnt rm -rf /`, `sudo -Eu bob rm -rf /` and `sudo --us bob rm -rf /`. These were declared gaps. Each is now judged both as a flag and as taking the next word, and blocks if either reading does, so `sudo -R rm -rf /` stays refused. sudo's `-a` and `-c` are read the same way.
 
   `sg root -c 'ls /'`, `setpriv --reuid=0 ls`, `prlimit --nofile=10 ls` and `systemd-run ls` stay allowed. Replaying the 989 Bash commands the guard suites send, plus these rows, through `main` and this version (without and with a git-checkout `cwd`) found no command `main` refuses that this version allows. The new launchers go through the same depth, reading and deadline budgets. A relative operand under `systemd-run` is still judged from the payload `cwd`, although a service unit runs from `/` unless `--scope`, `-d` or `--working-directory` says otherwise.
+
+## [0.38.3] - 2026-09-27
+
+### Fixed
+
+- **A Bash or PowerShell command with thousands of substitutions no longer runs the guard row past its 60-second `timeout`** ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)). A `PreToolUse` command hook that times out does not block the tool call ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). `echo` followed by 2,339 `$(: rm)` stays under every per-command cap, and it took 65 s through the row on Windows (30 s on Linux). Now `run-guards.sh` counts the command's substitutions before it sources the first guard and refuses (exit 2) past 256, which the row passes as `--max-substitutions 256`. The count is text-only and costs about 1 ms on a 16 KB command: each `$(` (including `$((`), `<(` and `>(` counts as one, backticks count in pairs, and quoting is ignored. A payload the dispatcher could not prime (one with a NUL in it) is counted whole. Both measured payloads are now refused in 39 ms. A command at the cap takes 1.2 s through the row, or 3.1 s with eight busy loops on four cores. The guard suites' largest command holds 40 substitutions. A command at or under the cap runs through the guards exactly as before.
 
 ## [0.38.2] - 2026-09-27
 
