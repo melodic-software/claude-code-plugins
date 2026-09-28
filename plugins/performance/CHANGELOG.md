@@ -3,6 +3,16 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.7] - 2026-09-28
+
+### Fixed
+
+- **`goal` requires a scaling arm when the subject reads growing state**
+  ([#4438](https://github.com/melodic-software/claude-code-plugins/issues/4438)). A single-size
+  measurement can pass while realistic transcripts grow without bound. The goal records two or more
+  sizes, a `Scaling:` line, and a done criterion on how cost may grow with size. **`target`** flags
+  growing-state candidates in the ranking table. New eval 11.
+
 ## [0.2.6] - 2026-09-28
 
 ### Fixed
