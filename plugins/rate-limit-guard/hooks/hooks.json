@@ -7,8 +7,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/record-rate-limit-stop.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/record-rate-limit-stop.sh"
+            ],
             "timeout": 10,
             "statusMessage": "Recording rate-limit stop..."
           }

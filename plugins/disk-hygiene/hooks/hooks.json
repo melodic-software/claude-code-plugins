@@ -7,9 +7,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "guard-launch-monitor",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+              "--mode",
+              "engine-gate",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "--authorized-data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
             "if": "Bash(*hygiene.py*)",
-            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           }
@@ -20,25 +34,67 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "guard-launch-monitor",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+              "--mode",
+              "engine-gate",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "--authorized-data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
             "if": "PowerShell(*hygiene.py*)",
-            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "guard-launch-monitor",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+              "--mode",
+              "engine-gate",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "--authorized-data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
             "if": "PowerShell(*python*$*)",
-            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --launch-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive_guard.py --mode engine-gate --plugin-root \"${CLAUDE_PLUGIN_ROOT}\" --authorized-data-root \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "guard-launch-monitor",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+              "--mode",
+              "engine-gate",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "--authorized-data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
             "if": "PowerShell(*& $*)",
-            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           }
@@ -50,8 +106,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh --marker-root \"${CLAUDE_PLUGIN_DATA}\" --skip-unless-marker guard-launch-monitor \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/guard_launch_monitor.py --data-root \"${CLAUDE_PLUGIN_DATA}\"",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--skip-unless-marker",
+              "guard-launch-monitor",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/guard_launch_monitor.py",
+              "--data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
             "timeout": 20,
             "statusMessage": "Checking for silent destructive-guard failures..."
           }
@@ -64,8 +130,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-python-hook.sh \"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/engine_context.py --plugin-root \"${CLAUDE_PLUGIN_ROOT}\"",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/engine_context.py",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}"
+            ],
             "timeout": 20,
             "statusMessage": "Resolving the disk-hygiene guard's interpreter and data root..."
           }
