@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.2] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eight of the nine listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: surface enumerations, check
+  lists, run mechanics, and the long "not for" lists. `check-listing-budget.sh
+  plugins/claude-config/skills` goes from 6,640 to 4,341 characters. No skill is renamed or
+  merged.
+
 ## [0.50.1] - 2026-09-28
 
 ### Fixed
