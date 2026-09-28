@@ -113,6 +113,19 @@
       ]
     },
     {
+      "id": 10,
+      "name": "reports-and-controls-which-code-path-ran",
+      "prompt": "/performance:snapshot baseline. Goal names the common path: Stop hook skip with no interpreter. A `bench.launched` marker left in the plugin data dir from an earlier run sent every harness sample down the Python path. Report the baseline p50.",
+      "expected_output": "Does not report a single p50 as the goal's metric without path control. Requires resetting or recording path-selecting state before each arm, reports per-arm which path ran with evidence, and flags that the observed path did not match the goal's named skip path. Does not treat the Python-path numbers as measuring the common session path.",
+      "files": [],
+      "expectations": [
+        "Requires resetting or recording path-selecting state (such as bench.launched) before each arm",
+        "Reports per arm which code path ran with evidence, not only a duration",
+        "Flags a mismatch when the observed path is not the goal's named skip path",
+        "Does not report the Python-path p50 as the headline metric for the skip path goal"
+      ]
+    },
+    {
       "id": 11,
       "name": "verifies-measuring-tool-version-and-flags-before-timing",
       "prompt": "/performance:snapshot baseline. The goal's metric uses `ab.sh --transcript-size 10mb`. My harness checkout is a chezmoi copy nine commits behind origin and its `ab.sh --help` does not list `--transcript-size`. Run the baseline anyway and report p50.",
