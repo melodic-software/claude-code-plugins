@@ -3,6 +3,39 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
+## [0.40.0] - 2026-09-28
+
+### Changed
+
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+
+## [0.39.2] - 2026-09-28
+
+### Fixed
+
+- **`block-windows-drive-tmp` no longer blocks a Bash-tool `/tmp` that already is `%TEMP%`** ([#4251](https://github.com/melodic-software/claude-code-plugins/issues/4251)). On a stock Git for Windows install `/tmp` is a `usertemp` mount of the platform temp (`cygpath -w /tmp` equals `%TEMP%`), so `mkdir -p /tmp/x` was a false positive. One cached probe per hook process: when `cygpath -w /tmp` matches `%TEMP%`/`%TMP%`, or the `mount` line for `/tmp` carries `usertemp`, the Bash command lane skips the POSIX `/tmp` arm. `/c/tmp`, `C:\tmp`, drive-root `\tmp`, PowerShell `/tmp`, and the Write/Edit file-path lane stay blocked. Linux CI's `/tmp` tmpfs has no `usertemp` flag, so the existing OSTYPE=msys fixtures still deny.
+- **`curl -o` / `wget -O` destinations are judged.** `curl -sS -o /tmp/x https://example.com` and `wget -O /tmp/a.html https://example.com` exited 0 while `mkdir` and `cp` of the same path exited 2. A dest-flag walker reads `-o`/`--output` and `-O`/`--output-document` (space, `=`, and glued `-oFILE` forms); a URL that merely contains `/tmp` is not a write target.
+
+## [0.38.13] - 2026-09-28
+
+### Changed
+
+- **`block-root-delete-target` records why three launcher lines stay refused** ([#4681](https://github.com/melodic-software/claude-code-plugins/issues/4681)). No verdict moves; the guard header and a pinned test table now carry the decision. Measured on util-linux 2.39.3 and GNU coreutils 9.4, and read against util-linux master:
+  - `chrt -r rm -rf /`, `chrt -f rm -rf /` and `chrt rm -rf /`: chrt rejects a non-digit word after a realtime policy before exec ("invalid priority argument" through 2.41, "policy <name> requires a priority argument" from 2.42). They stay refused because the same line under `-o`, `-b`, `-i`, `-d` or `-e` runs `rm` from 2.42, where the priority is optional.
+  - `runuser -u bob rm -rf /` without `--`: runuser's permuting getopt reads `-rf` as its own option and exits 1. It stays refused because under an inherited `POSIXLY_CORRECT` options end at `rm` and the delete runs.
+  - `chroot <dir> rm -rf /`: chroot's `/` is host `<dir>`, so the delete empties `<dir>` and every host directory bind-mounted inside it (a bind-mounted host file was deleted in the measurement). GNU rm's default `--preserve-root` stops only the bare `/` spelling, not `/*` or `--no-preserve-root`.
+
 ## [0.38.12] - 2026-09-28
 
 ### Fixed

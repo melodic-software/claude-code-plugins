@@ -5,6 +5,17 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.35] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** The one listed skill,
+  `audit`, ran over 500. It now leads with its use case, keeps its quoted trigger phrases, and
+  names the read-only default versus `fix`. What the body already carries is cut: A/B
+  differencing mechanics and SDK-fallback detail. `check-listing-budget.sh
+  plugins/context-budget/skills` goes from 799 to 500 characters. `setup` stays
+  `disable-model-invocation: true`. No skill is renamed or merged.
+
 ## [0.6.34] - 2026-09-28
 
 ### Changed

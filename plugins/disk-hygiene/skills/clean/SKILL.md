@@ -68,19 +68,23 @@ whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
-it never walks that root recursively. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate directories (OS-owned, hidden,
-system, reparse, mount, protected-shell-folder, and non-directory entries are withheld). With one
+it never walks that root recursively. The same flags also select immediate children of any other
+target, so after a depth-1 home audit the operator can re-inventory the approved directories
+without walking the rest of the home. Without `--root-child` names the engine returns
+`root-children-selection-required` listing admitted immediate directories (on an OS-managed volume
+root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-directory entries
+are withheld; on a non-OS target, hidden and volume-OS-named directories stay selectable so
+approved home children can be named). With one
 or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
-OS-managed root (unless `--root-children`), a non-root mount target, a protected shell-folder root
+OS-managed root (unless `--root-children` on the volume root itself), a non-root mount target, a protected shell-folder root
 or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
 is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
-`--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
-target; scan those without the flag. `root-children-selection-required` and
+`--confirmed-large-scan`. `--root-children` on an OS-managed path that is not a volume root is
+invalid; scan a non-OS target with or without the flag. `root-children-selection-required` and
 `large-target-confirmation-required` name the next step, not a failure, so `scan` exits 0 for them
 and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
 blocked target, 3 when elevation is needed or filesystem state could not be verified.
@@ -152,7 +156,7 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the volume root itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -179,7 +183,9 @@ coverage gap, not a clean result. (Derivation and its fail-closed rationale: `re
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
 start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
-then fan out deeper scans per subtree that the evidence justifies. The engine backs this with a
+then fan out deeper scans per subtree that the evidence justifies. After that depth-1 pass, re-inventory
+the directories the operator approved with `--root-children` and one `--root-child <name>` per approved
+immediate child: one snapshot, paths relative to the original target, no whole-home walk. The engine backs this with a
 deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root (a
 Windows Dev Drive, an OS-managed root still cannot be walked as a whole, and reaches the engine only via
 `--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
@@ -271,6 +277,14 @@ orphans), and provenance strength over byte totals. The snapshot already disting
 walked directory whose `logical_size` is `0` with an empty `size_qualifiers` is a genuinely empty directory,
 while a `logical_size` of `null` carrying the `not-walked` qualifier is an uninventoried coverage gap. Never
 fold the first into a byte-centric roll-up that drops it, and never read it as the second.
+
+Those ranking preferences stay a model instruction. The engine does not grow a ranking signal on
+the destructive surface.
+**Claim:** ranking by tier, location sensitivity, and provenance strength is not an engine
+primitive; the provenance mandate does not rest on a coded ranker. **Basis:** operator park
+2026-09-27 on #3858 (keep attended, stay parked): ranking on a deletion-adjacent surface is a
+design question, not a missing sort key. **As of:** 2026-09-28. **Recheck:** an operator unpark
+of #3858, or a documented case where byte-size ranking caused a wrong deletion offer.
 
 **Lead the frontier with `children_rollup`.** The snapshot carries one row per immediate child the run covered, whatever
 that child's coverage, and `walked` is the single discriminator: `true` means every aggregate is exact; `false` means
