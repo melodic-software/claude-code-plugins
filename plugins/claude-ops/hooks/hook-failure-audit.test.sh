@@ -624,4 +624,44 @@ else
   assert_eq "budget: the warm read is one tail" 1 "$(prog_count tail)"
 fi
 
+# --- #3713 advisory abort boundary ------------------------------------------
+# Empty / malformed / missing-transcript payloads already skip with exit 0.
+# An injected non-zero must also exit 0 and write exactly one stderr line.
+: >"$TEST_TMPDIR/empty.err"
+empty_rc=0
+printf '' | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/empty.err" || empty_rc=$?
+assert_exit "empty stdin exits 0" 0 "$empty_rc"
+mal_rc=0
+printf 'not-json' | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/mal.err" || mal_rc=$?
+assert_exit "malformed JSON exits 0" 0 "$mal_rc"
+min_rc=0
+printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \
+  | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/min.err" || min_rc=$?
+assert_exit "minimal Stop payload with missing transcript exits 0" 0 "$min_rc"
+
+HFA_COPY="$TEST_TMPDIR/hfa-abort.sh"
+cp "$HOOK" "$HFA_COPY"
+python3 - "$HFA_COPY" <<'PY'
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+text = p.read_text()
+needle = "trap _hfa_on_exit EXIT\n"
+if needle not in text:
+    raise SystemExit("abort-boundary trap line missing")
+p.write_text(text.replace(needle, needle + "exit 3\n", 1))
+PY
+# File-fed stdin: the injected exit happens before the hook reads the payload.
+# A pipe would leave printf writing to a closed fd; with `pipefail` that is
+# SIGPIPE (141), the #4458 abort-boundary harness bug, not a hook failure.
+abort_rc=0
+printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \
+  >"$TEST_TMPDIR/abort.in"
+abort_err=$(bash "$HFA_COPY" <"$TEST_TMPDIR/abort.in" 2>&1 >/dev/null) || abort_rc=$?
+assert_exit "injected exit 3 fails open (exit 0)" 0 "$abort_rc"
+assert_contains "injected failure names the hook on stderr" "$abort_err" \
+  "hook-failure-audit: did not run (status 3); fail-open"
+abort_lines=$(printf '%s\n' "$abort_err" | grep -c . || true)
+assert_eq "injected failure writes one stderr line" "1" "$abort_lines"
+
 report

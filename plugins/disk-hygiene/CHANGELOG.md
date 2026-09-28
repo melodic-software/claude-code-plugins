@@ -13,6 +13,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `--root-child` names to fully inventory approved top-level directories into one snapshot without
   walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
 
+## [0.26.4] - 2026-09-28
+
+### Fixed
+
+- **`guard_launch_monitor.py` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). A hard error in the Stop detector used to become a second `hook_non_blocking_error` with no hook text. `main` now catches `SystemExit` other than 0 and `BaseException`, writes one stderr line (`disk-hygiene guard-launch-monitor: did not run …; fail-open`), and returns 0. `SystemExit(0)` is re-raised so `raise SystemExit(main())` still works.
+
 ## [0.26.3] - 2026-09-28
 
 ### Changed
