@@ -54,7 +54,7 @@ never combined with `&&` or other commands in one call.
    not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
    running section 3. Evidence must be one line with no commas.
 5. `mkdir -p W`, then `S/tick.sh <id> in-progress`.
-6. Unless resuming, record `base=$(git rev-parse HEAD)` and write
+6. Unless resuming, run `git rev-parse HEAD` as its own call, keep that SHA as the base, and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally
    HEAD.
