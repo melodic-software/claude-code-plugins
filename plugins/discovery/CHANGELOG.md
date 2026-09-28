@@ -4,21 +4,20 @@
 
 ### Added
 
-- **The sibling verifier is specified once.** Every dispatched run returns
-  `verification: pending` and asks for a fresh-context verifier. No agent, prompt, write-back
-  format or no-verifier fallback was stated anywhere, so a verified `EXPLORE.md` and one whose
-  verifier never ran read the same. `reference/parent-contract.md` now owns all four for the
-  three families:
+- **The `explore` and `trace-intent` sibling verifier is specified once.** Both return
+  `verification: pending` and ask for a fresh-context verifier, but no agent, prompt, write-back
+  format or no-verifier fallback was stated, so a verified `EXPLORE.md` and one whose verifier
+  never ran read the same. `reference/parent-contract.md` now owns:
   - the route: a `general-purpose` subagent, not built-in Explore or a producing `discovery:*`
-    worker;
+    worker (research keeps `discovery:research-verifier`);
   - a five-line labeled prompt, `Target:`, `Criterion:`, `Evidence:`, `Posture:` and `Return:`;
-  - the literal index line `verification: <pass|fail|unverified> <YYYY-MM-DD> <worker>`, where a
-    missing line means never verified;
-  - `unverified … none` plus a numbered gap when no verifier can be dispatched.
+  - the frontmatter value `verification: <pass|fail|unverified> (<worker>, <YYYY-MM-DD>)`, the
+    shape research's `verification_line` already uses;
+  - `verification: unverified (none, <YYYY-MM-DD>)` plus a numbered gap when no verifier can be
+    dispatched, for all three families.
 
-  Research keeps its row 4, 7 and 12 brief in its own dispatch file. `explore`, `research` and
-  `trace-intent` point at the section, and `contract.test.sh` holds the heading and the line to one
-  owner ([#4274](https://github.com/melodic-software/claude-code-plugins/issues/4274)).
+  `explore`, `research` and `trace-intent` point at the section, and `contract.test.sh` holds the
+  heading and the value shape to one owner.
 
 ## [0.25.2] - 2026-09-28
 

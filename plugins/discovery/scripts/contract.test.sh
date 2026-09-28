@@ -711,22 +711,22 @@ assert_present 'the artifact gate prints the verification value' \
   'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
 
 # ---------------------------------------------------------------------------
-# The sibling verifier is specified once and pointed at (#4274)
+# The sibling verifier is specified once and pointed at
 #
 # Every payload asks for a verifier, and no agent, prompt, write-back line or
 # no-verifier fallback was stated anywhere, so a verified index and one whose
 # verifier never ran read the same.
 # ---------------------------------------------------------------------------
 verifier_heading='^## The sibling verifier, stated once$'
-verifier_line='^verification: <pass\|fail\|unverified> <YYYY-MM-DD> <worker>$'
+verifier_line='^verification: <pass\|fail\|unverified> \(<worker>, <YYYY-MM-DD>\)$'
 assert_present 'the parent contract owns the sibling verifier' \
   'reference/parent-contract.md' "$verifier_heading"
 assert_present 'the parent contract states the literal write-back line' \
   'reference/parent-contract.md' "$verifier_line"
 assert_present 'the parent contract names the verifier route' \
-  'reference/parent-contract.md' '^\*\*Route\.\*\* Dispatch a `general-purpose` subagent'
+  'reference/parent-contract.md' '^\*\*Route\.\*\* `explore` and `trace-intent` dispatch a `general-purpose` subagent'
 assert_present 'the parent contract states the no-verifier fallback' \
-  'reference/parent-contract.md' '`verification: unverified <YYYY-MM-DD> none`'
+  'reference/parent-contract.md' '`verification: unverified \(none, <YYYY-MM-DD>\)`'
 for pair in "heading:$verifier_heading" "write-back line:$verifier_line"; do
   owners="$(surface | xargs grep -lE -- "${pair#*:}" 2>/dev/null | wc -l | tr -d ' ')"
   if [[ "$owners" -eq 1 ]]; then

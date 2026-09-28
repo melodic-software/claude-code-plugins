@@ -27,11 +27,12 @@ verbatim, so the header is part of the artifact's public shape, not decoration. 
 three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`). `RESEARCH.md`
 also carries `evidence_use:` (see the sidecar header below) and `verification:`.
 
-**`verification:` is one of four values.** The run writes `pending` in its first write, because it
+**`verification:` is one of five values.** The run writes `pending` in its first write, because it
 may not grade the verifier rows itself. The parent replaces it when it closes the post-dispatch
 boundary: with the `verification_line` the `discovery:research-verifier` returns, which reads
-`pass (research-verifier, <date>)` or `fail rows <n>[,<n>…] (research-verifier, <date>)`, or with
-`skipped (cost)` when it chose not to pay for a verifier. `pending` left in place after the boundary
+`pass (research-verifier, <date>)` or `fail rows <n>[,<n>…] (research-verifier, <date>)`, with
+`skipped (cost)` when it chose not to pay for a verifier, or with `unverified (none, <date>)` when
+no verifier could be dispatched. `pending` left in place after the boundary
 closed is the one wrong value: a later reader cannot tell it from a run still waiting. The
 acceptance gate prints this value as `verification=<value>` after a usable verdict.
 

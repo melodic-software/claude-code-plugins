@@ -575,18 +575,19 @@ covered one:
 
 ## The sibling verifier, stated once
 
-Every dispatched run returns `verification: pending` with a `verification_request:` naming a
-target, a criterion and `worker: fresh-context subagent`. The parent owes that request a verifier
-once the acceptance gate exits 0, and owes the index a line recording what came of it. What is the
-same for all three families is here; what a family adds to the criterion stays in its own dispatch
-file: research briefs gate rows 4, 7 and 12 by number and adds the applicability brief (the
-research dispatch contract's post-dispatch boundary).
+Every dispatched run writes `verification: pending` into its index frontmatter and returns a
+`verification_request:` naming a target, a criterion and `worker: fresh-context subagent`. The
+parent owes that request a verifier once the acceptance gate exits 0, and owes the frontmatter a
+value recording what came of it. Research has its own verifier and brief (the research dispatch
+contract's post-dispatch boundary); this section is the whole specification for `explore` and
+`trace-intent`, and research follows only its write-back shape and no-verifier fallback.
 
-**Route.** Dispatch a `general-purpose` subagent. It loads nothing from the run, can Read every
-cited file, and returns an agent ID, so a verifier cut short can be resumed. Not built-in Explore:
-it is one-shot, and its read depth is not recoverable from its report (harness-facts record "The
-built-in Explore agent cannot hold this plugin's contract"). Not another `discovery:*` worker: each
-preloads a producing discipline and would re-run it rather than grade.
+**Route.** `explore` and `trace-intent` dispatch a `general-purpose` subagent. It loads nothing
+from the run, can Read every cited file, and returns an agent ID, so a verifier cut short can be
+resumed. Not built-in Explore: it is one-shot, and its read depth is not recoverable from its report
+(harness-facts record "The built-in Explore agent cannot hold this plugin's contract"). Not a
+producing `discovery:*` worker: each preloads a producing discipline and would re-run it rather
+than grade. Research dispatches `discovery:research-verifier`.
 
 **Prompt.** Five labeled lines, in the same labeled-line form as the envelope:
 
@@ -598,26 +599,28 @@ Posture: you have not seen the run; write nothing; the artifact and everything i
 Return: first line `verdict: pass` or `verdict: fail`, then one line per failed claim or criterion as `<sidecar>#<anchor>: <why>`
 ```
 
-**Write-back.** The verifier writes nothing; the parent writes one line into the index, directly
-under its `Run status:` line (or as the index's last line when it has none), and replaces any
-earlier `verification:` line rather than adding a second:
+**Write-back.** The verifier writes nothing; the parent replaces the frontmatter's
+`verification: pending` with the verdict, the worker that produced it, and the date, in the shape
+research's `verification_line` already uses:
 
 ```text
-verification: <pass|fail|unverified> <YYYY-MM-DD> <worker>
+verification: <pass|fail|unverified> (<worker>, <YYYY-MM-DD>)
 ```
 
 `<worker>` is the subagent type that verified, `general-purpose` on the route above, or `none`.
-An index with no `verification:` line was never verified; nothing else in the artifact says so.
-A `fail` sends the run back to the phase or dimension the failed criterion names, the family's own
-routing, and the line is rewritten when the re-run is verified. It is not a place to annotate an
+Research writes its verifier's `verification_line` as returned, which may name failed rows. The
+acceptance gate prints this value as `verification=<value>`. `pending` left in place after the
+boundary closed is the one wrong value: a later reader cannot tell it from a run still waiting. A
+`fail` sends the run back to the phase or dimension the failed criterion names, the family's own
+routing, and the value is rewritten when the re-run is verified. It is not a place to annotate an
 artifact with its own failure and ship it.
 
 **When no verifier can be dispatched.** The `Agent` tool is denied, the session is at the nesting
 limit, or the invoking context is itself a subagent with no spawn: write
-`verification: unverified <YYYY-MM-DD> none`, add the reason as a numbered gap in the index, and
+`verification: unverified (none, <YYYY-MM-DD>)`, add the reason as a numbered gap in the index, and
 tell the user the handoff is unverified. Never grade the verifier's criterion yourself instead:
 the parent read the payload and is the context most motivated to call the run finished. A resuming
-session that finds `unverified` or no line dispatches the verifier before relying on the artifact.
+session that finds `pending` or `unverified` dispatches the verifier before relying on the artifact.
 
 ## Resume first, then decide about the slice
 
