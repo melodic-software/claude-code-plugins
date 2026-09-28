@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.10] - 2026-09-28
+## [0.62.12] - 2026-09-28
 
 ### Changed
 
@@ -14,7 +14,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   runs `worktree-facts.sh list <repo>`, which prints the record as TSV
   (`path head branch bare linked locked lock_reason prunable`), instead of
   describing a hand parse. `locked` is `yes` for a reasonless lock too, so
-  cleanup never reads such a tree as unlocked.
+  cleanup never reads such a tree as unlocked. `worktree-claim.sh` still keys a claim on the
+  lock reason, so a reasonless lock stays UNCLAIMED there, as before.
+
+## [0.62.10] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.62.9] - 2026-09-28
 
