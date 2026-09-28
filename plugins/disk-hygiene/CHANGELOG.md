@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.8] - 2026-09-28
+
+### Fixed
+
+- **The destructive guard accepts read-only heads on Ubuntu 25.10 and later.** There `/usr/bin/ls`, `/usr/bin/[`, and the other coreutils are symlinks into `/usr/lib/cargo/bin/coreutils/` (uutils), which was not a trusted prefix, so every absolute read-only inspection command was denied. `/usr/lib/cargo/bin/` is now trusted. A head that resolves into a user-writable directory such as `$HOME` or `/tmp` is still denied.
+
 ## [0.28.7] - 2026-09-28
 
 ### Removed

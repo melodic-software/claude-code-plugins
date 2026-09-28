@@ -6856,6 +6856,23 @@ class GuardTests(unittest.TestCase):
                 )
             )
 
+    @unittest.skipIf(os.name == "nt", "POSIX symlink layout")
+    def test_readonly_head_resolution_target_decides_trust(self) -> None:
+        """A head resolving into uutils' root-owned dir is trusted; into $HOME or /tmp it is not."""
+        cases = {
+            "/usr/lib/cargo/bin/coreutils/ls": True,
+            (Path.home() / ".cargo/bin/ls").as_posix(): False,
+            "/tmp/cargo/bin/coreutils/ls": False,
+        }
+        for target, trusted in cases.items():
+            with (
+                self.subTest(target=target),
+                mock.patch.object(Path, "resolve", return_value=Path(target)),
+            ):
+                self.assertEqual(
+                    trusted, guard._trusted_system_readonly_head("/usr/bin/ls")
+                )
+
     def test_readonly_supporting_absolute_untrusted_basename_denied(self) -> None:
         """Allowlisted basename under an untrusted directory must not inherit approval."""
         with tempfile.TemporaryDirectory() as tmp:
