@@ -1,1069 +1,1575 @@
-#!/usr/bin/env bash
-# Contract test for secret-pattern-detection.sh (guardrails plugin).
+#!/usr/bin/env python3
+"""Read-only inventory and fail-closed cleanup gate for disk-hygiene."""
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import datetime as dt
+import fnmatch
+import functools
+import hashlib
+import json
+import os
+import platform
+import re
+import secrets
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from collections.abc import Iterable
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+
+MIN_PYTHON = (3, 11)
+SCHEMA_VERSION = 1
+MAX_SNAPSHOT_ENTRIES = 250_000
+# The tier vocabulary is declared with the command grammar so `--confirm-tier`
+# and the guard's admission of it can never disagree with the plan checks here.
+TIERS = engine_grammar.TIERS
+VCS_NAMES = {".git", ".hg", ".svn"}
+GIT_METADATA_NAME = ".git"
+VCS_EVIDENCE_GATE_NAMES = (
+    "git-status-porcelain-empty",
+    "all-local-heads-on-remote",
+    "all-stashes-duplicated",
+    "exact-path-operator-approval",
+)
+GITHUB_REMOTE_RE = re.compile(
+    r"^(?:https?://|ssh://git@|git@)github\.com(?::|/)"
+    r"(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)/?$",
+    re.IGNORECASE,
+)
+FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+FILE_ATTRIBUTE_HIDDEN = 0x2
+FILE_ATTRIBUTE_SYSTEM = 0x4
+# "The bytes are not here." Each of these marks a name whose content lives in a
+# provider's cloud rather than on this disk, so its st_size is a REMOTE byte
+# count while local occupancy is roughly zero — and deleting it propagates the
+# delete to the cloud copy, which for an organization's sync root is the only
+# copy. FILE_ATTRIBUTE_OFFLINE is the long-standing HSM/remote-storage bit that
+# iCloud and Dropbox eviction reuse; FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS is
+# what the Windows Cloud Files API sets on a dehydrated placeholder.
 #
-# Black-box subprocess invocation. The hook reads file_path as a string only —
-# fixtures need not exist on disk.
+# Measured against a OneDrive for Business sync root on Windows 11: a
+# dehydrated placeholder reads 0x400020 through os.lstat — ARCHIVE plus
+# RECALL_ON_DATA_ACCESS — with OFFLINE, SPARSE, and REPARSE_POINT all CLEAR.
+# So RECALL_ON_DATA_ACCESS is the only member observed on a real placeholder,
+# and a reparse-point test cannot stand in for this class (#1804). OFFLINE is
+# carried for the eviction states it documents and must not be assumed to fire.
 #
-# Token construction discipline: every real-shape token is assembled at runtime
-# from concatenated parts, so the literal joined string never appears in this
-# file's source bytes — no secret scanner (gitleaks etc.) sees a committed key.
-
-set -uo pipefail
-
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/secret-pattern-detection.sh"
-TEST_TMPDIR="$(mktemp -d)"
-# The temp-decline block below makes a directory link, hard-linked files and one
-# empty subdirectory in a temp dir of its own, outside TEST_TMPDIR. Each is
-# removed by name and without recursion, then the emptied dir, so no recursive
-# delete ever runs over a directory holding a link.
-D1_LINKDIR=""
-D1_SEAMDIR=""
-d1_cleanup() {
-  if [[ -n "$D1_SEAMDIR" ]]; then
-    rmdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null
-    rmdir "$D1_SEAMDIR" 2>/dev/null
-  fi
-  [[ -n "$D1_LINKDIR" ]] || return 0
-  if [[ -L "$D1_LINKDIR/ToHooks" ]]; then
-    if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
-      MSYS_NO_PATHCONV=1 cmd /c rmdir "$(cygpath -w "$D1_LINKDIR/ToHooks")" >/dev/null 2>&1
-    else
-      rm -f "$D1_LINKDIR/ToHooks"
-    fi
-  fi
-  rm -f "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" "$D1_LINKDIR/plain.txt"
-  rmdir "$D1_LINKDIR/sub" 2>/dev/null
-  rmdir "$D1_LINKDIR" 2>/dev/null
-  return 0
+# FILE_ATTRIBUTE_RECALL_ON_OPEN is deliberately ABSENT. Its value, 0x00040000,
+# is the same number as FILE_ATTRIBUTE_EA ("a file or directory with extended
+# attributes"), and RECALL_ON_OPEN "only appears in directory enumeration
+# classes" while every attribute read here comes from lstat
+# (https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants,
+# fetched 2026-07-30). Read through lstat the bit therefore means EA, and
+# including it protected ordinary local files: a sweep of two non-cloud trees on
+# this host flagged .NET build output and temp .node files that are fully
+# present on disk. Protecting build artifacts from cleanup would defeat the
+# engine's purpose, so the ambiguous bit stays out.
+FILE_ATTRIBUTE_OFFLINE = 0x00001000
+FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
+FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200
+CLOUD_PLACEHOLDER_ATTRIBUTES = (
+    FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+)
+FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+FILE_ATTRIBUTE_NORMAL = 0x00000080
+OPEN_EXISTING = 3
+# st_blocks is documented in units of 512-byte blocks on every Unix Python
+# cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
+# size read; Windows lstat does not expose st_blocks, so allocated_size stays
+# null there rather than paying for GetCompressedFileSizeW on every entry.
+ST_BLOCKS_BYTES = 512
+# Folders whose presence at a drive root identifies that drive as an OS/system
+# drive. A user-provisioned non-OS volume (a Windows Dev Drive) carries none of
+# them, so they are the discriminator for whole-volume-root classification.
+WINDOWS_OS_DRIVE_MARKERS = {
+    "Program Files",
+    "Program Files (x86)",
+    "ProgramData",
+    "Recovery",
+    "Windows",
 }
-trap 'd1_cleanup; rm -rf "$TEST_TMPDIR"' EXIT
-
-# shellcheck source=guardrails-test-helpers.sh
-source "$HOOK_DIR/guardrails-test-helpers.sh"
-
-# Neutralize any ambient CLAUDE_PROJECT_DIR (a CC-wrapped run sets it) so the
-# default cases exercise the fail-closed scan path deterministically.
-unset CLAUDE_PROJECT_DIR
-
-# Runtime-constructed obviously-fake tokens (never a literal joined string).
-AWS_PREFIX='AKIA'
-AWS_TOKEN="${AWS_PREFIX}IOSFODNN7EXAMPLE"
-GH_PREFIX='ghp_'
-GH_PAT="${GH_PREFIX}$(printf 'a%.0s' {1..36})"
-SLACK_PREFIX='xoxb-'
-SLACK_TOKEN="${SLACK_PREFIX}1234567890123-9876543210987"
-STRIPE_PREFIX='sk_live_'
-STRIPE_TOKEN="${STRIPE_PREFIX}abcdefghij1234567890"
-OPENAI_PREFIX='sk-'
-OPENAI_BARE_KEY="${OPENAI_PREFIX}$(printf 'A%.0s' {1..25})"
-PEM_HEADER='-----BEGIN '"PRIVATE KEY-----"
-
-# Force the Windows case-fold path even on Linux CI: OSTYPE must be set BEFORE
-# the hook is sourced (bash resets it to the build value at startup).
-run_hook_windows() {
-  bash -c 'OSTYPE=msys; source "$1"' _ "$HOOK" <<<"$1"
+# Per-volume filesystem metadata every Windows volume carries, OS drive or not.
+# Protected from deletion on every drive, but never evidence a volume is the OS
+# drive — a Dev Drive has a System Volume Information and $Recycle.Bin too.
+WINDOWS_PER_VOLUME_METADATA = {
+    "$Recycle.Bin",
+    "System Volume Information",
 }
-
-FIXTURE="$TEST_TMPDIR/fixture.txt"
-
-# ============================ DETECT (exit 2) ================================
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "AWS Access Key → exit 2" 2 "$RC"
-assert_contains "AWS → message" "$OUT" "AWS Access Key"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$GH_PAT'")" 2>&1)
-RC=$?
-assert_exit "GitHub PAT → exit 2" 2 "$RC"
-assert_contains "GH PAT → message" "$OUT" "GitHub PAT"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "SLACK='$SLACK_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "Slack Bot Token → exit 2" 2 "$RC"
-assert_contains "Slack → message" "$OUT" "Slack Bot Token"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "STRIPE_KEY='$STRIPE_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "Stripe Key → exit 2" 2 "$RC"
-assert_contains "Stripe → message" "$OUT" "Stripe Key"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "OPENAI_KEY='$OPENAI_BARE_KEY'")" 2>&1)
-RC=$?
-assert_exit "OpenAI bare sk- key → exit 2" 2 "$RC"
-assert_contains "OpenAI bare sk- → message" "$OUT" "OpenAI API Key"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "$PEM_HEADER")" 2>&1)
-RC=$?
-assert_exit "PEM private key → exit 2" 2 "$RC"
-assert_contains "PEM → message" "$OUT" "Private Key (PEM)"
-
-OUT=$(bash "$HOOK" <<<"$(edit_json "$FIXTURE" "old to '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "Edit new_string → exit 2" 2 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "secret = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
-
-# A content string may legitimately encode a NUL, and the payload fields are read
-# NUL-separated. hook::jq_fields strips NUL jq-side so the delimiter cannot
-# collide with content; without that the field count came back wrong, this hook's
-# `|| exit 0` skipped detection entirely, and a credential placed AFTER the NUL
-# passed unblocked. Built with jq (`[0] | implode`) so no literal escape sequence
-# for the byte appears in this file's source.
-NUL_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$FIXTURE" --arg tok "$AWS_TOKEN" \
-  '{tool_name:"Write",tool_input:{file_path:$fp,content:("harmless first line" + ([0] | implode) + "config = " + $tok)}}')
-OUT=$(bash "$HOOK" <<<"$NUL_PAYLOAD" 2>&1)
-RC=$?
-assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
-assert_contains "secret after NUL → NUL refusal message" "$OUT" "NUL byte"
-
-# A project root is honored as a scope only when it is a git work tree, so the
-# scoped cases run against a real `git init`'d root. The file paths are read as
-# strings; only the root's `.git` has to exist.
-SCOPE_REPO="$TEST_TMPDIR/scoperepo"
-mkdir -p "$SCOPE_REPO"
-git -C "$SCOPE_REPO" init -q
-
-# In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
-OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
-assert_contains "in-project secret → message" "$OUT" "AWS Access Key"
-
-# Trailing slash on CLAUDE_PROJECT_DIR must not skip in-project scans.
-OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO/" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "trailing-slash PROJECT_DIR still scans in-project file → exit 2" 2 "$RC"
-
-# A backslash spelling of a real repo root is the same root.
-OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "backslash-spelled repo root still scans in-project file → exit 2" 2 "$RC"
-
-# --- NotebookEdit: the payload shape Claude Code sends ------------------------
-# A real NotebookEdit carries tool_input.notebook_path and new_source (a required
-# string, "" on a delete), never file_path; notebook_json above builds a file_path
-# shape. nb_json <notebook_path> <new_source> [edit_mode] [file_path].
-nb_json() {
-  MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" --arg m "${3:-}" --arg fp "${4:-}" \
-    '{tool_name:"NotebookEdit",tool_input:({notebook_path:$np,new_source:$s}
-      + (if $m == "" then {} else {edit_mode:$m} end)
-      + (if $fp == "" then {} else {file_path:$fp} end))}'
+WINDOWS_VOLUME_SYSTEM_NAMES = WINDOWS_OS_DRIVE_MARKERS | WINDOWS_PER_VOLUME_METADATA
+# Well-known OS-provisioned volume-root directory names that are not always in
+# WINDOWS_VOLUME_SYSTEM_NAMES / system_roots(), but are never the user-created
+# residue root-children mode exists to reach. Prefer excluding when ambiguous
+# (#2588).
+WINDOWS_OS_ROOT_EXTRA_NAMES = {
+    "Users",
+    "PerfLogs",
+    "inetpub",
+    "XboxGames",
+    "Windows.old",
 }
-GUARD_UNDER_TEST="$HOOK"
-NB_ALSO=(--also "$HOOK_DIR/hardcoded-path-check.sh" --also "$HOOK_DIR/block-windows-drive-tmp.sh")
-# nb_both <label> <expected> <needle, "" for none> <payload> [env word...]:
-# alone and in the dispatcher row the Write|Edit|NotebookEdit matcher runs, each
-# arm's output checked for the needle so a sibling guard's exit 2 cannot pass.
-# No path uses a drive-root /tmp spelling block-windows-drive-tmp matches, and
-# that guard is inert off Windows.
-nb_both() {
-  local label="$1" expected="$2" needle="$3" payload="$4" via
-  shift 4
-  for via in direct dispatched; do
-    expect "$label ($via)" "$expected" --via "$via" --merge-stderr --payload "$payload" "${NB_ALSO[@]}" -- "$@"
-    [[ -z "$needle" ]] || assert_contains "$label ($via) names '$needle'" "$GUARD_OUT" "$needle"
-  done
+# Volume-root FILE names that are OS-owned even when attributes look ordinary.
+# Directory sets above stay directory-only; these names never share that table
+# so a regular file like `/swapfile` cannot be admitted on attributes alone.
+WINDOWS_OS_ROOT_FILE_NAMES = {
+    "bootmgr",
+    "bootnxt",
+    "hiberfil.sys",
+    "pagefile.sys",
+    "swapfile.sys",
+    "dumpstack.log.tmp",
 }
-if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then NB_BASE="C:/spd-nb-root"; else NB_BASE="/spd-nb-root"; fi
-NB_FILE="$NB_BASE/nb/x.ipynb"
-
-for NB_VIA in direct dispatched; do
-  guard_invoke --via "$NB_VIA" --merge-stderr --payload "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" "${NB_ALSO[@]}"
-  assert_exit "NotebookEdit real shape, no root ($NB_VIA) → exit 2" 2 "$GUARD_RC"
-  assert_contains "NotebookEdit real shape ($NB_VIA) → names the pattern" "$GUARD_OUT" "AWS Access Key"
-  assert_contains "NotebookEdit real shape ($NB_VIA) → names the notebook path" "$GUARD_OUT" "$NB_FILE"
-done
-nb_both "NotebookEdit edit_mode insert with a secret → exit 2" 2 "GitHub PAT" \
-  "$(nb_json "$NB_FILE" "token = '$GH_PAT'" insert)"
-nb_both "NotebookEdit clean new_source → exit 0" 0 "" "$(nb_json "$NB_FILE" "print('hello')")"
-nb_both "NotebookEdit edit_mode delete, empty new_source → exit 0" 0 "" "$(nb_json "$NB_FILE" "" delete)"
-nb_both "NotebookEdit to an allowlisted path → exit 0" 0 "" \
-  "$(nb_json "$NB_BASE/tests/fixtures/x.ipynb" "secret = '$AWS_TOKEN'")"
-
-# Scope comes from notebook_path, under a real git root holding the notebook.
-NB_REPO="$TEST_TMPDIR/nbrepo"
-mkdir -p "$NB_REPO"
-git -C "$NB_REPO" init -q
-[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && NB_REPO=$(cygpath -l -m "$NB_REPO")
-nb_both "NotebookEdit in a honored root → exit 2" 2 "AWS Access Key" \
-  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
-nb_both "NotebookEdit outside a honored root → exit 0" 0 "" \
-  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
-# notebook_path decides scope even when a file_path rides along.
-nb_both "NotebookEdit in-root notebook_path, out-of-root file_path → exit 2" 2 "AWS Access Key" \
-  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'" "" "$NB_FILE")" CLAUDE_PROJECT_DIR="$NB_REPO"
-nb_both "NotebookEdit out-of-root notebook_path, in-root file_path → exit 0" 0 "" \
-  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'" "" "$NB_REPO/nb/x.ipynb")" CLAUDE_PROJECT_DIR="$NB_REPO"
-
-# A NUL inside notebook_path is refused like one in file_path.
-NB_NUL=$(MSYS_NO_PATHCONV=1 jq -nc --arg np "$NB_FILE" --arg tok "$AWS_TOKEN" \
-  '{tool_name:"NotebookEdit",tool_input:{notebook_path:($np + ([0] | implode) + ".ipynb"),new_source:("x = " + $tok)}}')
-nb_both "NotebookEdit NUL inside notebook_path → exit 2" 2 "NUL byte" "$NB_NUL"
-
-# --- A set root that is not a trustworthy scope is treated as unset ----------
-# Claude Code sets CLAUDE_PROJECT_DIR to the launch directory, which can be the
-# home directory or any directory that is not a repository. Honoring such a
-# root would skip every write outside it, so each of these must scan.
-OUTSIDE_FILE="$TEST_TMPDIR/elsewhere/src/config.env"
-NONREPO="$TEST_TMPDIR/nonrepo"
-mkdir -p "$NONREPO"
-OUT=$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "non-repo root: outside write still scanned → exit 2" 2 "$RC"
-assert_contains "non-repo root: outside write names the pattern" "$OUT" "AWS Access Key"
-
-# The root carries .git, so only the home comparison can clear it.
-HOME_REPO="$TEST_TMPDIR/homerepo"
-mkdir -p "$HOME_REPO/user"
-git -C "$HOME_REPO" init -q
-OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "root is a repo AND home: outside write scanned → exit 2" 2 "$RC"
-OUT=$(env HOME="$HOME_REPO/" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "root is home with a trailing slash on HOME → exit 2" 2 "$RC"
-OUT=$(env HOME="$HOME_REPO/user" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "root is a repo that is an ancestor of home → exit 2" 2 "$RC"
-OUT=$(env -u HOME USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "HOME unset, USERPROFILE is the repo root → exit 2" 2 "$RC"
-
-# A real repo root that is not home keeps its scope: an outside write is skipped.
-OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "real repo root: outside write → exit 0" 0 "$RC"
-assert_silent "real repo root: outside write → no stderr" "$OUT"
-
-# The same real repo root spelled with backslashes keeps its scope too.
-OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "backslash-spelled real repo root: outside write → exit 0" 0 "$RC"
-assert_silent "backslash-spelled real repo root: outside write → no stderr" "$OUT"
-
-# Spellings that reach home: HOME is the repo itself, and each root below names
-# it. This pins that no spelling of home is honored; the spelling arms and the
-# directory comparison against home both clear these roots.
-H="$HOME_REPO"
-mkdir -p "$H/~"
-for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}" "$H/user/.." "$H/~/.."; do
-  OUT=$(env HOME="$H" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "unnormalized root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
-done
-
-# Each dot spelling on its own, with HOME elsewhere so only the spelling arm
-# can clear the root. A root kept as spelled cannot be compared with the file
-# path as a string, so even an in-project write would be skipped.
-SPELL_HOME="$TEST_TMPDIR/spell-home"
-mkdir -p "$SPELL_HOME" "$SCOPE_REPO/src" "${SCOPE_REPO%/*}/x"
-for SPELLED in "${SCOPE_REPO%/*}/./${SCOPE_REPO##*/}" "$SCOPE_REPO/src/.." \
-  "$SCOPE_REPO/." "${SCOPE_REPO%/*}/x/../${SCOPE_REPO##*/}"; do
-  OUT=$(env HOME="$SPELL_HOME" USERPROFILE="" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "dot-spelled root '$SPELLED', HOME elsewhere: in-project write scanned → exit 2" 2 "$RC"
-done
-
-# A `~` alone clears a real repo root that is not home: an 8.3 short name
-# (PROGRA~1) is one more spelling a string comparison cannot see through.
-TILDE_REPO="$TEST_TMPDIR/tilde~repo"
-mkdir -p "$TILDE_REPO"
-git -C "$TILDE_REPO" init -q
-OUT=$(CLAUDE_PROJECT_DIR="$TILDE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "repo root containing '~': outside write scanned → exit 2" 2 "$RC"
-
-# A trailing doubled slash survives a single trim. Left unrejected, the root
-# keeps a trailing `/`, so even an in-project write fails the prefix test and
-# is skipped.
-for SPELLED in "$SCOPE_REPO//" "${SCOPE_REPO//\//\\}\\\\"; do
-  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "root '$SPELLED': in-project write scanned → exit 2" 2 "$RC"
-  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
-done
-
-# A relative root resolves against the hook's working directory, which is not
-# a statement about the project, so it is never honored.
-OUT=$(cd "$SCOPE_REPO" && CLAUDE_PROJECT_DIR=. bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "relative root '.' inside a repo: outside write scanned → exit 2" 2 "$RC"
-
-# A directory link to home names home under another path. Linux CI makes a
-# symlink; a Windows host makes a junction (a plain `ln -s` there copies).
-make_dir_link() { # <target> <link> -> 0 when <link> is a real directory link
-  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
-    command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1 || return 1
-    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w "$2")" "$(cygpath -w "$1")" >/dev/null 2>&1
-  else
-    ln -s "$1" "$2" 2>/dev/null
-  fi
-  [[ -L "$2" ]]
+LINUX_OS_ROOT_FILE_NAMES = {
+    "swapfile",
 }
-if make_dir_link "$HOME_REPO" "$TEST_TMPDIR/home-link"; then
-  OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/home-link" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "root is a link to home: outside write scanned → exit 2" 2 "$RC"
-else
-  echo "skip: root is a link to home (no directory link could be made on this host)"
-fi
-
-# Both home candidates are checked, not only the first one set.
-ELSEWHERE_HOME="$TEST_TMPDIR/elsewhere-home"
-mkdir -p "$ELSEWHERE_HOME"
-OUT=$(env HOME="$ELSEWHERE_HOME" USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "root is USERPROFILE while HOME is elsewhere: outside write scanned → exit 2" 2 "$RC"
-# The USERPROFILE fallback names a different home: a real repo root keeps scope.
-OUT=$(env -u HOME USERPROFILE="$ELSEWHERE_HOME" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "HOME unset, USERPROFILE elsewhere: real repo root keeps scope → exit 0" 0 "$RC"
-
-# With no home to compare against, a root cannot be shown not to contain it.
-OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "empty HOME and USERPROFILE: outside write scanned → exit 2" 2 "$RC"
-
-# A .git entry is a repository only when it looks like one: a directory with a
-# HEAD, or a file whose first line is a `gitdir:` pointer.
-FAKE_FILE="$TEST_TMPDIR/fake-gitfile"
-mkdir -p "$FAKE_FILE"
-: >"$FAKE_FILE/.git"
-OUT=$(CLAUDE_PROJECT_DIR="$FAKE_FILE" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "empty .git file: outside write scanned → exit 2" 2 "$RC"
-FAKE_DIR="$TEST_TMPDIR/fake-gitdir"
-mkdir -p "$FAKE_DIR/.git"
-OUT=$(CLAUDE_PROJECT_DIR="$FAKE_DIR" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "empty .git directory (no HEAD): outside write scanned → exit 2" 2 "$RC"
-# A real linked worktree, whose .git is a `gitdir:` file. It needs a commit.
-WT_MAIN="$TEST_TMPDIR/wt-main"
-WT_LINK="$TEST_TMPDIR/wt-link"
-mkdir -p "$WT_MAIN"
-git -C "$WT_MAIN" init -q
-git -C "$WT_MAIN" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m seed
-git -C "$WT_MAIN" worktree add -q "$WT_LINK" >/dev/null 2>&1
-if [[ -f "$WT_LINK/.git" ]]; then
-  OUT=$(CLAUDE_PROJECT_DIR="$WT_LINK" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "linked worktree root (.git gitdir: file): outside write → exit 0" 0 "$RC"
-else
-  bad "linked worktree root: git worktree add produced no .git file"
-fi
-
-# Windows spellings of the same directory: the root in mixed form (C:/...), HOME
-# in MSYS form (/c/...) with its case folded. Only a real msys/cygwin host with
-# cygpath can build both spellings of one existing directory. The mixed form
-# comes from git, which answers with long names: `cygpath -m` can return an 8.3
-# short name, whose `~` would clear the root for a reason other than home.
-if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
-  HOME_REPO_M=$(git -C "$HOME_REPO" rev-parse --show-toplevel)
-  HOME_REPO_U="/${HOME_REPO_M:0:1}${HOME_REPO_M:2}"
-  OUT=$(env HOME="$SCOPE_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "msys: the C:/ root alone is honored when HOME is elsewhere → exit 0" 0 "$RC"
-  OUT=$(env HOME="${HOME_REPO_U,,}" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "msys: C:/ root vs lower-cased /c/ HOME is home → exit 2" 2 "$RC"
-  OUT=$(env HOME="${HOME_REPO_U^^}/" CLAUDE_PROJECT_DIR="$HOME_REPO_M/" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
-  RC=$?
-  assert_exit "msys: upper-cased /C/ HOME and trailing slashes still match → exit 2" 2 "$RC"
-fi
-
-# ============================ ALLOW (exit 0) ================================
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1)
-RC=$?
-assert_exit "clean content → exit 0" 0 "$RC"
-assert_silent "clean content → no stderr" "$OUT"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'api_key=mySecretValue123')" 2>&1)
-RC=$?
-assert_exit "low-confidence generic pattern → exit 0" 0 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1)
-RC=$?
-assert_exit "Read tool → exit 0" 0 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.env.example" "API_KEY='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit ".env.example allowlist → exit 0" 0 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/tests/fixtures/secrets.txt" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "tests/fixtures/ allowlist → exit 0" 0 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.claude/hooks/foo.sh" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit ".claude/hooks/ self-exemption → exit 0" 0 "$RC"
-
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/settings.local.json" "{\"k\":\"$AWS_TOKEN\"}")" 2>&1)
-RC=$?
-assert_exit "settings.local.json allowlist → exit 0" 0 "$RC"
-
-# CLAUDE.local.md allowlist must match case-sensitively even under the Windows
-# path fold (regression: the fold lower-cases the membership path only).
-OUT=$(run_hook_windows "$(write_json "C:/repo/CLAUDE.local.md" "token='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "CLAUDE.local.md allowlist (case-sensitive) → exit 0" 0 "$RC"
-
-# Secret in a file OUTSIDE the project root → exit 0, silent.
-OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "file outside project root → exit 0" 0 "$RC"
-assert_silent "outside project root → no stderr" "$OUT"
-
-# Kill switch — disabled path is a clean no-op even on a real-shape token.
-OUT=$(CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "kill switch off → exit 0" 0 "$RC"
-assert_silent "kill switch off → no stderr" "$OUT"
-
-# --- jq fail-open visibility (finding P4) -----------------------------------
-# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
-# cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
-# Assert the fail-open guard is present in the hook source via the shared
-# hook::require_jq helper (docs/conventions/hook-observability/) — it composes
-# the once-per-session notice_once gate with the dual-channel (systemMessage +
-# additionalContext) visibility notice; require_jq's own behavior is covered
-# by lib/hook-utils.test.sh, not re-asserted here.
-HOOK_SRC=$(cat "$HOOK")
-assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
-
-# --- Allowlist path-segment anchoring (finding P5) --------------------------
-# A real dependency-cache SEGMENT is exempt; a directory that merely CONTAINS the
-# name as a substring is scanned (and blocked on a real token).
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/src/node_modules/pkg/creds.env" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "node_modules real segment → exit 0 (exempt)" 0 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/evil_node_modules/creds.env" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "evil_node_modules substring → exit 2 (scanned)" 2 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv/lib/creds.env" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit ".venv real segment → exit 0 (exempt)" 0 "$RC"
-OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv-backup/creds.env" "x='$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
-
-# ============================ TELEMETRY ====================================
-TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-SINK="$(make_sink "cat >\"$TEL\"")"
-env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$SCOPE_REPO" \
-  bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
-if wait_for_sink "$TEL"; then
-  assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "secret-pattern-detection"
-  assert_contains "telemetry: status blocked" "$(jq -r '.status' "$TEL")" "blocked"
-  assert_contains "telemetry: violation label" "$(jq -r '.data.violations[]' "$TEL")" "AWS Access Key"
-  assert_absent "telemetry: no raw token in envelope" "$(cat "$TEL")" "$AWS_TOKEN"
-else
-  bad "telemetry: no envelope written on block"
-fi
-
-# --- Telemetry path redaction (finding P4): absolute path (no project dir) →
-# --- basename only, so no username-bearing path lands in the envelope --------
-H="ho""me"
-ABS_FILE="/${H}/alice/secretproj/config.env"
-TELR="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-SINKR="$(make_sink "cat >\"$TELR\"")"
-env HOOK_TELEMETRY_SINK="$SINKR" bash "$HOOK" \
-  <<<"$(write_json "$ABS_FILE" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
-if wait_for_sink "$TELR"; then
-  df=$(jq -r '.data.file' "$TELR")
-  assert_contains "redaction: data.file is the basename" "$df" "config.env"
-  assert_absent "redaction: data.file has no path separator" "$df" "/"
-  assert_absent "redaction: envelope drops the username dir" "$(cat "$TELR")" "alice"
-else
-  bad "redaction: no envelope written"
-fi
-
-# --- Telemetry path: the hoisted helper, not a hand-rolled prefix strip ------
-# This hook kept its own copy of the repo-relative computation after the helper
-# was hoisted into hook-utils.sh, and the copy's redaction knew only two of the
-# three absolute spellings. Pin the helper so a third copy cannot reappear.
-assert_contains "path helper: uses hook::repo_relative_path_to" "$HOOK_SRC" 'hook::repo_relative_path_to'
-assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
-
-# Telemetry path helper fixtures. A file_path is read as a string, but the
-# no-project-dir cases resolve a root from the file's own checkout, so these
-# need to exist on disk. Anchor on the toplevel git reports rather than on
-# mktemp's answer: on macOS mktemp hands back /var/... where git reports
-# /private/var/..., and the prefix strip would fail for the wrong reason.
-PATHREPO="$TEST_TMPDIR/pathrepo"
-mkdir -p "$PATHREPO/src"
-git -C "$PATHREPO" init -q
-PATHREPO_TL="$(git -C "$PATHREPO" rev-parse --show-toplevel)"
-
-# telemetry_file <file_path> -> data.file from the envelope this hook emits.
-# CLAUDE_PROJECT_DIR stays unset (the file scope guard above falls through
-# rather than skipping when there is no project, so the hook still scans).
-telemetry_file() {
-  local tel sink
-  tel="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-  sink="$(make_sink "cat >\"$tel\"")"
-  env HOOK_TELEMETRY_SINK="$sink" bash "$HOOK" \
-    <<<"$(write_json "$1" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
-  if wait_for_sink "$tel"; then jq -r '.data.file' "$tel"; else printf '<no-envelope>'; fi
+LINUX_OS_ROOT_FILE_GLOBS = (
+    "vmlinuz*",
+    "initrd.img*",
+)
+MACOS_OS_ROOT_FILE_NAMES = {
+    ".file",
+    ".volumeicon.icns",
 }
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+BASELINE_POLICY = (
+    Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
+)
 
-# --- UNC file_path with no project dir: the leak --------------------------
-# A Windows UNC path is neither POSIX-absolute nor drive-lettered, so a
-# redaction that tests only those two spellings passes the WHOLE share path
-# through — server name and all — into the envelope. The share host is exactly
-# the kind of internal name telemetry must not carry.
-UNC_HOST='srv'
-# shellcheck disable=SC1003  # BS is a literal single backslash, not a quote escape
-BS='\'
-UNC_FILE="${BS}${BS}${UNC_HOST}${BS}share${BS}secrets.env"
-# Equality, not containment: the leaked path ENDS in the basename, so a
-# containment check passes against the pre-fix hook for the wrong reason.
-df=$(telemetry_file "$UNC_FILE")
-assert_eq "UNC/no-project: data.file is exactly the basename" "secrets.env" "$df"
-assert_absent "UNC/no-project: data.file keeps no backslash" "$df" "$BS"
-assert_absent "UNC/no-project: data.file drops the share host" "$df" "$UNC_HOST"
 
-# --- Ordinary in-repo file with no project dir ------------------------------
-# With no project dir the hand-rolled copy resolved no root at all, so every
-# in-repo path degraded to a bare basename and the envelope lost the location
-# the schema asks for. The helper is paired with hook::repo_root, which answers
-# from the file's own checkout.
-df=$(telemetry_file "$PATHREPO_TL/src/config.env")
-assert_contains "in-repo/no-project: data.file is repo-relative" "$df" "src/config.env"
-assert_absent "in-repo/no-project: data.file is not absolute" "$df" "$PATHREPO_TL"
+class HygieneError(Exception):
+    """Expected invalid input or a blocked safety precondition."""
 
-# --- Root-level file_path with no project dir --------------------------------
-# The file's directory comes from parameter expansion. For `/secrets.env` the
-# shortest `/*` suffix is the whole string, so a bare `${FILE%/*}` is EMPTY, and
-# hook::repo_root's `${1:-.}` would then anchor on the process CWD instead of
-# `/` as `dirname` did. The anchor is proven through a `git` shim ahead of the
-# real one on PATH that records every `-C` argument: the hook must ask git
-# about `/`, and the envelope must still redact to the basename.
-GIT_SHIM_DIR="$TEST_TMPDIR/git-shim"
-mkdir -p "$GIT_SHIM_DIR"
-GIT_C_LOG="$TEST_TMPDIR/git-c-args"
-REAL_GIT="$(command -v git)"
-{
-  printf '#!/usr/bin/env bash\n'
-  # shellcheck disable=SC2016  # the shim's own expansions are literal source text
-  printf 'if [[ "${1:-}" == "-C" ]]; then printf "%%s\\n" "${2:-}" >>"%s"; fi\n' "$GIT_C_LOG"
-  printf 'exec "%s" "$@"\n' "$REAL_GIT"
-} >"$GIT_SHIM_DIR/git"
-chmod +x "$GIT_SHIM_DIR/git"
-: >"$GIT_C_LOG"
-ROOT_TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-ROOT_SINK="$(make_sink "cat >\"$ROOT_TEL\"")"
-env PATH="$GIT_SHIM_DIR:$PATH" HOOK_TELEMETRY_SINK="$ROOT_SINK" bash "$HOOK" \
-  <<<"$(write_json "/secrets.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1
-assert_exit "root-level/no-project: still blocks" 2 "$?"
-if wait_for_sink "$ROOT_TEL"; then
-  assert_eq "root-level/no-project: data.file is exactly the basename" \
-    "secrets.env" "$(jq -r '.data.file' "$ROOT_TEL")"
-else
-  bad "root-level/no-project: no envelope written"
-fi
-# Exactly one `git -C` and its argument is `/`: neither `.` nor the empty
-# string the bare expansion produced.
-assert_eq "root-level/no-project: repo root is anchored on / (dirname semantics)" \
-  "/" "$(cat "$GIT_C_LOG")"
 
-# --- Symlinked checkout ------------------------------------------------------
-# A real repo plus a symlink to it. Reached through the symlink, `git rev-parse
-# --show-toplevel` answers with the PHYSICAL path, so a file_path arriving in
-# the symlink spelling cannot be prefix-stripped by the root the helper is
-# handed. Both spellings are pinned: the physical one must still come back
-# repo-relative, and the symlink one must degrade to a basename rather than
-# leak the resolved physical path the fallback just computed.
-LINKREPO="$TEST_TMPDIR/linkrepo"
-ln -s "$PATHREPO_TL" "$LINKREPO"
-df=$(telemetry_file "$PATHREPO_TL/src/config.env")
-assert_contains "symlinked repo, physical spelling: repo-relative" "$df" "src/config.env"
-df=$(telemetry_file "$LINKREPO/src/config.env")
-assert_contains "symlinked repo, symlink spelling: basename" "$df" "config.env"
-assert_absent "symlinked repo, symlink spelling: no path separator" "$df" "/"
+QUIET_SCAN_NOTE = (
+    "Quiet output: children_rollup is omitted from stdout only, and "
+    "truncated_paths is the count of truncated paths rather than the list. The "
+    'snapshot file named by "snapshot" carries every row and every truncated '
+    "path in full, in this mode exactly as in the default one; read per-child "
+    "detail and the coverage gaps there. Re-run without --quiet for the rollup "
+    "and the full interpretation note. Hints are discovery signals, never "
+    "cleanup verdicts."
+)
 
-# --- Trailing-slash project dir ---------------------------------------------
-# The helper strips "$root/", so a root already ending in a separator makes the
-# prefix "/repo//" and matches nothing: every in-project file would collapse to
-# its basename and the envelope would lose the location. A trailing slash is a
-# supported spelling of CLAUDE_PROJECT_DIR (the scope test above uses one), and
-# the hand-rolled copy this replaced trimmed it, so the trim has to survive the
-# move to the helper.
-TELTS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-SINKTS="$(make_sink "cat >\"$TELTS\"")"
-env HOOK_TELEMETRY_SINK="$SINKTS" CLAUDE_PROJECT_DIR="$PATHREPO_TL/" bash "$HOOK" \
-  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
-if wait_for_sink "$TELTS"; then
-  assert_eq "trailing-slash project dir: data.file stays repo-relative" \
-    "src/config.env" "$(jq -r '.data.file' "$TELTS")"
-else
-  bad "trailing-slash project dir: no envelope written"
-fi
+# Root-children mode's coverage qualification is not a restatement of the
+# rollup, so the quiet note cannot drop it the way it drops the rest of the
+# interpretation prose: the volume root and every excluded entry were never
+# walked, and that limit is not recoverable from any other stdout field.
+# `root_children_skipped` lives in the snapshot alone, and `truncated_paths`
+# does not represent those entries, so a caller reading only quiet stdout has
+# no other signal that the inventory is partial by construction.
+QUIET_ROOT_CHILDREN_SCAN_NOTE = (
+    "Quiet output: children_rollup is omitted from stdout only, and "
+    "truncated_paths is the count of truncated paths rather than the list; the "
+    'snapshot file named by "snapshot" carries every row and every truncated '
+    "path in full. Coverage limit, "
+    "unchanged by --quiet: root-children mode inventoried only the selected "
+    "immediate children, so the scan target itself and every skipped "
+    "OS-owned/hidden/system/reparse or unselected sibling were never walked, and "
+    "children_rollup covers the selected children only. The skipped entries "
+    'are listed as "root_children_skipped" in the snapshot and are not '
+    "represented in truncated_paths. Re-run without --quiet for the rollup "
+    "and the full interpretation note. Hints are discovery signals, never "
+    "cleanup verdicts."
+)
 
-# --- Cleared root: data.file anchors on the file's own checkout -------------
-# A set root that is not a repository is treated as unset for scanning, so the
-# telemetry path must be expressed the same way the unset case expresses it:
-# relative to the checkout the file lives in, not to the rejected root.
-TELNR="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
-SINKNR="$(make_sink "cat >\"$TELNR\"")"
-env HOOK_TELEMETRY_SINK="$SINKNR" CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" \
-  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
-if wait_for_sink "$TELNR"; then
-  assert_eq "non-repo root: data.file is relative to the file's own checkout" \
-    "src/config.env" "$(jq -r '.data.file' "$TELNR")"
-else
-  bad "non-repo root: no envelope written"
-fi
 
-# ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
-# Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
-# ITSELF before the reader is exec'd, and it appends a newline — so a payload of
-# 65536-65663 bytes puts the write 1-128 bytes past the 65536-byte pipe capacity
-# and bash blocks FOREVER. At >=129 bytes over, bash spills to a temp file, so
-# the window is closed on BOTH sides: 65535 and 65664 always worked and only the
-# band between them hung. That shape is why no ordinary size ever caught it.
-#
-# Measured against the pre-fix hook on Git Bash: a 65536-byte payload carrying a
-# live-shape AWS access-key id returned NO verdict at a 200s bound, where the
-# same token in a small payload exits 2 immediately. The hook is registered at
-# `timeout: 60`, so in production the harness cancels the guard and the secret
-# verdict is lost outright. Sibling fix for the same class in hook-utils.sh's
-# JSON path: #1587.
-#
-# The payload is PIPED here, never `bash "$HOOK" <<<"$json"` — a here-string
-# would hang THIS FILE at exactly these sizes and read as the bug under test.
+def emit(payload: dict[str, Any], code: int = 0) -> int:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return code
 
-# Content of EXACTLY $1 bytes, ending in " $2" when $2 is given. jq reads the
-# content on STDIN (`-Rs`): a 65KB `--arg` blows the Win32 32767-byte argv limit
-# and jq would never run. The separating space matters for the sibling
-# hardcoded-path suite, whose patterns require a left boundary; keeping one
-# builder shape across both suites keeps them comparable.
-size_filler() { head -c "$1" /dev/zero | tr '\0' b; }
-sized_write_json() {
-  local n="$1" tail="${2:-}"
-  [[ -n "$tail" ]] && tail=" $tail"
-  printf '%s%s' "$(size_filler $((n - ${#tail})))" "$tail" |
-    MSYS_NO_PATHCONV=1 jq -Rs --arg fp "$FIXTURE" \
-      '{tool_name:"Write",tool_input:{file_path:$fp,content:.}}'
-}
 
-# Bound every case so a regression FAILS LOUDLY instead of hanging CI. 150s is
-# generous on purpose: the legitimate large-payload itemization measured 41-67s
-# on Git Bash under Defender, while a deadlock never returns at any bound — so
-# 150 separates the two without making the case flaky on a slow host.
-run_bounded() {
-  local rc=0
-  printf '%s' "$1" | timeout 150 bash "$HOOK" >/dev/null 2>&1 || rc=$?
-  printf '%s' "$rc"
-}
+def scan_complete_payload(
+    target: Path,
+    output_path: Path,
+    snapshot: dict[str, Any],
+    policy: dict[str, Any],
+    advisory: dict[str, Any] | None,
+    note: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The ``scan-complete`` stdout payload both scan lanes emit.
 
-# Asserts the EXACT code, and names 124 as its own failure. A "non-zero means
-# blocked" assertion would have ACCEPTED the hang and would not have caught this
-# defect — the whole point is that no verdict is not a blocking verdict.
-assert_bounded_exit() {
-  if [[ "$3" == "124" ]]; then
-    bad "$1: HUNG (exit 124 at the 150s bound) — here-string deadlock regression"
-  elif [[ "$3" == "$2" ]]; then
-    ok "$1 (exit $3)"
-  else
-    bad "$1: expected exit $2, got $3"
-  fi
-}
+    The two lanes differ only in ``note`` and in the root-children fields
+    ``extra`` carries; every other field is the same projection of the same
+    snapshot, so deriving them once is what keeps a field added for one lane
+    from being missing in the other.
+    """
+    entries = snapshot["entries"]
+    hinted = sum(1 for entry in entries if entry.get("hints"))
+    payload = {
+        "status": "scan-complete",
+        "target": str(target),
+        **(extra or {}),
+        "snapshot": str(output_path),
+        "entries": len(entries),
+        "hinted_entries": hinted,
+        "unhinted_entries": len(entries) - hinted,
+        "empty_directory_count": snapshot["empty_directory_count"],
+        "empty_file_count": snapshot["empty_file_count"],
+        "target_logical_bytes": snapshot["target_logical_bytes"],
+        "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
+        "truncated_paths": snapshot["truncated_paths"],
+        "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
+        "children_rollup": snapshot["children_rollup"],
+        "errors": snapshot["errors"],
+        "policy_sources": policy["policy_sources"],
+        "os_autoclean": advisory,
+        "note": note,
+    }
+    if snapshot.get("inventory_mode") == "sizes-only":
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = snapshot.get("rollup_precision")
+    return payload
 
-# Clean payloads across the window and both shoulders — exercises the combined
-# fast-reject gate, which is the site that scans EVERY write.
-for SZ in 65535 65536 65600 65663 65664; do
-  assert_bounded_exit "boundary: clean ${SZ}-byte payload → exit 0" \
-    0 "$(run_bounded "$(sized_write_json "$SZ")")"
-done
 
-# The security case: a REAL detectable secret sitting inside the hang window
-# must still BLOCK. Pre-fix this exact payload produced no verdict at all.
-# Two sizes: the exact pipe capacity, and mid-window. These also reach the
-# per-pattern itemization (the second patched call site), which a clean payload
-# never touches because the fast-reject returns first.
-for SZ in 65536 65600; do
-  assert_bounded_exit "boundary: AWS key in ${SZ}-byte payload → exit 2" \
-    2 "$(run_bounded "$(sized_write_json "$SZ" "$AWS_TOKEN")")"
-done
+def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
+    """Shape a ``scan-complete`` payload for stdout at the requested verbosity.
 
-# Process substitution must not leak writer noise onto stderr. `grep -q`
-# early-exits and SIGPIPEs the `printf` feeding it; stderr is this hook's
-# user-facing channel, so a stray "write error: Broken pipe" would corrupt the
-# blocked message.
-BOUND_ERR=$(printf '%s' "$(sized_write_json 65600 "$AWS_TOKEN")" | timeout 150 bash "$HOOK" 2>&1 >/dev/null)
-assert_contains "boundary: in-window block still reports the label" "$BOUND_ERR" "AWS Access Key"
-assert_absent "boundary: no SIGPIPE noise on stderr" "$BOUND_ERR" "Broken pipe"
+    ``children_rollup`` is written to the snapshot file on every run, so
+    emitting it to stdout as well is duplication for a caller that only needs
+    the frontier and will read detail from the snapshot. ``--quiet`` drops that
+    stdout copy, and with it the long interpretation note that mostly explains
+    the rollup. It also replaces the ``truncated_paths`` list with its length,
+    since a depth-cut home scan truncates well over a hundred paths: the count
+    says how much went unwalked, stays present at zero so a clean scan is
+    distinguishable, and the snapshot keeps the list. Nothing else changes: the
+    same run happens, the same snapshot is written, and every other field
+    survives unchanged.
 
-# Empty content. `<<<""` delivered ONE EMPTY LINE; `printf '%s' ""` delivers
-# zero bytes. No pattern matches an empty line either way and the hook's own
-# `[[ -n "$CONTENT" ]]` guard exits first — pinned so the substitution cannot
-# quietly become a behavior change.
-RC=0
-printf '%s' "$(sized_write_json 0)" | timeout 30 bash "$HOOK" >/dev/null 2>&1 || RC=$?
-assert_exit "boundary: empty content → exit 0" 0 "$RC"
+    Root-children mode gets its own quiet note. Its default note carries a
+    coverage qualification (the volume root and the skipped OS-owned, hidden,
+    system and reparse entries were never walked) that no other stdout field
+    encodes, so replacing it with the ordinary quiet note would drop a fact
+    rather than a duplicate.
+    """
+    if not quiet:
+        return payload
+    trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
+    if isinstance(trimmed.get("truncated_paths"), list):
+        trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
+    trimmed["note"] = (
+        QUIET_ROOT_CHILDREN_SCAN_NOTE
+        if payload.get("root_children_mode")
+        else QUIET_SCAN_NOTE
+    )
+    return trimmed
 
-# ==================== GitHub MCP write lane (#3719) ==========================
-# A Write|Edit matcher does not see a write issued through an MCP tool, so this
-# guard could be cleared on a session that pushed the same secret to GitHub by
-# another route. One case per PAYLOAD SHAPE, because the two tools carry content
-# differently and a scanner that only understood one would silently pass the
-# other.
-#
-#   mcp__github__create_or_update_file — .tool_input.path + .tool_input.content
-#   mcp__github__push_files            — .tool_input.files[] of {path, content}
-#   mcp__github__delete_file           — NO content field at all
-mcp_single_json() {
-  jq -n --arg p "$1" --arg c "$2" \
-    '{tool_name:"mcp__github__create_or_update_file",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",path:$p,content:$c}}'
-}
-# mcp_push_json <path> <content> [<path> <content> ...]
-mcp_push_json() {
-  local args=() n=0
-  while (($#)); do
-    args+=(--arg "p$n" "$1" --arg "c$n" "$2")
-    shift 2
-    n=$((n + 1))
-  done
-  # One --arg pair per file, and an index-built object list, so the payload's
-  # shape is the tool schema's rather than a string-interpolated approximation.
-  local filter='{tool_name:"mcp__github__push_files",tool_input:{owner:"o",repo:"r",branch:"main",message:"m",files:['
-  local i
-  for ((i = 0; i < n; i++)); do
-    ((i)) && filter+=','
-    # shellcheck disable=SC2016  # $p<i>/$c<i> are jq --arg variables, not shell expansions
-    filter+='{path:$p'"$i"',content:$c'"$i"'}'
-  done
-  filter+=']}}'
-  jq -n "${args[@]}" "$filter"
-}
 
-# --- create_or_update_file: the single-file shape
-RC=0
-bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "import os")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP create_or_update_file: clean content → exit 0" 0 "$RC"
+def load_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HygieneError(f"cannot read JSON {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise HygieneError(f"JSON root must be an object: {path}")
+    return value
 
-OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" 2>&1)
-RC=$?
-assert_exit "MCP create_or_update_file: secret → exit 2" 2 "$RC"
-assert_contains "MCP create_or_update_file: names the pattern" "$OUT" "GitHub PAT"
-assert_contains "MCP create_or_update_file: names the repo path" "$OUT" "src/app.py"
-assert_contains "MCP create_or_update_file: says there is no local file to fix" "$OUT" "goes straight to a repository"
 
-# --- push_files: the multi-file shape, and the LAST file must be reached
-RC=0
-bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "y = 2")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP push_files: all clean → exit 0" 0 "$RC"
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    path = state_output_path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
-OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "k = '$AWS_TOKEN'" "b.py" "y = 2")" 2>&1)
-RC=$?
-assert_exit "MCP push_files: secret in the FIRST file → exit 2" 2 "$RC"
-assert_contains "MCP push_files: first-file block names its path" "$OUT" "a.py"
 
-# The loop must not stop at the first clean file: a guard that checked only
-# files[0] would pass this and read as covered.
-OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'")" 2>&1)
-RC=$?
-assert_exit "MCP push_files: secret in the LAST file → exit 2" 2 "$RC"
-assert_contains "MCP push_files: last-file block names its path" "$OUT" "b.py"
+DATA_ROOT_OVERRIDE: str | None = None
 
-RC=0
-bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","files":[]}}' >/dev/null 2>&1 || RC=$?
-assert_exit "MCP push_files: empty files array → exit 0" 0 "$RC"
 
-RC=0
-bash "$HOOK" <<<'{"tool_name":"mcp__github__push_files","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m"}}' >/dev/null 2>&1 || RC=$?
-assert_exit "MCP push_files: absent files array → exit 0" 0 "$RC"
+def state_output_path(path: Path) -> Path:
+    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not data_value:
+        raise HygieneError(
+            "a generated-state root is required: pass --data-root or set CLAUDE_PLUGIN_DATA"
+        )
+    data_root = Path(data_value).expanduser().resolve(strict=False)
+    path = path.expanduser().resolve(strict=False)
+    if is_within(path, PLUGIN_ROOT):
+        raise HygieneError(
+            "generated state must not be written inside the plugin install directory"
+        )
+    if not is_within(path, data_root):
+        raise HygieneError("generated state must stay inside the data root")
+    return path
 
-# --- delete_file carries no content, so there is nothing to scan
-RC=0
-bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
-assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
-# --- a plugin-bundled GitHub server names its tools with a scoped segment
-# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
-scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
-OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'" | scoped create_or_update_file)" 2>&1)
-RC=$?
-assert_exit "MCP scoped create_or_update_file: secret → exit 2" 2 "$RC"
-assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
-OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'" | scoped push_files)" 2>&1)
-RC=$?
-assert_exit "MCP scoped push_files: secret in the LAST file → exit 2" 2 "$RC"
-assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
-RC=0
-bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" | scoped push_files)" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP scoped push_files: clean → exit 0" 0 "$RC"
+def os_key() -> str:
+    system = platform.system().lower()
+    return {"darwin": "macos", "windows": "windows", "linux": "linux"}.get(
+        system, system
+    )
 
-# The hooks.json row must route both name shapes here, and not delete_file.
-MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("secret-pattern-detection.sh")) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
-for name in mcp__github__push_files mcp__github__create_or_update_file \
-  mcp__plugin_github_github__push_files mcp__plugin_my-plugin_github__create_or_update_file; do
-  RC=0
-  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
-  assert_exit "hooks.json GitHub row matches $name" 0 "$RC"
-done
-for name in mcp__github__delete_file mcp__plugin_github_github__delete_file mcp__gitlab__push_files; do
-  RC=0
-  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
-  assert_exit "hooks.json GitHub row does not match $name" 1 "$RC"
-done
 
-# --- the allowlist is the SAME list, asked of a repo-relative path
-RC=0
-bash "$HOOK" <<<"$(mcp_single_json "docs/.env.example" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP: allowlisted .env.example is exempt" 0 "$RC"
-RC=0
-bash "$HOOK" <<<"$(mcp_push_json "tests/fixtures/keys.py" "k = '$AWS_TOKEN'")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP: allowlisted test fixture is exempt" 0 "$RC"
-# A directory that merely CONTAINS an allowlisted name is not allowlisted.
-RC=0
-bash "$HOOK" <<<"$(mcp_push_json "evil_node_modules/x.py" "k = '$AWS_TOKEN'")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP: a name-prefix sibling of an allowlisted dir still blocks" 2 "$RC"
+def glob_matches(subject: str, pattern: str) -> bool:
+    """Case-insensitive glob match, on every platform.
 
-# --- the local-project scope guard must NOT be applied to a remote write
-# A repo-relative path is never under CLAUDE_PROJECT_DIR, so reusing the local
-# scope test here would skip every MCP write. Pinned with the variable SET,
-# which is the state that would trigger it.
-RC=0
-CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" \
-  <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP: a set CLAUDE_PROJECT_DIR does not skip the remote write" 2 "$RC"
+    One matcher for every glob the engine evaluates — hints, consumer
+    protection globs, the baseline protected-name globs, and the protection
+    re-checks in the preview, verify, and apply lanes — so discovery and
+    protection cannot disagree about what a name is.
+    `fnmatch.fnmatch` is not that matcher: its case folding follows the host
+    platform, so its verdict would change with where the scan runs.
 
-# --- the kill switch still governs the whole guard, MCP lane included
-RC=0
-CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" \
-  <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
-assert_exit "MCP: disabled guard allows the write" 0 "$RC"
+    Casefolding is the safe direction for both roles. A protection glob that
+    matches more can only keep more, and on Windows and macOS the filesystem is
+    case-insensitive anyway, so a case-sensitive protection glob was a hole
+    rather than a precision. A hint that matches more can only surface more for
+    triage — hints are discovery signals, never cleanup verdicts. This also
+    aligns globs with `has_protected_name`, which has always casefolded.
+    """
+    return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
 
-# ============ Temp-tree decline at the Bash exemption's width ================
-# block-hook-bypass exempts a Bash redirect into a host temp tree when the
-# project root is known and outside that tree. A Write of the same content to
-# the same path declines here under the same gate, so the two routes agree.
-#
-# Every spelling case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
-# changed, so the refusal it pins is the only reason it scans.
-#
-# On a Windows host the Write tool is Node, which resolves `/tmp/x` and `/c/x`
-# differently from Git Bash, so only a long-name drive spelling may decline:
-# the temp base comes from `cygpath -l -m`, never from mktemp or raw TEMP (8.3).
-D1_WIN=0
-[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && D1_WIN=1
-if ((D1_WIN)); then
-  D1_TEMP=$(cygpath -l -m "${TEMP:-${TMP:-/tmp}}")
-  D1_ROOT="C:/spd-d1-nonrepo-root"
-  D1_HOME="C:/spd-d1-home"
-else
-  D1_TEMP=/tmp
-  D1_ROOT="/spd-d1-nonrepo-root"
-  D1_HOME="/spd-d1-home"
-fi
-D1_TARGET="$D1_TEMP/spd-d1-$$/sub/f.txt"
 
-# d1_rc <root, empty for unset> <target> [NAME=value...] -> the hook's exit code
-d1_rc() {
-  local root="$1" target="$2" rc=0
-  shift 2
-  if [[ -n "$root" ]]; then
-    env "$@" CLAUDE_PROJECT_DIR="$root" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
-  else
-    env "$@" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
-  fi
-  printf '%s' "$rc"
-}
+def is_within(path: Path, parent: Path) -> bool:
+    try:
+        return os.path.commonpath(
+            [os.path.normcase(path), os.path.normcase(parent)]
+        ) == os.path.normcase(parent)
+    except ValueError:
+        return False
 
-assert_exit "D1 non-temp non-git root, temp target → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_TARGET")"
-assert_exit "D1 root is HOME, temp target → exit 0" 0 \
-  "$(d1_rc "$D1_HOME" "$D1_TARGET" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
-assert_exit "D1 root unset, temp target → exit 2" 2 "$(d1_rc "" "$D1_TARGET")"
-assert_exit "D1 root under temp → exit 2" 2 "$(d1_rc "$D1_TEMP/spd-d1-$$" "$D1_TARGET")"
-assert_exit "D1 root is the temp root → exit 2" 2 "$(d1_rc "$D1_TEMP" "$D1_TARGET")"
 
-# Target spellings refused before any resolution.
-for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f.txt" \
-  "$D1_TEMP/spd~1/f.txt" "/$D1_TARGET" "$D1_TEMP//spd-d1/f.txt" "tmp/spd-d1/f.txt" \
-  "$D1_TEMP/spd-a\$b/f.txt" "$D1_TEMP/spd-a[1]/f.txt" "$D1_TEMP/spd-a\`b/f.txt" \
-  "$D1_TEMP/spd a/f.txt" "$D1_TEMP/spd;a/f.txt" "$D1_TEMP/spd\"a/f.txt" "$D1_TEMP/spd'a/f.txt" \
-  "$D1_TEMP/spd(a)/f.txt" "$D1_TEMP/spd#a/f.txt" "$D1_TEMP/spd&a/f.txt"; do
-  assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
-done
-# Root spellings block-hook-bypass would not accept, and a filesystem root.
-for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/"; do
-  assert_exit "D1 root '$D1_R' → exit 2" 2 "$(d1_rc "$D1_R" "$D1_TARGET")"
-done
+def is_linkish_stat(info: os.stat_result) -> bool:
+    """Link-like for an already-taken stat: symlink or Windows reparse point."""
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    return bool(getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
 
-# A test-owned temp dir for the cases that need real files under temp.
-D1_LINKDIR=$(mktemp -d) || D1_LINKDIR=""
-if [[ -n "$D1_LINKDIR" ]]; then
-  D1_LINKBASE="$D1_LINKDIR"
-  ((D1_WIN)) && D1_LINKBASE=$(cygpath -l -m "$D1_LINKDIR")
-  # A link under temp pointing at an existing non-temp directory. The target
-  # through it lands outside temp and scans; a genuine sibling declines. The
-  # link name carries capitals so a walk over a lowercased copy would miss it.
-  if make_dir_link "$HOOK_DIR" "$D1_LINKDIR/ToHooks"; then
-    assert_exit "D1 target through a temp link to a non-temp dir → exit 2" 2 \
-      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/ToHooks/spd-d1-absent/f.txt")"
-    assert_exit "D1 genuine sibling in the same temp dir → exit 0" 0 \
-      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/genuine/f.txt")"
-  else
-    echo "SKIP: D1 temp link cases (no directory link could be made on this host)"
-  fi
-  # A hard link resolves to itself, so a temp-tree name for a file stored
-  # elsewhere passes every path test: a link count above 1 scans. A plain file
-  # beside it declines.
-  : >"$D1_LINKDIR/hl-src.txt"
-  : >"$D1_LINKDIR/plain.txt"
-  if ln "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" 2>/dev/null; then
-    assert_exit "D1 hard-linked temp file → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/hl.txt")"
-    assert_exit "D1 plain temp file beside it → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/plain.txt")"
-  else
-    echo "SKIP: D1 hard link cases (ln could not make a hard link on this host)"
-  fi
-  # After a decline, the directory the target walk resolved is not in the
-  # resolver cache: the guard is sourced in a child shell whose `exit` is a
-  # function printing the cache keys before the real exit (abort-boundary owns
-  # the EXIT trap, so a trap of our own would be replaced).
-  mkdir "$D1_LINKDIR/sub"
-  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
-  D1_PROBE=$(CLAUDE_PROJECT_DIR="$D1_ROOT" bash -c 'exit() { printf "MARK|%s\n" "${_HOOK_PHYS_KEYS[*]-}"; builtin exit "$@"; }; source "$1"' _ "$HOOK" <<<"$(write_json "$D1_LINKBASE/sub/f.txt" "token = '$GH_PAT'")" 2>/dev/null)
-  D1_PROBE_RC=$?
-  assert_exit "D1 probe: sourced guard declines" 0 "$D1_PROBE_RC"
-  D1_KEYS="${D1_PROBE#*MARK|}"
-  if [[ "$D1_PROBE" == *"MARK|"* && -n "$D1_KEYS" ]]; then ok "D1 probe: resolve stage ran"; else bad "D1 probe: no cache keys ($D1_PROBE)"; fi
-  assert_absent "D1 probe: the resolved target directory is not cached" "$D1_KEYS" "$D1_LINKBASE/sub"
-else
-  echo "SKIP: D1 temp-file cases (mktemp -d failed)"
-fi
 
-# Width on POSIX: block-hook-bypass lowercases the target before comparing it
-# with temp candidates that keep their case, so a capitalized temp root never
-# exempts there, and the decline must not either. Lifted seam: the spd functions
-# run with OSTYPE forced to POSIX and the candidate set replaced by one
-# test-owned directory, capitalized or not.
-# shellcheck disable=SC2016  # the sed addresses are literal hook source text
-D1_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p' "$HOOK" | sed '$d')
-d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under it
-  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
-  CLAUDE_PROJECT_DIR=/spd-d1-nonrepo-root bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; eval "$2"
-    d1_cand="$3"
-    hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$d1_cand"); }
-    spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
-}
-# mktemp names carry capitals, so the seam dirs sit under a lowercase name of
-# their own, removed by name in the EXIT trap. The precondition asks the seam's
-# own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
-# which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
-# cases only run where that resolver spells each seam dir as given.
-d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given; answer left in D1_SEAM_GOT
-  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
-  D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)
-  [[ "$D1_SEAM_GOT" == "$1" ]]
-}
-D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
-D1_SEAM_STEP="mkdir $D1_SEAM_TRY"
-if mkdir "$D1_SEAM_TRY" 2>/dev/null && D1_SEAMDIR="$D1_SEAM_TRY" &&
-  D1_SEAM_STEP="mkdir lowtemp and CapTemp under it" &&
-  mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null &&
-  D1_SEAM_STEP="resolve $D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/lowtemp" &&
-  D1_SEAM_STEP="resolve $D1_SEAMDIR/CapTemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
-  assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
-  assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
-elif [[ "${OSTYPE:-}" == linux* ]]; then
-  [[ "$D1_SEAM_STEP" == resolve* ]] && D1_SEAM_STEP+=" under the library's Linux resolver gave '$D1_SEAM_GOT'"
-  bad "D1 seam: precondition failed: $D1_SEAM_STEP"
-else
-  echo "SKIP: D1 seam width cases (under a forced Linux OSTYPE the library resolver does not spell the /tmp seam dirs as given on this host, or the seam dirs could not be made)"
-fi
+def is_cloud_placeholder_stat(info: os.stat_result) -> bool:
+    """Whether an already-taken stat describes cloud-resident, non-local content.
 
-if ((D1_WIN)); then
-  assert_exit "D1 windows: drive root '${D1_ROOT%%/*}/' → exit 2" 2 "$(d1_rc "${D1_ROOT%%/*}/" "$D1_TARGET")"
-  # A drive spelling that names no volume must terminate. timeout 124 is a hang,
-  # not a verdict; a loaded Windows host spends tens of seconds on one fire.
-  assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
-    "$(
-      D1_RC=0
-      timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?
-      printf '%s' "$D1_RC"
-    )"
-  assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
-    "$(d1_rc "$D1_HOME" "${D1_TARGET//\//\\}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
-  assert_exit "D1 windows: /c/ spelling → exit 2" 2 \
-    "$(d1_rc "$D1_HOME" "/${D1_TARGET:0:1}${D1_TARGET:2}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
-  assert_exit "D1 windows: /tmp/ spelling → exit 2" 2 \
-    "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
-  D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
-  if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
-    assert_exit "D1 windows: 8.3 short spelling → exit 2" 2 \
-      "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
-  else
-    echo "SKIP: D1 windows 8.3 case (the temp path has no short spelling on this volume)"
-  fi
-else
-  echo "SKIP: D1 Windows spelling cases (not a Windows Git Bash host)"
-  assert_exit "D1 posix: target carrying a backslash → exit 2" 2 \
-    "$(d1_rc "$D1_ROOT" "/tmp/spd-d1-$$\\x/f.txt")"
-fi
+    Deliberately independent of is_linkish_stat(): the placeholder class this
+    identifies is precisely the one that does NOT read as a reparse point
+    through this interpreter (see CLOUD_PLACEHOLDER_ATTRIBUTES), so the reparse
+    test can never stand in for it.
+    """
+    return bool(getattr(info, "st_file_attributes", 0) & CLOUD_PLACEHOLDER_ATTRIBUTES)
 
-# Fork-free common path: a shim logs every resolver the hook spawns. A non-temp
-# target spawns none; a temp target spawns at least one, which shows the shim is
-# on the path the hook takes. Telemetry is off: its path helper runs cygpath on
-# a block, which is not the decline's cost.
-D1_SHIM="$TEST_TMPDIR/d1-shim"
-D1_LOG="$TEST_TMPDIR/d1-shim.log"
-mkdir -p "$D1_SHIM"
-for D1_BIN in realpath readlink cygpath; do
-  D1_REAL=$(command -v "$D1_BIN") || continue
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'printf "%%s\\n" %s >>"%s"\n' "$D1_BIN" "$D1_LOG"
-    printf 'exec "%s" "$@"\n' "$D1_REAL"
-  } >"$D1_SHIM/$D1_BIN"
-  chmod +x "$D1_SHIM/$D1_BIN"
-done
-: >"$D1_LOG"
-d1_rc "$D1_ROOT" "$D1_ROOT/src/f.txt" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
-assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
-: >"$D1_LOG"
-d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
-if [[ "${OSTYPE:-}" == linux* ]]; then
-  # On Linux hook::physical_path_to resolves an existing absolute path with
-  # builtin `cd -P`, so the temp target starts no resolver either. Show the
-  # shim logs a spawn by calling it directly instead.
-  "$D1_SHIM/realpath" / >/dev/null
-  if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
-elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
 
-# The dispatcher runs this guard beside the other Write|Edit guards.
-D1_DISPATCH_RC=0
-CLAUDE_PROJECT_DIR="$D1_ROOT" bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
-  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
-assert_exit "D1 dispatcher: non-temp root, temp target → exit 0" 0 "$D1_DISPATCH_RC"
-D1_DISPATCH_RC=0
-bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
-  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
-assert_exit "D1 dispatcher: root unset → exit 2" 2 "$D1_DISPATCH_RC"
+def link_and_cloud_state(path: Path) -> tuple[bool, bool]:
+    """Return (link-like, cloud-placeholder) for one path from a SINGLE lstat.
 
-# A NotebookEdit declines or scans exactly as a Write to the same path does.
-nb_both "D1 NotebookEdit: non-temp non-git root, temp target → exit 0" 0 "" \
-  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")" CLAUDE_PROJECT_DIR="$D1_ROOT"
-nb_both "D1 NotebookEdit: root unset, temp target → exit 2" 2 "GitHub PAT" \
-  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")"
+    Both questions are asked at every ancestor of every scanned entry and both
+    are answered by the same st_file_attributes word, so reading it twice would
+    double the stat load of a walk bounded at MAX_SNAPSHOT_ENTRIES entries for
+    no new information. An unreadable path answers "neither" — callers treat
+    protection as additive and the surrounding lanes already fail closed on an
+    entry they cannot stat.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False, False
+    return is_linkish_stat(info), is_cloud_placeholder_stat(info)
 
-report
-linux_mounts)
+
+def is_linkish(path: Path) -> bool:
+    """Return true for every link-like Windows reparse point, including on 3.11."""
+    return link_and_cloud_state(path)[0]
+
+
+def has_linkish_component(path: Path, stop: Path | None = None) -> bool:
+    current = path
+    while True:
+        if is_linkish(current):
+            return True
+        if current == stop or current.parent == current:
+            return False
+        current = current.parent
+
+
+def _decode_mountinfo_path(value: str) -> str:
+    result = bytearray()
+    index = 0
+    encoded = os.fsencode(value)
+    while index < len(encoded):
+        if (
+            encoded[index : index + 1] == b"\\"
+            and index + 3 < len(encoded)
+            and all(48 <= byte <= 55 for byte in encoded[index + 1 : index + 4])
+        ):
+            result.append(int(encoded[index + 1 : index + 4], 8))
+            index += 4
+        else:
+            result.append(encoded[index])
+            index += 1
+    return os.fsdecode(bytes(result))
+
+
+def linux_mount_points() -> tuple[set[Path], str | None]:
+    if os_key() != "linux":
+        return set(), None
+    try:
+        lines = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+        points = {
+            Path(_decode_mountinfo_path(fields[4])).absolute()
+            for line in lines
+            if len(fields := line.split()) >= 10 and "-" in fields[6:]
+        }
+    except (OSError, UnicodeError, ValueError) as exc:
+        return set(), f"cannot read /proc/self/mountinfo: {exc}"
+    if not points:
+        return set(), "no mount points were reported by /proc/self/mountinfo"
+    return points, None
+
+
+def mount_state(
+    path: Path, known_linux_mounts: set[Path] | None = None
+) -> tuple[bool, str | None]:
+    if os_key() == "linux":
+        points = known_linux_mounts
+        error = None
+        if points is None:
+            points, error = linux_mount_points()
+        if error:
+            return False, error
+        return path.absolute() in points, None
+    try:
+        return os.path.ismount(path), None
+    except OSError as exc:
+        return False, str(exc)
+
+
+def windows_drive_roots() -> list[Path]:
+    if os.name != "nt":
+        return []
+    get_logical_drives = ctypes.WinDLL("kernel32", use_last_error=True).GetLogicalDrives
+    get_logical_drives.argtypes = []
+    get_logical_drives.restype = ctypes.c_uint32
+    mask = get_logical_drives()
+    if not mask:
+        raise OSError(ctypes.get_last_error(), "GetLogicalDrives failed")
+    return [Path(f"{chr(65 + index)}:\\") for index in range(26) if mask & (1 << index)]
+
+
+def has_protected_name(path: Path, exact_names: set[str]) -> bool:
+    name = path.name.casefold()
+    return (
+        name in {value.casefold() for value in exact_names}
+        or name.startswith("ntuser.dat")
+        or any(
+            glob_matches(name, pattern) for pattern in baseline_protected_name_globs()
+        )
+    )
+
+
+def has_protected_path_component(path: Path, exact_names: set[str]) -> bool:
+    return any(
+        has_protected_name(candidate, exact_names)
+        for candidate in (path, *path.parents)
+        if candidate.parent != candidate
+    )
+
+
+def _windows_env_roots() -> list[Path]:
+    """The OS-install roots the environment names, absolute, skipping the unset.
+
+    Shared by system_roots(), os_drive_markers(), and
+    volume_root_os_owned_names(): they disagree about the per-volume metadata
+    names, never about which environment variables point at the OS install, so
+    naming them once keeps that half from drifting.
+    """
+    return [
+        Path(value).absolute()
+        for value in (
+            os.environ.get("SystemRoot"),
+            os.environ.get("ProgramFiles"),
+            os.environ.get("ProgramFiles(x86)"),
+            os.environ.get("ProgramData"),
+        )
+        if value
+    ]
+
+
+def system_roots(
+    platform_key: str | None = None, windows_roots: list[Path] | None = None
+) -> list[Path]:
+    roots: list[Path] = []
+    current_platform = platform_key or os_key()
+    if current_platform == "windows":
+        roots.extend(_windows_env_roots())
+        drive_roots = (
+            windows_roots if windows_roots is not None else windows_drive_roots()
+        )
+        for drive_root in drive_roots:
+            roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
+    elif current_platform == "macos":
+        roots.extend(
+            Path(value)
+            for value in ("/System", "/Library", "/Applications", "/private")
+        )
+    else:
+        roots.extend(
+            Path(value)
+            for value in (
+                "/bin",
+                "/boot",
+                "/dev",
+                "/etc",
+                "/lib",
+                "/proc",
+                "/run",
+                "/sbin",
+                "/sys",
+                "/usr",
+                "/var",
+            )
+        )
+    return roots
+
+
+def os_drive_markers(
+    platform_key: str | None = None, windows_roots: list[Path] | None = None
+) -> list[Path]:
+    """Paths whose presence within a volume identifies it as an OS/system drive.
+
+    Distinct from system_roots(): system_roots() lists everything to protect
+    from deletion (including the per-volume metadata every Windows volume
+    carries), whereas this lists only the OS-install markers that make a whole
+    volume the OS drive. The difference is the whole point of the Dev Drive
+    fix: counting per-volume metadata (System Volume Information, $Recycle.Bin)
+    as an OS signal would misclassify every drive root — a provisioned non-OS
+    volume has that metadata too. On POSIX every system root is a genuine OS
+    directory, so the full set applies.
+    """
+    current_platform = platform_key or os_key()
+    if current_platform != "windows":
+        return system_roots(current_platform)
+    markers: list[Path] = []
+    markers.extend(_windows_env_roots())
+    drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
+    for drive_root in drive_roots:
+        markers.extend(drive_root / name for name in WINDOWS_OS_DRIVE_MARKERS)
+    return markers
+
+
+def is_volume_root(path: Path) -> bool:
+    """True for a filesystem or drive root — a path that is its own parent."""
+    return path.parent == path
+
+
+def is_os_managed_target(
+    target: Path,
+    roots: list[Path] | None = None,
+    markers: list[Path] | None = None,
+) -> bool:
+    """Reasoned OS-managed classification for a whole-volume audit target.
+
+    Two directions, each with its own root set:
+
+    - the target sits *within* an OS-managed root (system_roots(), the full
+      protect-from-deletion set) — e.g. ``C:\\Windows\\Temp`` or ``/etc/x``;
+    - an OS-install *marker* actually exists *within* the target
+      (os_drive_markers(), the narrow OS-drive discriminator) — e.g. ``C:\\``
+      holds an existing ``C:\\Windows``, ``/`` holds ``/bin``.
+
+    The containing direction deliberately uses the narrow marker set, not
+    system_roots(): every Windows volume — a provisioned non-OS Dev Drive
+    included — carries System Volume Information and $Recycle.Bin, so counting
+    those as an OS signal would deny every drive root and defeat the fix. The
+    existence gate matters because os_drive_markers() synthesizes per-drive
+    marker paths for every drive without checking existence. Result: ``C:\\``
+    (holds an existing Windows install) is denied; a Dev Drive root (holds no
+    OS-install marker) is not — it is confirmation-required, never
+    blanket-denied.
+    """
+    target_abs = target.absolute()
+    for root in roots if roots is not None else system_roots():
+        if is_within(target_abs, root.absolute()):
+            return True
+    for marker in markers if markers is not None else os_drive_markers():
+        marker_abs = marker.absolute()
+        if is_within(marker_abs, target_abs) and marker_abs.exists():
+            return True
+    return False
+
+
+def hard_protection(
+    path: Path,
+    target: Path,
+    exact_names: set[str],
+    known_linux_mounts: set[Path] | None = None,
+) -> list[str]:
+    reasons: list[str] = []
+    if path == target:
+        reasons.append("target-root")
+    if is_volume_root(path) and is_os_managed_target(path):
+        reasons.append("os-managed-root")
+    current = path
+    while is_within(current, target):
+        linkish, cloud_placeholder = link_and_cloud_state(current)
+        if linkish:
+            reasons.append("symlink-junction-or-reparse-point")
+        if cloud_placeholder and (current != target or path == target):
+            # Its bytes live in the provider's cloud, so deleting it here
+            # propagates the delete THERE — for a tenant sync root, to the
+            # organization's only copy. Nothing local is reclaimed either way.
+            #
+            # The target's own iteration is exempted for every OTHER entry, on
+            # the same reasoning as target-is-mount-point below: a target that
+            # itself carries a recall/offline bit would otherwise mark EVERY
+            # entry cloud-placeholder, and scan_tree truncates any directory
+            # with protections — collapsing the whole walk with no diagnostic.
+            # The target entry itself still reports the reason honestly, so the
+            # condition is visible rather than silently swallowed.
+            reasons.append("cloud-placeholder")
+        mounted, mount_error = mount_state(current, known_linux_mounts)
+        if mount_error:
+            reasons.append("mount-state-unverified")
+        elif mounted:
+            if current != target:
+                reasons.append("nested-mount-point")
+            elif not is_volume_root(target):
+                # A volume-root target is inherently a mount point and is
+                # admitted as such by the reasoned target-level checks; flagging
+                # it here would mark every descendant target-is-mount-point and
+                # defeat the admitted scan. A non-volume-root target that is a
+                # mount is still blocked (it should never have been admitted, or
+                # became a mount after the snapshot). Nested mounts below the
+                # target stay blocked regardless.
+                reasons.append("target-is-mount-point")
+        if current == target:
+            break
+        if has_protected_name(current, exact_names):
+            reasons.append("baseline-protected-name")
+        if current.name.casefold() in VCS_NAMES:
+            reasons.append("vcs-metadata")
+        current = current.parent
+    for root in system_roots():
+        if is_within(path.absolute(), root.absolute()):
+            reasons.append("os-managed-root")
+            break
+    return sorted(set(reasons))
+
+
+def standing_policy_paths(project_dir: Path | None) -> list[Path]:
+    layers = [Path.home() / ".claude" / "disk-hygiene.json"]
+    if project_dir is not None:
+        layers.append(project_dir / ".claude" / "disk-hygiene.json")
+    return [path for path in layers if path.is_file()]
+
+
+def baseline_policy() -> dict[str, Any]:
+    baseline = load_json(BASELINE_POLICY)
+    if baseline.get("version") != SCHEMA_VERSION:
+        raise HygieneError("unsupported baseline policy version")
+    return {
+        "version": SCHEMA_VERSION,
+        "protected_exact_names": list(baseline.get("protected_exact_names", [])),
+        "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "hints": list(baseline.get("hints", [])),
+        "additional_protected_path_globs": [],
+        "policy_sources": ["baseline"],
+    }
+
+
+def baseline_protected_names() -> set[str]:
+    """Bundled protected names only — validation paths must never depend on
+    ambient standing policy; an approved snapshot stays previewable even if a
+    standing file is later edited or malformed."""
+    return set(baseline_policy()["protected_exact_names"])
+
+
+@functools.lru_cache(maxsize=1)
+def baseline_protected_name_globs() -> tuple[str, ...]:
+    """Bundled protected-name PATTERNS, for the names that vary per installation.
+
+    A cloud-sync root's name embeds the tenant — Microsoft documents the
+    OneDrive for Business sync root as ``OneDrive - <organization name>`` — so
+    no exact name can cover it, and a consumer cannot cover it either:
+    ``additional_protected_path_globs`` is matched against a path RELATIVE to
+    the scan target, so a standing overlay protects such a root only when the
+    target happens to be its parent. Protection that must hold for every target
+    has to ship in the baseline, which is why this reads the bundled file
+    directly rather than taking policy as a parameter — exactly as
+    ``baseline_protected_names`` does on the validation lanes.
+
+    Matched casefolded through ``fnmatchcase`` rather than ``fnmatch``, whose
+    case folding follows the host platform; a protection whose verdict depends
+    on where it runs is not a protection.
+
+    Cached because ``has_protected_name`` runs at every ancestor of every entry
+    of a walk bounded at MAX_SNAPSHOT_ENTRIES entries, and the bundled file is
+    a build-time constant.
+    """
+    return tuple(baseline_policy()["protected_name_globs"])
+
+
+def load_policy(
+    overlay_path: Path | None, project_dir: Path | None = None
+) -> dict[str, Any]:
+    result = baseline_policy()
+    # An explicit --policy is the invocation-specific choice and wins outright;
+    # otherwise standing user-global and project files layer additively.
+    overlays = (
+        [overlay_path]
+        if overlay_path is not None
+        else standing_policy_paths(project_dir)
+    )
+    for path in overlays:
+        apply_policy_overlay(result, path)
+    return result
+
+
+def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
+    overlay = load_json(overlay_path)
+    allowed = {
+        "version",
+        "disabled_hint_ids",
+        "additional_hints",
+        "additional_protected_path_globs",
+    }
+    unknown = sorted(set(overlay) - allowed)
+    if unknown:
+        raise HygieneError(
+            f"unknown policy fields in {overlay_path}: {', '.join(unknown)}"
+        )
+    if overlay.get("version") != SCHEMA_VERSION:
+        raise HygieneError(f"policy version must be 1: {overlay_path}")
+    disabled = overlay.get("disabled_hint_ids", [])
+    additions = overlay.get("additional_hints", [])
+    protections = overlay.get("additional_protected_path_globs", [])
+    if not isinstance(disabled, list) or not isinstance(protections, list):
+        raise HygieneError("disabled_hint_ids and protection globs must be arrays")
+    if not all(isinstance(value, str) and value for value in disabled + protections):
+        raise HygieneError("policy IDs and protection globs must be non-empty strings")
+    if not isinstance(additions, list):
+        raise HygieneError("additional_hints must be an array")
+    known_ids = {hint.get("id") for hint in result["hints"]}
+    for hint in additions:
+        validate_hint(hint)
+        if hint["id"] in known_ids:
+            raise HygieneError(
+                f"additional hint ID already exists ({overlay_path}): {hint['id']}"
+            )
+        known_ids.add(hint["id"])
+    disabled_set = set(disabled)
+    result["hints"] = [
+        hint for hint in result["hints"] if hint.get("id") not in disabled_set
+    ]
+    result["hints"].extend(additions)
+    result["additional_protected_path_globs"].extend(protections)
+    result["policy_sources"].append(str(overlay_path))
+
+
+def validate_hint(hint: Any) -> None:
+    if not isinstance(hint, dict):
+        raise HygieneError("each additional hint must be an object")
+    required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
+    if set(hint) != required:
+        raise HygieneError(
+            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason"
+        )
+    if hint["kind"] not in {"name_glob", "path_glob"}:
+        raise HygieneError(f"unsupported hint kind: {hint['kind']}")
+    if hint["confidence_ceiling"] not in TIERS:
+        raise HygieneError(
+            f"unsupported confidence ceiling: {hint['confidence_ceiling']}"
+        )
+    if not isinstance(hint["os"], list) or not all(
+        value in {"all", "windows", "linux", "macos"} for value in hint["os"]
+    ):
+        raise HygieneError(
+            "hint os must be an array containing all/windows/linux/macos"
+        )
+    for field in ("id", "pattern", "reason"):
+        if not isinstance(hint[field], str) or not hint[field]:
+            raise HygieneError(f"hint {field} must be a non-empty string")
+
+
+def matching_hints(
+    relative: str, name: str, policy: dict[str, Any]
+) -> list[dict[str, str]]:
+    matches = []
+    current_os = os_key()
+    for hint in policy["hints"]:
+        validate_hint(hint)
+        if "all" not in hint["os"] and current_os not in hint["os"]:
+            continue
+        subject = name if hint["kind"] == "name_glob" else relative
+        if glob_matches(subject, hint["pattern"]):
+            matches.append(
+                {
+                    "id": hint["id"],
+                    "confidence_ceiling": hint["confidence_ceiling"],
+                    "reason": hint["reason"],
+                }
+            )
+    return matches
+
+
+def allocated_size_from_stat(info: os.stat_result) -> int | None:
+    """Cheap on-disk allocation when the platform exposes it; else unknown.
+
+    Returns null rather than inventing a figure. A missing allocated size is
+    itself a size signal ("we do not know") and must not collapse to zero.
+    """
+    blocks = getattr(info, "st_blocks", None)
+    if blocks is None:
+        return None
+    return int(blocks) * ST_BLOCKS_BYTES
+
+
+def metadata(
+    path: Path,
+    kind: str,
+    logical_size: int | None = 0,
+    *,
+    walked: bool = True,
+) -> dict[str, Any]:
+    """Per-entry facts for the snapshot, including what QUALIFIES its byte count.
+
+    `size_qualifiers` exists so a reader can never mistake a recorded byte
+    count for bytes that deleting the entry would return to the volume. A cloud
+    placeholder's `logical_size` is its REMOTE size while its local occupancy is
+    roughly zero; a hard-linked file's size is shared with every other name; a
+    truncated directory was never inventoried, so its size is unknown rather
+    than empty. The qualifier is recorded for every entry, protected or not:
+    protection stops the deletion, and this stops the misreading.
+
+    A truncated directory's `logical_size` is null, never 0. Zero remains the
+    genuine empty-directory signal; collapsing "not walked" into zero made a
+    1.35 GB truncated `.cache` indistinguishable from an empty folder.
+
+    One entry is deliberately exempt: `scan_tree` appends `not-walked` to the
+    TARGET's own qualifiers while keeping its partial walked sum, because the
+    root is the one number a caller reaches first and nulling it costs more than
+    the imprecision. So `not-walked` implies a null `logical_size` for every
+    entry this function produces, but not for the target record, which is
+    assembled there rather than here.
+    """
+    info = path.lstat()
+    attributes = int(getattr(info, "st_file_attributes", 0))
+    nlink = int(info.st_nlink)
+    allocated = allocated_size_from_stat(info)
+    if kind == "directory":
+        recorded_logical: int | None = logical_size if walked else None
+    else:
+        recorded_logical = info.st_size
+    qualifiers: list[str] = []
+    if not walked:
+        qualifiers.append("not-walked")
+    if is_cloud_placeholder_stat(info):
+        qualifiers.append("cloud-placeholder")
+    # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
+    # subdirectory) on POSIX; that is not multi-name hard-linking of content.
+    # Only regular files with more than one directory entry share one object.
+    if kind == "file" and nlink > 1:
+        qualifiers.append("hardlinked")
+    if kind == "file" and (
+        bool(attributes & FILE_ATTRIBUTE_SPARSE_FILE)
+        or (allocated is not None and allocated < info.st_size)
+    ):
+        qualifiers.append("sparse")
+    return {
+        "kind": kind,
+        "stat_size": info.st_size,
+        "logical_size": recorded_logical,
+        "allocated_size": allocated,
+        "nlink": nlink,
+        "mtime_ns": info.st_mtime_ns,
+        "device": info.st_dev,
+        "inode": info.st_ino,
+        "mode": stat.S_IFMT(info.st_mode),
+        "file_attributes": attributes,
+        "size_qualifiers": sorted(qualifiers),
+    }
+
+
+def entry_logical_file_bytes(entry: dict[str, Any]) -> int:
+    """Snapshot-recorded logical bytes for a non-directory entry; 0 if unknown."""
+    if entry.get("kind") == "directory":
+        return 0
+    size = entry.get("logical_size")
+    return int(size) if isinstance(size, int) else 0
+
+
+def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
+    """Bytes deleting this one name is expected to return locally, if known.
+
+    Returns null when the entry is not a reclaimable local file or when any
+    qualifier means the recorded size is not "bytes this delete frees".
+    Hard links are excluded entirely: deleting one name does not free the
+    shared object, and counting every name would double-count.
+    """
+    if entry.get("kind") != "file":
+        return None
+    if entry.get("size_qualifiers"):
+        return None
+    size = entry.get("logical_size")
+    if not isinstance(size, int):
+        return None
+    return size
+
+
+def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
+    """Sum of per-entry reclaimable local bytes across an inventory."""
+    return sum(
+        value
+        for entry in entries
+        if (value := entry_reclaimable_local_bytes(entry)) is not None
+    )
+
+
+def entry_is_empty_directory(
+    entry: dict[str, Any],
+    inventory: dict[str, dict[str, Any]]
+    | list[dict[str, Any]]
+    | set[str]
+    | None = None,
+    *,
+    parents_with_children: set[str] | None = None,
+    unknown_paths: set[str] | None = None,
+) -> bool:
+    """True when a walked directory has no inventoried descendants.
+
+    Truncated (`not-walked`) directories are unknown, not empty — their
+    `logical_size` is null. A walked parent whose only children were cut off by
+    `--max-depth` can still show `logical_size` 0; requiring no snapshot
+    descendants keeps that case out of the empty-directory tidiness count so
+    zero-byte residue stays visible without mislabeling uninventoried trees.
+    Directories whose scandir failed (or that appear in ``unknown_paths``) are
+    likewise unknown: a coverage gap is not empty residue.
+    """
+    if entry.get("kind") != "directory":
+        return False
+    qualifiers = entry.get("size_qualifiers") or []
+    if "not-walked" in qualifiers:
+        return False
+    if entry.get("logical_size") != 0:
+        return False
+    relative = entry.get("path")
+    if not isinstance(relative, str) or not relative:
+        return False
+    if unknown_paths and relative in unknown_paths:
+        return False
+    if parents_with_children is not None:
+        return relative not in parents_with_children
+    if inventory is None:
+        paths: Iterable[str] = ()
+    elif isinstance(inventory, (dict, set)):
+        paths = inventory
+    else:
+        paths = (
+            item["path"]
+            for item in inventory
+            if isinstance(item, dict) and isinstance(item.get("path"), str)
+        )
+    prefix = relative + "/"
+    return not any(path.startswith(prefix) for path in paths)
+
+
+def child_rollup_name(relative: str) -> str:
+    """The immediate-child segment a snapshot-relative path belongs to."""
+    return relative.split("/", 1)[0]
+
+
+def child_rollup_bytes(entry: dict[str, Any]) -> int:
+    """The bytes one immediate child contributes to the target's walked total.
+
+    Mirrors ``scan_tree``'s own accumulation exactly: a walked directory's
+    ``logical_size`` is already its recursive subtotal, a file contributes its
+    recorded logical size, and a link or special entry contributes nothing
+    because the walk never traverses one. Keeping the two rules identical is
+    what makes the roll-up sum to ``target_logical_bytes`` when every immediate
+    child was walked.
+    """
+    if entry.get("kind") == "directory":
+        size = entry.get("logical_size")
+        return int(size) if isinstance(size, int) else 0
+    if entry.get("kind") == "file":
+        return entry_logical_file_bytes(entry)
+    return 0
+
+
+def empty_child_rollup_bucket() -> dict[str, Any]:
+    """The per-child accumulator, in one place so its shape cannot drift."""
+    return {
+        "self": None,
+        "descendants": 0,
+        "newest": None,
+        "qualifiers": set(),
+        "reclaimable": 0,
+    }
+
+
+def children_rollup(
+    entries: list[dict[str, Any]],
+    *,
+    unknown_paths: Iterable[str] = (),
+    unwalked_reasons: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """One row per immediate child of the target: bytes, count, newest mtime, coverage.
+
+    The bounded pass the skill recommends (``--max-depth 1``) leaves every
+    non-empty immediate child uninventoried, so the per-child question the
+    operator is told to reason in — how big is it, how much is in it, when was
+    it last touched — has no answer anywhere in the flat entry list. This
+    assembles that answer from what the walk ALREADY recorded: it opens no
+    directory and stats no path, so it can never turn a bounded pass into an
+    unbounded one. The cost of the roll-up is one linear pass over ``entries``.
+
+    Precisely because nothing extra is walked, a child is credited with numbers
+    only when its whole subtree was inventoried. ``walked`` is the single
+    discriminator: true means every aggregate is exact, false means they are all
+    ``null`` — never 0, which stays the genuine "this is empty" answer — with
+    the causes in ``unwalked_reasons``. A partial sum is never presented as a
+    total. Every immediate child gets a row whatever its coverage, so a gap is
+    visible per child rather than only in ``truncated_paths``. (In
+    ``--root-children`` mode "every child" means every SELECTED child: the walk
+    never looks at an unselected sibling, so the row set follows the selection
+    the payload records in ``root_children_selected``.)
+
+    ``logical_bytes`` alone would mislead exactly where this engine refuses to:
+    it is a LOGICAL total, and a cloud placeholder's remote size, a hard link's
+    shared object, and a sparse file's unallocated extent all inflate it above
+    what deleting the child would return. So each row carries the same two
+    channels every other byte-bearing surface here does — ``size_qualifiers``,
+    the union of qualifiers observed in the subtree, and
+    ``reclaimable_local_bytes``, which counts only unqualified files, mirroring
+    ``target_reclaimable_local_bytes``.
+
+    ``unknown_paths`` is every relative path the walk could not fully account
+    for (truncations, scan errors, ``not-walked`` records); a path marks its own
+    child row when it IS the child and marks the child's row as
+    ``descendant-not-walked`` when it lives below one. A path recorded as
+    unknown with no more specific cause falls back to the bare ``not-walked``,
+    the same qualifier the flat entry carries.
+    """
+    reasons = unwalked_reasons or {}
+    gaps: dict[str, set[str]] = {}
+    for path in unknown_paths:
+        if not isinstance(path, str) or not path or path == ".":
+            continue
+        name = child_rollup_name(path)
+        gaps.setdefault(name, set()).add(
+            reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
+        )
+    totals: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        relative = entry.get("path")
+        # `.` is the target itself, never one of its children: `scan_tree` keeps
+        # the target's record out of `entries`, and the same skip in the gap loop
+        # above keeps a target-level truncation from inventing a `.` child row.
+        if not isinstance(relative, str) or not relative or relative == ".":
+            continue
+        name = child_rollup_name(relative)
+        bucket = totals.setdefault(name, empty_child_rollup_bucket())
+        if relative == name:
+            bucket["self"] = entry
+        else:
+            bucket["descendants"] = bucket["descendants"] + 1
+        mtime = entry.get("mtime_ns")
+        if isinstance(mtime, int):
+            newest = bucket["newest"]
+            bucket["newest"] = mtime if newest is None else max(newest, mtime)
+        bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
+        local = entry_reclaimable_local_bytes(entry)
+        if local is not None:
+            bucket["reclaimable"] = bucket["reclaimable"] + local
+    rows: list[dict[str, Any]] = []
+    for name in sorted(set(totals) | set(gaps)):
+        bucket = totals.get(name) or empty_child_rollup_bucket()
+        child = bucket["self"]
+        causes = set(gaps.get(name, ()))
+        if child is None:
+            # An immediate child whose own record never reached the inventory
+            # (its lstat or its parent's scandir failed) is a coverage gap, not
+            # a zero-byte child.
+            causes.add("scan-error")
+        walked = not causes
+        rows.append(
+            {
+                "name": name,
+                "kind": child.get("kind") if child is not None else None,
+                "walked": walked,
+                "logical_bytes": child_rollup_bytes(child)
+                if walked and child is not None
+                else None,
+                "reclaimable_local_bytes": bucket["reclaimable"] if walked else None,
+                "size_qualifiers": sorted(bucket["qualifiers"]) if walked else None,
+                "entry_count": bucket["descendants"] if walked else None,
+                "newest_mtime_ns": bucket["newest"] if walked else None,
+                "unwalked_reasons": sorted(causes),
+            }
+        )
+    return rows
+
+
+def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
+    """Return every inventory path that has at least one inventoried descendant.
+
+    Built in one linear pass over ``paths`` so empty-directory counting stays
+    O(entries) rather than O(directories × entries).
+    """
+    parents: set[str] = set()
+    for path in paths:
+        if not isinstance(path, str) or "/" not in path:
+            continue
+        parent = path.rsplit("/", 1)[0]
+        while parent:
+            if parent in parents:
+                break
+            parents.add(parent)
+            if "/" not in parent:
+                break
+            parent = parent.rsplit("/", 1)[0]
+    return parents
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    """Count walked empty directories in a snapshot inventory.
+
+    ``error_paths`` are scan-error relatives that must not count as empty even
+    when they were recorded with ``logical_size`` 0 and no descendants.
+    """
+    by_path = {
+        entry["path"]: entry
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+    }
+    parents_with_children = inventory_parent_paths(by_path)
+    unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
+    return sum(
+        1
+        for entry in by_path.values()
+        if entry_is_empty_directory(
+            entry,
+            parents_with_children=parents_with_children,
+            unknown_paths=unknown,
+        )
+    )
+
+
+def empty_file_count(entries: list[dict[str, Any]]) -> int:
+    """Count inventoried regular files whose recorded logical size is 0."""
+    return sum(
+        1
+        for entry in entries
+        if isinstance(entry, dict)
+        and entry.get("kind") == "file"
+        and entry.get("logical_size") == 0
+    )
+
+
+def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
+    marker_root = next(
+        (
+            ancestor
+            for ancestor in (target, *target.parents)
+            if is_linkish(ancestor / ".git") or (ancestor / ".git").exists()
+        ),
+        None,
+    )
+    git = shutil.which("git")
+    if not git:
+        if marker_root is not None:
+            return [marker_root.resolve()], ["git-not-found"]
+        return [], []
+    run = subprocess.run(
+        [git, "-C", str(target), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if run.returncode == 0 and run.stdout.strip():
+        return [Path(run.stdout.strip()).resolve()], []
+    if marker_root is not None:
+        return [marker_root.resolve()], [f"{marker_root}: git-state-unverified"]
+    return [], []
+
+
+def windows_storage_sense_state() -> dict[str, Any]:
+    import winreg
+
+    key_path = (
+        r"Software\Microsoft\Windows\CurrentVersion"
+        r"\StorageSense\Parameters\StoragePolicy"
+    )
+    state: dict[str, Any] = {
+        "enabled": None,
+        "temporary_files_cleanup": None,
+        "cadence_days": None,
+    }
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            for name, field in (
+                ("01", "enabled"),
+                ("04", "temporary_files_cleanup"),
+            ):
+                try:
+                    state[field] = bool(winreg.QueryValueEx(key, name)[0])
+                except OSError:
+                    pass
+            try:
+                state["cadence_days"] = int(winreg.QueryValueEx(key, "2048")[0])
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return state
+
+
+def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
+    """Report-only: name the OS auto-clean mechanism that should own this zone.
+
+    Mirrors the managed-state rule for products: when the OS already ships a
+    garbage collector for a zone, recommend enabling/tuning it instead of
+    hand-cleaning. Never authorizes or blocks anything.
+    """
+    try:
+        temp_root = Path(tempfile.gettempdir()).resolve()
+    except OSError:
+        return None
+    resolved = target.resolve()
+    covers_target = is_within(resolved, temp_root) or is_within(temp_root, resolved)
+    if not covers_target:
+        return None
+    if sys.platform == "win32":
+        state = windows_storage_sense_state()
+        effective = (
+            state["enabled"] is True
+            and state["temporary_files_cleanup"] is True
+            # Cadence 0 = "during low free disk space", which may never fire.
+            and (state["cadence_days"] or 0) > 0
+        )
+        return {
+            "mechanism": "windows-storage-sense",
+            "state": state,
+            "recommendation": None
+            if effective
+            else (
+                "This zone includes the user temp directory, which Windows "
+                "Storage Sense can clean automatically. Recommend enabling "
+                "temporary-file cleanup on a scheduled cadence (Settings > "
+                "System > Storage) instead of hand-cleaning it here."
+            ),
+        }
+    if sys.platform.startswith("linux"):
+        configured = any(
+            Path(root).is_dir()
+            for root in ("/etc/tmpfiles.d", "/run/tmpfiles.d", "/usr/lib/tmpfiles.d")
+        )
+        return {
+            "mechanism": "systemd-tmpfiles",
+            "state": {"config_present": configured},
+            "recommendation": None
+            if configured
+            else (
+                "This zone includes the temp directory, which systemd-tmpfiles "
+                "normally ages out. Recommend configuring tmpfiles.d instead of "
+                "hand-cleaning it here."
+            ),
+        }
+    return {
+        "mechanism": "not-detected",
+        "state": {},
+        "recommendation": None,
+    }
+
+
+def user_home() -> Path | None:
+    try:
+        return Path.home()
+    except RuntimeError:
+        return None
+
+
+def large_scan_reasons(target: Path) -> list[str]:
+    """Name deterministically why a target is a known-large scan root.
+
+    A known-large root is one whose unbounded recursive walk is expected to be
+    expensive in time and resources. Two cases today: the user home directory,
+    and a whole filesystem/volume root that is a valid non-OS target (a Windows
+    Dev Drive). An OS-managed root is denied upstream before this runs, so any
+    volume root reaching the gate is non-OS; the check here is nonetheless
+    self-contained (is_volume_root and not OS-managed) so the reason is honest
+    even called directly. The engine gates such a walk behind an explicit bound
+    or confirmation, mirroring the apply lane's "ask before it is expensive"
+    posture, moved earlier because the cost here is time, not data loss.
+
+    The home match is by filesystem identity (device + inode via
+    ``os.path.samefile``), not a path-string compare: ``os.path.normcase`` only
+    folds case on Windows, so a string compare would let a case-variant spelling
+    (``/users/<user>`` vs ``/Users/<user>``) bypass the gate on a case-insensitive
+    macOS volume. ``target`` is validated to exist upstream; ``samefile`` raises
+    only when a path is missing, so a home that cannot be stat'd is simply no match.
+    The volume-root match is structural (``is_volume_root``: a self-parent path),
+    inherently spelling- and case-robust.
+    """
+    reasons: list[str] = []
+    home = user_home()
+    if home is not None:
+        try:
+            same_home = os.path.samefile(target, home)
+        except OSError:
+            same_home = False
+        if same_home:
+            reasons.append("user-home")
+    if is_volume_root(target) and not is_os_managed_target(target):
+        reasons.append("non-os-volume-root")
+    return sorted(set(reasons))
+
+
+def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
+    """Count immediate children only — a cheap probe that never recurses."""
+    try:
+        with os.scandir(target) as iterator:
+            return sum(1 for _ in iterator), None
+    except OSError as exc:
+        return None, str(exc)
+
+
+def directory_has_child(directory: Path) -> bool:
+    """Whether a directory holds at least one entry — one read, no recursion.
+
+    FAILS CLOSED. Emptiness has to be PROVEN, so an unreadable directory
+    reports True (assume content). The caller uses this to decide whether a
+    scan boundary can be reported as fully inventoried, and a directory whose
+    contents could not be read is exactly the case that must keep its
+    "not inventoried" marking. The read is inside the ``try`` deliberately:
+    Windows surfaces an access denial on the first iteration step rather than
+    on ``os.scandir`` itself.
+
+    Deliberately not ``top_level_entry_count``: that one iterates every child
+    to produce a count, and a boundary directory with hundreds of thousands of
+    entries is precisely the cost ``--max-depth`` exists to avoid. Only the
+    first entry is ever read here — the question is "any?", not "how many?".
+    """
+    try:
+        with os.scandir(directory) as iterator:
+            return next(iter(iterator), None) is not None
+    except OSError:
+        return True
+
+
+def volume_root_os_owned_names(
+    platform_key: str | None = None,
+) -> set[str]:
+    """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
+    current = platform_key or os_key()
+    if current == "windows":
+        return {
+            name.casefold()
+            for name in (
+                WINDOWS_VOLUME_SYSTEM_NAMES
+                | WINDOWS_OS_ROOT_EXTRA_NAMES
+                | {root.name for root in _windows_env_roots()}
+            )
+        }
+    if current == "macos":
+        return {
+            name.casefold()
+            for name in (
+                "System",
+                "Library",
+                "Applications",
+                "private",
+                "Volumes",
+                "cores",
+                "usr",
+                "bin",
+                "sbin",
+                "etc",
+                "dev",
+                "tmp",
+                "var",
+            )
+        }
+    return {
+        name.casefold()
+        for name in (
+            "bin",
+            "boot",
+            "dev",
+            "etc",
+            "home",
+            "lib",
+            "lib64",
+            "lost+found",
+            "media",
+            "mnt",
+            "opt",
+            "proc",
+            "root",
+            "run",
+            "sbin",
+            "srv",
+            "sys",
+            "tmp",
+            "usr",
+            "var",
+        )
+    }
+
+
+def volume_root_os_owned_file_name_matches(
+    name: str,
+    platform_key: str | None = None,
+) -> bool:
+    """Whether a volume-root FILE basename is OS-owned on this platform."""
+    current = platform_key or os_key()
+    folded = name.casefold()
+    if current == "windows":
+        return folded in WINDOWS_OS_ROOT_FILE_NAMES
+    if current == "macos":
+        return folded in MACOS_OS_ROOT_FILE_NAMES
+    if folded in LINUX_OS_ROOT_FILE_NAMES:
+        return True
+    return any(fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS)
+
+
+def volume_root_home_container_name(platform_key: str | None = None) -> str:
+    """The volume-root directory that holds user homes on this platform."""
+    current = platform_key or os_key()
+    return "home" if current == "linux" else "Users"
+
+
+def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
+    """Additive listing facts for an admitted or skipped root child."""
+    if info is None:
+        return {}
+    if stat.S_ISDIR(info.st_mode):
+        kind = "directory"
+    elif stat.S_ISREG(info.st_mode):
+        kind = "file"
+    else:
+        kind = "other"
+    fields: dict[str, Any] = {
+        "kind": kind,
+        "logical_size": int(info.st_size),
+        "mtime": int(info.st_mtime_ns),
+    }
+    if os_key() == "windows":
+        fields["attributes"] = int(getattr(info, "st_file_attributes", 0) or 0)
+    return fields
+
+
+def root_children_skipped_reason_counts(
+    skipped: list[dict[str, Any]],
+) -> dict[str, int]:
+    """Stdout grouping of withheld root children, reason → count."""
+    counts: dict[str, int] = {}
+    for item in skipped:
+        reason = item.get("reason")
+        if not isinstance(reason, str) or not reason:
+            continue
+        counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def withheld_home_container_note(skipped: list[dict[str, Any]]) -> str:
+    """Sentence naming the current user's home when its container is withheld."""
+    names = {
+        item["name"].casefold()
+        for item in skipped
+        if isinstance(item.get("name"), str)
+    }
+    container = volume_root_home_container_name()
+    withheld = None
+    if container.casefold() in names:
+        withheld = container
+    elif "users" in names:
+        withheld = "Users"
+    elif "home" in names:
+        withheld = "home"
+    if withheld is None:
+        return ""
+    home = user_home()
+    home_text = str(home) if home is not None else "the current user's home directory"
+    return (
+        f" {withheld} is withheld as OS-owned; the current user's home "
+        f"({home_text}) is a separate target."
+    )
+
+
+def root_child_skip_reason(
+    path: Path,
+    *,
+    exact_names: set[str],
+    known_linux_mounts: set[Path] | None = None,
+    os_owned_names: set[str] | None = None,
+    strict_volume_root: bool = True,
+) -> str | None:
+    """Why an immediate child must not be offered or audited.
+
+    On an OS-managed volume root, mirrors the volume-root guard (OS-owned /
+    hidden / system / reparse) and fails closed on anything ambiguous (#2588).
+    Regular files use the same admission ladder as directories; non-regular
+    types are withheld as ``not-regular-file-or-directory``. On any other
+    target (#4221), only directories can be selected, and hidden and
+    OS-owned-by-volume-name children stay selectable so a depth-1 home audit
+    can re-inventory approved directories without walking the rest of the home.
+    """
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        return f"unreadable:{exc}"
+    if is_linkish_stat(info):
+        return "symlink-junction-or-reparse-point"
+    if is_cloud_placeholder_stat(info):
+        return "cloud-placeholder"
+    is_dir = stat.S_ISDIR(info.st_mode)
+    is_reg = stat.S_ISREG(info.st_mode)
+    if not strict_volume_root and not is_dir:
+        return "not-a-directory"
+    name = path.name
+    if name in {".", ".."} or not name:
+        return "invalid-name"
+    if strict_volume_root:
+        if name.startswith("."):
+            return "hidden"
+        folded = name.casefold()
+        owned = (
+            os_owned_names
+            if os_owned_names is not None
+            else volume_root_os_owned_names()
+        )
+        if is_dir and folded in owned:
+            return "os-owned"
+        if is_reg and volume_root_os_owned_file_name_matches(name):
+            return "os-owned"
+        # Windows metadata / upgrade residue often uses a $-prefix outside the
+        # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
+        if name.startswith("$"):
+            return "os-owned"
+        attributes = int(getattr(info, "st_file_attributes", 0) or 0)
+        if attributes & FILE_ATTRIBUTE_HIDDEN:
+            return "hidden"
+        if attributes & FILE_ATTRIBUTE_SYSTEM:
+            return "system"
+    if has_protected_name(path, exact_names):
+        return "baseline-protected-name"
+    mounted, mount_error = mount_state(path, known_linux_mounts)
     if mount_error:
         return "mount-state-unverified"
     if mounted:
         return "nested-mount-point"
-    for root in system_roots():
-        if path.absolute() == root.absolute() or is_within(
-            path.absolute(), root.absolute()
-        ):
-            return "os-owned"
+    if strict_volume_root:
+        for root in system_roots():
+            if path.absolute() == root.absolute() or is_within(
+                path.absolute(), root.absolute()
+            ):
+                return "os-owned"
+        if not is_dir and not is_reg:
+            return "not-regular-file-or-directory"
     return None
 
 
@@ -1071,34 +1577,49 @@ def enumerate_root_children(
     target: Path,
     policy: dict[str, Any],
     known_linux_mounts: set[Path] | None = None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """List immediate volume-root entries into admitted vs skipped buckets.
+    *,
+    strict_volume_root: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """List immediate children into admitted vs skipped buckets.
 
-    Enumerates the root once and never recurses. Admitted entries are
-    directories that cleared every root-children exclusion; skipped entries
-    carry the reason they were withheld.
+    Enumerates the target once and never recurses. On an OS-managed volume
+    root, admitted entries are regular files or directories that cleared every
+    root-children exclusion. On any other target, admitted entries are
+    directories only. ``strict_volume_root`` keeps the OS-owned / hidden /
+    system ladder that an OS-managed volume root needs; any other target drops
+    those so approved home children stay selectable.
     """
     exact_names = set(policy["protected_exact_names"])
     os_owned = volume_root_os_owned_names()
-    admitted: list[dict[str, str]] = []
-    skipped: list[dict[str, str]] = []
+    admitted: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     try:
         with os.scandir(target) as iterator:
             children = sorted(iterator, key=lambda entry: entry.name.casefold())
     except OSError as exc:
-        raise HygieneError(f"cannot enumerate volume root: {exc}") from exc
+        raise HygieneError(f"cannot enumerate target children: {exc}") from exc
     for child in children:
         path = Path(child.path)
+        try:
+            info: os.stat_result | None = path.lstat()
+        except OSError:
+            info = None
         reason = root_child_skip_reason(
             path,
             exact_names=exact_names,
             known_linux_mounts=known_linux_mounts,
             os_owned_names=os_owned,
+            strict_volume_root=strict_volume_root,
         )
+        listing = {
+            "name": child.name,
+            "path": str(path),
+            **root_child_listing_fields(info),
+        }
         if reason is None:
-            admitted.append({"name": child.name, "path": str(path)})
+            admitted.append(listing)
         else:
-            skipped.append({"name": child.name, "path": str(path), "reason": reason})
+            skipped.append({**listing, "reason": reason})
     return admitted, skipped
 
 
@@ -1116,8 +1637,9 @@ def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
 
 def normalize_root_child_selection(
     selected: list[str],
-    admitted: list[dict[str, str]],
+    admitted: list[dict[str, Any]],
     *,
+    skipped: list[dict[str, Any]] | None = None,
     case_sensitive: bool | None = None,
 ) -> list[str]:
     """Map a human selection onto admitted basenames; reject anything else."""
@@ -1133,6 +1655,14 @@ def normalize_root_child_selection(
         by_name = {item["name"]: item["name"] for item in admitted}
     else:
         by_name = {item["name"].casefold(): item["name"] for item in admitted}
+    skipped_by_key: dict[str, str] = {}
+    for item in skipped or ():
+        raw_name = item.get("name")
+        reason = item.get("reason")
+        if not isinstance(raw_name, str) or not isinstance(reason, str):
+            continue
+        key = raw_name if sensitive else raw_name.casefold()
+        skipped_by_key.setdefault(key, reason)
     resolved: list[str] = []
     seen: set[str] = set()
     for raw in selected:
@@ -1142,9 +1672,14 @@ def normalize_root_child_selection(
             )
         key = raw if sensitive else raw.casefold()
         if key not in by_name:
+            withheld = skipped_by_key.get(key)
+            if withheld:
+                raise HygieneError(
+                    f"--root-child {raw!r} is withheld ({withheld})"
+                )
             raise HygieneError(
-                f"--root-child {raw!r} is not an admitted immediate child directory "
-                "of the OS-managed volume root"
+                f"--root-child {raw!r} is not an admitted immediate child "
+                "of the scan target"
             )
         canonical = by_name[key]
         seen_key = canonical if sensitive else canonical.casefold()
@@ -1161,6 +1696,7 @@ def scan_tree(
     max_depth: int | None = None,
     *,
     root_children: list[str] | None = None,
+    sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -1195,8 +1731,8 @@ def scan_tree(
         for child in children:
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
-            # explicitly selected immediate directories are entered, and the
-            # root's own files / excluded siblings are never inventoried.
+            # explicitly selected immediate children are entered, and
+            # unselected siblings are never inventoried.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -1221,12 +1757,12 @@ def scan_tree(
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
                     walked = True
-                    if path.name.casefold() in VCS_NAMES:
+                    if not sizes_only and path.name.casefold() in VCS_NAMES:
                         subtotal: int | None = None
                         walked = False
                         truncated.append(relative)
                         unwalked_reasons[relative] = "vcs-boundary"
-                    elif protections:
+                    elif not sizes_only and protections:
                         subtotal = None
                         walked = False
                         truncated.append(relative)
@@ -1275,19 +1811,22 @@ def scan_tree(
                 errors.append({"path": relative, "error": str(exc)})
                 unwalked_reasons[relative] = "scan-error"
                 continue
-            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
+            if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
                     f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
                     "--max-depth or split the audit into bounded subtrees"
                 )
-            entries.append(
-                {
-                    "path": relative,
-                    **data,
-                    "hints": matching_hints(relative, path.name, policy),
-                    "protected_reasons": sorted(set(protections)),
-                }
-            )
+            if sizes_only:
+                entries.append({"path": relative, **data})
+            else:
+                entries.append(
+                    {
+                        "path": relative,
+                        **data,
+                        "hints": matching_hints(relative, path.name, policy),
+                        "protected_reasons": sorted(set(protections)),
+                    }
+                )
             if len(entries) % 25_000 == 0:
                 print(f"scanned {len(entries)} entries...", file=sys.stderr)
         return total
@@ -1297,9 +1836,11 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
-    annotate_tracked(entries, target, repositories, truncated, repo_errors)
-    stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable = reclaimable_local_bytes(entries)
+    stdlib_shadowing: list[dict[str, Any]] = []
+    if not sizes_only:
+        annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
+    reclaimable =reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -1338,6 +1879,7 @@ def scan_tree(
         "empty_directory_count": empty_directory_count(
             entries, error_paths=error_paths
         ),
+        "empty_file_count": empty_file_count(entries),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -1350,8 +1892,13 @@ def scan_tree(
             unknown_paths=unknown_paths,
             unwalked_reasons=unwalked_reasons,
         ),
-        "entries": sorted(entries, key=lambda entry: entry["path"]),
+        "entries": []
+        if sizes_only
+        else sorted(entries, key=lambda entry: entry["path"]),
     }
+    if sizes_only:
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = "exact" if not truncated else "partial"
     if root_children is not None:
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
@@ -1831,6 +2378,12 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         kind = "file"
     else:
         kind = "other"
+    # A directory's st_size is not a stable observation: on NTFS one lstat
+    # reports the index allocation and the next reports 0, so an unchanged
+    # directory would flap drifted/clear. Callers compare the descendant set
+    # separately, so a directory needs only object identity here.
+    if kind == "directory":
+        return same_object_identity(info, entry)
     checks = (
         kind == entry.get("kind"),
         info.st_size == entry.get("stat_size"),
@@ -2364,10 +2917,13 @@ def evidence_adjusted_protections(
     return sorted(adjusted)
 
 
+PLATFORM_BLOCKER = "execution-platform-unsupported"
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
-        return ["execution-platform-unsupported"]
+        return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
         return ["dirfd-anchoring-unavailable"]
@@ -2489,9 +3045,14 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     window would otherwise abort the run.
 
     Root-children mode is the sole exception to the OS-managed-root veto: the
-    snapshot target is the volume root, but the inventory only covers explicitly
-    selected immediate children — never a recursive walk of the root itself.
+    snapshot target may be an OS-managed volume root, but the inventory only
+    covers explicitly selected immediate children — never a recursive walk of
+    the root itself. The same selection surface also covers a non-OS target
+    (a home directory) so approved children can be re-inventoried without
+    walking the rest of the tree.
     """
+    if snapshot.get("inventory_mode") == "sizes-only":
+        raise HygieneError("sizes-only snapshot is not eligible for disposition")
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
         or snapshot.get("engine") != "disk-hygiene-python-1"
@@ -2509,9 +3070,9 @@ def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     if is_os_managed_target(target) and not root_children_mode:
         raise HygieneError("snapshot target is now an OS-managed root")
     if root_children_mode:
-        if not is_volume_root(target) or not is_os_managed_target(target):
+        if is_os_managed_target(target) and not is_volume_root(target):
             raise HygieneError(
-                "root-children snapshot target must remain an OS-managed volume root"
+                "root-children snapshot of an OS-managed target must remain a volume root"
             )
         selected = snapshot.get("root_children_selected")
         if not isinstance(selected, list) or not selected:
@@ -2645,8 +3206,21 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
+    # A blocker that is a fact about the platform, identical for every
+    # candidate, routes the operator to the manual handoff lane; only a
+    # blocker about a path means "do not proceed".
+    platform_only = {reason for item in results for reason in item["blockers"]} == {
+        PLATFORM_BLOCKER
+    }
+    if not blocked:
+        outcome = "explicit-approval"
+    elif platform_only:
+        outcome = "manual-handoff-lane"
+    else:
+        outcome = "blocked"
     payload = {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
+        "outcome": outcome,
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
@@ -3387,7 +3961,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 _PARSER_VALUE_TYPES = {"int": int}
 
 
-def _add_flag(command: argparse.ArgumentParser, flag: engine_grammar.Flag) -> None:
+def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
     """Declare one grammar flag on a subparser.
 
     A valueless flag is always ``store_true`` here even when the grammar marks
@@ -3422,8 +3996,12 @@ def build_parser() -> argparse.ArgumentParser:
         if spec.help is not None:
             options["help"] = spec.help
         command = subparsers.add_parser(spec.name, **options)
+        containers: dict[str, argparse._ActionsContainer] = {}
+        for group in spec.one_of:
+            exclusive = command.add_mutually_exclusive_group(required=True)
+            containers.update(dict.fromkeys(group, exclusive))
         for flag in spec.flags:
-            _add_flag(command, flag)
+            _add_flag(containers.get(flag.name, command), flag)
     return parser
 
 
@@ -3454,16 +4032,14 @@ def main(argv: list[str] | None = None) -> int:
             selected_root_children = list(args.root_child or [])
             if selected_root_children and not root_children_mode:
                 raise HygieneError("--root-child requires --root-children")
-            if root_children_mode:
-                if not is_volume_root(target):
-                    raise HygieneError("--root-children requires a volume-root target")
-                if not is_os_managed_target(target):
-                    raise HygieneError(
-                        "--root-children is only valid for an OS-managed volume root; "
-                        "scan a non-OS volume root without this flag"
-                    )
-            elif is_os_managed_target(target):
+            os_managed = is_os_managed_target(target)
+            volume_root = is_volume_root(target)
+            if os_managed and not root_children_mode:
                 raise HygieneError("OS-managed roots are not valid audit targets")
+            if os_managed and root_children_mode and not volume_root:
+                raise HygieneError(
+                    "--root-children on an OS-managed target requires a volume-root target"
+                )
             if mounted and not is_volume_root(target):
                 raise HygieneError("mount points are not valid audit targets")
             policy = load_policy(
@@ -3482,33 +4058,54 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            sizes_only = bool(args.sizes_only)
             if root_children_mode:
                 admitted, skipped = enumerate_root_children(
-                    target, policy, known_mounts
+                    target,
+                    policy,
+                    known_mounts,
+                    strict_volume_root=os_managed and volume_root,
                 )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
                 # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
+                    home_note = withheld_home_container_note(skipped)
+                    if os_managed:
+                        selection_note = (
+                            "OS-managed volume roots are never walked as a "
+                            "whole. Re-run with --root-children and one or "
+                            "more explicit --root-child NAME flags naming "
+                            "admitted immediate children; a general "
+                            "'clean everything' is not selection."
+                            + home_note
+                        )
+                    else:
+                        selection_note = (
+                            "Re-run with --root-children and one or more "
+                            "explicit --root-child NAME flags naming admitted "
+                            "immediate directories of this target; a general "
+                            "'clean everything' is not selection. Selected "
+                            "children are inventoried into one snapshot "
+                            "without walking the rest of the target."
+                            + home_note
+                        )
                     return emit(
                         {
                             "status": "root-children-selection-required",
                             "target": str(target),
                             "admitted_children": admitted,
                             "skipped_children": skipped,
-                            "os_autoclean": advisory,
-                            "note": (
-                                "OS-managed volume roots are never walked as a "
-                                "whole. Re-run with --root-children and one or "
-                                "more explicit --root-child NAME flags naming "
-                                "admitted immediate directories; a general "
-                                "'clean everything' is not selection."
+                            "root_children_skipped": root_children_skipped_reason_counts(
+                                skipped
                             ),
+                            "os_autoclean": advisory,
+                            "note": selection_note,
                         },
                         0,
                     )
                 resolved_children = normalize_root_child_selection(
-                    selected_root_children, admitted
+                    selected_root_children, admitted, skipped=skipped
                 )
                 # Each selected child is its own audit target for large-scan
                 # gating: a home directory selected under the volume root still
@@ -3524,6 +4121,7 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
+                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -3547,6 +4145,7 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         args.max_depth,
                         root_children=resolved_children,
+                        sizes_only=sizes_only,
                     )
                 except HygieneError as exc:
                     return emit(
@@ -3559,39 +4158,44 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 snapshot["root_children_skipped"] = skipped
                 write_json(output_path, snapshot)
-                return emit(
-                    scan_stdout_payload(
-                        scan_complete_payload(
-                            target,
-                            output_path,
-                            snapshot,
-                            policy,
-                            advisory,
-                            (
-                                "Root-children mode inventoried only the "
-                                "selected immediate directories; the volume "
-                                "root itself and every skipped "
-                                "OS-owned/hidden/system/reparse entry were "
-                                "never walked — so children_rollup covers the "
-                                "selected children only. unhinted_entries is "
-                                "entries minus hinted_entries: every "
-                                "inventoried entry no hint judged, left to "
-                                "positional review. Hints are discovery "
-                                "signals, never cleanup verdicts."
-                            ),
-                            {
-                                "root_children_mode": True,
-                                "root_children_selected": resolved_children,
-                            },
-                        ),
-                        args.quiet,
-                    )
+                skipped_counts = root_children_skipped_reason_counts(skipped)
+                home_note = withheld_home_container_note(skipped)
+                payload = scan_stdout_payload(
+                    scan_complete_payload(
+                        target,
+                        output_path,
+                        snapshot,
+                        policy,
+                        advisory,
+                        (
+                            "Root-children mode inventoried only the "
+                            "selected immediate children; the scan "
+                            "target itself and every skipped "
+                            "OS-owned/hidden/system/reparse or unselected "
+                            "sibling were never walked, so children_rollup "
+                            "covers the selected children only. unhinted_entries is "
+                            "entries minus hinted_entries: every "
+                            "inventoried entry no hint judged, left to "
+                            "positional review. Hints are discovery "
+                            "signals, never cleanup verdicts."
+                            + home_note                        ),
+                        {
+                            "root_children_mode": True,
+                            "root_children_selected": resolved_children,
+                            "root_children_skipped": skipped_counts,
+                        },
+                    ),
+                    args.quiet,
                 )
+                if home_note and home_note.strip() not in payload["note"]:
+                    payload["note"] = str(payload["note"]) + home_note
+                return emit(payload)
             large_reasons = large_scan_reasons(target)
             if (
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
+                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
@@ -3613,7 +4217,9 @@ def main(argv: list[str] | None = None) -> int:
                     0,
                 )
             try:
-                snapshot = scan_tree(target, policy, args.max_depth)
+                snapshot = scan_tree(
+                    target, policy, args.max_depth, sizes_only=sizes_only
+                )
             except HygieneError as exc:
                 return emit(
                     {
@@ -3633,25 +4239,35 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         advisory,
                         (
-                            "Safe tidiness is the primary objective; "
-                            "reclaimable bytes are a secondary signal. "
-                            "empty_directory_count names walked empty "
-                            "directories (logical_size 0, not truncated) so "
-                            "zero-byte residue stays visible. "
-                            "unhinted_entries is entries minus "
-                            "hinted_entries — every inventoried entry no hint "
-                            "judged, left to positional review — so hint "
-                            "coverage reads as a rate, not a bare count. "
-                            "Hints are discovery signals, never cleanup "
-                            "verdicts. children_rollup carries one row per "
-                            "immediate child; its logical_bytes, entry_count "
-                            "and newest_mtime_ns are exact where walked is "
-                            "true and null where it is false, never 0. "
-                            "target_reclaimable_local_bytes excludes every "
-                            "entry whose size_qualifiers is non-empty "
-                            "(cloud-placeholder, hardlinked, sparse, "
-                            "not-walked); target_logical_bytes is the walked "
-                            "roll-up and may understate truncated subtrees."
+                            "Sizes-only walk: no per-entry inventory was "
+                            "written; children_rollup and rollup_precision "
+                            "carry exact subtree totals when the walk was "
+                            "complete. Use a normal scan when you need hints, "
+                            "protected_reasons, or handoff paths."
+                            if sizes_only
+                            else (
+                                "Safe tidiness is the primary objective; "
+                                "reclaimable bytes are a secondary signal. "
+                                "empty_directory_count names walked empty "
+                                "directories (logical_size 0, not truncated) so "
+                                "zero-byte residue stays visible. "
+                                "empty_file_count names inventoried zero-byte "
+                                "files the same way. "
+                                "unhinted_entries is entries minus "
+                                "hinted_entries. Every inventoried entry no hint "
+                                "judged is left to positional review, so hint "
+                                "coverage reads as a rate, not a bare count. "
+                                "Hints are discovery signals, never cleanup "
+                                "verdicts. children_rollup carries one row per "
+                                "immediate child; its logical_bytes, entry_count "
+                                "and newest_mtime_ns are exact where walked is "
+                                "true and null where it is false, never 0. "
+                                "target_reclaimable_local_bytes excludes every "
+                                "entry whose size_qualifiers is non-empty "
+                                "(cloud-placeholder, hardlinked, sparse, "
+                                "not-walked); target_logical_bytes is the walked "
+                                "roll-up and may understate truncated subtrees."
+                            )
                         ),
                     ),
                     args.quiet,
@@ -3660,7 +4276,10 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                load_json(Path(args.paths)), entry_map(snapshot)
+                {"version": SCHEMA_VERSION, "paths": [args.path]}
+                if args.path is not None
+                else load_json(Path(args.paths)),
+                entry_map(snapshot),
             )
             vcs_evidence = (
                 validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
@@ -3672,7 +4291,7 @@ def main(argv: list[str] | None = None) -> int:
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
-            return emit(checked, 3 if checked["status"] == "blocked" else 0)
+            return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
         if checked["status"] != "ready-for-explicit-approval":
