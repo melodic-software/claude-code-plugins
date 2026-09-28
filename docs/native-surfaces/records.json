@@ -3,8 +3,16 @@
   "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/native-surfaces.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /claude-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
   "rows": [
     {
-      "native": { "name": "code-review", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "review", "skill": "code-review", "kind": "skill" },
+      "native": {
+        "name": "code-review",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "review",
+        "skill": "code-review",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Same object, different invocation surface. The bundled skill is a session-driven review of the current diff or a named PR, with mutating flags (--fix writes the working tree, --comment posts to the PR). review:code-review is a non-interactive CI lane a reusable workflow invokes for one pull request, deliberately scoped out of security when a security lane exists. Neither replaces the other: a CI lane cannot be typed into a session, and the session surface has no workflow contract.",
       "evidence": [
@@ -23,12 +31,23 @@
         "trigger": "a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "simplify", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "code-tidying", "skill": "tidy", "kind": "skill" },
+      "native": {
+        "name": "simplify",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "code-tidying",
+        "skill": "tidy",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped lane and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.",
       "evidence": [
@@ -46,12 +65,23 @@
         "trigger": "a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "simplify", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "code-tidying", "skill": "batch-simplify", "kind": "skill" },
+      "native": {
+        "name": "simplify",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "code-tidying",
+        "skill": "batch-simplify",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Scale is the whole difference. The bundled skill handles the change in front of it; batch-simplify fans the same job across a time- or branch-scoped window of changed files, grouped by ecosystem and dependency order, for the catch-up case after a multi-session sprint. Its description already sends single-file cleanup to the native surface.",
       "evidence": [
@@ -69,7 +99,11 @@
         "trigger": "a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a path or PR reference target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md)",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": true
+      },
       "budget_caveat": true
     },
     {
@@ -78,7 +112,11 @@
         "class": "plugin-backed-builtin",
         "markers": []
       },
-      "component": { "plugin": "review", "skill": "security-review", "kind": "skill" },
+      "component": {
+        "plugin": "review",
+        "skill": "security-review",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "The native side is not a bundled skill at all. The extraction reports it under `plugin_backed`, backed by the `security-review` plugin, and it runs in-session over the change at hand. review:security-review is the CI lane a reusable workflow invokes for a pull request, targeting logic, trust-boundary, and Actions findings static analysis misses. Reading the wrong extraction key is the failure this row exists to prevent: under `builtin_commands` the surface looks absent.",
       "evidence": [
@@ -95,12 +133,23 @@
         "trigger": "an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record)",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "run", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "testing", "skill": "run-e2e", "kind": "skill" },
+      "native": {
+        "name": "run",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "run-e2e",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "The bundled skill answers 'did this change work when I ran the app'; run-e2e drives named UI and API flows, captures evidence (screenshots, responses, logs), and carries a non-UI smoke playbook for libraries, MCP servers, hooks, and scripts, none of which have an app to launch. Prefer the native surface for the quick look; ours where the verification has to be reproducible or the target is not an app.",
       "evidence": [
@@ -118,11 +167,20 @@
         "trigger": "a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "doctor", "class": "bundled-skill", "markers": ["gated"] },
+      "native": {
+        "name": "doctor",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
       "component": {
         "plugin": "claude-ops",
         "skill": "audit-install-state",
@@ -147,12 +205,25 @@
         "trigger": "a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove",
         "verified": "2026-08-23"
       },
-      "baked": { "description_phrase": true, "boundary_section": true },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "doctor", "class": "bundled-skill", "markers": ["gated"] },
-      "component": { "plugin": "claude-ops", "skill": "audit-performance", "kind": "skill" },
+      "native": {
+        "name": "doctor",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "audit-performance",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Registry-row only: the routing line for this pair lives on audit-install-state, which owns the shared surface description for the plugin.",
       "evidence": [
@@ -170,11 +241,20 @@
         "trigger": "a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "doctor", "class": "bundled-skill", "markers": ["gated"] },
+      "native": {
+        "name": "doctor",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
       "component": {
         "plugin": "claude-ops",
         "skill": "audit-skill-visibility",
@@ -199,14 +279,19 @@
         "trigger": "a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": true, "boundary_section": true },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
       "native": {
         "name": "skill-doctor",
         "class": "builtin-command",
-        "markers": ["gated"]
+        "markers": [
+          "gated"
+        ]
       },
       "component": {
         "plugin": "claude-ops",
@@ -232,12 +317,23 @@
         "trigger": "a Claude Code release note or docs change removes /skill-doctor, folds its report back into /doctor, gives its all-commands row the bundled-skill marker (which moves this row to the bundled-skill lane and changes which switch disables it), changes its version or feature-flag gate, or gives it a multi-source reconciliation or observation-horizon discipline of its own",
         "verified": "2026-09-07"
       },
-      "baked": { "description_phrase": true, "boundary_section": false },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": false
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "morning", "class": "session-skill", "markers": [] },
-      "component": { "plugin": "claude-ops", "skill": "morning-brief", "kind": "skill" },
+      "native": {
+        "name": "morning",
+        "class": "session-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "morning-brief",
+        "kind": "skill"
+      },
       "verdict": "defer",
       "reason": "Undetermined, and deliberately so. `morning` was observed in a session roster, not in any binary extraction, so the only evidence available is one environment's roster on one day, not a basis for a routing line shipped to every consumer. The overlap is real enough to record and too thin to rule on: nothing is known about what the session-provided skill reads, whether it is gh-based, or whether it exists outside the surface it was seen on. Observation-only, never baked, until an in-session capture protocol exists.",
       "evidence": [
@@ -254,12 +350,23 @@
         "trigger": "an in-session roster capture protocol lands and can observe this surface repeatably, or `morning` appears in a binary extraction's bundled-skill set",
         "verified": "2026-08-23"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "export", "class": "builtin-command", "markers": [] },
-      "component": { "plugin": "session-flow", "skill": "clean-stop", "kind": "skill" },
+      "native": {
+        "name": "export",
+        "class": "builtin-command",
+        "markers": []
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "clean-stop",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "No component duplicates /export and none may invoke it: built-ins are user-invoked only, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).",
       "evidence": [
@@ -277,12 +384,23 @@
         "trigger": "a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape",
         "verified": "2026-08-24"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "playground", "class": "marketplace-plugin", "markers": [] },
-      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "native": {
+        "name": "playground",
+        "class": "marketplace-plugin",
+        "markers": []
+      },
+      "component": {
+        "plugin": "visualization",
+        "skill": "visualize",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "visualize decides the best visual FORM for conversation content and renders it; the first-party playground skill builds an interactive parameter explorer whose output returns as a prompt. The shapes meet only at 'show me this visually', so visualize's Boundary section routes explorer-shaped requests out (to the playground skill, or the playgrounds wrapper which owns install uplift and cloud delivery) and keeps every static form for itself.",
       "evidence": [
@@ -300,12 +418,23 @@
         "trigger": "the upstream repository's default branch moves past the pinned commit with changes under plugins/playground, or the playground plugin is renamed, removed, or absorbed into the CLI as a bundled skill",
         "verified": "2026-09-01"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "playground", "class": "marketplace-plugin", "markers": [] },
-      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "native": {
+        "name": "playground",
+        "class": "marketplace-plugin",
+        "markers": []
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (real header, real data, real routes) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.",
       "evidence": [
@@ -323,12 +452,25 @@
         "trigger": "the upstream repository's default branch moves past the pinned commit with changes under plugins/playground, or the playground plugin is renamed, removed, or absorbed into the CLI as a bundled skill",
         "verified": "2026-09-01"
       },
-      "baked": { "description_phrase": true, "boundary_section": false },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": false
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
-      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "native": {
+        "name": "design",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "visualization",
+        "skill": "visualize",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.",
       "evidence": [
@@ -348,12 +490,25 @@
         "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
-      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "native": {
+        "name": "design",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description's presence phrasing predates the registry and carries no gate token.",
       "evidence": [
@@ -371,12 +526,26 @@
         "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "design-sync", "class": "bundled-skill", "markers": ["hidden", "gated"] },
-      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "native": {
+        "name": "design-sync",
+        "class": "bundled-skill",
+        "markers": [
+          "hidden",
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "visualization",
+        "skill": "visualize",
+        "kind": "skill"
+      },
       "verdict": "defer",
       "reason": "Deliberately undetermined. The design-sync family (design-sync skill with disableModelInvocation, hidden design-consent/design-revoke commands managing a durable agent-access grant, design-login credential flow, DesignSync tool) is registered in the binary but documented nowhere through v2.1.251, and no operator of this marketplace uses claude.ai/design design-system projects. Real enough to record next to the canvas integration it ships beside; too thin to rule on, and design-system sync is publishing, not visualization, so no integration text ships anywhere.",
       "evidence": [
@@ -393,12 +562,23 @@
         "trigger": "a Claude Code release documents any of design-sync/design-consent/design-revoke/design-login, or an operator of this marketplace adopts claude.ai/design design-system projects",
         "verified": "2026-09-01"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false
+      },
       "budget_caveat": false
     },
     {
-      "native": { "name": "claude-api", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "claude-config", "skill": "audit-instructions", "kind": "skill" },
+      "native": {
+        "name": "claude-api",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "audit-instructions",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. The bundled skill's prompt-audit subcommand is the vendor's apply-sweep over the working directory's whole prompt surface, application code included; audit-instructions is a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).",
       "evidence": [
@@ -417,12 +597,23 @@
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row)",
         "verified": "2026-09-10"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "claude-api", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "evals", "skill": "methodology", "kind": "skill" },
+      "native": {
+        "name": "claude-api",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "evals",
+        "skill": "methodology",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.",
       "evidence": [
@@ -440,12 +631,23 @@
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "claude-api", "class": "bundled-skill", "markers": [] },
-      "component": { "plugin": "playbooks", "skill": "fable-5", "kind": "skill" },
+      "native": {
+        "name": "claude-api",
+        "class": "bundled-skill",
+        "markers": []
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "fable-5",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.",
       "evidence": [
@@ -463,12 +665,25 @@
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     },
     {
-      "native": { "name": "plugin eval", "class": "builtin-command", "markers": ["gated"] },
-      "component": { "plugin": "evals", "skill": "plugin-eval", "kind": "skill" },
+      "native": {
+        "name": "plugin eval",
+        "class": "builtin-command",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "evals",
+        "skill": "plugin-eval",
+        "kind": "skill"
+      },
       "verdict": "complementary",
       "reason": "The CLI runs and scores: `claude plugin eval <target>` loads the plugin, runs every case in a with-plugin arm and a no-plugin baseline arm, grades each run, and reports WITH, W/OUT, and the delta. evals:plugin-eval is the guided practice around that command, which the CLI does not ship: a preflight that reports the CLI version against the floor, whether a sandbox backend exists on this machine, and the target type (plugin, wrapped skill, wrapped agent, hooks as advisory; CLAUDE.md and rules refused because the run strips them by design); static validation of the case files with no model call; a cost estimate from cases x runs x arms and a ceiling from plugin user config passed as --max-cost-usd; and a delta-first reading with the iteration loop. Neither replaces the other: the skill never grades, and the command never preflights, prices, or reads. The skill's Boundary section names the command; no listing phrase is baked, because the native-references gate token is a condition on the model's skill listing, and a CLI subcommand never enters that listing, so the skill gates on the CLI itself (preflight's version floor) instead. The gated marker rests on two switches: below the floor the binary prints an early-access refusal, and a server-side switch prints an unavailable refusal that nothing local restores.",
       "evidence": [
@@ -490,7 +705,10 @@
         "trigger": "a Claude Code release after 2.1.269 changes the plugin eval flag set, the case schema version, the exit codes, the ablation exclusion rule for with-only and `tool_used: Skill` graders, the early-access or unavailable gate strings, or the sandbox backend list; or the command or its docs page gains a preflight, validate-only, dry-run, or cost-estimate mode that makes any part of evals:plugin-eval redundant",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true
+      },
       "budget_caveat": true
     }
   ]

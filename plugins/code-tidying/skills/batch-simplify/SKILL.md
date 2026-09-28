@@ -1,12 +1,25 @@
 ---
-description: "Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a named scope such as a branch, a whole repository, or one directory, or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
+description: "When the bundled simplify skill resolves in your session, prefer it for single-file cleanup; this skill for batch sweeps. Batch-run simplification across changed files, or across an entire repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a named scope such as a branch, a whole repository, or one directory, or after a multi-session sprint. Accepts a time window (`24h`, `7d`), `branch` to diff the current branch vs the default branch, or `repo` for a confirmed whole-repository sweep; any scope narrows to one or more trailing paths; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [path...] [docs] [override] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
+argument-hint: "[unattended] [time-window | branch | repo] [path...] [docs] [override] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
+## Native step: simplify (bundled skill)
+
+When the bundled `simplify` skill resolves in your session, invoke it over each file group in the
+pre-flight scope before this skill's batching and ordering around it.
+
+**Mutation.** Fingerprint tracked files outside the scope before the step; any change outside the
+scope is **mutation detected after a scoped invocation**.
+
+**Skip report.** When the step does not run, open with `did not resolve in this session` and name
+the axis line: settings or environment, plan, platform or provider, host surface; give the enable
+path (`disableBundledSkills`, `skillOverrides`).
+
+**`unattended`:** run the step when it resolves; record the Native step result block without asking.
 
 ## Repository context. Gather first
 

@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5] - 2026-09-28
+
+### Changed
+
+- **batch-simplify:** compose the bundled `simplify` skill via a Native step section; **tidy:** description routing phrase ([#4051](https://github.com/melodic-software/claude-code-plugins/issues/4051)). Store `integration` / parity tooling waits on #4049.
+
 ## [0.23.4] - 2026-09-27
 
 ### Changed
