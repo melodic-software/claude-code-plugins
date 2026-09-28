@@ -718,14 +718,19 @@ jobs:
       # Every `uses: ./.github/actions/checkout-with-base` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
       # audit to recommend GitHub's `$/...` form over the workspace-relative
-      # `./...` form, and its auto-fix rewrites all seven call sites. The
-      # rewrite cannot be taken yet: actionlint (pinned by SHA in the
+      # `./...` form, and its auto-fix rewrites the call sites. The rewrite
+      # cannot be taken yet (#4130): actionlint (pinned by SHA in the
       # melodic-software/ci-workflows action this lane also runs) rejects
       # `$/.github/actions/checkout-with-base` as "invalid format because ref
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
       # understands the syntax.
+      # Claim: keep the self-repository ignores; do not rewrite to `$/` until
+      # actionlint parses it. Basis: actionlint v1.7.12 (2026-03-30) is still
+      # latest; the pin is ci-workflows actionlint@4610c31e (v0.27.1). As of:
+      # 2026-09-28. Recheck: an actionlint release accepts `uses: $/...` and
+      # the ci-workflows action is repinned to a version that carries it.
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
