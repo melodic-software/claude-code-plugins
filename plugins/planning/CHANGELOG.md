@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.11] - 2026-09-28
+
+### Added
+
+- **`interview` eval case 25, `out-of-band-return-supersedes-before-the-reply`**
+  ([#3945](https://github.com/melodic-software/claude-code-plugins/issues/3945)). It is the async
+  twin of case 12: a sub-agent's return contradicts Q3's recommendation and is queued in the same
+  turn as a reply that accepts that recommendation. It grades the "Out-of-band drift" rule in
+  `context/loop.md`: the queued return is processed against the register as it stood before the
+  reply, so Q3 is not settled on the superseded recommendation and the user's answer is
+  revalidated; Q3 is restated with the superseded recommendation named; the untouched questions
+  get a one-line pointer instead of a re-printed round; and the rest of the frontier did not wait
+  for the lookup. `interview-defenses.test.sh` updates the roster digest and pins the new case
+  beside case 12.
+
 ## [0.44.10] - 2026-09-28
 
 ### Changed
