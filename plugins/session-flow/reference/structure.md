@@ -518,10 +518,13 @@ DIR="$MEMORY_ROOT/handoffs"                # resolved per save-point.md "Where s
 #    gitignore itself. `new` re-verifies this and refuses without it; it never
 #    writes the file itself, so this step is the only place the guard is created.
 mkdir -p "$DIR"
-if [[ "$DIR" == "$MEMORY_ROOT"/* ]]; then
-  grep -qx '\*' "$MEMORY_ROOT/.gitignore" 2>/dev/null \
-    || printf '*\n' >> "$MEMORY_ROOT/.gitignore"   # announce this write to the user
+if [[ "$DIR" == "$MEMORY_ROOT"/* ]] && ! grep -qx '\*' "$MEMORY_ROOT/.gitignore" 2>/dev/null; then
+  echo "self-ignore guard missing: $MEMORY_ROOT/.gitignore"
 fi
+#    On that line, and only then, write the guard with a tool, never a shell
+#    redirect: the Write tool creates an absent file holding the single line `*`;
+#    the Edit tool adds a `*` line to an existing file that lacks one. Announce
+#    the write to the user. No line printed → the guard holds; write nothing.
 
 # 4. Interpreter ladder (the retro skill's form): Python 3.10+, stdlib only.
 PY=""

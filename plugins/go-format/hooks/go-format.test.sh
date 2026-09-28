@@ -573,6 +573,31 @@ else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
 fi
 
+# --- Gitignored path (#4671): not rewritten by default ------------------------
+# goimports would add the missing "fmt" import; under an ignored directory it
+# does not run, unless go_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_go_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO_IGN/.work/scratch.go"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.go")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.go")
+if [[ "$(cat "$REPO_IGN/.work/scratch.go")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
+fi
+if [[ -z "$OUT" ]]; then ok "gitignored: silent"; else fail "gitignored: output: $OUT"; fi
+run_hook_env "$REPO_IGN/.work/scratch.go" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" \
+  CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q '"fmt"' "$REPO_IGN/.work/scratch.go"; then
+  ok "gitignored + go_format_lint_gitignored=true: import added"
+else
+  fail "gitignored + opt-in: not rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
