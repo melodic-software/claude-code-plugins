@@ -63,6 +63,7 @@ class WavEmbedTest(unittest.TestCase):
         self.assertEqual(data[8:12], b"WAVE")
         scene = (wav.parent / "scene.html").read_text()
         self.assertIn("/*WAV:campfire.wav*/null", scene)
+        self.assertIn("campfire.wav", (wav.parent / "AUDIO.txt").read_text())
 
 
 if __name__ == "__main__":
