@@ -250,16 +250,29 @@ minor version moves, or a release note names background sessions, the
 background session, return immediately; `--permission-mode auto` is what makes
 an unattended lane run past its first permission prompt instead of stalling
 under a machine's Manual default; `--permission-prompts none` is added when
-`claude --version` is at least 2.1.259, so the classifier still decides and
-only a call that would have prompted is denied; a probe on Claude Code 2.1.282
-accepted that flag together with `--bg`; `--settings` accepts inline
-JSON and applies session-only, per the CLI reference),
+`claude --version` is at least 2.1.259 and denies whatever would still fall
+through to a prompt, including `AskUserQuestion`, while auto mode keeps
+deciding; older CLIs reject the flag, so it is omitted there; a probe on
+Claude Code 2.1.282 accepted that flag together with `--bg`; `--settings`
+accepts inline JSON and applies session-only, per the CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with
 `claude attach`), and `claude plugin marketplace update`. There is no
 `claude agents stop` verb. Stop resolves the sessionId from `agents --json` and
 only for a configured lane name.
+
+**Record.** Claim: an unattended lane launches with `--permission-mode auto`, and
+with `--permission-prompts none` when `claude --version` is at least 2.1.259, so
+auto mode still decides and a prompt that would have asked a person is denied.
+Basis:
+<https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs>
+and the `--permission-prompts` row of
+<https://code.claude.com/docs/en/cli-reference> (the row says print mode). A
+probe on Claude Code 2.1.282 accepted the flag together with `--bg` and
+`--permission-mode auto` and backgrounded a session, which was then stopped.
+As of: 2026-09-28. Recheck: the CLI flag row stops listing `none`, a `--bg`
+launch rejects the flag, or a release note changes what `none` denies.
 
 ### Not wired, recorded 2026-09-28
 
@@ -291,18 +304,6 @@ Three Claude Code 2.1.257 to 2.1.263 capabilities stay out of the launcher.
   mention `--bg`). **As of:** 2026-09-28. **Recheck trigger:** the
   `--resume` row documents combining it with `--bg`, including what happens
   to the prompt and the session name.
-
-**Record.** Claim: an unattended lane launches with `--permission-mode auto`, and
-with `--permission-prompts none` when `claude --version` is at least 2.1.259, so
-auto mode still decides and a prompt that would have asked a person is denied.
-Basis:
-<https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs>
-and the `--permission-prompts` row of
-<https://code.claude.com/docs/en/cli-reference> (the row says print mode). A
-probe on Claude Code 2.1.282 accepted the flag together with `--bg` and
-`--permission-mode auto` and backgrounded a session, which was then stopped.
-As of: 2026-09-28. Recheck: the CLI flag row stops listing `none`, a `--bg`
-launch rejects the flag, or a release note changes what `none` denies.
 
 ## Gotchas
 
