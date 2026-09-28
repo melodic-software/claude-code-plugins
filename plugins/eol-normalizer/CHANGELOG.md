@@ -3,12 +3,6 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.0] - 2026-09-28
-
-### Changed
-
-- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now not normalized, because a rewrite of an ignored file has no `git checkout` to undo it. Set the new `eol_normalizer_lint_gitignored` option to `true` to act on gitignored files again. A tracked file that matches an ignore pattern stays in scope, and any failure to decide (git absent, no repository, a `check-ignore` error) acts as before. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`, which follows `markdown-format`'s gate: it consults the index and clears an inherited `GIT_DIR`/`GIT_WORK_TREE`. The check costs one git process and runs only when a file actually needs normalizing, so the common already-canonical path pays nothing.
-
 ## [0.7.0] - 2026-09-28
 
 ### Changed
