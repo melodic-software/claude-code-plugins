@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-state` runs as a blocking fork** (`context: fork`, `background: false`)
+  (#3545). The body is an isolated subagent prompt with no parent history; `$ARGUMENTS` and the
+  working tree are the whole input. The caller — a user `/name` or `audit-pass` via the Skill
+  tool — waits for the report in the same turn, so the pass's one-gate flow is unchanged.
+  `audit-pass`'s lane catalog records that composition posture. Anti-candidate classes and the
+  when-fork-pays tests live in `docs/conventions/invocation-context/`.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed

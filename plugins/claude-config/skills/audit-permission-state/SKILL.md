@@ -3,6 +3,8 @@ description: "Report the Claude Code permission state in effect: merges every se
 argument-hint: "(none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced"
 user-invocable: true
 disable-model-invocation: false
+context: fork
+background: false
 metadata:
   workflow-stage: anytime
   summary: Report the permission rules actually in effect and what auto mode drops
@@ -27,6 +29,12 @@ It answers a question the siblings do not. `audit-permission-grants` asks whethe
 **wrote** are durable and portable; `audit` asks whether your config files are **correct**. This
 skill asks what is **in effect**: which scopes exist on this machine, which of them this reader
 could actually open, and what each one holds.
+
+This skill runs as a **blocking fork** (`context: fork`, `background: false`): the body is the
+subagent's prompt and there is no parent conversation. `$ARGUMENTS` and the working tree are the
+whole input. The caller — a user `/name` or `audit-pass` via the Skill tool — waits for the
+report in the same turn. Rubric:
+[invocation-context](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
 
 ## Scope boundary (route out)
 
