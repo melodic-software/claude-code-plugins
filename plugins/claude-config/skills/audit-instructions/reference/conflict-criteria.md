@@ -32,6 +32,9 @@ the pre-scan and the lane each drop.
 surface. That governance question is recorded as rejected for this repository in
 [`docs/out-of-scope/shared-surface-instruction-governance.md`](../../../../../../docs/out-of-scope/shared-surface-instruction-governance.md)
 (#3568). `instruction-exception-register` governs deletions only, not ownership.
+**Claim:** I15 does not assign shared-surface ownership. **Basis:** this file's pair-detection
+charter; the rejected-concept ledger entry for #3568. **As of:** 2026-09-28. **Recheck:** when
+that ledger's recheck fires.
 
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
