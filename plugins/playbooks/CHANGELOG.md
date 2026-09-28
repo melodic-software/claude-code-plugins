@@ -16,6 +16,12 @@ only after that version increases.
   ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
   The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
   in a block that never runs git is not that check. The compose gate was already git-only.
+## [0.13.19] - 2026-09-28
+
+### Added
+
+- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
+
 ## [0.13.17] - 2026-09-28
 
 ### Changed

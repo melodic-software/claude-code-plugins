@@ -6,7 +6,7 @@
 
 - **`hop_chain.py` passes `--permission-prompts none` on Claude Code 2.1.259+** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The harness keeps `bypassPermissions` and the pinned `--tools` list. The flag denies only what would still have prompted. Older CLIs omit it. Basis: the headless page, fetched 2026-09-28.
 
-## [0.38.16] - 2026-09-28
+## [0.38.15] - 2026-09-28
 
 ### Changed
 

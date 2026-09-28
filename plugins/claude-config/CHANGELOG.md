@@ -34,6 +34,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   I21 drops the "Opus 5 has no hold" sentence for the current model-config page: Opus 5.5 ignores
   a top-level user `effortLevel`, and that key still applies on Opus 5, Fable 5.1, and earlier
   models. Each claim cites the page read on 2026-09-28.
+## [0.51.10] - 2026-09-28
+
+### Changed
+
+- **Managed-policy diagnosis routes to `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `audit-permission-state` still cannot see server-managed settings, which have no local path. The note now sends the operator to `/status` (Setting sources and the Organization policy line) and to `claude doctor`, which shows the same line, for a policy that did not load, a policy-helper failure, or a credential that is signed in but not in use.
+
 ## [0.51.7] - 2026-09-28
 
 ### Fixed

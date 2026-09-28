@@ -836,8 +836,12 @@ launch_lane() {
 
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
   # first prompt. Never bypassPermissions. From Claude Code 2.1.259,
-  # --permission-prompts none denies only what would have prompted and leaves
-  # the auto-mode classifier in place. Older CLIs reject the flag, so omit it.
+  # --permission-prompts none denies whatever would still prompt
+  # (AskUserQuestion, an elicitation nobody answered) while auto mode keeps
+  # deciding. Older CLIs reject the flag, so omit it. Probed 2026-09-28 on
+  # Claude Code 2.1.282: the flag together with --bg and --permission-mode auto
+  # backgrounded and was stopped. The flag is documented for print mode; this
+  # --bg form accepted it.
   local -a cmd=(claude --bg -n "$name" --permission-mode auto)
   cli_version
   if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then

@@ -17,6 +17,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The README no longer says no auto-compact threshold is published** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The model-config page read on 2026-09-28 still publishes about 967K tokens for a native 1M window. The reader contract already carried that figure. The README now points at it.
 
+## [0.7.77] - 2026-09-28
+
+### Added
+
+- **`prompt-cache-cause.py` reads `prompt_cache.last_miss_cause`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The script prints the native cause names from a statusline payload (`tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, `likely_server_side`, and the counts that ride with the first two). A missing object and a null cause are distinct. The tee snapshot still copies `context_window` only.
+
+### Changed
+
+- **1M auto-compact exception list re-fetched.** `reference/reader-contract.md` stamps the model-config default-threshold list at 2026-09-28. Opus and Fable compacting shortly before the 1M limit is that page's "about 967K tokens by default" for native 1M models.
+
 ## [0.7.75] - 2026-09-28
 
 ### Changed
