@@ -117,7 +117,12 @@ residence are how this convention prices them.
 
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
-Current emitters, grandfathered on their shipped behavior: `adhd:clarify`,
+Migrated onto the cascade ladder: `adhd:clarify` (argument, plugin `medium`
+dial, rendered-views cascade, then the shipped artifact-forward default).
+Its chrome copy is `plugins/adhd/reference/html-chrome.html`, byte-identical
+to visualization's copy and registered with it.
+
+Current emitters, grandfathered on their shipped behavior:
 `architecture:improve`, `education:quiz-me`, `education:teach`,
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
 `claude-ops:observability`, `planning:interview` (and planning's other rendered views),
@@ -258,18 +263,21 @@ owner declaration.
 **Decision.** Park the interactive set-value, persist, and clear smoke of
 `visualization`'s `medium` `userConfig` dial until a host with the interactive
 `/plugin` dialog funds the run. The unset path is already the documented
-behavior the resolution ladders detect. This park keeps gating the
-grandfathered-surface fleet sweep (#3603).
+behavior the resolution ladders detect. `adhd:clarify` is the migrated
+slice of #3603 and reuses this dial shape. The remaining grandfathered
+emitters stay on their shipped ladders.
 
-- **Claim:** the interactive `userConfig` smoke stays unrun; #3603 stays gated
-  on it. Do not multiply dial reliance across the fleet from a headless host.
+- **Claim:** the interactive `userConfig` smoke stays unrun. `adhd:clarify`
+  is on the ladder with the same `medium` dial visualization already ships.
+  The other grandfathered emitters are not migrated by that slice.
 - **Basis:** `plugins/visualization/.claude-plugin/plugin.json` ships
   `userConfig.medium` (default `auto`).
   `plugins/visualization/skills/visualize/SKILL.md` rung 2 is
   `${user_config.medium}` and treats the literal token as unset. Wave-1
   probed CLI 2.1.251 on the unset path only. This checkout's CLI is 2.1.280
-  and has no interactive `/plugin` dialog. GitHub records #3603 blocked by
-  #3604. The dial has a bug history roughly v2.1.86 through v2.1.210.
+  and has no interactive `/plugin` dialog. #3604 still tracks that unrun
+  smoke. The `adhd:clarify` slice does not wait on it. The dial has a bug
+  history roughly v2.1.86 through v2.1.210.
 - **As of:** 2026-09-28.
 - **Recheck:** a machine with the interactive `/plugin` dialog records CLI
   version and set / persist-across-restart / clear-to-literal-token outcome
@@ -314,8 +322,8 @@ which is another cost of copying.
 - It never makes HTML the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML-generating skill: each skill owns its genre's page shape, and
   `visualization:visualize` stays a router that owns no craft.
-- It does not migrate the grandfathered surfaces: that sweep is priced and tracked
-  separately, gated on the userConfig smoke test.
+- It migrates grandfathered surfaces one slice at a time. `adhd:clarify` is
+  on the ladder. The other emitters listed above stay on their shipped ladders.
 - It does not run the interactive userConfig smoke test: see Interactive
   userConfig smoke test (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

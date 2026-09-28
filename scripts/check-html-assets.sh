@@ -49,6 +49,7 @@ else
   assets=(
     plugins/playbooks/reference/repo-sweep-plan-page.html
     plugins/visualization/reference/html-chrome.html
+    plugins/adhd/reference/html-chrome.html
     plugins/visualization/reference/html-loop-closure.html
   )
 fi

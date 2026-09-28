@@ -31,13 +31,13 @@
       "id": 3,
       "name": "artifact-forward-decision-table-two-numbering-systems",
       "prompt": "break this down, this is a wall of text",
-      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. If the Artifact surface is available it publishes an HTML artifact (after loading artifact-design); otherwise it degrades to a local HTML file or structured terminal markdown.",
+      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. With no medium argument and an unset dial and cascade, the shipped default publishes an HTML artifact when that surface exists (after loading artifact-design), otherwise a local HTML file, otherwise structured terminal markdown.",
       "files": [],
       "expectations": [
         "Produces a decision table with the columns item | recommendation | alternative | what-you're-deciding",
         "Uses distinct numbering: the table's own row number for answer-mapping and the original item number as a back-link",
         "Recommendation/alternative cells carry verbatim operative terms, not paraphrase",
-        "Selects the render medium (published artifact / local HTML file / terminal markdown) by artifact-surface availability and content size"
+        "With argument, dial, and cascade unset, selects published artifact, local HTML file, or terminal markdown by the shipped default (surface availability and content size)"
       ]
     },
     {
@@ -99,6 +99,30 @@
         "Recognizes 'ELI5' plus 'the picture version' as a medium request and routes to education:eli5, not education:explain",
         "Does not produce a diagram or visual explainer itself, and does not treat the request as a cue to restructure the message instead",
         "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:eli5"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "explicit-terminal-argument-forces-the-medium",
+      "prompt": "/adhd:clarify terminal the design memo in the previous message",
+      "expected_output": "Treats the leading terminal token as rung 1 of the rendered-views ladder and clarifies the named memo as structured terminal markdown, even when an Artifact tool is available and the content is decision-dense. Does not publish an artifact and does not write a local HTML file.",
+      "files": [],
+      "expectations": [
+        "Honors a leading terminal argument over the Artifact surface and over content size",
+        "Produces the decision table as structured terminal markdown",
+        "Does not publish an artifact or write a local HTML file"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "emits-the-view-for-the-person-deciding",
+      "prompt": "/adhd:clarify the decision-dense memo in the previous message",
+      "expected_output": "Emits the decision table. The next consumer is the person deciding, and a later pass re-reads the original text, so the skill does not stop at an offer to render. The original text remains the record.",
+      "files": [],
+      "expectations": [
+        "Emits the decision table for a decision-dense target",
+        "Does not stop at an offer in place of the table",
+        "Keeps the original text as the record a later pass re-reads"
       ]
     }
   ]

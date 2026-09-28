@@ -1,6 +1,6 @@
 ---
 description: "Faithfully clarify a dense, decision-heavy message so the reader can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what the reader must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude and not medium. A lossy plain-language drop is education:explain (if installed) instead; a picture explainer (a diagram, ELI5) is education:eli5 (if installed). Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
-argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
+argument-hint: "[terminal|file|artifact] [artifact to clarify] (empty target = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -38,11 +38,10 @@ worse than the wall of text, so the fidelity rules below are hard, not aspiratio
    **Done when** every decision from the target appears in the restructured
    view and every omission is named. A paraphrase that drops or softens a
    decision is not done.
-4. **Choose the medium**. Artifact, local file, or terminal, per
-   [Rendering](#rendering-artifact-forward).
-   **Done when** the output is on the rendering ladder the table names for this
-   session and content size, and you have not claimed an artifact that was
-   not produced.
+4. **Choose the medium**. Argument, plugin dial, cascade, then the shipped
+   default, per [Rendering](#rendering).
+   **Done when** the output is on the rung this session's ladder selects, and
+   you have not claimed an artifact that was not produced.
 
 ## Empty argument, anaphora default
 
@@ -80,7 +79,7 @@ defeats the purpose:
 2. **Keep the original numbers as back-links.** Every chunk carries the
    original item's own identifier (Q9, Round 4 · P15b, §3) so the reader can jump
    back to the source. This is separate from any numbering this skill adds for
-   itself (see [Rendering](#rendering-artifact-forward)). Never collapse the two.
+   itself (see [Rendering](#rendering)). Never collapse the two.
    When the original carries **no identifiers** (a dense prose memo with no Q-numbers
    or section marks), synthesize a locator and say you did: a sequential marker
    ("¶2", "Para 3") or the chunk's quoted opening phrase. Never leave a chunk
@@ -120,22 +119,37 @@ one sentence, **what the reader is actually deciding**, the crux, not a
 restatement of the option. If the original only recommends with no alternative,
 say so rather than inventing one.
 
-## Rendering: artifact-forward
+## Rendering
 
-Decision-dense content wants a table, not a paragraph. A table is the part a
-plain reply cannot do well. Pick the medium by what the session can render and
-how heavy the content is:
+Decision-dense content wants a table, not a paragraph. The medium ladder,
+first hit wins. A leading `terminal`, `file`, or `artifact` token is rung 1;
+the rest of the argument is the target.
 
-| Content | Surface available | Render as |
-|---|---|---|
-| Big / decision-dense (roughly 3+ decisions) | Artifact tool present in this session | **Published HTML artifact** |
-| Big / decision-dense | No artifact surface (e.g. plain terminal), file writing useful | **Local HTML file** under plugin data / temp, hand back the path |
-| Small (1–2 decisions), or no useful file surface | either | **Structured terminal markdown** |
+1. **Argument.** `terminal`, `file`, or `artifact` forces that rung.
+2. **Plugin dial.** `${user_config.medium}`. A literal `${user_config.medium}`
+   token or an empty value is unset. Recognized values are `auto`, `terminal`,
+   `file`, and `artifact`. Any other value is reported and treated as unset.
+3. **Cascade.** Read only when rungs 1 and 2 are unset. Anchor at the repo
+   root (`${CLAUDE_PROJECT_DIR}` when set, else `git rev-parse --show-toplevel`).
+   Read whichever of `~/.claude/rendered-views.md`,
+   `<root>/.claude/rendered-views.md`, and
+   `<root>/.claude/rendered-views.local.md` exist. The last layer that states
+   a `medium:` value wins, with the same recognized values. A team layer that
+   is not tracked is a hard stop. An overlay that is staged or not gitignored
+   is a failure to report. The user-global layer takes no git verdict. Name
+   the winning layer. A malformed layer is skipped. All layers absent falls
+   through.
+4. **Shipped default**, when the upper rungs are unset or `auto`. About 3 or
+   more decisions and an Artifact tool: publish an HTML artifact. The same
+   density without that surface: a local HTML file. One or two decisions, or
+   no writable temp and no Artifact surface: structured terminal markdown.
 
-The Artifact rendering surface is a claude.ai-hosted capability, present in some
-sessions and absent in others. Detect it: if the Artifact tool is available, that
-is the top rung; otherwise degrade down the ladder. Never claim a decision table
-was rendered when only prose was produced.
+The next consumer is the person deciding. A later pass re-reads the original
+text. This skill emits the view. The original text remains the record.
+Never claim a decision table was rendered when only prose was produced.
+
+**Page chrome.** Take the palette, type stacks, and the accessibility floor
+from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
 
 Write any local HTML file to the **ephemeral tier**, one file created through
 the platform's temp API, and hand back that path. A clarified view is
