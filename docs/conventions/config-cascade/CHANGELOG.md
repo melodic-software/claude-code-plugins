@@ -15,10 +15,9 @@ root before any team or overlay read so a home-rooted session cannot treat the o
 personal `~/.claude/<surface>` as the team layer.
 
 - **Special-root classification (#4672).** When the resolved root is `$HOME` or an ancestor of
-  `$HOME`, team and overlay are not applicable: report both with that reason and resolve
-  user-global only. Layer paths that physically name one file are reported as equal rather
-  than read twice. A non-home directory that is not a git working tree keeps the three-layer
-  read. A shared root resolver, and a ruling that would skip filesystem/drive/temp/cloud-sync
+  `$HOME`, or is not inside a git working tree, team and overlay are not applicable: report both
+  with that reason and resolve user-global only. Layer paths that physically name one file are
+  reported as equal rather than read twice. A shared root resolver, and a ruling that would skip filesystem/drive/temp/cloud-sync
   roots, stay follow-up. `source-control`'s `parse-branch-issue.sh` and setup `check`/`apply`
   implement the home-root rule; other surfaces adopt it or record why not. The degrade-soft
   step is now numbered 5.

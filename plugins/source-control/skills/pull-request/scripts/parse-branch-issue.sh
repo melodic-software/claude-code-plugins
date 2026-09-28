@@ -27,7 +27,8 @@
 #      `git rev-parse --show-toplevel`. When that root is the home directory
 #      (or an ancestor of it), team and overlay layers are not applicable: the
 #      team path would be the same file as user-global. Overlay is skipped the
-#      same way. A team or overlay path that physically equals the user-global
+#      same way. A root outside any git working tree skips both layers too. A
+#      team or overlay path that physically equals the user-global
 #      file is skipped even when the root is not home.
 #   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
 #      literal `${user_config...}` placeholder), then
@@ -288,13 +289,17 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 
 LAYERS=()
 USER_LAYER="${HOME:-}/.claude/source-control.md"
-if [[ -n "$REPO_ROOT" ]] && ! root_is_home_or_ancestor "$REPO_ROOT"; then
+if [[ -z "$REPO_ROOT" ]]; then
+  :
+elif root_is_home_or_ancestor "$REPO_ROOT"; then
+  note "team and overlay not applicable: project root is the home directory (or an ancestor of it)"
+elif [[ "$(git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]]; then
+  note "team and overlay not applicable: project root is not inside a git repository"
+else
   overlay="${REPO_ROOT}/.claude/source-control.local.md"
   team="${REPO_ROOT}/.claude/source-control.md"
   paths_same "$overlay" "$USER_LAYER" || LAYERS+=("$overlay")
   paths_same "$team" "$USER_LAYER" || LAYERS+=("$team")
-elif [[ -n "$REPO_ROOT" ]]; then
-  note "team and overlay not applicable: project root is the home directory (or an ancestor of it)"
 fi
 LAYERS+=("$USER_LAYER")
 

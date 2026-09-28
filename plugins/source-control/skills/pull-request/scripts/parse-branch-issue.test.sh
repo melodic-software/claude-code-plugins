@@ -69,6 +69,7 @@ layer() {
 new_case() {
   CASE_HOME="$(mktemp -d "${FIXTURES}/home.XXXXXX")"
   CASE_REPO="$(mktemp -d "${FIXTURES}/repo.XXXXXX")"
+  git init -q "$CASE_REPO"
 }
 
 # `layer_raw <file> <content>` writes the file verbatim, for fence cases.
@@ -409,6 +410,13 @@ layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
 layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
 run_cfg "a repo root that is not home still lets team beat user-global" \
   "a/5/77-x-9" "" - "9" 0 empty
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+CASE_REPO="$(mktemp -d "${FIXTURES}/norepo.XXXXXX")"
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "a root outside any git repository skips team and overlay" \
+  "a/5-x-9" "" - "5" 0 "project root is not inside a git repository"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

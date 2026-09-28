@@ -217,15 +217,15 @@ A plugin implementing this contract:
    directory, a CWD-relative read finds a nonexistent `<subdir>/.claude/...`, misses the real config,
    and silently degrades to a lower rung. Re-resolve the root in every self-contained shell call.
 2. **Classifies that root before any team or overlay read.** When the resolved root is `$HOME` or
-   an ancestor of `$HOME`, team and overlay are **not applicable**: report both with that reason and
-   resolve user-global only. Never read `$HOME/.claude/<surface>` as the team layer; those two
+   an ancestor of `$HOME`, or is not inside a git working tree, team and overlay are **not
+   applicable**: report both with that reason and resolve user-global only. Never read `$HOME/.claude/<surface>` as the team layer; those two
    paths are the same file, and writing `apply layer=team` would write the operator's personal
    config. Compare layer paths physically (slash-fold, case-fold, `pwd -P` when the directory
    exists) so a native Windows home spelling and its MSYS alias still collapse. A team or overlay
    path that physically equals the user-global file is skipped even when the root is not home.
-   A non-home directory that is not a git working tree still has a distinct team path and keeps
-   the three-layer read. A filesystem or drive root, the OS temp directory, and a cloud-synced
-   folder are named follow-up roots for the shared resolver; this step does not skip them.
+   A filesystem or drive root, the OS temp directory, and a cloud-synced
+   folder are named follow-up roots for the shared resolver; this step does not skip them for that
+   reason alone.
    Surfaces that read more than one layer and find two paths naming one file report the equality
    instead of reading it twice.
 3. **Reads every layer that exists**, in order, and merges per the surface's declared semantics.
@@ -392,7 +392,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line (#3573); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; a shared root resolver for other surfaces is the follow-up. Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
+| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared) and the ratified gitignore append of the recursive overlay line (#3573); `parse-branch-issue.sh` implements the home-root rule (#4672): team and overlay are not applicable when the resolved root is `$HOME` or an ancestor of it, or is not inside a git working tree, and a team/overlay path that physically equals the user-global file is skipped; setup `apply layer=team` / `layer=local` refuse in that state; a shared root resolver for other surfaces is the follow-up. Enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `bugs` | `.claude/bugs.md` | all three | conforms; `lanes` concatenate and deduplicate by lane `name`, with a declared empty-list opt-out that also drops the bundled defaults, and `filing_posture` is a nearest-wins scalar. Keys owned by the plugin's `reference/config.md`, which also partitions them from the plugin's `output_dir` `userConfig` option. That option is never a key in this surface, and a layer declaring it is reported as an inert unknown key. Written (team layer only) by `/bugs:setup apply`, read by `/bugs:scan` |
