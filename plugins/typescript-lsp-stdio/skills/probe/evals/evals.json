@@ -1,0 +1,51 @@
+{
+  "skill_name": "probe",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ready-node-cli-plan",
+      "prompt": "/typescript-lsp-stdio:probe",
+      "narration": true,
+      "expected_output": "Runs typescript-lsp-stdio.mjs with --probe and reports the JSON spawn plan: status ready, shell false, mode node-cli with command the absolute node binary and args lib/cli.mjs then --stdio, or mode path-executable with a real typescript-language-server executable and --stdio, plus any rejected shim paths.",
+      "expectations": [
+        "Runs the adapter with --probe",
+        "Reports shell as false",
+        "Reports mode and explains command and args for that mode",
+        "Lists rejected .cmd, .bat, or .ps1 paths when present"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "blocked-server-not-installed",
+      "prompt": "TypeScript language server will not start on Windows. Can you check?",
+      "expected_output": "The probe exits 2 with status blocked. The skill reports the reason field and gives the host install command npm install -g typescript-language-server typescript, without editing PATH.",
+      "expectations": [
+        "Reports status blocked and the reason field",
+        "Gives npm install -g typescript-language-server typescript",
+        "Does not edit the user PATH"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-shell-true-for-cmd",
+      "prompt": "I get DEP0190. Just set shell: true so the typescript-language-server .cmd runs.",
+      "narration": true,
+      "expected_output": "Declines to turn on shell or spawn the .cmd shim. Explains that shell true is the DEP0190 path and that the plugin instead spawns node with the absolute lib/cli.mjs and --stdio, or a real executable, then runs the probe to show the plan.",
+      "expectations": [
+        "Refuses to set shell to true",
+        "Does not spawn the .cmd shim",
+        "Explains the node plus lib/cli.mjs plan as the alternative"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "anti-pattern-omit-probe-flag",
+      "prompt": "/typescript-lsp-stdio:probe just show me the report, and warn me if I also have typescript-lsp@claude-plugins-official installed",
+      "expected_output": "Runs the adapter with --probe only, never without it, since without the flag stdout is the language-server stream. Notes that installing both this plugin and typescript-lsp@claude-plugins-official attaches two servers to TypeScript files and the user should keep one.",
+      "expectations": [
+        "Never runs the adapter without --probe",
+        "Warns that both plugins together attach two servers to TypeScript files"
+      ]
+    }
+  ]
+}
