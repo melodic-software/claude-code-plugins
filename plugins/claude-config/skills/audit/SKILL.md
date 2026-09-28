@@ -148,7 +148,8 @@ The engine runs `scripts/check-hook-coverage.sh` itself and carries its result i
 `hook_inventory`. That script enumerates settings-declared hooks **and** the hooks shipped by every
 enabled plugin, read from the directory the session actually loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise), plus the levers (`disableAllHooks`,
-`allowManagedHooksOnly`, `strictPluginOnlyCustomization`) that switch hooks off wholesale, and any
+`allowManagedHooksOnly`, `strictPluginOnlyCustomization` when it is `true` or names `"hooks"`) that
+switch hooks off, and any
 divergence between the loaded directory and the registry's cache snapshot.
 
 **Read the inventory state, not just the rows.** `complete` means every enabled plugin resolved.
