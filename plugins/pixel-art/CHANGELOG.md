@@ -14,6 +14,7 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 - Worked generators under `examples/tileset`, `examples/ui`, and `examples/vfx`, rendered by
   `scripts/render.py`. Tests check an MZ A2 sheet, a `Window.png` skin, and a five-column animation
   sheet against the grids in `engine-layouts.md`.
+
 ## [0.3.0]
 
 ### Added
