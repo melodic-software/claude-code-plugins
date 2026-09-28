@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.9] - 2026-09-28
+
+### Added
+
+- **`worktree-create.sh --existing-branch`** ([#3992](https://github.com/melodic-software/claude-code-plugins/issues/3992)).
+  Checks out a local branch that already exists instead of creating one with `-b`. It cannot be
+  combined with `--base-ref`. `/repo-fleet-hygiene:sync` uses it to park divergent work.
+
 ## [0.62.8] - 2026-09-28
 
 ### Changed

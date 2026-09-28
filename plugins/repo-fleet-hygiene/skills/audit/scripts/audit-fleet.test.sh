@@ -1239,8 +1239,9 @@ fi
 
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1261,8 +1262,9 @@ else
 fi
 
 # A Git project directory still does not become scope without config or CLI paths (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1272,14 +1274,25 @@ else
   failures=$((failures + 1))
 fi
 
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
+  grep -Fq "Scope: cwd" "$ladder_out"; then
+  printf 'PASS: cwd checkout is the no-scope fallback\n'
+else
+  printf 'FAIL: cwd checkout is the no-scope fallback\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) does not fall back to
 # the project directory; the remedy names the consumed config and directs scope INTO it.
 cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]
     maxDepth = 5
 SCOPELESS
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
+  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then

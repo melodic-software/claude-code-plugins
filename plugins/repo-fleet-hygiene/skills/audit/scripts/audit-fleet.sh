@@ -1158,6 +1158,9 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   return 0
 fi
 
+# shellcheck source=../../../scripts/scope-resolve.sh
+source "${BASH_SOURCE[0]%/*}/../../../scripts/scope-resolve.sh"
+
 # Data mode: answers before argument parsing, config resolution, and discovery, so a gate reads
 # the registry without running an audit and without requiring git.
 if [[ "${1:-}" == "--print-finding-registry" ]]; then
@@ -1169,6 +1172,7 @@ command -v git >/dev/null 2>&1 || fail "git is required"
 
 ROOT_ARGS=()
 REPO_ARGS=()
+NAMED_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
 SKIP_NAMES=()
@@ -1206,6 +1210,11 @@ while [[ $# -gt 0 ]]; do
   --repo)
     [[ $# -ge 2 && -n "$2" ]] || fail "--repo requires a directory"
     REPO_ARGS+=("$2")
+    shift 2
+    ;;
+  --named)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--named requires a directory"
+    NAMED_ARGS+=("$2")
     shift 2
     ;;
   --config)
@@ -1282,7 +1291,7 @@ done
 # --apply-plan is a standalone read-only mode: render an ordered dry-run approval
 # artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
-  if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
+  if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || ${#NAMED_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
     ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || -n "$MAX_DEPTH" ||
     -n "$PROJECT_DIR_ARG" || "$DETAIL" == "true" || "$PLAN_FILE_EXPLICIT" == "true" ]]; then
     fail "--apply-plan cannot be combined with audit discovery flags"
@@ -1510,12 +1519,30 @@ is_acked() {
 }
 
 UNRESOLVED_SCOPE=false
+FALLBACK_PROVENANCE=""
 SCOPE_FALLBACK_NOTE="so no repository scope resolved"
+# Count config scope before the no-scope ladder appends repos. Otherwise a cwd
+# or ghq hit is reported as a config entry.
+PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
+PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
-  # No CLI and no config-supplied fleet.root/fleet.repo. A fleet tool's no-argument form is
-  # machine-wide config scope when present; without it, refuse the old project-directory-as-exact
-  # --repo default rather than auditing an unintended tree (#2599).
-  UNRESOLVED_SCOPE=true
+  # Explicit args and fleet config produced nothing. The shared ladder tries
+  # named paths, ghq roots, then the working directory. The project directory
+  # is still not an implicit repo (#2599).
+  fallback_file="$(mktemp)"
+  if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
+    while IFS=$'\t' read -r kind value || [[ -n "$kind" ]]; do
+      case "$kind" in
+      repo) REPO_ARGS+=("$value") ;;
+      root) ROOT_ARGS+=("$(normalize_discovery_root "$value")") ;;
+      provenance) FALLBACK_PROVENANCE="$value" ;;
+      *) ;;
+      esac
+    done <"$fallback_file"
+  else
+    UNRESOLVED_SCOPE=true
+  fi
+  rm -f "$fallback_file"
 fi
 
 # Scope provenance: which rung actually supplied the audited roots/repos. This is a different
@@ -1523,7 +1550,7 @@ fi
 # CLI-supplied scope, so both contributions are named rather than one masking the other. Bare
 # positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the command-line
 # segment attributes them as --root/bare-path rather than conflating with --repo.
-config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+config_scope_count=$((PRE_FALLBACK_ROOTS - CLI_ROOT_COUNT + PRE_FALLBACK_REPOS - CLI_REPO_COUNT))
 cli_scope_label=""
 [[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
 if [[ "$CLI_ROOT_COUNT" -gt 0 ]]; then
@@ -1535,6 +1562,9 @@ SCOPE_PROVENANCE=""
 if [[ "$config_scope_count" -gt 0 ]]; then
   [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
+fi
+if [[ -n "$FALLBACK_PROVENANCE" && -z "$SCOPE_PROVENANCE" ]]; then
+  SCOPE_PROVENANCE="$FALLBACK_PROVENANCE"
 fi
 
 # Last --show-origin record for one worktree-root key. Prints the origin
@@ -1844,8 +1874,11 @@ No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give 
   --config <file>  a Git-format fleet config listing fleet.root / fleet.repo entries
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
+
+Also tried, and none resolved: --named paths, ghq root when ghq is installed, and the current working directory when it is a Git checkout. The project directory is not a scope.
 EOF
     fi
+    exit 3
   fi
   exit 2
 }
