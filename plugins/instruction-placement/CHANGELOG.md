@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.13] - 2026-09-28
+
+### Changed
+
+- **Fleet cutover-check on the repositories this host can read (#4281).** `cutover-check.sh`
+  named this marketplace plus standards, ci-runner, ci-workflows, claude-code-account-rotation,
+  cursor-plugins, agent-plugins, codex-plugins, and `.github`. `medley`, `songwriting`,
+  `claude-code-proxy`, `knowledge-corpus`, and `provisioning` were not readable here, so the
+  historical ten on #4281 are not fully graded. Condition 1 is `[MET]` (CLI 2.1.282, code
+  default true). Condition 2 was `[UNREACH]` until the release map gained `claude-code-action`
+  `v1.0.235` (`756cc22e19660d20e8cc9496b4f242475a7f7790`, CLI 2.1.283), the pin in ci-workflows
+  `claude-review.yml` and `claude-security-review.yml`. With that row, condition 2 is `[MET]`
+  for the named trees. The CI canary run stays `35475056935` (`v1.0.231` / CLI 2.1.278); #4282
+  still declines a replacement host, so the newer pin does not replace that run. Condition 3
+  is `[UNREACH]`: `claude auth status` reports `loggedIn: false`, and both canary legs exit 1
+  with `Not logged in · Please run /login`. Condition 4 is `[MET]` (68 acknowledged rows). Shim
+  removal stays blocked. `last_checked` on `agents-md-cutover-check` stays 2026-09-20.
+
 ## [0.15.12] - 2026-09-28
 
 ### Changed
