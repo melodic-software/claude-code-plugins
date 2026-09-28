@@ -10,7 +10,7 @@ from unittest import mock
 import windows_recycle as recycle
 
 FIXED = recycle.VolumeFacts("fixed", True, 1024)
-PATH = Path("C:/Users/me/orphan.tmp")
+PATH = Path("C:/Users/<user>/orphan.tmp")
 
 
 class RefusalTests(unittest.TestCase):

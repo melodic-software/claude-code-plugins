@@ -1,4 +1,4 @@
-# Windows recycle apply — review packet (#4007, #1116)
+# Windows recycle apply: review packet (#4007, #1116)
 
 This file is the packet for the maintainer review #1116 required before a Windows
 deletion lane can merge. It is not that sign-off.

@@ -21,11 +21,13 @@ from typing import Callable
 WINFUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)
 
 # FILEOPERATION_FLAGS, Windows SDK shobjidl_core.h.
+# spellchecker:off -- FOF_* are the SDK's own constant names, not typos for FOR_*.
 FOFX_RECYCLEONDELETE = 0x00080000
 FOF_SILENT = 0x0004
 FOF_NOCONFIRMATION = 0x0010
 FOF_NOERRORUI = 0x0400
 RECYCLE_FLAGS = FOFX_RECYCLEONDELETE | FOF_SILENT | FOF_NOCONFIRMATION | FOF_NOERRORUI
+# spellchecker:on
 
 NETWORK_PATH = "network-path"
 REMOVABLE_VOLUME = "removable-volume"
