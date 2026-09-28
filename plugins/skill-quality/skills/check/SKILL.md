@@ -234,6 +234,12 @@ tool. This gate does not automate that reachability check; author and review aga
   (no committed version) skips check 3. That is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
+- Check 1 accepts a frontmatter `model` of `inherit`, a model alias or id, and one optional
+  `[1m]` suffix, and fails any other value. The field is optional. Auto mode keeps the session
+  model when the named model is one auto mode does not support; that is runtime behavior, not a
+  second finding. Claim: the accepted shapes and the auto-mode exception. Basis:
+  <https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of:
+  2026-09-28. Recheck: that row changes the accepted values or the auto-mode exception.
 - Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
   the run. It tracks single-quoted `'phrase'` triggers; an unquoted `Use when:` list is not tracked,
   and check 12 warns so those phrases get quoted and covered. A dropped phrase found verbatim in a
