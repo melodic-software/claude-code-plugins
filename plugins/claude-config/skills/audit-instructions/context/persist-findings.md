@@ -86,7 +86,7 @@ section would report fewer candidates examined than were actually looked at. Pas
 through: `--declined-carveout <n>`, which records it as its own counted line. Zero dropped → omit
 the flag.
 
-A candidate the report holds as `RESIDENCY-UNRESOLVED` proposes no applyable edit, so it is held
+A candidate the report holds as `RESIDENCY-UNRESOLVED` proposes no applicable edit, so it is held
 out of `--from` the same way and counted through its own flag, `--declined-residency <n>`, never
 folded into the carve-out count, whose reason names a different ground. Zero held → omit the flag.
 

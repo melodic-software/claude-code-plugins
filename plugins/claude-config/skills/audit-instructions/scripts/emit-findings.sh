@@ -60,7 +60,7 @@ model lane dropped for a criteria carve-out before this script ran, so that
 exclusion is counted in ## Surfaces instead of going unrecorded.
 --declined-residency records how many I28/I29 candidates the report holds as
 RESIDENCY-UNRESOLVED (their surface's residency was never established), which
-propose no applyable edit and so are held out of --from the same way.
+propose no applicable edit and so are held out of --from the same way.
 
 Only I28-a / I28-b / I29-a / I29-b rows are emitted (the families carrying
 severity-crosswalk rows); all other check ids are counted as declined and left
@@ -587,7 +587,7 @@ LC_ALL=C awk \
     if (carveout != "")
       printf "Declined candidates: I28 count=%s reason=criteria-carve-out (model lane; see reference/criteria.md I28)\n", carveout
     if (residency != "")
-      printf "Declined candidates: count=%s reason=residency-unresolved (RESIDENCY-UNRESOLVED in the human report; no applyable edit)\n", residency
+      printf "Declined candidates: count=%s reason=residency-unresolved (RESIDENCY-UNRESOLVED in the human report; no applicable edit)\n", residency
   }
 ' "$FROM" >"$OUT"
 
