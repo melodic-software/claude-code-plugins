@@ -6,8 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording API-error telemetry..."
           }
@@ -31,8 +34,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording config-change telemetry..."
           }
@@ -55,8 +61,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording instructions-loaded telemetry..."
           }
@@ -79,8 +88,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording permission-denied telemetry..."
           }
@@ -103,8 +115,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording pre-compact telemetry..."
           }
@@ -128,8 +143,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-audit.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/skill-usage-audit.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording skill-usage telemetry..."
           }
@@ -141,8 +159,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording skill-usage-expansion telemetry..."
           }
@@ -166,8 +187,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/audit-event-emitter.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/audit-event-emitter.sh"
+            ],
             "timeout": 5,
             "statusMessage": "Recording tool-failure telemetry..."
           }
@@ -190,8 +214,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/hook-failure-audit.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/hook-failure-audit.sh"
+            ],
             "timeout": 10,
             "statusMessage": "Checking for unsurfaced hook failures..."
           }

@@ -419,14 +419,12 @@ else
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 fi
 
-# --- hooks.json wires this launcher in portable shell form ---
+# --- hooks.json wires this launcher through node exec form ---
 #
-# These assert the PORTABILITY PROPERTY, not a literal spelling. The previous
-# revision asserted `.command == "bash"` with the script in `.args`, which
-# encoded the #1006 defect as the contract: exec form (`args` present) resolves
-# `command` as a bare PATH lookup, and on Windows `bash` finds the WSL relay
-# `System32\bash.exe` before Git Bash. The launch fails, and a failed hook
-# launch is non-blocking — so the guard silently enforced nothing.
+# Bare `bash` as an exec-form command is the #1006 defect: on Windows it
+# resolves to the WSL relay and a failed launch does not block. The legal
+# spelling is `"command": "node"` with exec-bash.mjs, then run-python-hook.sh
+# and that script's arguments, in `args` (#3686).
 HOOKS_JSON="$SCRIPT_DIR/hooks.json"
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq required" >&2
@@ -436,40 +434,36 @@ fi
 for hook_name in destructive_guard.py guard_launch_monitor.py engine_context.py; do
   entry="$(jq -c --arg target "$hook_name" '
     .hooks | to_entries[] | .value[]? | .hooks[]? |
-    select(.command | contains($target))
+    select((.args // []) | map(tostring) | join(" ") | contains($target))
   ' "$HOOKS_JSON" | head -n1)"
   if [[ -z "$entry" ]]; then
     fail "hooks.json has no command hook referencing $hook_name"
   fi
 
-  command_line="$(jq -r '.command' <<<"$entry")"
+  argv="$(jq -r '[.command] + (.args // []) | join(" ")' <<<"$entry")"
   assert_contains "hooks.json command for $hook_name invokes the launcher" \
-    "run-python-hook.sh" "$command_line"
+    "run-python-hook.sh" "$argv"
+  assert_contains "hooks.json command for $hook_name names exec-bash.mjs" \
+    "exec-bash.mjs" "$argv"
 
-  # `bash` runs the launcher directly, so no `env` process runs for the
-  # shebang. Every row is checked, not just the first.
-  assert_eq "every hooks.json row for $hook_name starts with bash" "0" \
-    "$(jq --arg target "$hook_name" '[.hooks[][].hooks[] |
-      select(.command | contains($target)) |
-      select(.command | startswith("bash \"${CLAUDE_PLUGIN_ROOT}\"/") | not)] | length' "$HOOKS_JSON")"
+  assert_eq "every hooks.json row for $hook_name is node exec form" "0" \
+    "$(jq --arg target "$hook_name" --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' '
+      [.hooks[][].hooks[] |
+        select((.args // []) | map(tostring) | join(" ") | contains($target)) |
+        select(
+          .command != "node" or
+          ((.args // [])[0] != $launcher) or
+          (((.args // []) | map(tostring) | join(" ")) | contains("run-python-hook.sh") | not)
+        )] | length' "$HOOKS_JSON")"
 
-  # Shell form only: `args` present would switch Claude Code to exec form, where
-  # `command` is a bare PATH lookup and `shell` is ignored.
-  assert_eq "hooks.json entry for $hook_name omits args (shell form)" \
-    "null" "$(jq -r '.args // "null" | if type == "array" then "present" else . end' <<<"$entry")"
-
-  # Explicit `shell: bash`. Shell form otherwise falls back to PowerShell on a
-  # Windows host with no Git Bash detected, which cannot run a .sh launcher.
-  assert_eq "hooks.json entry for $hook_name declares shell bash" \
-    "bash" "$(jq -r '.shell // ""' <<<"$entry")"
-
-  # Every path placeholder must be double-quoted: the shell re-tokenizes the
-  # command string, and plugin roots routinely contain spaces.
-  unquoted="$(grep -oE '(^|[^"])\$\{CLAUDE_PLUGIN_(ROOT|DATA)\}|\$\{CLAUDE_PLUGIN_(ROOT|DATA)\}([^"]|$)' <<<"$command_line" || true)"
-  if [[ -n "$unquoted" ]]; then
-    fail "hooks.json command for $hook_name has an unquoted path placeholder: $unquoted"
-  fi
-  pass "hooks.json command for $hook_name double-quotes every path placeholder"
+  # Placeholders live in args, which Claude Code substitutes before spawn.
+  # There is no shell to re-tokenize them.
+  bad_cmd="$(jq -r --arg target "$hook_name" '
+    [.hooks[][].hooks[] |
+      select((.args // []) | map(tostring) | join(" ") | contains($target)) |
+      select(.command != "node") | .command] | length' "$HOOKS_JSON")"
+  assert_eq "hooks.json entry for $hook_name does not use a shell command" "0" "$bad_cmd"
+  pass "hooks.json command for $hook_name is node exec form"
 done
 
 # --- monitor mode without python emits systemMessage JSON ---
@@ -588,20 +582,26 @@ assert_eq "an unrecognized mode without python denies, as resolve_mode falls bac
 
 # The registered rows, verbatim: each engine-gate row in hooks.json must reach
 # the engine-gate branch, and the skill-frontmatter belt must reach the belt one.
+# Exec form: args[0] is exec-bash.mjs, args[1] is the launcher, and the rest is
+# what the launcher receives.
 HOOKS_JSON="$SCRIPT_DIR/hooks.json"
-while IFS= read -r registered; do
-  row="${registered//\$\{CLAUDE_PLUGIN_ROOT\}/$SCRIPT_DIR/..}"
-  row="${row//\$\{CLAUDE_PLUGIN_DATA\}/$NOPY_DIR/data}"
-  eval "set -- ${row#bash }"
-  nopy_guard "$engine_payload" "${@:2}"
+run_registered_args() {
+  local payload="$1" args_json="$2" arg substituted=()
+  while IFS= read -r arg; do
+    arg="${arg//\$\{CLAUDE_PLUGIN_ROOT\}/$SCRIPT_DIR/..}"
+    arg="${arg//\$\{CLAUDE_PLUGIN_DATA\}/$NOPY_DIR/data}"
+    substituted+=("$arg")
+  done < <(jq -r '.[]' <<<"$args_json")
+  nopy_guard "$payload" "${substituted[@]:2}"
+}
+while IFS= read -r args_json; do
+  run_registered_args "$engine_payload" "$args_json"
   assert_eq "registered engine-gate row denies an engine command without python" "2" "$NOPY_RC"
-done < <(jq -r '.hooks.PreToolUse[].hooks[].command' "$HOOKS_JSON")
-belt_row="$(sed -n "s/^ *command: '\(.*destructive_guard.py.*\)'$/\1/p" \
+done < <(jq -c '.hooks.PreToolUse[].hooks[] | .args' "$HOOKS_JSON")
+belt_args="$(sed -n "s/^ *args: '\\(.*\\)'$/\\1/p" \
   "$SCRIPT_DIR/../skills/clean/SKILL.md")"
-[[ -n "$belt_row" ]] || fail "could not read the belt registration from SKILL.md"
-belt_row="${belt_row//\$\{CLAUDE_PLUGIN_ROOT\}/$SCRIPT_DIR/..}"
-eval "set -- ${belt_row#bash }"
-nopy_guard "$plain_payload" "${@:2}"
+[[ -n "$belt_args" ]] || fail "could not read the belt registration from SKILL.md"
+run_registered_args "$plain_payload" "$belt_args"
 assert_eq "the registered belt row denies without python" "2" "$NOPY_RC"
 
 # --- /disk-hygiene:clean does not expand without python ---
@@ -856,16 +856,17 @@ assert_eq "a Stop with no candidate marker directory exits 0" "0" "$blocked_rc"
 
 # --- both wirings carry the flag the other one depends on ---
 guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |
-  select(.command | contains("destructive_guard.py"))] | length' "$HOOKS_JSON")"
+  select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("destructive_guard.py"))] | length' \
+  "$HOOKS_JSON")"
 guard_marked="$(jq '[.hooks.PreToolUse[].hooks[] |
-  select(.command | contains("destructive_guard.py")) |
-  select(.command | contains("--launch-marker guard-launch-monitor"))] | length' \
+  select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("destructive_guard.py")) |
+  select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--launch-marker guard-launch-monitor"))] | length' \
   "$HOOKS_JSON")"
 assert_eq "every engine-gate row records the session it launched in" \
   "$guard_rows" "$guard_marked"
 assert_eq "the Stop row skips a session that launched no guard" "1" \
   "$(jq '[.hooks.Stop[].hooks[] |
-    select(.command | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
+    select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
     "$HOOKS_JSON")"
 
 pass "all run-python-hook contract checks"

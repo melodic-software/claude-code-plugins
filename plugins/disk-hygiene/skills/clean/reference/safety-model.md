@@ -438,33 +438,19 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
-**Hook launch form, and what it does and does not bound.** All three registrations use **shell form**:
+**Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
-skill's frontmatter. In each, the `command` string
-names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was not viable: it is
-a bare `PATH` lookup, and on Windows `"command": "bash"` resolves to the WSL relay
-`System32\bash.exe` before Git Bash while `"command": "python3"` resolves to the zero-length
-`WindowsApps` App Execution Alias stub, so the launch died and, a failed hook launch being
-non-blocking, the guard silently enforced nothing. Shell form is resolved by Claude Code itself,
-which routes it through its own Git Bash. The security consequence is stated plainly rather than
-glossed: a shell now parses the launch string, so "no shell is involved" is no longer the bound. What
-bounds it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` or
-SKILL.md frontmatter, with no model-, repo-, or session-supplied text interpolated into it; the only
-substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`
-placeholders, each double-quoted, so the shell's re-tokenization reproduces the exec-form argument
-vector byte-for-byte, verified for all three against roots containing spaces and backslashes.
-The belt's bound is the **tighter** of the two: a skill-frontmatter hook receives only
-`${CLAUDE_PLUGIN_ROOT}`, so that is the sole placeholder its command string carries and the
-`--authorized-data-root` channel stays out of it by construction, not by convention. The limit of
-that quoting is part of the model too: the runtime substitutes those placeholders *textually* before
-bash parses the result, so the double quotes bound whitespace and backslashes but would not
-neutralize a `$` or a backtick inside a substituted value (both resolve under Claude Code's own
-install and data roots). The invariant is therefore **maintained by test**, not structural:
-`hooks/run-python-hook.test.sh` asserts for `hooks.json` that the launcher is named in `command`,
-`args` is absent, `shell: bash` is declared, and every placeholder is quoted; `test_hygiene.py`
-asserts the same four properties for the frontmatter belt (that suite is jq-based and cannot read
-YAML) and reads either launch form throughout, so a shell-form entry cannot make an assertion
-vacuously green.
+skill's frontmatter. In each, `command` is `node` and `args` names `hooks/exec-bash.mjs`, then
+`hooks/run-python-hook.sh` and that script's arguments. Bare `"command": "bash"` resolves to the WSL
+relay `System32\bash.exe` and `"command": "python3"` resolves to the zero-length `WindowsApps` stub,
+so those spellings are not used: the launch would die and, a failed hook launch being non-blocking,
+the guard would silently enforce nothing. There is no shell in exec form. The bound is that `args`
+are fixed literals in the plugin's own `hooks.json` or SKILL.md frontmatter, with no model-, repo-,
+or session-supplied text interpolated into them. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and,
+on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The belt's bound is the
+tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}`, so that is the
+sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
+`hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies

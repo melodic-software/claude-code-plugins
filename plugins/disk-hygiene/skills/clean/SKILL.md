@@ -7,29 +7,20 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
-        # which runs the launcher without the `env` process its shebang costs.
-        # Git Bash, which runs the shell-form string, looks that `bash` up on
-        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
-        # Verified 2026-09-23 against Claude Code 2.1.281 at
-        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
-        # Windows; exec form resolves `command` on PATH); recheck when that
-        # page changes how shell-form commands are run on Windows, or a
-        # release note names hook shell selection. Exec form resolves
-        # `command` on PATH with no shell, and a bare `python3` there is
-        # the zero-length WindowsApps App Execution Alias stub on stock
-        # Windows, the hook cannot launch, and a failed launch is non-blocking,
-        # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
-        # rejects that stub and falls through to `python`, then `py -3`.
-        # `${CLAUDE_PLUGIN_ROOT}` is the only substitution a skill-frontmatter
-        # hook receives. Never ${CLAUDE_PLUGIN_DATA} or
-        # ${user_config.*}, either of which makes Claude Code refuse the launch.
-        # The single-quoted YAML scalar is the same value hooks.json spells with
-        # \" escapes; every path placeholder must stay double-quoted, because the
-        # shell re-tokenizes the string and plugin roots contain spaces.
+        # Exec form. `command` is `node` (a real executable). exec-bash.mjs
+        # finds Git Bash and never System32\bash.exe, then runs
+        # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
+        # launch that fails open on Windows.
+        # Claim: exec form spawns `command` with `args` and no shell, and a
+        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
+        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
+        # and "Command hook fields".
+        # As of: 2026-09-28.
+        # Recheck: that page stops ignoring `shell` when `args` is set, or a
+        # skill hook gains another placeholder.
         - type: command
-          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
-          shell: bash
+          command: node
+          args: '["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh","${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py","--plugin-root","${CLAUDE_PLUGIN_ROOT}"]'
           timeout: 60
 metadata:
   workflow-stage: anytime

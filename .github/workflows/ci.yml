@@ -1931,6 +1931,28 @@ jobs:
           fi
           scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
 
+      - name: Verify plugin copies match the exec-form bash launcher
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-exec-bash.sh --check
+      - name: Test the exec-form bash launcher resolver
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node --test lib/exec-bash.resolver.test.mjs
+      - name: Verify carrying plugins bumped when the launcher changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-exec-bash.sh --check-bump "origin/$BASE_REF"
+
       - name: Verify plugin copies match the shared parser
         if: needs.changes.outputs.run_tests == 'true'
         run: |
