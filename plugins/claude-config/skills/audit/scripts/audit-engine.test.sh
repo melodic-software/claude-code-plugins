@@ -235,6 +235,57 @@ PY
   assert_eq "case 2: anchor matches the reference derivation" "$py_anchor" "$anchor"
 fi
 
+# --- Case 2b: a declared unattended-push lane narrows the push ask rows --------
+# ask_row <out> <field>: the missing git push ask row's severity or detail.
+ask_row() { jq -r --arg f "$2" '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .[$f]' <<<"$1"; }
+force_row() { jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$1"; }
+NO_PUSH_ASK='{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git reset --hard *)"]}}'
+m="$(make_machine lane-c3)"
+printf '%s\n' "$NO_PUSH_ASK" >"$m/project/.claude/settings.json"
+printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.md"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 2b: c3-autonomous makes the push ask row info" "info" "$(ask_row "$out" severity)"
+assert_contains "case 2b: the info detail names the key and rung" "$(ask_row "$out" detail)" "babysit_loop_merge is c3-autonomous"
+assert_contains "case 2b: the info detail names the layer" "$(ask_row "$out" detail)" "team-tracked layer .claude/source-control.md"
+assert_contains "case 2b: the info detail states the auto/dontAsk block" "$(ask_row "$out" detail)" "auto-denies under dontAsk"
+assert_eq "case 2b: force push deny stays an error under the lane" "error" "$(force_row "$out")"
+printf '# source-control configuration\r\n\r\n## babysit_loop_merge\r\n\r\n`full-autonomy`\r\n' >"$m/project/.claude/source-control.md"
+out=$(run "$m" --json 2>&1) || true
+assert_contains "case 2b: a CRLF, backticked rung is read" "$(ask_row "$out" detail)" "babysit_loop_merge is full-autonomy"
+
+m="$(make_machine lane-none)"
+printf '%s\n' "$NO_PUSH_ASK" >"$m/project/.claude/settings.json"
+printf '# source-control configuration\n\n## pr_body_required_sections\n\n- Summary\n' >"$m/project/.claude/source-control.md"
+printf '## babysit_loop_merge\n\nc3-autonomous\n' >"$m/project/.claude/source-control.local.md"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 2b: no loop key keeps the push ask row a warning" "warning" "$(ask_row "$out" severity)"
+assert_contains "case 2b: the warning still states the rule blocks unattended lanes" "$(ask_row "$out" detail)" "prompts even in auto mode and auto-denies under dontAsk, so it blocks unattended lanes"
+assert_eq "case 2b: force push deny stays an error with no lane" "error" "$(force_row "$out")"
+rm -f "$m/project/.claude/source-control.md"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 2b: a local overlay alone never supplies the signal" "warning" "$(ask_row "$out" severity)"
+
+printf '## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\nhuman-only\n' >"$m/project/.claude/source-control.md"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 2b: human-only keeps the push ask row a warning" "warning" "$(ask_row "$out" severity)"
+assert_contains "case 2b: the human-only warning states the block" "$(ask_row "$out" detail)" "blocks unattended lanes"
+assert_eq "case 2b: force push deny stays an error under human-only" "error" "$(force_row "$out")"
+
+printf '## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\nc3-this-run\n' >"$m/project/.claude/source-control.md"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 2b: adoption with an invalid rung takes the c2-mechanical baseline" "info" "$(ask_row "$out" severity)"
+assert_contains "case 2b: the baseline detail says why" "$(ask_row "$out" detail)" "resolves to the c2-mechanical baseline"
+# Every awk the machine carries reads the file the same way.
+for impl in gawk mawk; do
+  command -v "$impl" >/dev/null 2>&1 || continue
+  shim="$TEST_TMPDIR/awk-$impl"
+  mkdir -p "$shim"
+  ln -sf "$(command -v "$impl")" "$shim/awk"
+  printf '## babysit_loop_merge\n\n  c2-mechanical  \n' >"$m/project/.claude/source-control.md"
+  out=$(PATH="$shim:$PATH" run "$m" --json 2>&1) || true
+  assert_contains "case 2b ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge is c2-mechanical in"
+done
+
 # --- Case 3: a coverage manifest from a live hook demotes the family to info ---
 m="$(make_machine manifest)"
 mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"

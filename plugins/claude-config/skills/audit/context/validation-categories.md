@@ -39,7 +39,8 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   repo's own rules declare additional required patterns, check those too
 - **Before flagging an absent baseline pattern, apply the narrowings** in
   [required-permissions.md](../reference/required-permissions.md) "Narrowing the baseline": a
-  documented repo exemption, a documented project hook convention, or a **live** `PreToolUse` hook that
+  documented repo exemption (a declared unattended-push lane is one, for the `git push` ask rows only,
+  and the engine already reads it), a documented project hook convention, or a **live** `PreToolUse` hook that
   already blocks that family on the tool surface the pattern defends (that third case is `info` with
   the residual named, not `error`). Read the three preconditions there before downgrading: installed
   and enabled is not enough, a `Bash` hook does not cover a `Read`-pattern family, and coverage of one
