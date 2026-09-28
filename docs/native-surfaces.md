@@ -69,7 +69,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the same table row and https://code.claude.com/docs/en/skills.md ('Find unused skills') both state that /skill-doctor requires Claude Code v2.1.252 or later and is unavailable in sessions that skip feature-flag fetching, and the skills page adds that it answers `Skill usage reports are not available on this connection.` over Remote Control; that is the gate this row records, and it is not doctor's
   - the version the surface was announced in and the version it is documented to require disagree upstream: the CHANGELOG lands it at 2.1.261 while commands.md and skills.md say v2.1.252 or later, so no shipped routing line in this repository states a version for it (read 2026-09-07)
   - our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill
-  - our description's Not-for clause, the Purpose section, and the SKILL.md Scope boundary table each name /skill-doctor behind its own `resolves in your session` gate, separate from the /doctor gate beside it
+  - our description's front-loaded routing clause, the Purpose section, and the SKILL.md Scope boundary table each name /skill-doctor behind its own `resolves in your session` gate, separate from the /doctor gate beside it
 - **Observation:** upstream-source: d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b, the anthropics/claude-code commit that added the 2.1.261 CHANGELOG entry naming /skill-doctor, plus the commands.md and skills.md pages read the same day. Not an extraction and not a live roster: this container runs 2.1.258, below the release that announced the surface, so nothing here observed the command itself. (2026-09-07)
 - **Recheck trigger:** a Claude Code release note or docs change removes /skill-doctor, folds its report back into /doctor, gives its all-commands row the bundled-skill marker (which moves this row to the bundled-skill lane and changes which switch disables it), changes its version or feature-flag gate, or gives it a multi-source reconciliation or observation-horizon discipline of its own (verified 2026-09-07)
 - **Baked:** description phrase yes · Boundary section no
@@ -141,17 +141,18 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description's presence phrasing predates the registry and carries no gate token.
+- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description carries the gated routing phrase.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
-  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
+  - our description: 'When the bundled design skill resolves in your session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
   - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)
   - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on
 - **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
 - **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `visualization:visualize`
 
@@ -167,7 +168,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on
 - **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
 - **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design-sync` → `visualization:visualize`
 

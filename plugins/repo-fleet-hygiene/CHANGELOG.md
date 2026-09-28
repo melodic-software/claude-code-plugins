@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.38] - 2026-09-28
+
+### Fixed
+
+- **`audit`: `ls-remote` keeps transport config, bound to the pinned remote.** `run_git_probe`
+  pinned `GIT_CONFIG_GLOBAL`/`SYSTEM` to `/dev/null`, which dropped `core.sshCommand` and
+  `credential.helper` that Windows needs. `run_ls_remote_probe` now uses transport config only
+  after confirming pinned and transport `remote get-url` resolve to the same `github.com/owner/repo`
+  (#4211).
+
 ## [0.23.37] - 2026-09-28
 
 ### Fixed
