@@ -3,6 +3,15 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5] - 2026-09-28
+
+### Fixed
+
+- **`batch-simplify` simplifier spawn ladder (#4529).** Prefer the marketplace `code-simplifier`
+  plugin's agent (`code-simplifier:code-simplifier`) over the legacy `pr-review-toolkit` name, with
+  `general-purpose` as the final fallback. Document model tier: refutation verifiers stay on the
+  parent session's model; simplifiers default to it unless a wide repo sweep documents otherwise.
+
 ## [0.23.4] - 2026-09-27
 
 ### Changed
