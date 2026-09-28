@@ -207,6 +207,12 @@ under a consumer's ruff config. Say so when you emit one.
   targets the long-untouched ones a recency window excludes.
 - **Not a dependency, asset, or feature-flag auditor**, and not coverage-based runtime detection.
 
+## Next
+
+`/code-tidying:tidy`
+
+Adjudicated `dead` verdicts are applied there. This skill only reports.
+
 ## Gotchas
 
 - **No `package.json` means knip does not scan `.js`/`.mjs`/`.cjs`.** Those extensions are routed to
