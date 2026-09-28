@@ -362,14 +362,26 @@ jobs:
           # exclusion, so the exemption lives on the caller.
           exclude: plugins/*/skills/*/vendor/**
 
+      # scan-mode git in ci-workflows (through v0.29.1) passes --log-opts=--all,
+      # which walks every ref in the clone. checkout-with-base unshallows, so a
+      # finding on one branch fails this step on every other branch (#3599).
+      # gitleaks-action Scan() scopes pull_request and push to
+      # --no-merges --first-parent <base>^..<head>, and a same-ref push to -1
+      # (src/gitleaks.js, read 2026-09-28). This step uses that range. The pin
+      # below is the composite's gitleaks 8.30.1 asset, verified by SHA-256.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
-        with:
-          config: .gitleaks.toml
-          scan-mode: git
-          redact: true
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: bash scripts/gitleaks-scoped-scan.sh
 
       - name: Check editorconfig conformance
         id: editorconfig
