@@ -86,6 +86,24 @@ feature**, not required for correctness. So the pass:
 It never degrades silently, and it never substitutes a local approximation of the trim. Reporting the
 gap is the floor the design boundary sets; a silently skipped feature is a defect.
 
+## What `/status` and `claude doctor` now carry
+
+This pass still cannot observe three facts, and it does not grow a local approximation of them.
+Since Claude Code 2.1.260 and 2.1.261 they are on `/status` and `claude doctor`:
+
+- whether server-managed organization policy loaded, and why it did not (the `Organization policy`
+  line; `/status` shows it when the policy did not load, `claude doctor` shows where it loaded from
+  or why it did not, v2.1.261+);
+- a policy-helper refresh failure, including a declined managed-settings dialog and a helper timeout
+  reported as a timeout (v2.1.257);
+- which credential is in use when both a claude.ai account and an API key are configured; the one
+  not in use is marked (v2.1.260).
+
+Hand the operator those commands. Do not infer the answers from the local managed files this pass
+reads. Basis: [managed settings](https://code.claude.com/docs/en/managed-settings) and the changelog
+items those versions name, fetched 2026-09-28. Recheck when the `Organization policy` line moves off
+`claude doctor` or `/status`.
+
 ## Its output is the delegated tier
 
 When the operator does run `/doctor` and brings its output back, it lands in the report's `delegated`

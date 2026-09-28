@@ -137,18 +137,17 @@ fi
 # watching. Adding a name is a reviewed change to this array plus its pinning
 # test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
 #
-# A bash-scripted hook has no exec-form spelling, so `bash` stays off this
-# list and such a row stays shell form with `"shell": "bash"`, which hands the
-# command line to the Git Bash Claude Code itself resolves:
-#   Claim: exec form offers no way to name Git Bash that is both launchable on
-#     Windows and portable. `command` is resolved on PATH (bare `bash` finds the
-#     WSL relay); `shell` is "Ignored when `args` is set"; a `.sh` path as
-#     `command` is not a real executable there (libuv EFTYPE); and the only
-#     placeholders are CLAUDE_PROJECT_DIR, CLAUDE_PLUGIN_ROOT,
-#     CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of which names a shell.
-#     The one gate-legal route, a `node` entrypoint that finds and execs bash,
-#     is a per-row rewrite that still spawns bash, and belongs to the exec-form
-#     sweep's own measurement, not to this list.
+# `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
+# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds Git Bash
+# and never the WSL relay. Option gates are `--require-true` and
+# `--run-if-unset-or-true` on that launcher, not a shell command line.
+#   Claim: exec form offers no portable `command` that names Git Bash. `command`
+#     is resolved on PATH (bare `bash` finds the WSL relay); `shell` is "Ignored
+#     when `args` is set"; a `.sh` path as `command` is not a real executable
+#     there (libuv EFTYPE); and the only placeholders are CLAUDE_PROJECT_DIR,
+#     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
+#     which names a shell. The gate-legal route is the `node` launcher above,
+#     not an allowlist entry for `bash`.
 #   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields" and
 #     "Exec form and shell form"; the EFTYPE and WSL-relay spawns observed in
 #     (#3708); upstream https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form `args`
