@@ -19,22 +19,22 @@ printf '%s\n' \
   >"$list"
 
 out="$(bash "$RUNNER" --paths "$list")"
-if printf '%s\n' "$out" | grep -q "EXCLUDED: plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js.test.js"; then
+if grep -q "EXCLUDED: plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js.test.js" <<<"$out"; then
   ok "eval fixtures are excluded"
 else
   fail "eval fixtures were not excluded: $out"
 fi
-if printf '%s\n' "$out" | grep -q "PESER: plugins/machine-health/skills/audit/tests/windows/lib/ConvertFrom-Jsonc.Tests.ps1"; then
+if grep -q "PESER: plugins/machine-health/skills/audit/tests/windows/lib/ConvertFrom-Jsonc.Tests.ps1" <<<"$out"; then
   ok "Pester paths are handed to test-windows"
 else
   fail "Pester path was not classified: $out"
 fi
-if printf '%s\n' "$out" | grep -q "OWNED: plugins/knowledge/skills/video-digest/extraction/watch/run-watch.test.js"; then
+if grep -q "OWNED: plugins/knowledge/skills/video-digest/extraction/watch/run-watch.test.js" <<<"$out"; then
   ok "the four sub-projects stay on their own steps"
 else
   fail "sub-project suite was not owned: $out"
 fi
-if printf '%s\n' "$out" | grep -q "OWNED: plugins/attribution/skills/audit/scripts/fingerprint.test.mjs"; then
+if grep -q "OWNED: plugins/attribution/skills/audit/scripts/fingerprint.test.mjs" <<<"$out"; then
   ok "a sibling .test.sh wrapper is owned by the shell runner"
 else
   fail "wrapped node suite was not owned: $out"
