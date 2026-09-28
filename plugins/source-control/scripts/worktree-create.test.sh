@@ -18,6 +18,11 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# `fresh` may fetch. Only local-path remotes are reachable from this suite, so a
+# fixture that misses the FETCH_HEAD seed fails its fetch at once instead of
+# dialing one of the placeholder github.com / gitlab.com URLs.
+export GIT_ALLOW_PROTOCOL=file
+
 # TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
 # shell (MSYS/Cygwin), used only where a fixture path also carries a
 # special shell-metacharacter byte (', $, `). MSYS auto-converts a bare
@@ -104,6 +109,9 @@ mkrepo() {
         # Point <remote>/HEAD at main without a network fetch so `fresh` resolves.
         git -C "$repo" update-ref "refs/remotes/$remote_name/main" "$(git -C "$repo" rev-parse HEAD)"
         git -C "$repo" symbolic-ref "refs/remotes/$remote_name/HEAD" "refs/remotes/$remote_name/main"
+        # A just-written FETCH_HEAD reads as "fetched moments ago", so `fresh`
+        # skips its refresh fetch and these fixture URLs are never contacted.
+        : >"$repo/.git/FETCH_HEAD"
       fi
     fi
   } >/dev/null 2>&1
@@ -706,6 +714,96 @@ out=$(bash "$HELPER" --name feat/noremote --root "$root" --base-ref fresh --repo
 assert_exit "remoteless fresh still succeeds" 0 "$?"
 assert_contains "remoteless fresh warns about fallback" "$(cat "$errfile")" "could not resolve the remote default branch"
 assert_file_exists "remoteless fallback still creates the worktree" "$out/README.md"
+
+# stalerepo <bare-remote-dir> — a clone of a local bare remote whose cached
+# origin/main is one commit behind the remote (REMOTE_ONLY.md exists only
+# there). Echoes the clone path.
+stalerepo() {
+  local remote="$1" seed pusher clone
+  seed="$(mkrepo)"
+  pusher="$(mktemp -d "$TEST_TMPDIR/pusherXXXXXX")"
+  clone="$(mktemp -d "$TEST_TMPDIR/staleXXXXXX")"
+  {
+    git init -q --bare -b main "$remote"
+    git -C "$seed" push -q "$remote" main
+    git clone -q "$remote" "$clone"
+    git -C "$clone" config user.email t@t.t
+    git -C "$clone" config user.name t
+    git -C "$clone" config commit.gpgsign false
+    git clone -q "$remote" "$pusher"
+    git -C "$pusher" config user.email t@t.t
+    git -C "$pusher" config user.name t
+    git -C "$pusher" config commit.gpgsign false
+  } >/dev/null 2>&1
+  commitfile "$pusher" REMOTE_ONLY.md
+  git -C "$pusher" push -q origin main >/dev/null 2>&1
+  printf '%s' "$clone"
+}
+
+# --- Case: fresh refreshes a stale cached origin/HEAD before basing (#4249) ---
+# The clone's origin/main is one commit behind and FETCH_HEAD is decades old,
+# so `fresh` must fetch; right after creation the worktree is 0 behind the
+# remote branch, the issue's own verification.
+repo=$(stalerepo "$TEST_TMPDIR/stale-remote.git")
+: >"$repo/.git/FETCH_HEAD"
+touch -t 200001010000 "$repo/.git/FETCH_HEAD"
+root="$TEST_TMPDIR/wtroot-stale"
+errfile="$TEST_TMPDIR/err-stale.txt"
+out=$(bash "$HELPER" --name feat/stale --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_exit "stale cached origin/HEAD still succeeds" 0 "$?"
+assert_file_exists "fresh fetched the commit the cache lacked" "$out/REMOTE_ONLY.md"
+assert_eq "worktree is 0 behind origin/main right after creation" "0" \
+  "$(git -C "$out" rev-list --count HEAD..origin/main 2>/dev/null)"
+assert_eq "worktree HEAD is the remote's actual tip" \
+  "$(git -C "$TEST_TMPDIR/stale-remote.git" rev-parse main 2>/dev/null)" \
+  "$(git -C "$out" rev-parse HEAD 2>/dev/null)"
+assert_not_contains "a successful refresh prints no warning" "$(cat "$errfile")" "warning"
+
+# --- Case: a clone never fetched (no FETCH_HEAD) also refreshes ---
+repo=$(stalerepo "$TEST_TMPDIR/stale-remote-nofh.git")
+rm -f "$repo/.git/FETCH_HEAD"
+root="$TEST_TMPDIR/wtroot-stale-nofh"
+out=$(bash "$HELPER" --name feat/stale-nofh --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "no FETCH_HEAD counts as stale and fetches" "$out/REMOTE_ONLY.md"
+
+# --- Case: a fetch inside the 24-hour window is trusted, not repeated ---
+repo=$(stalerepo "$TEST_TMPDIR/stale-remote-recent.git")
+: >"$repo/.git/FETCH_HEAD"
+root="$TEST_TMPDIR/wtroot-stale-recent"
+out=$(bash "$HELPER" --name feat/stale-recent --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "recent-fetch worktree materializes" "$out/README.md"
+assert_file_absent "a recent FETCH_HEAD skips the refresh fetch" "$out/REMOTE_ONLY.md"
+
+# --- Case: a failed refresh warns and keeps the cached ref (offline still works) ---
+repo=$(stalerepo "$TEST_TMPDIR/stale-remote-gone.git")
+git -C "$repo" remote set-url origin "$TEST_TMPDIR/no-such-remote.git"
+rm -f "$repo/.git/FETCH_HEAD"
+root="$TEST_TMPDIR/wtroot-stale-gone"
+errfile="$TEST_TMPDIR/err-stale-gone.txt"
+out=$(bash "$HELPER" --name feat/stale-gone --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_exit "failed refresh still succeeds" 0 "$?"
+assert_file_exists "failed refresh bases on the cached ref" "$out/README.md"
+assert_file_absent "failed refresh cannot carry the remote-only commit" "$out/REMOTE_ONLY.md"
+assert_contains "failed refresh warns it could not refresh" "$(cat "$errfile")" "could not refresh origin/main"
+
+# --- Case: a hung refresh is abandoned at the 5-second cap ---
+# An ssh transport whose "ssh" only sleeps stands in for an unreachable host;
+# only this call may use ssh, and the sleep outlives the cap by a wide margin.
+repo=$(stalerepo "$TEST_TMPDIR/stale-remote-hang.git")
+git -C "$repo" remote set-url origin "ssh://example.invalid/widget.git"
+rm -f "$repo/.git/FETCH_HEAD"
+root="$TEST_TMPDIR/wtroot-stale-hang"
+errfile="$TEST_TMPDIR/err-stale-hang.txt"
+started=$SECONDS
+out=$(GIT_ALLOW_PROTOCOL=ssh GIT_SSH_COMMAND='sleep 30; :' \
+  bash "$HELPER" --name feat/stale-hang --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+code=$?
+elapsed=$((SECONDS - started))
+assert_exit "hung refresh still succeeds" 0 "$code"
+assert_file_exists "hung refresh bases on the cached ref" "$out/README.md"
+assert_contains "hung refresh warns it could not refresh" "$(cat "$errfile")" "could not refresh origin/main"
+assert_eq "hung refresh returns near the cap, not after the 30s hang (took ${elapsed}s)" \
+  "1" "$((elapsed < 20))"
 
 # --- Case: 3+-segment URLs — Azure DevOps (_git) and GitLab subgroup ---
 repo=$(mkrepo --origin "https://dev.azure.com/myorg/myproject/_git/widget")

@@ -406,7 +406,8 @@ assert_absent 'no evals entry counts the gate criteria' \
 # turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
 # below it, writes an index skeleton marked `Run status: in progress` early, and
 # replaces the marker only in its final write. The envelope carries the stop
-# turn as a second Budget line. The research side also names a claim's primary
+# turn as a second Budget line. Each agent reads a file once, so turns go to
+# gathering rather than re-reading. The research side also names a claim's primary
 # source in the sidecar header and the read-only `gh` forms.
 # ---------------------------------------------------------------------------
 
@@ -446,6 +447,8 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'Turn budget:'
   assert_present "$file keeps a denied path unread by every other tool" \
     "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
+  assert_present "$file reads each file once and re-reads only to see its own change" \
+    "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
 assert_absent 'no agent says it cannot observe its own turn budget' \
   'cannot observe your own remaining turn'

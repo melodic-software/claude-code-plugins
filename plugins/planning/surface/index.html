@@ -1103,6 +1103,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.vfiles[v.id] = c;
     if (S.fly === "visuals" && S.vtab === "v:" + v.id) { renderFly(); if (!$("fs").hidden) fsOpen(); }
   }
+  // html may run scripts; allow-same-origin stays off, so the frame is an opaque origin that cannot reach the token, cookies or the page DOM
+  function frameTag(vb, title){ return '<iframe sandbox="' + (vb.scripts ? "allow-scripts" : "") + '" title="' + esc(title) + '"></iframe>'; }
   function visualBody(v){ // by format, with the v2.1 `kind` as an alias; svg and html only ever render in a sandboxed iframe
     const f = v.format || v.kind || "html";
     if (v.content == null && v.file) {
@@ -1120,7 +1122,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     if (f === "mermaid") return {md: '<div class="md"><p class="empty">Mermaid rendering is not available in this version. Source:</p><pre><code>' + esc(v.content) + "</code></pre></div>"};
     if (f === "chart") return {md: chartTable(v.content)};
-    return {frame: typeof v.content === "string" ? v.content : ""};
+    return {frame: typeof v.content === "string" ? v.content : "", scripts: f === "html"};
   }
   function renderFly(){
     const fly = $("fly"), open = !!S.fly;
@@ -1143,7 +1145,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let h = '<div class="tabs">' + subs.map(x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '">' + esc(x.title) + "</button>").join("") + "</div>";
     if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true); return; }
     const vb = visualBody(t.v);
-    h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.v.title || t.v.id) + '"></iframe>') +
+    h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.v.title || t.v.id)) +
       '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
     body.innerHTML = h;
     const fr = body.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame);
@@ -1208,7 +1210,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel], t = visualsFor(q).find(v => "v:" + v.id === S.vtab); if (!t) return;
     const vb = visualBody(t), st = $("fsStage");
     $("fsTitle").textContent = (t.title || t.id) + (q ? " (" + q.id + ")" : "");
-    st.innerHTML = (vb.cap || "") + (vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.title || t.id) + '"></iframe>');
+    st.innerHTML = (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.title || t.id));
     const fr = st.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame, true);
     FS.z = 1; FS.x = 0; FS.y = 0; fsApply();
     $("fs").hidden = false; $("fsClose").focus();

@@ -15,7 +15,7 @@
 - [Sanity checks](#sanity-checks)
 - [Cross-references](#cross-references)
 
-Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
+Default mode dispatches a read-only exploration subagent (or, on a small corpus or under `--inline`, surveys in the main session) that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
 
 Private surface. External consumers invoke `/docs-hygiene:extract-ssot identify`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
@@ -23,7 +23,7 @@ Private surface. External consumers invoke `/docs-hygiene:extract-ssot identify`
 
 | Invocation | Mode | Behavior |
 |------------|------|----------|
-| `/docs-hygiene:extract-ssot identify` | Exhaustive (default) | Read-only subagent deep survey across instruction files, rules, skills, agents, ADRs, docs. Returns a ranked candidate roster + dependency chains + file-overlap matrix + batch wave plan |
+| `/docs-hygiene:extract-ssot identify` | Exhaustive (default) | Read-only subagent deep survey across instruction files, rules, skills, agents, ADRs, docs; inline in the main session on a small corpus or under `--inline` (step 2). Returns a ranked candidate roster + dependency chains + file-overlap matrix + batch wave plan |
 | `/docs-hygiene:extract-ssot identify` + confirmed path/glob scope | Exhaustive (path-scoped) | Same survey heuristics and roster shape as whole-repo exhaustive, but the subagent's search roots are the named directories / globs only (tracked markdown under that pathspec). Not a single-cluster grep |
 | `/docs-hygiene:extract-ssot identify <cluster-name>` | Targeted | Tier 0 grep on a named cluster only. Returns instance count + Tier 0 evidence + suggested output type. No subagent dispatch |
 
@@ -94,10 +94,18 @@ highest-volume bucket, from landing as one unreviewable diff.
    with named paths/globs (path-scoped exhaustive). Whole-repo large repos run the batch under
    `context/orchestrated-mode.md` defaults; path-scoped surveys inherit the same concurrency
    ceiling when they fan into verify/execute
-1. Pre-flight: confirm no working notes with an active candidate roster (would imply resume, not new identify)
-2. Dispatch a read-only exploration subagent with the survey prompt (template below)
-3. Subagent searches markdown surfaces with 30+ heuristics (template lists them)
-4. Subagent returns ranked candidate table + dependency chains + file-overlap matrix
+1. Pre-flight: confirm no working notes with an active candidate roster (SKILL.md "Phases per
+   invocation" defines it; a roster marked `status: closed` is not one), which would imply
+   resume, not new identify
+2. Choose the survey route by corpus size. A small corpus (tens of tracked markdown files, well
+   under the "hundreds to thousands" scale context/orchestrated-mode.md is sized for), or
+   --inline: read the corpus in the main session, apply the template's heuristics yourself, and
+   grep each candidate this turn, so every lead is Tier 0 on arrival. Otherwise: dispatch a
+   read-only exploration subagent with the survey prompt (template below). Any size cut is
+   judgment; the test is whether the brief plus re-grepping every returned lead costs more than
+   reading the corpus
+3. The survey searches markdown surfaces with 30+ heuristics (template lists them)
+4. The survey returns ranked candidate table + dependency chains + file-overlap matrix
 5. Main session classifies output: assign each candidate its bucket from the instance count; apply
    --min-instances / --buckets; deduplicate against context/lessons.md known-refused patterns;
    downgrade any sub-three candidate carrying an artifact-creating suggested output
@@ -105,7 +113,11 @@ highest-volume bucket, from landing as one unreviewable diff.
 7. Main session offers user: dispatch /docs-hygiene:extract-ssot batch with top-N waves, or pick
    specific clusters. With --fix, walk the non-abstracting remedies one bucket at a time through
    the review gate (skipped by --yes); without --fix, report and stop
-8. Persist the roster (buckets included) to working notes so the user can resume from durable state
+8. When at least one candidate is actionable, persist the roster (buckets included) to working
+   notes so the user can resume from durable state. When every candidate is refused, write no
+   roster: record the refusals as one line marked `status: closed` in the working notes
+   (context/decision-framework.md keeps refusals there), and route a new refusal pattern to
+   context/lessons.md
 ```
 
 ## Subagent prompt template
@@ -369,7 +381,7 @@ reads as "nothing found there".
 `/docs-hygiene:extract-ssot batch <Wave-1-cluster-list>`
 ```
 
-The ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state.
+When at least one candidate is actionable, the ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state. An all-refused roster is recorded as closed instead (step 8).
 
 ## Targeted mode steps
 
@@ -389,6 +401,7 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 ## Anti-patterns guarded
 
 - **Premature exhaustive mode**: dispatching a survey subagent when the user already has 1-2 clusters in mind wastes a dispatch. Detect via the argument.
+- **Subagent survey on a small corpus**: dispatching the survey subagent over a corpus smaller than its own evidence-verification cost. The brief alone can outweigh the corpus, and every returned lead still needs a Tier 0 re-grep. Survey inline instead (step 2).
 - **Synthesis-only output**: a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs. The `verify` action enforces this.
 - **Skipping the user-review gate**: exhaustive mode can emit a roster of dozens of candidates. NEVER auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
 - **Roster decay**: the survey is point-in-time. If `/docs-hygiene:extract-ssot batch` partial-completes and the user resumes weeks later, re-run `identify` rather than trusting a stale roster.
@@ -399,7 +412,7 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 
 | When | Check | Evidence |
 |------|-------|----------|
-| Pre-dispatch | No active working-notes candidate roster | Read of the notes |
+| Pre-dispatch | No active working-notes candidate roster (SKILL.md "Phases per invocation"; a `status: closed` roster does not count) | Read of the notes |
 | Post-dispatch | Every returned candidate carries its evidence shape; a small roster on a well-deduplicated corpus is a valid result, not a failed dispatch | Read the roster |
 | Post-dispatch | Each candidate has a Tier 0 grep evidence path | Spot check 3 candidates |
 | Post-dispatch | Every candidate carries a bucket + instance count, and no sub-three candidate carries an artifact-creating suggested output | Scan the roster's bucket column |

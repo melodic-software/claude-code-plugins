@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.9] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` re-parses a child shell's `-c` operand** ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)). Moving a write one level into `bash -c` / `sh -c` hid it: `bash -c 'echo secret > a.txt'`, `sh -c 'echo secret > a.txt'` and `bash -c 'cat > a.txt <<EOF …'` exited 0 while the same text at the top level exited 2, and a sibling guard in the same process already read `bash -c 'git reset --hard'`. Because `secret-pattern-detection` runs only on the file tools, that one move also skipped the secret scan. The guard now calls `hook::shell_c_operand` from its segment callback and records the operand's segments after the shell's own, the way `block-dangerous-git`, `block-no-verify`, `block-noncanonical-commit` and `block-convention-violation` already do, so every lane (cat and echo/printf redirects, inline python, the staged write-then-`mv`) judges them. Nested shells are followed. `bash -c 'git status'`, `bash -c 'echo x > /dev/null'`, `bash -c 'sort a > out'` and quoted prose naming `bash -c 'echo x > f'` stay allowed. `block-windows-drive-tmp` still does not re-parse a `-c` operand, which the README now states.
+
 ## [0.38.7] - 2026-09-27
 
 ### Fixed
