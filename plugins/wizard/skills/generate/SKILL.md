@@ -33,6 +33,19 @@ WSL. `gh` (authenticated) is needed only by stages that write CI secrets or
 variables. When it's absent those stages warn and land in the closing summary
 instead of failing the run.
 
+Unattended or elevated scripts stay parked. This skill does not emit a PowerShell
+(or other) script that a human only launches for privilege or policy, then walks
+away from.
+
+**Claim:** `/wizard:generate` stays an interactive bash wizard for steps only a
+human can perform. It does not emit unattended scripts for work that is
+scriptable but not agent-launchable. **Basis:** #4199 (`work-class: structural`,
+`needs-human`). The skill is bash-only (`template.sh`) with no elevation
+concept; design (shells, result envelope, secret ladder, sibling vs mode) is out
+of scope on the issue and reserved for an interview. Option A parks rather than
+shipping that design unpaid. **As of:** 2026-09-28. **Recheck:** a maintainer
+funds the unattended emitter after that interview, or unparks #4199.
+
 ## Process
 
 ### 1. Scope the procedure

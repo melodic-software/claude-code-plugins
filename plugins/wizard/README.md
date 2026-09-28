@@ -12,6 +12,11 @@ and confirms at every stage.
 |---|---|
 | `/wizard:generate` | Scope the manual procedure from the repo, author its stages onto the fixed hardened template, verify statically, and hand off to the human after explicit approval |
 
+Unattended scripts for work that is scriptable but not agent-launchable (UAC /
+policy-only human launch, PowerShell emitter, machine-readable result envelope)
+are parked (#4199 Option A) until a maintainer funds that design after an
+interview. `/wizard:generate` stays interactive bash.
+
 The skill is model-invoked: when the agent hits a step only a human can take,
 a key it can't mint, a dashboard it can't click, it can reach for this instead
 of dumping numbered instructions into the chat. It is fenced the other way too:

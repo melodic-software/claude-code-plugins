@@ -3,6 +3,15 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.11] - 2026-09-28
+
+### Changed
+
+- **Unattended-script emitter stays parked**
+  ([#4199](https://github.com/melodic-software/claude-code-plugins/issues/4199)). Option A:
+  `/wizard:generate` stays an interactive bash wizard for human-only steps. Do not emit
+  unattended or elevated scripts until a maintainer funds that design after an interview.
+
 ## [0.2.10] - 2026-09-21
 
 ### Changed
