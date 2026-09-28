@@ -86,6 +86,10 @@ section would report fewer candidates examined than were actually looked at. Pas
 through: `--declined-carveout <n>`, which records it as its own counted line. Zero dropped → omit
 the flag.
 
+A candidate the report holds as `RESIDENCY-UNRESOLVED` proposes no applyable edit, so it is held
+out of `--from` the same way and counted through its own flag, `--declined-residency <n>`, never
+folded into the carve-out count, whose reason names a different ground. Zero held → omit the flag.
+
 The same rule binds the writer's own intake. A `--from` line that is not a scan row, whether a
 well-formed `path:line:I<n>` whose suffix sits outside `[a-c]`, a prose line, or a blank, still
 increments `Scan rows read` and is counted as `reason=unparsable-row`. It is never omitted from

@@ -42,6 +42,7 @@ FROM=""
 OUT=""
 BRANCH=""
 CARVEOUT=""
+RESIDENCY=""
 
 usage() {
   cat <<'EOF'
@@ -49,7 +50,7 @@ emit-findings.sh — compose a review-findings file from instruction-scan.sh out
 
 Usage:
   emit-findings.sh --from <scan-output> --out <path> [--branch <b>]
-                   [--declined-carveout <n>]
+                   [--declined-carveout <n>] [--declined-residency <n>]
 
 --from is instruction-scan.sh output (`file:line:check-id` rows); run it with
 --body-only. --out is the CONVENTION-RESOLVED destination; if it exists, a
@@ -57,6 +58,9 @@ Usage:
 current git branch. --declined-carveout records how many I28/I29 candidates the
 model lane dropped for a criteria carve-out before this script ran, so that
 exclusion is counted in ## Surfaces instead of going unrecorded.
+--declined-residency records how many I28/I29 candidates the report holds as
+RESIDENCY-UNRESOLVED (their surface's residency was never established), which
+propose no applyable edit and so are held out of --from the same way.
 
 Only I28-a / I28-b / I29-a / I29-b rows are emitted (the families carrying
 severity-crosswalk rows); all other check ids are counted as declined and left
@@ -92,6 +96,11 @@ while [[ $# -gt 0 ]]; do
   --declined-carveout)
     require_opt_value "$@"
     CARVEOUT="$2"
+    shift 2
+    ;;
+  --declined-residency)
+    require_opt_value "$@"
+    RESIDENCY="$2"
     shift 2
     ;;
   --help | -h)
@@ -185,6 +194,10 @@ if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
   echo "emit-findings.sh: --declined-carveout takes a non-negative integer" >&2
   exit 2
 fi
+if [[ -n "$RESIDENCY" && ! "$RESIDENCY" =~ ^[0-9]+$ ]]; then
+  echo "emit-findings.sh: --declined-residency takes a non-negative integer" >&2
+  exit 2
+fi
 
 # I29 rows come from restatement-scan.py, a NATIVE Windows interpreter. MSYS
 # converts its argv on the way in and the scanner echoes what it received:
@@ -213,7 +226,7 @@ fi
 LC_ALL=C awk \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
   -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" \
-  -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" \
+  -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" -v residency="$RESIDENCY" \
   -v cygpath_bin="$CYGPATH_BIN" -v cygpath_io="$CYGPATH_IO" '
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
@@ -573,6 +586,8 @@ LC_ALL=C awk \
     # exclusion go unrecorded — a decline this file promises is never silent.
     if (carveout != "")
       printf "Declined candidates: I28 count=%s reason=criteria-carve-out (model lane; see reference/criteria.md I28)\n", carveout
+    if (residency != "")
+      printf "Declined candidates: count=%s reason=residency-unresolved (RESIDENCY-UNRESOLVED in the human report; no applyable edit)\n", residency
   }
 ' "$FROM" >"$OUT"
 
