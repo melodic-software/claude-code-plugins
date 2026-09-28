@@ -15,7 +15,7 @@ Standing caveat, true of the original run and of any rerun: a machine with its o
 plugins is **not** a clean room. Each experiment is therefore a paired arm-versus-control on the same
 machine, and the control is what the result is read against.
 
-## E1 — `hooks` and `modules` in one `hooks.json`
+## E1: `hooks` and `modules` in one `hooks.json`
 
 Question: with a single `hooks/hooks.json` carrying both a classic settings-format `hooks` block and
 a `modules` entry, do both layers fire?
@@ -23,7 +23,7 @@ a `modules` entry, do both layers fire?
 Build a second probe under `$P/e1/`, laid out like the criterion-1 probe with `plugin.json` named
 `e1-both`. Three more files.
 
-`$P/e1/hooks/marker.js` — the classic arm's writer. A **module** cannot reach `node:fs`, which is
+`$P/e1/hooks/marker.js`: the classic arm's writer. A **module** cannot reach `node:fs`, which is
 why only the classic arm uses `node`:
 
 ```js
@@ -33,7 +33,7 @@ fs.writeFileSync(path.join(__dirname, '..', '..', 'markers', process.argv[2] + '
   process.argv[2] + ' ' + new Date().toISOString() + '\n');
 ```
 
-`$P/e1/hooks/register.ts` — the module arm, built by the same substitution as the criterion-1 probe
+`$P/e1/hooks/register.ts`: the module arm, built by the same substitution as the criterion-1 probe
 (`printf "const DIR = '%s/markers';\n" "$P" > …`, then the body appended from a quoted heredoc):
 
 ```ts
@@ -51,7 +51,7 @@ export function register(on: any) {
 }
 ```
 
-`$P/e1/hooks/hooks.json` — both layers in one file:
+`$P/e1/hooks/hooks.json`: both layers in one file:
 
 ```json
 {
@@ -110,7 +110,7 @@ Pass on rerun: four marker files. Anything fewer means the layers no longer coex
 hooks not enforced **in interactive sessions**. This run is headless. A headless pass does not
 close that issue; the interactive case is untested and remains open.
 
-## E2 — does a passthrough Bash `tool.call` hook break worktree isolation?
+## E2: does a passthrough Bash `tool.call` hook break worktree isolation?
 
 This is the second half of criterion 3. Run it whenever
 [#92533](https://github.com/anthropics/claude-code/issues/92533) changes state, and never against a
@@ -128,7 +128,7 @@ git -C "$D" rev-parse --show-toplevel
 The mod is two files. `$P/e2/hooks/hooks.json` is
 `{"description": "A pure passthrough tool.call hook matched to Bash", "modules": ["./register.ts"]}`.
 `$P/e2/hooks/register.ts` keeps a `session.start` marker hook so the run leaves proof the module
-loaded, and adds a bare passthrough — no logic, which is the whole point:
+loaded, and adds a bare passthrough with no logic, which is the whole point:
 
 ```ts
 const DIR = '<P>/markers';
@@ -148,12 +148,12 @@ Two arms, identical but for `--plugin-dir`, each to its **own** debug file:
 WT=$(mktemp -d "$TEMP/e2-wtroot-XXXXXX")
 PROMPT="Spawn exactly one subagent with the Agent tool using isolation set to worktree, whose whole task is to run the bash command: git rev-parse --show-toplevel  and report its output verbatim. Then run that same command yourself in this session and print both results, labeled SUBAGENT= and PARENT=."
 
-# ARM 1 — with the mod
+# ARM 1: with the mod
 env -C "$D" CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --debug \
   --debug-file "$P/out/e2-with-mod.txt" --plugin-dir "$P/e2" --model haiku \
   --allowedTools Agent Bash Task -p "$PROMPT"
 
-# ARM 2 — control, no --plugin-dir
+# ARM 2: control, no --plugin-dir
 env -C "$D" CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --debug \
   --debug-file "$P/out/e2-control.txt" --model haiku \
   --allowedTools Agent Bash Task -p "$PROMPT"
@@ -174,7 +174,7 @@ Arm 1's subagent returns nothing; arm 2's returns the worktree path. Arm 1's deb
 ```
 
 The reproduction is: arm 1 count greater than 0 **and** arm 2 count equal to 0. A mod whose only
-`tool.call` hook is a bare `next(e)` matched to Bash is sufficient — no logic required. The issue was
+`tool.call` hook is a bare `next(e)` matched to Bash is sufficient; no logic is required. The issue was
 filed on macOS at 2.1.263 with one independent Windows comment at 2.1.272; this run is a **second**
 Windows reproduction, at 2.1.278.
 
@@ -194,7 +194,7 @@ Two limits:
 Clean-up: both arms leave a locked worktree under `$WT`. Remove with
 `git -C "$D" worktree remove --force <path>`, or delete the two temp directories.
 
-## E3 — `/plugin-types` end to end
+## E3: `/plugin-types` end to end
 
 **NOT RUN, and not runnable headless.** `-p "/plugin-types"` is not resolved as a command on 2.1.278:
 the literal string reaches the model as an ordinary prompt, which answers it as prose, and nothing is
@@ -202,7 +202,7 @@ written. The debug log contains no command-resolution line for it at all, and `f
 directory afterwards returns nothing.
 
 The binary registers `plugin-types` with kind `"action"`, the same family as `reload-plugins`,
-`reload-skills` and `rename` — local REPL actions — and its own remediation text says to "run
+`reload-skills` and `rename` (local REPL actions), and its own remediation text says to "run
 `/reload-plugins`, then `/plugin-types` again", which is interactive phrasing.
 
 Two binary strings a future interactive run should settle, because they are source claims and one of
@@ -210,7 +210,7 @@ them contradicts the corpus:
 
 1. Output location: `.claude/types/claude-code.d.ts`, plus `.claude/types/claude-code-plugins.d.ts`
    and `.claude/types/claude-code-plugins/<plugin>.d.ts`, relative to the session's working directory.
-2. **Per-plugin contracts are claimed to be emitted in 2.1.278** — the string says `/plugin-types`
+2. **Per-plugin contracts are claimed to be emitted in 2.1.278**: the string says `/plugin-types`
    "copies each enabled plugin's contract to `.claude/types/claude-code-plugins/<plugin>.d.ts` and
    indexes them". That is the opposite of the `mods/README.md` sentence saying the include goes away
    only *once* the engine writes those contracts. **Unresolved.** Either the README is stale, or the
@@ -229,7 +229,7 @@ find <that dir>/.claude/types -type f
 
 Record whether `claude-code-plugins/` exists and what it contains.
 
-## E4 — `claude plugin validate` over mod-shaped plugins
+## E4: `claude plugin validate` over mod-shaped plugins
 
 Question: what does `validate` do with the variable set and unset, with two `modules` entries, and
 with both `hooks` and `modules` in one file?
@@ -290,7 +290,7 @@ Four findings:
    one-module rule from a live CLI rather than from binary strings.
 3. `hooks` and `modules` in one file validate clean, exit 0.
 4. **Sharp edge.** With both present, validate prints the module's `hooks:` and `calls:` lines and
-   **nothing at all about the classic `hooks` block** — no listing, no count, no acknowledgement. A
+   **nothing at all about the classic `hooks` block**: no listing, no count, no acknowledgement. A
    reviewer reading validate output on a coexistence plugin sees half of what the plugin will do. The
    classic block is parsed (a malformed one fails validation); it is simply not reported when it is
    well formed.
@@ -298,7 +298,7 @@ Four findings:
 Pass on rerun: `EXIT=0` four times and `EXIT=1` twice, with identical bytes across each `set` /
 `unset` pair.
 
-## E5 — what a mod's handler receives
+## E5: what a mod's handler receives
 
 Question: does a `prompt.context` hook receive the text of instruction files?
 
@@ -308,10 +308,10 @@ the value returned by `next(e)`, received in plaintext on the first prompt of th
 model was called:
 
 - **Every instruction file's full text**, as an `instructionFiles[]` array carrying each file's
-  absolute path, its `kind`, and its `content` — the text as loaded, comments and frontmatter already
-  stripped. In that run the array held four entries: the **user's private global `CLAUDE.md`** at
-  kind `user` (5,957 characters), two project-scope files from the repository the session was near —
-  one of them a rules file pulled in by a parent instruction file rather than named directly — and
+  absolute path, its `kind`, and its `content` (the text as loaded, with comments and frontmatter already
+  stripped). In that run the array held four entries: the **user's private global `CLAUDE.md`** at
+  kind `user` (5,957 characters), two project-scope files from the repository the session was near
+  (one of them a rules file pulled in by a parent instruction file rather than named directly), and
   the working directory's own `CLAUDE.md`.
 - The **fully rendered `claudeMd` block** as the model will see it (7,983 characters), opening with
   the engine's own preamble and then the user-global file in full.
@@ -325,8 +325,8 @@ inside the rendered block, once inside that file's `content`) and twice in the v
 The `parent` field was absent on all four entries; no `@`-import chain was exercised.
 
 **The consequence to carry forward.** "A mod can read your `CLAUDE.md`" understates it. A handler
-gets the user-global instruction file — which on a developer machine routinely carries private
-operational detail — and the account email, on the first prompt of every session, before the model
+gets the user-global instruction file, which on a developer machine routinely carries private
+operational detail, and the account email, on the first prompt of every session, before the model
 is called. Any review posture for third-party mods has to treat `prompt.context` as an exfiltration
 surface. That `$.http` is reachable from the same worker is a corpus claim from the declarations'
 noun list, not something this experiment exercised.
@@ -364,7 +364,7 @@ Rerun:
 Redact before recording anything: the dumps contain the account email and the full text of every
 instruction file on the machine. Record lengths, kinds and counts, never contents.
 
-## E6 — latency per fire
+## E6: latency per fire
 
 Question: what does one trivial hook cost per fire as (a) a classic `node` command hook, (b) a
 classic `bash` command hook, (c) a mod `tool.call` passthrough?
@@ -387,8 +387,8 @@ Arms: (a) a classic `PreToolUse` command hook running `node` on a file whose who
 (c) the E2 bare-`next(e)` module; control loads no `--plugin-dir`.
 
 Arm (c) reuses `$P/e2` from
-[E2](#e2--does-a-passthrough-bash-toolcall-hook-break-worktree-isolation). Arms (a) and (b) are
-three files each, reconstructed here to the descriptions above — like the parser below, the
+[E2](#e2-does-a-passthrough-bash-toolcall-hook-break-worktree-isolation). Arms (a) and (b) are
+three files each, reconstructed here to the descriptions above. Like the parser below, the
 2026-09-19 originals were machine-local and not committed, so the medians are the shape to
 reproduce, not bytes to match. The loop will not find the two directories otherwise:
 
@@ -421,7 +421,7 @@ mkdir -p "$P/e6a-node/.claude-plugin" "$P/e6a-node/hooks" \
 
 The probe bodies, one statement each so the arm measures the mechanism and not the work.
 `$P/e6a-node/hooks/probe.js` is `process.stdout.write('{}');` and `$P/e6b-bash/hooks/probe.sh` is
-`echo '{}'`. Neither needs an exec bit — both are invoked through their interpreter. Inside this
+`echo '{}'`. Neither needs an exec bit; both are invoked through their interpreter. Inside this
 repository the `guardrails` plugin refuses shell file-writes, so create all six files with the
 editor or the Write tool.
 
@@ -443,8 +443,8 @@ grep -c 'tool_dispatch_start tool=Bash' "$P/out/e6-control.txt"
 
 Each run must produce exactly 20 `tool_dispatch_start tool=Bash` lines, or N is not 20.
 
-Extracting the numbers needs a small parser keyed on three anchor lines — `Skipping hook due to if
-condition`, `[Stall] tool_dispatch_start` / `tool_dispatch_end`, and `tool.call settled in` —
+Extracting the numbers needs a small parser keyed on three anchor lines (`Skipping hook due to if
+condition`, `[Stall] tool_dispatch_start` / `tool_dispatch_end`, and `tool.call settled in`),
 reporting the median and maximum of `chainWindowMs`, the hook count inside that window, the
 permission time, the tool duration, and for arm (c) `settled` and the gap between `settled` and
 `tool_dispatch_end`. The 2026-09-19 parser was machine-local and is not committed; rewrite it from
@@ -462,13 +462,13 @@ Baseline medians, N = 20 per arm:
 Arm (c)'s median `settled` was 333.9 ms, decomposing as pre-chain 180.5 plus permission 6.0 plus
 tool 95.5 plus post-chain gap 57.0 = 339.0 against an observed 333.9, a residue of −5.1 ms. **No
 measurable residue is left for the module's own per-fire cost.** Arm (c)'s maximum, 1,943.8 ms, is
-the session's first dispatch — the one-off worker start; the next two dispatches settled in 332.4 ms
+the session's first dispatch, the one-off worker start; the next two dispatches settled in 332.4 ms
 and 408.5 ms.
 
 Verdict on this machine, at 2.1.278, for a trivial hook, per fire: a classic `node` hook costs about
 60 ms (process spawn dominates), a classic `bash` hook about 12 ms (Git Bash already warm), and a mod
 `tool.call` passthrough less than this method can resolve, after a one-off worker start of about
-1.5 s. The resolution floor is about ±19 ms — arm (c)'s pre-chain window ran 18.5 ms above the
+1.5 s. The resolution floor is about ±19 ms: arm (c)'s pre-chain window ran 18.5 ms above the
 control's while containing the same two hooks, which is nothing the mod did.
 
 So after its one-off worker start the mod is cheaper per fire than a classic `node` hook and
@@ -479,7 +479,7 @@ bash", only "not slower".
 because there is no shell in the execution path, citing about 90 ms of process-spawn latency on
 Windows for classic bash hooks. This run measured about **12 ms** for the same mechanism, seven times
 cheaper, and `bash` was the cheapest classic arm here rather than the bottleneck. Different machines,
-different methods, and neither is a benchmark — record the disagreement, do not pick a winner, and do
+different methods, and neither is a benchmark. Record the disagreement, do not pick a winner, and do
 not build a performance argument for adoption on either number.
 
 Honest limits, restated because they are larger than some of the effects: one session per arm, one
@@ -512,7 +512,7 @@ Untested and still open: the flag unset in Desktop (the rollout-gate arm), cloud
 and mods that draw UI.
 
 The premise the route rests on held. There is **no documented way to point Desktop at a local plugin
-directory** — `--plugin-dir` has no Desktop equivalent — and the route works only because Desktop and
+directory** (`--plugin-dir` has no Desktop equivalent), and the route works only because Desktop and
 the CLI read the same configuration: settings in `~/.claude.json` and `~/.claude/settings.json` are
 shared, so a plugin installed at user scope by the CLI is visible to Desktop local sessions. If a
 rerun comes back negative, that shared-configuration premise is one of the things that could have
@@ -535,7 +535,7 @@ The procedure, by hand:
    editor: open the environment dropdown in the prompt box, hover over **Local**, click the gear, and
    add `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = 1`. **The gear was absent in `app-2.2553.1`**, so this
    route was unavailable on 2026-09-19; check whether the build in hand has it. (b) The `env` key in
-   `~/.claude/settings.json`, which is user-global and affects the CLI too — undo it afterwards. (c)
+   `~/.claude/settings.json`, which is user-global and affects the CLI too, so undo it afterwards. (c)
    The route that worked on 2026-09-19: fully quit the app, confirm zero processes, then launch it
    from PowerShell with `$env:CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = '1'` set for that process only,
    which rests on the documented rule that on Windows the app inherits user and system environment
@@ -546,13 +546,13 @@ The procedure, by hand:
    documented**.
 4. Fully quit Claude Desktop, tray icon included, and start it again; route (c) already did this.
    Environment variables and plugin enablement are read at session start.
-5. In the Code tab open a **local** session, not a cloud session — the plugin browser and locally
+5. In the Code tab open a **local** session, not a cloud session, because the plugin browser and locally
    installed plugins are documented as unavailable in cloud sessions. Any folder. Send one message.
 6. Check the marker file.
 
 Reading the result: marker present and newer than the probe run means **loads**, as it did on
 2026-09-19. No marker but the plugin listed means **does not load**, a negative with three causes the
-probe cannot separate — Desktop's bundled CLI may predate hooks modules (its version is under
+probe cannot separate: Desktop's bundled CLI may predate hooks modules (its version is under
 Settings, About, and is the directory name under `%APPDATA%\Claude\claude-code\`; it was 2.1.275 on
 2026-09-19, against 2.1.278 on `PATH`), the
 variable may not reach that process, or the session may have been a cloud session. Narrow it before
