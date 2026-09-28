@@ -23,16 +23,20 @@ narrow it to a single tier and show that tier's paths before asking, the
 lane clears; a general "clean it up" is still not approval), removal is a manual handoff, not an
 engine plan:
 
-1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,
-   never globs). For an ordinary path, run the engine's deterministic revalidation immediately
-   before deletion:
+1. Each approved path is snapshot-relative and exact, never a glob. For an ordinary path, run the
+   engine's deterministic revalidation on that one path immediately before deleting it, passing
+   the path inline so no file write sits between the check and the deletion:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
-     --snapshot "<run-dir>/snapshot.json" --paths "<run-dir>/handoff-paths.json" \
+     --snapshot "<run-dir>/snapshot.json" --path "relative/exact.tmp" \
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
+
+   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
+   approved list to `<run-dir>/handoff-paths.json` as
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
+   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
@@ -47,7 +51,7 @@ engine plan:
 
    A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
    Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
-   has approved that exact checkout in `handoff-paths.json`, write
+   has approved that exact checkout, write
    `<run-dir>/vcs-evidence.json`:
 
    ```json
@@ -71,7 +75,7 @@ engine plan:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
-     --snapshot "<run-dir>/snapshot.json" --paths "<run-dir>/handoff-paths.json" \
+     --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
      --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
@@ -96,8 +100,8 @@ engine plan:
    **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
    path's check ages while every later path is still being walked and probed, so its `clear`
    is already stale at emission, and staler after each intervening deletion. Pair each
-   deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
-   next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
+   deletion with its own fresh `--path` handoff-verify run (verify one → delete that one →
+   next); reserve the `--paths` file form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
 
    When settled removals empty inventoried directories, `handoff-verify` names those containers

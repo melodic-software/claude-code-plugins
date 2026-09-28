@@ -154,8 +154,8 @@ marker within the one approved checkout:
    only in that case.
 3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
    declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
-4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
-   option adds no approval surface and creates no token.
+4. The checkout is one exact human-approved path, given inline as `--path` or listed in
+   `handoff-paths.json`. The evidence option adds no approval surface and creates no token.
 
 The engine discovers `.git` markers from live descendants and requires their repository-root set to
 equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared

@@ -50,8 +50,8 @@ Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, op
 `--quiet`, optional
 `--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
-`--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
-subcommands) are supplied by this skill's command templates, not typed by the user.
+`--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and `--vcs-evidence` on
+the other subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform, the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. `--quiet` shapes the
 scan's stdout and nothing else: it omits `children_rollup`, prints `truncated_paths` as a count
@@ -368,8 +368,9 @@ so the engine never deletes there and the default outcome is the report. When, a
 `--execute` was requested on one of those platforms and the human approved an exact single-tier
 path list in this session, read
 [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the `handoff-paths.json` shape, the per-path revalidation, and the hook belt that
-outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
+it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
+revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
+lane from the engine steps above.
 
 ## Gotchas
 

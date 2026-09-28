@@ -4518,6 +4518,62 @@ class HandoffVerifyTests(unittest.TestCase):
             status = hygiene.main(argv)
         return status, json.loads(output.getvalue())
 
+    def handoff_verify_inline(
+        self, temporary: str, relative: str
+    ) -> tuple[int, dict[str, Any]]:
+        argv = [
+            "handoff-verify",
+            "--snapshot",
+            str(Path(temporary) / "snapshot.json"),
+            "--path",
+            relative,
+        ]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_handoff_verify_inline_path_matches_the_single_path_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            for name in names[:2]:
+                with self.subTest(path=name):
+                    self.assertEqual(
+                        self.handoff_verify_cli(temporary, [name]),
+                        self.handoff_verify_inline(temporary, name),
+                    )
+            (root / names[0]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_inline(temporary, names[0])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+            self.assertEqual(
+                self.handoff_verify_cli(temporary, [names[0]]), (status, payload)
+            )
+
+    def test_handoff_verify_inline_path_keeps_the_file_form_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.five_file_snapshot(temporary)
+            for relative in ("absent.tmp", "../junk0.tmp", "/junk0.tmp", "."):
+                with self.subTest(path=relative):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        status = hygiene.main(
+                            [
+                                "handoff-verify",
+                                "--snapshot",
+                                str(Path(temporary) / "snapshot.json"),
+                                "--path",
+                                relative,
+                            ]
+                        )
+                    self.assertEqual(2, status)
+                    self.assertIn(
+                        "approved path", json.loads(output.getvalue())["error"]
+                    )
+
     def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
         root = Path(temporary) / "target"
         root.mkdir()
@@ -10253,20 +10309,37 @@ class EngineGrammarTests(unittest.TestCase):
     def is_data_root(self, flag) -> bool:
         return flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT
 
-    def head(self, spec) -> list[str]:
-        return [word for chunk in self.required_chunks(spec) for word in chunk]
+    def grouped(self, spec) -> set[str]:
+        return {name for group in spec.one_of for name in group}
+
+    def alternative_chunks(self, spec, chosen=None) -> list[list[str]]:
+        """One member of each ``one_of`` group: ``chosen`` in its own, else the first."""
+        chunks = []
+        for group in spec.one_of:
+            name = (
+                chosen.name if chosen is not None and chosen.name in group else group[0]
+            )
+            flag = spec.flag(name)
+            assert flag is not None
+            chunks.append(self.chunk(flag))
+        return chunks
+
+    def head(self, spec, chosen=None) -> list[str]:
+        """The required flags plus one member of each ``one_of`` group."""
+        chunks = [*self.required_chunks(spec), *self.alternative_chunks(spec, chosen)]
+        return [word for chunk in chunks for word in chunk]
 
     def data_root_chunk(self, spec) -> list[str]:
         (flag,) = [flag for flag in spec.optional if self.is_data_root(flag)]
         return self.chunk(flag)
 
-    def words(self, spec, *, optionals: bool) -> list[str]:
-        """The required head plus ``--data-root``, which the guard requires."""
-        words = [*self.head(spec), *self.data_root_chunk(spec)]
+    def words(self, spec, *, optionals: bool, chosen=None) -> list[str]:
+        """The head plus ``--data-root``, which the guard requires."""
+        words = [*self.head(spec, chosen), *self.data_root_chunk(spec)]
         if not optionals:
             return words
         for flag in spec.optional:
-            if self.is_data_root(flag):
+            if self.is_data_root(flag) or flag.name in self.grouped(spec):
                 continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
@@ -10380,7 +10453,11 @@ class EngineGrammarTests(unittest.TestCase):
 
     def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
+            chunks = [
+                *self.required_chunks(spec),
+                *self.alternative_chunks(spec),
+                self.data_root_chunk(spec),
+            ]
             for index, flag in enumerate(spec.required):
                 words = [
                     word
@@ -10400,7 +10477,14 @@ class EngineGrammarTests(unittest.TestCase):
             if len(chunks) < 2:
                 continue
             swapped = [
-                word for chunk in [chunks[1], chunks[0], *chunks[2:]] for word in chunk
+                word
+                for chunk in [
+                    chunks[1],
+                    chunks[0],
+                    *chunks[2:],
+                    *self.alternative_chunks(spec),
+                ]
+                for word in chunk
             ]
             with self.subTest(subcommand=spec.name):
                 self.assertEqual(spec.name, self.parse(spec.name, swapped).command)
@@ -10411,8 +10495,8 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.optional:
                 if flag.repeatable or flag.requires is not None:
                     continue
-                once = self.words(spec, optionals=False)
-                if not self.is_data_root(flag):
+                once = self.words(spec, optionals=False, chosen=flag)
+                if not self.is_data_root(flag) and flag.name not in self.grouped(spec):
                     once = [*once, *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertEqual(spec.name, self.classify(spec.name, once))
@@ -10450,8 +10534,8 @@ class EngineGrammarTests(unittest.TestCase):
                 )
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertIsNotNone(rejected, flag.name)
-                    admitted = [*self.words(spec, optionals=False)]
-                    if not flag.required:
+                    admitted = [*self.words(spec, optionals=False, chosen=flag)]
+                    if not flag.required and flag.name not in self.grouped(spec):
                         if flag.requires is not None:
                             prerequisite = spec.flag(flag.requires)
                             assert prerequisite is not None
@@ -10499,6 +10583,60 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(subcommand=spec.name):
                 self.assertEqual(spec.name, self.parse(spec.name, head).command)
                 self.assertIsNone(self.classify(spec.name, head))
+
+    def test_each_one_of_member_is_admitted_alone(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                for name in group:
+                    flag = spec.flag(name)
+                    words = self.words(spec, optionals=False, chosen=flag)
+                    with self.subTest(subcommand=spec.name, flag=name):
+                        namespace = self.parse(spec.name, words)
+                        self.assertEqual(
+                            self.value(flag), getattr(namespace, flag.dest)
+                        )
+                        for other in group:
+                            if other != name:
+                                other_flag = spec.flag(other)
+                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                        self.assertEqual(spec.name, self.classify(spec.name, words))
+
+    def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                first, second = (spec.flag(name) for name in group[:2])
+                words = [
+                    *self.words(spec, optionals=False, chosen=first),
+                    *self.chunk(second),
+                ]
+                with self.subTest(subcommand=spec.name, group=group):
+                    self.assertIsNone(self.classify(spec.name, words))
+                    self.refuse_parse(spec.name, words)
+
+    def test_neither_consumer_takes_an_invocation_with_no_group_member(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            if not spec.one_of:
+                continue
+            words = [
+                word
+                for chunk in [*self.required_chunks(spec), self.data_root_chunk(spec)]
+                for word in chunk
+            ]
+            with self.subTest(subcommand=spec.name):
+                self.assertIsNone(self.classify(spec.name, words))
+                self.refuse_parse(spec.name, words)
+
+    def test_grammar_rejects_a_malformed_one_of_group(self) -> None:
+        flags = (
+            self.grammar.Flag("--a", required=True, example="a"),
+            self.grammar.Flag("--b", example="b"),
+            self.grammar.Flag("--c", example="c"),
+        )
+        for group in (("--b",), ("--a", "--b"), ("--b", "--missing")):
+            with self.subTest(group=group), self.assertRaises(ValueError):
+                self.grammar.Subcommand("x", flags, one_of=(group,))
+        with self.assertRaises(ValueError):
+            self.grammar.Subcommand("x", flags, one_of=(("--b", "--c"), ("--c", "--b")))
 
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
