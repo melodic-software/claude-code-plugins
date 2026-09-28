@@ -1,0 +1,619 @@
+#!/usr/bin/env bash
+# PreToolUse hook: block writes whose target is a Windows drive-root temp path.
+# Triggered on Bash and PowerShell tool calls (a command string), and on
+# Write / Edit / MultiEdit / NotebookEdit tool calls (a file path).
+#
+# TWO DOORS, ONE MATCHER. A write reaches the drive root through either shape,
+# and until 0.30.0 only the command shape was inspected: the hook read
+# `.tool_input.command`, a `Write` payload carries `file_path` instead, so the
+# empty-COMMAND early exit returned before any matcher ran and an empty
+# `C:\tmp\tmp.rSFIkHm5DO` was created with no guard noticing. Both doors now feed
+# the SAME has_drive_root_tmp() matcher. The file-path lane needs none of the
+# command lane's inference — no redirect parsing, no write-utility whitelist,
+# no segment splitting — because on Write/Edit the path IS the write target.
+#
+# On Windows (Git Bash / MSYS / Cygwin), a hardcoded POSIX `/tmp` path resolves to
+# `<current-drive>:\tmp` (e.g. `C:\tmp`) rather than the platform temp directory
+# (`%TEMP%` — typically `C:\Users\<user>\AppData\Local\Temp`) — EXCEPT on a stock
+# Git for Windows install, where `/tmp` is a `usertemp` mount of `%TEMP%` itself
+# (`cygpath -w /tmp` answers the same directory). Blocking a Bash-tool write to
+# that `/tmp` is a false positive (#4251). Drive-letter and drive-relative
+# spellings (`C:\tmp`, `/c/tmp`, `\tmp`) stay the volume-root sink on every lane.
+# PowerShell has no MSYS mount table, so its `/tmp` spelling stays blocked.
+#
+# This guard FAILS CLOSED on a write-shaped reference to those roots and points
+# the operator at the platform temp. It does NOT engage on non-Windows hosts
+# (where `/tmp` is the real POSIX temp). It does NOT block legitimate platform
+# temp usage: `%TEMP%` / `$TEMP` / `$TMP` / `$env:TEMP` / `$TMPDIR` expansions,
+# or `/var/tmp`.
+#
+# SIBLING GUARD, DISJOINT SCOPE. block-exported-msys-pathconv.sh guards the same
+# family (drive-root residue on Windows) through a different door: it matches an
+# EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, with no path component at all,
+# because #2870's incident command carried a path argument textually identical to
+# one that had already worked — the discriminator was the environment, not the
+# string. This guard would not fire on that; that guard would not fire on any
+# case here. Two hooks rather than one overloaded matcher is deliberate.
+#
+# Detection is a static matcher over the literal command string — it does not
+# evaluate shell / PowerShell expansions. Scope residual: an expansion-built
+# path (`$x` where x=/tmp) is invisible here; that is friction against accidental
+# hardcoded roots, not a sandbox.
+#
+# BLOCKING: exits 2 on a detected drive-root temp write.
+
+set -uo pipefail
+
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED:-true}" == "true" ]] || exit 0
+
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 (allow) and 2 (block) pass through. This is the guard the
+# issue recorded exiting 1 with no stderr on a live session; the allow it took
+# then is unchanged, the silence is not.
+guard::abort_boundary block-windows-drive-tmp PreToolUse open 0 2
+# shellcheck source=hook-utils.sh
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+
+# Non-Windows hosts: /tmp is the real POSIX temp, so this guard can never find a
+# violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
+# lane on Linux CI.
+#
+# THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking,
+# and that ordering is load-bearing. This hook matches Write / Edit / MultiEdit /
+# NotebookEdit as of 0.30.0. Evaluated any later, a Linux or macOS host without
+# jq on PATH would take require_jq_blocking's fail-closed exit 2 on EVERY file
+# edit — denying writes on a platform where the guard has no opinion at all.
+# Reading OSTYPE needs nothing from the payload, so the gate is free to precede
+# the read; hook::check_enabled above already exits without draining stdin, so
+# that is an established shape in this hook, not a new one.
+#
+# Known and accepted: the shape is established, the EXPOSURE is not. check_enabled
+# is a kill switch that fires only when an operator disables the guard, whereas
+# this gate fires on every non-Windows tool call. A payload past roughly 64KB is
+# therefore left undrained on Linux and macOS where it previously was not, so a
+# writer that does not handle EPIPE would take SIGPIPE. Accepted rather than
+# fixed, because the alternatives are worse: a naive builtin drain blocks until
+# EOF and can hang a tool call (which is the whole reason hook::buffer_stdin is
+# a bounded idle-timeout read), and draining via buffer_stdin first would put
+# its rc-2 fail-closed exit back in front of the host gate — the very bug above.
+# Tracked separately rather than widened into this change.
+#
+# The Windows path is UNCHANGED: the case falls through and every fail-closed
+# posture below runs in exactly the same order as before — buffer_stdin rc 2,
+# jq absence, unparsable payload, NUL bytes, MAX_COMMAND_LEN.
+#
+# block-exported-msys-pathconv.sh deliberately keeps the opposite ordering. It
+# matches only Bash|PowerShell, where blocking on missing jq is the accepted
+# #2146 posture; the blast radius that forces the hoist here does not exist
+# there. Do not "fix the inconsistency" by aligning them.
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) ;;
+*) exit 0 ;;
+esac
+
+# Path-qualified / quoted writers, assigned as literals (no cat/subshell).
+# Bash ERE has no backrefs, so quoted and unquoted command-position
+# patterns are separate. A trailing ["']? on the bare-word branch also
+# matched `echo 'run mkdir' /tmp/x`.
+# shellcheck disable=SC2089,SC2090  # quotes in the character class are literal
+_DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_BARE="[[:space:]](tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+
+# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
+# on older bash it is unset, so default to empty and skip telemetry (the block
+# still fires). Referencing it bare under `set -u` would abort before exit.
+# Below the host gate so it stays adjacent to the work it actually times.
+start=${EPOCHREALTIME:-}
+
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
+# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that is
+# not JSON) FAILS CLOSED — the guard cannot evaluate the tool call, and a
+# silent skip would pass exactly the traffic this guard exists to stop; rc 3
+# (a JSON payload cut short by the pipe, a transport fault) is a loud skip
+# the dispatcher takes once. buffer_stdin already printed the reason. Buffering
+# does not require jq (hook::buffer_stdin's own JSON-completeness check is
+# jq-optional), so it runs before the jq gate below.
+hook::buffer_stdin_to INPUT || {
+  rc=$?
+  ((rc == 2)) && exit 2
+  exit 0
+}
+
+# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
+# absence — same posture as the other Bash/PowerShell blocking guards (#2146).
+hook::require_jq_blocking "guardrails-block-windows-drive-tmp" "block_windows_drive_tmp_enabled"
+
+# Path fields only — never `.tool_input.content` / `.new_string` / `.new_source`.
+# HOOK_JQ_FIELDS_NUL is computed across every REQUESTED field, so pulling the
+# written CONTENT in here would make this guard block on a NUL anywhere in a
+# file body: a false-positive class that is hardcoded-path-check's concern, not
+# this guard's. `notebook_path` rides along in the same jq process (one spawn,
+# not two) because NotebookEdit spells its target differently from Write/Edit.
+jq_rc=0
+hook::jq_fields "$INPUT" \
+  '.tool_input.command' '.tool_name' \
+  '.tool_input.file_path' '.tool_input.notebook_path' || jq_rc=$?
+if ((jq_rc == 2)); then
+  echo "BLOCKED: the hook payload could not be parsed." >&2
+  exit 2
+fi
+((jq_rc != 0)) && exit 0
+
+# A NUL byte in EITHER field is fail-CLOSED (#2136 / #2122).
+if ((HOOK_JQ_FIELDS_NUL)); then
+  echo "BLOCKED: the payload carries a NUL byte, which neither a command nor a file path can reliably carry." >&2
+  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
+  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  exit 2
+fi
+
+COMMAND="${HOOK_JQ_FIELDS[0]}"
+TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+
+# Write / Edit / MultiEdit spell the target `file_path`; NotebookEdit spells it
+# `notebook_path`. Reading both and taking whichever is populated keeps the lane
+# correct without depending on which spelling a given tool version emits.
+FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
+[[ -n "$FILE_PATH" ]] || FILE_PATH="${HOOK_JQ_FIELDS[3]:-}"
+
+# Neither door carried anything to inspect. Before 0.30.0 this exit tested
+# COMMAND alone, which is exactly how a `Write` payload passed unexamined.
+[[ -n "$COMMAND" || -n "$FILE_PATH" ]] || exit 0
+
+MAX_COMMAND_LEN=16384
+
+emit_tel() {
+  [[ -n "$start" ]] || return 0
+  hook::telemetry_enabled || return 0
+  # Resolved HERE, not at top level, and in this shell: the subject is a
+  # telemetry field, so it is computed only when a sink is wired. Same shape
+  # as the plugin's other lazily-resolved telemetry fields.
+  local SUBJECT data
+  hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
+  hook::json_str_object_to data tool "$TOOL_NAME" subject "$SUBJECT" form "$2"
+  hook::emit_telemetry "block-windows-drive-tmp" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
+block() {
+  local form="$1"
+  # Single-quoted on purpose: the Fix line must show literal $TEMP / $env:TEMP
+  # spellings to the agent, not expand them in the hook process.
+  # shellcheck disable=SC2016
+  printf '%s\n' \
+    'BLOCKED: write target is a Windows drive-root temp path (resolves to <drive>:\tmp), not the platform temp directory.' \
+    'On Windows, POSIX /tmp, MSYS /<drive>/tmp, C:\tmp, and drive-root \tmp land at the volume root and accumulate silently.' \
+    'Fix: write under the platform temp instead — %TEMP% / $TEMP / $env:TEMP (or $TMP / $TMPDIR when they already point there). /var/tmp is also fine.' >&2
+  emit_tel "blocked" "$form"
+  exit 2
+}
+
+# Above this length the command is not parsed — fail closed (same ceiling as the
+# other argv-faithful Bash guards). The ceiling exists because the COMMAND lane
+# below walks the string character by character twice (mask_quoted_redirect_ops_to,
+# split_shell_segments) before it matches anything. NO EQUIVALENT CEILING GUARDS
+# THE FILE-PATH LANE, and that is a decision rather than an omission: that lane
+# runs three EREs against one string with no tokenization, so length buys no
+# parse ambiguity there, and detection does not degrade with length — a
+# drive-root prefix matches at any total length. A blocking ceiling would only
+# add a false-positive class (a legitimate long path refused for its size). The
+# payload as a whole is still bounded upstream by hook::buffer_stdin's idle
+# timeout, which fails CLOSED on a truncated read.
+if ((${#COMMAND} > MAX_COMMAND_LEN)); then
+  block "too-long"
+fi
+
+# Slash-normalize so C:\tmp, C:/tmp, and \tmp share one matcher. Lowercase for
+# case-insensitive Windows path compare without relying on bash [[ =~ ]] flags.
+# Pure shell, no `printf | tr`: that pipeline is a fork AND an exec (~280 ms
+# together on Windows Git Bash) to fold one character class, and this guard now
+# fires on the per-Write surface as well, where that pair would be pure added
+# budget. Same bytes for ASCII paths and commands, which is all a drive-root
+# matcher reads. Result lands in NORM_OUT rather than on stdout because a
+# command substitution would fork the shell right back.
+norm_lower() {
+  local s="${1//\\//}"
+  NORM_OUT="${s,,}"
+}
+
+norm_lower "$COMMAND"
+NORM="$NORM_OUT"
+
+# Cached: 0 = POSIX /tmp is this process's user temp, 1 = not (or unknown).
+# One probe per hook process; Git for Windows stock /tmp is a `usertemp` mount
+# of %TEMP% (#4251).
+_DRIVE_TMP_POSIX_USERTEMP=""
+_DRIVE_TMP_SKIP_POSIX=0
+
+posix_tmp_maps_to_usertemp() {
+  if [[ -n "$_DRIVE_TMP_POSIX_USERTEMP" ]]; then
+    return "$_DRIVE_TMP_POSIX_USERTEMP"
+  fi
+  _DRIVE_TMP_POSIX_USERTEMP=1
+  local tmp_win="" temp_win="" temp_env mount_line tmp_n temp_n
+  temp_env="${TEMP:-${TMP:-}}"
+  if command -v cygpath >/dev/null 2>&1 && [[ -n "$temp_env" ]]; then
+    tmp_win=$(cygpath -w /tmp 2>/dev/null) || tmp_win=""
+    if [[ -n "$tmp_win" ]]; then
+      temp_win=$(cygpath -w "$temp_env" 2>/dev/null) || temp_win="$temp_env"
+      tmp_n="${tmp_win,,}"
+      tmp_n="${tmp_n//\\//}"
+      tmp_n="${tmp_n%/}"
+      temp_n="${temp_win,,}"
+      temp_n="${temp_n//\\//}"
+      temp_n="${temp_n%/}"
+      if [[ -n "$tmp_n" && -n "$temp_n" && ( "$tmp_n" == "$temp_n" || "$tmp_n" == "$temp_n"/* ) ]]; then
+        _DRIVE_TMP_POSIX_USERTEMP=0
+        return 0
+      fi
+    fi
+  fi
+  # Git for Windows mount table: "... on /tmp type ntfs (...,usertemp)". The
+  # usertemp flag is what distinguishes that mount from a volume-root /tmp.
+  # Linux CI's /tmp tmpfs line has no such flag, so forcing OSTYPE=msys there
+  # does not trip this arm.
+  mount_line=$(mount 2>/dev/null) || mount_line=""
+  if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
+    _DRIVE_TMP_POSIX_USERTEMP=0
+    return 0
+  fi
+  return 1
+}
+
+# True when <haystack> carries a drive-root tmp path reference:
+#   /tmp[/...]           — POSIX form (Git Bash maps this to <drive>:\tmp,
+#                          unless _DRIVE_TMP_SKIP_POSIX: Bash-tool /tmp that
+#                          already is %TEMP%)
+#   /x/tmp[/...]         — MSYS drive form (/c/tmp → C:\tmp)
+#   x:/tmp[/...]         — Windows drive-letter form
+# Left boundary excludes a relative `./tmp` and a `/var/tmp` suffix (the char
+# before `/tmp` in `/var/tmp` is `r`). Right boundary is a path component end.
+has_drive_root_tmp() {
+  local s="$1"
+  # POSIX /tmp — not ./tmp, not /var/tmp, not /tmpdir
+  if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+    [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+    return 0
+  fi
+  # MSYS /<drive>/tmp, in two arms because a `:` on the left is ambiguous and
+  # the two readings decide oppositely.
+  #
+  # A DRIVE COLON must NOT satisfy the boundary: after slash-normalization
+  # `D:\a\tmp\x` reads as `d:` + `/a/tmp`, and that is an ordinary `tmp`
+  # directory two levels down, not a drive root. Blocking it was a FALSE
+  # POSITIVE that predates the file-path lane (the command lane blocked
+  # `mkdir -p D:\a\tmp\x` too), and it made the guard contradict its own
+  # premise, since the identical MSYS spelling `/d/a/tmp/x` was allowed — one
+  # sink deciding two ways. The lane makes it reachable from every Write/Edit,
+  # so it is fixed here rather than inherited.
+  #
+  # A PARAMETER COLON must still satisfy it. `-Path:` / `-FilePath:` /
+  # `-Destination:` is valid PowerShell binding, so `Set-Content -Path:/c/tmp/x`
+  # is a real drive-root write and one of its space-bound twins is a pinned
+  # MUST-fire case. Excluding `:` outright would have dropped that whole class.
+  #
+  # The discriminator is what sits before the colon. A DRIVE SPEC is exactly one
+  # alphanumeric at a word boundary — `D:`, ` D:`, `"D:`, `(D:` — so arm 2
+  # excludes only that shape and takes every other colon, which is the narrowest
+  # change that fixes the false positive. Its three alternatives are: a
+  # non-alphanumeric immediately before the colon (`;:`, `":`, `):` — never a
+  # drive spec); two alphanumerics (a multi-character token such as `-Path:` or
+  # `host:`); and a single alphanumeric behind a flag dash (`-t:`).
+  #
+  # Two accepted residuals, both unchanged from before the fix rather than
+  # introduced by it. A PATH-style list (`PATH=/usr/bin:/c/tmp cmd`) presents
+  # the multi-character-token shape and still matches, so a command whose write
+  # target is elsewhere can be matched over a search-path entry — lexically
+  # indistinguishable from a bound parameter. And a remote spec with a
+  # single-letter host (`ssh u@h:/c/tmp/x`) now reads as a drive spec and is not
+  # matched; it names a path on another machine, which this guard never governed.
+  if [[ "$s" =~ (^|[^[:alnum:]._/:])\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+    return 0
+  fi
+  if [[ "$s" =~ ([^[:alnum:]]|[[:alnum:]][[:alnum:]]|-[[:alnum:]]):\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+    return 0
+  fi
+  # Drive-letter X:/tmp
+  if [[ "$s" =~ (^|[^[:alnum:]])[a-z]:\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Replace `>` that sit inside single- or double-quoted spans so a prose mention
+# such as `git commit -m "echo x > /tmp/x"` is not treated as a redirect, while
+# a real redirect whose *target* is quoted (`echo x > "/tmp/x"`) still matches.
+mask_quoted_redirect_ops_to() { # <var> <segment>: the mask, in this shell
+  # Locals under a `__dt_` prefix so the caller's variable name (`s`) cannot
+  # collide with them and take the assignment (the `_to` helper convention).
+  local __dt_dest="$1" __dt_s="$2" __dt_out="" __dt_i=0 __dt_c __dt_quote=""
+  local -i __dt_len=${#__dt_s}
+  while ((__dt_i < __dt_len)); do
+    __dt_c="${__dt_s:__dt_i:1}"
+    if [[ -n "$__dt_quote" ]]; then
+      if [[ "$__dt_c" == "$__dt_quote" ]]; then
+        __dt_quote=""
+        __dt_out+="$__dt_c"
+      elif [[ "$__dt_c" == '>' ]]; then
+        __dt_out+='#'
+      else
+        __dt_out+="$__dt_c"
+      fi
+    else
+      if [[ "$__dt_c" == "'" || "$__dt_c" == '"' ]]; then
+        __dt_quote="$__dt_c"
+      fi
+      __dt_out+="$__dt_c"
+    fi
+    __dt_i=$((__dt_i + 1))
+  done
+  printf -v "$__dt_dest" '%s' "$__dt_out"
+}
+
+# Write-shaped signal: a redirect whose target word is a drive-root tmp path.
+# Covers `> /tmp/x`, `>/tmp/x`, `>>/tmp/x`, `2>/tmp/err`, `&>/tmp/x`.
+# Redirect operators inside quotes are ignored (see mask_quoted_redirect_ops_to).
+has_redirect_to_drive_root_tmp() {
+  local s
+  mask_quoted_redirect_ops_to s "$1"
+  # Optional fd digits and optional & (&>), then > or >>, optional space/quotes,
+  # then a drive-root tmp path. Angle brackets in the right-boundary class are
+  # literal characters (not GNU \< \> word-boundaries) — keep them unescaped so
+  # the portability gate does not flag this ERE. portability-ok: bash [[ =~ ]]
+  # character class literals, not grep -E word boundaries
+  if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
+    return 0
+  fi
+  if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+    # portability-ok: character-class angle brackets in a bash regex, not a GNU word boundary
+    [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Split a (already lowercased, slash-normalized) command on unquoted shell
+# control operators so `mkdir ./out && cat /tmp/x` is inspected per segment.
+# Emits NUL-terminated segments on stdout.
+split_shell_segments() {
+  local s="$1" out="" i=0 c quote="" nex
+  local -i len=${#s}
+  while ((i < len)); do
+    c="${s:i:1}"
+    if [[ -n "$quote" ]]; then
+      if [[ "$c" == "$quote" ]]; then
+        quote=""
+      fi
+      out+="$c"
+      i=$((i + 1))
+      continue
+    fi
+    if [[ "$c" == "'" || "$c" == '"' ]]; then
+      quote="$c"
+      out+="$c"
+      i=$((i + 1))
+      continue
+    fi
+    # Control operators: ; | & and digraphs && ||
+    if [[ "$c" == ';' || "$c" == '|' || "$c" == '&' ]]; then
+      printf '%s\0' "$out"
+      out=""
+      nex="${s:i+1:1}"
+      if [[ ( "$c" == '&' || "$c" == '|' ) && "$nex" == "$c" ]]; then
+        i=$((i + 2))
+      else
+        i=$((i + 1))
+      fi
+      continue
+    fi
+    out+="$c"
+    i=$((i + 1))
+  done
+  printf '%s\0' "$out"
+}
+
+# Last non-option token of a utility segment — the usual destination for cp/mv
+# and Copy-Item/Move-Item. Flags of the form -x / --long are skipped; a flag
+# that consumes a path (-t / --target-directory / -destination) treats the next
+# token as the destination immediately.
+segment_destination_operand() {
+  local subject="$1" tok dest="" expect_dest=0
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=( $subject )
+  for tok in "${tokens[@]}"; do
+    tok="${tok#\'}"
+    tok="${tok%\'}"
+    tok="${tok#\"}"
+    tok="${tok%\"}"
+    if ((expect_dest)); then
+      dest="$tok"
+      expect_dest=0
+      continue
+    fi
+    case "$tok" in
+    -t | --target-directory | --target-directory=* | -destination | -destination:* | -dest | -dest:*)
+      if [[ "$tok" == *=* || "$tok" == *:* ]]; then
+        dest="${tok#*=}"
+        dest="${dest#*:}"
+      else
+        expect_dest=1
+      fi
+      ;;
+    -*)
+      continue
+      ;;
+    tee | mktemp | mkdir | touch | install | cp | mv | dd | install.exe | tee.exe | \
+    set-content | add-content | out-file | tee-object | new-item | export-clixml | \
+    export-csv | copy-item | move-item | copy | move | cpi | mi | ac | ni)
+      # command word — skip
+      ;;
+    *)
+      dest="$tok"
+      ;;
+    esac
+  done
+  printf '%s' "$dest"
+}
+
+# curl -o/--output and wget -O/--output-document write targets. Glued
+# (`-o/tmp/x`) and `--flag=path` forms count; a URL that merely contains
+# `/tmp` does not.
+segment_downloader_output_operand() {
+  local subject="$1" tok dest="" expect=0
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=( $subject )
+  for tok in "${tokens[@]}"; do
+    tok="${tok#\'}"
+    tok="${tok%\'}"
+    tok="${tok#\"}"
+    tok="${tok%\"}"
+    if ((expect)); then
+      dest="$tok"
+      expect=0
+      continue
+    fi
+    case "$tok" in
+    --output=* | --output-document=*)
+      dest="${tok#*=}"
+      ;;
+    --output | --output-document | -O | -o)
+      expect=1
+      ;;
+    -o?*)
+      dest="${tok#-o}"
+      ;;
+    -O?*)
+      dest="${tok#-O}"
+      ;;
+    *)
+      ;;
+    esac
+  done
+  printf '%s' "$dest"
+}
+
+# True when a segment's destination-shaped operand is a drive-root tmp path.
+# Creators (mkdir/touch/…) treat any drive-root path argument as a write;
+# copy/move utilities bind only the destination operand.
+segment_writes_drive_root_tmp() {
+  local subject="$1" dest
+  # Path-qualified verbs only in command position: start of the segment, or
+  # after `sudo`. After any other space the verb must be bare, or
+  # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false
+  # positives (#3502). Quoted and unquoted command-position patterns are
+  # separate because bash ERE cannot pair opening and closing quotes.
+  # Creators / content writers: any drive-root tmp path in the segment is a write.
+  if [[ "$subject" =~ $_DRIVE_TMP_CREATOR_QUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_CREATOR_UNQUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_CREATOR_BARE ]] ||
+    [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
+    [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
+    has_drive_root_tmp "$subject" && return 0
+    return 1
+  fi
+  # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
+  if [[ "$subject" =~ $_DRIVE_TMP_COPY_QUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_COPY_UNQUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_COPY_BARE ]]; then
+    dest=$(segment_destination_operand "$subject")
+    [[ -n "$dest" ]] || return 1
+    has_drive_root_tmp "$dest" && return 0
+    return 1
+  fi
+  # curl / wget: output-flag operands only (#4251). A URL path containing
+  # `/tmp` is not a write target.
+  if [[ "$subject" =~ (^|[[:space:];|&]|/)(curl|wget|curl\.exe|wget\.exe)([[:space:]]|$) ]]; then
+    dest=$(segment_downloader_output_operand "$subject")
+    [[ -n "$dest" ]] || return 1
+    has_drive_root_tmp "$dest" && return 0
+    return 1
+  fi
+  # Inline python write opening a drive-root tmp path
+  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]]; then
+    has_drive_root_tmp "$subject" && return 0
+    return 1
+  fi
+  return 1
+}
+
+# Write-shaped signal: a known producer / destination utility whose write
+# target is a drive-root tmp path. Echo/printf alone are NOT enough (they write
+# stdout, and a prose mention of /tmp must stay allowed). Compound commands are
+# inspected per segment so `mkdir ./out && cat /tmp/src` stays allowed.
+has_write_utility_with_drive_root_tmp() {
+  local s="$1" piece
+  # Whole-string matcher is the cheap reject. A glued dest flag (`curl -o/tmp/x`)
+  # hides `/tmp` behind an alphanumeric, so also walk when the letters appear.
+  has_drive_root_tmp "$s" || [[ "$s" == *'/tmp'* ]] || return 1
+  while IFS= read -r -d '' piece; do
+    [[ -n "${piece//[[:space:]]/}" ]] || continue
+    if segment_writes_drive_root_tmp "$piece"; then
+      return 0
+    fi
+  done < <(split_shell_segments "$s")
+  return 1
+}
+
+# --- File-path lane: Write / Edit / MultiEdit / NotebookEdit -----------------
+# On these tools the payload's path IS the write target, so the whole
+# write-shape inference the command lane needs — redirect parsing, the producer
+# utility whitelist, per-segment splitting — is structurally absent here. The
+# matcher is the shipped has_drive_root_tmp(), unchanged and unduplicated, so
+# every spelling the command lane blocks (POSIX /tmp, MSYS /c/tmp, C:\tmp,
+# drive-root \tmp) and every one it permits (%TEMP% expansions, /var/tmp,
+# ./tmp, foo/tmp) decide identically on this lane.
+if [[ -n "$FILE_PATH" ]]; then
+  norm_lower "$FILE_PATH"
+  if has_drive_root_tmp "$NORM_OUT"; then
+    block "file-path"
+  fi
+fi
+
+# --- Command lane: Bash / PowerShell -----------------------------------------
+# Skipped outright on a file-path payload: has_redirect_to_drive_root_tmp walks
+# the command character by character, and scanning an empty string would be
+# per-Write budget spent to reach a foregone `no`.
+if [[ -n "$COMMAND" ]]; then
+  # Bash-tool POSIX /tmp on a Git for Windows usertemp mount already lands in
+  # %TEMP%. Skip that spelling only; /c/tmp, C:\tmp and drive-root \tmp stay
+  # blocked, and PowerShell is unchanged (#4251).
+  _DRIVE_TMP_SKIP_POSIX=0
+  if [[ "$TOOL_NAME" == "Bash" ]] && posix_tmp_maps_to_usertemp; then
+    _DRIVE_TMP_SKIP_POSIX=1
+  fi
+  if has_redirect_to_drive_root_tmp "$NORM"; then
+    block "redirect"
+  fi
+
+  if has_write_utility_with_drive_root_tmp "$NORM"; then
+    block "write-utility"
+  fi
+fi
+
+emit_tel "ok" ""
+exit 0
