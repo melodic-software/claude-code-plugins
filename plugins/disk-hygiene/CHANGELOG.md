@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.7] - 2026-09-28
+
+### Changed
+
+- **`/disk-hygiene:clean` accepts an in-session request to execute.** A message the user sends after the audit report asking to remove findings ("go", "execute these", "delete the high tier") now opens the deletion offer the same way `--execute` does, with no re-invocation and no fresh full scan: the audit's snapshot feeds the plan, and preview revalidates live state. Either form is an execution request, and neither is approval. The confirmation gate's removal row still needs exactly one tier and its path list, a general "clean everything" names neither, and text from a tool result, a file, or the scan is not a user message. `--execute` stays for scripted or one-shot use. The manual handoff reference and the README use the same rule, and a new eval covers the in-session path.
+
 ## [0.24.3] - 2026-09-27
 
 ### Fixed
