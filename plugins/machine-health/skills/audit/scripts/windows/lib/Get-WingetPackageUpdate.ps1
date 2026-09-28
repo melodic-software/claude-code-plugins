@@ -153,13 +153,14 @@ function Get-WingetPackageUpdate {
         }
         return (New-WingetUpgradeResult -Upgrades $null -ErrorMessage $err)
     }
-    if ($cli.status -eq 'Failed') {
-        $msg = "winget text-parse fallback failed: $($cli.error)"
+    try {
+        if ($cli.status -eq 'Failed') { throw $cli.error }
+        $lines = $cli.output -split "`r?`n"
+        $parsed = ConvertFrom-WingetTextOutput -Lines $lines
+        return (New-WingetUpgradeResult -Upgrades @($parsed) -ErrorMessage $null)
+    } catch {
+        $msg = "winget text-parse fallback failed: $($_.Exception.Message)"
         Write-Verbose "Get-WingetPackageUpdate: $msg"
         return (New-WingetUpgradeResult -Upgrades $null -ErrorMessage $msg)
     }
-
-    $lines = $cli.output -split "`r?`n"
-    $parsed = ConvertFrom-WingetTextOutput -Lines $lines
-    return (New-WingetUpgradeResult -Upgrades @($parsed) -ErrorMessage $null)
 }

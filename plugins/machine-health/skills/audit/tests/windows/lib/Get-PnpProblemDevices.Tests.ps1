@@ -70,7 +70,7 @@ Problem Status: 0xC0000001
         $result[0].problem_code | Should -Be 10
     }
 
-    It 'returns empty when pnputil exits non-zero' {
+    It 'still parses the output when pnputil exits non-zero' {
         Mock Invoke-NativeCommand {
             New-PnpNativeResult -Status 'NonZero' -ExitCode 1 -Output @'
 Instance ID: ACPI\MOCK\0000
@@ -79,6 +79,14 @@ Problem Code: 10
 '@
         } -ParameterFilter { $Name -eq 'pnputil' }
         $result = @(Get-PnpProblemDevice)
-        $result.Count | Should -Be 0
+        $result.Count | Should -Be 1
+        $result[0].problem_code | Should -Be 10
+    }
+
+    It 'returns empty when pnputil fails to start' {
+        Mock Invoke-NativeCommand {
+            New-PnpNativeResult -Status 'Failed'
+        } -ParameterFilter { $Name -eq 'pnputil' }
+        @(Get-PnpProblemDevice).Count | Should -Be 0
     }
 }

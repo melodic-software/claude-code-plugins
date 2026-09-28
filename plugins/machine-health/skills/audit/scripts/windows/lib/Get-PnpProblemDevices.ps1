@@ -14,7 +14,7 @@ caller decides whether to emit UNKNOWN or INFO on empty results.
 
 Windows-specific. Locale-fragile -- parser targets English "Instance ID"
 labels. Unknown layout returns @() with a Write-Verbose note rather than
-throwing. A missing pnputil or a non-zero exit is that same empty result.
+throwing. A missing pnputil or a failed start is that same empty result.
 #>
 
 . (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
@@ -29,7 +29,9 @@ function Get-PnpProblemDevice {
         Write-Verbose 'Get-PnpProblemDevice: pnputil not on PATH.'
         return @()
     }
-    if ($invoked.status -ne 'Ok') {
+    # A non-zero exit is still parsed, as before the adapter: pnputil's exit
+    # code is not documented as a no-problem-devices signal.
+    if ($invoked.status -eq 'Failed') {
         Write-Verbose "Get-PnpProblemDevice: pnputil invocation failed. $($invoked.error)"
         return @()
     }
