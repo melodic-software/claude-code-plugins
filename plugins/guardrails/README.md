@@ -491,18 +491,21 @@ out of scope until such a signal exists.
   write-shaped position, so a heredoc body carrying `C:\tmp` inside a
   `cat > file` does not block either.
 - **`block-windows-drive-tmp` lets inline python READ a drive-root path**
-  (since **0.41.4**, #3951). Every `open(` in the segment must be a provable
-  read, or the segment blocks as before. A bare `open(` is a read when its one
-  argument is a single whole quoted literal or an unquoted run free of commas,
-  parens, quotes and `#`, then an optional read-mode literal (only `r`, `b`,
-  `t`), optional literal `encoding=` / `errors=` / `newline=`, then `)`, so `json.load(open('/tmp/x.json'))` in a `python3 -` heredoc, or an
-  issue body that quotes that line, is allowed. A method-form `.open(` is a read
-  with no argument or a lone read-mode literal (`Path(p).open('rb')`). A write
-  or unknown mode, a mode in a variable, a nested call inside `open(`,
-  `os.open`, `popen(` / `fdopen(`, and `write_text(` / `write_bytes(` /
-  `makedirs(` all still block. Residual, in the fail-closed direction: a real
-  read in one of those shapes (`open(os.path.join(d, f))`,
-  `open(os.environ['F'])`, `os.open(p, os.O_RDONLY)`) blocks.
+  (since **0.41.4**, #3951). The segment is exempt only when every `open(` in
+  it is a provable read and, with those read calls cut out, no drive-root path
+  is left, so `json.load(open('/tmp/x.json'))` in a `python3 -` heredoc is
+  allowed but a read beside `os.system('… > /tmp/y')` is not. A bare `open(` is
+  a read when its one argument is a single whole quoted literal or an unquoted
+  run free of commas, parens, quotes, `#` and `*`, then an optional read-mode
+  literal (only `r`, `b`, `t`), optional literal `encoding=` / `errors=` /
+  `newline=`, then `)`. `Path('<literal>').open(` is a read with no argument or
+  a lone read-mode literal. Any backslash in the command voids the exemption:
+  the matcher sees the slash-normalized string, where an escaped quote looks
+  like a close quote. Residual, in the fail-closed direction: a real read
+  blocks when it uses a backslash (`open(r'C:\tmp\x')`), a nested call or
+  variable (`open(os.path.join(d, f))`, `open(os.environ['F'])`), `os.open`, or
+  a drive-root path outside the call (a `/tmp` argv operand read through
+  `sys.argv`, issue prose quoting `open(...)` beside a `/tmp` path).
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching

@@ -517,33 +517,52 @@ segment_downloader_output_operand() {
   printf '%s' "$dest"
 }
 
-# True only when EVERY `open(` in the segment is a provable python read; any
-# other shape fails closed (#3951). Bare `open(` is a read when its call is one
-# argument (a single whole quoted literal, or an unquoted run free of , ( ) and
-# quotes and #), an optional read-mode literal (only r/b/t), optional literal
-# encoding=/errors=/newline=, then `)`. Quotes pair by type, so a `)` or `'`
-# hidden inside a string or comment cannot end the match early. So a variable
-# mode (`open(p, m)`), a nested call (`open(join(a, b), 'w')`) and a call the
-# segment splitter cut before its `)` all block. Method form `.open(` is a read
-# only with no argument or a lone read-mode literal (`Path(p).open('rb')`), so
-# `os.open(p, …)` / `io.open(p)` block. An identifier before `open(` (`popen(`,
-# `fdopen(`, `urlopen(`) always blocks.
+# Inline python `open(` beside a drive-root tmp path (#3951). The segment is
+# exempt only when every `open(` is a provable read AND, with those read calls
+# cut out, no drive-root tmp path is left anywhere in the segment; so a read
+# never whitelists a sibling `os.system('… > /tmp/y')`, `shutil.copy(…, '/tmp/y')`
+# or `open('/tmp/x'); os.mknod('/tmp/y')`. Any other shape fails closed.
+# Provable read, bare `open(`: one argument (a single whole quoted literal, or an
+# unquoted run free of , ( ) quotes # and *), an optional read-mode literal
+# (only r/b/t), optional literal encoding=/errors=/newline=, then `)`. Quotes
+# pair by type, so a `)` hidden in a string or comment cannot end the match; `*`
+# is excluded so `open(*a)` / `open(**k)` cannot smuggle a mode. Method form: a
+# `Path('<literal>').open(` receiver with no argument or a lone read-mode literal
+# (the receiver is cut with the call); any other `.open(` keeps its receiver, so
+# `os.open(p, …)` blocks. An identifier before `open(` (`popen(`, `fdopen(`)
+# blocks. The matcher sees the slash-normalized command, where an escaped quote
+# (`'x\')'`) would read as a close quote, so any backslash in the raw command
+# voids the exemption.
+_PY_LIT="(\"[^\"]*\"|'[^']*')"
 _PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
-_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')"
-_PY_BARE_OPEN_READ="^[[:space:]]*([rbfu]*(\"[^\"]*\"|'[^']*')|[^,()\"'#]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
+_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_PY_LIT}"
+_PY_BARE_OPEN_READ="^[[:space:]]*([rbfu]*${_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
 _PY_METHOD_OPEN_READ="^[[:space:]]*(${_PY_READ_MODE}[[:space:]]*)?\)"
+_PY_PATH_RECEIVER="(^|[^[:alnum:]_])((pathlib\.)?path\([[:space:]]*[rbfu]*${_PY_LIT}[[:space:]]*\)\.)$"
+_PY_RAW_HAS_BACKSLASH=0
+[[ "$COMMAND" == *\\* ]] && _PY_RAW_HAS_BACKSLASH=1
 segment_opens_only_for_read() {
-  local rest="$1" before
+  local rest="$1" before out="" call
+  ((_PY_RAW_HAS_BACKSLASH)) && return 1
   while [[ "$rest" == *'open('* ]]; do
     before="${rest%%open(*}"
     rest="${rest#*open(}"
     case "${before: -1}" in
-    .) [[ "$rest" =~ $_PY_METHOD_OPEN_READ ]] || return 1 ;;
+    .)
+      [[ "$rest" =~ $_PY_METHOD_OPEN_READ ]] || return 1
+      call="${BASH_REMATCH[0]}"
+      [[ "$before" =~ $_PY_PATH_RECEIVER ]] && before="${before%"${BASH_REMATCH[2]}"}"
+      ;;
     [[:alnum:]_]) return 1 ;;
-    *) [[ "$rest" =~ $_PY_BARE_OPEN_READ ]] || return 1 ;;
+    *)
+      [[ "$rest" =~ $_PY_BARE_OPEN_READ ]] || return 1
+      call="${BASH_REMATCH[0]}"
+      ;;
     esac
+    out+="$before"
+    rest="${rest:${#call}}"
   done
-  return 0
+  ! has_drive_root_tmp "$out$rest"
 }
 
 # True when a segment's destination-shaped operand is a drive-root tmp path.
