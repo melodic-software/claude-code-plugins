@@ -3,6 +3,17 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.9] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** All five listed skills ran
+  over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: residue-shape examples, collector
+  lists, and restated skip lists. `check-listing-budget.sh plugins/code-tidying/skills` goes
+  from 3,900 to 2,121 characters. `setup` stays `disable-model-invocation: true`.
+  No skill is renamed or merged.
+
 ## [0.23.8] - 2026-09-28
 
 ### Changed

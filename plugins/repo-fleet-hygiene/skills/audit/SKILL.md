@@ -160,20 +160,22 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    per repository naming those paths. Disposability (stranded / unknown / safe) is owned by
    `/source-control:worktree status`, and this collector emits no `git status`-based substitute
    verdict. Separately, every linked worktree that passes existence and root-verifiability checks
-   is classified against its canonical checkout's own worktree root (`git -C <canonical>` reading
-   `worktreeroot.path`, which honors `includeIf`; when that checkout sets no key, the fleet default
-   below): conforming, outside/wrong-layout
+   is classified against its own repository's configured worktree root (`worktreeroot.path` read
+   with `git -C <canonical>`, which honors `includeIf`, else the project directory's key, then
+   source-control `worktree_root`):
+   conforming, outside/wrong-layout
    (expected `<root>/<owner>-<repo>-<slug>` or `<root>/<repo>-<slug>` without origin, matching
    `/source-control:worktree create`; create-shaped basenames stay conforming after branch
    rename/detach; comparisons use physical paths so symlink aliases of the configured root do not
    false-positive), or tool-owned (Codex/Cursor).
    Missing, prunable, non-root, and root-unverifiable registrations keep their own finding kinds and
    are excluded from conformance denominators. When no root is configured, placement is reported
-   without asserting a convention. The header and the fleet summary name a fleet default root: the
-   first TARGET with `worktreeroot.path`, else pluginConfigs. A repository whose own root differs
-   from that default is classified against its own root, and `worktree-root-conformance-summary`
-   lists each such repository with the root it used. Advice for its worktrees names its own root,
-   never the fleet default. If pluginConfigs cannot be read because `jq` is missing, emit
+   without asserting a convention. A repository with no `worktreeroot.path` of its own falls back
+   to the project directory's key, then pluginConfigs; it never borrows another target's root. The
+   header names the first resolvable root. The fleet summary lists each distinct root with its
+   repository count when repositories resolve different roots, and lists each repository whose own
+   root differed, with the root it used. Advice for a repository's worktrees names that
+   repository's root. If pluginConfigs cannot be read because `jq` is missing, emit
    `worktree-root-pluginconfigs-unreadable` rather than pretending the key is unset.
    Per-repository and fleet rollups always state the classifiable counts. If either inventory
    command fails or emits malformed/partial output, discard it, emit `UNKNOWN`, stop local
