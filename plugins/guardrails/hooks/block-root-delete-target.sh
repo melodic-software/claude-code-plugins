@@ -114,8 +114,30 @@
 # src/*/__pycache__` over a large `src` are refused), an operand over 4096
 # bytes or 128 path separators, an expansion followed by a segment of
 # punctuation alone (`${X:-{a,b}}/*` leaves a literal `}`, which names nothing
-# here), a backslash-escaped brace (it reads as partly quoted), and
-# `chroot /mnt rm -rf /` (it deletes `/mnt` on the host, not the host root).
+# here), a backslash-escaped brace (it reads as partly quoted), and the three
+# launcher lines decided below.
+#
+# LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
+# launcher does not delete the host root, and each stays refused on purpose:
+#   * `chrt -r rm -rf /`, `chrt -f rm -rf /` and a bare `chrt rm -rf /`
+#     (round-robin by default). chrt reads the word after a realtime policy
+#     as its priority, so it rejects these lines before exec: util-linux
+#     2.39.3 through 2.41 exits 1 with "invalid priority argument", 2.42 on
+#     with "policy <name> requires a priority argument". The same line
+#     under `-o`, `-b`, `-i`, `-d` or `-e` does run `rm` from 2.42, where the
+#     priority became optional for those policies, so a non-digit word after
+#     chrt is always read as the command. The cost is one retry and never a
+#     lost file.
+#   * `runuser -u bob rm -rf /` without `--`. runuser's getopt permutes, so
+#     `-rf` is read as its own option and the line exits 1 with "invalid
+#     option -- 'r'". Under POSIXLY_CORRECT, which a command inherits without
+#     showing it, options end at `rm` and the delete runs; the guard cannot
+#     see the shell's environment, so it refuses on both readings.
+#   * `chroot <dir> rm -rf /` and `rm -rf /*` under it. chroot's `/` is host
+#     `<dir>`, so the delete empties `<dir>` and every host directory
+#     bind-mounted inside it. Only GNU rm's default --preserve-root stops the
+#     bare `/` spelling, and not `/*` or `--no-preserve-root`. Not a
+#     harmless line, so kept on the refusal side.
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same

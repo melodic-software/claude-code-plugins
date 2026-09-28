@@ -13,6 +13,17 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `--root-child` names to fully inventory approved top-level directories into one snapshot without
   walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
 
+## [0.26.3] - 2026-09-28
+
+### Changed
+
+- **Ranking signals stay a model instruction, not an engine primitive**
+  ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
+  provenance mandate (tier, location sensitivity, provenance strength over byte totals)
+  stays in the skill body. No coded ranker on the destructive surface. Operator park
+  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
+  #4669 (0.26.1) and #3857 (0.26.2).
+
 ## [0.26.0] - 2026-09-28
 
 ### Changed
