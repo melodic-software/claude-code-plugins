@@ -3420,7 +3420,9 @@ rrp_case nocyg "the root as the file redacts" /repo /repo repo 1
 # the caller's absolute path, no longer matching the redaction's /* arm.
 rrp_case nocyg "an empty root redacts instead of shaving the slash" /srv/proj/repo/a.txt "" a.txt 1
 rrp_case nocyg "a trailing slash on the root still strips" /repo/src/run.sh /repo/ src/run.sh 0
-rrp_case nocyg "a trailing backslash on a drive root still strips" 'C:\repo\src\run.sh' 'C:\repo\' src/run.sh 0
+# portability-ok: a literal Windows drive-root fixture; the \s is a path separator
+# plus a directory name, not a GNU regex escape.
+rrp_case nocyg "a trailing backslash on a drive root still strips" "C:\\repo\\src\\run.sh" "C:\\repo\\" src/run.sh 0
 
 # The cygpath arm. The first case is the one the arm exists for: file in POSIX
 # mount form, root in drive-letter form. The nocyg control directly below shows
