@@ -72,9 +72,9 @@ The summary line is the report's counts. Keep it.
   before a home existed.
 - **Deployables**: `deployables=`, `modules=`, quoted from the summary line.
 - **Stores**: `stores=`, `brokers=`, `binds=`, `shared=`.
-- **Thin result**: `no`, or `yes` with the neighboring rungs
-  (`/architecture:map-components`, `/architecture:map-landscape`,
-  `/architecture:map-deployment`).
+- **Thin result**: `no`, or `yes`. A thin result names the component rung for
+  what is inside one deployable, `/architecture:map-landscape` for which
+  repositories exist, and the deployment rung for environment topology.
 - **Dialect**: `unset`, `c4-plantuml`, or `likec4`.
 - **Technology**: how many nodes are the literal `unknown`.
 
@@ -92,8 +92,9 @@ The summary line is the report's counts. Keep it.
 
 ## Next
 
-- The question is what is inside one deployable: `/architecture:map-components`.
-- The question is environment topology: `/architecture:map-deployment`.
+- A binding is a seam to deepen: `/architecture:improve`.
+- The question is which repositories exist, not what runs inside one:
+  `/architecture:map-landscape`.
 - The view settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas
