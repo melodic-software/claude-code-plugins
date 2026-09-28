@@ -144,6 +144,23 @@ lanes: []
 '
 run_case "layer without Gotchas heading is skipped" $'(none)'
 
+HOME="${FIXTURES}/home-g"
+CLAUDE_PROJECT_DIR="${FIXTURES}/repo-g"
+mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
+layer "$CLAUDE_PROJECT_DIR/.claude/bugs.md" '## Gotchas
+
+- Run the seed first:
+
+```bash
+## not a heading
+make seed
+```
+
+## Next
+'
+# shellcheck disable=SC2016  # backticks are literal markdown in the expected output
+run_case "fenced block inside Gotchas is kept whole" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Run the seed first:\n\n```bash\n## not a heading\nmake seed\n```\n' "$CLAUDE_PROJECT_DIR/.claude/bugs.md")"
+
 if [[ "$FAIL" -gt 0 ]]; then
   echo "concat-gotchas tests: $PASS passed, $FAIL failed"
   exit 1

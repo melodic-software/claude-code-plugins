@@ -20,12 +20,14 @@ extract_gotchas() {
         if (line ~ /^(```+|~~~+)$/ && length(line) >= delim_len && substr(line, 1, 1) == delim_ch) {
           fence = 0
         }
+        if (insec) print line
         next
       }
       if (match(line, /^(```+|~~~+)/)) {
         delim_ch = substr(line, 1, 1)
         delim_len = RLENGTH
         fence = 1
+        if (insec) print line
         next
       }
       if (insec) {
