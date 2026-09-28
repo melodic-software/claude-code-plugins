@@ -362,14 +362,26 @@ jobs:
           # exclusion, so the exemption lives on the caller.
           exclude: plugins/*/skills/*/vendor/**
 
+      # scan-mode git in ci-workflows (through v0.29.1) passes --log-opts=--all,
+      # which walks every ref in the clone. checkout-with-base unshallows, so a
+      # finding on one branch fails this step on every other branch (#3599).
+      # gitleaks-action Scan() scopes pull_request and push to
+      # --no-merges --first-parent <base>^..<head>, and a same-ref push to -1
+      # (src/gitleaks.js, read 2026-09-28). This step uses that range. The pin
+      # below is the composite's gitleaks 8.30.1 asset, verified by SHA-256.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
-        with:
-          config: .gitleaks.toml
-          scan-mode: git
-          redact: true
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: bash scripts/gitleaks-scoped-scan.sh
 
       - name: Check editorconfig conformance
         id: editorconfig
@@ -865,6 +877,19 @@ jobs:
         id: hook_exec_form
         continue-on-error: true
         run: scripts/check-hook-exec-form.sh
+
+      # Windows exec form spawns a real .exe with an args array and no shell.
+      # The static half rejects a script, shim, or bare bash used as `command`.
+      # The spawn half is a reported skip on this Linux lane; that skip does
+      # not authorize converting .sh rows. The Windows lane runs the spawn
+      # (#3686, anthropics/claude-code#90495). Self-test first.
+      - name: Test the Windows exec-form probe
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-exec-form-windows-probe.test.sh
+      - name: Probe exec-form rows for a real Windows executable
+        id: exec_form_windows_probe
+        continue-on-error: true
+        run: scripts/check-exec-form-windows-probe.sh
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
@@ -1509,6 +1534,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
             hook-slow-shapes=${{ steps.hook_slow_shapes.outcome }}
             hooks-description=${{ steps.hooks_description.outcome }}
@@ -1935,6 +1961,28 @@ jobs:
             exit 0
           fi
           scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
+
+      - name: Verify plugin copies match the exec-form bash launcher
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-exec-bash.sh --check
+      - name: Test the exec-form bash launcher resolver
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node --test lib/exec-bash.resolver.test.mjs
+      - name: Verify carrying plugins bumped when the launcher changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-exec-bash.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify plugin copies match the shared parser
         if: needs.changes.outputs.run_tests == 'true'
