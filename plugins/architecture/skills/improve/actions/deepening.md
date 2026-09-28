@@ -6,6 +6,19 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 
 ## Phase 1: Explore for friction
 
+**Check the branch is current with its base before scanning.** A deepening pass is long, and a
+base that moves under it lands its conflicts at the handoff, after the candidates are shaped
+around the stale tree. Run each as its own Bash call, never combined:
+
+1. `git symbolic-ref --short refs/remotes/origin/HEAD` names the base (for example `origin/main`).
+2. `git fetch origin <base-branch>` refreshes it.
+3. `git rev-list --count HEAD..origin/<base-branch>` counts the commits the branch is behind.
+
+A count above zero is reported with the number, and the user chooses whether to bring the branch
+current before the scan starts; this skill never merges or rebases on its own. A failure at any
+step (no remote, no `origin/HEAD`, offline) is an unknown freshness, said in one line, and the scan
+carries on.
+
 **Scope before scanning: YAGNI.** Deepening pays off by making future changes easier, so weight
 the scan toward where change keeps landing. A deepening opportunity in code nobody touches is
 leverage never cashed in. Decide *where* to look before looking:
@@ -18,6 +31,11 @@ leverage never cashed in. Decide *where* to look before looking:
   longer `git log --oneline`. If the changes are scattered with no clear hot spot, widen the net.
 
 The scope chosen here sets each scan subagent's assigned area.
+
+**Size the fan-out from the scope, not from a constant.** Dispatch one scan subagent per area the
+scope decomposed into, since the right width is a property of the repository being scanned, not of
+the method. Name the count and the areas to the user before dispatching: scan cost rises with the
+subagent count, and the scan fan-out is the largest cost of a run.
 
 Read the project's domain glossary if it maintains one: the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
 
@@ -43,7 +61,7 @@ Hard gate between the scan and the report. Scan-agent accuracy is mixed, and the
 - **Every candidate the scan returned with `confidence: strong`** (the ones headed for a `Strong` badge): reproduce its `shallow-signal` (the concrete observation from the scan-briefing return schema). If the signal does not reproduce, drop the candidate's confidence below `strong`.
 - **Every `runtime-claim`**: any candidate asserting a live bug or dead code. These are grep-cheap to check and the most damaging to get wrong: a service can look unregistered from the file that should compose it and still be consumed elsewhere, with tests. Reproduce the claim against the actual code before it reaches the report; correct or drop it if it does not hold.
 
-Verification can be a second cheap read-only subagent pass or inline reproduction. The bar is that no `confidence: strong` candidate and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan.
+Verification can be a second cheap read-only subagent pass or inline reproduction. The bar is that no `confidence: strong` candidate and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan, and count it: the artifact's `phase-1.5` line carries the three counts, including when all three are zero, so a reader sees the gate ran and what it caught.
 
 ## Phase 2: Present candidates as HTML report
 
@@ -56,6 +74,8 @@ Write a self-contained HTML file to the topic-docs **ephemeral tier** (see [../.
 **Another repository's files are not rendered to HTML until the rendered-views escape helper ships.** When the scanned repository is not the user's own work (a freshly cloned third-party checkout, a vendored or fetched tree), skip the HTML report: the durable candidate artifact below is the deliverable, and say in one line why no page was produced. This is the baseline's third bullet applied to this skill; it overrides the report step above, not the scan.
 
 Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
+
+**Order and band the cards by badge, at every count.** Cards render in one band per badge, `Strong` first, then `Worth exploring`, then `Speculative`, and an empty band is left out. The banding is unconditional: no cap, no pagination, and no card behind a collapsed disclosure, since a reader who ran the scan needs every candidate and the bands already say how far each claim can be trusted.
 
 Two acceptance heuristics gate the badge:
 
@@ -79,20 +99,20 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - deepening: <one sentence of narrative naming the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
 - shallow-signal: <the concrete observation, evidence rather than narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
 - signal-verified: <true only once Phase 1.5 reproduced *this signal*, i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
-- agreed-shape: <empty until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
-- graft-record: <empty unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half. It is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
+- agreed-shape: <optional; omitted until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive. A candidate that goes to implementation without the interview loop carries `skipped: <reason>` here, for example `skipped: direct-to-implementation`, so the entry says which path it took>
+- graft-record: <optional; omitted unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half. It is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
 - rejected-reason: <only if status is rejected and the reason would help a future explorer>
 ```
 
-End the file with `top-recommendation: <candidate title>`.
+End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n>` (the Phase 1.5 counts), then `top-recommendation: <candidate title>`.
 
 **ADR conflicts**: if a candidate contradicts an existing architecture decision record, surface only when friction is real enough to warrant revisiting. Mark clearly in the card.
 
 Do NOT propose interfaces yet. After the report is written, the reply leads with the choice waiting on the user, naming the top recommendation, then the report and artifact paths: "Which of these would you like to explore?"
 
-## Phase 3: Interview loop on selected candidate
+## Phase 3: Interview loop on selected candidates
 
-Once the user picks a candidate, walk the decision tree: constraints, dependencies, shape of the deepened module, what sits behind the seam, what tests survive.
+Once the user picks a candidate, walk the decision tree: constraints, dependencies, shape of the deepened module, what sits behind the seam, what tests survive. When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The skill still stops at the handoff and implements none of them.
 
 Side effects inline as decisions crystallize:
 
@@ -112,3 +132,12 @@ Branch here when the user wants alternative interfaces for the selected candidat
 ### Handoff
 
 When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what sits behind the seam, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
+
+Before handing off, re-run the Phase 1 base-freshness check and report the behind count, so a base that moved during the interview surfaces now rather than at merge time.
+
+The handoff carries two instructions for whoever implements the shape:
+
+- **A skipped suite is not a pass, and a stub is not the tool.** A test suite that skips because a required tool is missing has verified nothing, and a stand-in binary that echoes its arguments and exits zero is not the tool it replaces. Validation is green only when the suite ran against the real tool.
+- **Retiring a public name sweeps comments and assertions, not only call sites.** When the agreed shape retires a function, type, or other public name, the sweep covers every call site, every comment that names it, and every test assertion that mentions it, including a substring assertion that would pass against either spelling. A passage that records what a past version dropped (a changelog entry, a README history note) keeps the old name, since renaming it would falsify the record.
+
+**When more than one candidate is handed off together**, the handoff also records what a single candidate never needs: the order the candidates land in and why, the files two or more of them touch, and which candidates depend on another landing first. Commit granularity and pull-request shape stay the implementing lane's call and are carried into the handoff, not decided here.

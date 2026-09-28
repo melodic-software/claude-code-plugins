@@ -3380,4 +3380,99 @@ else
 fi
 rm -f "$f"
 
+# --- --awk-probe (#4143): the runtime half of the `awk -v` rule --------------
+# The mechanism cases run on two fake awks with distinct banners, so they hold on
+# any host. The fixture pair after them needs real gawk and mawk, the pair that
+# disagree on the escape.
+probe_dir="$(mktemp -d)"
+mkdir -p "$probe_dir/bin"
+printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-a 1"; exit 0; }\nexit 0\n' >"$probe_dir/bin/fake-a"
+printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-b 1"; exit 0; }\nexit 3\n' >"$probe_dir/bin/fake-b"
+printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-a 1"; exit 0; }\nexit 0\n' >"$probe_dir/bin/fake-a-alias"
+chmod +x "$probe_dir/bin/"*
+printf 'awk "BEGIN { exit 0 }"\n' >"$probe_dir/calls-awk.test.sh"
+printf 'exit 4\n' >"$probe_dir/always-fails.test.sh"
+printf 'exit 0\n' >"$probe_dir/no-awk.test.sh"
+
+probe() {
+  PATH="$probe_dir/bin:$PATH" SHELL_PORTABILITY_AWKS="$1" bash "$SCRIPT" --awk-probe "${@:2}"
+}
+
+out="$(probe "fake-a fake-b" "$probe_dir/calls-awk.test.sh" 2>&1)"
+rc=$?
+if ((rc == 1)) && [[ "$out" == *"DIVERGENT: $probe_dir/calls-awk.test.sh: fake-a=0 fake-b=3"* ]]; then
+  ok "--awk-probe reports a suite whose exit differs between two awks as DIVERGENT and exits 1"
+else
+  fail "--awk-probe should report DIVERGENT and exit 1, got rc=$rc: $out"
+fi
+out="$(probe "fake-a fake-b" "$probe_dir/no-awk.test.sh" 2>&1)"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"ok: $probe_dir/no-awk.test.sh: fake-a=0 fake-b=0"* ]]; then
+  ok "--awk-probe passes a suite that agrees under every awk"
+else
+  fail "--awk-probe should pass an agreeing suite, got rc=$rc: $out"
+fi
+out="$(probe "fake-a fake-b" "$probe_dir/always-fails.test.sh" 2>&1)"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"FAILS UNDER EVERY AWK (not a divergence)"* ]]; then
+  ok "--awk-probe names a suite failing under every awk without calling it a divergence"
+else
+  fail "--awk-probe should name a uniform failure and exit 0, got rc=$rc: $out"
+fi
+out="$(probe "fake-a fake-a-alias" "$probe_dir/calls-awk.test.sh" 2>&1)"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"needs two distinct awk implementations"* ]]; then
+  ok "--awk-probe fails closed when two names share one version banner"
+else
+  fail "--awk-probe should exit 2 on one distinct implementation, got rc=$rc: $out"
+fi
+out="$(probe "fake-a fake-b" "$probe_dir/missing.test.sh" 2>&1)"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"no such suite"* ]]; then
+  ok "--awk-probe fails closed on a missing suite"
+else
+  fail "--awk-probe should exit 2 on a missing suite, got rc=$rc: $out"
+fi
+if bash "$SCRIPT" --awk-probe >/dev/null 2>&1; then
+  fail "--awk-probe with no suite should be a usage error"
+else
+  ok "--awk-probe with no suite is a usage error"
+fi
+
+# The fixture pair: one suite hands the issue's regex through `-v`, the other
+# through ENVIRON[]. gawk drops the backslashes from the `-v` value and dies on
+# the unmatched paren; mawk keeps them.
+cat >"$probe_dir/awk-v-regex.test.sh" <<'EOF'
+prefix_re='\]\([^)]*$'
+got="$(printf 'see [doc](a/b' | awk -v prefix_re="$prefix_re" '{ print ($0 ~ prefix_re) ? "open" : "closed" }')"
+[[ "$got" == open ]]
+EOF
+cat >"$probe_dir/awk-environ-regex.test.sh" <<'EOF'
+prefix_re='\]\([^)]*$'
+got="$(printf 'see [doc](a/b' | PREFIX_RE="$prefix_re" awk '{ print ($0 ~ ENVIRON["PREFIX_RE"]) ? "open" : "closed" }')"
+[[ "$got" == open ]]
+EOF
+if command -v gawk >/dev/null 2>&1 && command -v mawk >/dev/null 2>&1; then
+  out="$(SHELL_PORTABILITY_AWKS="gawk mawk" bash "$SCRIPT" --awk-probe "$probe_dir/awk-v-regex.test.sh" 2>&1)"
+  rc=$?
+  if ((rc == 1)) && [[ "$out" == *"DIVERGENT: $probe_dir/awk-v-regex.test.sh: gawk=1 mawk=0"* ]] &&
+    [[ "$out" == *'ENVIRON["NAME"]'* ]]; then
+    ok "--awk-probe catches a regex handed through awk -v (gawk fails, mawk passes)"
+  else
+    fail "--awk-probe should catch the awk -v regex fixture, got rc=$rc: $out"
+  fi
+  out="$(SHELL_PORTABILITY_AWKS="gawk mawk" bash "$SCRIPT" --awk-probe "$probe_dir/awk-environ-regex.test.sh" 2>&1)"
+  rc=$?
+  if ((rc == 0)) && [[ "$out" == *"ok: $probe_dir/awk-environ-regex.test.sh: gawk=0 mawk=0"* ]]; then
+    ok "--awk-probe passes the same regex read through ENVIRON[]"
+  else
+    fail "--awk-probe should pass the ENVIRON fixture, got rc=$rc: $out"
+  fi
+elif [[ -n "${CI:-}" ]]; then
+  fail "the awk -v fixture pair needs gawk and mawk on PATH, and CI must carry both"
+else
+  printf 'NOT RUN: the awk -v fixture pair needs gawk and mawk on PATH\n'
+fi
+rm -rf "$probe_dir"
+
 test_harness::report
