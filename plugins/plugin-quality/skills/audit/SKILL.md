@@ -31,7 +31,9 @@ The component-type lens set is {hook, skill, agent, command, config}. Adjacent i
 elsewhere: **static skill QA** (frontmatter/lint/trigger checks with no behavioral evidence) →
 `skill-quality:check`; **general code review** of a change set → `review`; **MCP-server audits**
 → `mcp-tools:audit` when installed (presence-gated; absent, treat the server's client-side config
-as a `config` component here and say the server itself is out of scope).
+as a `config` component here and say the server itself is out of scope). A universal wrap-up
+mandate after every plugin-using session is declined;
+[`reference/universal-retrospective-settle.md`](reference/universal-retrospective-settle.md).
 
 ## Config resolution (once, at invocation)
 
