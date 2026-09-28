@@ -24,9 +24,11 @@ Report format:
 ## Plan review — <task>
 
 ### Findings
+
 | # | Severity | Category | Finding | Action |
 
 ### Summary
+
 CRITICAL / IMPORTANT / SUGGESTION counts
 
 If zero findings: "No plan gaps found."

@@ -183,9 +183,9 @@ This step runs only when the blast-radius assessment triggers it. Note: Step 3 (
    context (another serial sub-agent, typically higher turn budget than Step 3) before dispatching.
 2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
 
-**Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against
-the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's
-findings. Document when used; default remains serial.
+   **Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against
+   the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's
+   findings. Document when used; default remains serial.
 
 3. **Evaluate findings**. If `/planning:devils-advocate` produces CRITICAL or HIGH findings:
    - Run targeted research to resolve the specific issues surfaced (invoke `/discovery:research` via the Skill tool if installed, or the strongest research capability available)
