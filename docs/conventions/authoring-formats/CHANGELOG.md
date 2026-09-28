@@ -6,6 +6,16 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.3] - 2026-09-28
+
+Clarification. No key, allowed value, or default changes.
+
+- **Dynamic view reuses `landscape_dialect`.** `/architecture:map-flow` emits a C4 dynamic diagram
+  in the same `structurizr | mermaid` set, mermaid default. It does not add a key and it does not
+  read `diagram_dialect.system`. The C4 dialect surfaces table names that emitter. The existing
+  mermaid-C4 recheck trigger also covers whether that dynamic diagram should stay a sequence
+  diagram. The as-of date on the mermaid record is unchanged.
+
 ## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the

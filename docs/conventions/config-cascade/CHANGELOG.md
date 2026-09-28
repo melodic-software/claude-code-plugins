@@ -16,6 +16,12 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   bump: the layering rules are unchanged; the no-plugin-writes sentence now
   names the exceptions it already described in Overlay spelling drift.
 
+## Deviations and Implementers table, 2026-09-28 (architecture flow)
+
+- **`architecture` dynamic view reads the existing keys (#4645).** `map-flow` is a second
+  reader of `architecture_dir` and `landscape_dialect`. No new key, no layer change, no
+  `contract_version` bump.
+
 ## Consumer gotchas tier, 2026-09-28
 
 - **Ratified `consumer-gotchas.md` (#3547).** Documents the concatenating cascade tier for

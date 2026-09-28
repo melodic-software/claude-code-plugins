@@ -54,8 +54,8 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
-| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. The same directory is where `map-flow` writes `flow.json` and `flow.md` or `flow.dsl`. No default: an undeclared, unconfirmed value stops either skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which artifact `map-landscape` and `map-flow` emit. For the landscape, `structurizr` emits `landscape.dsl` with a `systemLandscape` view and `mermaid` emits `landscape.md` with a `C4Context` block. For the dynamic view, `structurizr` emits `flow.dsl` with a `dynamic` view and `mermaid` emits `flow.md` with a sequence diagram. |
 
 An unknown key, or a `landscape_dialect` value outside the two above, is reported by
 `/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
@@ -63,18 +63,20 @@ never coerced to the default.
 
 ## C4 dialect surfaces
 
-This plugin owns one C4-shaped artifact. The authoring-formats convention owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This plugin owns two C4 views that share `landscape_dialect`: the system landscape and the dynamic view. The authoring-formats convention owns the container view, under `diagram_dialect.system`. Those keys stay separate, with separate allowed values and separate defaults, because they are different artifacts, not because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
 | C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| C4 dynamic view | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-flow` |
 | C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
-`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+`landscape_dialect` is the dialect `/architecture:map-landscape` and `/architecture:map-flow` both
+emit, once `architecture_dir` is set. The dynamic view reuses the key. It does not add a key.
+Claim: a dynamic diagram shows one feature, story, or use case, and the sequence style is one of
+the two styles that page allows. Basis: <https://c4model.com/diagrams/dynamic>. As of 2026-09-28.
+Recheck when that page changes the scope or drops the sequence style. On firing, record the
+outcome in this plugin's `CHANGELOG.md`.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
@@ -90,10 +92,10 @@ This document does not carry a second stamp. That trigger fires when the experim
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
 key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
+and whether `/architecture:map-flow`'s mermaid output should stay a sequence diagram,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` and `map-flow` read this surface and never write it; neither skill writes any other file in the consumer's root.

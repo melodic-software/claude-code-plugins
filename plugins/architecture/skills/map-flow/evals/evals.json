@@ -1,0 +1,117 @@
+{
+  "skill_name": "map-flow",
+  "evals": [
+    {
+      "id": 1,
+      "name": "cited-hops-and-unresolved-interface",
+      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. landscape_dialect is absent, so the mermaid default applies. The subject is a git checkout. src/Transport/OrdersEndpoint.cs has [HttpGet(\"/orders/{id}\")] and awaits _orders.Place where _orders is IOrders, then awaits _service.Handle where _service is OrdersService. src/Application/OrdersService.cs Handle publishes OrderPlaced and calls Repository.Save. src/DecoyWorker/OrdersImpl.cs also defines Place. This is a non-interactive run.",
+      "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved dependency-injection, and does not name OrdersImpl. Handle is inferred. Publish is an asynchronous handoff to map-events. Save is synchronous.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-flow.sh with --entry /orders/{id} rather than composing the sequence by hand",
+        "Writes flow.json before rendering, then runs render-flow.sh --dialect mermaid to produce flow.md",
+        "The Place hop resolution is unresolved and the mechanism is dependency-injection",
+        "OrdersImpl is not a callee",
+        "The Publish hop is handoff yes and asynchronous, and flow.md names /architecture:map-events",
+        "The Save hop is synchronous",
+        "Does not add a dialect key"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "depth-truncation-is-stated",
+      "prompt": "/architecture:map-flow /orders/{id} --depth 1\n\narchitecture_dir is docs/architecture and landscape_dialect is mermaid. The same checkout as the cited-hops case.",
+      "expected_output": "The record says truncated yes. Publish is not a hop. flow.md says the depth stopped the trace.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes --depth 1",
+        "The record truncated field is yes",
+        "Publish is absent from flow.json",
+        "flow.md contains Depth truncated at 1",
+        "Does not describe the diagram as the whole path"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "missing-entry-refuses",
+      "prompt": "/architecture:map-flow /no-such-route\n\narchitecture_dir is docs/architecture. The checkout has C# but no matching route or method.",
+      "expected_output": "collect-flow.sh exits 3, the reason says refused and that the entry was not found, and nothing is written.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the refusal reason from the script",
+        "Writes no flow.json and no flow.md",
+        "Does not draw a sequence from memory"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "duplicate-entry-refuses",
+      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. Two tracked files each carry [HttpGet(\"/orders/{id}\")].",
+      "expected_output": "Exits 3, names both files, and writes nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The refusal names both sites",
+        "Writes no flow.json",
+        "Does not pick one of the two sites"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "non-csharp-refuses",
+      "prompt": "/architecture:map-flow main\n\narchitecture_dir is docs/architecture. The checkout has Python only.",
+      "expected_output": "Exits 3 and says this adapter reads C# call sites only. Nothing is written.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The refusal names C#",
+        "Writes no flow.json and no flow.md",
+        "Does not infer a flow from Python"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "structurizr-reuses-landscape-dialect",
+      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture and the topic doc declares landscape_dialect: structurizr. The checkout has one matching route and one hop.",
+      "expected_output": "Renders flow.dsl with a dynamic view. Does not write flow.md. Does not read diagram_dialect.system.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes --dialect structurizr because landscape_dialect is structurizr",
+        "flow.dsl contains dynamic",
+        "Does not write flow.md",
+        "Does not add a new dialect key"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "reformatted-record-is-refused",
+      "prompt": "/architecture:map-flow\n\narchitecture_dir is docs/architecture. flow.json already exists and is valid JSON compacted onto one line. Render it.",
+      "expected_output": "render-flow.sh exits 1, names the one-object-per-line layout, and writes nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs render-flow.sh on the existing record",
+        "The renderer exits 1 and names the one-object-per-line layout",
+        "No flow.md or flow.dsl is written",
+        "Does not reformat the record by hand"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "no-home-stops",
+      "prompt": "/architecture:map-flow /orders/{id}\n\nThe resolver exits 1. There is no --out argument. This is a non-interactive run.",
+      "expected_output": "Stops without writing. Points at /architecture:setup. Does not invent an architecture_dir.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not run collect-flow.sh",
+        "Writes no flow.json and no flow.md",
+        "Points at /architecture:setup"
+      ]
+    }
+  ]
+}

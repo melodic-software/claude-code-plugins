@@ -3,6 +3,23 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-flow` writes `flow.json` (schema_version 1, one hop per line) from tracked C# call sites.
+  Each hop cites file and line. An interface receiver, `GetService` / `GetRequiredService`, or
+  `CreateInstance` stays unresolved and is not bound to another class with the same method name.
+  `Publish` and `Send` are hand-offs. A missing entry, two matching entries, or a repository with
+  no C# file is a refusal and writes nothing. `--depth` states truncation on the artifact. The
+  view reuses `landscape_dialect` (`flow.md` sequence diagram, or `flow.dsl` dynamic view). No new
+  dialect key.
+
+### Changed
+
+- `map-landscape` points at `map-flow` when the question is one traced entry point.
+- `reference/config.md` records that the dynamic view reads `landscape_dialect` and adds no dialect key.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

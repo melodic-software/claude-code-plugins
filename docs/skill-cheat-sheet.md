@@ -40,6 +40,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/architecture:map-flow`](../plugins/architecture/skills/map-flow/SKILL.md) | `architecture` | Trace one C# entry point into a C4 dynamic diagram with a citation on every hop |
 | [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |

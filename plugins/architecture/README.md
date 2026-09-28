@@ -77,6 +77,14 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## One entry point
+
+`/architecture:map-flow` traces one C# route or method. Every hop cites a tracked call site.
+An interface, service locator, or reflection hop stays unresolved. `Publish` and `Send` are
+hand-offs, not guessed consumers. The picture reuses `landscape_dialect`: a mermaid sequence
+diagram, or a Structurizr dynamic view. A missing entry, two matches, or a repository with no
+C# file is a refusal. Nothing is drawn from memory.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +106,7 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-flow <entry> [--depth N]
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -114,10 +123,10 @@ portfolio", "who owns which repo", "chart our repositories".
 `map-landscape` reads two keys from a topic doc at your repository's convention
 home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
 default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+`mermaid`). `map-flow` uses the same two keys for the dynamic view. The contract lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
+`architecture_dir` declared and none confirmed, `map-landscape` and `map-flow` stop and point
 at setup rather than choosing a directory for you.
 
 ## Persistence
