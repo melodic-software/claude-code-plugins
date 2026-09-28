@@ -7,6 +7,15 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table, 2026-09-28 (architecture map family)
+
+- **Architecture map skills read the existing surfaces.** Every `/architecture:map-*`
+  skill reads `architecture_dir`. `landscape_dialect` is also read by components,
+  context, containers, flow, events, and deployment. `map-data` reads
+  `diagram_dialect.data`. `map-containers` does not read `diagram_dialect.system`.
+  No `contract_version` bump: no layering rule changed. The per-skill decision
+  stays in the architecture plugin's `reference/config.md`.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the

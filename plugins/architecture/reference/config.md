@@ -1,6 +1,6 @@
 # architecture: consumer configuration
 
-The `map-landscape` skill's team configuration surface: a natural-language **topic doc at the
+The architecture `map-*` skills' team configuration surface: a natural-language **topic doc at the
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
 expression doctrine defines. Zero config is NOT a working state for this surface: `architecture_dir`
 has no default, because a plugin guessing where a repository keeps its architecture artifacts would
@@ -33,9 +33,9 @@ into it and no dual-read window exists.
    `landscape_dialect: structurizr`; an existing `docs/architecture/` or `architecture/` proposes
    that directory as `architecture_dir`. Inference proposes; only the operator's confirmation binds.
 4. Otherwise the skill asks once.
-5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
-   `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
-   run, `map-landscape` stops and points at `/architecture:setup`.
+5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`, for every
+   skill that reads it. `architecture_dir` has no fallback. Undeclared and unconfirmed, including
+   every non-interactive run, every `map-*` skill stops and points at `/architecture:setup`.
 
 ## Topic-doc format
 
@@ -47,6 +47,7 @@ Markdown with a fenced YAML block (human-readable, shell-greppable):
 ```yaml
 architecture_dir: docs/architecture   # repo-relative; no default
 landscape_dialect: mermaid            # structurizr | mermaid
+component_layers: host, application, domain  # optional; outside to inside; no default
 ```
 ````
 
@@ -54,27 +55,60 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
-| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
+| `architecture_dir` | repo-relative directory path | **none** | Where every `map-*` skill writes its record and its rendered view. `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and reads `landscape-notes.md`. The other skills write their own records in this same directory (`dependency-graph.json`, `components.md` / `components.dsl`, `context.json`, `containers.json`, `flow.json`, `events.json`, `data-model.json`, `deployment.json`, `states.json`, and the matching rendered files). No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which picture `map-landscape`, `map-components`, `map-context`, `map-containers`, `map-flow`, `map-events`, and `map-deployment` emit. `map-dependencies`, `map-data`, and `map-states` do not read it. The per-skill files are in the dialect decision below. |
+| `component_layers` | comma-separated layer names | **none** | Optional. Ordered from outside to inside. `/architecture:map-components --group-by layer` reads it. Absent, that grouping cannot run. A name is letters, digits, `.`, `_`, or `-`. |
 
-An unknown key, or a `landscape_dialect` value outside the two above, is reported by
-`/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
-never coerced to the default.
+An unknown key, a `landscape_dialect` value outside the two above, or a `component_layers` value
+that is not a comma-separated list of layer names, is reported by `/architecture:setup check` as
+a FAIL with a remediation line. It is never silently ignored and never coerced to the default.
+`component_layers` absent is a PASS: the key is optional.
 
 ## C4 dialect surfaces
 
-This plugin owns one C4-shaped artifact. The authoring-formats convention owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This plugin owns the C4-shaped views that share `landscape_dialect`. The authoring-formats
+convention owns `diagram_dialect.system` and `diagram_dialect.data`. The keys stay separate,
+with separate allowed values and separate defaults, because they are different artifacts, not
+because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
 | C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
-| C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+| C4 component view | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-components` |
+| C4 system context | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-context` |
+| C4 container view of the code | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-containers` |
+| C4 dynamic view | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-flow` |
+| Async message topology | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-events` |
+| C4 deployment view | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-deployment` |
+| C4 container view of a design | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+| Data diagram | `diagram_dialect.data` | authoring-formats convention | `mermaid`, `dbml` | `mermaid` | `/planning:design`, `/architecture:map-data` |
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
-`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+## Map family dialect decision
+
+Recorded 2026-09-28 for [#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639),
+from the child skill implementations. No per-skill dialect key is added.
+
+| Skill | Dialect |
+| --- | --- |
+| map-components, map-context, map-containers, map-flow, map-events, map-deployment | `landscape_dialect` (`structurizr` or `mermaid`, default `mermaid`) |
+| map-data | `diagram_dialect.data` (`mermaid` or `dbml`, default `mermaid`) |
+| map-dependencies | no dialect key; a mermaid `flowchart` of the build graph |
+| map-states | no dialect key; a mermaid `stateDiagram-v2` |
+
+`map-containers` reads `landscape_dialect`. Mermaid writes `containers.md` (`C4Container`).
+Structurizr writes `containers.dsl` (a container view). It does not read `diagram_dialect.system`.
+That key stays the opt-in design view `/planning:design` emits, mermaid refused, no default. An
+unset `diagram_dialect.system` still emits no design container view. It does not suppress the
+as-built container view.
+
+`map-flow` reuses `landscape_dialect`. Mermaid writes `flow.md` (a `sequenceDiagram`). Structurizr
+writes `flow.dsl` (a dynamic view). `map-events` reuses the same key: mermaid writes `events.md`
+(a flowchart of publish and send) and structurizr writes `events.dsl`. `map-context` writes
+`context.md` or `context.dsl`. `map-components` writes `components.md` (`C4Component`) or
+`components.dsl`. `map-deployment` writes `deployment.md` (`C4Deployment`) or `deployment.dsl`.
+
+`landscape_dialect` is a format choice for artifacts these skills emit when invoked. It does not
+add a deliverable on its own, and it does not add `component_dialect` or any other per-skill key.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
@@ -88,12 +122,17 @@ The mermaid-C4 experimental fact and its recheck trigger live in the authoring-f
 ([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. That trigger fires when the experimental banner
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
-key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
+key's mermaid default should change, whether `/architecture:map-landscape`'s mermaid output
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
-and record the outcomes in this plugin's `CHANGELOG.md`.
+and whether the other mermaid pictures that reuse this key should stay as they are:
+`C4Component`, a focal `C4Context`, `C4Container`, a `sequenceDiagram`, the events flowchart,
+and `C4Deployment`. Record the outcomes in this plugin's `CHANGELOG.md`. Recheck also when a
+view needs an allowed set `landscape_dialect` does not have.
 
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. Every `map-*` skill
+reads this surface and never writes it. `map-data` also reads `<home>/authoring-formats/README.md`
+for `diagram_dialect.data` and never writes that file. None of these skills writes any other file
+in the consumer's root.

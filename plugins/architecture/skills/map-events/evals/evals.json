@@ -1,0 +1,26 @@
+{
+  "skill_name": "map-events",
+  "evals": [
+    {
+      "id": 1,
+      "name": "edges-cite-sites-and-orphans-are-findings",
+      "prompt": "/architecture:map-events\n\nlandscape_dialect is mermaid. Publisher.cs calls Publish<Billing.Contracts.OrderPlaced> and Send<Billing.Contracts.ChargeCard>. A consumer implements IConsumer<Billing.Contracts.OrderPlaced>. Another implements IConsumer<Shipping.Contracts.OrderPlaced>. Nothing publishes the shipping message or consumes ChargeCard.",
+      "expected_output": "Every publisher and consumer edge cites a file and a line. ChargeCard is an orphan publisher. Shipping.Contracts.OrderPlaced is an orphan consumer. The two OrderPlaced types are not joined. Broadcast is a dotted arrow and send is solid.",
+      "expectations": [
+        "Does not match messages by short name",
+        "Passes --dialect mermaid from landscape_dialect",
+        "Writes a Handoff line map-flow can read"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unresolved-publish-is-kept",
+      "prompt": "/architecture:map-events\n\nA method calls bus.Publish(message) with no type argument.",
+      "expected_output": "The publish is an unresolved edge and an unresolved finding. It is not omitted.",
+      "expectations": [
+        "Does not drop a dynamic publish",
+        "Does not use that publish to satisfy a consumer of a named contract"
+      ]
+    }
+  ]
+}

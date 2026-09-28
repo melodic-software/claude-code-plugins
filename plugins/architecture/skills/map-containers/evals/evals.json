@@ -1,0 +1,39 @@
+{
+  "skill_name": "map-containers",
+  "evals": [
+    {
+      "id": 1,
+      "name": "output-kind-ignores-directory-names",
+      "prompt": "/architecture:map-containers\n\nThe convention home resolves and landscape_dialect is mermaid. The repository has a Microsoft.NET.Sdk.Web project in a directory named Worker, a Microsoft.NET.Sdk.Worker project in a directory named Api, an OutputType Exe in a directory named Web, and a class library in a directory named Services. No dependency-graph.json exists.",
+      "expected_output": "Runs collect-containers.sh and render-containers.sh. The web SDK is kind web, the worker SDK is kind worker, the exe is kind cli, and the class library is not a container. Renders containers.md with a C4Container diagram.",
+      "expectations": [
+        "Does not classify a project from its directory name",
+        "Passes --dialect mermaid from landscape_dialect and does not read diagram_dialect.system",
+        "Omits --graph because dependency-graph.json is absent, and the record says containment is project-references",
+        "Closes with the fixed report: artifacts, focal, deployables, stores, modules, shared, dialect, technology, containment source, thin result, redaction"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "modular-monolith-is-one-container",
+      "prompt": "/architecture:map-containers\n\nThe convention home resolves. One web SDK project references a class library, and that library references a second class library. The library source contains WebApplication.CreateBuilder and a string that looks like a secret.",
+      "expected_output": "One deployable. Both libraries are contained modules. The diagram draws one Container. The secret string is absent. The host-builder call inside the library does not create a second deployable.",
+      "expectations": [
+        "Renders one container whose summary names both modules",
+        "Does not copy source text into the record",
+        "Does not draw the libraries as containers"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "shared-broker-cites-both-keys-and-redacts",
+      "prompt": "/architecture:map-containers\n\nTwo deployables each set Messaging.Broker to sb://orders.servicebus.windows.net/. One connection string contains a password and an account key. An untracked appsettings file names a different host.",
+      "expected_output": "One shared-infrastructure edge whose evidence cites both config keys. The password, account key, and untracked host are absent. The database host remains. Every node has a technology field.",
+      "expectations": [
+        "Uses redact-connection and does not store the raw config value",
+        "Does not read the untracked file",
+        "Does not treat co-location in the repository as an edge by itself"
+      ]
+    }
+  ]
+}
