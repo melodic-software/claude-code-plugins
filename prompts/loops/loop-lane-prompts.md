@@ -412,6 +412,14 @@ Two consequences of that order:
   per-dispatch `model` nor frontmatter names one, so it does not flatten the
   bindings; still leave it unset, since a dispatch that omits both should
   land on the lane root's model, not on a tier chosen elsewhere.
+  - **Claim:** decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` on every lane.
+  - **Basis:** <https://code.claude.com/docs/en/env-vars> and
+    <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
+    The variable forces one model onto subagents, teammates, and workflow
+    agents and ignores per-spawn and definition `model` values.
+  - **As of:** 2026-09-28.
+  - **Recheck:** that env-vars row stops ignoring definition and per-spawn
+    `model` values.
 
 ```bash
 claude --model sonnet   # worker lane
@@ -421,8 +429,20 @@ claude --model opus     # attended queue
 
 Pair the fast roots with a stronger advisor (`advisorModel: opus`). A fast
 orchestrator plus an advisor at or above the main tier is the convention's
-recommended shape, and it is what makes a `sonnet` root safe. Leave effort
-at its default; Opus and Sonnet already default to high in Claude Code
+recommended shape, and it is what makes a `sonnet` root safe. Do not drive the
+headless text form `/advisor`, `/advisor <model>`, or `/advisor off` from a
+lane prompt. The pairing is the settings value above, fixed at launch.
+
+- **Claim:** decline `/advisor` in unattended lane prompts, including the
+  headless text form.
+- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-advisor-command>.
+  The text form sets or clears the advisor where there is no picker, and Fable
+  as advisor can require one-time usage-credit consent the lane cannot give.
+- **As of:** 2026-09-28.
+- **Recheck:** the advisor page stops offering a text form, or a lane launch
+  grows an attended step that can accept Fable usage-credit consent.
+
+Leave effort at its default; Opus and Sonnet already default to high in Claude Code
 (verified 2026-08-08 against
 [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level):
 "The default effort is `high` on every model that supports effort, except
@@ -528,6 +548,11 @@ No shared state, no contention, and the sharding problem disappears.
 > or override names a model
 > (<https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified
 > 2026-09-27).
+> Claim: decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Basis:
+> <https://code.claude.com/docs/en/env-vars> and
+> <https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>.
+> As of: 2026-09-28. Recheck: that env-vars row stops ignoring definition and
+> per-spawn `model` values.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes

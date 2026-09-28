@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.10] - 2026-09-28
+## [0.23.11] - 2026-09-28
 
 ### Fixed
 
@@ -14,6 +14,15 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   reason: no lane for the language, no manifest root, tool not installed, or lane not selected. The
   clean-result note is printed only when nothing is uncovered. `Summary total:` reports
   `files-with-findings=` so that key is not the scan count.
+
+## [0.23.10] - 2026-09-28
+
+### Fixed
+
+- **`batch-simplify` simplifier spawn ladder (#4529).** Prefer the marketplace `code-simplifier`
+  plugin's agent (`code-simplifier:code-simplifier`) over the legacy `pr-review-toolkit` name, with
+  `general-purpose` as the final fallback. Document model tier: refutation verifiers stay on the
+  parent session's model; simplifiers default to it unless a wide repo sweep documents otherwise.
 
 ## [0.23.9] - 2026-09-28
 

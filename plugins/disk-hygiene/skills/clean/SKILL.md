@@ -71,10 +71,11 @@ full walk after the human clears the [confirmation gate](#confirmation-gate)'s s
 it never walks that root recursively. The same flags also select immediate children of any other
 target, so after a depth-1 home audit the operator can re-inventory the approved directories
 without walking the rest of the home. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate directories (on an OS-managed volume
-root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-directory entries
-are withheld; on a non-OS target, hidden and volume-OS-named directories stay selectable so
-approved home children can be named). With one
+`root-children-selection-required` listing admitted immediate children (on an OS-managed volume
+root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-regular types are
+withheld, and regular files use the same admission ladder as directories; on a non-OS target, only
+directories are admitted, and hidden and volume-OS-named directories stay selectable so approved
+home children can be named). With one
 or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
@@ -156,7 +157,7 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the scan target itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -222,7 +223,8 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
-A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
+A hint annotation is not the only trigger for triage: at a user-home target or an OS-managed
+volume root addressed through `--root-children`, treat any loose
 root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too, the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
