@@ -2,7 +2,7 @@
   "name": "pico-8",
   "variant": "startup system palette, indices 0-15",
   "source": "http://pico8wiki.com/index.php?title=Palette",
-  "license": "The sixteen RGB triples are the PICO-8 startup system colors as published by the PICO-8 wiki (Official base colors). Lexaloffle has not published a separate colour-table licence. PICO-8 is a trademark of Lexaloffle Games LLP. Bundled as factual constants of that runtime, with community color names from the same page.",
+  "license": "The sixteen RGB triples are the PICO-8 startup system colors as published by the PICO-8 wiki (Official base colors). Lexaloffle has not published a separate color-table license. PICO-8 is a trademark of Lexaloffle Games LLP. Bundled as factual constants of that runtime, with community color names from the same page.",
   "colors": [
     {
       "key": "0",

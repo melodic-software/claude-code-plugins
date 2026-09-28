@@ -81,24 +81,24 @@ python3 scripts/render.py --snap in.png --palette '{"k":"#000000","w":"#ffffff"}
 | `deep-sea` | Paleto, CC0, 16 colors |
 | `cosmic-space` | Paleto, CC0, 16 colors |
 
-Each JSON file records its source URL and licence note.
+Each JSON file records its source URL and license note.
 
 ## Not bundled
 
-Licence was not established, so these are not shipped:
+License was not established, so these are not shipped:
 
-- Lospec `endesga-32` and `sweetie-16`: the pages name an author and do not state a licence.
+- Lospec `endesga-32` and `sweetie-16`: the pages name an author and do not state a license.
   Lospec's terms do not grant one, and a comment on a different palette claiming every Lospec
-  palette is public domain is not a licence.
+  palette is public domain is not a license.
 - FirebrandX "Smooth (FBX)": the author distributes NES palette files from firebrandx.com and does
-  not grant a licence on that page. The NES has no single official sRGB palette.
+  not grant a license on that page. The NES has no single official sRGB palette.
 
 ## Recorded decisions
 
 Three-way check, 2026-09-28. Aseprite's CLI does not give this plugin a standard-library snap, and
 the native backend must run with nothing else installed, so snapping lives in `render.py`.
 `craft-static.md` says to lock a palette and points beginners at Lospec, which is why presets
-exist and why only pages that state a licence are copied in. Claude Code has no palette primitive;
+exist and why only pages that state a license are copied in. Claude Code has no palette primitive;
 the spec string is the contract the skills share.
 
 - **Claim.** The 4x4 Bayer matrix above is the standard ordered-dither threshold matrix (index form, before dividing by 16).
@@ -107,7 +107,7 @@ the spec string is the contract the skills share.
 - **Recheck.** That page showing a different 4x4 index arrangement, or `reference/scene-canvas.md` switching its fade off the 4x4 Bayer matrix.
 
 - **Claim.** PICO-8's startup system colors 0-15 are the hex values in `pico-8.json`. The official manual names the sixteen color indices and does not print those hex triples; the wiki table is the public record of them.
-- **Basis.** [PICO-8 wiki, Palette](http://pico8wiki.com/index.php?title=Palette) section "0..15: Official base colors", and the [PICO-8 manual](https://www.lexaloffle.com/dl/docs/pico-8_manual.html) specifications line "fixed 16 colour palette".
+- **Basis.** [PICO-8 wiki, Palette](http://pico8wiki.com/index.php?title=Palette) section "0..15: Official base colors", and the [PICO-8 manual](https://www.lexaloffle.com/dl/docs/pico-8_manual.html) specifications line <!-- spellchecker:off -->"fixed 16 colour palette"<!-- spellchecker:on -->.
 - **As of.** 2026-09-28.
 - **Recheck.** The wiki table changing a hex value, or the manual printing an official RGB table that disagrees.
 
@@ -119,9 +119,9 @@ the spec string is the contract the skills share.
 - **Claim.** jsnes `loadNTSCPalette` is the 64-entry table in `nes.json`, Apache-2.0, and it is an emulator table rather than a Nintendo sRGB specification.
 - **Basis.** [palette-table.js](https://github.com/bfirsh/jsnes/blob/master/src/ppu/palette-table.js) and the [Apache-2.0 license](https://github.com/bfirsh/jsnes/blob/master/LICENSE).
 - **As of.** 2026-09-28.
-- **Recheck.** That function's `Uint32Array` changing, or the repository licence changing.
+- **Recheck.** That function's `Uint32Array` changing, or the repository license changing.
 
-- **Claim.** `retro-8-bit`, `deep-sea`, and `cosmic-space` are published by Paleto as CC0 on their Lospec pages. `endesga-32` and `sweetie-16` pages do not state a licence.
+- **Claim.** `retro-8-bit`, `deep-sea`, and `cosmic-space` are published by Paleto as CC0 on their Lospec pages. `endesga-32` and `sweetie-16` pages do not state a license.
 - **Basis.** The Lospec pages linked from each bundled JSON, read 2026-09-28, plus [endesga-32](https://lospec.com/palette-list/endesga-32) and [sweetie-16](https://lospec.com/palette-list/sweetie-16).
 - **As of.** 2026-09-28.
-- **Recheck.** A bundled page dropping the CC0 statement, or a skipped page gaining a licence statement.
+- **Recheck.** A bundled page dropping the CC0 statement, or a skipped page gaining a license statement.

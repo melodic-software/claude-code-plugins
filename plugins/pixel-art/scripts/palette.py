@@ -127,7 +127,7 @@ def prepare_spec(spec, spec_path=None):
     raise ValueError("palette must be an object, a preset name, or a palette file path")
 
 
-def paeth(left, up, up_left):
+def paeth(left, up, up_left):  # identifier, not prose # spellchecker:disable-line
     estimate = left + up - up_left
     dist_left = abs(estimate - left)
     dist_up = abs(estimate - up)
@@ -208,7 +208,7 @@ def read_png(path):
             elif filter_type == 3:
                 value = sample + ((left + up) // 2)
             else:
-                value = sample + paeth(left, up, up_left)
+                value = sample + paeth(left, up, up_left)  # identifier, not prose # spellchecker:disable-line
             recon[i] = value & 255
         previous = recon
         row = []

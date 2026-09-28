@@ -9,7 +9,7 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 
 - Bundled palette presets in `palettes/`: `pico-8`, `nes` (jsnes NTSC table), `game-boy` (mGBA
   DMG Green), and the CC0 Lospec sets `retro-8-bit`, `deep-sea`, and `cosmic-space` (#4401). Each
-  file records its source and licence. A spec `palette` string names a preset or a project palette
+  file records its source and license. A spec `palette` string names a preset or a project palette
   file; the inline object form is unchanged.
 - `render.py --snap` maps an 8-bit RGB or RGBA PNG onto a palette (nearest sRGB color, alpha below
   128 transparent). `--dither` adds 4x4 Bayer ordered dither. `--emit-frames` writes spec rows.
