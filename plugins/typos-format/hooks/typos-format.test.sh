@@ -2068,7 +2068,7 @@ ro_case "a stderr line" 0 'warning: something'
 # spellchecker:on
 
 # --- Gitignored path (#4671): neither reported nor rewritten by default ------
-# `teh` would be reported (and rewritten in write mode); under an ignored
+# `teh` would be reported (and rewritten in write mode); under an ignored  # spellchecker:disable-line
 # directory neither happens, unless typos_format_lint_gitignored is set.
 REPO_IGN="$WORK/gitignored"
 new_typos_repo "$REPO_IGN" NO_CONFIG
@@ -2092,7 +2092,7 @@ else
 fi
 OUT=$(run_stub_default "$REPO_IGN/.work/scratch.txt" \
   CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED=true)
-if printf '%s' "$OUT" | grep -q 'teh'; then
+if printf '%s' "$OUT" | grep -q 'teh'; then  # spellchecker:disable-line
   ok "gitignored + typos_format_lint_gitignored=true: findings reported"
 else
   fail "gitignored + opt-in: no findings: $OUT"
