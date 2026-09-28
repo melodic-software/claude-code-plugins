@@ -463,7 +463,7 @@ ${request}
         printf '%s\n' "---
 type: tool_used
 tool: Skill
-input_match: '\"skill\"\\\\s*:\\\\s*\"(?:${plugin}:)?${leaf}\"'
+input_match: '\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\"' # portability-ok: \\s is read by the eval grader's own regex engine, never shell grep/sed
 min: 1
 ---
 " >"$case_dir/graders/skill-fired.md"
@@ -471,7 +471,7 @@ min: 1
         printf '%s\n' "---
 type: tool_used
 tool: Skill
-input_match: '\"skill\"\\\\s*:\\\\s*\"(?:${plugin}:)?${leaf}\"'
+input_match: '\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\"' # portability-ok: \\s is read by the eval grader's own regex engine, never shell grep/sed
 min: 0
 max: 0
 arm: both
