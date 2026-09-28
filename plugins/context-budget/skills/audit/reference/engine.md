@@ -24,18 +24,21 @@ instead).
 
 | Claim the skill relies on | Source |
 |---|---|
-| A bare tool name in a deny rule removes the tool's definition from the request; a scoped rule (`Bash(rm *)`) is a runtime guard whose schema still ships | [Agent SDK permissions: allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
+| A bare tool name in a deny rule removes the tool's definition from the request, except `EndConversation`; a scoped rule (`Bash(rm *)`) is a runtime guard whose schema still ships | [Permissions: tool-name rules](https://code.claude.com/docs/en/permissions), [Agent SDK permissions: allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
 | Deferred tool loading controls what enters the context window, not what is sent. The full schema still goes out in the request | [Tool search: deferred tool loading](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading) |
 | `--disallowedTools` exists as a per-invocation CLI flag; there is **no** `disallowedTools` settings key. Persistent config uses `permissions.deny` | [CLI reference: flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings](https://code.claude.com/docs/en/settings) |
 | The Agent SDK exposes structured context usage over the control protocol (`getContextUsage()`) | [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) |
 | When the token-counting API is unavailable, `/context` counts with a local estimate instead of extra small-model requests. The commands page `/context` row fetched 2026-09-28 does not say this; the 2.1.261 changelog does | [Claude Code changelog](https://code.claude.com/docs/en/changelog) (2.1.261) and [commands](https://code.claude.com/docs/en/commands) (`/context` row, which does not yet name the estimate) |
 
-Every row above except the `/context` local-estimate row is verified 2026-09-06 against Claude Code
-2.1.263, by reading the cited page and matching the claim to its text. The local-estimate row is
-verified 2026-09-28 against the 2.1.261 changelog and a fetch of the commands page that still omits
-the estimate. Recheck a row when its page stops carrying the statement, or when a release note
-names deny rules, deferred tool loading, the `--disallowedTools` flag, the Agent SDK control
-protocol, or `/context` token counting.
+The bare-name row was re-read on 2026-09-28 against
+[permissions](https://code.claude.com/docs/en/permissions). The page now says: "Bare-name removal
+applies to every tool except `EndConversation`: a deny rule can't remove it while any other tool
+remains, and an ask rule never prompts for it." The local-estimate row is verified 2026-09-28
+against the 2.1.261 changelog and a fetch of the commands page that still omits the estimate.
+The other rows in the table stay as verified 2026-09-06 against Claude Code 2.1.263. Recheck a
+row when its page stops carrying the statement, or when a release note names deny rules, the
+`EndConversation` exception, deferred tool loading, the `--disallowedTools` flag, the Agent SDK
+control protocol, or `/context` token counting.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine
@@ -71,8 +74,12 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
 - `context-budget.snapshot/1` is one measured run: `mode`, `precision`, `sessionKind: "headless"`,
   `binary {path, version}`, `sdk {version, entry} | null`, `model`, `cwd`, `deny[]`,
   `categories {name: tokens}`, `totalTokens`, `maxTokens`, `tools[]` (live enumeration, sdk mode),
-  `agents[]`, `mcpTools[]`, `memoryFiles[]`,
-  `skillListing {totalSkills, includedSkills, tokens, signature, rows}`, `caveats[]`.
+  `agents[]`, `mcpTools[]`, `memoryFiles[]`, `slashCommands[]` (sdk mode keeps the
+  control-protocol list; cli-parse records `[]` because `/context` markdown does not carry it),
+  `skillListing {totalSkills, includedSkills, collapsedSkills, tokens, signature, rows, frontmatter}`.
+  `collapsedSkills` is `totalSkills - includedSkills` when both are numbers, else null. Each
+  `frontmatter` row keeps `name` and `source`, and in sdk mode also `tokens` and `pluginName` when
+  the control protocol sent them. `caveats[]`.
 - `context-budget.attribution/1` holds `baseline` (summary), ranked `perTool[]` rows
   `{tool, prefixDelta, deferredDelta, savedTokens, comparable, reasons}`, optional `additivity`
   (`--verify-additivity`: one combined-deny run checked against the sum of parts, with its own
@@ -84,12 +91,19 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   checks gate both, so a combined-run listing mismatch leaves a measurable deferred verdict in
   place. Every `additive` field, top level and per bucket, is tri-state: `true` and `false` are
   measured verdicts, `null` means the reading could not be measured, so an incomparable run is
-  never published as a definite negative. The two buckets are reported separately because they
+  never published as a definite negative. A combined run whose bucket is a synthesized
+  zero (sdk omitted it and the engine filled 0) publishes `additive: null` for that bucket
+  and for the summed verdict, with the reason on the record; the numeric comparison is not
+  used. A measured pair within 1 token counts as additive. The two buckets are reported separately because they
   do not compose alike: the deferred side adds, the prefix side double-counts.
   `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
-  run because they are structurally unreachable from a headless inventory, not silent zeros),
-  plus the binary stamp and `skillListingSignature`. A deny can empty a
+  run because they are structurally unreachable from a headless inventory, not silent zeros).
+  `knownUncovered.deniedAbsent` lists names from that file that were also passed in
+  `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
+  labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
+  never enters either attributed headless bucket, and a bare-name deny cannot remove it while any
+  other tool remains, plus the binary stamp and `skillListingSignature`. A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in
@@ -97,7 +111,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   bucket). In **sdk** mode the two attributed buckets are recorded as an explicit `0` when the
   SDK omits them (numbers are exact and the vocabulary is known), so a combined deny yields a
   real delta; a `caveats[]` entry names every synthesized zero so a raw `snapshot`/`ledger`
-  consumer can tell a reported 0 from a filled-in omission. A bucket absent from *both* runs is
+  consumer can tell a reported 0 from a filled-in omission. The attribution record's `caveats`
+  are the baseline's caveats merged with every deny run and, when it ran, the combined
+  additivity run, in that order, with duplicates dropped. A deny run's disclosure is not
+  discarded. A bucket absent from *both* runs is
   outside that binary's category vocabulary and simply contributes nothing.
 - `context-budget.ledger/1` is one before/after: `lever`, `emittedConfig`, `before`/`after`
   summaries, `delta` per category, `totalDelta`, `comparability` (`ok`, `systemToolsComparable`
@@ -108,7 +125,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   every settings key and env name the catalogue row names. The binary is the authority on *existence
   at the measured version*; a fresh docs fetch remains the authority on *semantics*. Rows with
   no extractable key/env name are `skipped`. Absence is a finding in the record (`absent[]`,
-  `missing`), not an invented number and not a degradation.
+  `missing`), not an invented number and not a degradation. `--find-unstored` adds `unstored[]`:
+  env names of the `CLAUDE_CODE_` / `ENABLE_` / `DISABLE_` shape found in the binary that no row
+  cites. The catalogue's purpose is the recorded set, not a proof of completeness. Without the
+  flag the field is omitted.
 - `context-budget.error/1` is the degradation record: `error`, `detail`, `remediation`. Exit 3.
 
 ## Ledger layout

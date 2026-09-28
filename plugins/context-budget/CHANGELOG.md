@@ -15,6 +15,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`/context` measurement basis.** `reference/engine.md` records that when the token-counting API is unavailable, `/context` uses a local estimate (Claude Code 2.1.261) instead of extra small-model requests. The commands page `/context` row fetched 2026-09-28 does not say that yet; the changelog is the behavior source until it does.
 
+## [0.6.36] - 2026-09-28
+
+### Fixed
+
+- **Attribution keeps deny-run caveats**
+  ([#3356](https://github.com/melodic-software/claude-code-plugins/issues/3356)).
+  `attribute` used to publish only the baseline snapshot's `caveats`, so a disclosure raised
+  by a deny run, including sdk mode's synthesized-zero note, never reached the record. The
+  record now merges caveats from the baseline, each deny run, and the combined additivity run,
+  dropping duplicates and keeping first-seen order.
+
+### Changed
+
+- **Bare-name deny cites the `EndConversation` exception.** The permissions page now says
+  bare-name removal applies to every tool except `EndConversation` (a deny cannot remove it
+  while any other tool remains, and an ask rule never prompts for it). `engine.md`, the
+  `deny-bare-tool` lever, and the audit skill say so. `EndConversation` is on the
+  interactive-only list, because it never enters either attributed headless bucket. Re-read
+  2026-09-28.
+- **The rest of the post-use audit's still-live findings**
+  ([#3356](https://github.com/melodic-software/claude-code-plugins/issues/3356)).
+  `--operator-deny` keeps an operator's bare-name deny out of the interactive-only reason.
+  `verify-catalogue --find-unstored` lists env names in the binary that no row cites, and the
+  catalogue no longer claims to hold every switch. sdk snapshots keep per-skill `tokens` and
+  `pluginName`, `slashCommands`, and `collapsedSkills`. `skill-overrides` and
+  `disable-bundled-skills` store a runtime-resolved saving, and the listing cap is named as
+  characters. `disable-artifact` is unmeasurable in a headless session. A built-in output style
+  is not the custom-style lever. The report says a `nonrepo` total is a floor. `setup` treats
+  an ephemeral Windows `node` shim as a failure on the pass path, names the settings-write-ask
+  toggle, and prints a PowerShell install line. The plugin-reconfiguration convention records
+  that `plugin list` can label one home-directory settings file as both `user` and `project`,
+  and that the uninstall-drops-`pluginConfigs` caveat was not part of the 2.1.283 probe. The
+  hook comment matches the headless stamp already in the audit skill (2.1.263).
+- **Additivity refuses a synthesized zero.** `--verify-additivity` publishes `additive: null`
+  when the combined run's bucket was filled in because the SDK omitted it, including the
+  summed verdict. A measured pair within 1 token still counts as additive. `setup` tells the
+  operator to pass `-s user` for this plugin: `-s` places enablement, the option value lands
+  in user settings, and `claude plugin list` is not a scope to copy when one file has two
+  labels. The headless `claude plugin install` line is for the operator to run.
+
 ## [0.6.35] - 2026-09-28
 
 ### Changed
