@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.10] - 2026-09-28
+## [0.15.11] - 2026-09-28
 
 ### Changed
 
@@ -14,6 +14,15 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
   plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
   or merged.
+
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
 
 ## [0.15.9] - 2026-09-28
 
