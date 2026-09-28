@@ -145,10 +145,10 @@ assert_contains "xstate confidence" "$xsum" "confidence=high"
 typo="$TEST_TMPDIR/typo"
 init_repo "$typo"
 mkdir -p "$typo/src"
-sed 's/SUBMIT: "submitted"/SUBMIT: "submited"/' "$xs/src/machine.js" >"$typo/src/machine.js"
+sed 's/SUBMIT: "submitted"/SUBMIT: "archived"/' "$xs/src/machine.js" >"$typo/src/machine.js"
 git -C "$typo" add src && git -C "$typo" commit -q -m x
 bash "$COLLECT" --repo "$typo" --out "$out/typo.json" >/dev/null
-assert_contains "a misspelled xstate target is refused" "$(cat "$out/typo.json")" '"reason": "undeclared-target"'
+assert_contains "an undeclared xstate target is refused" "$(cat "$out/typo.json")" '"reason": "undeclared-target"'
 
 inv="$TEST_TMPDIR/invoke"
 init_repo "$inv"
