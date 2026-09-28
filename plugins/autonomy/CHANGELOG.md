@@ -15,6 +15,14 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 - Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments (#3686). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
 
+## [0.24.9] - 2026-09-28
+
+### Changed
+
+- **Unattended executor examples name `--permission-prompts none`** (#4027).
+  From Claude Code 2.1.259 the flag keeps the chosen permission mode and denies only a call
+  that would have prompted. The dispatch slice cites the headless page read on 2026-09-28.
+
 ## [0.24.8] - 2026-09-28
 
 ### Changed
