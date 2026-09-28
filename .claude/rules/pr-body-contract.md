@@ -11,6 +11,14 @@ an advisory comment and the `needs-issue-linkage` label instead. The body
 contract below is still expected on every pull request; it is reported, not
 gating.
 
+Editing the body (or flipping a label) re-runs `ci` as **contract-only**: every
+lane is skipped and `ci-status` reads the `ci-lanes` commit status the last
+full run recorded on this SHA. If that check is red while `ci-lanes` on the
+SHA is already `success`, re-run the red contract-only `ci` run; do not empty-
+commit. If `ci-lanes` is `failure` or missing, re-run the full workflow. A
+body edit during a re-run of a failed full run can still read the old failure
+(#4670); that wait belongs in the ci-workflows composite this workflow pins.
+
 Every pull request body:
 
 - Opens with a native closing-keyword line: `Closes #<issue>` (`Fixes`/`Resolves`
