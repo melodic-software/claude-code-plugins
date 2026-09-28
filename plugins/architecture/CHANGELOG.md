@@ -18,6 +18,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - `plugins/architecture/lib/dotnet-references.sh` is the shared PackageReference and
   ProjectReference reader. `portfolio-facts.sh` calls it, so the portfolio names and the graph
   edges cite the same Include spans.
+- Design comments cite the C4 diagram set, MSBuild `ProjectReference`, and NuGet
+  `PackageReference` Include, each with a recheck trigger.
 - `reference/config.md` records the dialect split. `landscape_dialect` stays the system
   landscape (`structurizr` or `mermaid`, default `mermaid`) and is not reused for context,
   container, component, or deployment. `diagram_dialect.system` stays the planning opt-in

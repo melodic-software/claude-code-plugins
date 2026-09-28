@@ -6,6 +6,18 @@
 # It does not read source imports, and it does not guess a missing project by
 # file name.
 #
+# ProjectReference is a reference to another project. Basis:
+# https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-items
+# PackageReference Include is the package id. Basis:
+# https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files
+# Verified 2026-09-28. Recheck when either page renames the item or stops using
+# Include as that string.
+#
+# The human render is not a C4 diagram. C4's diagrams are system context,
+# containers, components, and code, plus system landscape, dynamic, and
+# deployment. Basis: https://c4model.com/ Verified 2026-09-28. Recheck when
+# that page adds a diagram type for a build-declaration graph.
+#
 # Usage:
 #   dependency-graph.sh <repo-path>
 #   dependency-graph.sh --help

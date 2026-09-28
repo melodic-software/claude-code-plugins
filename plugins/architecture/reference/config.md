@@ -98,7 +98,11 @@ proposals wanted one and named it differently (`diagram_dialect.dynamic` and
 `/architecture:map-dependencies` is not a C4 view and does not read `landscape_dialect`. Its
 canonical artifact is `dependency-graph.json`. Its human render is a mermaid `flowchart` of
 internal edges. No `graph_dialect` and no `diagram_dialect.graph`: each of those names is a single
-review, and the render they agree on is the flowchart.
+review, and the render they agree on is the flowchart. Claim: the C4 diagram set is system
+context, containers, components, and code, plus system landscape, dynamic, and deployment, and
+none of those is a build-manifest dependency graph. Basis: <https://c4model.com/>. As of
+2026-09-28. Recheck when that page adds a diagram type whose subject is a build-declaration or
+code dependency graph.
 
 `map-events` and `map-states` are not C4 types. Events render a findings list plus a mermaid
 flowchart. States render mermaid `stateDiagram-v2`. This change does not add a key for either,
