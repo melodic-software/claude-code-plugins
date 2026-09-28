@@ -208,6 +208,12 @@ rev-parse)
   esac
   ;;
 remote)
+  # A global url.*.insteadOf seen only when global config is kept (#4211).
+  if [[ "${1:-}" == "get-url" && "$base" == canonical-a && -n "${FAKE_GLOBAL_INSTEADOF:-}" &&
+    "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]]; then
+    printf '%s\n' "$FAKE_GLOBAL_INSTEADOF"
+    exit 0
+  fi
   if [[ "${1:-}" == "get-url" && "${2:-}" == "origin" ]]; then
     case "$base" in
     discovered-a | canonical-a) printf '%s\n' 'https://github.com/acme/repo-a.git' ;;
@@ -446,6 +452,9 @@ ls-remote)
   # Live remote existence probe for merged-remote-branch HIGH confidence. Default: echo the
   # matching tip. feature/stale-cached is present only in the local remote-tracking inventory
   # (auto-deleted upstream); ls-remote returns empty. feature/ls-fail forces a probe error → MEDIUM.
+  # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
+  # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
+  [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -902,6 +911,22 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+# #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
+# rewrites the transport for the same repository still confirms HIGH; one that points the remote
+# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+instead_of_out="$TMP/instead-of.txt"
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+  FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
+  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+    grep -Fq "Confidence: ${rewrite#*|}"; then
+    printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
+  else
+    printf 'FAIL: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}" >&2
+    failures=$((failures + 1))
+  fi
+done
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
@@ -2243,8 +2268,12 @@ run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && status_reject
 allowed_log=true
 run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
 allowed_ls_remote=true
-run_git_probe -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared >/dev/null 2>&1 ||
+git_probe_allowed -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared ||
   allowed_ls_remote=false
+ls_remote_rejected=true
+run_ls_remote_probe "$TMP/canonical-a" --upload-pack=x refs/heads/feature/shared >/dev/null 2>&1 &&
+  ls_remote_rejected=false
+run_ls_remote_probe "$TMP/canonical-a" origin HEAD >/dev/null 2>&1 && ls_remote_rejected=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
   printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
@@ -2269,6 +2298,12 @@ if [[ "$allowed_ls_remote" != "true" ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: ls-remote --heads probe is admitted by the Git allowlist\n'
+fi
+if [[ "$ls_remote_rejected" != "true" ]]; then
+  printf 'FAIL: run_ls_remote_probe admitted a non-allowlisted remote or ref\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: run_ls_remote_probe rejects a non-allowlisted remote or ref\n'
 fi
 
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).
