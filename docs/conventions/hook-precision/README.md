@@ -73,6 +73,32 @@ both are non-negotiable:
   (reproducing the over-fire) and pass after the fix. A stay-quiet assertion that is already green before the
   fix guards nothing. It only looks tested.
 
+## Platform gap: `if` file rules on Windows
+
+Hook `if` file rules do not match an absolute path outside the working directory on Windows
+(Claude Code 2.1.258, Git Bash). That is an upstream matching bug, not a marketplace defect, and
+it is not fixed here (#3680).
+
+A probe on 2026-09-02 tried every documented anchor (`~/`, `//`, drive letter, `//**/`, bare
+`*.json`) against a Write to the user-global settings file and a Write to the managed-settings
+file. Every conditioned row was skipped. The unconditioned row fired and returned `ask` for both.
+Only a settings file inside the working directory matched. The permissions doc's `//c/**/.env`
+and `//**/.env` "match anywhere" claim therefore does not hold for hook `if` rules.
+
+Any hook that must see a user-global or managed file (the context-budget settings checkpoint is
+the in-repo case) stays unconditioned until upstream matching reaches those paths. Putting an
+`if` gate on that row would drop the checks silently.
+
+- **Claim:** this is an upstream candidate; this marketplace does not patch Claude Code's `if`
+  matcher. Guard rows that target paths outside cwd stay unconditioned.
+- **Basis:** #3680. Probe recorded in `plugins/context-budget/README.md` (2026-09-02, Claude
+  Code 2.1.258, Windows Git Bash). Permissions-page glob examples fetched as the contradicting
+  claim.
+- **As of:** 2026-09-28.
+- **Recheck:** a Claude Code release notes that hook `if` file rules match absolute paths
+  outside cwd on Windows, or an `anthropics/claude-code` issue for this reproduction closes.
+  Re-probe before adding an `if` gate to the context-budget row.
+
 ## What this convention is not
 
 - **Not a new harness.** There is no separate golden-fixture system to build or wire. The existing per-hook
@@ -105,19 +131,31 @@ never stands in for the gate.
 
 | Hook | Acts on the file by | Gate | Verdict |
 |---|---|---|---|
-| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | its own `file_is_gitignored`, `markdown_format_lint_gitignored` | conforms; the local copy predates the shared helper |
+| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed |
 | `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671) |
 | `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671) |
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
 | `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
-| `typos-format` | reporting, and rewriting when write mode is on | none | **does not conform yet** (#4671); registers with no `if` filter |
-| `actionlint` (`actionlint-check`) | reporting only | none; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | **does not conform yet** (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
+| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
+| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
 
-`typos-format`, `actionlint`, and `markdown-format` do not carry `rewrite-guard.sh`, so bringing the first
-two in, and moving `markdown-format` onto the shared helper, means either carrying that lib or lifting
-the helper into `hook-utils.sh`. That choice stays open under #4671.
+All nine carry `rewrite-guard.sh` for `hook::gitignored_out_of_scope`. That file is the
+sanctioned home for the gate. Lifting the helper into `lib/hook-utils.sh` (acceptance item 2
+of #4671) is unpaid and out of scope.
+
+- **Claim:** a `hook-utils.sh` lift would bump all 17 carrying plugins and collide with
+  in-flight hook-utils PRs, for a helper only these nine format and lint hooks need.
+  `rewrite-guard.sh` is already the synced home (`scripts/sync-rewrite-guard.sh`). Step 4
+  `if` filters stay off for `typos-format` (language-agnostic) and `eol-normalizer` (every
+  write); a harness `if` cannot express "gitignored" anyway.
+- **Basis:** #4671 acceptance item 2. Re-measured 2026-09-28 on `origin/main`: 17
+  `plugins/*/hooks/hook-utils.sh` copies; six rewrite-guard carriers before this change,
+  nine after.
+- **As of:** 2026-09-28.
+- **Recheck:** a maintainer funds the 17-plugin hook-utils bump, or rewrite-guard and
+  hook-utils merge for another reason.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
 guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different

@@ -29,6 +29,18 @@
         "Recommends agreement on the central section before drafting outward",
         "Includes a 'revise solo later' follow-up step"
       ]
+    },
+    {
+      "id": 3,
+      "name": "title-action-does-not-skip-constraints",
+      "prompt": "/songwriting:co-write title develop 'last call at the diner' into a country verse",
+      "expected_output": "Routes to the title action, not the title-game cascade. Loads the title-development materials and holds POV, genre, and stress constraints before drafting lines. It does not start the 10-15 title cascade.",
+      "files": [],
+      "expectations": [
+        "Does not run the Title Game cascade of 10-15 chained titles",
+        "Loads title-development materials for a single title",
+        "Keeps genre/POV constraints in view before drafting"
+      ]
     }
   ]
 }

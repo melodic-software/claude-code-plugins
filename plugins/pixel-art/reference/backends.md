@@ -82,9 +82,11 @@ skip that feature, continue with the documented reduced result.
 
 1. Downscale to the target frame size with nearest-neighbor; estimate the source pixel scale
    first so one output pixel maps to one source cell (judgment).
-2. Snap every pixel to the nearest locked-palette color; alpha below 50% becomes transparent,
-   the rest opaque (judgment).
-3. Convert to spec `frames` rows (one character per palette key, `.` for transparent).
+2. Snap with `scripts/render.py --snap <image.png> --palette <preset, file, or inline JSON> --out <snapped.png>`
+   (add `--emit-frames` to write spec rows, `--dither` for 4x4 Bayer). Nearest color is squared
+   Euclidean distance in 8-bit sRGB; alpha below 128 becomes transparent and the rest opaque.
+   See `palettes/README.md`.
+3. Use the emitted frame rows (one character per palette key, `.` for transparent), or the snapped PNG.
 4. Clean up per `craft-static.md`: orphan pixels, jaggies, doubles, outer-edge AA.
 5. Render with `scripts/render.py` so outputs match the native contract byte-for-byte in shape.
 

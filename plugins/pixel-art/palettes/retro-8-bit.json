@@ -1,0 +1,72 @@
+{
+  "name": "retro-8-bit",
+  "variant": "Lospec palette by Paleto",
+  "source": "https://lospec.com/palette-list/retro-8-bit",
+  "license": "Paleto Vol. 01. The Lospec page states these are CC0 pixel art color palettes. CC0 1.0 Universal. https://creativecommons.org/publicdomain/zero/1.0/",
+  "colors": [
+    {
+      "hex": "#1a0a2e",
+      "key": "0"
+    },
+    {
+      "hex": "#2e1044",
+      "key": "1"
+    },
+    {
+      "hex": "#3c2060",
+      "key": "2"
+    },
+    {
+      "hex": "#5a3888",
+      "key": "3"
+    },
+    {
+      "hex": "#8860b0",
+      "key": "4"
+    },
+    {
+      "hex": "#b898d8",
+      "key": "5"
+    },
+    {
+      "hex": "#ddc8f0",
+      "key": "6"
+    },
+    {
+      "hex": "#ffffff",
+      "key": "7"
+    },
+    {
+      "hex": "#ffdd00",
+      "key": "8"
+    },
+    {
+      "hex": "#ff8800",
+      "key": "9"
+    },
+    {
+      "hex": "#ff4444",
+      "key": "a"
+    },
+    {
+      "hex": "#44ddff",
+      "key": "b"
+    },
+    {
+      "hex": "#2288cc",
+      "key": "c"
+    },
+    {
+      "hex": "#44cc44",
+      "key": "d"
+    },
+    {
+      "hex": "#ff44aa",
+      "key": "e"
+    },
+    {
+      "hex": "#884400",
+      "key": "f"
+    }
+  ]
+}
