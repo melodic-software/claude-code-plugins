@@ -372,6 +372,7 @@ scan_emits() {
     rm -f "$json"
     return 1
   }
+  # shellcheck disable=SC2094  # "$file" is only read; "$json" and "$errf" are separate temp files
   if ! shfmt --language-dialect bash --filename "$(basename -- "$file")" --to-json <"$file" >"$json" 2>"$errf"; then
     rm -f "$json" "$errf"
     return 1
