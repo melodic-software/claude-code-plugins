@@ -22,31 +22,28 @@ the way the README says (`uv run --with-requirements`).
 
 ## Loop
 
-1. `produce.py init <production dir> --title "<title>" --fps <the pack base_fps>`.
-   This writes `brief.md`, the six board files, `scenes/opener.js`, and
-   `shots.json`. It does not approve anything.
-2. Fill `brief.md` and `boards/` from the brief and the pack: style guide,
-   palette, vibe, model sheet, element sheet, storyboard. Replace every stub.
-3. Stop. Show the boards to the user. Do not write `boards/APPROVED`, and do
-   not render, until the user approves in that file with both of these lines:
-   `approved-by: <name>` and `at: <ISO-8601 time>`.
-   `produce.py check <production dir>` exits 2 while that file is missing and
-   1 while a board is still a stub.
-4. After approval, author one scene module per shot (`renderFrame(t)`, ink.js,
-   the pack ink color on every stroke). Point each `shots.json` `scene` at its
-   file. `produce.py cuts <production dir>` prints the start times.
-5. Render only through `produce.py render <production dir> --encode mp4`, which
-   refuses when check is not 0. Pass
-   `--playwright-core '${user_config.playwright_core}'`.
-   Frames land in `<production dir>/frames` with `render.json`. The encoded
-   file is `frames.mp4` beside that directory.
-6. Review with `produce.py review <production dir> --pack <pack dir>`.
-   It runs inkstats with `--shots <production dir>/shots.json` and refuses a
-   typed `--cuts` list beside that file. Read frames at 1:1 beside the
-   storyboard. A numeric pass that does not look like the pack is a fail.
+1. `produce.py init <production dir> --title "<title>" --style <pack>`.
+   This writes `brief.md`, `boards/storyboard.md`, and `shots.json`. It does
+   not approve anything.
+2. Fill the brief and the storyboard from the brief and the pack. Show the
+   boards to the user.
+3. Stop. `produce.py gate <production dir>` exits 2, and says the boards are
+   not approved, until the user writes a non-empty `boards/APPROVED`. Do not
+   render before that. Do not write `boards/APPROVED` yourself.
+4. After approval, add shots to `shots.json` (`t0` increasing from 0, `scene`
+   a `.js` path, `title` set) and write each scene module (`renderFrame(t)`,
+   ink.js, the pack ink color). `produce.py cuts <production dir>` prints the
+   interior starts.
+5. Render each scene with
+   `${CLAUDE_PLUGIN_ROOT}/scripts/render.py <scene.js> <frames dir> --fps <shots.json fps> --encode mp4 --playwright-core '${user_config.playwright_core}'`.
+   Frames land beside `render.json`.
+6. Review with
+   `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py <film> --shots <production dir>/shots.json --pack <pack dir>`.
+   `--shots` reads the cuts. Do not also pass `--cuts`. Read frames at 1:1
+   beside the storyboard. A numeric pass that does not look like the pack is a
+   fail.
 
-Repeat steps 4 to 6 until the review passes. Tune the scenes, never the pack,
-unless the user asked to change the pack.
+`produce.py check <production dir>` prints `boards` or `approved`.
 
 ## Next
 
@@ -54,10 +51,7 @@ unless the user asked to change the pack.
 
 ## Gotchas
 
-- Do not write `boards/APPROVED` yourself. The user does. A render that skips
-  the file is a broken run even if frames exist.
-- `shots.json` is the only cut list. Pass `--shots`, not a typed `--cuts` list,
-  for a film this skill made.
-- `produce.py render --dry-run` prints the render command and does not draw.
-  The delivered film comes from a real render.
-- The opener scene is a placeholder. Replace it before calling the film done.
+- `boards/APPROVED` is the user's file. An empty file is not approval.
+- `inkstats.py --cuts` and `--shots` together are refused. A production passes
+  `--shots`.
+- Bands are in pixels. Render at the pack's frame size.
