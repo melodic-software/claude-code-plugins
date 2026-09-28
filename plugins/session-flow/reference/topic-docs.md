@@ -51,5 +51,9 @@ and "Runtime guards" sections as written (the five-rung order with its no-projec
 branch, the once-per-session self-ignore guard on the resolved memory root, the
 never-edit-the-consumer's-root-`.gitignore` rule). This binding adds only the
 plugin-specific application detail: session-flow's no-project-root non-interactive
-fallback lands handoffs under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` with the
-absolute path announced prominently and nothing persisted.
+fallback writes the handoff file under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` and
+announces its absolute path prominently. What is not persisted there is the resolution:
+no `.claude/topic-docs.yaml` is written for the fallback. Claude Code does not export
+`CLAUDE_PLUGIN_DATA` to Bash-tool commands, so on that branch the handoff step omits
+`--memory-dir` and `save_point.py new` resolves the plugin data dir itself
+([`structure.md`](structure.md) "Full-path write procedure").

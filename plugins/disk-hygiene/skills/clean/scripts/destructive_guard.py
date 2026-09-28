@@ -965,34 +965,50 @@ def resolve_authorized_data_root() -> str | None:
     3. The same ``--plugin-root`` when it has no cache layout: a plugin loaded in
        place from a local-directory marketplace, proven against the trusted
        config dir's ``known_marketplaces.json`` (``_directory_marketplace_install``).
-    4. The ``CLAUDE_PLUGIN_DATA`` environment variable, if present. A repo
-       ``settings.json`` ``env`` block can set it, so it ranks last.
 
-    A literal, unsubstituted placeholder is treated as absent at each step. Absent
-    every channel the guard has no authority and every engine call fails closed.
+    The ``CLAUDE_PLUGIN_DATA`` environment variable is never a channel: a repo
+    ``settings.json`` ``env`` block can set it, so it carries no provenance. A
+    literal, unsubstituted placeholder is treated as absent. Absent every
+    channel the guard has no authority and every engine call fails closed.
     """
+    return resolve_authorized_data_root_channel()[0]
+
+
+DATA_ROOT_CHANNEL_DIRECT = "--authorized-data-root argument"
+DATA_ROOT_CHANNEL_CACHE = "plugin-cache layout"
+DATA_ROOT_CHANNEL_DIRECTORY = "local-directory marketplace install"
+
+
+def resolve_authorized_data_root_channel() -> tuple[str | None, str | None]:
+    """``resolve_authorized_data_root`` plus the name of the channel that won."""
     direct = _argv_authorized_data_root(sys.argv[1:])
     if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
-        return direct
-    return data_root_for_plugin_root(_plugin_root_argument())
+        return direct, DATA_ROOT_CHANNEL_DIRECT
+    return data_root_channel_for_plugin_root(_plugin_root_argument())
 
 
 def data_root_for_plugin_root(plugin_root: str | None) -> str | None:
-    """Steps 2-4 of ``resolve_authorized_data_root`` for a given install root.
+    """Steps 2-3 of ``resolve_authorized_data_root`` for a given install root.
 
     The skill-frontmatter belt reaches its authority here with the substituted
     ``--plugin-root``; the kill-switch probe reaches it with its own install
     root, so the ``--data-root`` it reports is the one the belt will admit.
     """
+    return data_root_channel_for_plugin_root(plugin_root)[0]
+
+
+def data_root_channel_for_plugin_root(
+    plugin_root: str | None,
+) -> tuple[str | None, str | None]:
+    """``data_root_for_plugin_root`` plus the name of the channel that won."""
     if plugin_root:
         derived = _plugin_data_root_from_root(plugin_root)
         if derived:
-            return derived
+            return derived, DATA_ROOT_CHANNEL_CACHE
         install = _directory_install_for(plugin_root)
         if install:
-            return install.data_root
-    env = os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
-    return env if env and env != _AUTHORIZED_DATA_ROOT_PLACEHOLDER else None
+            return install.data_root, DATA_ROOT_CHANNEL_DIRECTORY
+    return None, None
 
 
 def _user_settings_path_from_root(plugin_root: str) -> str | None:
@@ -1143,8 +1159,8 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     engine's declared grammar (``lib/engine_grammar.py``), which the engine's
     own parser is built from. The one value that grammar cannot judge alone is
     ``--data-root``: only the authorized root this hook resolved is admitted, and
-    the flag is mandatory here although the grammar keeps it optional, because
-    an engine call without it falls back to the raw ``CLAUDE_PLUGIN_DATA`` value.
+    the flag is mandatory here although the grammar keeps it optional, so the
+    guard does not depend on the engine refusing a state write without it.
     A token check proves presence: the grammar reads flag names only at flag
     positions and refuses any flag-shaped value, so a matched invocation that
     contains the token carries it as a flag.
@@ -1933,14 +1949,17 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
         f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
         if data_root
         else (
-            " The guard did not receive an authorized data root (none of the"
-            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments,"
-            " a local-directory marketplace install resolved from"
-            f" {_KNOWN_MARKETPLACES_FILENAME}, nor {_CLAUDE_PLUGIN_DATA_ENV}"
-            " resolved one), so --data-root cannot be validated and engine calls"
-            " fail closed. To supply one, start Claude Code from a shell with"
-            f" {_CLAUDE_PLUGIN_DATA_ENV} set to this plugin's data directory"
-            " (<config>/plugins/data/<name>-<marketplace>)."
+            " The guard did not receive an authorized data root (neither the"
+            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments"
+            " nor a local-directory marketplace install resolved from"
+            f" {_KNOWN_MARKETPLACES_FILENAME} resolved one; the"
+            f" {_CLAUDE_PLUGIN_DATA_ENV} environment variable is never trusted),"
+            " so --data-root cannot be validated and engine calls fail closed."
+            " To supply one, run this plugin from a marketplace install, or"
+            " register the checkout that contains it as a local-directory"
+            " marketplace (claude plugin marketplace add <checkout>) so a"
+            " --plugin-dir session inside it derives that marketplace's data"
+            " root."
         )
     )
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
