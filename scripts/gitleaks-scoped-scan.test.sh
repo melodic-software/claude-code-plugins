@@ -4,7 +4,7 @@
 # and visible to --log-opts=--all, which is what scan-mode git does.
 set -uo pipefail
 
-unset GIT_DIR GIT_WORK_TREE
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCAN="$SCRIPT_DIR/gitleaks-scoped-scan.sh"
