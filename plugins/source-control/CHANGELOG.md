@@ -3,6 +3,52 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.10] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
+## [0.62.9] - 2026-09-28
+
+### Changed
+
+- **Blast-radius check before a fix, verdict, or merge on a shared artifact.** When a change
+  touches a reusable workflow or action, shared config, or a published package, the review
+  discipline's D3 lists its consumers and checks the change against each, and D4 states the
+  classification with a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `pull-request` mirrors it in its D3, D4, and readiness gate; `babysit-prs` states it for every
+  tier.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  D4 points to it, and a consequential verdict the evidence cannot settle is withheld as
+  UNCERTAIN, naming the evidence that would settle it.
+
+## [0.62.8] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.62.7] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.62.6] - 2026-09-28
+
+### Changed
+
+- **Worktree isolation is four checks, and unattended prompts have a flag**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
+  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
+  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
+  mode and its classifier.
+
 ## [0.62.5] - 2026-09-28
 
 ### Changed

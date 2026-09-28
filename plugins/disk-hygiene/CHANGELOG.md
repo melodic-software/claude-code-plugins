@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.8] - 2026-09-28
+
+### Changed
+
+- **The belt's last env-derived data-root channels are closed** ([#4669](https://github.com/melodic-software/claude-code-plugins/issues/4669)). `CLAUDE_PLUGIN_DATA` is never a data-root channel: the engine requires `--data-root`, the guard no longer reads the variable, and a `--plugin-dir` session with no cache layout and no `known_marketplaces.json` proof fails closed. The no-authority denial names the recovery as a marketplace install or `claude plugin marketplace add <checkout>`, not a launch-shell export. `engine_context.py` names the channel that supplied `data_root`. User-scope `extraKnownMarketplaces` is declined: the settings-reference key is Any-file, its purpose is repo-or-org registration, and a `directory` source is development-only. A paid probe of whether a launch-shell export reaches a skill-frontmatter hook was not run; the recovery hint matches that decision.
+
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
+
+## [0.28.6] - 2026-09-28
+
+### Fixed
+
+- The `clean` skill's frontmatter `args` is a YAML sequence. A single-quoted JSON string is one argument, so the belt would not have received `exec-bash.mjs` and `run-python-hook.sh` as separate argv entries ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+## [0.28.5] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
 ## [0.28.2] - 2026-09-28
 
 ### Changed

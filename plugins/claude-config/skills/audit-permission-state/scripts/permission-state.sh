@@ -357,7 +357,9 @@ emit_file_conf() {
       (if has("useAutoModeDuringPlan") then emit("useAutoModeDuringPlan"; .useAutoModeDuringPlan | tojson) else empty end),
       (if has("disableAutoMode") then emit("disableAutoMode"; .disableAutoMode | tojson) else empty end),
       (if (.permissions | type) == "object" and (.permissions | has("disableAutoMode"))
-         then emit("permissions.disableAutoMode"; .permissions.disableAutoMode | tojson) else empty end)
+         then emit("permissions.disableAutoMode"; .permissions.disableAutoMode | tojson) else empty end),
+      (if has("allowManagedPermissionRulesOnly")
+         then emit("allowManagedPermissionRulesOnly"; .allowManagedPermissionRulesOnly | tojson) else empty end)
     ] | .[]
   ' 2>/dev/null | tr -d '\r' | while IFS= read -r line; do
     [[ -n "$line" ]] && printf 'conf %s %s %s\n' "$scope" "$surface" "$line"
@@ -370,6 +372,13 @@ emit_json_scope() {
   local scope="$1" surface="$2" path="$3" status
   status="$(classify_json_file "$path")"
   emit "$scope" "$surface" "$status" "$path"
+  if [[ "$status" == "invalid-json" && "$scope" == "managed" ]]; then
+    note "Managed source $surface at $path is not a JSON object. From Claude Code v2.1.259 a managed settings file or drop-in that cannot be parsed refuses startup (exit 1) and names the source. This is not silent non-enforcement."
+  elif [[ "$status" == "invalid-json" && "$scope" == "user" ]]; then
+    note "User settings at $path are not valid JSON. An interactive session shows a Settings Error; after continue, /status names the file. A -p run skips the broken file. The retention sweep pauses and warns in /status unless managed settings supply cleanupPeriodDays."
+  elif [[ "$status" == "invalid-json" ]]; then
+    note "Settings source $scope $surface at $path is not valid JSON. An interactive session shows a Settings Error; after continue, /status names the file. A -p run skips the broken file."
+  fi
   if [[ "$status" == "present" ]]; then
     emit_file_rules "$scope" "$surface" "$path"
     emit_file_conf "$scope" "$surface" < <(crlf_strip <"$path")
@@ -449,7 +458,7 @@ else
     reg_json="$(reg_cmd query "$registry_path" /v Settings 2>/dev/null | tr -d '\r' |
       sed -n 's/.*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
-      note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON — reporting it as unread rather than as empty."
+      note "Windows managed policy key $registry_path carries a Settings value that did not parse as JSON. An HKLM value that is not a JSON object refuses startup (exit 1) and names the source (v2.1.259+). A malformed HKCU value does not refuse startup; it is a notice in /status and claude doctor. Reporting it as unread rather than as empty."
     else
       # Same multi-line handling as the file path: managed policy is the scope
       # where a phantom rule would do the most damage, so it gets the same
@@ -472,16 +481,25 @@ elif ! command -v defaults >/dev/null 2>&1; then
 else
   if defaults read "$plist_domain" >/dev/null 2>&1; then
     emit managed plist present "$plist_domain"
-    note "The managed-preferences domain $plist_domain is present. Its rules are NOT inventoried yet — this reader reports the surface, not its contents."
+    note "The managed-preferences domain $plist_domain is present. Its rules are NOT inventoried yet — this reader reports the surface, not its contents. A plist plutil reports as malformed refuses startup (exit 1) and names the source (v2.1.259+); this reader cannot see that failure."
   else
     emit managed plist absent "$plist_domain"
   fi
 fi
 
-# Server-managed settings arrive remotely at sign-in and have no local path, so
-# no local reader can see them. Saying so is the difference between an honest
-# managed report and one that implies completeness it cannot have.
-note "Server-managed settings (delivered at sign-in via the claude.ai admin console or a self-hosted gateway) have no local path and are not visible to any local reader. 'managed' above means the local managed surfaces only. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line."
+# Server-managed settings are fetched at sign-in and cached under the config
+# root. The cache is not the live policy. Saying where it is, and that this
+# reader does not fold it in, is the difference between an honest managed report
+# and one that implies completeness it cannot have. A policy that did not load
+# is still diagnosed from /status and claude doctor.
+remote_cache=""
+if [[ -n "$USER_CONFIG_ROOT" ]]; then
+  remote_cache="$(mscope::remote_cache_file "$USER_CONFIG_ROOT")"
+  emit managed remote-cache "$(classify_json_file "$remote_cache")" "$remote_cache"
+else
+  emit managed remote-cache skipped "-"
+fi
+note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. The cache is not the live policy. 'managed' above means the local managed surfaces only. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line."
 
 # --- The four file scopes -----------------------------------------------------
 
