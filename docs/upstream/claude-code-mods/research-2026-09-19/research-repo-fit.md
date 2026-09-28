@@ -39,7 +39,7 @@ trigger** rather than a date:
 |---|---|---|
 | Monitors | `Wait` | Experimental; schema may change between releases |
 | Themes | `Wait` | Same |
-| Channels | `Wait` | **Not** experimental — *"No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills"* |
+| Channels | `Wait` | **Not** experimental: *"No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills"* |
 | Agent teams | `Defer` | *"Fails gate 2 and stops there"* (recorded under Recorded gate runs, not Component stances) |
 
 `OBSERVED` · HIGH. (The Channels rationale was one of the nine WRONG rows the
@@ -49,14 +49,14 @@ verifier corrected; do not restate it as "experimental".)
 
 `docs/migration-playbook.md` line 774, the eleven-step per-plugin migration gate,
 **step 7**: every component a plugin ships must conform to the Component-stances
-table — *"wait-listed components absent"*. `OBSERVED` · HIGH.
+table: *"wait-listed components absent"*. `OBSERVED` · HIGH.
 
 **The stance verdict and the shipping permission are the same decision. There is
 no "Wait but pilot in `plugins/`" state.** A spike kept under `.work/` is the
 only shape compatible with a `Wait` verdict.
 
 Other playbook clauses a mod inherits: research fresh (WebFetch the official docs
-for every component — **there are none**, which is itself a finding for step 1);
+for every component: **there are none**, which is itself a finding for step 1);
 declare `userConfig` and use no custom config channel; validate with
 `claude plugin validate` and test with `--plugin-dir` **in a clean repo that is
 not the source repo**; explicit semver plus a changelog entry; a `./`-prefixed
@@ -68,7 +68,7 @@ The one fleet-scale hook migration this repo has run
 (`docs/hook-migration-audit.md`, an audit **snapshot** dated 2026-07-12, not
 durable policy) sets three precedents a mods sweep inherits: the accept/defer
 discriminator is **concept-specificity, not path-count**; every deferral carries
-an explicit revisit trigger; and cutover is **blue-green and staged** — no
+an explicit revisit trigger; and cutover is **blue-green and staged**; no
 in-repo original was removed in the PR that added its replacement.
 `OBSERVED` · HIGH.
 
@@ -79,10 +79,10 @@ in-repo original was removed in the PR that added its replacement.
 | Plugins shipping `hooks/hooks.json` | **20** (a 21st `hooks.json` is an eval fixture) |
 | Wired hook command entries | **93** |
 | Distinct events | **31** |
-| Implementation scripts under `plugins/*/hooks` | **82** — 81 `.sh` + **1** `.mjs` |
+| Implementation scripts under `plugins/*/hooks` | **82**: 81 `.sh` + **1** `.mjs` |
 | `*.test.sh` siblings | 46 of the 81 shell scripts (**57%**, not "every") |
 | `.py` / `.ps1` inside `hooks/` | **0** / **0** |
-| Skill-frontmatter hooks (a second surface) | **2** — `disk-hygiene/skills/clean`, `repo-hygiene/skills/clean`; both `PreToolUse`, matcher `Bash\|PowerShell` |
+| Skill-frontmatter hooks (a second surface) | **2**: `disk-hygiene/skills/clean`, `repo-hygiene/skills/clean`; both `PreToolUse`, matcher `Bash\|PowerShell` |
 | Project-scope hooks (`.claude/settings.json`) | **1** entry, 1 event (`SessionStart`), shell form |
 | Repo shape | 77 plugin dirs / 77 manifests / 77 changelogs / 77 marketplace entries / 273 `SKILL.md` |
 
@@ -100,7 +100,7 @@ receives. `OBSERVED` · HIGH.
 **That comment block is the sharpest existing internal evidence for what an
 in-process runtime would buy: it is exactly the class of silent-fail-open the
 block exists to route around.** It is also the class the mods runtime
-*reintroduces* in a different place — see `research-security-and-semantics.md`.
+*reintroduces* in a different place; see `research-security-and-semantics.md`.
 
 ## The hook budget is max-shaped, and that decides the cost argument
 
@@ -117,16 +117,16 @@ aggregate, removing cost from every hook except the slowest moves the budgeted
 wall by exactly zero.** The doc names where the max sits: the **guardrails
 dispatcher**, 1,360–3,048 ms per fire across the Write, Edit and Bash rows,
 followed by `markdown-format`'s `markdownlint-cli2` Node process. Both are
-already single processes fanning out internally — the shape a mod would produce.
+already single processes fanning out internally, the shape a mod would produce.
 
 So the honest framing: *a mod does not cut the wall unless it replaces the
-guardrails dispatcher itself* — and guardrails is ADR-0028 **Class A** (the hooks
+guardrails dispatcher itself*, and guardrails is ADR-0028 **Class A** (the hooks
 ARE the plugin), which never splits.
 
 Three further binding facts:
 
-1. **The fleet is already over the ceiling and the doc says so in its own voice**
-   — *"no per-tool-call surface meets the budget, and on the reference host no
+1. **The fleet is already over the ceiling and the doc says so in its own voice**:
+   *"no per-tool-call surface meets the budget, and on the reference host no
    per-turn surface does either."*
 2. **Rule 2 forecloses the escape:** *"The budget never relaxes to absorb an
    overage… that overage is per-plugin remediation work, not grounds to move the
@@ -135,14 +135,14 @@ Three further binding facts:
    decision. Every always-on hook pays its interpreter's startup on every fire."*
    An in-process runtime is precisely an interpreter-startup elimination. Rule 1
    then obliges any plugin adding or widening an always-on hook to state its
-   measured share in its README by that doc's method — an obligation a mod pilot
+   measured share in its README by that doc's method, an obligation a mod pilot
    inherits.
 
 **Measure, do not cite.** The published reference figures (2026-09-02) predate a
 69% growth in wired entries (16 events / 55 entries then; 31 / 93 now, almost
 entirely `claude-ops`'s default-off logging pipeline), and seven unpulled
 `perf(...)` commits on `origin/main` already optimized the exact plugins a mod
-would replace — one titled *"run the guard chain in-process"* (#4185). Pull
+would replace, one of them titled *"run the guard chain in-process"* (#4185). Pull
 `origin/main` first and state that any comparison is post-perf-work.
 `OBSERVED` · HIGH.
 
@@ -155,7 +155,7 @@ same two-predicate filter governs the manifest-inline `.hooks` object and the
 skill/agent frontmatter reader. `OBSERVED` · HIGH ·
 `plugins-repo-explore/EXPLORE-hook-budget-and-gates.md` §(b).
 
-**A mod-shaped `hooks.json` passes vacuously — the gate prints "No exec-form
+**A mod-shaped `hooks.json` passes vacuously: the gate prints "No exec-form
 hooks with a bare command name" over a tree containing mods.** That is the same
 silent-no-op defect class the gate exists to catch, one level up; its own header
 records that the class *"has shipped three times"*.
@@ -200,14 +200,14 @@ a stripped shebang (so it does not trip the shebang exec-bit gate).
 TypeScript in-tree today is **only** bundled Node packages. `plugins/miro/server`
 is the reference: 17 `.ts` files (4 of them tests), strict tsconfig, vitest,
 Biome, esbuild, committed drift-checked bundle. **There is no root TypeScript
-build**, and `scripts/affected-tests.sh` contains **no `.ts` reference at all** —
+build**, and `scripts/affected-tests.sh` contains **no `.ts` reference at all**;
 it knows exactly four ecosystems (`*.test.sh`, `*.test.js`/`*.test.mjs`,
 `test_*.py`, `*.Tests.ps1`). A `hooks.test.ts` would be invisible to the repo's
 primary suite selector. `OBSERVED` · HIGH.
 
 Recommended default from the explorer: a mod pilot ships as its own Node package
-with a `run-tests.sh {install,build,test}` shim — the pattern
-`video-digest`/`course-digest`/`ai-briefing` already use — plus one hand-added
+with a `run-tests.sh {install,build,test}` shim (the pattern
+`video-digest`/`course-digest`/`ai-briefing` already use) plus one hand-added
 `ci.yml` block. **Do not teach `affected-tests.sh` `*.test.ts` as part of a
 pilot.** `OBSERVED` · recommendation.
 
@@ -228,7 +228,7 @@ pin.
 **This is a genuine structural misfit, not a preference.**
 
 - Mods: plugin options are read from user settings, `--settings`, or managed
-  settings — *"a project's `.claude/settings.json` is **not** read for plugin
+  settings: *"a project's `.claude/settings.json` is **not** read for plugin
   options."* `SOURCE` · HIGH
 - This repo: org-agnosticism (philosophy line 26) and the two-lane convention
   posture (286) require shipped defaults not to impose a convention, and the
@@ -241,14 +241,14 @@ pin.
 A mod therefore **cannot take per-repository configuration through the options
 mechanism at all**. A consuming project that wants different behavior in
 different repositories has no seam-1 path; it must fall back to env vars or
-file-based config, which is seam 3 — and seam 3 carries its own open question:
+file-based config, which is seam 3, and seam 3 carries its own open question:
 *"Hook scripts do not see `CLAUDE.md`; they read env vars and file-based config
 only."* **Whether a mod's in-process handler inherits that restriction or the
 model-context one is unresolved**, and it changes which seam a mod's
 configuration belongs in. `OBSERVED` · unresolved.
 
 Compounding it: the host fills an option's default before `register` sees it, so
-a plugin cannot distinguish "unset" from "set to the default" — which removes the
+a plugin cannot distinguish "unset" from "set to the default", which removes the
 usual migration affordance. `SOURCE` · HIGH.
 
 ## Pilot candidate
@@ -270,7 +270,7 @@ violated.
 
 ## Where the verdict is recorded, and the ADR number
 
-Three surfaces could hold it — the Component-stances table, the Recorded-gate-runs
+Three surfaces could hold it: the Component-stances table, the Recorded-gate-runs
 table, or a new ADR. ADR 0021 used all three for its three components.
 Recommended default: **one ADR carrying the verdict and recheck trigger, plus one
 Component-stances row and one Recorded-gate-runs row pointing at it**, in the
@@ -302,7 +302,7 @@ recommendation · `plugins-repo-explore/EXPLORE-open-questions.md` q3.
 
 Reasoning as recorded:
 
-- The composition already exists — `discovery:research-deep` fanning lanes +
+- The composition already exists: `discovery:research-deep` fanning lanes +
   `knowledge:map-corpus` / `docpage-digest` + `claude-ops:changelog` +
   `claude-ops:known-issues`. **Five of the six steps in a feature deep-dive are
   already owned.**
@@ -323,7 +323,7 @@ Reasoning as recorded:
 
 The decision is **not** "build a mod or not". It is a verdict on one row of
 `docs/plugin-philosophy.md`'s Component-stances table, recorded in the
-Recorded-gate-runs four-part shape with a recheck trigger — machinery that is
+Recorded-gate-runs four-part shape with a recheck trigger, machinery that is
 written, precedented four times, and needs no new mechanism.
 
 Suggested recheck trigger, matching the precedents' form: *the official mods

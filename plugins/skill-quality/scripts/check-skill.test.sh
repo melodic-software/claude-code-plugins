@@ -3278,11 +3278,11 @@ None known.
 '
 out="$(run audit 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out"; then
-  pass "audit verb + mutate-advertising description warns (verb-contract)"
+  pass "audit verb + mutate-advertising description fails (verb-contract)"
 else
-  fail "audit+mutate-desc should warn (rc=$rc): $out"
+  fail "audit+mutate-desc should fail (rc=$rc): $out"
 fi
 
 # 25b. The compliant override shape — audit + --fix in the listing — is silent.
@@ -3325,11 +3325,11 @@ None known.
 '
 out="$(run fix 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q "leaf verb 'fix' mutates the target" <<<"$out"; then
-  pass "fix verb + read-only description warns (verb-contract)"
+  pass "fix verb + read-only description fails (verb-contract)"
 else
-  fail "fix+readonly-desc should warn (rc=$rc): $out"
+  fail "fix+readonly-desc should fail (rc=$rc): $out"
 fi
 
 # 25d. Description claims read-only; body mutates on bare invocation.
@@ -3349,11 +3349,11 @@ None known.
 '
 out="$(run report-then-write 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q 'body mutates on bare invocation' <<<"$out"; then
-  pass "read-only description + bare-mutate body warns (verb-contract)"
+  pass "read-only description + bare-mutate body fails (verb-contract)"
 else
-  fail "readonly-desc+bare-mutate-body should warn (rc=$rc): $out"
+  fail "readonly-desc+bare-mutate-body should fail (rc=$rc): $out"
 fi
 
 # 25e. Description advertises fixing; body claims the skill never mutates.
@@ -3373,11 +3373,11 @@ None known.
 '
 out="$(run advertise-no-write 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q 'description lead advertises fixing' <<<"$out"; then
-  pass "mutate-advertising description + never-mutates body warns (verb-contract)"
+  pass "mutate-advertising description + never-mutates body fails (verb-contract)"
 else
-  fail "mutate-desc+never-mutate-body should warn (rc=$rc): $out"
+  fail "mutate-desc+never-mutate-body should fail (rc=$rc): $out"
 fi
 
 # 25f. A Use-when trigger phrase containing "fix" does not advertise mutation
