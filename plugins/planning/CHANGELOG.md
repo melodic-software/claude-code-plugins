@@ -19,7 +19,6 @@ All notable changes to the `planning` plugin are documented here. Format follows
   committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
   carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
 
-
 ## [0.45.5] - 2026-09-28
 
 ### Added
