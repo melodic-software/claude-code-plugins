@@ -1,6 +1,6 @@
 ---
-description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; when the bundled doctor skill resolves in this session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
-argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
+description: "When the built-in skill-doctor command resolves in your session, prefer it for cost; when the bundled doctor skill resolves in your session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
+argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,9 @@ metadata:
   summary: Which skills the model can actually see, which are starved, and which are unobservable
   cadence: weekly
 ---
+## Run-start suggestion
+
+If /skill-doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
 ## Purpose
 
@@ -342,7 +345,7 @@ the settings file that did), and says so when there is nothing to fix.
 | Question | Owner |
 |---|---|
 | Why is my fleet unused, starved, unwanted, or unobserved? Does skill B get invoked where skill A ran? | **this skill**, the second via `scripts/skill-pair-cooccurrence.sh`, co-occurrence and never attribution ([reference/pair-cooccurrence.md](reference/pair-cooccurrence.md)) |
-| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in this session; the bundled `/doctor` skill's checkup, when that one resolves; the Stats tab carries the `/skill-doctor` report in an interactive session |
+| Which skills are unused vs their context cost, right now? | Claude Code's own built-in `/skill-doctor` command, when it resolves in your session; the bundled `/doctor` skill's checkup, when that one resolves; the Stats tab carries the `/skill-doctor` report in an interactive session |
 | Is a repo's authored listing over budget? | `skill-quality`'s `check-listing-budget.sh` |
 | What is installed and invocable? | `/claude-ops:inventory` |
 | Is the telemetry pipeline healthy? | `/claude-ops:observability` |
@@ -366,7 +369,7 @@ conflated whenever a fleet looks unused:
   computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
   withholding every verdict the span cannot support. Read-only.
 
-**Routing.** When either native surface resolves in this session, prefer it for "which skills are
+**Routing.** When either native surface resolves in your session, prefer it for "which skills are
 unused versus their cost, right now". Prefer this skill when the answer has to survive a young
 usage store, when starved and unwanted must be told apart, or when the question is whether skill
 B fires where skill A ran.
@@ -379,6 +382,12 @@ user act.
 environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
 gate; this section states what to do when one resolves, never that it is present. The four-part
 records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+
+## Run-end suggestion
+
+If /doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
+
+**`unattended`:** record both suggestions in the report; do not ask.
 
 ## Gotchas
 
