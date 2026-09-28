@@ -99,6 +99,16 @@ Bundled lanes:
 | `docs-prose` | `lanes/docs-prose.md` | Markdown prose: skill bodies, docs |
 | `self-update` | `lanes/self-update.md` | This plugin's own files (maintainer checkout only) |
 
+There is **no bundled lane** for general JavaScript/TypeScript or other polyglot source trees whose
+only code is a few scripts (for example `.github/scripts/*.mjs`). Use a project layer under
+`.claude/tidy-lanes/` copied from `templates/polyglot-services-lane.template.md` or
+`templates/apps-lane.template.md`, or run `dry-run` with an explicit glob the operator names in the
+prompt — not a fourth shipped lane ([#4536](https://github.com/melodic-software/claude-code-plugins/issues/4536)).
+**Claim:** bundled `tidy` lane rotation does not cover script-only JS repos without a project lane
+file. **Basis:** #4536 (`.github` hygiene sweep); bundled catalog is shell-tooling, docs-prose, and
+self-update only. **As of:** 2026-09-28. **Recheck:** a bundled `lanes/*.md` general-source lane
+ships, or documented `tidy <glob>` contract lands, or #4536 unpark.
+
 Bundled templates (copy + adapt into `.claude/tidy-lanes/`):
 
 | Universal pattern | Template |

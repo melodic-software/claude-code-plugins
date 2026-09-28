@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.7] - 2026-09-28
+
+### Changed
+
+- **`tidy` lane catalog notes no bundled JS/general lane** ([#4536](https://github.com/melodic-software/claude-code-plugins/issues/4536)).
+  Script-only repos use project `.claude/tidy-lanes/` or explicit dry-run globs. Version 0.23.7
+  serializes with other open code-tidying parks on the same base.
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed
