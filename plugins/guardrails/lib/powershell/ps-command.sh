@@ -2265,8 +2265,12 @@ ps::print_unparsable_block_message() {
   echo "  <subject>" >&2
   echo "  '@ | git commit -F -" >&2
   echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
-  # `herestring-comment-char` has no allow token (same reason as the git twin).
-  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+  # The no-token family has no allow token (same reason as the git twin).
+  if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
+        "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||
+        "$PS_SINK_TRIGGER" == herestring-comment-span ||
+        "$PS_SINK_TRIGGER" == herestring-orphan-closer ||
+        "$PS_SINK_TRIGGER" == bare-cr ]]; then
     echo "This sink shape has NO allow token. Rewrite instead: drop the comment, or move the here-string opener to a line of its own with no '#' on it. To switch the whole guard off, set the guardrails block_no_verify_enabled option to false (/plugin configure)." >&2
     return
   fi
