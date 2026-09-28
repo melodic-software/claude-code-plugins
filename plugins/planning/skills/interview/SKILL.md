@@ -325,7 +325,7 @@ For `auto`: classify intent against `context/loop.md` "Step 1.5. Auto-detect" cr
 **Unattended path: the guard holds, the run does not idle.** `/planning:interview` can be reached with no human to answer (a loop, a spawned worker, another skill's chain). The condition is **declared by the caller, never sniffed**. There is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user's is recorded `blocked` in the register, written to the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it. The guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".
 
 For `me` / `me <topic>`: skip Step 1.5, force Q&A.
-For `scope` / `scope <topic>`: skip Step 1.5 unless the topic is empty (then treat as `scope` on the current task). Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
+For `scope` / `scope <topic>`: skip Step 1.5; with no topic, scope the current task. Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
 For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.
 
 ### Step 2. Drive the frontier-rounds loop
@@ -382,7 +382,7 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 section in chat (one `- <question>: <answer>` line per resolved row) and keep the open-question
 ledger in the memory slice as the durable record. The caller owns where those decisions land (for
 example a repo-sweep step commit). Skip the Step 4 `--brief` cross-check and skip `/planning:plan`
-handoff. `contract_tier: local` behavior without writing a Brief file.
+handoff.
 
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves, except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
 

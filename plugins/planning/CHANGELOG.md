@@ -9,7 +9,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`planning:interview scope` action** ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)):
   ad hoc scope rounds with ledger + register gate, no `PLAN.md` Brief; returns `Scope decisions:`
-  for callers such as repo-sweep.
+  for callers such as repo-sweep. `interview-defenses.test.sh` re-pins the frontmatter, Action
+  Router, Step 1.5, and Step 4 digests; `scope` skips auto-detect like `me` and leaves the
+  auto-guard and unattended path unchanged.
 
 ## [0.45.4] - 2026-09-28
 
