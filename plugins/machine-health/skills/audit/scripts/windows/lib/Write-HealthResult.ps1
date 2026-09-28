@@ -6,11 +6,12 @@ Canonical builder + emitter for the CheckResult schema defined in
 catalog/schemas/check-result.schema.json.
 
 .DESCRIPTION
-Every check script should build its result via New-HealthResult (or
-New-HealthFailureResult from its outer catch) and emit via Complete-HealthCheck
-rather than hand-constructing JSON. Guarantees consistent field names, ISO 8601
-timestamps with offset, correct severity casing, and schema validation at emit
-time.
+Every check script should build its result via New-HealthResult and emit it by
+dot-sourcing Invoke-HealthCheckEnvelope.ps1. The envelope owns the stopwatch,
+the outer try/catch, the UNKNOWN fallback, the duration stamp, and the result
+write.
+Guarantees consistent field names, ISO 8601 timestamps with offset, correct
+severity casing, and schema validation at emit time.
 
 Validation: Write-HealthResult calls Assert-CheckResult before serialization.
 A broken check crashes inside its Start-Job and the orchestrator records
