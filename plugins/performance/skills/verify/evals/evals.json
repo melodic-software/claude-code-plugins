@@ -123,6 +123,18 @@
         "Names /performance:protect as the next step to lock the counter win in",
         "Does not merge the change"
       ]
+    },
+    {
+      "id": 11,
+      "name": "runs-the-bundled-differential",
+      "prompt": "/performance:verify the guard rewrite. The old guard is at /d/wt/base/hooks/guard.py and the new one at /d/wt/head/hooks/guard.py. It runs in two modes, `--mode belt` and no --mode at all. Prove behavior did not change.",
+      "expected_output": "Runs the plugin's bundled `scripts/differential.py` with `--baseline`, `--candidate`, and a config whose matrix covers both modes, including the no-`--mode` case as a null entry. Does not write its own comparison loop. Reports byte-identical stdout and exit code per mode, discloses any stderr difference as outside that bar, and lists any unexercised mode under Not covered.",
+      "files": [],
+      "expectations": [
+        "Invokes the bundled scripts/differential.py by its plugin-root path rather than writing a comparison loop",
+        "The config's matrix covers both modes, including the absent --mode case",
+        "Reports the modes actually exercised"
+      ]
     }
   ]
 }

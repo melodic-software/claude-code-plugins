@@ -406,7 +406,8 @@ assert_absent 'no evals entry counts the gate criteria' \
 # turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
 # below it, writes an index skeleton marked `Run status: in progress` early, and
 # replaces the marker only in its final write. The envelope carries the stop
-# turn as a second Budget line. The research side also names a claim's primary
+# turn as a second Budget line. Each agent reads a file once, so turns go to
+# gathering rather than re-reading. The research side also names a claim's primary
 # source in the sidecar header and the read-only `gh` forms.
 # ---------------------------------------------------------------------------
 
@@ -446,6 +447,8 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'Turn budget:'
   assert_present "$file keeps a denied path unread by every other tool" \
     "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
+  assert_present "$file reads each file once and re-reads only to see its own change" \
+    "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
 assert_absent 'no agent says it cannot observe its own turn budget' \
   'cannot observe your own remaining turn'
@@ -589,6 +592,35 @@ if [[ -f "$PLUGIN_ROOT/scripts/check-source-applicability.py" ]]; then
 else
   fail 'the source-applicability checker ships'
 fi
+
+# ---------------------------------------------------------------------------
+# 16. The research verifier is a named, read-only agent the parent dispatches
+#     from a copyable block, and a skip is recorded rather than left pending
+#     (#4231)
+# ---------------------------------------------------------------------------
+verifier='agents/research-verifier.md'
+if [[ -f "$PLUGIN_ROOT/$verifier" ]]; then
+  pass 'the research verifier agent ships'
+  assert_present 'the verifier names an explicit model' "$verifier" '^model: [a-z]'
+  assert_present 'the verifier allowlist holds only read tools' \
+    "$verifier" '^tools: "Read, Grep, Glob, WebFetch, WebSearch"$'
+  assert_present 'the verifier returns the literal verification line' \
+    "$verifier" '^verification_line: "verification: pass \(research-verifier, <YYYY-MM-DD>\)"$'
+else
+  fail 'the research verifier agent ships'
+fi
+assert_present 'SKILL.md carries a copyable verifier dispatch block' \
+  'skills/research/SKILL.md' '^  subagent_type: "discovery:research-verifier",$'
+assert_present 'SKILL.md dispatches the verifier at the gate-printed index path' \
+  'skills/research/SKILL.md' 'Target: <the index= path the artifact gate printed>'
+for file in skills/research/SKILL.md skills/research/context/dispatch.md \
+  skills/research/context/artifact-shape.md; do
+  assert_present "$file records a cost skip as skipped (cost)" "$file" 'verification: skipped \(cost\)|`skipped \(cost\)`'
+done
+assert_present 'the researcher writes verification: pending in its first write' \
+  'agents/researcher.md' 'first write carries `verification: pending`'
+assert_present 'the artifact gate prints the verification value' \
+  'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

@@ -192,9 +192,9 @@ off, and the exclusions. Phase B cannot run against a record set built any other
 Run one **fresh read-only subagent per surface**, each sharing
 [reference/criteria.md](reference/criteria.md) and applying the per-surface check partition from
 the Scope boundary. **A record whose residency Phase A could not establish carries that state into
-its lane**: the lane still runs, and reports its findings as conditional on the named unresolved
-condition rather than as findings, since a removal or a rewrite proposed against a surface the
-session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
+its lane**: the lane still runs, and reports each result as `RESIDENCY-UNRESOLVED` with the named
+unresolved condition (Phase D) rather than as a finding, since a removal or a rewrite proposed
+against a surface the session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
 surface's files (the seeded checks span both evidence tiers; the scan itself is only ever
 deterministic pattern-marking):
 
@@ -335,6 +335,17 @@ covering the I15 managed-policy case and any finding routed to an owning reposit
 write `no change proposed` in the Proposed change column and, in place of the fenced diff, a one-line
 statement of who owns the resolution. Never manufacture a diff to satisfy the table; a check that
 forbids an edit and a report that demands one would otherwise contradict each other.
+
+**A lane whose surface residency is unresolved emits `RESIDENCY-UNRESOLVED`, not a finding.** The
+Proposed change column takes a closed set: a proposed removal or rewrite (with its fenced diff),
+`no change proposed` (above), or `RESIDENCY-UNRESOLVED`. The third is the verdict for every result
+of a lane whose Phase A record carries an unresolved residency condition: the row stays in the
+findings table so the surface is covered, its Proposed change cell reads
+`RESIDENCY-UNRESOLVED: <the unresolved condition, as Phase A named it>`, and it carries no fenced
+diff, since it is not work the reader can act on until that condition resolves. The candidate
+removal or rewrite may be described in the Finding cell as what the lane would propose once the
+surface is known to load. Such a row is not a proposal, so Phase C does not re-judge it and the
+`(unverified)` marker does not apply.
 
 Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (the
 live definition and the inert one, for shadowed skills and subagents, since MCP servers are outside this

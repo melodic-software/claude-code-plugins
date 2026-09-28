@@ -974,7 +974,16 @@ def resolve_authorized_data_root() -> str | None:
     direct = _argv_authorized_data_root(sys.argv[1:])
     if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
         return direct
-    plugin_root = _plugin_root_argument()
+    return data_root_for_plugin_root(_plugin_root_argument())
+
+
+def data_root_for_plugin_root(plugin_root: str | None) -> str | None:
+    """Steps 2-4 of ``resolve_authorized_data_root`` for a given install root.
+
+    The skill-frontmatter belt reaches its authority here with the substituted
+    ``--plugin-root``; the kill-switch probe reaches it with its own install
+    root, so the ``--data-root`` it reports is the one the belt will admit.
+    """
     if plugin_root:
         derived = _plugin_data_root_from_root(plugin_root)
         if derived:
@@ -1110,6 +1119,20 @@ def _display_data_root(authority: str | None) -> str | None:
     return os.fspath(Path(authority).expanduser().resolve(strict=False)).replace(
         "\\", "/"
     )
+
+
+def launch_disclosure(plugin_root: str | None) -> dict[str, str | None]:
+    """The interpreter and ``--data-root`` the denial guidance names, as data.
+
+    Spelled by the same two helpers ``_bash_allowlist_disclosure`` uses, so a
+    caller that reports these values (the kill-switch probe) and a denial issued
+    under the same interpreter and install root cannot disagree. ``data_root``
+    is ``None`` exactly when that guidance says no authority resolved.
+    """
+    return {
+        "hook_python": _display_python(),
+        "data_root": _display_data_root(data_root_for_plugin_root(plugin_root)),
+    }
 
 
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:

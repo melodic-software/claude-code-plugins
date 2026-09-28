@@ -3624,6 +3624,120 @@ class TargetRootIdentityTests(unittest.TestCase):
             remove.assert_not_called()
 
 
+class PreviewPlatformBlockerExitTests(unittest.TestCase):
+    """A platform-only blocker routes to the manual lane, not exit 3 (#4011)."""
+
+    NAMES = ("junk0.tmp", "junk1.tmp")
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
+        self.addCleanup(patcher.stop)
+        patcher.start()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.root = self.base / "target"
+        self.root.mkdir()
+        for name in self.NAMES:
+            (self.root / name).write_text("stale", encoding="utf-8")
+        snapshot = hygiene.scan_tree(self.root.resolve(), hygiene.load_policy(None))
+        (self.base / "snapshot.json").write_text(json.dumps(snapshot), encoding="utf-8")
+        plan = {
+            "version": 1,
+            "tier": "medium",
+            "candidates": [candidate(name, "medium") for name in self.NAMES],
+        }
+        (self.base / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    def preview_cli(self, platform: list[str]) -> tuple[int, dict[str, Any]]:
+        output = io.StringIO()
+        with (
+            mock.patch.object(hygiene, "execution_blockers", return_value=platform),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            redirect_stdout(output),
+        ):
+            status = hygiene.main(
+                [
+                    "preview",
+                    "--snapshot",
+                    str(self.base / "snapshot.json"),
+                    "--plan",
+                    str(self.base / "plan.json"),
+                ]
+            )
+        return status, json.loads(output.getvalue())
+
+    @staticmethod
+    def blockers(payload: dict[str, Any]) -> dict[str, list[str]]:
+        return {item["path"]: item["blockers"] for item in payload["candidates"]}
+
+    def test_platform_only_blocker_exits_zero_and_names_the_manual_lane(self) -> None:
+        status, payload = self.preview_cli([hygiene.PLATFORM_BLOCKER])
+        self.assertEqual(0, status)
+        self.assertEqual("blocked", payload["status"])
+        self.assertEqual("manual-handoff-lane", payload["outcome"])
+        self.assertIsNone(payload["approval_token"])
+        self.assertEqual(
+            {name: [hygiene.PLATFORM_BLOCKER] for name in self.NAMES},
+            self.blockers(payload),
+        )
+
+    def test_a_path_blocker_beside_the_platform_blocker_still_exits_three(self) -> None:
+        (self.root / self.NAMES[0]).write_text("changed after scan", encoding="utf-8")
+        status, payload = self.preview_cli([hygiene.PLATFORM_BLOCKER])
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["outcome"])
+        self.assertEqual(
+            {
+                self.NAMES[0]: ["changed-since-scan", hygiene.PLATFORM_BLOCKER],
+                self.NAMES[1]: [hygiene.PLATFORM_BLOCKER],
+            },
+            self.blockers(payload),
+        )
+
+    def test_other_host_blockers_still_exit_three(self) -> None:
+        status, payload = self.preview_cli(["dirfd-anchoring-unavailable"])
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["outcome"])
+
+    def test_a_clear_preview_exits_zero_for_explicit_approval(self) -> None:
+        status, payload = self.preview_cli([])
+        self.assertEqual(0, status)
+        self.assertEqual("ready-for-explicit-approval", payload["status"])
+        self.assertEqual("explicit-approval", payload["outcome"])
+
+    def test_apply_still_refuses_a_platform_only_preview(self) -> None:
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+            ),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "apply_plan") as apply_plan,
+            redirect_stdout(output),
+        ):
+            status = hygiene.main(
+                [
+                    "apply",
+                    "--execute",
+                    "--snapshot",
+                    str(self.base / "snapshot.json"),
+                    "--plan",
+                    str(self.base / "plan.json"),
+                    "--confirm-tier",
+                    "medium",
+                    "--approval-token",
+                    "0" * 24,
+                    "--report",
+                    str(self.base / "report.json"),
+                ]
+            )
+        self.assertEqual(3, status)
+        apply_plan.assert_not_called()
+
+
 class HandoffVerifyTests(unittest.TestCase):
     """handoff-verify: read-only manual-lane revalidation (#1109)."""
 
