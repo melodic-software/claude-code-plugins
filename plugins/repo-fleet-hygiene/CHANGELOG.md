@@ -3,6 +3,31 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.41] - 2026-09-28
+
+### Fixed
+
+- `audit` classifies each repository's linked worktrees against that repository's own
+  `worktreeroot.path`, read with `git -C <canonical> config` so an `includeIf` override applies.
+  It used one root for the whole fleet, taken from the first target that resolved one, so a
+  repository whose `includeIf` set a different root had its correctly placed worktrees reported as
+  `worktree-outside-configured-root`, with a remedy naming the other repository's root. A
+  repository with no key of its own falls back to the project directory's key, then source-control
+  `worktree_root`. When repositories resolve different roots, `worktree-root-conformance-summary`
+  lists each root with its repository count.
+
+## [0.23.40] - 2026-09-28
+
+### Added
+
+- **`audit` emits one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding when every live `ls-remote` probe in the run fails** ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)). Per-repository `merged-remote-branch` rows stay MEDIUM cached observations; they are not independent. Empty ls-remote (head already gone) is a successful probe and does not count as a failure. A mixed run with at least one success does not emit the fleet finding.
+
+## [0.23.39] - 2026-09-28
+
+### Fixed
+
+- **`audit` classifies each repository's worktrees against that repository's own worktree root** ([#4212](https://github.com/melodic-software/claude-code-plugins/issues/4212)). One root was resolved for the whole fleet from the first target that had one. With a global `worktreeroot.path = D:/worktrees` and an `includeIf` giving the chezmoi source `~/.local/share/chezmoi-worktrees`, an audit that reached chezmoi first reported a correctly placed `D:/worktrees/github-iac-*` worktree as `worktree-outside-configured-root`. It then advised recreating it under the chezmoi root. Each canonical checkout's `worktreeroot.path` is now read with `git -C <canonical>`, which honors `includeIf`, and that repository's findings and rollup name the root it used. A checkout with no key keeps the fleet default. The header still names the fleet default, and `worktree-root-conformance-summary` lists every repository whose own root differed.
+
 ## [0.23.38] - 2026-09-28
 
 ### Fixed

@@ -51,6 +51,14 @@ them. It is therefore not a recognized key, and a layer that sets it is reported
 Markdown with a fenced YAML block (human-readable, shell-greppable). Prose outside the block is the
 consumer's own commentary and is not parsed.
 
+### Consumer `## Gotchas` (cascade tier, #3547)
+
+A `## Gotchas` section in this file (outside the YAML fence) is the **local tier** for
+repo-specific lines the model should see when `/bugs:scan` or `/bugs:write` loads. Layers
+concatenate in cascade order after the bundled gotchas. Generalizable lines belong in the shipped
+skill via an issue to this marketplace; see
+[`docs/conventions/config-cascade/consumer-gotchas.md`](../../../docs/conventions/config-cascade/consumer-gotchas.md).
+
 ````markdown
 # bugs config
 

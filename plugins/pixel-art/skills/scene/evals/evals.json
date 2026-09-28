@@ -84,6 +84,19 @@
         "Does not invoke the scene skill for hand-drawn or ink-style animation",
         "Does not turn the request into a pixel-art scene"
       ]
+    },
+    {
+      "id": 8,
+      "name": "records-scene-brief-and-grades-criteria",
+      "prompt": "pixel-art scene, 240x160: the watchman from ./watchman/watchman.json (brief.md is beside that spec) stops at a gate at dusk. Done when the gate reads darker than the sky and the line of dialogue is legible.",
+      "expected_output": "Fires /pixel-art:scene. Reads the sprite's brief.md and extends it with beats, cast, resolution, and audio instead of re-asking subject or proportions. Writes the scene brief beside the template before the first build. Each review round marks every done criterion pass or fail with a one-line reason, including marking a criterion fail with reason 'not seen' when no browser tool is present.",
+      "files": [],
+      "expectations": [
+        "Reads the brief beside the reused sprite spec and extends it",
+        "Writes the scene brief before the first build",
+        "Each review round marks each done criterion pass or fail with a one-line reason",
+        "Does not re-ask fields the sprite brief already answers"
+      ]
     }
   ]
 }

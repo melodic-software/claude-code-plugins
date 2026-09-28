@@ -48,7 +48,7 @@ Six skills, one capability:
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
-  symbols, and a portable grep lane for shell and other symbol languages). Every
+  symbols, and a portable grep lane for shell and PowerShell). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
   writes nothing and deletes nothing.
@@ -115,7 +115,8 @@ personal variation is limited to lane names the team does not track: an uncommit
 - Graceful degrade: if the `discovery` plugin is installed, explore/research
   phases use `/discovery:explore` + `/discovery:research`; if `work-items` is
   installed, deferrals file through `/work-items:track add`; if
-  `pr-review-toolkit` is installed, batch-simplify uses its `code-simplifier`
+  `code-simplifier` (or legacy `pr-review-toolkit`) is installed, batch-simplify uses its
+  `code-simplifier`
   agent. Absent any of them, the skills fall back to inline
   exploration/research, `gh issue create`, and general-purpose agents.
 - Reads your conventions, assumes none: canonical build/test/lint commands,

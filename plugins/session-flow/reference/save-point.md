@@ -117,6 +117,13 @@ or a remembered state, carries an explicit `UNVERIFIED (<source>)` marker instea
 treats an unmarked claim as fact and builds on it, so an inherited claim is a claim to falsify, not
 a fact to forward.
 
+**Verified is not CI-green.** A pushed commit, a "CI is running" observation, or a local test
+pass is not a green check. A fix still in CI, merge, or another unreturned check is
+`UNVERIFIED (<check>)`, naming the run id, job name, or PR check, never plain "the fix" or
+"verified". The handoff is not amended later by default, so a pending check written as fact
+stays wrong. A pending-verification field in the shape is parked:
+[`skills/handoff/reference/pending-ci-caveat.md`](../skills/handoff/reference/pending-ci-caveat.md).
+
 This governs both paths, not just the full path's body sections. On the full path it shows up
 throughout [`structure.md`](structure.md), most visibly the met/unmet marks in Completion criteria.
 Prompt-only writes no body sections, so the marker attaches directly to whichever inline

@@ -104,6 +104,79 @@ else
   fail "frontmatter-less skill should fail (rc=$rc): $out"
 fi
 
+# 3b. An unquoted ": " in a plain description is a YAML mapping indicator.
+colon_body='---
+name: colon-skill
+description: Use when: the user asks for a thing.
+---
+
+## Purpose
+
+A skill whose plain description contains a mapping indicator.
+
+## Gotchas
+
+None known.
+'
+make_skill colon-skill "$colon_body"
+out="$(run colon-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "YAML mapping indicator" <<<"$out"; then
+  pass "unquoted colon-space in description fails"
+else
+  fail "unquoted colon-space in description should fail (rc=$rc): $out"
+fi
+
+# 3c. A block scalar may contain the indicator, and a short compatibility passes.
+block_body='---
+name: block-colon-skill
+description: |
+  Use when: the user asks for a thing.
+compatibility: Requires git.
+---
+
+## Purpose
+
+A block description may contain a colon-space.
+
+## Gotchas
+
+None known.
+'
+make_skill block-colon-skill "$block_body"
+out="$(run block-colon-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "YAML mapping indicator" <<<"$out"; then
+  pass "block description with colon-space and a short compatibility passes"
+else
+  fail "block description with colon-space should pass (rc=$rc): $out"
+fi
+
+# 3d. compatibility outside 1-500 fails. 501 ASCII characters.
+long_compat="$(printf 'x%.0s' {1..501})"
+compat_body="---
+name: compat-skill
+description: \"Do a thing. Use when a thing is needed.\"
+compatibility: ${long_compat}
+---
+
+## Purpose
+
+Compatibility longer than the spec allows.
+
+## Gotchas
+
+None known.
+"
+make_skill compat-skill "$compat_body"
+out="$(run compat-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "compatibility is 501 characters" <<<"$out"; then
+  pass "compatibility over 500 characters fails"
+else
+  fail "compatibility over 500 characters should fail (rc=$rc): $out"
+fi
+
 # 4. Missing skill errors with exit 1.
 run does-not-exist >/dev/null 2>&1
 rc=$?
@@ -3278,11 +3351,11 @@ None known.
 '
 out="$(run audit 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out"; then
-  pass "audit verb + mutate-advertising description warns (verb-contract)"
+  pass "audit verb + mutate-advertising description fails (verb-contract)"
 else
-  fail "audit+mutate-desc should warn (rc=$rc): $out"
+  fail "audit+mutate-desc should fail (rc=$rc): $out"
 fi
 
 # 25b. The compliant override shape — audit + --fix in the listing — is silent.
@@ -3325,11 +3398,11 @@ None known.
 '
 out="$(run fix 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q "leaf verb 'fix' mutates the target" <<<"$out"; then
-  pass "fix verb + read-only description warns (verb-contract)"
+  pass "fix verb + read-only description fails (verb-contract)"
 else
-  fail "fix+readonly-desc should warn (rc=$rc): $out"
+  fail "fix+readonly-desc should fail (rc=$rc): $out"
 fi
 
 # 25d. Description claims read-only; body mutates on bare invocation.
@@ -3349,11 +3422,11 @@ None known.
 '
 out="$(run report-then-write 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q 'body mutates on bare invocation' <<<"$out"; then
-  pass "read-only description + bare-mutate body warns (verb-contract)"
+  pass "read-only description + bare-mutate body fails (verb-contract)"
 else
-  fail "readonly-desc+bare-mutate-body should warn (rc=$rc): $out"
+  fail "readonly-desc+bare-mutate-body should fail (rc=$rc): $out"
 fi
 
 # 25e. Description advertises fixing; body claims the skill never mutates.
@@ -3373,11 +3446,11 @@ None known.
 '
 out="$(run advertise-no-write 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+if [[ $rc -eq 1 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
   grep -q 'description lead advertises fixing' <<<"$out"; then
-  pass "mutate-advertising description + never-mutates body warns (verb-contract)"
+  pass "mutate-advertising description + never-mutates body fails (verb-contract)"
 else
-  fail "mutate-desc+never-mutate-body should warn (rc=$rc): $out"
+  fail "mutate-desc+never-mutate-body should fail (rc=$rc): $out"
 fi
 
 # 25f. A Use-when trigger phrase containing "fix" does not advertise mutation
@@ -4677,6 +4750,43 @@ if [[ $rc -eq 0 && "$ml_log" == local\|* ]] && ! grep -q 'npx not found' <<<"$ou
   pass "R20c: a local markdownlint-cli2 runs with no npx on PATH"
 else
   fail "R20c: the local install should run without npx (saw: $ml_log): $out"
+fi
+
+model_tail='
+## Purpose
+
+A skill with a frontmatter model field.
+
+## Gotchas
+
+None known.
+'
+make_skill model-ok "---
+name: model-ok
+description: \"Do a thing. Use when: 'a thing' is needed.\"
+model: opus[1m]
+---
+$model_tail"
+out="$(run model-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
+  pass "frontmatter model opus[1m] passes"
+else
+  fail "frontmatter model opus[1m] should pass (rc=$rc): $out"
+fi
+
+make_skill model-bad "---
+name: model-bad
+description: \"Do a thing. Use when: 'a thing' is needed.\"
+model: two words
+---
+$model_tail"
+out="$(run model-bad 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "frontmatter model" <<<"$out"; then
+  pass "frontmatter model with a space fails"
+else
+  fail "spaced model should fail (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

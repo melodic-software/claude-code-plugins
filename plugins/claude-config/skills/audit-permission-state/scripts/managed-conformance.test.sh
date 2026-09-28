@@ -195,6 +195,7 @@ OUT=$(report "$UNREAD")
 assert_eq "one note per surface that could not be read" 2 "$(count_matching "$OUT" 'MANAGED-NOTE: the managed surface')"
 assert_contains "an unread surface is not evidence of absence" "$OUT" "not evidence that no policy is deployed"
 assert_contains "server-managed settings are disclosed on every run" "$OUT" "no local path"
+assert_contains "managed-policy diagnosis routes to /status" "$OUT" "Organization policy"
 
 # No local policy at all is stated, not implied by an empty report.
 NO_POLICY=$(

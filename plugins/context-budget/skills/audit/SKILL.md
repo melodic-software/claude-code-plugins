@@ -1,6 +1,6 @@
 ---
-description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary, including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default: measures and reports, changes no configuration; `fix` as an explicit argument applies one project-scope trim at a time behind the operator's approval."
-argument-hint: "[--full-sweep] every live tool | [--tools T1,T2] chosen tools | [--ledger] history | [fix] guided trim (explicit override)"
+description: "Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
+argument-hint: "[--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -65,6 +65,12 @@ is the honest boundary of the claim.
   mkdir -p "${CLAUDE_PLUGIN_DATA}/sdk" && npm install --prefix "${CLAUDE_PLUGIN_DATA}/sdk" @anthropic-ai/claude-agent-sdk
   ```
 
+  On Windows, print the PowerShell form instead of that POSIX line:
+
+  ```powershell
+  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
+  ```
+
 ## Workflow
 
 ### 1. Derive the per-project data directory
@@ -101,13 +107,19 @@ memorized inventory. Ask the operator (or take from arguments) which to measure:
   ```shell
   node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" attribute \
     --tools <T1,T2,...> --verify-additivity --sdk-dir "${CLAUDE_PLUGIN_DATA}/sdk" \
+    --operator-deny <bare names already in permissions.deny> \
     --out <data-dir>/attribution.json
   ```
 
-- The **full sweep** (`--tools from-baseline`) prices every live tool; warn that it is one run per
-  tool and let the operator opt in. Interactive-only tools never appear in that live list:
-  Artifact, SendUserFile, AskUserQuestion, plan-mode tools, interactive-only MCP servers. The
-  attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
+  `--operator-deny` is the operator's existing bare-name denies, comma-separated. Omit it only
+  when that list is empty. A denied interactive-only name is `knownUncovered.deniedAbsent`, not
+  a structural absence.
+
+- The **full sweep** is the skill argument `--full-sweep`. The engine flag is `--tools
+  from-baseline`. It prices every live tool; warn that it is one run per tool and let the
+  operator opt in. Interactive-only tools never appear in that live list: Artifact,
+  SendUserFile, AskUserQuestion, plan-mode tools, EndConversation, interactive-only MCP servers.
+  The attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
   never as absent. That category is distinct from unmeasured-but-candidate.
 
 Report the ranked `perTool` table with the binary stamp, and each row's `comparable` flag: a row
@@ -141,12 +153,16 @@ catalogue's own meta:
 
   ```shell
   node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" verify-catalogue \
-    --binary <stamped-binary> --out <data-dir>/catalogue-verify.json
+    --binary <stamped-binary> --find-unstored --out <data-dir>/catalogue-verify.json
   ```
 
   The binary is the authority on *existence* of each key/env name at the measured version; the
   docs fetch remains the authority on *semantics*. Report every `absent` token by name. Silence
-  reads as "present".
+  reads as "present". `--find-unstored` lists env names in the binary that no catalogue row
+  cites (`unstored`). The catalogue does not claim to hold every switch. A row with
+  `saving: "runtime-resolved"` is priced by the measurement, not by its stored category. A row
+  with `measurementScope: "unmeasurable-in-this-session-kind"` is reported in that group, not as
+  a zero.
 - **Keep the two ledgers apart** (the catalogue's `dualLedger` note): context-window occupancy
   versus per-request weight. Deferral moves weight between them; only removal clears both.
 
@@ -179,8 +195,9 @@ otherwise use the payload's share of the measured window.
 
 ## Reading the numbers honestly
 
-- **A scoped deny saves nothing.** Only a bare tool name removes a schema from the request; a
-  scoped rule is a runtime guard whose schema still ships. Citations in
+- **A scoped deny saves nothing.** A bare tool name removes a schema from the request, except
+  `EndConversation`, which the permissions page exempts while any other tool remains. A scoped
+  rule is a runtime guard whose schema still ships. The dated record is in
   [`reference/engine.md`](reference/engine.md).
 - **A deferred tool is out of the context window but still in every request.** Do not present the
   deferred bucket as already-saved weight.

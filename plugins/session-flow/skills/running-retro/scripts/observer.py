@@ -701,6 +701,11 @@ class Observer:
             self.model,
             "--permission-mode",
             "dontAsk",
+            # Unattended print run: deny anything that would still prompt, and
+            # tell the model not to retry it. dontAsk already denies; the flag
+            # is the print-mode form that names the host as nobody.
+            "--permission-prompts",
+            "none",
             "--output-format",
             "json",
             # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the
