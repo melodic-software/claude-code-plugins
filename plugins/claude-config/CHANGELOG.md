@@ -3,6 +3,22 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Changed
+
+- **Permission and effort facts from Claude Code 2.1.257 to 2.1.261**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `required-permissions.md` now states that redirect targets are covered by Read and Edit deny
+  rules from 2.1.257, and that the 2.1.259 widening onto Bash arguments was reverted in 2.1.260.
+  Strict sandbox mode does not sandbox `!` shell-mode commands in an interactive session from
+  2.1.260. `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP
+  from 2.1.257. The audit checklist records `bashOutputMaxChars` (clamped 4000 to 128000, not
+  raised by default) and that `taskOutputMaxChars` was removed in 2.1.277. `audit-instructions`
+  I21 drops the "Opus 5 has no hold" sentence for the current model-config page: Opus 5.5 ignores
+  a top-level user `effortLevel`, and that key still applies on Opus 5, Fable 5.1, and earlier
+  models. Each claim cites the page read on 2026-09-28.
+
 ## [0.51.6] - 2026-09-28
 
 ### Changed
