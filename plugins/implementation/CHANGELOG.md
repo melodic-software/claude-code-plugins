@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-09-28
+
+### Added
+
+- **`implement_dispatch_wave_cap` userConfig option.** The operator can set how many worker rows
+  of one phase `implement-dispatch` runs at once. It declares no default, so unset keeps the
+  internal 3–5; a caller's `--wave-cap` still takes precedence for its invocation (#4272).
+- **`implementer` and `phase-verifier` list `PowerShell` in their `tools`.** A Windows worker or
+  verifier can run `.ps1` and pwsh-native commands directly instead of launching pwsh through
+  Bash, and briefs no longer carry that invocation form by hand. On a host without the
+  PowerShell tool the entry resolves to nothing and Bash remains (#4272).
+
 ## [0.19.2] - 2026-09-27
 
 ### Added
