@@ -139,7 +139,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that forces a permission prompt (permissionDecision ask) on any Write/Edit targeting a Claude Code settings surface |
+| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that asks on Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. Shell writes and files rendered into place are outside the matcher. |
 
 ### How to set these
 

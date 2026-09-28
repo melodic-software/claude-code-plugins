@@ -5,6 +5,7 @@
 #   tick.sh <id> in-progress                          "- [~] <id>: <skills>"
 #   tick.sh <id> committed <sha> <skill@version>...   "- [x] <id>: <skill@version, ...>, committed <sha>"
 #   tick.sh <id> no-findings <skill@version>...       "- [x] <id>: <skill@version, ...>, no findings"
+#   tick.sh <id> partial <detail> <skill@version>...  "- [x] ...>, no findings, partial coverage: <detail>"
 #   tick.sh <id> not-applicable <evidence> <skill@version>...
 #       "- [x] ...>, not applicable: <evidence>"
 #   tick.sh <id> report-only <n> <skill@version>...   "- [x] ...>, no fix-eligible findings (N report-only)"
@@ -21,6 +22,7 @@ set -euo pipefail
 usage() {
   printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> committed <sha> <skill@version>...\n' >&2
   printf '       tick.sh <id> no-findings <skill@version>...\n' >&2
+  printf '       tick.sh <id> partial <detail> <skill@version>...\n' >&2
   printf '       tick.sh <id> not-applicable <evidence> <skill@version>...\n' >&2
   printf '       tick.sh <id> report-only <n> <skill@version>...\n' >&2
   exit 2
@@ -37,6 +39,11 @@ committed)
   shift
   ;;
 no-findings) suffix=", no findings" ;;
+partial)
+  [[ ${1-} == ?* && $1 != *","* ]] || usage
+  suffix=", no findings, partial coverage: $1"
+  shift
+  ;;
 not-applicable)
   [[ ${1-} == ?* && $1 != *","* ]] || usage
   suffix=", not applicable: $1"

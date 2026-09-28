@@ -71,9 +71,10 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   `used_percentage`, null `current_usage` (early-session and post-`/compact` statusline states),
   a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the requested one,
   or missing `jq` all resolve `unknown`. Consumers take their conservative path on data they
-  cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
-  official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
-  tuning path. The trigger itself is operator-tunable even though its default is unpublished: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
+  cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults.
+  `zones.json` is the tuning path. The reader contract owns the published exception list,
+  including the native 1M window compacting before the window fills (about 967K tokens on the
+  model-config page re-read 2026-09-28). The trigger itself is operator-tunable: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
   `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`. Bands belong **below** whatever it resolves
   to, normalized into the percentage shape, so the session reaches a boundary decision before the
   harness compacts for it. Note that `used_percentage` always measures against the model's *full*
@@ -201,6 +202,10 @@ completes, so that write counts as seen and its crossing waits for the next stat
 window is the resolve, not an mtime tick. A missed crossing is therefore late, never lost, and the
 converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
 manufacture an injection the full path would not have made.
+
+#### Oversize envelope, unchanged inputs
+
+The 150 KB repeat row above paid a here-string `jq` before the unchanged-input skip could run, because the skip needs `session_id`. On a `PostToolBatch` envelope those ids are top-level strings and `tool_calls` is the nested value that makes the payload large (hooks reference: common fields include `session_id` and `hook_event_name`; `PostToolBatch` adds `tool_calls`). The hook now closes a leading scalar object at the comma before that first nested value and parses the two ids with the builtin parser. The skip then exits with no external command, the same budget as a small envelope. Ids that follow the nested value, or a header the scan cannot prove, still use the here-string `jq`. A rewritten snapshot still resolves, so a crossing is not dropped on this path. `zone-crossing-inject.test.sh` pins both arms by xtrace.
 
 #### The cost this pass added: a temp file on payloads over 64KiB
 

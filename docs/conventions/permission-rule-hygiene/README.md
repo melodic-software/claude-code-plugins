@@ -171,10 +171,13 @@ Three official constraints mean the operative allow-rule cannot be shipped by th
   `subagentStatusLine` keys", per
   [plugins-reference](https://code.claude.com/docs/en/plugins-reference) (Settings row). A
   `permissions` block placed there is inert.
-- **An agent editing its own settings to self-grant is blocked.** `defaultMode: "auto"` is ignored
-  from project/local settings "so a repository cannot grant itself auto mode" and `.claude/` writes are
-  a protected path routed to the classifier, per
-  [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
+- **An agent editing its own settings to self-grant is blocked.** `defaultMode: "auto"` and
+  `defaultMode: "bypassPermissions"` are ignored from project and local settings, so a repository
+  cannot grant itself auto mode or bypass permissions. `acceptEdits`, `plan`, and `dontAsk` still
+  apply there. `.claude/` writes are a protected path routed to the classifier. Re-read 2026-09-28
+  on [permission-modes](https://code.claude.com/docs/en/permission-modes) ("honor every value except
+  `auto` and `bypassPermissions`"). `bypassPermissions` joined the ignored set in Claude Code 2.1.257.
+  Recheck when that sentence drops either value.
 
 So the operative rule must be added **by the operator** to user-global
 `~/.claude/settings.json`.

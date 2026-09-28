@@ -3,10 +3,10 @@
 #
 #   scripts/hook-census.sh <plugin> <event> <row> <payload> [options]
 #
-#   <row>      fixed text the handler's `command` contains. The first handler
-#              under <event> in plugins/<plugin>/hooks/hooks.json whose command
-#              contains it is the one run, as registered: `sh -c <command>`, the
-#              shell the hooks docs name for a shell-form command on Linux.
+#   <row>      fixed text the handler's command or args contain. The first
+#              handler under <event> is the one run. Shell form (no args key)
+#              runs as `sh -c <command>`. Exec form (an args key) runs
+#              `command` with that vector, placeholders expanded, no shell.
 #   <payload>  the stdin JSON. `@DIR@` becomes the scratch repository (the
 #              fire's cwd and CLAUDE_PROJECT_DIR), `@TRANSCRIPT@` the generated
 #              transcript.
@@ -115,11 +115,26 @@ HOOKS_JSON="$ROOT/hooks/hooks.json"
   echo "hook-census: no $HOOKS_JSON" >&2
   exit 2
 }
-COMMAND="$(jq -r --arg e "$EVENT" --arg r "$ROW" \
-  'first(.hooks[$e][]?.hooks[]? | .command | select(type == "string" and contains($r))) // empty' \
+# Shell form is `sh -c <command>`, the Linux shell the hooks docs name.
+# Exec form (an `args` key, even empty) is the executable plus that vector,
+# with ${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA}, and ${CLAUDE_PROJECT_DIR}
+# expanded here. The row match looks at the command and at each arg, so a
+# needle that lives only in args still selects the row.
+HOOK_JSON="$(jq -c --arg e "$EVENT" --arg r "$ROW" \
+  'first(.hooks[$e][]?.hooks[]? | select(type == "object") | select(
+      ((.command // "") | tostring | contains($r))
+      or ((.args // []) | map(tostring) | join("\n") | contains($r))
+    )) // empty' \
   "$HOOKS_JSON")"
-[[ -n "$COMMAND" ]] || {
-  echo "hook-census: no $EVENT handler in $HOOKS_JSON has a command containing: $ROW" >&2
+[[ -n "$HOOK_JSON" ]] || {
+  echo "hook-census: no $EVENT handler in $HOOKS_JSON has a command or args containing: $ROW" >&2
+  exit 2
+}
+HOOK_COMMAND="$(jq -r '.command // empty' <<<"$HOOK_JSON")"
+HOOK_EXEC=0
+jq -e 'has("args")' <<<"$HOOK_JSON" >/dev/null && HOOK_EXEC=1
+[[ -n "$HOOK_COMMAND" ]] || {
+  echo "hook-census: the matched $EVENT row has no command" >&2
   exit 2
 }
 
@@ -156,8 +171,28 @@ census_once() {
       exit 2
     }
   fi
+  # expand_hook_field <text>: the three placeholders Claude substitutes
+  # into an exec-form command and each arg, as plain strings.
+  expand_hook_field() {
+    local s=$1
+    s=${s//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT}
+    s=${s//\$\{CLAUDE_PLUGIN_DATA\}/$run/data}
+    s=${s//\$\{CLAUDE_PROJECT_DIR\}/$dir}
+    printf '%s' "$s"
+  }
+  local -a launch=()
+  if ((HOOK_EXEC)); then
+    local expanded arg
+    expanded="$(expand_hook_field "$HOOK_COMMAND")"
+    launch=("$expanded")
+    while IFS= read -r arg; do
+      launch+=("$(expand_hook_field "$arg")")
+    done < <(jq -r '.args[]?' <<<"$HOOK_JSON")
+  else
+    launch=(sh -c "$HOOK_COMMAND")
+  fi
   if ((SEED)); then
-    (cd "$dir" && env -i "${env_args[@]}" sh -c "$COMMAND" <"$run/payload.json" >/dev/null 2>&1) || :
+    (cd "$dir" && env -i "${env_args[@]}" "${launch[@]}" <"$run/payload.json" >/dev/null 2>&1) || :
     ((bytes == 0)) || printf '%s\n' "$LINE" >>"$transcript"
   fi
 
@@ -167,7 +202,7 @@ census_once() {
   local rc=0
   (cd "$dir" && env -i "${env_args[@]}" \
     strace -ff -qq -s 400 -e signal=none "${trace[@]}" -o "$run/trace" \
-    sh -c "$COMMAND" <"$run/payload.json" >"$run/stdout" 2>"$run/stderr") || rc=$?
+    "${launch[@]}" <"$run/payload.json" >"$run/stdout" 2>"$run/stderr") || rc=$?
   if ((rc != 0)); then
     echo "hook-census: the fire exited $rc; stderr: $(head -c 2000 "$run/stderr")" >&2
     exit 3
