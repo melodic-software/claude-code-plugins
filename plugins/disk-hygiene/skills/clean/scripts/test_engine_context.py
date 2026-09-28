@@ -88,7 +88,7 @@ class EngineContextTest(unittest.TestCase):
             ["engine_context.py", "--plugin-root", str(self.plugin_root)]
         )
         python = re.search(r'^hook_python: "([^"]+)"$', text, re.MULTILINE)
-        data_root = re.search(r'^data_root: "([^"]+)"$', text, re.MULTILINE)
+        data_root = re.search(r'^data_root: "([^"]+)" \(from the ', text, re.MULTILINE)
         assert python and data_root, text
         engine = SCRIPT_DIR / "hygiene.py"
         command = (
@@ -101,7 +101,7 @@ class EngineContextTest(unittest.TestCase):
         text = self.context(
             ["engine_context.py", "--plugin-root", str(self.plugin_root)]
         )
-        data_root = re.search(r'^data_root: "([^"]+)"$', text, re.MULTILINE)
+        data_root = re.search(r'^data_root: "([^"]+)" \(from the ', text, re.MULTILINE)
         assert data_root, text
         engine = SCRIPT_DIR / "hygiene.py"
         command = (
@@ -109,6 +109,39 @@ class EngineContextTest(unittest.TestCase):
             f'--data-root "{data_root.group(1)}"'
         )
         self.assertEqual("deny", self.guard_decision(command))
+
+    def test_note_names_the_channel_that_supplied_the_data_root(self) -> None:
+        derived = (self.plugin_root.parents[3] / "data").as_posix()
+        cases = {
+            "plugin-cache layout": (
+                ["engine_context.py", "--plugin-root", str(self.plugin_root)],
+                f"{derived}/disk-hygiene-melodic-software",
+            ),
+            "--authorized-data-root argument": (
+                [
+                    "engine_context.py",
+                    "--plugin-root",
+                    str(self.plugin_root),
+                    "--authorized-data-root",
+                    str(self.plugin_root.parent / "direct"),
+                ],
+                (self.plugin_root.parent / "direct").as_posix(),
+            ),
+        }
+        for channel, (argv, expected) in cases.items():
+            with self.subTest(channel=channel):
+                self.assertIn(
+                    f'data_root: "{expected}" (from the {channel})',
+                    self.context(argv),
+                )
+
+    def test_env_data_root_is_never_reported(self) -> None:
+        elsewhere = self.plugin_root.parents[4] / "checkout"
+        elsewhere.mkdir()
+        os.environ["CLAUDE_PLUGIN_DATA"] = str(elsewhere / "from-env")
+        text = self.context(["engine_context.py", "--plugin-root", str(elsewhere)])
+        self.assertIn("data_root: none", text)
+        self.assertNotIn("from-env", text)
 
     def test_no_resolvable_data_root_says_so_and_still_exits_zero(self) -> None:
         text = self.context(["engine_context.py"])
