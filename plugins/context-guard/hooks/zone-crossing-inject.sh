@@ -243,6 +243,7 @@ cg::read_payload_to INPUT || exit 0
 # after the nested value, a header past the scan cap, a cut the builtin parser
 # rejects — falls through to the here-string jq this branch already had.
 # Sets CG_HEADER. Returns 0 when a nested value was found inside the cap.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 cg::leading_scalar_object() {
   local s="$1"
   local -i i=0 n=${#s} depth=0 in_str=0 esc=0
@@ -281,6 +282,7 @@ cg::leading_scalar_object() {
           last_comma=$i
         fi
         ;;
+      *) ;;
       esac
     fi
     i=$((i + 1))
