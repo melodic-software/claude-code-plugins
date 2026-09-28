@@ -140,6 +140,35 @@ ceilings that fail spuriously under concurrency. Selection is the lever.
 
 CI is unaffected, it still runs everything.
 
+### Local pre-flight for hygiene gates
+
+Several hygiene findings only show up after a push because the **gate name in CI is not the
+local command**. The gap is discoverability, not a missing runner, except one genuine hole
+(#3522).
+
+| CI gate / step id | Local command | Notes |
+|---|---|---|
+| `plugin-options-docs` | `python3 scripts/sync-plugin-options-docs.py --check` | Regenerates from `plugin.json` `userConfig`. Do not hand-edit the README block. |
+| `typos` | `typos --config _typos.toml` | Same config CI passes to the composite. |
+| `markdown` | `markdownlint-cli2` | Config: `.markdownlint-cli2.jsonc`. |
+| `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
+| `changelog-parity` | `scripts/check-changelog-parity.sh` | In-repo; see also `--check-bump`. |
+| `shell-portability` | `scripts/check-shell-portability.sh` | In-repo. |
+| `machine-specific-paths` | none in this repo | Composite in `melodic-software/ci-workflows`. Parked: there is no local runner. |
+
+There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
+consumes CI step outcomes; it does not run the gates. A pre-commit hook or a make target that
+wraps the runnable rows is a later tooling decision, not this record.
+
+- **Claim:** the mapping table is the local pre-flight path; `machine-specific-paths` stays a
+  known coverage gap with no in-repo runner.
+- **Basis:** #3522 (four CI round-trips on #3503). Confirmed 2026-09-28: `find` over this
+  checkout still has no `*machine-specific*` script; `ci.yml` pins
+  `melodic-software/ci-workflows/.github/actions/machine-specific-paths`.
+- **As of:** 2026-09-28.
+- **Recheck:** `ci-workflows` publishes a runnable local form of `machine-specific-paths`, or a
+  maintainer adds an in-repo wrapper or a documented make/script target for the runnable rows.
+
 ### The check-script contract
 
 `scripts/check-*.sh` is one family with one caller-visible interface, so a CI
