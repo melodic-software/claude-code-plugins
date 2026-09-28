@@ -342,6 +342,7 @@ cat >"$USERTEMP_STUB/cygpath" <<'EOF'
 if [[ "$1" == "-w" ]]; then
   shift
   if [[ "$1" == "/tmp" ]]; then
+    # portability-ok: placeholder Windows profile in the cygpath stub, not a redirection
     printf '%s\n' "${TEMP:-C:\\Users\\<user>\\AppData\\Local\\Temp}"
   else
     printf '%s\n' "$1"
@@ -351,7 +352,7 @@ fi
 exit 1
 EOF
 chmod +x "$USERTEMP_STUB/cygpath"
-USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\<user>\AppData\Local\Temp')
+USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\<user>\AppData\Local\Temp') # portability-ok: placeholder Windows profile, not a redirection
 run_win "usertemp: mkdir /tmp/x (allowed)" 'mkdir -p /tmp/x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >/tmp/x (allowed)" 'echo x > /tmp/x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: curl -o /tmp/x (allowed)" \

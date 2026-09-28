@@ -386,6 +386,7 @@ has_redirect_to_drive_root_tmp() {
     return 0
   fi
   if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+    # portability-ok: character-class angle brackets in a bash regex, not a GNU word boundary
     [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
     return 0
   fi
@@ -508,6 +509,8 @@ segment_downloader_output_operand() {
       ;;
     -O?*)
       dest="${tok#-O}"
+      ;;
+    *)
       ;;
     esac
   done
