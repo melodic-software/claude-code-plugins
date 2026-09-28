@@ -44,7 +44,7 @@ treat as precedent: the pilot is the evidence-gathering step, not a rollout.
 
 Fork pays when the body is a long, argument-scoped, read-only procedure whose file reading would
 otherwise stay in the main conversation. It costs the parent history, mid-run user interaction,
-and — unless `background: false` is set — the invoking turn's result timing.
+and, unless `background: false` is set, the invoking turn's result timing.
 
 ## When fork pays
 
@@ -132,7 +132,7 @@ anti-candidate wins.
 ## Cross-references
 
 - plugin-philosophy: Convention registry (this doc's row); Skills row of the adoption table
-  (`context: fork` is case-by-case through the adoption gate — the pilot is that gate's first
+  (`context: fork` is case-by-case through the adoption gate; the pilot is that gate's first
   in-fleet use).
 - [invocation-mode](../invocation-mode/README.md): whether the model may invoke the skill; orthogonal.
 - `playbooks:skill-authoring`: authoring-time pointer here.
