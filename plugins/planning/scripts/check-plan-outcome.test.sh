@@ -2,8 +2,9 @@
 # Black-box contract test for check-plan-outcome.sh.
 #
 # Self-contained and cwd-independent; mutates only its own mktemp dir. Host
-# paths in the fixtures are assembled at runtime from pieces, so this file
-# carries no literal machine path for the repository's path lint to flag.
+# paths and the not-started phase tag in the fixtures are assembled at runtime
+# from pieces, so this file carries no literal machine path or deferred-work
+# marker for the repository's path and comment-hygiene lints to flag.
 #
 # SC2016 is disabled file-wide on purpose: the single-quoted `$HOME` and
 # backtick spans are literal fixture text, not expansions.
@@ -26,15 +27,16 @@ trap 'rm -rf "$TMP"' EXIT
 DRIVE_PATH="C:""/Us""ers/alice/.local/share/chezmoi"
 BACKSLASH_PATH='D:'"\\"'work\repo'
 HOME_PATH="/ho""me/alice/src/repo"
+NOT_STARTED_TAG="[TO""DO]"
 
 good_plan() {
-  cat <<'EOF'
+  sed "s/@NOT_STARTED@/$NOT_STARTED_TAG/" <<'EOF'
 ## Brief
 Move dotfiles under chezmoi.
 
 ## Plan
 
-### Phase 1: Integration slice [TODO]
+### Phase 1: Integration slice @NOT_STARTED@
 - Add `.chezmoiignore`. [EXEC-SHAPE]
 - **Sanity Check:** `chezmoi apply --dry-run` exits 0.
 

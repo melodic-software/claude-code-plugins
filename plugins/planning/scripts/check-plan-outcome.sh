@@ -5,7 +5,8 @@
 # that can be decided off the file are decided here, with no model involvement:
 #
 #   phases          at least one `### Phase N:` heading (N is 1, 2.5, 3a, or IV)
-#   status-tags     every `### Phase N:` heading ends in [TODO], [DOING] or [DONE]
+#   status-tags     every `### Phase N:` heading ends in one of the three status
+#                   tags /planning:plan defines: not-started, [DOING] or [DONE]
 #                   (a note inside the brackets, as in [DOING - standing], is kept)
 #   sanity-checks   every phase section carries at least one `Sanity Check`
 #   decisions       when the plan tags a decision [EXEC-SHAPE] or [FALLBACK], a
