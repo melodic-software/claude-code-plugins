@@ -286,9 +286,12 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   FAILED=0
   BYTES=0
   GITDIRS=0
+  APPLY_INDEX=0
 
   while IFS=$'\t' read -r kind a b c; do
     [[ -n "$kind" ]] || continue
+    APPLY_INDEX=$((APPLY_INDEX + 1))
+    printf 'Progress: apply %s %s\n' "$APPLY_INDEX" "${a:-<empty>}" >&2
     case "$kind" in
     REPO)
       # a=toplevel b=child-token c=manifest-path. Validate the whole record before
@@ -418,6 +421,20 @@ BLOCKED=0
 printf 'Fleet Clean (dry-run)\n'
 printf 'Tier: %s\n' "$TIER"
 printf 'Repos: %s\n' "$REPOS"
+# One preflight for the invoking directory, not once per repo. The facts are
+# host-global (processes, IDE) plus recent builds under the cwd. The git-only
+# tier does not delete caches or build output, so it does not pay this walk.
+# Apply does not run it again: the dry-run output is what the confirmation
+# gate reads.
+if tier_has_manifest; then
+  if preflight_out="$(bash "$SCRIPT_DIR/preflight.sh" 2>&1)"; then
+    printf 'PreflightScope: invoking-directory\n'
+    printf '%s\n' "$preflight_out"
+  else
+    printf 'PreflightScope: invoking-directory\n'
+    printf 'PreflightError: preflight.sh exited non-zero\n'
+  fi
+fi
 printf '%s\n' '---'
 
 # Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
@@ -433,6 +450,7 @@ manifest_for() {
 for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   top="${BATCH_TOPS[$i]}"
   key="${BATCH_KEYS[$i]}"
+  printf 'Progress: %s/%s %s\n' "$((i + 1))" "${#BATCH_TOPS[@]}" "$top" >&2
 
   # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then

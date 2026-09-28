@@ -9,16 +9,16 @@ allowed-tools:
   # remove-path / clean-batch) are deliberately NOT pre-approved: withholding
   # the grant is what keeps them behind the permission flow, which together
   # with the dry-run-then-confirm contract below is where the gate actually is.
-  # NOT the PreToolUse destructive guard: that guard matches destructive
-  # command SHAPES (`rm -rf`, `git clean -f*`, `git reset --hard`,
-  # `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`), and
-  # it matches none of these six scripts, nor `git branch -D`, nor
-  # `git push --delete`. The guard's own header declares it a best-effort net
-  # rather than a security boundary with accepted coverage gaps. Branch and
-  # remote-branch deletion stay out of that net (#3852): they are gated by the
-  # permission flow, the confirmation gate, and `git-branch-delete.sh`, not by
-  # a hook pattern. Do not read this list as a claim that the guard inspects
-  # these scripts.
+  # NOT a claim that withholding the grant is the whole gate. The PreToolUse
+  # destructive guard matches destructive command SHAPES (`rm -rf`,
+  # `git clean -f*`, `git reset --hard`, `git checkout --`,
+  # `git stash drop`/`clear`, recursive `Remove-Item`), and it also matches
+  # these scripts when the command text contains `--apply`, plus
+  # `git worktree remove` with a force flag. A dry-run of the same scripts
+  # does not match. It does not match `git branch -D` or `git push --delete`
+  # (#3852): those stay on the permission flow, the confirmation gate, and
+  # `git-branch-delete.sh`. The guard is still a best-effort net over command
+  # text, not a security boundary.
   - Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/scan.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/preflight.sh:*)
@@ -123,7 +123,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion, and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). It is a best-effort net over command text, not a security boundary: it does not match this skill's own mutating scripts, `git branch -D`, or `git push --delete`, which are gated by the permission flow and the confirmation gate instead. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`).
+**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). It also blocks this skill's mutating scripts (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`, `git-tree-reset.sh`, `git-tree-reset-batch.sh`, `remove-path.sh`, `clean-batch.sh`) when the command contains `--apply`, and `git worktree remove` with a force flag. A dry-run of those scripts is not blocked. It is a best-effort net over command text, not a security boundary: it does not match `git branch -D` or `git push --delete`, which stay on the permission flow and the confirmation gate. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`).
 
 **Guard coverage for branch deletion (#3852).** Out of scope for this net. Local deletion goes only through `git-branch-delete.sh` after the confirmation gate; remote deletion (`git push --delete`) is not a sanctioned skill path. Adding those patterns to the hook would duplicate the gate and invite treating a best-effort net as a boundary.
 
@@ -225,7 +225,7 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p`; backslash paths normalized). Skip list: `--skip ENTRY` / `--skip-from FILE` (same separator-agnostic matcher as `tree-batch`).
 
-**Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). [Confirmation gate](#confirmation-gate) **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
+**Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). For `caches`, `build`, and `all` it also runs `preflight.sh` **once** before the repo loop (not per repo) and prints `PreflightScope: invoking-directory` plus the preflight facts; the git-only tier skips that. `Progress:` lines go to stderr (`N/M <path>` on dry-run, `apply N <path>` on apply) so a long fleet run is not silent. Apply does not re-run preflight. [Confirmation gate](#confirmation-gate) **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
 
 ## Integration
 

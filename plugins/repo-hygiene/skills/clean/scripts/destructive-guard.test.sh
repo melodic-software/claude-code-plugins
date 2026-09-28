@@ -224,6 +224,41 @@ assert_contains "ungated tool block reason names the guard" "$ungated_reason" "d
 assert_contains "ungated tool block reason says there is no ack path" "$ungated_reason" "no acknowledgement path"
 assert_not_contains "ungated tool block reason offers no ack spelling" "$ungated_reason" "CLEAN_GUARD_ACK"
 
+# --- 2e. Apply scripts and forced worktree removal are in the net ---------------
+# Dry-run stays reachable. Branch deletion stays out (#3852). The ack prefix
+# still lifts an apply block after the confirmation gate.
+
+for cmd in \
+  "bash /d/plugins/clean-batch.sh --tier all --apply --batch-plan /tmp/p" \
+  "bash scripts/remove-path.sh --apply /d/repos/foo" \
+  "bash scripts/git-tree-reset.sh --apply" \
+  "bash scripts/git-tree-reset-batch.sh --apply" \
+  "bash scripts/clean-caches.sh --apply --manifest /tmp/m" \
+  "bash scripts/clean-build.sh --apply --include-caches --manifest /tmp/m" \
+  "bash scripts/git-prune.sh --apply" \
+  "git worktree remove --force /d/worktrees/x" \
+  "git worktree remove -f /d/worktrees/x" \
+  "git -C /d/repo worktree remove --force /d/worktrees/x"; do
+  assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
+done
+
+for cmd in \
+  "bash scripts/clean-batch.sh --tier caches --dry-run --repo /d/repos/foo" \
+  "bash scripts/remove-path.sh --dry-run /d/repos/foo" \
+  "bash scripts/git-tree-reset.sh --dry-run" \
+  "git worktree remove /d/worktrees/x" \
+  "git branch -D feature/x" \
+  "git branch -d feature/x" \
+  "git push origin --delete feature/x" \
+  "git push origin --delete refs/heads/feature/x"; do
+  assert_exit "allows (outside the net): $cmd" 0 "$(guard_exit "$cmd")"
+done
+
+assert_exit "ack prefix allows clean-batch --apply" 0 \
+  "$(guard_exit "CLEAN_GUARD_ACK=1 bash scripts/clean-batch.sh --tier all --apply --batch-plan /tmp/p")"
+assert_exit "PowerShell ack allows remove-path --apply" 0 \
+  "$(guard_exit "$ps_ack bash scripts/remove-path.sh --apply /d/repos/foo" PowerShell)"
+
 # --- 3. Block reason reaches stderr ----------------------------------------------
 
 reason=$(jq -n '{tool_name:"Bash",tool_input:{command:"git clean -fdx"}}' | bash "$SCRIPT" 2>&1 >/dev/null)
