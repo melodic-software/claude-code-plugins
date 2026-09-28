@@ -92,8 +92,20 @@ key's mermaid default should change and whether `/architecture:map-landscape`'s 
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
+
+## State diagrams
+
+`/architecture:map-states` writes `states.json` and `states.md` into `architecture_dir`. The picture
+is a mermaid `stateDiagram-v2`. It does not read `landscape_dialect` and this document adds no
+dialect key for it.
+
+Claim: the C4 diagram set is system context, containers, components, and code, plus system
+landscape, dynamic, and deployment, and none of those is a state machine. Basis:
+<https://c4model.com/diagrams>. As of 2026-09-28. Recheck when that index adds a state diagram.
+On firing, decide whether this skill should read `landscape_dialect`, and record the outcome in
+this plugin's `CHANGELOG.md`.
+
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` and `map-states` read this surface and never write it; neither skill writes any other file in the consumer's root.

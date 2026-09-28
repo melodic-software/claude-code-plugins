@@ -77,6 +77,14 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## State diagrams
+
+`/architecture:map-states` draws one entity from an explicit XState `createMachine` block or a
+Stateless `Configure`/`Permit` table. Every transition cites a file. Unreachable and dead-end
+states are findings. Ad hoc status assignments are a refusal, and the picture draws no
+transitions. Several machines and no entity argument name both and draw nothing. A state diagram
+is not a C4 type, so the skill does not read `landscape_dialect` and adds no dialect key.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +106,9 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-states
+/architecture:map-states order
+/architecture:map-states [entity]
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,18 +118,20 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map states",
+"state diagram", "which states are unreachable".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
-`/architecture:setup` owns the declaration: `check` reports the state read-only,
-`apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
-at setup rather than choosing a directory for you.
+`map-landscape` and `map-states` read `architecture_dir` from a topic doc at
+your repository's convention home, `<home>/architecture/README.md` (repo-relative,
+no default). `map-landscape` also reads `landscape_dialect` (`structurizr` or
+`mermaid`, default `mermaid`). `map-states` does not. A state diagram is not a
+C4 diagram and adds no dialect key. The contract lives in
+[`reference/config.md`](reference/config.md). `/architecture:setup` owns the
+declaration: `check` reports the state read-only, `apply` converges the pointer
+region and the topic doc. With no `architecture_dir` declared and none confirmed,
+both skills stop and point at setup rather than choosing a directory for you.
 
 ## Persistence
 

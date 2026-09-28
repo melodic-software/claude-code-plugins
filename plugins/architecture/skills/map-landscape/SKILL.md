@@ -201,7 +201,7 @@ End every run with this block, in this order, filled from the record and the scr
 ## What this skill does NOT do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
-- Container-level or component-level C4 views. This is the landscape altitude only.
+- An explicit state machine (`/architecture:map-states`), and container-level or component-level C4 views. This is the landscape altitude only.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.
@@ -213,6 +213,7 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Next
 
+- An explicit state machine in one repository: `/architecture:map-states`.
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.

@@ -3,6 +3,40 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-states` writes `states.json` (schema_version 1, one object per line) from an explicit
+  XState `createMachine` block or a Stateless `Configure`/`Permit` table, and renders one mermaid
+  `stateDiagram-v2` per machine. Unreachable states, dead-ends, and vacuous guards are findings.
+  Confidence is `high` only when the shipped grammar was read completely. Ad hoc status
+  assignments, and a machine outside that grammar, refuse on the artifact and draw nothing.
+  Several machines list their ids and draw none until `--entity`. This is not a C4 diagram and
+  adds no dialect key.
+
+### Changed
+
+- `map-landscape` points at `map-states` when the question is a lifecycle state machine declared
+  in code.
+- `reference/config.md` records that the state diagram adds no dialect key.
+
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-states` writes `states.json` (schema_version 1, one object per line) from an explicit XState
+  `createMachine` block or a Stateless `Configure`/`Permit` table, and renders one mermaid
+  `stateDiagram-v2`. Unreachable and dead-end states are findings. Ad hoc status assignments and
+  an XState `invoke` are refusals and draw no transitions. Several entities without `--entity`
+  name both and draw nothing. The picture does not read `landscape_dialect` and adds no dialect
+  key: a state diagram is not a C4 diagram type.
+
+### Changed
+
+- `map-landscape` points at `map-states` when the question is an explicit state machine.
+- `reference/config.md` records that refusal.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed
