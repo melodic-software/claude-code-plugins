@@ -25,6 +25,11 @@ Read in order:
 
 Do not edit files. Attack the plan for gaps. Return a findings table only.
 
+Every finding is backed by a specific bug number, doc reference, code path, or concrete logical
+argument, never training-data recall. Wherever the plan depends on a tool's behavior, run a
+read-only probe of that tool (`--dry-run`, `--help`, `list`, `--version`) and cite its output in
+the finding; a tool behavior you did not probe is an assumption, and the finding says so.
+
 ## Review axes
 
 ### Session and usage realism
