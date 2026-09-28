@@ -1241,6 +1241,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
       const op = opened(); if (!op.has(id)) { op.add(id); lsSet("opened", [...op]); }
+      const seen = lsGet("openedRev", {}); seen[id] = Q[id].contentRev || 0; lsSet("openedRev", seen);
       S.snap[id] = snapOf(Q[id]);
     }
     renderRail(); fillNote(); renderDetail(Object.assign({top: true}, opts)); renderHeader(); if (S.fly) renderFly(); revealInRail(id);
@@ -1429,12 +1430,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const dr = lsGet("draft:" + q.id, null), d = decisionOf(q);
     return String(dr !== null ? dr : (d && !d.aside && d.text) || "").trim();
   }
+  function openedRev(q){ // the revision the user last opened q at, with the decisions made since
+    const base = lsGet("openedRev", {})[q.id];
+    return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
+  }
   function acceptAllDialog(pool, where){ // one accept event per eligible question, each carrying its note
     const op = opened(), elig = pool.filter(q => op.has(q.id) && eligible(q)).sort(byIdCmp);
     const challenged = elig.filter(q => /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !challenged.includes(q));
     const unopened = pool.filter(q => !op.has(q.id) && eligible(q)).length;
     if (!elig.length) return;
-    const snaps = items.map(q => ({id: q.id, rev: crev(q), text: carried(q)}));
+    // A question Claude revised after the user last opened it goes with that older revision, so
+    // the server refuses it and the toast names it.
+    const snaps = items.map(q => ({id: q.id, rev: openedRev(q), text: carried(q)}));
     $("dlgTitle").textContent = "Accept " + items.length + " in " + where + "?";
     $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here, with the note you typed on it. Commitments stay unconfirmed.</p><ul>" +
       snaps.map(s => { const q = Q[s.id]; return "<li><b>" + esc(q.id) + "</b> " + esc(q.short || q.title) + ": " + esc(trunc(firstLine(q.recommendation), 110)) + (s.text ? '<div class="kbd">Note: ' + esc(trunc(s.text, 160)) + "</div>" : "") + "</li>"; }).join("") + "</ul>" +
@@ -1514,7 +1521,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     apply(await res.json());
   }
   let pollTimer = null, es = null, lastFrame = 0;
-  const SILENT_MS = 35000; // the server pings every 15 s; past two missed pings the stream counts as dead
+  // The server pings every 15 s; past two missed pings the stream counts as dead. A test may
+  // shorten it with ?silentMs=<1000 to 35000>, never lengthen it.
+  const SILENT_MS = (() => { const v = Number(new URLSearchParams(location.search).get("silentMs")); return Number.isInteger(v) && v >= 1000 && v <= 35000 ? v : 35000; })();
   function setOnline(v){ if (S.online !== v) { S.online = v; renderHeader(); } }
   function connect(){ // every (re)opened stream re-fetches /api/state, so nothing that happened meanwhile is missed
     if (!window.EventSource) { startPoll(); return; }

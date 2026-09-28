@@ -10,10 +10,13 @@
 # rejected (the server restarted), or when the server stays unreachable for WAIT_FAILS polls
 # (default 12, 5 s apart).
 # Exits 3 when another watcher holds the server's lease (one session watches a data dir at a
-# time); it prints the holder to stderr and does not retry.
+# time), or when this watcher's lease was released while it waited; it prints why to stderr and
+# does not retry.
 # Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (Claude Code exports it to
-# every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. The id is never
-# written to the data dir, which two sessions share.
+# every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. A parent
+# pid of 1 (a Claude Code Bash shell on Windows reports it, for every session) names no one, so
+# then it exits 2 asking for WATCH_ID. The id is never written to the data dir, which two sessions
+# share. WATCH_PPID stands in for $PPID in tests.
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
 curl_bin=${WATCH_CURL:-curl}
 command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (watch.sh needs it on PATH)" >&2; exit 2; }
@@ -63,7 +66,16 @@ url_encode() {
   done
   printf '%s' "$out"
 }
-watcher=$(url_encode "${WATCH_ID:-${CLAUDE_CODE_SESSION_ID:-$(hostname)-$PPID}}")
+watcher=${WATCH_ID:-${CLAUDE_CODE_SESSION_ID:-}}
+if [[ -z "$watcher" ]]; then
+  parent=${WATCH_PPID:-$PPID}
+  if [[ "$parent" == 1 ]]; then
+    echo "no watcher id: the parent pid is 1, which every session shares here; export WATCH_ID=<a name for this session> and re-arm" >&2
+    exit 2
+  fi
+  watcher="$(hostname)-$parent"
+fi
+watcher=$(url_encode "$watcher")
 
 # The value of one string field in the 409 body.
 field() { printf '%s' "$out" | sed -n "s/.*\"$1\": \"\\([^\"]*\\)\".*/\\1/p"; }
@@ -77,6 +89,10 @@ while :; do
   out=${resp%$'\n'*}
   if [[ "$code" == 409 && "$out" == *'"lease held"'* ]]; then
     echo "another watcher holds this interview's lease: session $(field holder), since $(field since), last poll $(field lastWaitAt); one session watches a data dir at a time; coordinate with that session, or wait for the lease to expire ($(field expiresAt))" >&2
+    exit 3
+  fi
+  if [[ "$code" == 409 && "$out" == *'"lease released"'* ]]; then
+    echo "this watcher's lease was released while it waited (round.sh lease --release); another session may hold it now; run round.sh lease to see, and re-arm only if this session should watch" >&2
     exit 3
   fi
   case "$code" in

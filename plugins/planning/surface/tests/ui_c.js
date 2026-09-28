@@ -281,6 +281,18 @@ async page => {
     const ev = await events(), acc = ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
+    // Accept all goes with the revision each question was opened at: A2 was opened in phase 1,
+    // before the shell's revise, so a dialog opened only now still refuses it until A2 is opened again.
+    await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
+    ok("Accept all opened after the revise still lists A2", await page.evaluate(() => document.getElementById("dlg").open && /A2/.test(document.getElementById("dlgBody").innerText)));
+    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    const acc2 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
+    ok("Accept all refuses a question revised after the user opened it", acc2 === 0 && /Skipped A2/.test(await page.textContent("#toast")), acc2 + " " + await page.textContent("#toast"));
+    await pick("A2");
+    await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
+    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
+    ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;
@@ -318,6 +330,27 @@ async page => {
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
     ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Not listening: type next" && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
+    // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
+    await page.addInitScript(() => {
+      const Real = window.EventSource;
+      window.__streams = 0;
+      window.EventSource = function (url, init) { window.__streams++; return new Real(url, init); };
+      window.EventSource.prototype = Real.prototype;
+    });
+    await page.goto(base + "?silentMs=1000");
+    const reopened = await page.waitForFunction(() => window.__streams >= 2, null, {timeout: 14000}).then(() => true).catch(() => false);
+    const streams = await page.evaluate(() => window.__streams);
+    ok("a stream silent past the ping window is dropped for polling and reopened", reopened, "streams " + streams);
+    ok("the page stays online through the fallback", await page.evaluate(() => !/Offline|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
+  }
+  if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
+    await page.goto(base);
+    await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
+    const lbl = await page.textContent("#roundLbl");
+    ok("the header round comes from the newest question's stage only", lbl === "Design round 1", lbl);
+    const rounds = await page.$$eval(".qbtn", els => els.length);
+    ok("both stages' questions are listed", rounds >= 3, String(rounds));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));
