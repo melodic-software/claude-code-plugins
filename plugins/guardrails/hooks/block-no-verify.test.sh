@@ -684,7 +684,12 @@ for granted_bypass in \
   "iex ('git commit --no-' + 'verify')" \
   "\$g='git'; & { & \$g commit -m x }" \
   "& { git commit -m x; git log -1 -join 'y' }" \
-  "& { git commit @params }"; do
+  "& { git commit @params }" \
+  '& { git commit --no-verif -m x }' \
+  '& { git commit --no-ve -m x }' \
+  '& { git commit --no-v -m x }' \
+  "& { \$env:GIT_CONFIG_COUNT=1; \$env:GIT_CONFIG_KEY_0='core.hooksPath'; \$env:GIT_CONFIG_VALUE_0='/dev/null'; git commit -m x }" \
+  "& { git commit \"--no-\$('verify')\" -m x }"; do
   expect "PS #4235: bypass inside a granted region still blocks: $granted_bypass" 2 \
     --tool PowerShell --command "$granted_bypass" \
     -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS" \

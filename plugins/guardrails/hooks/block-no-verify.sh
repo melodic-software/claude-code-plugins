@@ -311,7 +311,12 @@ ps_grant_content_unsafe() {
   local lc="${1//\`/}" seg rest
   local -a segs=()
   lc="${lc,,}"
-  [[ "$lc" == *no-verify* || "$lc" == *noverify* ]] && return 0
+  [[ "$lc" == *no-verify* || "$lc" == *noverify* || "$lc" == *--no-v* ]] && return 0
+  # git config from the environment (GIT_CONFIG_*), a hooksPath override, or
+  # a subexpression / braced variable that can assemble either at run time.
+  # shellcheck disable=SC2016  # literal PowerShell text, not an expansion
+  [[ "$lc" == *'$env:'* || "$lc" == *git_* || "$lc" == *hookspath* ||
+    "$lc" == *'$('* || "$lc" == *'${'* ]] && return 0
   local sep=$'[;|&{}()\n]' short='(^|[[:space:]])-[a-z]*n[a-z]*([[:space:]]|$)'
   local word_commit='(^|[^[:alnum:]_-])commit([^[:alnum:]_-]|$)'
   rest="$lc"
