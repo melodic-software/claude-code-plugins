@@ -80,7 +80,7 @@ if [[ "$msg" == *'"schema": "cutover.result/1"'* || "$msg" == *'"schema":  "cuto
   && grep -Fq '***' "$transcript"; then
   pass "result envelope is written and the transcript redacts the secret"
 else
-  fail "result envelope is written and the transcript redacts the secret" "json=$msg transcript=$(cat "$transcript" 2>/dev/null | head -c 400)"
+  fail "result envelope is written and the transcript redacts the secret" "json=$msg transcript=$(head -c 400 "$transcript" 2>/dev/null)"
 fi
 
 code="$(run_pwsh idem "
