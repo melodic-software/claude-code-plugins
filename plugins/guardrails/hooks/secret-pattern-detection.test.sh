@@ -801,7 +801,7 @@ bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" | scoped push_files)" >/dev/null
 assert_exit "MCP scoped push_files: clean → exit 0" 0 "$RC"
 
 # The hooks.json row must route both name shapes here, and not delete_file.
-MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("secret-pattern-detection.sh")) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
+MATCHER=$(jq -r '.hooks.PreToolUse[] | select((.hooks[0].command | contains("secret-pattern-detection.sh")) or ((.hooks[0].args // []) | map(tostring) | join(" ") | contains("secret-pattern-detection.sh"))) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
 for name in mcp__github__push_files mcp__github__create_or_update_file \
   mcp__plugin_github_github__push_files mcp__plugin_my-plugin_github__create_or_update_file; do
   RC=0

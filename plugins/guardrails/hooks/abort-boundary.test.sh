@@ -132,7 +132,7 @@ while IFS=$'\t' read -r ev cmd; do
       EVENTS[$name]+="$ev "
     fi
   done
-done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | .hooks[] | "\($ev)\t\(.command)"' "$HOOK_DIR/hooks.json")
+done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | .hooks[] | "\($ev)\t\(.command) \((.args // []) | join(" "))"' "$HOOK_DIR/hooks.json")
 set +f
 
 # A parse that quietly found nothing would make the whole suite pass on an

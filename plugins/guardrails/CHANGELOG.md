@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- **Guardrails hook rows launch as exec form** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Every `run-guards.sh` row and `workflow-resilience-check.sh` is `"command": "node"` with `hooks/exec-bash.mjs` and the script in `args`. `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\bash.exe`. `scripts/hook-census.sh` spawns an exec-form row as the executable plus its args, so a census still measures the registered row. Shell-form rows that remain elsewhere are the ones whose command is a shell conditional (`session-event-log`, `eol-normalizer`, `typos-format`): that conditional is the default-off exit, and starting `node` on every fire would add a process the row exists to avoid.
+
 ## [0.41.0] - 2026-09-28
 
 ### Added

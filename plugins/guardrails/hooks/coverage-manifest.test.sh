@@ -41,7 +41,7 @@ assert_eq "coverage is a non-empty array" "true" \
 
 # --- what hooks.json declares -------------------------------------------------
 declared_events=$(jq -r '.hooks | keys[]' "$HOOKS_JSON")
-declared_commands=$(jq -r '.hooks[][] | .hooks[] | .command' "$HOOKS_JSON")
+declared_commands=$(jq -r '.hooks[][] | .hooks[] | .command, (.args // [] | .[])' "$HOOKS_JSON")
 
 # --- per entry ----------------------------------------------------------------
 count=$(jq -r '.coverage | length' "$MANIFEST")
