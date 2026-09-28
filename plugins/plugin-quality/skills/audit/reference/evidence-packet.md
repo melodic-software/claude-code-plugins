@@ -227,8 +227,9 @@ was wrong.
 
 ## What a sealed packet asserts
 
-Option A: a sealed packet is a snapshot. The seal proves integrity since the last
-`packet-seal.sh record`, not that the audited world still matches.
+A sealed packet is a snapshot. `verify` checks the packet's files against the manifest
+written at the last `packet-seal.sh record`; it does not show that the audited world still
+matches.
 
 - **Claim:** A sealed packet asserts the bytes of every file named in `packet.sha256` as
   they were at the last successful `record`. `verify` exit 0 means those files still
