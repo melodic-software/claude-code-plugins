@@ -1145,14 +1145,20 @@ UNATTENDED_LANE=""
 SC_TEAM="$PROJECT_ROOT/.claude/source-control.md"
 if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
   IFS=$'\t' read -r lane_adopted lane_rung < <(awk '
+    {
+      sub(/\r$/, "")
+    }
     /^## / {
       inkey = ($0 ~ /^## babysit_loop_merge[ \t]*$/)
       if ($0 ~ /^## babysit_loop_/) adopted = 1
       next
     }
-    inkey && NF && val == "" { val = $1 }
+    inkey && NF && val == "" {
+      val = $0
+      gsub(/^[ \t`]+|[ \t`]+$/, "", val)
+    }
     END { printf "%s\t%s\n", adopted ? 1 : 0, val }
-  ' "$SC_TEAM" | tr -d '\r')
+  ' "$SC_TEAM")
   lane_source="babysit_loop_merge: $lane_rung"
   if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
     lane_rung="c2-mechanical"

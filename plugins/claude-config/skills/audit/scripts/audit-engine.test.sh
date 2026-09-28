@@ -1224,6 +1224,31 @@ for lane in c3-autonomous adopted human-only none; do
   esac
 done
 
+# CRLF + backticked rung (mawk-safe parse).
+m="$(make_machine "lane-crlf-bt")"
+printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+printf '# source-control configuration\r\n\r\n## babysit_loop_merge\r\n\r\n`full-autonomy`\r\n' >"$m/project/.claude/source-control.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 49 (crlf-bt): ask row is info" "info" "$(ask_row "$out" severity)"
+assert_contains "case 49 (crlf-bt): backticked rung is read" "$(ask_row "$out" detail)" "babysit_loop_merge: full-autonomy"
+assert_eq "case 49 (crlf-bt): force-push deny stays error" "error" "$(force_sev "$out")"
+
+# Explicit awk shim: first awk on PATH is the impl under test.
+for impl in gawk mawk; do
+  command -v "$impl" >/dev/null 2>&1 || { echo "skip case 49 ($impl): not installed"; continue; }
+  m="$(make_machine "lane-awk-$impl")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  printf '## babysit_loop_merge\n\n  c2-mechanical  \n' >"$m/project/.claude/source-control.md"
+  shim="$m/bin"
+  mkdir -p "$shim"
+  ln -sf "$(command -v "$impl")" "$shim/awk"
+  rc=0
+  out=$(PATH="$shim:$PATH" run "$m" --json 2>&1) || rc=$?
+  assert_eq "case 49 ($impl): ask row is info" "info" "$(ask_row "$out" severity)"
+  assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
+done
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

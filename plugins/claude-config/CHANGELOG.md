@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.3] - 2026-09-28
+
+### Fixed
+
+- **`audit`: unattended-push lane parse accepts CRLF and backticked rungs.** The
+  team-tracked `.claude/source-control.md` reader now strips CR and surrounding
+  backticks/whitespace on the merge value, and the suite pins that shape plus a
+  gawk/mawk PATH shim (#4600).
+
 ## [0.50.2] - 2026-09-28
 
 ### Fixed
