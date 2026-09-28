@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.14] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep`**: record partial skill coverage with `tick.sh partial` and recommend `rerun` in
+  `history.sh` instead of treating the step as a clean `no findings` run (`reference/next.md`).
+
 ## [0.13.13] - 2026-09-28
 
 ### Fixed
