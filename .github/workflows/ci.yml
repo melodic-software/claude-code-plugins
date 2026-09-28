@@ -2408,5 +2408,15 @@ jobs:
           # 210 s (run 33993232104), so the 240 s a 5-minute job allows would
           # have gone red on the very case the wait exists for, a bot that
           # force-pushes and edits in the same second.
+          #
+          # STALE FAILURE DURING A RE-RUN (#4670). The composite ends the wait
+          # as soon as `ci-lanes` is success, failure, or error. It does not
+          # tell a full-run re-run apart from a contract-only sibling, so a
+          # body edit while a failed full run is being re-run can read the old
+          # failure at once and go red. That wait-loop fix belongs in
+          # ci-workflows (the pin below), then every `uses:` SHA here moves
+          # together. Until then: when `ci-lanes` on this SHA is already
+          # success, re-run the red contract-only `ci` run; do not empty-commit.
+          # When `ci-lanes` is failure or missing, re-run the full workflow.
           carry-forward-wait-seconds: '540'
           token: ${{ github.token }}
