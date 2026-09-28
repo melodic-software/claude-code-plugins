@@ -77,6 +77,22 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Deployment
+
+`/architecture:map-deployment` draws the C4 deployment view from tracked infrastructure as code.
+Docker Compose and Kubernetes manifests are read. Each environment gets its own diagram.
+`--diff staging prod` lists declared differences: images, replica counts, ports, parameters, and
+secret parameters that differ. Secret values are not written.
+
+The dialect is `landscape_dialect`, the same key as the landscape. Mermaid writes `deployment.md`.
+Structurizr writes `deployment.dsl`. No new dialect key is added.
+
+Terraform, Pulumi, Bicep, CloudFormation, Helm, and Kustomize are named and then the run stops,
+even when a Compose file sits beside them. A diagram of only the readable tool would be a partial
+read. `--live` is refused. No cloud API is called. When `containers.json` from a container map is
+already in the architecture directory, names it does not place are listed. Otherwise container
+names come from the IaC, and the artifact says so.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +114,8 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-deployment
+/architecture:map-deployment prod --diff staging prod
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,18 +125,20 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map
+deployment", "deployment diagram", "what is different in production".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+`map-landscape` and `map-deployment` read two keys from a topic doc at your
+repository's convention home, `<home>/architecture/README.md`: `architecture_dir`
+(repo-relative, no default) and `landscape_dialect` (`structurizr` or `mermaid`,
+default `mermaid`). `map-deployment` uses that same dialect key and does not add
+one. The contract lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
-at setup rather than choosing a directory for you.
+`architecture_dir` declared and none confirmed, both skills stop and point at
+setup rather than choosing a directory for you.
 
 ## Persistence
 

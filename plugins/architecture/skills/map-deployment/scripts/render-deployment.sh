@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# Render deployment.md (and deployment.dsl) from a collect-deployment.sh record.
+#
+# Usage:
+#   render-deployment.sh --record <deployment.json> --out <dir>
+#       [--dialect mermaid|structurizr] [--env <name>] [--diff <a> <b>]
+#   render-deployment.sh --help
+#
+# Exit: 0 artifact written; 1 unreadable record; 2 usage; 3 unknown environment,
+# refusal written.
+set -uo pipefail
+
+usage() {
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+die() {
+  printf 'render-deployment.sh: %s\n' "$1" >&2
+  exit "$2"
+}
+
+record=""
+out=""
+dialect="mermaid"
+env_filter=""
+diff_a=""
+diff_b=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --record)
+    [[ $# -ge 2 ]] || die "--record needs a path" 2
+    record="$2"
+    shift 2
+    ;;
+  --out)
+    [[ $# -ge 2 ]] || die "--out needs a path" 2
+    out="$2"
+    shift 2
+    ;;
+  --dialect)
+    [[ $# -ge 2 ]] || die "--dialect needs a value" 2
+    dialect="$2"
+    shift 2
+    ;;
+  --env)
+    [[ $# -ge 2 ]] || die "--env needs a name" 2
+    env_filter="$2"
+    shift 2
+    ;;
+  --diff)
+    [[ $# -ge 3 ]] || die "--diff needs two environments" 2
+    diff_a="$2"
+    diff_b="$3"
+    shift 3
+    ;;
+  *)
+    die "unknown argument: $1" 2
+    ;;
+  esac
+done
+
+[[ -n "$record" && -n "$out" ]] || die "--record and --out are required" 2
+[[ -f "$record" ]] || die "record is not a file: $record" 1
+[[ "$dialect" == "mermaid" || "$dialect" == "structurizr" ]] || die "dialect must be mermaid or structurizr" 2
+
+mkdir -p "$out"
+md="$out/deployment.md"
+dsl="$out/deployment.dsl"
+
+set +e
+summary="$(
+  awk -v dialect="$dialect" -v env_filter="$env_filter" -v diff_a="$diff_a" -v diff_b="$diff_b" -v md="$md" -v dsl="$dsl" '
+    function die(msg) { printf "render-deployment.sh: %s\n", msg > "/dev/stderr"; exit 1 }
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    function field(line, key,    re, rest, i) {
+      re = "\"" key "\":"
+      i = index(line, re)
+      if (i == 0) return ""
+      rest = substr(line, i + length(re))
+      sub(/^[[:space:]]*/, "", rest)
+      if (substr(rest, 1, 1) != "\"") return ""
+      rest = substr(rest, 2)
+      i = index(rest, "\"")
+      if (i == 0) return ""
+      return substr(rest, 1, i - 1)
+    }
+    function jget(line, key,    s) { s = field(line, key); gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\", s); return s }
+    function safe(s) { gsub(/"/, "'\''", s); gsub(/\|/, "/", s); return s }
+    function alias(s,    a) { a = s; gsub(/[^A-Za-z0-9_]/, "_", a); if (a ~ /^[0-9]/) a = "n_" a; return a }
+    function take_array(first, key, prefix,    line, item) {
+      line = trim(first)
+      if (line == "\"" key "\": []" || line == "\"" key "\": [],") return
+      if (line != "\"" key "\": [") die(key " is not one object per line or []")
+      while ((getline line) > 0) {
+        item = trim(line)
+        if (item == "]" || item == "],") return
+        sub(/,$/, "", item)
+        if (index(item, prefix) != 1) die(key " line is not one " prefix " object")
+        count[key]++
+        held[key, count[key]] = item
+      }
+      die(key " array was not closed")
+    }
+    function reason_prose(r) {
+      if (r == "live-state-requested") return "A live-state comparison was requested. No live adapter is shipped, and committed IaC was not read. No diagram was drawn."
+      if (r == "partial-read") return "More than one IaC tool is declared, and at least one has no shipped adapter. Drawing the shipped subset would be a partial read. No diagram was drawn."
+      if (r == "adapter-not-shipped") return "The only IaC tools in this repository have no shipped adapter. No diagram was drawn."
+      if (r == "no-declared-iac") return "No Compose file or Kubernetes manifest was found in tracked files. No diagram was drawn."
+      if (r == "not-a-git-repository") return "The subject is not a git repository, so tracked IaC cannot be separated from untracked files. No diagram was drawn."
+      if (r == "compose-unreadable" || r == "kubernetes-unreadable") return "A shipped manifest used a construct this adapter does not read (a tab, or a template marker). No diagram was drawn."
+      if (r == "containers-unreadable") return "containers.json was present and is not a schema_version 1 catalog. It was not half-read. No diagram was drawn."
+      if (r == "unknown-environment") return "The requested environment is not in the record. No diagram was drawn."
+      return "The record refused to draw a diagram."
+    }
+    BEGIN {
+      if ((getline line) <= 0) die("empty record")
+      if (trim(line) != "{") die("record does not start with an object")
+      if ((getline line) <= 0) die("missing schema_version")
+      if (trim(line) != "\"schema_version\": 1,") die("not schema_version 1")
+      while ((getline line) > 0) {
+        t = trim(line)
+        if (t == "}") break
+        if (t ~ /^"generated_on":/) generated = jget(t, "generated_on")
+        else if (t ~ /^"subject":/) subject = jget(t, "subject")
+        else if (t ~ /^"status":/) status = jget(t, "status")
+        else if (t ~ /^"reason":/) reason = jget(t, "reason")
+        else if (t ~ /^"tools":/) take_array(t, "tools", "{\"name\":")
+        else if (t ~ /^"environments":/) take_array(t, "environments", "{\"environment\":")
+        else if (t ~ /^"nodes":/) take_array(t, "nodes", "{\"id\":")
+        else if (t ~ /^"placements":/) take_array(t, "placements", "{\"container\":")
+        else if (t ~ /^"parameters":/) take_array(t, "parameters", "{\"parameter\":")
+        else if (t ~ /^"diffs":/) take_array(t, "diffs", "{\"change\":")
+        else if (t ~ /^"catalog":/) take_array(t, "catalog", "{\"catalog\":")
+        else if (t ~ /^"[a-z_]+": \[$/) die("unknown array " t)
+      }
+      if (status != "drawn" && status != "refused") die("status is missing")
+      ne = count["environments"] + 0
+      for (i = 1; i <= ne; i++) env_name[i] = jget(held["environments", i], "environment")
+      exit_code = 0
+      if (status == "drawn" && env_filter != "") {
+        found = 0
+        for (i = 1; i <= ne; i++) if (env_name[i] == env_filter) found = 1
+        if (!found) { status = "refused"; reason = "unknown-environment"; exit_code = 3 }
+      }
+      print "# Deployment" > md
+      print "" > md
+      print "Generated on " generated "." > md
+      print "" > md
+      print "Subject: " safe(subject) "." > md
+      print "" > md
+      print "Status: " status "." > md
+      print "" > md
+      if (status == "refused") {
+        print "Reason: " reason "." > md
+        print "" > md
+        print reason_prose(reason) > md
+        print "" > md
+      } else {
+        print "Dialect: " dialect ". This is the C4 deployment view. It reuses landscape_dialect and adds no dialect key." > md
+        print "" > md
+        if (env_filter != "") { print "Environment: " safe(env_filter) "." > md; print "" > md }
+      }
+      print "## Tools" > md
+      print "" > md
+      nt = count["tools"] + 0
+      if (nt == 0) print "None." > md
+      else {
+        print "| Name | Shipped | Evidence |" > md
+        print "|---|---|---|" > md
+        for (i = 1; i <= nt; i++) {
+          item = held["tools", i]
+          print "| " safe(jget(item, "name")) " | " safe(jget(item, "shipped")) " | " safe(jget(item, "evidence")) " |" > md
+        }
+      }
+      print "" > md
+      if (reason == "unknown-environment") {
+        print "## Environments" > md
+        print "" > md
+        for (i = 1; i <= ne; i++) print "- " safe(env_name[i]) > md
+        print "" > md
+      }
+      nd = count["diffs"] + 0
+      shown_d = 0
+      if (status != "refused") {
+        print "## Diff" > md
+        print "" > md
+        if (diff_a == "") {
+          print "No --diff was requested. Declared differences between environments are listed when two environments were collected." > md
+          print "" > md
+        }
+        print "| Change | Environments | Tool | Container | Detail |" > md
+        print "|---|---|---|---|---|" > md
+        for (i = 1; i <= nd; i++) {
+          item = held["diffs", i]
+          L = jget(item, "left"); R = jget(item, "right")
+          if (diff_a != "" && !((L == diff_a && R == diff_b) || (L == diff_b && R == diff_a))) continue
+          if (env_filter != "" && L != env_filter && R != env_filter) continue
+          shown_d++
+          print "| " safe(jget(item, "change")) " | " safe(L) " / " safe(R) " | " safe(jget(item, "tool")) " | " safe(jget(item, "container")) " | " safe(jget(item, "detail")) " |" > md
+        }
+        if (shown_d == 0) print "| none |  |  |  |  |" > md
+        print "" > md
+        print "## Diagram" > md
+        print "" > md
+        np = count["placements"] + 0
+        nn = count["nodes"] + 0
+        drawn_p = 0
+        if (dialect == "mermaid") {
+          for (i = 1; i <= ne; i++) {
+            e = env_name[i]
+            if (env_filter != "" && e != env_filter) continue
+            print "```mermaid" > md
+            print "C4Deployment" > md
+            print "title " safe(e) > md
+            print "  Deployment_Node(" alias("env_" e) ", \"" safe(e) "\", \"environment\") {" > md
+            for (p = 1; p <= np; p++) {
+              item = held["placements", p]
+              if (jget(item, "env") != e) continue
+              drawn_p++
+              c = jget(item, "container")
+              print "    Container(" alias("c_" e "_" c) ", \"" safe(c) "\", \"" safe(jget(item, "image")) "\", \"replicas " safe(jget(item, "replicas")) "\")" > md
+            }
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e) continue
+              if (jget(item, "kind") == "compute") continue
+              print "    Deployment_Node(" alias("n_" e "_" jget(item, "name")) ", \"" safe(jget(item, "name")) "\", \"" safe(jget(item, "kind")) "\", \"" safe(jget(item, "detail")) "\")" > md
+            }
+            print "  }" > md
+            print "```" > md
+            print "" > md
+          }
+        } else {
+          print "The diagram is deployment.dsl." > md
+          print "" > md
+          print "workspace {" > dsl
+          print "  model {" > dsl
+          print "    system = softwareSystem \"" safe(subject) "\" {" > dsl
+          for (p = 1; p <= np; p++) {
+            item = held["placements", p]
+            if (env_filter != "" && jget(item, "env") != env_filter) continue
+            c = jget(item, "container")
+            if (!(c in seen_c)) {
+              seen_c[c] = 1
+              print "      " alias(c) " = container \"" safe(c) "\" \"" safe(jget(item, "image")) "\"" > dsl
+            }
+          }
+          print "    }" > dsl
+          for (i = 1; i <= ne; i++) {
+            e = env_name[i]
+            if (env_filter != "" && e != env_filter) continue
+            print "    deploymentEnvironment \"" safe(e) "\" {" > dsl
+            print "      deploymentNode \"" safe(e) "\" {" > dsl
+            for (p = 1; p <= np; p++) {
+              item = held["placements", p]
+              if (jget(item, "env") != e) continue
+              drawn_p++
+              print "        containerInstance " alias(jget(item, "container")) > dsl
+            }
+            print "      }" > dsl
+            print "    }" > dsl
+          }
+          print "  }" > dsl
+          print "  views {" > dsl
+          for (i = 1; i <= ne; i++) {
+            e = env_name[i]
+            if (env_filter != "" && e != env_filter) continue
+            print "    deployment * \"" safe(e) "\" \"" safe(e) "\" {" > dsl
+            print "      include *" > dsl
+            print "      autoLayout" > dsl
+            print "    }" > dsl
+          }
+          print "  }" > dsl
+          print "}" > dsl
+        }
+        nc = count["catalog"] + 0
+        print "## Containers" > md
+        print "" > md
+        if (nc == 0) {
+          print "map-containers output was not present. Container names came from the IaC." > md
+          print "" > md
+        } else {
+          print "| Name | Placed by the IaC that was read |" > md
+          print "|---|---|" > md
+          for (i = 1; i <= nc; i++) {
+            item = held["catalog", i]
+            print "| " safe(jget(item, "catalog")) " | " safe(jget(item, "placed")) " |" > md
+          }
+          print "" > md
+        }
+      }
+      tools = ""
+      for (i = 1; i <= nt; i++) {
+        if (jget(held["tools", i], "shipped") != "yes") continue
+        tools = (tools == "" ? jget(held["tools", i], "name") : tools "," jget(held["tools", i], "name"))
+      }
+      if (tools == "") tools = "none"
+      printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s\n", \
+        status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect
+      exit exit_code
+    }
+  ' "$record"
+)"
+rc=$?
+set -e
+if [[ $rc -ne 0 && $rc -ne 3 ]]; then
+  rm -f "$md" "$dsl"
+  exit "$rc"
+fi
+printf '%s\n' "$summary"
+exit "$rc"

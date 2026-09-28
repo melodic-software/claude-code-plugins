@@ -213,6 +213,7 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Next
 
+- Where a system is deployed, and what differs between environments: `/architecture:map-deployment`.
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.

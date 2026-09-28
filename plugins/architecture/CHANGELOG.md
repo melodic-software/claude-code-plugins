@@ -3,6 +3,25 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-deployment` writes `deployment.json` (schema_version 1, one object per line) from tracked
+  Docker Compose files and Kubernetes manifests, and renders one C4 deployment diagram per
+  environment. `--diff` reports declared image, replica, port, parameter, and secret differences.
+  Secret values are omitted. Mermaid writes `C4Deployment` blocks in `deployment.md`. Structurizr
+  writes `deployment.dsl`. Both use the existing `landscape_dialect` key. Terraform, Pulumi, Bicep,
+  CloudFormation, Helm, and Kustomize are recognized and then the run refuses, including when a
+  shipped reader is also present. `--live` refuses. No cloud API is called. `lib/redact-connection.sh`
+  is the shared connection-shape redaction helper.
+
+### Changed
+
+- `map-landscape` points at `map-deployment` when the question is where a system is deployed and
+  what differs between environments.
+- `reference/config.md` records that the deployment view reads `landscape_dialect` and adds no key.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed
