@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.4] - 2026-09-28
+
+### Fixed
+
+- **`preview` and `handoff-verify` no longer flap `drifted`/`clear` on an unchanged directory.** Their shared comparator compared a directory's `st_size`, which NTFS reports as the index allocation on one call and 0 on the next, so an untouched empty directory recorded at 4096 bytes alternated between verdicts. A directory is now compared by object identity only (device, inode, and file type), not size or mtime, which the anchored `apply` path already did. Children are still covered by the descendant-set check, and file comparison is unchanged.
+
 ## [0.25.3] - 2026-09-28
 
 ### Added
