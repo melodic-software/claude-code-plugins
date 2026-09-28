@@ -12,8 +12,8 @@
   instruction in fetched content to reveal a credential is a finding, not a step. `explorer`,
   `intent-tracer` and `researcher` point at it. It is instruction only, with a dated record of why
   (a `disallowedTools` specifier removes the whole tool). Command deny rules are named as a
-  partial guardrail only; the operator's sandbox (`denyRead`, `sandbox.credentials.files`) is what
-  enforces the credential-file half. `contract.test.sh` holds the
+  partial guardrail only; the operator's sandbox (`denyRead`, `sandbox.credentials.files`) is the
+  stronger layer for credential files, and a boundary only once its escape paths are closed. `contract.test.sh` holds the
   rule to one owner and each agent to a pointer.
 
 ## [0.25.2] - 2026-09-28

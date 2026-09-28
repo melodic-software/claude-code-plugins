@@ -267,16 +267,21 @@ Command deny rules are a partial guardrail, not the boundary. `Bash(git credenti
 `PowerShell`) blocks that one spelling; `printenv`, a `python -c` or `node -e` reader, and every
 other program that opens a file stay open, and the
 [permissions page](https://code.claude.com/docs/en/permissions) calls Bash patterns that constrain
-arguments fragile. A `Read(...)` deny does not cover a subprocess either. The boundary for
-credential files is the sandbox, which the OS applies to every Bash command and its children:
-`sandbox.filesystem.denyRead`, or `sandbox.credentials.files` entries with `"mode": "deny"`
-([sandboxing](https://code.claude.com/docs/en/sandboxing); the `claude-config` audit's
-`reference/required-permissions.md` has the detail). A token held in an environment variable sits
+arguments fragile. A `Read(...)` deny does not cover a subprocess either. The stronger layer for
+credential files is the sandbox, which the OS applies to every sandboxed Bash command and its
+children: `sandbox.filesystem.denyRead`, or `sandbox.credentials.files` entries with
+`"mode": "deny"` ([sandboxing](https://code.claude.com/docs/en/sandboxing)). It is a boundary only
+once its escape paths are closed: `allowUnsandboxedCommands: false`, `failIfUnavailable: true`, a
+narrow `excludedCommands`, `filesystem.disabled` unset. Even then, a `!` shell-mode command in an
+interactive session runs outside it, and native Windows has no sandbox. An enabled-but-default
+sandbox is partial, not protection; the `claude-config` audit's `reference/required-permissions.md`
+has the detail. A token held in an environment variable sits
 outside any file boundary and stays held by instruction. The plugin cannot ship any of this: a
 plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys.
 
 - *Claim.* Bash argument patterns do not bound what a shell can read; the sandbox's
-  `denyRead` and `credentials.files` deny entries do, for every Bash command and its children.
+  `denyRead` and `credentials.files` deny entries do, for every sandboxed Bash command and its
+  children, once the escape paths above are closed.
 - *Basis.* [Permissions](https://code.claude.com/docs/en/permissions): "Bash permission patterns
   that try to constrain command arguments are fragile." [Sandboxing](https://code.claude.com/docs/en/sandboxing):
   "You can also deny write or read access using `sandbox.filesystem.denyWrite` and
