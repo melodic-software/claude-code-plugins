@@ -184,8 +184,8 @@ def scan_complete_payload(
     from being missing in the other.
     """
     entries = snapshot["entries"]
-    hinted = sum(1 for entry in entries if entry["hints"])
-    return {
+    hinted = sum(1 for entry in entries if entry.get("hints"))
+    payload = {
         "status": "scan-complete",
         "target": str(target),
         **(extra or {}),
@@ -203,6 +203,10 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if snapshot.get("inventory_mode") == "sizes-only":
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = snapshot.get("rollup_precision")
+    return payload
 
 
 def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
@@ -1533,6 +1537,7 @@ def scan_tree(
     max_depth: int | None = None,
     *,
     root_children: list[str] | None = None,
+    sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -1647,19 +1652,22 @@ def scan_tree(
                 errors.append({"path": relative, "error": str(exc)})
                 unwalked_reasons[relative] = "scan-error"
                 continue
-            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
+            if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
                     f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
                     "--max-depth or split the audit into bounded subtrees"
                 )
-            entries.append(
-                {
-                    "path": relative,
-                    **data,
-                    "hints": matching_hints(relative, path.name, policy),
-                    "protected_reasons": sorted(set(protections)),
-                }
-            )
+            if sizes_only:
+                entries.append({"path": relative, **data})
+            else:
+                entries.append(
+                    {
+                        "path": relative,
+                        **data,
+                        "hints": matching_hints(relative, path.name, policy),
+                        "protected_reasons": sorted(set(protections)),
+                    }
+                )
             if len(entries) % 25_000 == 0:
                 print(f"scanned {len(entries)} entries...", file=sys.stderr)
         return total
@@ -1669,8 +1677,9 @@ def scan_tree(
         total_size = 0
         truncated.append(".")
     repositories = sorted(set(repositories))
-    annotate_tracked(entries, target, repositories, truncated, repo_errors)
-    reclaimable = reclaimable_local_bytes(entries)
+    if not sizes_only:
+        annotate_tracked(entries, target, repositories, truncated, repo_errors)
+    reclaimable = reclaimable_local_bytes(entries) if not sizes_only else 0
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -1720,8 +1729,13 @@ def scan_tree(
             unknown_paths=unknown_paths,
             unwalked_reasons=unwalked_reasons,
         ),
-        "entries": sorted(entries, key=lambda entry: entry["path"]),
+        "entries": []
+        if sizes_only
+        else sorted(entries, key=lambda entry: entry["path"]),
     }
+    if sizes_only:
+        payload["inventory_mode"] = "sizes-only"
+        payload["rollup_precision"] = "exact" if not truncated else "partial"
     if root_children is not None:
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
@@ -3790,6 +3804,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            sizes_only = bool(args.sizes_only)
             if root_children_mode:
                 admitted, skipped = enumerate_root_children(
                     target, policy, known_mounts
@@ -3832,6 +3847,7 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
+                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -3855,6 +3871,7 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         args.max_depth,
                         root_children=resolved_children,
+                        sizes_only=sizes_only,
                     )
                 except HygieneError as exc:
                     return emit(
@@ -3900,6 +3917,7 @@ def main(argv: list[str] | None = None) -> int:
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
+                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
@@ -3921,7 +3939,9 @@ def main(argv: list[str] | None = None) -> int:
                     0,
                 )
             try:
-                snapshot = scan_tree(target, policy, args.max_depth)
+                snapshot = scan_tree(
+                    target, policy, args.max_depth, sizes_only=sizes_only
+                )
             except HygieneError as exc:
                 return emit(
                     {
@@ -3941,25 +3961,33 @@ def main(argv: list[str] | None = None) -> int:
                         policy,
                         advisory,
                         (
-                            "Safe tidiness is the primary objective; "
-                            "reclaimable bytes are a secondary signal. "
-                            "empty_directory_count names walked empty "
-                            "directories (logical_size 0, not truncated) so "
-                            "zero-byte residue stays visible. "
-                            "unhinted_entries is entries minus "
-                            "hinted_entries — every inventoried entry no hint "
-                            "judged, left to positional review — so hint "
-                            "coverage reads as a rate, not a bare count. "
-                            "Hints are discovery signals, never cleanup "
-                            "verdicts. children_rollup carries one row per "
-                            "immediate child; its logical_bytes, entry_count "
-                            "and newest_mtime_ns are exact where walked is "
-                            "true and null where it is false, never 0. "
-                            "target_reclaimable_local_bytes excludes every "
-                            "entry whose size_qualifiers is non-empty "
-                            "(cloud-placeholder, hardlinked, sparse, "
-                            "not-walked); target_logical_bytes is the walked "
-                            "roll-up and may understate truncated subtrees."
+                            "Sizes-only walk: no per-entry inventory was "
+                            "written; children_rollup and rollup_precision "
+                            "carry exact subtree totals when the walk was "
+                            "complete. Use a normal scan when you need hints, "
+                            "protected_reasons, or handoff paths."
+                            if sizes_only
+                            else (
+                                "Safe tidiness is the primary objective; "
+                                "reclaimable bytes are a secondary signal. "
+                                "empty_directory_count names walked empty "
+                                "directories (logical_size 0, not truncated) so "
+                                "zero-byte residue stays visible. "
+                                "unhinted_entries is entries minus "
+                                "hinted_entries — every inventoried entry no hint "
+                                "judged, left to positional review — so hint "
+                                "coverage reads as a rate, not a bare count. "
+                                "Hints are discovery signals, never cleanup "
+                                "verdicts. children_rollup carries one row per "
+                                "immediate child; its logical_bytes, entry_count "
+                                "and newest_mtime_ns are exact where walked is "
+                                "true and null where it is false, never 0. "
+                                "target_reclaimable_local_bytes excludes every "
+                                "entry whose size_qualifiers is non-empty "
+                                "(cloud-placeholder, hardlinked, sparse, "
+                                "not-walked); target_logical_bytes is the walked "
+                                "roll-up and may understate truncated subtrees."
+                            )
                         ),
                     ),
                     args.quiet,

@@ -1,6 +1,6 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
+argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
@@ -164,9 +164,14 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  [--max-depth <N>] [--confirmed-large-scan] [--quiet] \
+  [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
+
+For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
+`--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
+when the walk completed; depth-limited sizing runs mark `rollup_precision: partial`. Pasteable
+fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -192,7 +197,8 @@ root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdo
 the snapshot the list); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
-fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
+fan-out worker receives a bounded subtree and returns evidence only (see
+[fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
