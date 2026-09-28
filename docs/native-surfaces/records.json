@@ -348,8 +348,8 @@
         "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas",
         "verified": "2026-09-11"
       },
-      "baked": { "description_phrase": false, "boundary_section": true },
-      "budget_caveat": false
+      "baked": { "description_phrase": true, "boundary_section": true },
+      "budget_caveat": true
     },
     {
       "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
