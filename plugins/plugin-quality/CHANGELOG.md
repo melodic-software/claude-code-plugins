@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.28] - 2026-09-28
+
+### Changed
+
+- **`auditor` runs `claude plugin validate --json`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The report's per-file `errors` and `warnings` are the reading. The repo script `scripts/validate-plugins.sh` renders that same object and falls back to text output when the CLI does not emit it. The flag needs Claude Code 2.1.259 or later.
+
 ## [0.7.27] - 2026-09-28
 
 ### Changed
