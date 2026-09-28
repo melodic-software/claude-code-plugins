@@ -3,16 +3,6 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.53] - 2026-09-28
-
-### Added
-
-- **`worktree-reconcile` drive-root stray inventory (#2931).** The report prints
-  the six filed names and a `Proposed:` action (`review-delete`,
-  `hold-until-verdict`, or `hold-operator-deliverable`). `--drive-root` scans
-  one host directory for those names only. The skill records the claim that the
-  paths are host-specific. Nothing in the report deletes a directory or file.
-
 ## [0.10.55] - 2026-09-28
 
 ### Added
@@ -25,6 +15,11 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   as a carve-out. The primary worktree is always `hold-primary`. Built-in
   carve-outs cover `_vfy`, `spike`, the named salvage worktrees, and `*-main`
   branches. `--apply` is refused.
+- **`worktree-reconcile` drive-root stray inventory (#2931).** The report prints
+  the six filed names and a `Proposed:` action (`review-delete`,
+  `hold-until-verdict`, or `hold-operator-deliverable`). `--drive-root` scans
+  one host directory for those names only. The skill records the claim that the
+  paths are host-specific. Nothing in the report deletes a directory or file.
 
 ## [0.10.54] - 2026-09-28
 
