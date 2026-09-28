@@ -8809,6 +8809,12 @@ class GuardTests(unittest.TestCase):
             'Start-Process pwsh -ArgumentList "-c", "rm x"',
             "[scriptblock]::Create('rm x').Invoke()",
             "Set-Alias z 'Remove-Item'; z x",
+            # A member or type named by a string or variable is code.
+            "$f.'DeleteFile'('C:\\x')",
+            "$m = 'DeleteFile'; $f.$m('C:\\x')",
+            "$fso | % 'DeleteFile'",
+            "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
+            "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
             # An unterminated string or subexpression is not masked.
             "'unterminated rm",
             '"$(rm x"',

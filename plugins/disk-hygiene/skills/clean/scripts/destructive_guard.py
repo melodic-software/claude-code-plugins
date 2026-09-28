@@ -1537,9 +1537,10 @@ _POWERSHELL_HERE_STRING_CLOSER = re.compile(r"\n[" + _PS_QUOTES + r"]@")
 # stream merges and `&&` chains are not call operators.
 _POWERSHELL_CALL_OPERATOR = re.compile(r"(?<![>&])&(?!&)")
 _POWERSHELL_DOT_SOURCE = re.compile(r"(?:^|[;|{(\n])\s*\.(?=[\s$(" + _PS_QUOTES + r"])")
-# ENUMERATED, NOT COMPLETE: evaluators that run string content as code, matched
-# on the masked text so a quoted mention does not count. Any hit keeps the
-# raw-text match, which prompts as the belt did before masking existed.
+# ENUMERATED, NOT COMPLETE: evaluators that run string content as code,
+# matched on the raw text because a quoted type or member name
+# (`[type]'...ScriptBlock'`, `% 'DeleteFile'`) is itself code. Any hit keeps
+# the raw-text match, which prompts as the belt did before masking existed.
 _POWERSHELL_STRING_EVALUATORS = re.compile(
     r"(?i)(?<![\w-])("
     r"invoke-expression|iex|invoke-command|icm|start-process|saps|start"
@@ -1547,8 +1548,12 @@ _POWERSHELL_STRING_EVALUATORS = re.compile(
     r"|powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|bash(?:\.exe)?|sh|wsl(?:\.exe)?"
     r"|scriptblock|executioncontext|addscript|addcommand|add-type"
     r"|new-alias|set-alias|nal|sal"
+    r"|foreach-object|foreach|%|get-command|gcm"
     r")(?![\w-])|function:"
 )
+# A member named by a string, a variable, or an expression (`$f.'DeleteFile'()`,
+# `$f.$m()`, `[IO.File]::('Del'+'ete')`) runs string content as a method name.
+_POWERSHELL_DYNAMIC_MEMBER = re.compile(r"(?:\.|::)\s*[$(" + _PS_QUOTES + r"]")
 
 
 class _UnparsedPowerShell(Exception):
@@ -1657,18 +1662,23 @@ def _powershell_word_match_text(command: str) -> str:
     that contains ``move`` or ``del`` does not prompt, while ``$(...)``
     subexpressions inside expandable strings stay visible because PowerShell
     runs them. The raw command is returned whenever a string could be run as
-    code (a call operator, a dot-source, or an evaluator), or when the masker
+    code (a call operator, a dot-source, an evaluator, or a member named by a
+    string or variable), or when the masker
     cannot find where a string ends.
     """
-    if _POWERSHELL_CALL_OPERATOR.search(command) or _POWERSHELL_DOT_SOURCE.search(
-        command
+    if any(
+        pattern.search(command)
+        for pattern in (
+            _POWERSHELL_CALL_OPERATOR,
+            _POWERSHELL_DOT_SOURCE,
+            _POWERSHELL_STRING_EVALUATORS,
+            _POWERSHELL_DYNAMIC_MEMBER,
+        )
     ):
         return command
     try:
         masked, _ = _powershell_scan_code(command, 0, in_subexpression=False)
     except _UnparsedPowerShell:
-        return command
-    if _POWERSHELL_STRING_EVALUATORS.search(masked):
         return command
     return masked
 
