@@ -4,6 +4,13 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.2.0] - 2026-09-28
+
+**Minor.** An existing producer gains one crosswalk row, `attribution/audit/rule-restated-upstream-fact`.
+No producer-owned field's rule moves, no coexistence obligation changes, and no existing row's tier
+or auto-applicability changes. The new row is IMPORTANT and not auto-applicable: an unstamped
+frontmatter-fact restatement is report-only, and a paraphrase can never be `fingerprint-confirmed`.
+
 ## [3.1.3] - 2026-09-27
 
 **Patch, docs-only.** `review`'s `severity.md` now ranks confidence `high` > `medium` > `low` >

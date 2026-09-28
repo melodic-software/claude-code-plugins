@@ -112,9 +112,18 @@ shingling. Then word 5-shingles, containment, Jaccard, longest matched span. Out
 words}], separation: {rule: "containment>=0.3||span>=15", fired: true}}`. Constants are
 named placeholders read from config; plan time tunes them (Q10/Q16).
 
+### `detect-restated-facts.sh [files...] [--paths-file F] [--show-config]`
+
+Catalog matches for the #3524 frontmatter-fact census (listing cap 1,536,
+`skillListingMaxDescChars`, `skillListingBudgetFraction`). A pointer to the skills
+frontmatter reference, or a four-part record in the window, clears the line. Output
+findings carry `attribution/audit/rule-restated-upstream-fact`, class
+`restated-upstream-fact`, `fix_eligible: false`.
+
 ### `emit-findings.sh --report SIDECAR --out RESOLVED_PATH`
 
-Projects relay-eligible findings (`fingerprint-confirmed` copies, stamp rules) into a
+Projects relay-eligible findings (`fingerprint-confirmed` copies, stamp rules,
+`rule-restated-upstream-fact`) into a
 conforming findings file per the detector-findings contract: applies the cell-escaping rule
 and leads every Finding cell with the qualified rule id and fired condition.
 
@@ -132,6 +141,7 @@ silently collapsed to the documented default.
 | `<name>/audit/rule-verbatim-copy` | A fingerprint-confirmed matched span (fired values: containment, span words, source URL, identity check) | CRITICAL fails every limb: copied prose computes nothing, so no input, caller, or subsequent change produces a wrong result. IMPORTANT matches twice over: the stated-rule limb (the org standard `documentation-and-citations.md` says prefer citing and fetching at read time over storing a snapshot, so a retained copy violates a rule the org already adopted in writing) and the degradation limb with a named trigger (the upstream page's next content change strands the local copy; the first reader trusting the stale copy acts on drifted facts under this repo's authority). SUGGESTION is never reached. | IMPORTANT | No, remediated by `/<name>:audit fix` (dispositions, semantic-diff guard, and pointer-liveness discipline are producer-owned) |
 | `<name>/audit/rule-stamp-expired` | A four-part record whose as-of date exceeds the configured window (fired values: date, window, days over) | CRITICAL fails identically. IMPORTANT's degradation limb matches with a named trigger: the record's currency ceiling has lapsed, and the first reader acting on the stamped claim without the re-fetch the convention requires acts on an assertion nobody has re-derived. | IMPORTANT | No. The repair is re-deriving the record against its live basis, a judgment the relay surfaces, never applies |
 | `<name>/audit/rule-trigger-less-stamp` | Repo-override only: a dated stamp whose surface states no recheck trigger | The stated-rule limb directly: the consuming repo that enables this check has adopted the upstream-drift required parts, and a trigger-less stamp violates part 4. Portable default stays off because the fleet's stamp forms are not uniformly greppable and a guessing gate converts signal to noise. | IMPORTANT | No. Writing the missing trigger is a judgment about what observable event guards the claim |
+| `<name>/audit/rule-restated-upstream-fact` | An unstamped catalog match for an upstream frontmatter fact (fired values: fact id, source URL, excerpt) | CRITICAL fails: the restatement computes nothing. IMPORTANT's degradation limb matches: the upstream page's next change strands the local fact, and the first reader trusting it acts on drift. A paraphrase can never be fingerprint-confirmed, so the row is report-only. | IMPORTANT | No. Convert to a pointer or add a four-part stamp. `fix` does not apply this class |
 
 Judgment verdicts (`source-fetched-similar`, `llm-suspected`, split rubric outcomes) have NO
 rows: they never reach the relay (the ai-slop V1 boundary, restated in the Brief). The

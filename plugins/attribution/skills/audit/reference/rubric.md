@@ -264,13 +264,16 @@ prose**, and a unanimous panel does not upgrade one.
 | `fingerprint-confirmed` | A matched span above the separation rule, against an identity-checked fetched source | Yes | Yes |
 | `source-fetched-similar` | Source fetched, below the deterministic rule, unanimous STANDS | No, human report | No |
 | `llm-suspected` | No lexical evidence is possible (paraphrase, summary) | No, human report | No |
+| `restated-upstream-fact` | Catalog match, or a unanimous STANDS on an unstamped upstream fact, with no pointer and no four-part record in the window | Yes, report row | No |
 | `not-found` | Budgets exhausted with no source; every searched surface named | No, human report | No |
 
 Two consequences that judges get wrong if they are not stated:
 
 - **A paraphrase can never be `fingerprint-confirmed`**, however confident the panel. There is no
   lexical evidence to gate on, and unanimity does not manufacture any. `paraphrase` and `summary`
-  are permanently report-only classes.
+  are permanently report-only classes. `restated-upstream-fact` is the class for an upstream
+  constant that fails the pointer-or-stamp check. It reaches the findings file as a report row
+  and stays off the fix path.
 - **`not-found` is a first-class outcome, not a failure and not an acquittal.** It says the run
   did not locate a source within its budget, naming every surface it checked. Absence of a
   located source is never evidence that a passage is original.

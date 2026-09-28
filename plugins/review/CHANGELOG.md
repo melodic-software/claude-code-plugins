@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1] - 2026-09-28
+
+### Added
+
+- `audit-enforceability` lists `attribution/audit/rule-restated-upstream-fact` on the rule-id
+  step of the crosswalk. The detector-findings contract gained that row, which is this file's
+  recheck trigger. The family prefix already classified the id; the rule-id row is the fired
+  update.
+
 ## [0.33.0] - 2026-09-28
 
 ### Security

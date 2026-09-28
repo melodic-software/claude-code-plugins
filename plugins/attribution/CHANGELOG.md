@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.2] - 2026-09-28
+
+### Added
+
+- `audit` detects unstamped restatements of upstream skill-frontmatter facts (`detect-restated-facts.sh`).
+  The catalog is the #3524 census: the 1,536-character listing cap, `skillListingMaxDescChars`, and
+  `skillListingBudgetFraction`, measured against the skills frontmatter reference. A nearby pointer
+  to that page, or a four-part upstream-drift record, clears the line. Findings relay as
+  `attribution/audit/rule-restated-upstream-fact` and stay report-only: a paraphrase can never be
+  `fingerprint-confirmed`, so `fix` does not apply the class (#3525).
+
 ## [0.6.1] - 2026-09-28
 
 ### Fixed

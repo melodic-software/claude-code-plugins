@@ -70,6 +70,13 @@ it in both templates below:
 precision comes from fingerprint verification and the judge panel downstream, and a passage
 nomination never proposes can never be found. A nomination is a question, not a claim.
 
+A restated upstream fact (a constant, a default, a version pin, a field list of a named external
+product) is class `restated-upstream-fact`, not `paraphrase`, when the harm is drift of that
+fact. The #3524 census is the worked set: bare restatements of the skill-listing cap and budget
+constants. `detect-restated-facts.sh` already emits those catalog matches. Do not drop them
+because they lack a 15-word verbatim span. Judge them on the upstream-drift shape (a pointer, or
+claim, basis, as-of date, and recheck trigger), not on the copy rubric.
+
 **Inputs to hand the subagent.** One chunk of corpus files, and the breadcrumb inventory for
 each file's whole DIRECTORY, not just the flagged file's own. Sibling breadcrumbs are the
 point: a neighbor's citation is routinely what identifies an unfenced copy's source, and a

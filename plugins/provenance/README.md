@@ -17,4 +17,6 @@ do no work. It is removed in a later release.
    `~/.claude/provenance.json` to `~/.claude/attribution.json`). The renamed plugin does not read
    the old file names.
 
-See the [attribution README](../attribution/README.md) for what the plugin does.
+See the [attribution README](../attribution/README.md) for what the plugin does. The restated
+frontmatter-fact detector from #3525 lives there, as `detect-restated-facts.sh` under
+`/attribution:audit`.

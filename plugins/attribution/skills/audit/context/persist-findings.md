@@ -64,8 +64,9 @@ says" below.
 
 ## The relay boundary, and why the script enforces it
 
-**Only fingerprint-confirmed copy findings and the two deterministic stamp rules enter the
-file.** Judgment verdicts go to the human report only: `source-fetched-similar`,
+**Only fingerprint-confirmed copy findings, the two deterministic stamp rules, and
+`rule-restated-upstream-fact` enter the file.** The restated-fact row is report-only. A sidecar
+that declares that rule `fingerprint-confirmed` is not relayed. Judgment verdicts go to the human report only: `source-fetched-similar`,
 `llm-suspected`, and the neutral outcome `not-found`. They have no crosswalk row to look a tier up
 from, and a relay row is an instruction to a remediation surface, not a place to record a
 suspicion.

@@ -1574,6 +1574,59 @@ else
 fi
 chmod u+w "$UNWRITABLE"
 
+# --- Restated upstream facts -----------------------------------------------------
+#
+# The #3524 class reaches the findings file as a report row. Declaring it
+# fingerprint-confirmed does not: SKILL.md says a paraphrase can never take
+# that tier, so the row stays off the relay.
+
+write_report restated.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {
+      "rule": "attribution/audit/rule-restated-upstream-fact",
+      "class": "restated-upstream-fact",
+      "fix_eligible": false,
+      "file": "docs/page.md",
+      "line": 12,
+      "fact_id": "listing-entry-cap-1536",
+      "source_url": "https://code.claude.com/docs/en/skills#frontmatter-reference",
+      "excerpt": "truncated at 1,536 characters in the skill listing"
+    }
+  ]
+}'
+RESTATED_OUT="$OUTDIR/restated.md"
+run --report "$REPORTS/restated.json" --out "$RESTATED_OUT" >/dev/null 2>&1
+RESTATED_BODY="$(cat "$RESTATED_OUT")"
+assert_contains "an unstamped frontmatter fact is a relay row" \
+  "$RESTATED_BODY" "rule-restated-upstream-fact"
+assert_contains "the row names the catalog fact" \
+  "$RESTATED_BODY" "listing-entry-cap-1536"
+assert_contains "the action keeps the class off the fix path" \
+  "$RESTATED_BODY" "fix does not apply this class"
+assert_not_contains "the row does not offer the fix command as the remedy" \
+  "$RESTATED_BODY" "remediate with \`/attribution:audit fix\`"
+
+write_report restated-confirmed.json '{
+  "counts": {"files": 1},
+  "findings": [
+    {
+      "rule": "attribution/audit/rule-restated-upstream-fact",
+      "file": "docs/page.md",
+      "line": 3,
+      "tier": "fingerprint-confirmed",
+      "fact_id": "listing-entry-cap-1536"
+    }
+  ]
+}'
+CONFIRMED_OUT="$OUTDIR/restated-confirmed.md"
+run --report "$REPORTS/restated-confirmed.json" --out "$CONFIRMED_OUT" >/dev/null 2>&1
+CONFIRMED_BODY="$(cat "$CONFIRMED_OUT")"
+assert_not_contains "a paraphrase declared fingerprint-confirmed is not a row" \
+  "$CONFIRMED_BODY" "rule-restated-upstream-fact"
+assert_contains "that declaration is counted as not relay-eligible" \
+  "$CONFIRMED_BODY" "Not relay-eligible: 1"
+
 # --- Determinism -----------------------------------------------------------------
 
 D1="$OUTDIR/det1.md"

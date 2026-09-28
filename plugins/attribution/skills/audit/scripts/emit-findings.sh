@@ -15,8 +15,11 @@
 # escaping, rule-id-first Finding cells, and tier lookup.
 #
 # The RELAY BOUNDARY is enforced here, not upstream. Only fingerprint-confirmed
-# copies and the two deterministic stamp rules may reach a findings file;
-# judgment verdicts (source-fetched-similar, llm-suspected, not-found) stay in
+# copies, the two deterministic stamp rules, and rule-restated-upstream-fact
+# may reach a findings file. The restated-fact row is report-only: a sidecar
+# that declares it fingerprint-confirmed is not relayed, because a paraphrase
+# can never be fingerprint-confirmed.
+# Judgment verdicts (source-fetched-similar, llm-suspected, not-found) stay in
 # the human report. They are counted in `## Surfaces` rather than dropped, and
 # their tier names are deliberately NOT printed — the findings file is the
 # apply relay's input, and a tier name in it invites a consumer to act on a
@@ -456,6 +459,8 @@ def opt($k): if type == "object" then .[$k] else null end;
         (if declares_confirmed then "R" else "X" end)
       elif $slug == "rule-stamp-expired" or $slug == "rule-trigger-less-stamp" then
         (if own_tier_unreadable then "X" else "R" end)
+      elif $slug == "rule-restated-upstream-fact" then
+        (if declares_confirmed or own_tier_unreadable then "X" else "R" end)
       else "U"
       end) as $kind
   | {
@@ -464,7 +469,8 @@ def opt($k): if type == "object" then .[$k] else null end;
         if $slug == "rule-verbatim-copy" then 0
         elif $slug == "rule-stamp-expired" then 1
         elif $slug == "rule-trigger-less-stamp" then 2
-        else 3 end),
+        elif $slug == "rule-restated-upstream-fact" then 3
+        else 4 end),
       rule: $rule,
       slug: $slug,
       file: (.file // ""),
@@ -478,6 +484,9 @@ def opt($k): if type == "object" then .[$k] else null end;
           "stamp \(.stamp_date // "?") exceeds the \(.window_days // "?")-day window by \(.days_over // "?") days"
         elif $slug == "rule-trigger-less-stamp" then
           "stamp \(.stamp_date // "?") on a surface stating no recheck trigger"
+        elif $slug == "rule-restated-upstream-fact" then
+          "unstamped restatement of \(.fact_id // "an upstream frontmatter fact") against \(.source_url // "the skills frontmatter reference")"
+          + (if (.excerpt // "") != "" then "; excerpt: \(.excerpt)" else "" end)
         else "" end),
       # Defense in depth for the boundary above: only the ONE kind that prints a
       # raw record carries one into the composition stage, so no later edit to the
@@ -536,6 +545,8 @@ function rule_action(slug) {
     return "Not auto-applicable: re-derive the record against its live basis and restamp, or replace the restatement with a pointer"
   if (slug == "rule-trigger-less-stamp")
     return "Not auto-applicable: state the observable event that obliges re-derivation (upstream-drift required part 4)"
+  if (slug == "rule-restated-upstream-fact")
+    return "Not auto-applicable: convert the restatement to a pointer, or add a four-part stamp (claim, basis, as-of date, recheck trigger). Report-only; /attribution:audit fix does not apply this class"
   return "Review by hand"
 }
 
