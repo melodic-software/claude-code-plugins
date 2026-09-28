@@ -108,11 +108,12 @@ try {
                             "-> $($u.available_version)")
                         foreach ($vuln in $kevIndex[$candidate]) {
                             $kevMatches.Add([pscustomobject]@{
-                                    upgrade_id = $u.id
-                                    upgrade    = $upgradeString
-                                    cve_id     = $vuln.cveID
-                                    vendor     = $vuln.vendorProject
-                                    product    = $vuln.product
+                                    upgrade_id  = $u.id
+                                    upgrade     = $upgradeString
+                                    cve_id      = $vuln.cveID
+                                    vendor      = $vuln.vendorProject
+                                    product     = $vuln.product
+                                    match_basis = 'name-only'
                                 })
                         }
                     }
@@ -124,11 +125,25 @@ try {
             $kevNotes = "KEV lookup failed: $($_.Exception.Message)"
         }
 
+        # One upgrade can match several KEV rows, so the upgrade figure counts
+        # distinct Ids and the CVE rows are reported as their own number.
+        $kevUpgradeCount = @($kevMatches | ForEach-Object { "$($_.upgrade_id)".ToLowerInvariant() } |
+                Select-Object -Unique).Count
+
         $severity = 'OK'
         $summary = 'No winget upgrades available.'
         if ($kevMatches.Count -gt 0) {
-            $severity = 'CRIT'
-            $summary = "$($kevMatches.Count) upgrade(s) match CISA KEV."
+            # The KEV feed carries no affected-version range, so every match is a
+            # vendor/product name match with the installed version never
+            # compared. severity-rubric.md: ambiguous evidence takes the lower
+            # tier, so a name-only match is WARN. CRIT needs a version check.
+            $severity = 'WARN'
+            $cveIds = @($kevMatches | ForEach-Object { "$($_.cve_id)" } | Select-Object -Unique)
+            $cveList = ($cveIds | Select-Object -First 5) -join ', '
+            if ($cveIds.Count -gt 5) { $cveList += ", +$($cveIds.Count - 5) more" }
+            $entryWord = $kevMatches.Count -eq 1 ? 'entry' : 'entries'
+            $summary = ("$kevUpgradeCount upgrade(s) name-match CISA KEV " +
+                "($($kevMatches.Count) matched CVE $entryWord`: $cveList); installed versions not compared.")
         } elseif ($upgrades.Count -gt 0) {
             $severity = $upgrades.Count -gt 10 ? 'WARN' : 'INFO'
             $summary = "$($upgrades.Count) apps behind on winget upgrades."
@@ -144,6 +159,7 @@ try {
         $detail = @{
             upgrades_count          = $upgrades.Count
             kev_match_count         = $kevMatches.Count
+            kev_upgrade_count       = $kevUpgradeCount
             upgrades                = $upgrades
             kev_matches             = $kevMatches
             non_conforming_id_count = $nonConformingCount

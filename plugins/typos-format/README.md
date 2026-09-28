@@ -55,15 +55,11 @@ opt-in required.
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
   though the hook passes it explicitly, with no advisory noise.
-- **Gitignored paths are still scanned.** typos honors `.gitignore` when it
-  walks a directory, but this hook names the edited file explicitly, and
-  `--force-exclude` covers only typos' own excludes. An edit under `.work/`,
-  `.venv/` or `node_modules/` therefore pays a full scan and reports findings
-  (or, in write mode, applies corrections) even though git ignores the path (reproduced with typos-cli 1.42.1,
-  2026-09-27). To skip such a path, list it in `[files] extend-exclude`
-  ([typos reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#filesextend-exclude)).
-  The hook does not ask `git check-ignore` itself, because that would add a
-  process to every edit.
+- **Gitignored paths are out of scope.** A file the repository gitignores is
+  neither reported nor rewritten, matching hook-precision rule 6. Set
+  `typos_format_lint_gitignored` to `true` to act on gitignored files too. A
+  tracked file that matches an ignore pattern stays in scope. typos' own
+  `[files] extend-exclude` still applies downstream when the hook does run.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
@@ -171,12 +167,13 @@ config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
 
-Two `userConfig` options tune the hook itself:
+Three `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
+| `typos_format_lint_gitignored` | `false` | Set `true` to report (and, in write mode, rewrite) a file the repository gitignores. Off by default. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
 install command:
@@ -197,6 +194,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on) |
 | `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
+| `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
 
 ### How to set these
 
@@ -335,6 +333,49 @@ times the `bash -c :` floor and the new row about 1.0 times it (medians: 96.1 ms
 against 23.7 ms on a 24.0 ms floor, and 157.6 ms against 62.4 ms on a 61.9 ms floor).
 With the switch on the row `exec`s the script in place of its own shell, so the
 process count is unchanged.
+
+### Why the row stays synchronous (#4677)
+
+The row does not set `async: true`, and it is not split into an async report-only row and a
+synchronous write-mode row. Running the report-only scan in the background would take it off the
+per-edit critical path, but it gives up more than it saves:
+
+- **The finding would arrive late.** A synchronous `PostToolUse` hook's `additionalContext` reaches
+  Claude alongside the tool result, while Claude is still on the file. An async hook's output
+  arrives on the next conversation turn, and in an idle session it waits for your next message. The
+  last edit of a task is exactly the one whose finding would land after Claude reports the task
+  done.
+- **Headless runs would lose findings.** Under `claude -p`, Claude Code kills an async hook that is
+  still running at teardown and records it as `cancelled`, so the final edits of a scripted or
+  cloud run would go unchecked.
+- **The 15-second budget would go away.** Claude Code does not enforce `timeout` on an async hook,
+  and every firing starts its own background process with no deduplication. This hook's
+  classifier is sized against that budget.
+- **The missing-`typos` notice would go quiet.** Report-only findings already travel on
+  `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
+  mode) and for the once-per-session notice that `typos` is not on `PATH`. An async hook's
+  `systemMessage` is not shown to you, so that notice would reach only Claude, once, and the skip
+  would be invisible to the person who can install the binary.
+
+The synchronous cost this keeps is 472 to 649 ms per edit on a Windows Git Bash host (2026-09-23,
+recorded in #4677), and 27 ms for a clean file and 35 ms with a finding on Linux
+x86_64 (typos-cli 1.50.3, 20 runs each, 2026-09-28). Write mode stays synchronous on its own
+grounds: a background rewrite could race the next `Edit` of the same file, the reason async was
+declined for `eol-normalizer` in #4417.
+
+- **Decision**: keep the one synchronous row in both modes.
+- **Basis**: [hooks reference](https://code.claude.com/docs/en/hooks), "Run hooks in the
+  background": "After the background process exits, Claude Code delivers the `additionalContext`
+  and `systemMessage` fields from the hook's JSON response to Claude on the next conversation turn.
+  Unlike a synchronous hook's `systemMessage`, neither field is shown to you"; "If the session is
+  idle, the response waits until the next user interaction"; "In non-interactive mode with the `-p`
+  flag, Claude Code kills any async hook still running at teardown"; "Once an async hook is running
+  in the background, Claude Code doesn't enforce `timeout` on it". The same page's `PostToolUse`
+  output table: `additionalContext` is "added to Claude's context alongside the tool result".
+- **As of**: 2026-09-28.
+- **Recheck trigger**: that section changes when async output is delivered, whether `-p` waits for
+  a running async hook, or whether `timeout` applies to one; or this hook's measured Windows cost
+  on a clean edit exceeds one second.
 
 ## License
 

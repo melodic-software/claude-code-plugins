@@ -45,17 +45,28 @@
 # under it, and when --out is the findings file's own directory or sits under
 # it. Each path is normalized lexically and then folded to the filesystem's own
 # spelling of its deepest EXISTING ancestor, so two spellings of one directory
-# compare equal. Nothing is created to decide a refusal: a refused run leaves
-# the tree exactly as it found it. Neither directory need exist, but existence
+# compare equal. A refused run leaves the caller's paths exactly as it found
+# them. Neither directory need exist, but existence
 # decides WHO answers. For the part of a chain that exists the filesystem
 # answers, by device and inode. For the unresolved tail, a spelling fold
 # answers, and that fold is deliberately coarser than the CASE fold of any
 # filesystem this runs on, so the absent case is refused wherever it might be
-# one directory (it is not coarser than a Unicode NORMALIZATION fold, which
-# APFS and HFS+ apply and NTFS does not; two normalizations of one name still
-# compare unequal there). The inode walk never takes a refusal away once the
-# fold has spoken for a tail, and it never lets the fold speak for inodes the
-# filesystem can already distinguish.
+# one directory. On a normalization-insensitive volume the tail is put in
+# Unicode NFC before that fold, so an NFC spelling and an NFD spelling of one
+# absent directory compare equal and refuse. APFS is normalization-insensitive
+# in both case variants (Apple File System Guide FAQ: a normalization variant
+# of a filename cannot be created in the same directory). HFS Plus stores names
+# fully decomposed (TN1150, Canonical Decomposition), so the same pair is one
+# directory there too. NTFS and ext4 are not; the NFC step is skipped there,
+# and two directories whose names differ only by canonical form stay usable.
+# Which kind of volume it is is decided by creating two canonically equivalent
+# names under a private directory on the deepest existing ancestor and
+# comparing them by inode, then removing that directory before returning. The
+# caller's own paths are not created to decide a refusal. When that ancestor
+# cannot be written, only an apfs or hfs filesystem type takes the NFC step.
+# The inode walk never takes a refusal away once the fold has spoken for a
+# tail, and it never lets the fold speak for inodes the filesystem can already
+# distinguish.
 #
 # THE BRANCH SLUG IS NOT A PATH HERE. The findings file's `branch:` value is
 # operator-supplied text: this script records it as `source-branch:` in the
@@ -86,6 +97,7 @@ scan_dir=""
 memory_root=""
 memory_root_given=0
 dry_run=0
+norm_self_check=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -134,6 +146,12 @@ while [[ $# -gt 0 ]]; do
     dry_run=1
     shift
     ;;
+  --check-normalization-fold)
+    # Test entry for the NFC/NFD tail fold. Not a user flag: it exits before
+    # any findings file is read and creates nothing.
+    norm_self_check=1
+    shift
+    ;;
   --help | -h)
     usage
     exit 0
@@ -146,28 +164,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$findings" ]]; then
-  printf 'refusing: --findings names exactly one file, and none was given.\n' >&2
-  exit 2
-fi
-if [[ -z "$out" ]]; then
-  printf 'refusing: --out names the resolved stub home, and none was given.\n' >&2
-  exit 2
-fi
-if [[ -z "$scan_dir" ]]; then
-  printf 'refusing: --scan-dir names the reviews location the fix action scans; it is required so the stub home can be fenced out of it.\n' >&2
-  exit 2
-fi
-if [[ ! -f "$findings" ]]; then
-  printf 'refusing: --findings %s does not exist or is not a file.\n' "$findings" >&2
-  exit 2
-fi
-# An EMPTY --memory-root is a caller whose root variable did not expand, not a
-# caller who chose not to anchor. Treating it as "not supplied" would turn the
-# anchor off exactly when the composition it guards went wrong.
-if [[ $memory_root_given -eq 1 && -z "$memory_root" ]]; then
-  printf 'refusing: --memory-root was given but is empty. Omit the flag to state that the home was not composed here; an empty value is an unexpanded variable, not a decision.\n' >&2
-  exit 2
+if [[ "$norm_self_check" -eq 0 ]]; then
+  if [[ -z "$findings" ]]; then
+    printf 'refusing: --findings names exactly one file, and none was given.\n' >&2
+    exit 2
+  fi
+  if [[ -z "$out" ]]; then
+    printf 'refusing: --out names the resolved stub home, and none was given.\n' >&2
+    exit 2
+  fi
+  if [[ -z "$scan_dir" ]]; then
+    printf 'refusing: --scan-dir names the reviews location the fix action scans; it is required so the stub home can be fenced out of it.\n' >&2
+    exit 2
+  fi
+  if [[ ! -f "$findings" ]]; then
+    printf 'refusing: --findings %s does not exist or is not a file.\n' "$findings" >&2
+    exit 2
+  fi
+  # An EMPTY --memory-root is a caller whose root variable did not expand, not a
+  # caller who chose not to anchor. Treating it as "not supplied" would turn the
+  # anchor off exactly when the composition it guards went wrong.
+  if [[ $memory_root_given -eq 1 && -z "$memory_root" ]]; then
+    printf 'refusing: --memory-root was given but is empty. Omit the flag to state that the home was not composed here; an empty value is an unexpanded variable, not a decision.\n' >&2
+    exit 2
+  fi
 fi
 
 # --- Lexical path normalization ------------------------------------------------
@@ -350,10 +370,14 @@ fold_ascii_case() {
 # normalize_path.
 #
 # The fold is deliberately COARSER than any filesystem's CASE fold, and that is
-# the whole design. It is not coarser than a Unicode NORMALIZATION fold: APFS
-# and HFS+ treat NFC and NFD spellings of one name as one directory, and this
-# fold does not, so on those filesystems that pair is left to the `-ef` arm.
-# A fold that tried to match NTFS character for character would need
+# the whole design. It is not, by itself, a Unicode NORMALIZATION fold. APFS
+# treats NFC and NFD as one name (Apple File System Guide FAQ) and HFS Plus
+# stores the decomposed form (TN1150), while NTFS and ext4 keep them distinct.
+# apply_canonical_fold puts the unresolved tail in NFC before this fold, and
+# only when a same-device probe says that volume is normalization-insensitive.
+# On a byte-exact volume the NFC step is skipped, so this fold still reports
+# the two spellings as different directories. A fold that tried to match NTFS
+# character for character would need
 # NTFS's upcase table; a fold that used `nocasematch` or `${p,,}` would inherit
 # whatever the ambient locale happens to be, which is the hole this closes. So
 # instead of asking which non-ASCII characters a filesystem folds together, this
@@ -399,6 +423,195 @@ fold_path() {
   FOLDED="$out"
 }
 
+# nfc_path <path>: Unicode NFC of <path>, computed on the raw bytes so the
+# result does not depend on the locale. Result in NFC_PATH. Returns 1 when no
+# normalizer is available. Invalid UTF-8 is returned unchanged and counts as
+# success: a non-Unicode segment is not a canonical pair.
+NFC_PATH=""
+nfc_path() {
+  local raw="$1" out=""
+  NFC_PATH="$raw"
+  if command -v python3 >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
+    out="$(printf '%s' "$raw" | python3 -c 'import sys, unicodedata
+raw = sys.stdin.buffer.read()
+try:
+    text = raw.decode("utf-8")
+except UnicodeDecodeError:
+    sys.stdout.buffer.write(raw)
+else:
+    sys.stdout.buffer.write(unicodedata.normalize("NFC", text).encode("utf-8"))
+')" || return 1
+    NFC_PATH="$out"
+    return 0
+  fi
+  if command -v perl >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
+    out="$(printf '%s' "$raw" | perl -MUnicode::Normalize -MEncode=decode,encode,FB_CROAK -e 'binmode STDIN; binmode STDOUT; local $/; my $raw = <STDIN>; my $text = eval { decode("UTF-8", $raw, FB_CROAK) }; if ($@) { print $raw; exit 0 } print encode("UTF-8", NFC($text));')" || return 1
+    NFC_PATH="$out"
+    return 0
+  fi
+  return 1
+}
+
+# apply_canonical_fold <tail> <normalizing>: fold_path of <tail>, after NFC
+# when <normalizing> is 1 and the tail contains a non-ASCII byte. ASCII is
+# invariant under NFC, so an ASCII tail skips the normalizer. Result in
+# FOLDED. Returns 1 when a normalizing volume has a non-ASCII tail and NFC
+# could not be computed; the caller refuses, because leaving the pair
+# uncompared is the escape this step exists to close.
+apply_canonical_fold() {
+  local tail="$1" normalizing="$2"
+  if [[ "$normalizing" -eq 1 && "$tail" == *[^[:ascii:]]* ]]; then
+    if ! nfc_path "$tail"; then
+      return 1
+    fi
+    tail="$NFC_PATH"
+  fi
+  fold_path "$tail"
+  return 0
+}
+
+# volume_normalizes <existing-dir>: set VOLUME_NORMALIZES to 1 when that
+# directory's volume treats NFC and NFD as one name, else 0. Cached by device
+# id. The probe directory is removed before return. An unwritable directory
+# falls back to the filesystem type, and only apfs/hfs take the fold; every
+# other type, including an unknown one, stays byte-exact so ext4 and NTFS are
+# not over-refused.
+VOLUME_NORMALIZES=0
+VOLUME_NORMALIZES_DEV=""
+VOLUME_PROBE_DIR=""
+volume_normalizes() {
+  local dir="$1" dev="" probe="" nfc nfd fstype="" prefix=""
+  if [[ ! -d "$dir" ]]; then
+    VOLUME_NORMALIZES=0
+    return 0
+  fi
+  dev="$(stat -c '%d' "$dir" 2>/dev/null || stat -f '%d' "$dir" 2>/dev/null)" # portability-ok: BSD stat -f is the same-line fallback for the GNU device id
+  if [[ -n "$dev" && "$dev" == "$VOLUME_NORMALIZES_DEV" ]]; then
+    return 0
+  fi
+  VOLUME_NORMALIZES=0
+  VOLUME_NORMALIZES_DEV="$dev"
+  # U+00E9 LATIN SMALL LETTER E WITH ACUTE, against e + U+0301 COMBINING ACUTE.
+  nfc=$'\xc3\xa9'
+  nfd=$'e\xcc\x81'
+  probe="$(mktemp -d "${dir%/}/emit-stubs-norm.XXXXXX" 2>/dev/null || true)"
+  if [[ -n "$probe" && -d "$probe" ]]; then
+    prefix="${dir%/}/emit-stubs-norm."
+    case "$probe" in
+    "$prefix"*)
+      if mkdir -- "$probe/$nfc" 2>/dev/null; then
+        if mkdir -- "$probe/$nfd" 2>/dev/null; then
+          if [[ "$probe/$nfc" -ef "$probe/$nfd" ]]; then
+            VOLUME_NORMALIZES=1
+          fi
+        elif [[ -d "$probe/$nfd" && "$probe/$nfc" -ef "$probe/$nfd" ]]; then
+          VOLUME_NORMALIZES=1
+        fi
+      fi
+      rmdir -- "$probe/$nfd" 2>/dev/null || true
+      rmdir -- "$probe/$nfc" 2>/dev/null || true
+      rmdir -- "$probe" 2>/dev/null || true
+      return 0
+      ;;
+    *)
+      printf 'refusing: normalization probe %s is not under %s\n' "$probe" "$dir" >&2
+      return 0
+      ;;
+    esac
+  fi
+  fstype="$(stat -f -c '%T' "$dir" 2>/dev/null || true)" # portability-ok: GNU stat filesystem type; an empty result falls through to diskutil below
+  if [[ -z "$fstype" ]] && command -v diskutil >/dev/null 2>&1; then
+    fstype="$(diskutil info "$dir" 2>/dev/null | awk -F': ' 'tolower($1) ~ /file system personality|type \(bundle\)/ { print tolower($2); exit }')"
+  fi
+  fstype="$(printf '%s' "$fstype" | tr '[:upper:]' '[:lower:]')"
+  case "$fstype" in
+  *apfs* | *hfs*)
+    VOLUME_NORMALIZES=1
+    ;;
+  *)
+    VOLUME_NORMALIZES=0
+    ;;
+  esac
+  return 0
+}
+
+# fold_unresolved_tail <tail>: the arm-3 fold. A non-ASCII tail asks the
+# volume once; an ASCII tail does not. Returns 1 when the volume is
+# normalization-insensitive and NFC could not be computed.
+fold_unresolved_tail() {
+  local tail="$1" normalizing=0
+  if [[ "$tail" == *[^[:ascii:]]* ]]; then
+    volume_normalizes "$VOLUME_PROBE_DIR"
+    normalizing="$VOLUME_NORMALIZES"
+  fi
+  apply_canonical_fold "$tail" "$normalizing"
+}
+
+# normalization_fold_self_check: the string property the filesystem test
+# cannot reach on a byte-exact runner. Exit status is the result.
+normalization_fold_self_check() {
+  local nfc nfd folded_nfc folded_nfd ascii_a ascii_b
+  nfc=$'r\xc3\xa9views'
+  nfd=$'re\xcc\x81views'
+  if ! apply_canonical_fold "$nfc" 0; then
+    printf 'normalization self-check: byte-exact fold of the NFC spelling failed\n' >&2
+    return 1
+  fi
+  folded_nfc="$FOLDED"
+  if ! apply_canonical_fold "$nfd" 0; then
+    printf 'normalization self-check: byte-exact fold of the NFD spelling failed\n' >&2
+    return 1
+  fi
+  folded_nfd="$FOLDED"
+  if [[ "$folded_nfc" == "$folded_nfd" ]]; then
+    printf 'normalization self-check: a byte-exact fold treated NFC and NFD as one name\n' >&2
+    return 1
+  fi
+  if ! apply_canonical_fold "$nfc" 1; then
+    printf 'normalization self-check: normalizing fold of the NFC spelling failed\n' >&2
+    return 1
+  fi
+  folded_nfc="$FOLDED"
+  if ! apply_canonical_fold "$nfd" 1; then
+    printf 'normalization self-check: normalizing fold of the NFD spelling failed\n' >&2
+    return 1
+  fi
+  folded_nfd="$FOLDED"
+  if [[ "$folded_nfc" != "$folded_nfd" ]]; then
+    printf 'normalization self-check: NFC and NFD still differ after the canonical fold\n' >&2
+    return 1
+  fi
+  if ! apply_canonical_fold "reviews/a" 1; then
+    printf 'normalization self-check: ASCII fold failed\n' >&2
+    return 1
+  fi
+  ascii_a="$FOLDED"
+  if ! apply_canonical_fold "reviews/b" 1; then
+    printf 'normalization self-check: ASCII fold failed\n' >&2
+    return 1
+  fi
+  ascii_b="$FOLDED"
+  if [[ "$ascii_a" == "$ascii_b" ]]; then
+    printf 'normalization self-check: distinct ASCII tails folded together\n' >&2
+    return 1
+  fi
+  if ! apply_canonical_fold "reviews" 1; then
+    return 1
+  fi
+  ascii_a="$FOLDED"
+  if ! apply_canonical_fold "REVIEWS" 1; then
+    return 1
+  fi
+  ascii_b="$FOLDED"
+  if [[ "$ascii_a" != "$ascii_b" ]]; then
+    printf 'normalization self-check: ASCII case fold regressed\n' >&2
+    return 1
+  fi
+  return 0
+}
+
 # split_existing <path>: SPLIT_BASE gets the deepest ancestor of <path> that
 # exists (the path itself when it does), SPLIT_TAIL the segments below it.
 # Walks UP only, so nothing is created to decide it.
@@ -425,9 +638,10 @@ split_existing() {
 # because here a positive answer is a refusal and the unsettled case is exactly
 # the one that must not be written into.
 #
-# Three arms, all fail-closed, none creating anything. Existence decides
-# which of the last two answers; the first is an ASCII-letter fold that does
-# not inherit the locale:
+# Three arms, all fail-closed. Existence decides which of the last two
+# answers; the first is an ASCII-letter fold that does not inherit the locale.
+# The third arm's normalization probe creates and removes a private directory
+# on the existing ancestor; it does not create the caller's paths.
 #
 #   1. Exact or ASCII-case spelling. `reviews` and `REVIEWS` refuse without
 #      asking the filesystem, which is the documented cost case 17 asserts on
@@ -442,8 +656,11 @@ split_existing() {
 #      are not one directory, even if a later fold would have spelled them
 #      alike.
 #   3. What is left of each path after that match, which by construction
-#      exists on neither side, is settled by the fold. That is the only arm
-#      that pays the coarse-fold over-refusal (`révu` vs `rêvu` as tails).
+#      exists on neither side, is settled by the fold. On a
+#      normalization-insensitive volume that fold sees Unicode NFC first, so
+#      an NFC/NFD pair of one absent directory refuses. On a byte-exact volume
+#      it does not, and the pair stays two directories. The coarse-fold
+#      over-refusal (`révu` vs `rêvu` as tails) is unchanged.
 may_be_within() {
   local candidate="$1" ancestor="$2" tail="" probe
   local c_folded a_folded a_base a_tail c_ascii a_ascii
@@ -458,13 +675,18 @@ may_be_within() {
   split_existing "$ancestor" || return 1
   a_base="$SPLIT_BASE"
   a_tail="$SPLIT_TAIL"
-  fold_path "$a_tail"
+  VOLUME_PROBE_DIR="$a_base"
+  if ! fold_unresolved_tail "$a_tail"; then
+    return 0
+  fi
   a_folded="$FOLDED"
   probe="$candidate"
   while :; do
     if [[ -e "$probe" ]] && [[ "$probe" -ef "$a_base" ]]; then
       [[ -n "$a_tail" ]] || return 0
-      fold_path "$tail"
+      if ! fold_unresolved_tail "$tail"; then
+        return 0
+      fi
       c_folded="$FOLDED"
       [[ "$c_folded" == "$a_folded" || "$c_folded" == "${a_folded%/}/"* ]]
       return $?
@@ -536,7 +758,12 @@ is_slug_charset() {
 }
 
 # --- Findings-file admission, first half: the frontmatter marker --------------
-#
+
+if [[ "$norm_self_check" -eq 1 ]]; then
+  normalization_fold_self_check
+  exit $?
+fi
+
 # One pass over the frontmatter block reads both values this script needs: the
 # `type:` marker that admits the file, and the `branch:` value every stub
 # records as `source-branch:`. Frontmatter opens with `---` on line 1 and closes

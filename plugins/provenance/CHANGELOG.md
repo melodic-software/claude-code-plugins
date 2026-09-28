@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 2026-09-28
+
+### Changed
+
+- Version serializes with `attribution` 0.6.1; the shim still points at `/attribution:audit`.
+
 ## [0.6.0] - 2026-09-27
 
 ### Deprecated

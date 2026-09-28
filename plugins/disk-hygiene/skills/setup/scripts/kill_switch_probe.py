@@ -21,6 +21,14 @@ mode when a body token arrives unexpanded.
 Scope: managed settings and a ``--settings`` flag can also carry
 ``pluginConfigs`` and are not visible here; the ``detail`` sentence states the
 path actually probed so the reader can judge the claim.
+
+The report also carries ``hook_python`` and ``data_root``: the absolute
+interpreter and the ``--data-root`` value the destructive guard names in its
+denial guidance, computed by the guard's own ``launch_disclosure`` for this
+install root. The guard admits this probe only under its own interpreter, so
+under the ``clean`` belt ``hook_python`` is that interpreter by construction,
+and ``data_root`` is the value every engine call must pass. ``data_root`` is
+``null`` when the guard could resolve no authority either.
 """
 
 from __future__ import annotations
@@ -30,16 +38,29 @@ import json
 import sys
 from pathlib import Path
 
-_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
+_PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+for _module_dir in (
+    _PLUGIN_ROOT / "lib",
+    _PLUGIN_ROOT / "skills" / "clean" / "scripts",
+):
+    if str(_module_dir) not in sys.path:
+        sys.path.insert(0, str(_module_dir))
 
+import destructive_guard  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 # Re-exported for the setup skill and tests: the read logic and its default
 # settings location are the library's, surfaced here unchanged.
 default_settings_path = killswitch_config.default_settings_path
 probe = killswitch_config.probe
+
+
+def report(settings_path: Path) -> dict[str, object]:
+    """The kill-switch report plus the guard's launch disclosure."""
+    return {
+        **probe(settings_path),
+        **destructive_guard.launch_disclosure(str(_PLUGIN_ROOT)),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     settings_path = (
         Path(args.settings_file) if args.settings_file else default_settings_path()
     )
-    print(json.dumps(probe(settings_path)))
+    print(json.dumps(report(settings_path)))
     return 0
 
 

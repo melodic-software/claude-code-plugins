@@ -493,6 +493,32 @@ else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
 fi
 
+# --- Gitignored path (#4671): neither rewritten nor reported by default ------
+# The default biome.json leaves vcs.useIgnoreFile off, so Biome itself would
+# format an ignored file passed explicitly; the hook gate decides instead,
+# unless biome_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_biome_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\nnode_modules/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'const x=1;var y=2\n' >"$REPO_IGN/.work/scratch.ts"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.ts")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.ts")
+if [[ -z "$OUT" ]]; then ok "gitignored: nothing reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.ts")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.ts")"
+fi
+run_hook_env "$REPO_IGN/.work/scratch.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_LINT_GITIGNORED=true >/dev/null
+if [[ "$(cat "$REPO_IGN/.work/scratch.ts")" != "$IGN_BEFORE" ]]; then
+  ok "gitignored + biome_format_lint_gitignored=true: file formatted"
+else
+  fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.ts")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

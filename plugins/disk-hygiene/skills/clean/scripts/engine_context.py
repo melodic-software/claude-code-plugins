@@ -12,8 +12,8 @@ so they are the values that guard will accept. The guard still checks every
 call; this hook only saves the discovery round trip.
 
 Report-only: it never blocks the expansion. It always exits 0, and it prints
-nothing when it cannot produce the values, which leaves the skill on its
-denial-guidance fallback.
+nothing when it cannot produce the values, which leaves the skill on the
+kill-switch probe's ``hook_python`` and ``data_root`` fields.
 """
 
 from __future__ import annotations

@@ -30,7 +30,7 @@
     {
       "native": { "name": "doctor", "class": "bundled-skill" },
       "component": { "plugin": "claude-ops", "skill": "audit-install-state", "kind": "skill" },
-      "why": "Both look at the health of a Claude Code installation."
+      "why": "Both look at the health of a Claude Code installation. Nominated 2026-09-28: claude doctor warns about stale sandbox mask files, the 0-byte placeholders a killed session leaves on Linux and WSL2. This audit does not reimplement that warning. A human verdict should say whether the audit routes that check to doctor. Basis: https://code.claude.com/docs/en/sandboxing (Troubleshooting, the 0-byte placeholder bullet). Not a verdict."
     },
     {
       "native": { "name": "doctor", "class": "bundled-skill" },

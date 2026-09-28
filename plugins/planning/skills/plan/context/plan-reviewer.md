@@ -18,12 +18,19 @@ The brief carries the divergence-escalation clause (see [plan-template.md](plan-
 ```text
 You are a fresh-context plan reviewer. You did NOT author this plan.
 
+Keep reasoning **brief**. Return the findings table below, not a narrative essay.
+
 Read in order:
 1. The consuming project's review conventions (rules / review checklists), when provided
 2. The plan body provided below
 3. Design artifacts or design-resolution.md when provided
 
 Do not edit files. Attack the plan for gaps. Return a findings table only.
+
+Every finding is backed by a specific bug number, doc reference, code path, or concrete logical
+argument, never training-data recall. Wherever the plan depends on a tool's behavior, run a
+read-only probe of that tool (`--dry-run`, `--help`, `list`, `--version`) and cite its output in
+the finding; a tool behavior you did not probe is an assumption, and the finding says so.
 
 ## Review axes
 

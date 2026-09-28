@@ -112,10 +112,11 @@ When the request is ambiguous, recommend an action and wait. Never commit to `ap
    (`reference/launchers.md`). Nothing clears this.
 3. `not-a-candidate`: report each of `refusals`, then stop, before any anti-cheat review. There
    is no flag that skips this verdict.
-   - No upscaler: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
-     the user plainly: "This game has no upscaler for the mod to hook, so it will not help." A 2D
-     or pixel-art game such as Stardew Valley is the typical case. The only way forward is the
-     user's: a wiki-listed upscaler mod, then `assess` again (`reference/candidate-selection.md`).
+   - No upscaler: the game ships no DLSS, FSR 2+ or XeSS, so the **in-process OptiScaler route**
+     has nothing to hook. Tell the user plainly. Name whether `bitness` blocks in-process NR
+     (32-bit). For 64-bit no-upscaler titles, point to the manual **DLSS5-Feeder** path documented
+     in [`reference/feeder-route.md`](reference/feeder-route.md); `apply` does not install Feeder
+     today (#4592). Wiki-listed upscaler mods remain another path (`reference/candidate-selection.md`).
    - 32-bit: every exe is `PE32`, and NVIDIA ships no 32-bit NGX, so the mod cannot load in the
      game at all. Tell the user plainly; an upscaler mod does not change this.
 4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
