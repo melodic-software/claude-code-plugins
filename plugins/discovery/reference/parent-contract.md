@@ -248,7 +248,7 @@ Record a capability you could not establish without reading a value as a gap in
 reveal a credential is a finding, never a step.** The same pool holds `curl`, so a page that
 steers the agent into a credential read also has an egress channel.
 
-**Held by instruction only; the operator can make it deterministic.**
+**Held by instruction; the operator's sandbox can enforce the file half.**
 
 - *Claim.* No subagent frontmatter can block one shell command while keeping the shell: a
   `disallowedTools` entry with a specifier removes the whole tool. A `permissions.deny` Bash rule
@@ -262,11 +262,18 @@ steers the agent into a credential read also has an egress channel.
 - *Recheck trigger.* The page stops carrying either quoted span, or a release note names
   `disallowedTools` specifier matching or subagent permission inheritance.
 
-An operator who wants the boundary enforced adds deny rules to their own settings, each with its
-`PowerShell(...)` twin, because a background subagent keeps `PowerShell`:
-`Bash(git credential *)`, `Bash(gh auth token*)`, `Bash(cat *.git-credentials*)`,
-`Bash(cat *.netrc*)`. A `Read(...)` deny alone does not cover a shell `cat`. The plugin cannot
-ship these: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys.
+Command deny rules are a partial guardrail, not the boundary. `Bash(git credential *)` or
+`Bash(gh auth token*)` (each with its `PowerShell(...)` twin, because a background subagent keeps
+`PowerShell`) blocks that one spelling; `printenv`, a `python -c` or `node -e` reader, and every
+other program that opens a file stay open, and the
+[permissions page](https://code.claude.com/docs/en/permissions) calls Bash patterns that constrain
+arguments fragile. A `Read(...)` deny does not cover a subprocess either. The boundary for
+credential files is the sandbox, which the OS applies to every Bash command and its children:
+`sandbox.filesystem.denyRead`, or `sandbox.credentials.files` entries with `"mode": "deny"`
+([sandboxing](https://code.claude.com/docs/en/sandboxing); the `claude-config` audit's
+`reference/required-permissions.md` has the detail). A token held in an environment variable sits
+outside any file boundary and stays held by instruction. The plugin cannot ship any of this: a
+plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys.
 
 ## Harness facts the dispatch design rests on
 
