@@ -210,6 +210,11 @@ launched.
 /disk-hygiene:clean --policy <policy.json> <target-directory>
 ```
 
+`--root-children` with `--root-child <name>` inventories only the named immediate children of the
+target. That is required for an OS-managed volume root (the root itself is never walked) and is
+also how a depth-1 home audit re-inventories the directories the operator approved, without
+walking the rest of the home.
+
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 

@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3] - 2026-09-28
+
+### Changed
+
+- **run-e2e:** compose the bundled `run` skill via a Native step section and description routing phrase ([#4052](https://github.com/melodic-software/claude-code-plugins/issues/4052)). Store `integration` / parity tooling waits on #4049.
+
 ## [0.9.2] - 2026-09-21
 
 ### Changed
