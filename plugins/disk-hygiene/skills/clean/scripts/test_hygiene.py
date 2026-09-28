@@ -3693,7 +3693,6 @@ class StandingPolicyTests(unittest.TestCase):
             for name in (
                 ".claude.json.tmp.25020.a926d229fa70",
                 "temp_git_clone_1234",
-                ".pulumi-write-test-42",
             )
         }
         self.assertIn(
@@ -3701,7 +3700,18 @@ class StandingPolicyTests(unittest.TestCase):
             matched[".claude.json.tmp.25020.a926d229fa70"],
         )
         self.assertIn("agent-temp-git-scratch", matched["temp_git_clone_1234"])
-        self.assertIn("pulumi-writability-probe", matched[".pulumi-write-test-42"])
+
+    def test_baseline_ships_no_hint_for_managed_state(self) -> None:
+        with mock.patch.object(hygiene, "standing_policy_paths", return_value=[]):
+            policy = hygiene.load_policy(None)
+        ids = {hint["id"] for hint in policy["hints"]}
+        self.assertNotIn("pulumi-writability-probe", ids)
+        self.assertEqual(
+            [],
+            hygiene.matching_hints(
+                ".pulumi-write-test-42", ".pulumi-write-test-42", policy
+            ),
+        )
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):
