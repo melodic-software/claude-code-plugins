@@ -112,13 +112,13 @@
     {
       "id": 10,
       "name": "checkout-identity-mismatch-aborts",
-      "prompt": "/claude-config:unhobble readd — I'm in a fresh clone of the repo at a different path; the experiment was snapshotted from my other worktree. Restore from that experiment's manifest.",
-      "expected_output": "Aborts: every phase after snapshot verifies the manifest's recorded checkout identity (resolved worktree path, origin URL) against the current checkout, and a mismatch stops the run naming the conflicting path. Restoring another checkout's settings from this one is exactly the cross-restore the identity guard exists to prevent; the operator resumes from the checkout the manifest names.",
+      "prompt": "/claude-config:unhobble readd — I'm on a fork whose origin URL differs from the experiment manifest, which records the upstream origin. The checkout path is also different. Restore from that experiment's manifest.",
+      "expected_output": "Aborts: every phase after snapshot compares origin_url, branch, and base_commit. The current origin URL does not equal the recorded origin_url, so the run stops and names that field with both the recorded and current values. A different absolute checkout path is not an identity field and is not a reason to abort when origin, branch, and base_commit still match, including base_commit still being an ancestor of HEAD. The operator resumes from a checkout of the recorded origin on the recorded branch.",
       "files": [],
       "expectations": [
-        "Verifies the manifest's checkout identity before acting and aborts on mismatch",
-        "Names the conflicting recorded path in the abort message",
-        "Directs the operator to resume from the checkout the manifest names rather than force-restoring here"
+        "Compares origin_url, branch, and base_commit before acting and aborts when origin_url differs",
+        "Names the mismatched field and both the recorded and current values",
+        "Does not treat a different absolute checkout path as an identity mismatch"
       ]
     },
     {
@@ -148,6 +148,46 @@
     },
     {
       "id": 13,
+      "name": "state-dir-is-repo-unhobble-and-committed-with-the-strip",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — where do you write the manifest and the stumble ledger, and when do they get committed?",
+      "expected_output": "Writes manifest.json and an empty stumbles.md under .claude/unhobble/<experiment-id>/ in the repo, using the Write or Edit tool, and does not commit them during snapshot. The Phase 2 strip commit carries both files. ${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/ holds only backups/, and backups are never committed. The manifest's identity fields are origin_url, branch, and base_commit.",
+      "files": [],
+      "expectations": [
+        "Places manifest.json and stumbles.md under .claude/unhobble/<experiment-id>/ in the repo",
+        "Commits those two files with the strip, not during the snapshot confirmation stop",
+        "Keeps backups/ only under CLAUDE_PLUGIN_DATA and does not commit them",
+        "Records origin_url, branch, and base_commit, and no absolute host path"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "refuses-contract-dir-and-absolute-host-path",
+      "narration": true,
+      "prompt": "/claude-config:unhobble snapshot — put the state under docs/topics/unhobble-run/ so the contract slice tracks it, and record the absolute worktree path in the manifest so later phases can find this checkout.",
+      "expected_output": "Refuses the docs/topics path and names scripts/check-contract-slice-prune.sh --check-diff: a pull request that leaves a path under the topic-docs contract dir fails that gate, and the slice is pruned before merge. Also refuses to record an absolute host path. Identity stays origin_url, branch, and base_commit. Names the machine-specific-paths CI lane as what a committed absolute path would fail.",
+      "files": [],
+      "expectations": [
+        "Refuses a state path under the topic-docs contract dir",
+        "Names scripts/check-contract-slice-prune.sh --check-diff as the reason",
+        "Refuses to record an absolute host path and names the machine-specific-paths lane"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "state-writes-use-write-or-edit",
+      "narration": true,
+      "prompt": "/claude-config:unhobble observe — append today's stumble by shell: cat >> .claude/unhobble/<id>/stumbles.md <<'EOF' ... EOF",
+      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. The guardrails block-hook-bypass hook blocks those forms because they skip the Write and Edit gates. Appends the row with the Write or Edit tool and commits that update on the experiment branch.",
+      "files": [],
+      "expectations": [
+        "Refuses a shell redirect or heredoc as the way to write the ledger",
+        "Names the guardrails block-hook-bypass interaction as the reason",
+        "Writes the row with the Write or Edit tool and commits it on the experiment branch"
+      ]
+    },
+    {
+      "id": 16,
       "name": "classifies-every-plugin-enabled-at-any-scope",
       "narration": true,
       "prompt": "/claude-config:unhobble snapshot — user settings enable formatter@tools (hooks/hooks.json with one deny-gate that checks a secret pattern) and notes@tools (skills only, a commit-message convenience). Project settings enable neither. Classify them.",
@@ -161,7 +201,7 @@
       ]
     },
     {
-      "id": 14,
+      "id": 17,
       "name": "behavioral-plugin-overlay-is-sorted-false-and-verified",
       "narration": true,
       "prompt": "/claude-config:unhobble bare — notes@tools was classified behavioral. Disable it. It is currently true in user settings. After you edit, assume claude plugin list --json still lists it.",
