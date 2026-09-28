@@ -3,6 +3,15 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.36] - 2026-09-27
+
+### Fixed
+
+- `audit` records a `.git` marker under `--root` that is not a working tree as a `discovery-skip`
+  finding and audits the rest of the fleet. It exited 2 with no report on the first such husk, for
+  example the zero-byte `.git` uv writes into `packages/uv/sdists-v9`. A `--repo` target or the
+  implicit default target that is not a working tree still stops the run.
+
 ## [0.23.35] - 2026-09-27
 
 ### Fixed

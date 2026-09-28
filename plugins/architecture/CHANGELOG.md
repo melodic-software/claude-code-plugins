@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2] - 2026-09-27
+
+### Fixed
+
+- `render-landscape.sh` and `landscape-record.sh --drift-against` refuse a record that is valid JSON
+  but not in the one-object-per-line layout the collector writes (compacted to one line, or one key
+  per line). Both read objects by line, so such a record read as empty: the renderer wrote an empty
+  landscape, printed `thin=yes` and exited 0, and the drift check reported every repository and edge
+  as added. Both now exit 1 with a message naming the layout problem, before writing any artifact or
+  printing any drift line. Arrays that are genuinely empty still read as empty, including in a
+  compacted record.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed

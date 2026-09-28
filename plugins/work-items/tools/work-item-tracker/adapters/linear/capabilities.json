@@ -23,6 +23,7 @@
     "list-items": true,
     "list-sub-items": true,
     "reclaim": true,
+    "release": false,
     "renew-lease": true
   }
 }

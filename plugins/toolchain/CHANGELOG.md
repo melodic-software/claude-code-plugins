@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.17]
+
+### Added
+
+- **check:** the .NET context's CI-parity gates name NU1507, the restore failure a developer machine hits and CI does not. The trigger is Central Package Management plus `TreatWarningsAsErrors` on a host whose user-level NuGet config lists more than one package source. The remedy is a repo-level `nuget.config` that clears and pins the sources and maps every package to one of them. The bullet rules out `--source`, a `NoWarn` suppression, and editing the user-level config, and carries a dated basis against the two Microsoft Learn pages it restates.
+
 ## [0.13.16]
 
 ### Changed

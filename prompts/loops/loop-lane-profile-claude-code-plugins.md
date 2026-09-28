@@ -226,8 +226,12 @@ machines; neither on the attended box.
 > fabricates their evidence one step back. That is the single thing this lane
 > must never do. It is a self-certifying producer, and it is why the
 > contract names agent-writable surfaces rather than naming labels. Propose a
-> class in your cycle report and leave the recording to the attended queue's
-> operator.
+> class in your cycle report **and in the item's escalation comment**, and
+> leave the recording to the attended queue's operator. A delegable or
+> decision-defaulted triage outcome therefore takes the human-gated role
+> label plus a `kind=escalated` marker whose `Proposed work class:` line names
+> the class (`/work-items:triage`, "Lane barred from recording a class"),
+> never `agent-ready` and never a bare `status: ready` with no role label.
 >
 > An item without a recorded class still goes through the admission gate's
 > own classification, and a candidate the gate cannot confidently classify

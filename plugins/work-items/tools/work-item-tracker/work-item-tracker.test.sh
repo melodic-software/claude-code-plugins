@@ -147,6 +147,13 @@ RC_CAPTURE=$?
 assert_eq "declared-false verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names verb + provider" "$ERR" "create-item"
 
+# A manifest written before `release` existed has no key for it: the gate reads the
+# absent key as unsupported, so an older adapter degrades instead of failing.
+ERR="$(run_dispatcher release "fake:o/r#1" --lease-comment-id 1 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared release verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the release verb" "$ERR" "release"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"
@@ -231,9 +238,9 @@ assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(
 # the gate keys on the bound provider, so this stays offline.
 GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
 mkdir -p "$GH_ADAPTERS/github"
-printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
+printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"release":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
   >"$GH_ADAPTERS/github/capabilities.json"
-for v in capabilities claim renew-lease reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item; do
+for v in capabilities claim renew-lease release reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item; do
   cat >"$GH_ADAPTERS/github/$v.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '{"schema_version":"1.0","items":[]}\n'
@@ -258,7 +265,7 @@ run_gh_verb() {
 }
 
 # Verbs that never pass a native-surface flag dispatch on gh 2.45.
-for v in capabilities claim renew-lease reclaim get-item; do
+for v in capabilities claim renew-lease release reclaim get-item; do
   assert_eq "old gh: $v dispatches (not gated)" "0" "$(run_gh_verb "$v" "github:o/r#1")"
 done
 assert_eq "old gh: create-item without gated flags dispatches" \
@@ -344,7 +351,7 @@ run_gh_verb_no_gh() {
   printf '%s\n' "$?"
 }
 
-for v in claim renew-lease reclaim get-item add-sub-item; do
+for v in claim renew-lease release reclaim get-item add-sub-item; do
   assert_eq "no gh: $v → exit 3" "3" "$(run_gh_verb_no_gh "$v" "github:o/r#1")"
 done
 assert_eq "no gh: capabilities still answers" "0" "$(run_gh_verb_no_gh capabilities)"

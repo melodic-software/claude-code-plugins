@@ -232,7 +232,7 @@ function Find-AntiCheat($root) {
             Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue
         }
     }
-    $script:AcScanGaps = @($err | ForEach-Object { "on-disk scan: $($_.TargetObject) unreadable: $($_.Exception.Message)" })
+    $script:AcScanGaps = @($err | ForEach-Object { "on-disk scan: $(ErrorPath $_ '') unreadable: $($_.Exception.Message)" })
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
 
@@ -417,6 +417,16 @@ function Game($launcher, $name, $dir, $source) {
 }
 # One bad record is reported and skipped; the rest of that launcher's records still load.
 function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
+# The path a listing error names. Windows often leaves TargetObject empty and puts the path on
+# CategoryInfo.TargetName, or only inside a quoted path in the message.
+function ErrorPath($err, $fallback) {
+    foreach ($named in @($err.TargetObject, $err.CategoryInfo.TargetName)) { if ("$named") { return "$named" } }
+    $msg = "$($err.Exception.Message)"
+    if ($msg -match "'([A-Za-z]:\\[^']+)'") { return $Matches[1] }
+    if ($msg -match '"([A-Za-z]:\\[^"]+)"') { return $Matches[1] }
+    if ("$fallback") { return "$fallback" }
+    return "$fallback"
+}
 # Lists a folder; an absent one is silent, one that cannot be listed is reported.
 # The name filter is applied afterwards: Get-ChildItem -Filter drops an access-denied folder, at
 # any depth, without recording an error.
@@ -424,7 +434,7 @@ function ListDir($label, $path, [hashtable]$opts = @{}) {
     $pattern = $opts.Filter ?? '*'; $o = @{} + $opts; $o.Remove('Filter')
     $err = $null
     Get-ChildItem -LiteralPath $path @o -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -like $pattern
-    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "${label}: $($x.TargetObject) unreadable: $($x.Exception.Message)" } }
+    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "${label}: $(ErrorPath $x $path) unreadable: $($x.Exception.Message)" } }
 }
 function Find-SteamGames {
     $steam = (RegProps 'HKCU:\Software\Valve\Steam').SteamPath
@@ -1282,7 +1292,7 @@ function Find-RuntimeCandidates {
     @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object {
             $err = $null
             Get-ChildItem -LiteralPath $_ -Recurse -File -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -eq 'nvngx_dlssnr.dll'
-            foreach ($x in $err) { $script:ScanGaps += "runtime scan: $($x.TargetObject) unreadable: $($x.Exception.Message)" }
+            foreach ($x in $err) { $script:ScanGaps += "runtime scan: $(ErrorPath $x '') unreadable: $($x.Exception.Message)" }
         } | Sort-Object FullName -Unique)
 }
 # Read-only: installed games per launcher, what could not be read, and runtime DLL candidates with
@@ -1874,23 +1884,47 @@ function Do-Selftest {
         $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
         try { $vf = Find-Games } finally { $vlock.Dispose() }
         Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
-        # A library folder that cannot be listed is reported, not read as empty
-        $deny = [Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'ListDirectory', 'Deny')
-        $acl = Get-Acl -LiteralPath "$l2\steamapps"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
-        $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
-        $acl2 = Get-Acl -LiteralPath $od; $acl2.AddAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
-        try { $null = Find-Games }
-        finally {
-            $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
-            $acl2 = Get-Acl -LiteralPath $od; [void]$acl2.RemoveAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
+        # A library folder that cannot be listed is reported, not read as empty.
+        # A Deny ACE does not stop an elevated runner from listing, even a Deny for Everyone.
+        # Hold the directory open with no sharing so the next listing fails with a sharing violation.
+        # pwsh on the runner has no FileOptions.BackupSemantics, so open the directory with CreateFileW.
+        $LockDir = {
+            param([string]$LiteralPath)
+            if (-not ('Dlss5DirHandle' -as [type])) {
+                Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public sealed class Dlss5DirHandle : IDisposable {
+    IntPtr handle;
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr sec, uint disp, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr handle);
+    public Dlss5DirHandle(string path) {
+        handle = CreateFileW(path, 0x80000000, 0, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    public void Dispose() {
+        if (handle != IntPtr.Zero && handle != new IntPtr(-1)) { CloseHandle(handle); handle = IntPtr.Zero; }
+    }
+}
+'@
+            }
+            [Dlss5DirHandle]::new($LiteralPath)
         }
+        $lockSteam = & $LockDir "$l2\steamapps"
+        $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
+        $lockOd = & $LockDir $od
+        try { $null = Find-Games }
+        finally { $lockSteam.Dispose(); $lockOd.Dispose() }
         Assert 'discover: a library that cannot be listed is reported' (@($script:Unchecked | Where-Object { $_ -like "Steam: *lib2\steamapps unreadable*" }).Count -eq 1)
         Assert 'discover: a nested folder that cannot be listed is reported, and the rest still loads' (@($script:Unchecked | Where-Object { $_ -like 'Origin: *LocalContent\Denied unreadable*' }).Count -eq 1)
         Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'; Put "$tmp\rc\c\x.txt" 'x'
         $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
-        $acl = Get-Acl -LiteralPath "$tmp\rc\c"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl
+        $lockRc = & $LockDir "$tmp\rc\c"
         try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json }
-        finally { $dlock.Dispose(); $script:ScanRoots = $null; $acl = Get-Acl -LiteralPath "$tmp\rc\c"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl }
+        finally { $dlock.Dispose(); $lockRc.Dispose(); $script:ScanRoots = $null }
         Assert 'discover: a game subfolder the runtime scan cannot list is reported' (@($rc.unchecked | Where-Object { $_ -like 'runtime scan:*rc\c*unreadable*' }).Count -eq 1)
         Assert 'discover: an unreadable runtime candidate fails alone and the next is still reported' (@($rc.runtimeCandidates | Where-Object { -not $_.passes -and $_.reason -like 'unreadable*' }).Count -eq 1 -and @($rc.runtimeCandidates | Where-Object passes).Count -eq 1)
         $dj = (Do-Discover) | ConvertFrom-Json
@@ -1944,8 +1978,8 @@ function Do-Selftest {
         $cga = (Do-Assess $cg) | ConvertFrom-Json
         Assert 'Steam with nothing disclosed anywhere: none-disclosed, no acknowledgement, caveat stated' ($cga.antiCheat.status -eq 'none-disclosed' -and -not $cga.acknowledgementRequired -and $cga.antiCheat.note -like '*not proof of no anti-cheat*')
         New-Item -ItemType Directory -Force -Path "$cg\locked" | Out-Null
-        $acl = Get-Acl -LiteralPath "$cg\locked"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl
-        try { $cgl = (Do-Assess $cg) | ConvertFrom-Json } finally { $acl = Get-Acl -LiteralPath "$cg\locked"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl; Remove-Item -LiteralPath "$cg\locked" -Force }
+        $lockCg = & $LockDir "$cg\locked"
+        try { $cgl = (Do-Assess $cg) | ConvertFrom-Json } finally { $lockCg.Dispose(); Remove-Item -LiteralPath "$cg\locked" -Force }
         Assert 'a game folder the on-disk scan cannot list makes the status unknown' ($cgl.antiCheat.status -eq 'unknown' -and @($cgl.antiCheat.unchecked | Where-Object { $_ -like 'on-disk scan:*locked*unreadable*' }).Count -eq 1)
         $script:SteamPages['444'] = '<div class="apphub_AppName">Unlisted Game</div>'
         Put "$l2\steamapps\appmanifest_444.acf" (& $acf 444 'Unlisted Game' 'Unlisted')

@@ -115,9 +115,16 @@ report, and the step applies the agreed fixes itself.
 ### overengineering
 
 - skill: overengineering:audit, overengineering:realign
-- args:
+- args: agent-instructions repo-hooks vcs-hooks ci-lanes gate-scripts satellite-workflows
 - applies-when: repo has hooks, CI workflows, rules, or gate scripts
 - checked: false
+
+#### Notes
+
+The args are the layers the repository owns. `agent-hooks` also walks user- and machine-scope
+settings and every enabled plugin's hook manifest, and `branch-protection`, `forge-apps`, and
+`external-integrations` live on the forge or an outside service, so this sweep could only record
+them as delegated. Audit those four in a separate org- or machine-level pass.
 
 ### native-overlap
 
