@@ -1351,7 +1351,7 @@ _bbh_refusal_line() {
   esac
 }
 
-# The roots that exempt a bare target in this session, comma-joined in
+# The roots that exempt an unquoted literal target in this session, comma-joined in
 # _BBH_EXEMPT_ROOTS, empty when none applies: the configured list as spelled,
 # then the plugin data directory and the temp tree when their defaults apply.
 _BBH_EXEMPT_ROOTS=""
@@ -1389,8 +1389,12 @@ block_bypass() {
     _bbh_refusal_line "$code" "$noun"
     [[ -n "$_BBH_REFUSAL_LINE" ]] && echo "$_BBH_REFUSAL_LINE" >&2
     _bbh_exempt_roots
-    [[ -n "$_BBH_EXEMPT_ROOTS" ]] &&
-      echo "A bare $noun under these roots is exempt: $_BBH_EXEMPT_ROOTS." >&2
+    if [[ -n "$_BBH_EXEMPT_ROOTS" ]]; then
+      # The quoted and unnormalized reason lines already say the second half.
+      local never="; a quoted or variable-carried one never is"
+      [[ "$code" == quoted || "$code" == unnormalized ]] && never=""
+      echo "An unquoted literal $noun under these roots is exempt: $_BBH_EXEMPT_ROOTS$never." >&2
+    fi
     echo "If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots." >&2
     ;;
   *)
