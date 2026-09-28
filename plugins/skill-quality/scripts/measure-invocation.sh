@@ -222,15 +222,6 @@ cmd_validate() {
   note "validated $nfiles probe file(s)"
 }
 
-rate() {
-  local hits="$1" n="$2"
-  if ((n == 0)); then
-    printf 'null'
-    return
-  fi
-  awk -v h="$hits" -v n="$n" 'BEGIN { printf "%.4f", h / n }'
-}
-
 cmd_score() {
   local method="listing-overlap"
   if [[ "${1:-}" == "--method" ]]; then
