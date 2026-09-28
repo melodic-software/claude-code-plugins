@@ -1171,6 +1171,17 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
+def test_memory_root_outside_git_prints_the_plugin_data_topic_docs(tmp_path):
+    cwd = _outside_git(tmp_path)
+    data = tmp_path / "plugin-data"
+    env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
+    result = run("memory-root", env=env, cwd=cwd)
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(data / "topic-docs")
+    refused = run("memory-root", cwd=cwd)
+    assert refused.returncode == 1
+
+
 def test_new_without_memory_dir_inside_git_keeps_the_work_default(tmp_path):
     repo = make_repo(tmp_path)
     data = tmp_path / "plugin-data"

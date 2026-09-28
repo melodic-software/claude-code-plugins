@@ -13,7 +13,10 @@
   still applies to the fallback, and inside a git work tree the `.work` default is unchanged.
   `reference/topic-docs.md` no longer says "nothing persisted" of that fallback: the handoff file
   is written there, and only the resolution goes unpersisted. `reference/structure.md` documents
-  the no-project-root branch of the write procedure.
+  the no-project-root branch of the write procedure. A new `save_point.py memory-root` prints
+  that same resolved root, and find-handoff's rung 1 globs `<memory-root>/handoffs/` on the
+  no-project-root branch instead of `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`, so it finds the
+  handoffs the writer saves.
 
 ## [0.38.22] - 2026-09-28
 

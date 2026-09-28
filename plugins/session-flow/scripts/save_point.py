@@ -14,6 +14,7 @@ Usage:
     save_point.py fill <file> --slots <json>
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
+    save_point.py memory-root
 
 Exit codes:
     new       0 written (prints the file's absolute forward-slash path)
@@ -49,6 +50,11 @@ Exit codes:
               1 section absent (shape 1 says so) or the file still carries a
                 `<!-- FILL` slot (unfinished skeleton, never emitted)
               2 usage / unreadable
+    memory-root
+              0 printed the absolute forward-slash memory root `new` uses
+                without --memory-dir (`.work` in a git work tree, else the
+                plugin data dir's `topic-docs`)
+              1 no git work tree and no plugin data dir
 
 Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` keeps
 the target its own line endings; stdout/stderr are reconfigured to UTF-8 so
@@ -1643,6 +1649,17 @@ def build_skeleton(
     return "\n".join(fm + body) + "\n"
 
 
+def cmd_memory_root(args: argparse.Namespace) -> int:
+    root = _default_memory_dir()
+    if root is None:
+        return _die(
+            1,
+            "no project root (cwd has no git top level) and no plugin data dir: CLAUDE_PLUGIN_DATA is unset and this script is not running from an installed plugin cache",
+        )
+    print(root.expanduser().resolve().as_posix())
+    return 0
+
+
 def cmd_new(args: argparse.Namespace) -> int:
     slug = args.topic
     if not SLUG_RE.match(slug):
@@ -1864,6 +1881,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_emit.add_argument("file")
     p_emit.set_defaults(func=cmd_emit)
+
+    p_root = sub.add_parser(
+        "memory-root", help="print the memory root `new` uses without --memory-dir"
+    )
+    p_root.set_defaults(func=cmd_memory_root)
     return parser
 
 
