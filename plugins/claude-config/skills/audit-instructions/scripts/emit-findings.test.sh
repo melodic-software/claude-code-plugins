@@ -802,18 +802,18 @@ EOF
 DUPLANE="$TEST_TMPDIR/dup-lane.txt"
 printf '%s\n' "skills/dup/SKILL.md:10:I30" "skills/dup/SKILL.md:12:I30" \
   "skills/dup/SKILL.md:14:I32" "skills/dup/SKILL.md:16:I32" >"$DUPLANE"
-DOUT="$( (cd "$DUPREPO" && bash "$EMIT" --from-lane "$DUPLANE" --out "$TEST_TMPDIR/collide.md" --branch x) >/dev/null 2>&1
+DUPOUT="$( (cd "$DUPREPO" && bash "$EMIT" --from-lane "$DUPLANE" --out "$TEST_TMPDIR/collide.md" --branch x) >/dev/null 2>&1
   cat "$TEST_TMPDIR/collide.md" 2>/dev/null)"
-DROWS="$(printf '%s\n' "$DOUT" | grep '^| [0-9]')"
+DUPROWS="$(printf '%s\n' "$DUPOUT" | grep '^| [0-9]')"
 assert_eq "two identical sentences in one section are reported once" "1" \
-  "$(printf '%s\n' "$DROWS" | grep -c 'rule-trigger-less-stamp')"
-DUP_ID="$(printf '%s\n' "$DROWS" | grep 'rule-trigger-less-stamp' | grep -o 'finding_id=[0-9a-f]*')"
-assert_contains "the collision is named with its occurrence count" "$DOUT" \
+  "$(printf '%s\n' "$DUPROWS" | grep -c 'rule-trigger-less-stamp')"
+DUP_ID="$(printf '%s\n' "$DUPROWS" | grep 'rule-trigger-less-stamp' | grep -o 'finding_id=[0-9a-f]*')"
+assert_contains "the collision is named with its occurrence count" "$DUPOUT" \
   "Identity collisions: $DUP_ID count=2"
-assert_contains "the collided row is not counted as emitted twice" "$DOUT" "Emitted from lanes: 3."
-assert_contains "a clock time is not an I32 target" "$DROWS" 'shape="route-to-absent-skill"'
-assert_not_contains "no target is read from 10:30" "$DROWS" 'target="10:30"'
-assert_contains "a backticked bare plugin:skill is an I32 target" "$DROWS" 'target="fleet:reachx"'
+assert_contains "the collided row is not counted as emitted twice" "$DUPOUT" "Emitted from lanes: 3."
+assert_contains "a clock time is not an I32 target" "$DUPROWS" 'shape="route-to-absent-skill"'
+assert_not_contains "no target is read from 10:30" "$DUPROWS" 'target="10:30"'
+assert_contains "a backticked bare plugin:skill is an I32 target" "$DUPROWS" 'target="fleet:reachx"'
 
 # --- Summary -----------------------------------------------------------------
 printf '\n'
