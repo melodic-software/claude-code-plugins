@@ -23,6 +23,7 @@ Medium, first hit wins.
 The markdown report is the record.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

@@ -21,6 +21,7 @@ Medium, first hit wins.
 Recall re-reads the retained report. The HTML page is the view.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Purpose
 
 Verify that the **human** absorbed a completed change, the object under test is the

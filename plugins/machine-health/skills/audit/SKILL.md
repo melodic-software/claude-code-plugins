@@ -7,7 +7,6 @@ disable-model-invocation: false
 
 # machine-health
 
-
 ## Rendered-view ladder
 
 Medium, first hit wins.
@@ -20,6 +19,7 @@ Medium, first hit wins.
 A later fix pass re-reads the markdown report.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Overview
 
 This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Trend adjusts severity upward only: a worsening metric or a repeat across runs can raise WARN to CRIT, and nothing lowers a reading later. A first run has no history, so every finding in it is a single, unmoderated reading. A custom check from the catalog overlay is capped at WARN until it has reported clean in 3 runs.

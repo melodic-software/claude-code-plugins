@@ -21,6 +21,7 @@ Medium, first hit wins.
 A later planning pass re-reads the candidate artifact. The page is a view of that record.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

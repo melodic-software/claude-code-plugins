@@ -23,6 +23,7 @@ Medium, first hit wins.
 The person comparing variants is the next consumer. The winning-variant note stays markdown.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

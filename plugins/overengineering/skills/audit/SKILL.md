@@ -21,6 +21,7 @@ Medium, first hit wins.
 A later realign pass re-reads the findings artifact. An emitted HTML view is an ephemeral temp file, not a second findings artifact.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

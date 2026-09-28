@@ -18,6 +18,7 @@ Medium, first hit wins.
 Markdown is the record. HTML and PPTX are views.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Variables
 
 Arguments: `$ARGUMENTS`

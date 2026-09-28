@@ -19,6 +19,7 @@ Medium, first hit wins.
 4. **Shipped default.** The markdown design artifact. A question round uses `/planning:interview`'s page when that ladder selects a page. Do not invent a second HTML document.
 
 A later pass re-reads the markdown topology.
+
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single

@@ -21,6 +21,7 @@ Medium, first hit wins.
 Markdown stays the tracked record.
 
 When a page is written, take the palette and the accessibility floor from `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`.
+
 ## Variables
 
 Arguments: `$ARGUMENTS`

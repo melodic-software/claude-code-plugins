@@ -19,6 +19,7 @@ Medium, first hit wins.
 4. **Shipped default.** Session prose, and an opt-in markdown note when a topic slice exists. This skill does not author an HTML page. A `file` or `artifact` rung does not invent one.
 
 The conversation record stays authoritative.
+
 ## Purpose
 
 The divergence step before any scoping: unknown-knowns (criteria the user only recognizes when seen) surface cheapest at candidate-list time. Finding one mid-implementation costs a re-plan. A brainstorm round also calibrates scope: reacting to a cheapest→most-ambitious spread prevents locking a scope that is too narrow (missed the high-value approach) or too wide (ambition the problem doesn't need).
