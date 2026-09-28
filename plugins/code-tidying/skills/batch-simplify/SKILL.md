@@ -68,7 +68,7 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Match the whole argument, never a substring: an argument that merely *contains* "branch", a path, a filename, a future scope value, is not a branch-mode request, and routing it there silently sweeps the wrong file set.
 
-**Detection heuristic** (after stripping the `docs` flag): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
+**Detection heuristic** (after stripping the `docs`, `override`, and `unattended` flags): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
 
 Decide the scope **before** testing any token as a path, never after. Stripping paths first lets a repository that happens to contain a directory named `repo` or `branch` swallow the scope keyword. `/code-tidying:batch-simplify repo` would resolve `repo` as a path, find no scope left, and silently run the 48-hour default narrowed to that directory instead of the whole-repository sweep that was asked for. If the first token is not a scope, the scope defaults to `48h` and *every* token is a path; a token that resolves to nothing is neither a scope nor a path, so it falls through to asking the user rather than guessing. To sweep a directory genuinely named `repo`, spell it `./repo`.
 
@@ -103,6 +103,11 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 **Detection:** split `$ARGUMENTS` into whitespace-separated tokens. If any token **equals** `docs` (case-insensitive), set the docs flag and drop that token; rejoin the rest as the remaining argument, which determines the mode.
 
 Strip token-wise, never by substring: a substring strip mutates any argument that happens to contain those four letters, including a path such as `docs/`. Leaving a corrupted remainder for the mode parser to read.
+
+### Flag: `unattended`
+
+Runs the Native step without asking (see **Native step: simplify** above). Detected and stripped
+exactly like `docs`.
 
 ### Flag: `override`
 
@@ -223,7 +228,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6 a
 
 3. **Run a resolution wave** for the Fix-now items: spawn agents with the same Phase 6 spawn contract (same verification, and in repo mode the same refutation verifier). The wave's edits land exactly like the primary wave's: uncommitted working-tree changes in the diff-scoped modes, commits on the run's single branch in repo mode. Give each agent the complete file set its concern spans, every consolidated site plus every file a CROSS-GROUP ground named, so the wave boundary that forced the deferral is actually gone and CROSS-GROUP cannot legitimately recur. If an agent still discovers a genuinely new file mid-task, fold it into that item's file list and re-dispatch the item once. One resolution wave plus that single re-dispatch, no further recursion: an item still deferred after it goes to the Phase 8 report carrying its recorded ground, whatever that ground is.
 
-4. **Report the remainder, do not file it.** Needs-human items, Too-large items, and anything the resolution wave still could not finish go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Do not file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
+4. **Report the remainder, do not file it.** Needs-human items, Too-large items, and anything the resolution wave still could not finish go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Each reported item carries a `Basis:` for its recommended disposition, `verified` with the `file:line` or tool output, or `judgment` (never for a consequential item: cross-repo, shared infrastructure, irreversible, or security). A consequential disposition that cannot be settled is withheld: report the open question and the evidence that would settle it instead of a recommendation. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label). Do not file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
 
 ### Phase 7: Final cross-ecosystem verification
 

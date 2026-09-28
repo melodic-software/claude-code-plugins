@@ -303,7 +303,7 @@
     {
       "id": "connectors-disable",
       "title": "claude.ai connectors: disableClaudeAiConnectors and companions",
-      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from 2.1.259 the way to keep a managed-mcp.json / managedMcpServers entry off — allowedMcpServers governs only servers users add), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
+      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from Claude Code 2.1.259 this is the key that keeps a managed connector or a literal managed-mcp.json / managedMcpServers entry off), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation). allowedMcpServers governs servers users add. It does not remove a managed connector.",
       "category": "removes-weight",
       "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
       "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
@@ -319,10 +319,12 @@
       "citations": [
         "https://code.claude.com/docs/en/mcp",
         "https://code.claude.com/docs/en/settings",
-        "https://code.claude.com/docs/en/managed-mcp"
+        "https://code.claude.com/docs/en/managed-mcp",
+        "https://code.claude.com/docs/en/managed-settings",
+        "https://code.claude.com/docs/en/changelog"
       ],
       "verified": "2026-09-28",
-      "recheckTrigger": "The managed-mcp page drops the claim that allowedMcpServers filters managed servers, or a Claude Code release changes how allowedMcpServers and deniedMcpServers treat managed-mcp.json."
+      "recheckTrigger": "The managed-settings page again says allowedMcpServers filters managed-mcp.json or managed connectors, the managed-mcp page drops the claim that allowedMcpServers filters managed servers, or a release note reverses the 2.1.259 change that limited allowedMcpServers to user-added servers."
     },
     {
       "id": "mcp-project-servers",
@@ -453,6 +455,49 @@
       ],
       "verified": "2026-08-17",
       "recheckTrigger": "Any release note announcing system-prompt or tool-description reductions — re-measure the floor."
+    },
+    {
+      "id": "bash-output-max-chars",
+      "title": "bashOutputMaxChars",
+      "mechanism": "Caps how many characters of a successful Bash or PowerShell command Claude receives inline before the rest is saved to a file and replaced by a short preview plus the path. Unset uses the product default. The value is clamped. This plugin's startup snapshot does not include a command's output, so a before/after of this key on the startup payload measures zero.",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "The settings reference documents the key as a per-command inline-output cap. The startup measurement this plugin performs does not contain that output, so the measured startup delta is zero by construction. Whether a later turn is smaller depends on the commands that turn runs.",
+      "conditions": "Requires a CLI that knows the key. Older binaries ignore it.",
+      "posture": "disclose-only",
+      "scope": "Any settings file. When the key is set, the BASH_MAX_OUTPUT_LENGTH environment variable is ignored.",
+      "detection": "bashOutputMaxChars across settings scopes.",
+      "measurement": "Do not price it with snapshot or attribute. A zero startup delta is the expected finding, not evidence the key is inert on a later command.",
+      "emittedConfig": "{\"bashOutputMaxChars\": 8000}",
+      "caveats": [
+        "Raising the cap puts more command output into the turn. Lowering it spills sooner. Neither is a startup-payload saving.",
+        "The settings page's removed taskOutputMaxChars key is a different row. Do not emit that key."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings-reference#bashoutputmaxchars"
+      ],
+      "verified": "2026-09-28",
+      "recheckTrigger": "The bashOutputMaxChars settings row changes its clamp, its default, or which commands it covers, or the key is removed."
+    },
+    {
+      "id": "task-output-max-chars",
+      "title": "taskOutputMaxChars (removed)",
+      "mechanism": "Through Claude Code 2.1.276 this key set how many characters of a background task Claude received inline from the TaskOutput tool. The settings reference says the key was removed in v2.1.277 together with that tool, and that setting it has no effect. Claude reads a background task's output file with Read.",
+      "category": "works-but-saves-nothing-here",
+      "categoryBasis": "The current settings reference marks the key removed and effectless. A startup measurement cannot show a saving from a key the binary ignores.",
+      "conditions": null,
+      "posture": "disclose-only",
+      "scope": "Any file, historically. No effect on a current CLI.",
+      "detection": "taskOutputMaxChars across settings scopes. Presence is a stale key, not a live cap.",
+      "measurement": "Do not price it. Report the key as removed when it is present, and do not emit it.",
+      "emittedConfig": null,
+      "caveats": [
+        "The changelog entry that added this key alongside bashOutputMaxChars is older than the removal. The settings page is the authority for whether the key still does anything."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/settings-reference#taskoutputmaxchars"
+      ],
+      "verified": "2026-09-28",
+      "recheckTrigger": "The taskOutputMaxChars settings row drops the removal warning, or a release note restores the TaskOutput tool."
     }
   ]
 }

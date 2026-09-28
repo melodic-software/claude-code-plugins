@@ -132,6 +132,18 @@
         "Output offers the bare-name-on-PATH remedy for a settings-scope finding",
         "Output never offers ${CLAUDE_SKILL_DIR} as the fix for a rule in a settings file"
       ]
+    },
+    {
+      "id": 12,
+      "name": "malformed-tool-content-rule",
+      "prompt": "My settings.json permissions.allow contains Bash(ls) x and Edit(./Finance (2024)/**). Which of those is a malformed Tool(content) rule?",
+      "expected_output": "Reports P5 at error tier for Bash(ls) x because text after the closing parenthesis is not part of a rule. Edit(./Finance (2024)/**) is one rule: parentheses inside the specifier are literal, so that rule is not malformed.",
+      "files": [],
+      "expectations": [
+        "Output reports P5 at error tier for Bash(ls) x",
+        "Output says text after the closing parenthesis is not part of a rule",
+        "Output treats Edit(./Finance (2024)/**) as one rule because parentheses inside the specifier are literal"
+      ]
     }
   ]
 }

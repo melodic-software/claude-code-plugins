@@ -111,7 +111,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - invocation mode (2026-09-11, Claude Code 2.1.263): local-jsx command type, not a prompt, so the Skill tool never lists it; the native report excludes bundled skills
 - **Observation:** upstream-source: d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b, the anthropics/claude-code commit that added the 2.1.261 CHANGELOG entry naming /skill-doctor, plus the commands.md and skills.md pages read the same day. Not an extraction and not a live roster: this container runs 2.1.258, below the release that announced the surface, so nothing here observed the command itself. (2026-09-07)
 - **Recheck trigger:** a Claude Code release note or docs change removes /skill-doctor, folds its report back into /doctor, gives its all-commands row the bundled-skill marker (which moves this row to the bundled-skill lane and changes which switch disables it), changes its version or feature-flag gate, or gives it a multi-source reconciliation or observation-horizon discipline of its own (verified 2026-09-07)
-- **Baked:** description phrase yes · Boundary section no · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section no · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Bundled skills
@@ -248,7 +248,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - invocation mode (2026-09-11, Claude Code 2.1.263): model-invocation-disabled (`disableModelInvocation`, survives `disableBundledSkills`); the Skill tool does not list it
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release changes `/doctor`'s status as a bundled skill or its gating switch. It became a bundled skill at 2.1.205, which retargeted DISABLE_DOCTOR_COMMAND, and it is the one bundled skill `disableBundledSkills` does not remove (verified 2026-08-23)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-performance`
@@ -266,7 +266,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule starts covering transcripts (verified 2026-09-28)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-skill-visibility`
@@ -286,7 +286,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - budget_caveat: the description has under 60 characters of headroom after a baked phrase (recorded 2026-09-11)
 - **Observation:** extraction: targeted string search of the installed binary v2.1.252 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.232 extraction, not a re-extraction) (2026-08-31)
 - **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-11)
-- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `run` → `testing:run-e2e`

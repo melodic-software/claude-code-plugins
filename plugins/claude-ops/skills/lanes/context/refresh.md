@@ -33,10 +33,17 @@ handles built-in commands.
    of executing" them, so a lane cannot self-trigger a reload mid-run
    ([scheduled-tasks](https://code.claude.com/docs/en/scheduled-tasks)).
 
-`/reload-plugins` *does* pick up on-disk `SKILL.md` edits for an **interactive**
-session ([plugins-reference](https://code.claude.com/docs/en/plugins-reference)),
-but that path needs a human to type it and does not reach an autonomous loop whose
-skill body is already fixed in context.
+`/reload-plugins` also runs in sessions without an interactive terminal, such as the
+desktop app, the Agent SDK, and non-interactive mode with `-p`, when it is typed into
+the session directly. Requires Claude Code v2.1.260 or later. In those sessions the
+reload applies everything except plugin MCP server changes, which take effect in the
+next session.
+**Claim, basis, as of, recheck:** that sentence,
+[prompt caching](https://code.claude.com/docs/en/prompt-caching) (the `/reload-plugins`
+paragraph), 2026-09-28, and a re-fetch of that paragraph that drops headless `-p` and
+SDK sessions. Reaching into a loop whose skill body is already fixed in context, or a
+scheduled fire that delivers built-in commands as plain text, is a different fact and
+is fact 3 above. That reach was not probed.
 
 **Conclusion:** restart is the honest mechanism. It also resets context bloat
 (composes with the restart discipline), so the live decision is restart

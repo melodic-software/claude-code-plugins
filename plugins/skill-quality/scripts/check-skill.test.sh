@@ -4752,6 +4752,43 @@ else
   fail "R20c: the local install should run without npx (saw: $ml_log): $out"
 fi
 
+model_tail='
+## Purpose
+
+A skill with a frontmatter model field.
+
+## Gotchas
+
+None known.
+'
+make_skill model-ok "---
+name: model-ok
+description: \"Do a thing. Use when: 'a thing' is needed.\"
+model: opus[1m]
+---
+$model_tail"
+out="$(run model-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
+  pass "frontmatter model opus[1m] passes"
+else
+  fail "frontmatter model opus[1m] should pass (rc=$rc): $out"
+fi
+
+make_skill model-bad "---
+name: model-bad
+description: \"Do a thing. Use when: 'a thing' is needed.\"
+model: two words
+---
+$model_tail"
+out="$(run model-bad 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "frontmatter model" <<<"$out"; then
+  pass "frontmatter model with a space fails"
+else
+  fail "spaced model should fail (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
