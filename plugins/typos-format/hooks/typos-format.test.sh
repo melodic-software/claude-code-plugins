@@ -991,14 +991,14 @@ else
   fail "notebook/matcher: NotebookEdit is not in the PostToolUse matcher: $(jq -c '[.hooks.PostToolUse[].matcher]' "$HOOKS_JSON" 2>&1)"
 fi
 
-# --- The hooks.json row reads typos_format_enabled in its own shell ----------
-# A disabled hook must cost the one shell Claude Code runs the row in, so the
-# row checks the option and execs the script only when it is on. The row's
-# command text is run the way Claude Code runs it: ${CLAUDE_PLUGIN_ROOT}
-# substituted into the text, then `bash -c` (the row's pinned shell). A
-# sentinel stands in for typos-format.sh and records whether it started. The
-# expected verdict for each value comes from the script's own kill-switch line,
-# run under the same environment, so the row and the script cannot disagree.
+# --- The hooks.json row gates typos_format_enabled in exec form --------------
+# Exec form spawns `command` with `args` and no shell. The gate is
+# `--run-if-unset-or-true` in exec-bash.mjs, which exits 0 before bash when
+# the option is set to something other than true. ${CLAUDE_PLUGIN_ROOT} in
+# args is substituted, then `node` is spawned with that argv. A sentinel
+# stands in for typos-format.sh and records whether it started. The expected
+# verdict for each value comes from the script's own kill-switch line, run
+# under the same environment, so the row and the script cannot disagree.
 if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
   ok "row-gate: hooks.json registers exactly one hook command"
 else
@@ -1006,11 +1006,15 @@ else
 fi
 ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
 ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")
-ROW_SHELL=$(jq -r '.shell // empty' <<<"$ROW_JSON")
-if [[ "$ROW_SHELL" == "bash" ]]; then
-  ok "row-gate: the hooks.json row pins shell to bash"
+if [[ "$ROW_CMD" == "node" ]] && jq -e '(.args[0] | endswith("exec-bash.mjs")) and ((.args | index("--run-if-unset-or-true")) != null)' <<<"$ROW_JSON" >/dev/null; then
+  ok "row-gate: the hooks.json row is exec form (node, exec-bash.mjs, option gate)"
 else
-  fail "row-gate: the hooks.json row shell is '$ROW_SHELL', want 'bash'"
+  fail "row-gate: the hooks.json row is not the exec form: $ROW_JSON"
+fi
+if jq -e 'has("shell")' <<<"$ROW_JSON" >/dev/null; then
+  fail "row-gate: exec form sets shell, which is ignored when args is set: $ROW_JSON"
+else
+  ok "row-gate: the hooks.json row sets no shell"
 fi
 # `if` would narrow the scan-everything set (#3411); `async` would detach the disclosure from the tool call.
 if jq -e 'has("if") or has("async")' <<<"$ROW_JSON" >/dev/null; then
@@ -1033,9 +1037,13 @@ mkdir -p "$ROWGATE/root/hooks"
 printf '%s\n' '#!/usr/bin/env bash' ': >"$ROWGATE_OUT/started"' 'cat >"$ROWGATE_OUT/stdin"' 'exit 7' \
   >"$ROWGATE/root/hooks/typos-format.sh"
 chmod +x "$ROWGATE/root/hooks/typos-format.sh"
+cp "$HOOK_DIR/exec-bash.mjs" "$ROWGATE/root/hooks/exec-bash.mjs"
 printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Write"}\n' >"$ROWGATE/payload"
 # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
+ROW_ARGS_RUN=()
+while IFS= read -r row_arg; do
+  ROW_ARGS_RUN+=("${row_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$ROWGATE/root}")
+done < <(jq -r '.args[]' <<<"$ROW_JSON")
 
 run_opt() {
   local out="$1" v="$2"
@@ -1061,7 +1069,7 @@ for v in "${ROW_VALUES[@]}"; do
   mkdir -p "$case_dir"
   run_opt "$case_dir" "$v" bash -c "$PRED_LINE"$'\nexit 3' </dev/null
   if [[ $? -eq 3 ]]; then pred=started; else pred=skipped; fi
-  row_out=$(run_opt "$case_dir" "$v" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload")
+  row_out=$(run_opt "$case_dir" "$v" node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload")
   row_rc=$?
   if [[ -e "$case_dir/started" ]]; then got=started; else got=skipped; fi
 
@@ -1092,9 +1100,9 @@ for how in SHELLOPTS BASH_ENV; do
   case_dir="$ROWGATE/nounset-$how"
   mkdir -p "$case_dir"
   if [[ "$how" == SHELLOPTS ]]; then
-    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload"
   else
-    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload"
   fi
   row_rc=$?
   if [[ -e "$case_dir/started" && $row_rc -eq 7 ]]; then

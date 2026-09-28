@@ -166,7 +166,13 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
     ((saw_guard)) || unscanned+=("$hooks_json")
-  done < <(jq -r '(.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?.command // empty' "$hooks_json")
+  # Exec form keeps the script path in `args`, not in `command` (`command` is
+  # `node`). Join both so a converted row is still scanned.
+  done < <(jq -r '
+    (.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?
+    | select(.command | type == "string")
+    | [.command] + ((.args // []) | map(tostring)) | join(" ")
+  ' "$hooks_json")
 done
 
 # --- discover every blocking hook, on any event (rule 2) ----------------------
@@ -191,7 +197,8 @@ for hooks_json in plugins/*/hooks/hooks.json; do
   # invalid JSON) must fail the gate rather than hand back a truncated row list.
   if ! rows="$(jq -r '.hooks | to_entries[] | .key as $e | .value[]? | .hooks[]?
     | select(.command | type == "string")
-    | [$e, (.async == true | tostring), .command] | @tsv' "$hooks_json" 2>/dev/null)"; then
+    | [$e, (.async == true | tostring),
+        ([.command] + ((.args // []) | map(tostring)) | join(" "))] | @tsv' "$hooks_json" 2>/dev/null)"; then
     unreadable+=("$hooks_json")
     continue
   fi
