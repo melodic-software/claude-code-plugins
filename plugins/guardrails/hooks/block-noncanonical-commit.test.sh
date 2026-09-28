@@ -1370,6 +1370,18 @@ run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
+# --- #4683: opener-untrusted / comment-span / bare-cr (FLAG-keyed, not deferred)
+run_pwsh "PS: a quote on a confirmed opener prefix is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a backslash on a confirmed opener prefix is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a <# earlier than a confirmed opener is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git commit -m x" "\"@")" 2
+run_pwsh "PS: a bare CR is refused here, not deferred (blocked)" \
+  $'Write-Output hi\rgit commit -m x' 2
+run_pwsh "PS: CRLF canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+
 # Asserting the exit code alone would stay green if a sibling started blocking
 # these for an UNRELATED reason, silently breaking the coupling the deferral
 # rests on — so the block reason is asserted from stderr too.

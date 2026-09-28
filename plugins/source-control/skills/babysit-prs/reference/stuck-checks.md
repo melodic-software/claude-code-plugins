@@ -34,6 +34,15 @@ without re-firing the fan-out.
 | `stuck_queued` | `CheckRun` still `QUEUED` past the age threshold | yes | An Actions job on an unmatched self-hosted runner label, so nothing will ever pick it up |
 | `never_settling` | Any other pending check past the age threshold | yes | A non-required check that holds `UNSTABLE` without ever finishing |
 
+Report a `stuck_queued` entry as **queued**, not as a slow-running job. Name the runner-pool
+contention when the snapshot or a jobs-API read supplies it: the job's `runs-on` labels, how long
+it has been queued, and occupancy (`N/M busy`) when the token can list runners. Queued-versus-running
+calls for different operator action on a capacity-constrained pool: a running job is the change's
+own time, a queued job behind a busy pool is fleet capacity, and a queued job with no online runner
+for its label is the unmatched-label case this class already names. Never wait on it with
+`gh pr checks --watch`; a long wait is a REST poll per the pull-request
+[monitor reference](../../pull-request/reference/monitor.md) "Waiting on a pending check".
+
 The age threshold is `--stuck-check-age-seconds` (default 30 minutes), so normal in-flight CI and
 freshly-started non-required checks are never reported. `orphaned_status` has no backing run, thus
 no start time to age against, and so is detected structurally, not by age. A pending check whose

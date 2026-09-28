@@ -14,10 +14,12 @@
 #
 # On Windows (Git Bash / MSYS / Cygwin), a hardcoded POSIX `/tmp` path resolves to
 # `<current-drive>:\tmp` (e.g. `C:\tmp`) rather than the platform temp directory
-# (`%TEMP%` — typically `C:\Users\<user>\AppData\Local\Temp`). Drive-letter and
-# drive-relative spellings (`C:\tmp`, `/c/tmp`, `\tmp`) are the same sink. Nothing
-# else in the guard surface noticed those writes, so residue accumulated silently
-# at the volume root (#2594).
+# (`%TEMP%` — typically `C:\Users\<user>\AppData\Local\Temp`) — EXCEPT on a stock
+# Git for Windows install, where `/tmp` is a `usertemp` mount of `%TEMP%` itself
+# (`cygpath -w /tmp` answers the same directory). Blocking a Bash-tool write to
+# that `/tmp` is a false positive (#4251). Drive-letter and drive-relative
+# spellings (`C:\tmp`, `/c/tmp`, `\tmp`) stay the volume-root sink on every lane.
+# PowerShell has no MSYS mount table, so its `/tmp` spelling stays blocked.
 #
 # This guard FAILS CLOSED on a write-shaped reference to those roots and points
 # the operator at the platform temp. It does NOT engage on non-Windows hosts
@@ -169,6 +171,7 @@ fi
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+
 # Write / Edit / MultiEdit spell the target `file_path`; NotebookEdit spells it
 # `notebook_path`. Reading both and taking whichever is populated keeps the lane
 # correct without depending on which spelling a given tool version emits.
@@ -237,8 +240,51 @@ norm_lower() {
 norm_lower "$COMMAND"
 NORM="$NORM_OUT"
 
+# Cached: 0 = POSIX /tmp is this process's user temp, 1 = not (or unknown).
+# One probe per hook process; Git for Windows stock /tmp is a `usertemp` mount
+# of %TEMP% (#4251).
+_DRIVE_TMP_POSIX_USERTEMP=""
+_DRIVE_TMP_SKIP_POSIX=0
+
+posix_tmp_maps_to_usertemp() {
+  if [[ -n "$_DRIVE_TMP_POSIX_USERTEMP" ]]; then
+    return "$_DRIVE_TMP_POSIX_USERTEMP"
+  fi
+  _DRIVE_TMP_POSIX_USERTEMP=1
+  local tmp_win="" temp_win="" temp_env mount_line tmp_n temp_n
+  temp_env="${TEMP:-${TMP:-}}"
+  if command -v cygpath >/dev/null 2>&1 && [[ -n "$temp_env" ]]; then
+    tmp_win=$(cygpath -w /tmp 2>/dev/null) || tmp_win=""
+    if [[ -n "$tmp_win" ]]; then
+      temp_win=$(cygpath -w "$temp_env" 2>/dev/null) || temp_win="$temp_env"
+      tmp_n="${tmp_win,,}"
+      tmp_n="${tmp_n//\\//}"
+      tmp_n="${tmp_n%/}"
+      temp_n="${temp_win,,}"
+      temp_n="${temp_n//\\//}"
+      temp_n="${temp_n%/}"
+      if [[ -n "$tmp_n" && -n "$temp_n" && ( "$tmp_n" == "$temp_n" || "$tmp_n" == "$temp_n"/* ) ]]; then
+        _DRIVE_TMP_POSIX_USERTEMP=0
+        return 0
+      fi
+    fi
+  fi
+  # Git for Windows mount table: "... on /tmp type ntfs (...,usertemp)". The
+  # usertemp flag is what distinguishes that mount from a volume-root /tmp.
+  # Linux CI's /tmp tmpfs line has no such flag, so forcing OSTYPE=msys there
+  # does not trip this arm.
+  mount_line=$(mount 2>/dev/null) || mount_line=""
+  if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
+    _DRIVE_TMP_POSIX_USERTEMP=0
+    return 0
+  fi
+  return 1
+}
+
 # True when <haystack> carries a drive-root tmp path reference:
-#   /tmp[/...]           — POSIX form (Git Bash maps this to <drive>:\tmp)
+#   /tmp[/...]           — POSIX form (Git Bash maps this to <drive>:\tmp,
+#                          unless _DRIVE_TMP_SKIP_POSIX: Bash-tool /tmp that
+#                          already is %TEMP%)
 #   /x/tmp[/...]         — MSYS drive form (/c/tmp → C:\tmp)
 #   x:/tmp[/...]         — Windows drive-letter form
 # Left boundary excludes a relative `./tmp` and a `/var/tmp` suffix (the char
@@ -246,7 +292,8 @@ NORM="$NORM_OUT"
 has_drive_root_tmp() {
   local s="$1"
   # POSIX /tmp — not ./tmp, not /var/tmp, not /tmpdir
-  if [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+  if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+    [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
   # MSYS /<drive>/tmp, in two arms because a `:` on the left is ambiguous and
@@ -335,7 +382,12 @@ has_redirect_to_drive_root_tmp() {
   # literal characters (not GNU \< \> word-boundaries) — keep them unescaped so
   # the portability gate does not flag this ERE. portability-ok: bash [[ =~ ]]
   # character class literals, not grep -E word boundaries
-  if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/tmp|\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
+  if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
+    return 0
+  fi
+  if ((_DRIVE_TMP_SKIP_POSIX == 0)) &&
+    # portability-ok: character-class angle brackets in a bash regex, not a GNU word boundary
+    [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?\/tmp(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
     return 0
   fi
   return 1
@@ -426,6 +478,45 @@ segment_destination_operand() {
   printf '%s' "$dest"
 }
 
+# curl -o/--output and wget -O/--output-document write targets. Glued
+# (`-o/tmp/x`) and `--flag=path` forms count; a URL that merely contains
+# `/tmp` does not.
+segment_downloader_output_operand() {
+  local subject="$1" tok dest="" expect=0
+  local -a tokens=()
+  # Intentional word-split of the static matcher subject into tokens.
+  # shellcheck disable=SC2206
+  tokens=( $subject )
+  for tok in "${tokens[@]}"; do
+    tok="${tok#\'}"
+    tok="${tok%\'}"
+    tok="${tok#\"}"
+    tok="${tok%\"}"
+    if ((expect)); then
+      dest="$tok"
+      expect=0
+      continue
+    fi
+    case "$tok" in
+    --output=* | --output-document=*)
+      dest="${tok#*=}"
+      ;;
+    --output | --output-document | -O | -o)
+      expect=1
+      ;;
+    -o?*)
+      dest="${tok#-o}"
+      ;;
+    -O?*)
+      dest="${tok#-O}"
+      ;;
+    *)
+      ;;
+    esac
+  done
+  printf '%s' "$dest"
+}
+
 # True when a segment's destination-shaped operand is a drive-root tmp path.
 # Creators (mkdir/touch/…) treat any drive-root path argument as a write;
 # copy/move utilities bind only the destination operand.
@@ -454,10 +545,18 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$dest" && return 0
     return 1
   fi
+  # curl / wget: output-flag operands only (#4251). A URL path containing
+  # `/tmp` is not a write target.
+  if [[ "$subject" =~ (^|[[:space:];|&]|/)(curl|wget|curl\.exe|wget\.exe)([[:space:]]|$) ]]; then
+    dest=$(segment_downloader_output_operand "$subject")
+    [[ -n "$dest" ]] || return 1
+    has_drive_root_tmp "$dest" && return 0
+    return 1
+  fi
   # Inline python write opening a drive-root tmp path
-  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]] &&
-    [[ "$subject" =~ (\/tmp|\/[a-z]\/tmp|[a-z]:\/tmp) ]]; then
-    return 0
+  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]]; then
+    has_drive_root_tmp "$subject" && return 0
+    return 1
   fi
   return 1
 }
@@ -468,7 +567,9 @@ segment_writes_drive_root_tmp() {
 # inspected per segment so `mkdir ./out && cat /tmp/src` stays allowed.
 has_write_utility_with_drive_root_tmp() {
   local s="$1" piece
-  has_drive_root_tmp "$s" || return 1
+  # Whole-string matcher is the cheap reject. A glued dest flag (`curl -o/tmp/x`)
+  # hides `/tmp` behind an alphanumeric, so also walk when the letters appear.
+  has_drive_root_tmp "$s" || [[ "$s" == *'/tmp'* ]] || return 1
   while IFS= read -r -d '' piece; do
     [[ -n "${piece//[[:space:]]/}" ]] || continue
     if segment_writes_drive_root_tmp "$piece"; then
@@ -498,6 +599,13 @@ fi
 # the command character by character, and scanning an empty string would be
 # per-Write budget spent to reach a foregone `no`.
 if [[ -n "$COMMAND" ]]; then
+  # Bash-tool POSIX /tmp on a Git for Windows usertemp mount already lands in
+  # %TEMP%. Skip that spelling only; /c/tmp, C:\tmp and drive-root \tmp stay
+  # blocked, and PowerShell is unchanged (#4251).
+  _DRIVE_TMP_SKIP_POSIX=0
+  if [[ "$TOOL_NAME" == "Bash" ]] && posix_tmp_maps_to_usertemp; then
+    _DRIVE_TMP_SKIP_POSIX=1
+  fi
   if has_redirect_to_drive_root_tmp "$NORM"; then
     block "redirect"
   fi
