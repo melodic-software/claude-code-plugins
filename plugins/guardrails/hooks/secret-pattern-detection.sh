@@ -394,7 +394,9 @@ secret_path_allowlisted "$ALLOW_FILE" && exit 0
 # both as spelled and once its nearest existing ancestor is physically resolved,
 # so a link under temp pointing elsewhere is still scanned. Everything up to
 # the resolve step is a builtin, so a target with no temp-looking component
-# spawns no resolver process.
+# spawns no resolver process. On Windows an 8.3 short-name spelling of a temp
+# path declines as block-hook-bypass exempts it (#4678): matched against a temp
+# candidate's own spelling, then decided on its resolved, fully expanded form.
 
 spd_win=0
 case "${OSTYPE:-}" in
@@ -448,9 +450,28 @@ spd_nearest_existing() {
   return 1
 }
 
+# spd_short_spelling <path>: 0 when every component of <path> that carries `~`
+# has the 8.3 short-name shape block-hook-bypass's _bbh_short_component accepts
+# (`NAME~N` or `NAME~N.EXT`, base at most eight characters, extension at most
+# three), so `~`, `~user`, `~+`, `x~` and `a~b` components refuse. The two
+# shapes must stay the same, or a Write and a Bash redirect to one path part.
+spd_short_re='^([A-Za-z0-9_-]+~[1-9][0-9]*)(\.[A-Za-z0-9_-]{1,3})?$'
+spd_short_spelling() {
+  local rest="$1" comp
+  while [[ -n "$rest" ]]; do
+    comp="${rest%%/*}"
+    if [[ "$comp" == "$rest" ]]; then rest=""; else rest="${rest#*/}"; fi
+    [[ "$comp" == *'~'* ]] || continue
+    [[ "$comp" =~ $spd_short_re ]] || return 1
+    ((${#BASH_REMATCH[1]} <= 8)) || return 1
+  done
+  return 0
+}
+
 # spd_temp_declines <file_path>: 0 when the write is declined.
 spd_temp_declines() {
   local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
+  local short=0 chars
   # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
   # and `/c/x` to other places than Git Bash does, so only a drive spelling may
   # decline there. On POSIX `\` is a filename byte, never a separator, and below
@@ -468,22 +489,34 @@ spd_temp_declines() {
   # character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`, `>`,
   # parens, `#`, `$`, a backtick, a glob character) refuses here. An allowlist,
   # so an unlisted character scans. `~` is refused as block-hook-bypass's
-  # _norm_path refuses it, and unnormalized segments are refused below.
-  [[ "$t" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
+  # _norm_path refuses it, except on Windows in an 8.3 short-name component,
+  # which its temp default accepts too (#4678). Unnormalized segments are
+  # refused below.
+  chars="$t"
+  if [[ "$t" == *'~'* ]]; then
+    ((spd_win)) || return 1
+    spd_short_spelling "$t" || return 1
+    short=1
+    chars="${t//\~/}"
+  fi
+  [[ "$chars" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
   case "$t" in
   *//* | */./* | */../* | */. | */..) return 1 ;;
   *) ;; # a normalized spelling
   esac
   # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
   # temp candidate's spelling. It may over-match (costing resolver processes)
-  # and never decides alone.
+  # and never decides alone. A short-name spelling must match a candidate's own
+  # spelling, which is the only one it can carry, so a miss spends no resolver.
   hook::_temp_root_candidates
   shopt -q nocasematch && nocase=1
   shopt -s nocasematch
-  case "$t" in
-  */tmp/* | */temp/*) hit=1 ;;
-  *) ;; # try the candidates' spellings below
-  esac
+  if ((!short)); then
+    case "$t" in
+    */tmp/* | */temp/*) hit=1 ;;
+    *) ;; # try the candidates' spellings below
+    esac
+  fi
   for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
     ((hit)) && break
     hook::normalize_path_to norm "$cand"
@@ -516,8 +549,9 @@ spd_temp_declines() {
     hook::_physical_cached_to phys "$ranc" || return 1
     hook::under_temp_root "${phys%/}$rsfx" && return 1
   fi
-  # 6. Target under temp as spelled.
-  spd_under_temp "$t" || return 1
+  # 6. Target under temp as spelled. For a short-name spelling that is the
+  # candidate match in step 2: the resolved temp roots carry long names only.
+  ((short)) || spd_under_temp "$t" || return 1
   # A hard link resolves to itself, so a temp-tree name for a file stored
   # elsewhere passes every path test: an existing file with a second link, or
   # whose link count cannot be read, is scanned.
@@ -529,6 +563,15 @@ spd_temp_declines() {
   # own path never enters it.
   spd_nearest_existing "$t" || return 1
   hook::physical_path_to phys "$spd_ancestor" || return 1
+  # A short-name spelling is decided on its resolved form, which must pass the
+  # strict _norm_path spelling rules block-hook-bypass applies to it: a short
+  # component nothing by that name backs keeps its `~` and scans.
+  if ((short)); then
+    case "${phys%/}$spd_sfx" in
+    *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) return 1 ;;
+    *) ;; # fully expanded
+    esac
+  fi
   spd_under_temp "${phys%/}$spd_sfx"
 }
 spd_temp_declines "$FILE" && exit 0
