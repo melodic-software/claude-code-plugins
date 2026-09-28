@@ -140,9 +140,6 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 PS_HERESTRING_OPENER_COMMENT_CHAR=0
 PS_REDUCTION_UNTRUSTED=0
 PS_REDUCTION_UNTRUSTED_REASON=""
-# 1 when a confirmed here-string dropped at least one body line. Git-freedom
-# then runs over the raw command, not PS_BLANKED (#4683).
-PS_HERESTRING_BODY_DROPPED=0
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
 # i.e. the walked text carries an expandable string. Written by the walk and read
 # by its IMMEDIATE caller; any later walk overwrites it.
@@ -227,11 +224,14 @@ ps::payload_has_bare_cr() {
   [[ -n "$s" ]] || return 1
   ps::has_bare_cr "$s" && return 0
   t="${s//\\\\/}"
-  while [[ "$t" == *'\\r'* ]]; do
-    t="${t#*\\r}"
+  # `*"\\r"*` is glob-star + one backslash + r: JSON's two-character `\r`
+  # escape. A fully quoted pattern would treat `*` as literal; a single-quoted
+  # `'\\r'` is two backslashes and would miss the payload encoding.
+  while [[ "$t" == *"\\r"* ]]; do
+    t="${t#*"\\r"}"
     # JSON CRLF is the two-escape sequence `\r\n`, so the remainder after `\r`
     # is `\n…`. A decoded CR then letter n (`\rn`) is a bare CR and refuses.
-    [[ "$t" == \\n* ]] || return 0
+    [[ "$t" == "\\n"* ]] || return 0
   done
   return 1
 }
@@ -412,7 +412,6 @@ ps::blank_herestrings() {
   PS_HERESTRING_OPENER_COMMENT_CHAR=0
   PS_REDUCTION_UNTRUSTED=0
   PS_REDUCTION_UNTRUSTED_REASON=""
-  PS_HERESTRING_BODY_DROPPED=0
   # Bare CR on the raw command, before space-folding. jq_fields may already have
   # stripped CR from COMMAND; classify also inspects INPUT for the JSON encoding.
   ps::has_bare_cr "$1" && ps::_mark_untrusted bare-cr
@@ -432,7 +431,6 @@ ps::blank_herestrings() {
         in_hs=0
         hs_quote=""
       else
-        PS_HERESTRING_BODY_DROPPED=1
         if [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
         # A body line about to be DROPPED from an expandable here-string, and it
         # carries a command position. The needle is the two characters `$(`,
@@ -1825,15 +1823,6 @@ ps::classify_git_command() {
     # other construct this sink cannot settle. A verbatim `@'` … `'@` body is
     # inert text and is unaffected.
     ((PS_HERESTRING_EXPANDABLE)) && return 2
-    # A dropped body of either quote style can hide a live git call that this
-    # library confirmed as here-string text. Probe the raw command instead.
-    if ((PS_HERESTRING_BODY_DROPPED)); then
-      ps::might_invoke_git "$cmd" || return 1
-      if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$cmd"; then
-        return 1
-      fi
-      return 2
-    fi
     ps::might_invoke_git "$PS_BLANKED" || return 1
     if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
       return 1
