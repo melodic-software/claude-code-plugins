@@ -49,5 +49,5 @@ in their owner docs when wired.
 
 ## Authoring
 
-`playbooks:skill-authoring` documents the bundled gotchas discipline; consumer extension uses this
-file for the cascade tier and promotion path.
+`playbooks:skill-authoring` documents the bundled gotchas discipline and points here for the
+cascade tier and promotion path.
