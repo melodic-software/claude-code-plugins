@@ -751,16 +751,17 @@ TWIN_OUT=$(
     }
     hook::_c_locale spv__spans "$t"
     # shellcheck disable=SC2016  # backticks are literal ERE data
+    # portability-ok: grep -oE is only-matching extended regex, not GNU grep -P
     [[ "$(lines)" == "$(printf '%s' "$t" | grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//')" ]] ||
       printf 'bad %q spans\n' "$t"
     hook::_c_locale spv__residue_tokens "$t"
     # shellcheck disable=SC2016  # backticks are literal ERE data
     [[ "$(lines | LC_ALL=C sort)" == "$(printf '%s' "$t" | sed -E 's/`[^`]*`//g' |
-      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t"
+      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t" # portability-ok: grep -oE is only-matching extended regex, not GNU grep -P
     hook::_c_locale spv__nonblank "$t"
-    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t" # portability-ok: grep -vE drops blank lines, not GNU grep -P
     hook::_c_locale spv__nonblank "$t" 40
-    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t" # portability-ok: grep -vE drops blank lines, not GNU grep -P
   done
   for t in 'é `docs/gone.md`' $'esc \x1b[0m `x.md`' $'del \x7f'; do
     spv_plain "$t" && printf 'bad %q gate accepted\n' "$t"
@@ -768,7 +769,7 @@ TWIN_OUT=$(
   echo twins-ok
 )
 if [[ "$TWIN_OUT" == twins-ok ]]; then
-  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines"
+  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines" # portability-ok: grep token is prose or grep -E/-o/-v, not GNU grep -P
 else
   bad "builtin twins differ from the pipelines: $TWIN_OUT"
 fi

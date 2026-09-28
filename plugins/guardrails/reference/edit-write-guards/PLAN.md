@@ -62,5 +62,5 @@ note in the README).
 **As of:** 2026-09-28.
 
 **Recheck:** a host where S is large enough that wall/S tracks spawns (the
-#4390 Windows harness), or a rewrite that runs the guards without sourcing
+\#4390 Windows harness), or a rewrite that runs the guards without sourcing
 `hook-utils.sh`.
