@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a shared decision map on the work-item tracker, then work its frontier one decision at a time, routing each resolved decision to the right skill until the map graduates to a Brief / PRD / PLAN. Use when a task is too big to hold at once AND parts are still too fuzzy to phrase as sharp tickets ('this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'); skip when the work is already a set of sharp, answerable tickets (use /planning:interview or /work-items) or small enough to just do."
+description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker, then work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Sharp, answerable tickets go to /planning:interview or /work-items."
 argument-hint: "[chart|work] [topic] (e.g., /planning:wayfind chart <topic>, /planning:wayfind work)"
 user-invocable: true
 disable-model-invocation: false
@@ -89,7 +89,7 @@ session. Do not fabricate a map.
    whole effort fits one session. This effort does not need a map. STOP and route out
    instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
    Skill tool; a set of
-   sharp tickets → `/work-items`; small enough to just do → say so. (The trigger is too-big
+   sharp tickets → `/work-items:decompose` (or `/work-items:track add` for one ticket); small enough to just do → say so. (The trigger is too-big
    AND foggy. Both, never either alone.)
 2. **Create or extend the map issue.** On first use in a repo, resolve the container label
    (the seam's `config.container_label` key, default `work-map`. Snippet in
@@ -188,7 +188,7 @@ For pre-implementation efforts, the routed items above compose into a known five
 ## What this skill does NOT do
 
 - **Does not do build work.** A map holds decisions; build items live on the ordinary tracker
-  (`/work-items`) after the map graduates. If a decision resolves into buildable work, that's
+  (`/work-items:track add`) after the map graduates. If a decision resolves into buildable work, that's
   a graduation, not a map item.
 - **Does not resolve a HITL item for the human.** `needs-human` items are never resolved by
   an agent standing in for the user (inviolable). Non-interactive frontier filters them out.
@@ -199,8 +199,8 @@ For pre-implementation efforts, the routed items above compose into a known five
 - **Does not store coordination in the memory tier.** The map (coordination) lives on the
   tracker; `<memory_dir>/<slug>/` (default `.work/`) holds execution artifacts only (journals,
   research scratch, evidence).
-- **Does not invent a second claim/mode mechanism.** Claims use the sibling `/work-items`
-  model; mode is the `needs-human` label. No parallel taxonomy.
+- **Does not invent a second claim/mode mechanism.** Claims use the sibling `work-items`
+  plugin's claim model (`/work-items:track start`); mode is the `needs-human` label. No parallel taxonomy.
 
 ## Reference
 

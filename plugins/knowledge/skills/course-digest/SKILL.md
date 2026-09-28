@@ -8,10 +8,12 @@ shell: bash
 
 ## Pre-computed context
 
-course-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
-Playwright Chromium: !`node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.env.CLAUDE_PLUGIN_DATA&&path.join(process.env.CLAUDE_PLUGIN_DATA,'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));process.stdout.write(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
-ffmpeg: !`command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (see Prerequisites)"`
-ImageMagick: !`command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (see Prerequisites)"`
+```!
+{ printf 'course-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'Playwright Chromium: '; node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.env.CLAUDE_PLUGIN_DATA&&path.join(process.env.CLAUDE_PLUGIN_DATA,'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));console.log(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (see Prerequisites)"; }
+{ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (see Prerequisites)"; }
+```
 
 # Course Digest
 
@@ -145,7 +147,7 @@ Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib
 
 Follow the 8-phase workflow in [context/workflow.md](context/workflow.md), each building on the previous. Discover → Extract → Process Frames → Analyze Code Repo → Validate → Synthesize → Analyze → Recommend (phases 1, 2, 2b, 2c, 2d, 3, 4, 5). Phases 1-2d are extraction (browser + CLI); 3-5 are analysis (LLM-heavy, parallelizable across modules). Storage runs continuously throughout.
 
-**Critical rule:** ALL context (transcripts + frames + code repo) must be gathered before Phase 3.
+All context (transcripts + frames + code repo) must be gathered before Phase 3.
 Module summaries note their context level: `[transcript-only]`, `[transcript+frames]`, `[full-context]`.
 
 ### Phase 3 modalities (`[full-context]` requires all three)
@@ -226,7 +228,7 @@ Repo-applicability analysis follows the template in [reference/analysis-template
 
 Generated course output lands under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.
 
-**Critical rules:**
+Rules:
 
 - No video or audio files. Transcripts and screenshots capture the content
 - Screenshots are PNG files. Keep small (resize to 1280px wide max)

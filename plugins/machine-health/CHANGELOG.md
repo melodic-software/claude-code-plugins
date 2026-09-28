@@ -3,6 +3,50 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-09-28
+
+### Added
+
+- **audit:** every finding block in the markdown report now carries its evidence, a compact
+  `| Detail | Value |` table of the check's detail (scalars first, lists as a count with a short
+  preview, cut at 10 rows). The appendix adds the CISA KEV matches behind a `winget-upgrades`
+  finding and the CodeIntegrity events behind a `drivers` finding. Before, both lived only in
+  `latest.json`.
+- **audit:** a custom check registered through the catalog overlay is capped at WARN until
+  `history.jsonl` shows it reporting OK or INFO in 3 runs, and the report marks it `[custom]`
+  in the at-a-glance table and its finding heading. History lines gain `check_severities`, each
+  successfully-run check's final severity, which the cap counts from. Shipped checks are unaffected.
+- **audit:** a WARN or CRIT finding with no trend history says it is a single reading.
+
+### Changed
+
+- **audit:** `winget-upgrades` reports a CISA KEV match as WARN, not CRIT. The match is on the
+  winget id and never compares the installed version, so it cannot tell a vulnerable build from
+  one patched years ago. The summary lists the matched CVEs, each match records
+  `match_basis: name-only`, and the "upgrade(s)" figure counts distinct upgrades
+  (`kev_upgrade_count`) instead of KEV rows.
+- **audit:** `drivers` drops CodeIntegrity events whose every image sits under the active
+  Defender platform folder, the routine shape of a platform rollover, and reports the excluded
+  count. A surviving event is WARN; the trend engine raises it to CRIT only when events repeat
+  across consecutive runs with a newer event since. `check-catalog.md` §8 now documents that tier.
+- **audit:** `severity-rubric.md` and the skill body now say trend adjusts severity upward only.
+  They described a downgrade-on-revert rule the trend engine never implemented.
+
+### Fixed
+
+- **audit:** `defender-exclusions` no longer reports "1 unexpected Defender path exclusion(s)" on
+  a host with none. `Get-MpPreference` returns `$null` there, and the check counted it as an entry.
+
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
 ## [0.13.2] - 2026-09-25
 
 ### Changed

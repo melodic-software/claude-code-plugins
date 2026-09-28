@@ -364,6 +364,10 @@ expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
 expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
 expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
 expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
+expect_both 'wsl rm -rf / blocks' 2 --command 'wsl rm -rf /'
+expect_both 'wsl.exe -e rm -rf / blocks' 2 --command 'wsl.exe -e rm -rf /'
+expect_both 'wsl -d Ubuntu -- sudo rm -rf / blocks' 2 --command 'wsl -d Ubuntu -- sudo rm -rf /'
+expect_both 'wsl ls / allowed' 0 --command 'wsl ls /'
 
 # `su` runs its operand through the target user's shell, so one process is every
 # command inside it too. Its grammar is not a shell's: the operand follows the
@@ -1449,15 +1453,77 @@ assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 expect "PowerShell payload is a declared gap, not a block" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
 
-# sudo spellings that stay declared gaps. Reading each one correctly means
-# treating the word after it as an operand, which changes how sudo lines the
-# guard refuses today are read (`sudo -R rm -rf /` would read `rm` as the
-# chroot directory), and this guard only ever adds refusals. Pinned so widening
-# any of them later is a deliberate change to these lines.
-expect_both 'sudo -R is a declared gap' 0 --command 'sudo -R /mnt rm -rf /'
-expect_both 'sudo --chroot is a declared gap' 0 --command 'sudo --chroot /mnt rm -rf /'
-expect_both 'sudo -Eu cluster is a declared gap' 0 --command 'sudo -Eu bob rm -rf /'
-expect_both 'sudo abbreviated --us is a declared gap' 0 --command 'sudo --us bob rm -rf /'
+# --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
+# sg re-parses its one command word; setpriv, prlimit and systemd-run step
+# over their own options; an abbreviated env --split-string is split; an
+# ambiguous nsenter prefix, sudo's -R / --chroot, an operand-taking sudo
+# cluster and an abbreviated sudo long option are each judged both as a flag
+# and as taking the next word; and su's argv is read with and without
+# POSIXLY_CORRECT, which an inherited environment can set. Each row is asserted
+# without and with a payload cwd, because the outside-tree arm runs only with
+# one.
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "launcher: $rdt_cmd" "$rdt_want" --command "$rdt_cmd"
+  expect_both "launcher: $rdt_cmd, with cwd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+2|sg root -c 'rm -rf /'
+2|sg root 'rm -rf /'
+2|sg - root -c 'rm -rf /'
+2|sg -l root 'rm -rf /*'
+2|setpriv --reuid=0 rm -rf /
+2|setpriv --reuid 0 rm -rf /
+2|setpriv --reu 0 rm -rf /
+2|setpriv --nnp --clear-groups rm -rf /
+2|prlimit --nofile=10 rm -rf /
+2|prlimit -n rm -rf /
+2|prlimit --pid 1 rm -rf /
+2|systemd-run rm -rf /
+2|systemd-run --uid bob rm -rf /
+2|systemd-run --ui bob rm -rf /
+2|systemd-run -u x -p A=b rm -rf /
+2|systemd-run -tu x rm -rf /
+2|systemd-run --scope --user rm -rf /*
+2|env --spl='rm -rf /'
+2|env --s 'rm -rf /'
+2|env -a x rm -rf /
+2|env --argv0 x rm -rf /
+2|nsenter --t 1 rm -rf /*
+2|POSIXLY_CORRECT=1 su -s env x su -s env x rm -rf /
+2|su -s env x su -s env x rm -rf /
+2|sudo -R /mnt rm -rf /
+2|sudo --chroot /mnt rm -rf /
+2|sudo -Eu bob rm -rf /
+2|sudo --us bob rm -rf /
+2|sudo -a x rm -rf /
+2|sudo -iu bob rm -rf /
+2|sudo -R rm -rf /
+2|sudo --chroot rm -rf /
+2|sudo -Eu rm -rf /
+2|sudo --login rm -rf /
+2|sudo -u bob rm -rf /
+2|env --split-string='rm -rf /'
+2|nsenter --target 1 rm -rf /*
+0|sg root -c 'ls /'
+0|sg root rm -rf /
+0|sg root
+0|setpriv --reuid=0 ls
+0|prlimit --nofile=10 ls
+0|systemd-run ls
+0|env --spl='ls /'
+0|nsenter --t 1 ls
+0|sudo -R /mnt ls
+0|sudo -Eu bob ls
+0|sudo --us bob ls
+0|su -s env x ls
+EOF
+# `sg root rm -rf /` runs `rm` alone: sg hands only the word after the group
+# to `sh -c`. From a cwd, `rm -rf /etc` is outside the tree, through a
+# launcher as bare.
+expect_both 'launcher: sg root -c rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --command "sg root -c 'rm -rf /etc'"
+expect_both 'launcher: setpriv --reuid=0 rm -rf /etc, with cwd' 2 "${RDT_CWD[@]}" --command 'setpriv --reuid=0 rm -rf /etc'
+expect_both 'launcher: sg - root -c rm -rf ./build from a cwd is not followed' 0 "${RDT_CWD[@]}" \
+  --command "sg - root -c 'rm -rf ./build'"
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

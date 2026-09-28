@@ -3,7 +3,19 @@ description: "Verify the typos-format hook's runtime prerequisites and configura
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
+tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `typos`: !`{ command -v typos 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -27,8 +39,9 @@ action is given.
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh`) is the single source of truth
 for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -37,11 +50,11 @@ restores the FAIL semantics.
 
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
-2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of running.
-3. **typos binary.** `command -v typos` (the hook resolves PATH only, with no `.venv`-style
-   per-repo convention). Report the resolved path and `typos --version` output when found.
-   FAIL when absent; the hook then emits a visible once-per-session skip notice instead of
+3. **typos binary.** The pre-computed `typos` row (the hook resolves PATH only, with no
+   `.venv`-style per-repo convention). Report the resolved path and `typos --version` output when
+   found. FAIL when absent; the hook then emits a visible once-per-session skip notice instead of
    running.
 4. **Consumer typos config (informational only).** The hook runs unconditionally and never
    gates on a config existing; typos resolves its own governing config (if any) directly from
@@ -73,7 +86,8 @@ official install methods (`https://github.com/crate-ci/typos#install`: cargo, Ho
 Conda, pacman, or a pre-built binary; pick the platform-appropriate one to surface) and letting
 the consumer choose how to install it at the machine level.
 
-After the consumer installs `typos` themselves, re-run `check` and report its actual result.
+After the consumer installs `typos` themselves, re-run `check` with live Bash probes (the
+pre-computed rows predate the install) and report its actual result.
 Never claim resolved without re-verifying. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
@@ -87,8 +101,10 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  from that project's directory for a `project`/`local` scope. A rerun at another scope adds an
+  install record at that scope and enables the plugin there (measured in both directions); the
+  value itself always lands in user settings. A rejected value prints a warning yet exits 0, so read the output. This skill
+  never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
   each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.

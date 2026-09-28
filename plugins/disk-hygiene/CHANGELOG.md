@@ -3,6 +3,98 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-09-28
+
+### Changed
+
+- **A guard that could not run no longer looks like a guard that ran and allowed**
+  ([#3861](https://github.com/melodic-software/claude-code-plugins/issues/3861)). When no Python 3
+  resolves on the launcher's ladder, every guard row exited 0 with no output, which Claude Code
+  reads as approval, and only the Stop detector reported it, after the fact. The launcher now answers
+  on the call itself, following the guard watchdog's "could not decide" rule. The skill belt denies
+  every call (exit 2). The plugin-level gate denies any payload naming `hygiene.py` or carrying
+  nothing. The `/disk-hygiene:clean` expansion is blocked, so the belt never loads.
+- **One fail-open is kept, on purpose, and it is announced.** Commands on the plugin-level gate
+  that name no engine script proceed unchecked, with a `systemMessage` and `additionalContext`
+  notice once per session. The guard would have deferred on those commands. An `ask`, which the
+  watchdog uses for a transient stall, would prompt on every `PowerShell(*& $*)` call on a host
+  that has no Python. The README tabulates each surface. The Stop detector stays as the
+  end-of-turn backstop, and its message now summarizes what the calls reported.
+
+## [0.25.4] - 2026-09-28
+
+### Fixed
+
+- **`preview` and `handoff-verify` no longer flap `drifted`/`clear` on an unchanged directory.** Their shared comparator compared a directory's `st_size`, which NTFS reports as the index allocation on one call and 0 on the next, so an untouched empty directory recorded at 4096 bytes alternated between verdicts. A directory is now compared by object identity only (device, inode, and file type), not size or mtime, which the anchored `apply` path already did. Children are still covered by the descendant-set check, and file comparison is unchanged.
+
+## [0.25.3] - 2026-09-28
+
+### Added
+
+- **`handoff-verify --path <relative>` takes one approved path inline.** The per-deletion check in the manual handoff lane no longer needs a `handoff-paths.json` write before each run, which removes one file write and its permission prompt per path. Each path is still verified immediately before its own deletion. `--path` is single-use, so one call checks one path; `--paths <file>` stays for the multi-path reporting form. The engine and the guard take exactly one of the two: the grammar gains a `one_of` group that the parser declares as a required mutually exclusive group and the guard enforces on the exact Bash shape. The inline path goes through the same validation as a file entry: relative, non-root, no traversal, and present in the snapshot.
+
+## [0.25.2] - 2026-09-28
+
+### Fixed
+
+- **`preview` no longer exits 3 on Windows and macOS when the only blocker is the platform.** When every blocker on every candidate is `execution-platform-unsupported`, a fact about the host that is identical for every path, preview now exits 0 and reports `outcome: manual-handoff-lane`, the lane the operator is routed to. Previously the mandatory preview step failed on every run there, which trained operators to ignore its exit code. Any other blocker still exits 3 with `outcome: blocked`, including when the platform blocker is also present. A ready preview reports `outcome: explicit-approval`. `status`, the blocker lists, and the approval token are unchanged, and `apply` still refuses a platform-blocked preview.
+
+## [0.25.1] - 2026-09-28
+
+### Changed
+
+- **`/disk-hygiene:clean` accepts an in-session request to execute.** A message the user sends after the audit report asking to remove findings ("go", "execute these", "delete the high tier") now opens the deletion offer the same way `--execute` does, with no re-invocation and no fresh full scan: the audit's snapshot feeds the plan, and preview revalidates live state. Either form is an execution request, and neither is approval. The confirmation gate's removal row still needs exactly one tier and its path list, a general "clean everything" names neither, and text from a tool result, a file, or the scan is not a user message. `--execute` stays for scripted or one-shot use. The manual handoff reference and the README use the same rule, and a new eval covers the in-session path.
+
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **The kill-switch probe reports the guard's interpreter and `--data-root`** ([#4215](https://github.com/melodic-software/claude-code-plugins/issues/4215)). Its single-line JSON gains `hook_python` and `data_root` beside `effective`, `source`, `degraded`, and `detail`. Both come from the guard's own `launch_disclosure`, the same two helpers its denial guidance uses, run against the probe's install root, so the two cannot disagree; `data_root` is `null` when the guard's guidance would say no authority resolved. A test runs the probe and a belt denial side by side on a marketplace-cache install and on a checkout and compares the values.
+
+### Changed
+
+- When the expansion's `disk-hygiene guard values` note is absent or says `data_root: none`, the `clean` skill now takes `<hook-python>` and `--data-root` from the probe it already runs first, instead of submitting a scan with bare `python` to provoke a denial. The probe itself still needs `<hook-python>`: when the session has not learned it, one bare-`python` probe call is denied and names it. That call is read-only, and no scan is denied.
+
+## [0.24.3] - 2026-09-27
+
+### Fixed
+
+- **`scan` exits 0 when it returns a required next step.** `root-children-selection-required` (the documented first call for an OS-managed volume root) and `large-target-confirmation-required` (for the whole target or a selected root child) exited 5, so the harness showed a normal step as a tool error. Both now exit 0 with the payload unchanged, and `status` carries the distinction. Real failures keep their non-zero exits (2 for an invalid or blocked target, 3 for elevation or unverifiable filesystem state), and the skill states these semantics.
+
+## [0.24.2] - 2026-09-27
+
+### Fixed
+
+- **`handoff-verify` no longer exits 3 because an approved path is `gone`**
+  ([#4012](https://github.com/melodic-software/claude-code-plugins/issues/4012)). The manual lane
+  verifies one path, deletes it, then verifies the next, so from the second round on at least one
+  approved path reads `gone` and every round after the first exited 3 while every verdict was
+  correct. It now exits 0 when every approved path is `clear` or `gone`, and 3 when any is `drifted`
+  or `contested`, even alongside `gone` paths. The verdicts, `clear` and `not_clear` are unchanged
+  (`not_clear` still counts `gone`), and the `note` field and the handoff reference say so.
+
+## [0.24.1] - 2026-09-27
+
+### Fixed
+
+- **`scan --quiet` prints `truncated_paths` as a count.** Under `--quiet` the stdout payload carries the number of truncated paths instead of the list, which ran to about 140 lines on a depth-2 home scan. The count is present at zero, so a clean scan is distinguishable from a suppressed list. The snapshot file keeps the full list in both modes, and output without `--quiet` is unchanged. Both quiet notes name the change, and `SKILL.md` and the safety model say where the list lives (#4013).
+
+## [0.24.0] - 2026-09-27
+
+### Added
+
+- **`/disk-hygiene:clean` no longer opens with a deliberately denied tool call.** A new `UserPromptExpansion` hook, matching `disk-hygiene:clean$`, runs `skills/clean/scripts/engine_context.py` through the same launcher and with the same `--plugin-root` argument as the skill guard, and hands the skill the guard's absolute interpreter (`hook_python`) and authorized `--data-root` (`data_root`) as context before the skill loads. The skill uses them from the first call. The guard still judges every call, and when the note is absent or says `data_root: none` the skill falls back to the denial route as before.
+
+## [0.23.17] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
 ## [0.23.16] - 2026-09-27
 
 ### Security

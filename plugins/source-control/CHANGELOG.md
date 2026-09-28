@@ -3,6 +3,70 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.1] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.0] - 2026-09-28
+
+### Changed
+
+- **`parse-branch-issue.sh` stops on an unusable `branch_issue_pattern` layer instead of skipping it** ([#4673](https://github.com/melodic-software/claude-code-plugins/issues/4673)). A layer whose `## branch_issue_pattern` section exists but yields no usable pattern now prints a note containing `resolution stopped`, emits no issue number, and exits 1. Before, it was reported and skipped, and a lower layer, the userConfig, or the built-in default could then supply a different number to the `Closes #N` line: with a broken trailing-number team pattern, `feat/12-widget-34` closed #12. The stop covers a heading or HTML comment as the first value line, an empty or unterminated fence, a pattern that breaks a limit, holds a backreference, or does not compile, and a section with no value (previously skipped without a note). The near-miss-heading stop is unchanged. A higher layer that already supplied a valid pattern still wins, and a userConfig value that fails validation is still ignored, with a note, so the default applies. `create.md`, `config-resolution.md`, setup's `SKILL.md`, and `apply-convention.md` describe the stop, and setup's check reports a stopped layer as a FAIL. The repo's config-cascade convention records the stop as a declared deviation from its degrade-soft rule.
+
+## [0.61.5] - 2026-09-28
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` refreshes the default branch before basing** ([#4249](https://github.com/melodic-software/claude-code-plugins/issues/4249)). It read the cached `<remote>/HEAD` and never fetched, so `fresh` meant "as of the last fetch" and a stale base was silent. It now works like Claude Code's native `fresh` (v2.1.208+): when `FETCH_HEAD` is missing or older than 24 hours, it fetches the resolved remote's default branch, capped at five seconds with credential prompts off. A failed or timed-out fetch keeps the cached ref and prints a warning that the base may be behind. `context/create.md` drops the "stale base" caveat and names the one remaining gap: an uncached `<remote>/HEAD` still warns rather than fetching.
+
+## [0.61.4] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.61.3] - 2026-09-27
+
+### Fixed
+
+- The PR-body linkage gates (`pr-body-linkage-gate.sh`, `pr-linkage-mcp-gate.sh`) agree with the `pr-contract` step again (melodic-software/ci-workflows#544). A `Refs: #N` or `Relates to: #N` line of its own (optional `owner/repo`, up to three spaces of indent) counts as linkage, so a PR that references an issue it must not close is no longer told to add a closing keyword. A closing keyword with a disclaimer among the five words before it (`not`, `never`, `no`, `without`, `deliberately`, `intentionally`, or an `n't` contraction, after the last `.!?;,`) is blocked as a negated closing reference, even beside valid linkage, because GitHub's parser still closes the issue on merge. The closing keyword is matched one line at a time, as CI does. The block messages use CI's wording and the remedy names the `Refs:` marker.
+- A body line starting with a lowercase `t` is no longer masked as indented code, and a tab-indented line now is. The validator's regex spelled the tab as `\t`, which a bash regex reads as a literal `t`, so a line such as "this PR closes #5", or a `## Fix` section whose text began with "t", was dropped from the scan.
+
+## [0.61.2] - 2026-09-27
+
+### Changed
+
+- `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+- `babysit-prs`'s loop reference points at the subagent dispatch for ≥3-finding comments without the "MANDATORY" marker; the rule in `review-discipline.md` §2 is unchanged (#4120).
+
+## [0.61.1] - 2026-09-27
+
+### Fixed
+
+- `worktree`: the nesting-invariant stamp is marked **expired, pending re-probe**. Its 2.1.244 version arm has passed (2.1.278 and 2.1.280 seen), and the 2026-09-27 re-probe could not run because that CLI was unauthenticated. `nesting-invariant-ssot.test.sh` now compares the installed `claude --version` (or `NESTING_INVARIANT_INSTALLED_VERSION`) against the version arm and fails when the arm has passed and the owner is not marked expired; the date arm is held to the same rule.
+- `worktree`: the isolation paragraph quotes the worktrees page's current four checks, including the command-shape check that refuses a compound git command, re-fetched 2026-09-27.
+- `worktree` create: the "raw text, not shell-escaped" reading of `${user_config.worktree_root}` is labeled as this plugin's reading and cited to the two plugins-reference spans it rests on, instead of being attributed to the page.
+
+## [0.61.0] - 2026-09-27
+
+### Added
+
+- `branch_issue_pattern` is a key on the layered `.claude/source-control.md` surface. `parse-branch-issue.sh` reads the local, team, and user-global layers (per key, last wins) before any other source. A fenced value (backtick or tilde fence, info string allowed) resolves to the first non-blank line inside the fence, and headings inside fenced blocks are ignored. A layer holding an invalid ERE, a backreference, or an empty or unterminated fence is reported on stderr and skipped; an invalid or backreferencing userConfig value is reported and ignored. The script prints only an all-digit capture: a pattern with no capture group, or a non-numeric capture, prints nothing and exits 1 with a note. Every note names the source and the reason, never the pattern text. `parse-branch-issue.test.sh` covers cascade-only, userConfig-only, cascade over userConfig, layer order, the invalid-layer skip, the placeholder, fenced values, fence errors, the numeric-output rule, backreference rejection, and notes that omit the pattern.
+- `parse-branch-issue.sh` parses the section strictly, so a malformed layer never supplies the wrong issue number. It accepts a leading UTF-8 BOM and a closing `#` sequence on the heading. A near-miss H2 (`## branch_issue_pattern:`, `## Branch_Issue_Pattern`, `## branch_issue_pattern (ERE)`) stops resolution with a note: no output and exit 1, never a fall back to a lower layer, the userConfig, or the default. A first value line that is a heading or an HTML comment, and an unterminated fence with content, are reported and the layer skipped. Before any pattern is compiled or matched it must keep within 200 characters, `{m,n}` bounds of at most 16, and no quantifier on a group whose body already holds one; a pattern that breaks a limit is reported and skipped, which stops a nested bounded repetition from exhausting memory at compile time. `apply-convention.md` rejects the same patterns before setup writes one. `reference/config-resolution.md` states the parsing rules and the limits, and `parse-branch-issue.test.sh` covers each.
+- `/source-control:setup` `check` reports the effective `branch_issue_pattern` and what supplies it (a layer, the deprecated userConfig fallback, or the built-in default), and `apply` accepts `branch_issue_pattern=` to write it to the chosen layer. `check` confirms the row by running `parse-branch-issue.sh` with the deprecated userConfig value as its second argument, so a pattern set only there is reported correctly. `reference/apply-convention.md` routes `branch_issue_pattern=` alone (validate, then write or replace only that section, leaving the rest of the layer untouched) and combined with `subject_pattern=` (both in one pass), and its write template carries the optional `## branch_issue_pattern` section.
+- [ADR 0039](../../docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md) records which babysit keys stay in `userConfig` (identity and trust keys) and which move to the cascade (`branch_issue_pattern` now, ten repository-policy keys under #4572). `reference/config-resolution.md` states the multi-domain consequence: one value per machine for each `babysit_*` key, so an operator with several identity domains leaves them unset or launches the lane with a per-domain `--settings` file.
+
+### Changed
+
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+- `/source-control:pull-request create --pushed --worktree` runs `parse-branch-issue.sh` with `CLAUDE_PROJECT_DIR="$WT"`, so it reads the worktree's own `source-control.md` layers, and `create.md` keeps the script's stderr visible.
+
+### Deprecated
+
+- The `branch_issue_pattern` `userConfig` option. It is still read as a fallback after the cascade, with a deprecation note on stderr naming the cascade key, until a later minor release removes it, no earlier than 2026-12-27.
+
 ## [0.60.1] - 2026-09-27
 
 ### Fixed

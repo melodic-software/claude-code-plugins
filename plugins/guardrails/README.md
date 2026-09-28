@@ -34,7 +34,20 @@ were eight, one per Write/Edit PreToolUse where there were three, one per Write/
 PostToolUse where there were three), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
-emit. The [hook budget accounting](#hook-budget-accounting) carries the measurement.
+emit. On the Bash/PowerShell row it also refuses (exit 2) a command holding more than
+256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair, counted as
+text whatever the quoting) before any guard runs, because the guards' combined cost
+grows with that count and a row cancelled at its 60-second `timeout` blocks nothing
+([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).
+It also tokenizes the event's command once and hands every guard that parses it
+the same segments. One exception to "every guard still runs": on the Bash/PowerShell
+row, a command longer than `MAX_COMMAND_LEN` (16384 characters, passed to the dispatcher
+as `--max-command-len`) ends the chain at the first guard that blocks it. The five
+guards that carry that ceiling refuse such a command unread, and the row now answers a
+~70 KB command in about 64 ms instead of running past its 60-second `timeout`, where
+Claude Code would let the call through unchecked (#4528). Each guard keeps its kill
+switch; with one disabled, the next guard carrying the ceiling blocks.
+The [hook budget accounting](#hook-budget-accounting) carries the measurement.
 `workflow-resilience-check` is not always-on and is registered on its own.
 
 | Guard | Event / matcher | Behavior | What it catches |
@@ -46,7 +59,7 @@ emit. The [hook budget accounting](#hook-budget-accounting) carries the measurem
 | **block-hook-bypass** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates: `cat > file`, `echo … > file`, inline python code with file-write indicators (`python`/`python3`/`py`/`pypy`, with `-c` or reading the program from stdin as `python3 - <<PY`), and a same-command staged write whose effective redirect target is reused as an `mv`/`cp` source toward a non-scratch destination. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **block-windows-drive-tmp** | PreToolUse · Bash \| PowerShell **and** Write \| Edit \| MultiEdit \| NotebookEdit | **Blocks** (exit 2) | Windows-only: write targets that are a drive-root temp path: POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp`, which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root. On the **command lane** redirects and write utilities (`mkdir`/`mktemp`/`tee`/`cp`/`Set-Content`/`Out-File`/…) are blocked; on the **file-path lane** (since **0.30.0**) the tool's own `file_path` / `notebook_path` is matched directly, because on a Write the path *is* the write target. Both lanes call one matcher, so the same spellings block and the same ones pass. Does not fire on non-Windows hosts; leaves `%TEMP%` / `$TEMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp`, relative `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2` and UNC `\\server\tmp` alone. |
 | **block-exported-msys-pathconv** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Windows-only: an **exported** `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` (also the `declare -x` / `typeset -x` spellings), which switches off MSYS argv rewriting for every *later* command in the same command string. A later path argument then reaches a Windows-native program unconverted and git resolves its leading `/` against the current drive, so `git worktree add /d/worktrees/x` creates `<current-drive>:\d\worktrees\x` (#2870). Deliberately keys on the environment, not on a path shape: the incident command's path argument was identical to one that had already worked. A prefix whose command word is a **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env … sh -c '…'`) blocks too: the prefix scopes to one *process*, and when that process is an interpreter, one process is every command inside it. A prefix on a **non-shell** command word (`MSYS_NO_PATHCONV=1 git show …`) and a bare assignment are not matched. The first scopes to exactly that command, and the second has no effect at all because the MSYS runtime reads the environment. Does not fire on non-Windows hosts. |
-| **block-root-delete-target** | PreToolUse · Bash | **Blocks** (exit 2) | A recursive `rm` whose target normalizes to a filesystem root. The command is parsed the way the shell builds argv, through launchers (`sudo`, `env`, `timeout`, the util-linux family), child shells (`bash -c`, `su -c`), `eval` and command substitutions, and a segment is judged when its command word is `rm` with a recursive flag. Roots: `/` and `/*`, the MSYS-translated bare backslash in both its quoted (`rm -rf "\\"`, the shape behind the whole-volume loss in anthropics/claude-code#92593, which no permission pattern keyed on `rm -rf /*` matches) and **dangling** (`rm -rf \`) spellings, `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). `--no-preserve-root` is refused whatever it targets. Also refused: an **empty operand** (`rm -rf ""`), a **bare variable operand** made of expansions alone (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries an absolute `cwd`, a target **outside the session's allowed roots**: not under the git toplevel of the payload cwd, and not strictly under a temp root or the session scratchpad (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf {/c,x}`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Not host-gated. The guard's header in `hooks/block-root-delete-target.sh` lists how braces, globs, directory changes and symlinks are judged, the bounds past which it refuses, the known false positives, and the declared gaps, among them PowerShell `Remove-Item -Recurse` ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)). |
+| **block-root-delete-target** | PreToolUse · Bash | **Blocks** (exit 2) | A recursive `rm` whose target normalizes to a filesystem root. The command is parsed the way the shell builds argv, through launchers (`sudo`, `env`, `timeout`, the util-linux family including `setpriv` and `prlimit`, `systemd-run`), child shells (`bash -c`, `su -c`, `sg`), `eval` and command substitutions, and a segment is judged when its command word is `rm` with a recursive flag. Roots: `/` and `/*`, the MSYS-translated bare backslash in both its quoted (`rm -rf "\\"`, the shape behind the whole-volume loss in anthropics/claude-code#92593, which no permission pattern keyed on `rm -rf /*` matches) and **dangling** (`rm -rf \`) spellings, `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). `--no-preserve-root` is refused whatever it targets. Also refused: an **empty operand** (`rm -rf ""`), a **bare variable operand** made of expansions alone (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries an absolute `cwd`, a target **outside the session's allowed roots**: not under the git toplevel of the payload cwd, and not strictly under a temp root or the session scratchpad (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf {/c,x}`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Not host-gated. The guard's header in `hooks/block-root-delete-target.sh` lists how braces, globs, directory changes and symlinks are judged, the bounds past which it refuses, the known false positives, and the declared gaps, among them PowerShell `Remove-Item -Recurse` ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)). |
 | **cli-flag-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated to `.md`, `.sh`, `.bash`, `.ps1`, `.psm1` | **Advisory** (exit 0) | Hallucinated CLI flags: a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline. A multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too. Its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
@@ -104,6 +117,24 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.8**). It runs its
+  command line inside a Linux distribution, so every guard that re-parses a
+  `sh -c` operand (`block-no-verify`, `block-dangerous-git`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-root-delete-target`) re-parses that command line too: `wsl git reset
+  --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
+  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) and a leading
+  `~` are stepped over, as is an option it does not know. Without `-e` /
+  `--exec` wsl hands its raw Windows command line to `$SHELL -c`, so the words
+  are rebuilt the way Git Bash builds that line: a word with whitespace is
+  double-quoted, so `wsl bash -c 'git reset --hard'` blocks while
+  `wsl 'git status && git clean -fd'` is one command word to the distro shell.
+  With `-e` each word stays one argv word. On the
+  PowerShell tool `wsl` is a launcher, so it reaches the fail-closed sink with
+  `Start-Process`, `pwsh` and `cmd`. Not covered: `block-windows-drive-tmp` and
+  `block-exported-msys-pathconv` do not re-parse a `-c` operand at all, and
+  `block-root-delete-target` judges a relative target from the payload `cwd`,
+  not from `wsl --cd`.
 - **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
   often filed together; only one is a live bypass (#2151 item A, inherited
   `--git-dir`/`--work-tree` in a `!` alias body). The other two are
@@ -137,7 +168,12 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` inspects one command string, and only the write forms
   listed above.** It reads `.tool_input.command`; it does not read the contents
   of a script that command invokes, so `bash build.sh` runs whatever writes
-  `build.sh` performs. It is also producer-scoped by design, so a redirect whose
+  `build.sh` performs. The inline operand of a child shell is in that string,
+  so since **0.38.9** it is re-parsed and judged like the top level, nested
+  shells included: `bash -c 'echo x > f'` and `sh -c 'cat > f <<EOF …'` block.
+  `block-windows-drive-tmp` does not re-parse a `-c` operand, so
+  `bash -c 'echo x > /tmp/f'` still reaches a drive-root temp path on Windows.
+  It is also producer-scoped by design, so a redirect whose
   producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
   c`) is allowed. Only a content producer writing a real file
   (`cat > f` consuming stdin, `echo`/`printf > f`, inline python writes,
@@ -162,17 +198,23 @@ out of scope until such a signal exists.
   sandbox. Content invariants that must hold are enforced write-path-independently
   by the opt-in git `pre-commit` content-invariants hook
   (`/guardrails:setup apply install-pre-commit-content`) or an equivalent CI check.
-  The block message carries a lane-specific scope note so a reader does
-  not credit the guard with coverage it never claimed.
-- **`block-hook-bypass` isolated-session remedy.** Write or Edit may be refused
-  for paths in the main checkout when the agent is in an isolated session or
-  worktree. That is not a dead end: write under a configured
-  `block_hook_bypass_scratch_roots` directory, or ask the operator for a
-  session-scoped disable via `claude --settings`. The user-global
-  `block_hook_bypass_enabled` switch is last resort. It persists across every
-  repository where guardrails is enabled. Those levers are printed on stderr
-  (Claude Code surfaces an exit-2 stderr reason; `systemMessage` is an exit-0
-  field and is discarded on a block).
+  This entry is where that scope is stated. Since **0.38.0** the block message
+  no longer prints it, so a blocked agent is not handed the list of unchecked
+  write forms; the once-per-session operator notice points here instead.
+- **`block-hook-bypass` block message and operator levers.** stderr is what the
+  blocked agent reads, so it carries only what the agent can act on: the
+  verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
+  too ("stop and tell the user"). On the `cat`, `echo`/`printf` and staged-move
+  lanes it also says why the target was not scratch-exempt and lists the roots
+  that exempt a bare target in this session. The PowerShell and python lanes
+  never consult a scratch root, so their message names none. The operator's
+  levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
+  targets only), a session-scoped disable via `claude --settings`, and the
+  user-global `block_hook_bypass_enabled` switch, which persists across every
+  repository where guardrails is enabled. They arrive once per session and agent
+  as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
+  human has confirmed that notice renders on a block, stderr also ends with a
+  one-line pointer to this README.
 - **Every hook says so when it could not run.** A hook has three outcomes,
   not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
   hook and the dispatcher install the shared abort boundary
@@ -197,7 +239,12 @@ out of scope until such a signal exists.
   freeze the session, with the dual-channel notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
-  override: if the process is killed at that bound, the tool call proceeds.
+  override: if the process is killed at that bound, the tool call proceeds
+  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). What the
+  plugin does instead is keep the row far from that bound: the command
+  tokenizer is linear in the command's length, one parse serves every guard,
+  and a command over `MAX_COMMAND_LEN` is refused by the first guard that
+  carries the ceiling before anything tokenizes it (#4528).
 - **`block-hook-bypass` option parse is strict.** Only the exact strings `true`
   and `false` are accepted (`unset` defaults to enabled). Any other value keeps
   the guard enabled and names the bad value. A typo must not silently disable
@@ -209,7 +256,11 @@ out of scope until such a signal exists.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
-  first) and `mcp__github__create_or_update_file`. This closes a real hole: a
+  first) and `mcp__github__create_or_update_file`, and, since **0.37.1**, the
+  same two tools from a plugin-bundled GitHub server, which Claude Code names
+  `mcp__plugin_<plugin>_github__<tool>`
+  ([hooks reference](https://code.claude.com/docs/en/hooks.md), "plugin-bundled
+  MCP server", checked 2026-09-27). This closes a real hole: a
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`
@@ -255,10 +306,23 @@ out of scope until such a signal exists.
   project scope. `Write` still scans some temp targets the Bash redirect exempts
   (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
   capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
-  redirects blocked anyway, which cost false positives with no true positive. A
-  target spelled with an 8.3 short name (a component such as `ABCDEF~1`) is
-  scanned on `Write` and blocked for Bash, so a harness scratchpad path spelled
-  that way is covered by neither exemption.
+  redirects blocked anyway, which cost false positives with no true positive.
+
+  **On Windows the temp default takes an 8.3 short-name spelling** (since
+  **0.37.7**), because that is how `TEMP`, and so the harness scratchpad, is
+  spelled on a volume that generates short names (`C:/Users/<user>~1/...`,
+  `RUNNER~1` on the Windows CI runner). A `~` is accepted only in a component of
+  the 8.3 shape (`NAME~N`, `NAME~N.EXT`), and only for the temp default: the
+  target must match a temp candidate's own spelling, which spends no resolver
+  process, and then its resolved, fully expanded path must sit under a resolved
+  temp root. A short component nothing backs (`name~9` that does not exist), an
+  8.3 alias of a junction out of temp, a temp-rooted project, a leading `~`,
+  `~user`, `~+`, and `x~` or `a~b` components all still block, and a configured
+  scratch root never matches a `~` target. `secret-pattern-detection` declines
+  a `Write` to the same spelling under the same rules. The staged-move detector
+  compares a short and a long spelling of one file by their resolved paths, so
+  `> <8.3 temp>/x && mv <long temp>/x src/a.py` blocks in both directions. On
+  POSIX a `~` in a path is a filename byte and still blocks.
 
   **The memory tier is deliberately NOT a second default.** `<memory_dir>/`
   (default `.work/`) was exempted here during review and removed again, because
@@ -408,8 +472,36 @@ out of scope until such a signal exists.
   drive-root prefix matches at any length, so length creates no parse ambiguity
   and a blocking ceiling would only refuse legitimate long paths. The payload as
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
+- **Running a repo script under PowerShell: the form that passes.** On the
+  PowerShell tool a launcher (`pwsh`, `powershell`, `cmd`, `Start-Process`) in a
+  command that could reach git is the `ps-unparsable-launcher` fail-closed sink,
+  so run the script in the tool's own session instead, where every guard reads
+  it in full:
+  `Set-Location <dir>; & ./<script>.ps1`. Set the directory first: a script
+  that imports a module by a relative path resolves it against the current
+  directory, not the script's, which is the `Import-Module` failure a bare
+  `pwsh -File <script>` from another directory hits. Where only the Bash tool is
+  available (an agent whose tool list omits PowerShell), the working shape is
+  `pwsh -NoProfile -NonInteractive -WorkingDirectory <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"`,
+  with `exit $LASTEXITCODE` carrying the script's exit code back to Bash. The
+  Bash lane does not parse inside that `-Command` string, so a git command
+  written there is not guarded: run git as its own Bash command.
 
 ### Hook budget accounting
+
+**0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
+en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the
+whole row: 10 KB **7.23 s -> 132 ms**, 16 KB (just under the ceiling)
+**12.6 s -> 203 ms**, ~70 KB **still running at 120 s -> 64 ms**. The shared
+tokenizer read the command one `${cmd:i:1}` at a time, and bash measures the
+whole string on every one of those, so each parse was quadratic, and six
+guards parsed the same command. It now splits the command in 4096- and 64-byte
+blocks under the C locale (one parse of a 10,000-character heredoc:
+1.27 s -> 84 ms), one parse is
+replayed to the other five, and a command over `MAX_COMMAND_LEN` ends the chain
+at `block-no-verify`, the first guard, whose ceiling refuses it unread. No
+reported segment changed: the parse is byte-identical to the old one under
+en_US.UTF-8, C.UTF-8 and C, and every guard suite passes on both paths.
 
 **0.34.0, the in-process guard chain.** 2026-09-15, Windows 11 + Git Bash
 (`usr\bin\bash.exe` as the hook shell), host idle. Process creations counted
@@ -1221,7 +1313,7 @@ reads it from.
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
 | `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
 | `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
-| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr; empty blocks all |
+| `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr (a command still unreadable after five granted sink rounds is refused whatever the list holds); empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
 | `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |

@@ -275,7 +275,6 @@ while IFS= read -r line; do
   status_field="${rest%%|*}"
   status_field="${status_field#"${status_field%%[![:space:]]*}"}"
   status_field="${status_field%"${status_field##*[![:space:]]}"}"
-  status_field="$(printf '%s' "$status_field" | tr '[:upper:]' '[:lower:]')"
 
   # Field count without a subprocess per row: on a single record `awk -F'|'`
   # reports NF as the number of `|` separators plus one.
@@ -312,6 +311,10 @@ while IFS= read -r line; do
   expected=$((expected + 1))
 
   registered=$((registered + 1))
+  # Statuses match case-insensitively without a subprocess per row (a `tr` fork
+  # costs over a second per row on a loaded Windows host). nocasematch, not
+  # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
+  shopt -s nocasematch
   case "$status_field" in
   open) open_count=$((open_count + 1)) ;;
   answered) answered=$((answered + 1)) ;;
@@ -327,6 +330,7 @@ while IFS= read -r line; do
     ;;
   *) die_ungradeable "unknown status '$status_field' in row: $line ($where)" ;;
   esac
+  shopt -u nocasematch
 done <<<"$section"
 
 if [[ "$registered" -eq 0 ]]; then

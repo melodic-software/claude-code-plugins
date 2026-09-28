@@ -21,26 +21,21 @@ like one that works, and a check written specifically to avoid being fooled is n
 ### 1. Qualify the host, before measuring anything
 
 The lib is plugin-bundled, not installed, so it needs its directory on `sys.path` before the
-import. Anchor to the plugin root rather than the working directory; a bare
-`from spawn_noise import ...` raises `ModuleNotFoundError` unless the caller happens to already be
-in `lib/`.
+import. A bare `from spawn_noise import ...` raises `ModuleNotFoundError` unless the caller happens
+to already be in `lib/`. Anchor to the plugin root this body names, which is substituted with the
+installed version's directory when the skill loads, rather than to the working directory, a
+`__file__` level count, or a hardcoded cache path that breaks on the next plugin version:
 
 ```python
 import sys
-from pathlib import Path
 
-lib = Path(__file__).resolve().parents[3] / "lib"   # <plugin-root>/lib
-if str(lib) not in sys.path:
-    sys.path.insert(0, str(lib))
+sys.path.insert(0, r"${CLAUDE_PLUGIN_ROOT}/lib")
 
 from spawn_noise import spawn_probe, is_measurable  # noqa: E402
 
 summary = spawn_probe()
 measurable, why = is_measurable(summary)
 ```
-
-`parents[3]` is correct from `<plugin-root>/skills/<skill>/scripts/x.py`. Count the levels for
-wherever the caller actually sits rather than copying the index.
 
 `is_measurable()` returns a verdict and its basis. A `False` is a **hard refusal to report a
 wall-clock number**, subject only to the recorded override below.
@@ -61,6 +56,11 @@ context. A counter also catches harness bugs immediately, because a counter that
 it should is an unambiguous signal, while a duration that does not move is ambiguous. Re-measure it
 after **every** change.
 
+For a process-spawn count, run the bundled census rather than writing one:
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-spawn-census.sh" --shim-dir <stable-dir> --before <cmd>
+--after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
+the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
+
 A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
 fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
 average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
@@ -70,6 +70,8 @@ average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs
 p50 and p95 over at least 20 samples, per the goal. Enforce the arithmetic floor: a percentile `p`
 needs `1/(1-p)` samples to be expressible at all (`percentile_floor()` in `lib/spawn_noise.py`).
 Report **no** percentile the sample count cannot support; report the raw samples instead.
+`${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py` enforces that floor and is what `ab.sh` summarizes
+with, so a duration taken through `ab.sh` below already carries it.
 
 Never a single sample. Never a bare mean.
 
@@ -97,8 +99,23 @@ Two valid modes:
 
 ### Sequential interleaving (default)
 
-Alternate arms within one run, flipping the order each iteration. Report the median of per-pair
-ratios alongside per-arm percentiles.
+Run the bundled harness from the Bash tool; do not hand-roll a timing loop:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --a '<baseline command>' --b '<candidate command>' --iterations 20
+```
+
+It alternates the arms within one run, flips the order each iteration, and reports the median of
+per-pair ratios (`ratio.py`) alongside per-arm percentiles (`summarize.py`). It also refuses what a
+hand-rolled loop gets wrong: an arm whose probe exits 127 (a command that never ran, which a loop
+records as a fast clean sample), a drive-letter path in an arm, a ratio from too few pairs, and a
+clock it cannot read. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --help` lists the options.
+
+The paired-ratio median carries its own floor beside the percentile floor: at least 20 pairs, the
+default of `${CLAUDE_PLUGIN_ROOT}/scripts/ratio.py`. Below it, report the raw per-pair ratios and no
+median, since six repeats of two identical arms at five pairs gave medians from 0.78x to 1.00x and
+one run reported 17.12x. A lowered `BENCH_MIN_PAIRS` prints itself on the line; carry it into the
+report.
 
 Grounded, Tier 1, `benchstat`'s own documentation: *"The best way to do this is to interleave before
 and after runs, rather than running, say, 10 iterations of the before benchmark, and then 10
@@ -156,13 +173,29 @@ top, not in a footnote.
 Baselines live in the memory tier, `.work/<topic-slug>/baselines/`, machine-bound, **never
 committed**.
 
-That layout matches `/verification:measure`, which owns baseline capture and storage mechanics.
-Invoke it via the Skill tool **when the `verification` plugin is installed**, so the two never keep
-two different baseline stores. When it is absent, capture into the same path directly and say in the
-report that the capture was unassisted. The dependency is a preference for reuse, not a hard
-requirement: this skill's own gates (host qualification, interleaving, the counter, the refusal)
-work either way, and refusing to measure because a sibling plugin is missing would be a worse
-failure than the duplication it avoids.
+That layout matches `/verification:measure`, which owns baseline capture and storage mechanics, so
+the two never keep two different baseline stores. Before capturing, in order:
+
+1. **Check for the seam.** Look for `/verification:measure` in this session's skill list. Record
+   whether it resolves; do not assume either answer.
+2. **Invoke it, or name why not.** When it resolves, invoke it via the Skill tool. When it resolves
+   and you capture directly anyway, the reason goes in the report.
+3. **Land the capture under `.work/<topic-slug>/baselines/`.** The path is the gate: a capture
+   written anywhere else says so at the top of the report, with the path it used, because a second
+   store is the outcome this seam exists to prevent.
+
+The report's header carries exactly one of these lines, so a reader can tell a missing dependency
+from a deliberate skip:
+
+```text
+Capture: assisted by /verification:measure
+Capture: unassisted, verification absent
+Capture: unassisted, verification present and skipped because <reason>
+```
+
+The dependency is a preference for reuse, not a hard requirement: this skill's own gates (host
+qualification, interleaving, the counter, the refusal) work either way, and refusing to measure
+because a sibling plugin is missing would be a worse failure than the duplication it avoids.
 
 A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a
 deterministic count, and no duration is ever committed.

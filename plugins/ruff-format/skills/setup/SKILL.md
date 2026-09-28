@@ -3,7 +3,18 @@ description: "Verify the ruff-format hook's runtime prerequisites and configurat
 argument-hint: "check | apply [install-ruff]"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -24,8 +35,9 @@ described below. All are non-interactive. Never prompt when the action is given.
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/ruff-format.sh`) is the single source of
 truth for what it requires and how it resolves things.
 
-**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
-Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then read the
+pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL/INFO
+table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
@@ -35,7 +47,7 @@ restores the FAIL semantics.
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    Bash 5.0+).
-2. **`jq`.** `command -v jq`. FAIL if absent: the hook then skips with a visible
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of formatting.
 3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-managed virtual-environment walk (the exact `.venv` interpreter paths it tests for
@@ -92,7 +104,8 @@ Principles, in order. They decide every case, whatever the tool:
    (`https://docs.astral.sh/ruff/installation/`), matching the hook's own skip-notice
    text.
 
-After ANY remediation, re-run the relevant `check` probe and report its actual result.
+After ANY remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
+predates the remediation) and report its actual result.
 Never claim resolved on the install command's exit code alone. For everything else `apply`
 only points:
 
@@ -107,8 +120,10 @@ only points:
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  from that project's directory for a `project`/`local` scope, or the rerun adds a second
+  install record at the scope passed and enables the plugin there; the value itself always
+  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
   each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.

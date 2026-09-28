@@ -120,8 +120,9 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # THIS SHAPE HAS NO ALLOW TOKEN, and cannot be given one. Every token-granted
 # sink round spends the caller's shared `_ps_sink_attempts` budget, so a sixth
 # grantable trigger pushes a command that settles in four rounds past the cap,
-# where block-dangerous-git.sh exits 0 with a plainly visible destructive sibling
-# never checked. The refusal is therefore unconditional in every reader.
+# where block-dangerous-git.sh refuses as budget-exhausted without ever reading
+# the destructive sibling. The refusal is therefore unconditional in every
+# reader, and names this shape rather than the budget.
 #
 # Read by ps::classify_git_command (which turns it into sink trigger
 # `herestring-comment-char`), by ps::write_bypass, and by block-dangerous-git.sh,
@@ -1379,7 +1380,7 @@ ps::might_invoke_git() {
   # `=` is in the predecessor class for the same reason the literal-git probe
   # above carries it: `$p=saps $tool …` assigns the launcher's result with no
   # space around the operator, which is ordinary PowerShell (#2928).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(=])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(=])(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
   return 1
 }
 
@@ -1642,7 +1643,9 @@ ps::has_dynamic_invocation() {
 # True (0) when a process launcher / nested shell sits at a command position:
 # Start-Process (alias saps) launches a program the same way the Bash guard sees
 # through `nice`/`nohup`/`sudo`/`env`; pwsh/powershell/cmd run a nested command
-# string, the parity analog of the Bash guard's `sh -c`/`bash -c` see-through.
+# string, the parity analog of the Bash guard's `sh -c`/`bash -c` see-through,
+# and wsl runs its command line inside a Linux distribution (the Bash lane's
+# hook::wsl_operand).
 # Routed to the sink so ps::might_invoke_git decides — it blocks only when the
 # literal `git` is present in the launched argv / command string (`Start-Process
 # git -ArgumentList …`, `pwsh -Command 'git …'`), and passes a launcher with no
@@ -1655,7 +1658,7 @@ ps::has_launcher() {
   # The .exe-suffixed spellings (cmd.exe, powershell.exe, pwsh.exe) and the
   # `start` alias of Start-Process are the same launchers, not a new class —
   # a spelling gap here would skip the sink entirely (review round 4).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([[:space:]]|$) ]] && return 0
   # Assignment-glued launcher (`$out=pwsh $script`). Same `$name=` /
   # `$scope:name=` LHS as has_dynamic_invocation — about_Assignment_Operators,
   # not a generic `=` separator. Quote-BLANKED so `Write-Host "shell=pwsh $x"`
@@ -1663,7 +1666,7 @@ ps::has_launcher() {
   # section.key=cmd` is git(1) `-c <name>=<value>`, not an assignment, and
   # does not match. Spelled out literally, never shared through a variable.
   ps::blank_quoted_spans_to blanked "$lc"
-  [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
+  [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([[:space:]]|$) ]]
 }
 
 # Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
@@ -1817,17 +1820,16 @@ ps::blank_sink_opaque_regions() {
     # stand in for this: ps::_skip_double_quote_to pairs the `"` of an `@"`
     # opener with the `"` of its `"@` closer, so a here-string body is copied
     # through untouched and the caller's bounded re-classification loop makes no
-    # progress at all: it would exhaust its attempt budget and exit 0 with a
-    # visible `git reset --hard` sibling never checked.
+    # progress at all: it would exhaust its attempt budget with a visible
+    # `git reset --hard` sibling never checked.
     #
     # WHAT THIS ARM DOES NOT FIX. The same no-progress loop is still reachable
     # through the `special-construct` arm above, for a here-string this function
     # does not recognize as one (an opener with trailing whitespace) or a second
-    # opener sitting on a closer line, which the opener scan never rescans. Those
-    # shapes refuse at default config and fail OPEN only under an
-    # `ps-unparsable-special-construct` token. Closing them needs the opener model
-    # tightened AND the caller's exhaustion path turned from exit 0 into exit 2,
-    # neither of which belongs to the trigger this arm serves.
+    # opener sitting on a closer line, which the opener scan never rescans. Under
+    # an `ps-unparsable-special-construct` token those shapes now spend the
+    # caller's budget and are refused as budget-exhausted, rather than read; the
+    # opener model is what would let them be read.
     ps::blank_herestrings "$cmd"
     # shellcheck disable=SC2034
     PS_SAFE_COMMAND="$PS_BLANKED"
@@ -1969,7 +1971,7 @@ ps::_blank_cmd_statements() {
         fi
         ;;
       launcher)
-        if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([^a-z0-9_-]|$) ]]; then
+        if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([^a-z0-9_-]|$) ]]; then
           ps::_skip_statement_tail_to end "$cmd" "$i"
           i=$end
           out+=" "
@@ -2133,7 +2135,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word, or run the command via the Bash tool." >&2
     ;;
   launcher)
-    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2
+    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the launched command directly in this session instead: 'git status', not \"pwsh -Command 'git status'\"; for a repo script, 'Set-Location <dir>; & ./<script>.ps1'. Or run the launched command itself via the Bash tool." >&2
     ;;
   herestring-subexpr)
     # What is true of EVERY command that reaches here: an expandable body was
@@ -2184,7 +2186,7 @@ ps::print_unparsable_git_block_message() {
   # set a value the guard never consults on this path. Name the rewrite instead.
   # A token for this shape cannot exist, because every token-granted sink round
   # spends the caller's shared attempt budget and a sixth grantable trigger
-  # pushes a four-round command past the cap, where the caller exits 0.
+  # pushes a four-round command past the cap, where the caller refuses.
   if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
     echo "This sink shape has NO allow token: granting one would spend a shared sink-attempt budget and could fail open a plainly visible destructive sibling in the same command. Rewrite instead: drop the comment, or move the here-string opener to a line of its own with no '#' on it. To switch the whole guard off, set the guardrails block_dangerous_git_enabled option to false (/plugin configure)." >&2
     return

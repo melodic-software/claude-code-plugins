@@ -500,7 +500,7 @@ jobs:
             .github/workflows/ci.yml
             .github/workflows/claude-review.yml
             .github/workflows/claude-security-review.yml
-            .github/workflows/dependabot-miro-bundle.yml
+            .github/workflows/dependabot-plugin-release.yml
             .github/workflows/silent-revert-canary.yml
             .github/workflows/test-windows.yml
 
@@ -781,6 +781,15 @@ jobs:
         run: scripts/check-skill-leaf-names.sh --check
 
       # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run conformance-registry tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-conformance-registry.test.sh
+      - name: Check the conformance registry resolves
+        id: conformance_registry
+        continue-on-error: true
+        run: scripts/check-conformance-registry.sh --check
+
+      # Self-test first, so a broken checker cannot mask a regression.
       - name: Run docs-naming tests
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-docs-naming.test.sh
@@ -788,6 +797,15 @@ jobs:
         id: docs_naming
         continue-on-error: true
         run: scripts/check-docs-naming.sh --check
+
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run adr-number tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-adr-numbers.test.sh
+      - name: Check ADR numbers are unique
+        id: adr_numbers
+        continue-on-error: true
+        run: scripts/check-adr-numbers.sh --check
 
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
@@ -869,6 +887,15 @@ jobs:
         id: hooks_description
         continue-on-error: true
         run: scripts/check-hooks-description.sh
+
+      # A change to the guardrails PowerShell classifier or its consumers may
+      # only add refusals (#4682). The differential runs a corpus through the
+      # base tree and the working tree and takes minutes, so CI runs its
+      # self-test; a PR that touches those guards carries the differential's
+      # cell table.
+      - name: Test the guardrails PowerShell differential
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-guardrails-ps-differential.test.sh
 
       # Three separate readers judge `metadata.summary`, and they can drift
       # apart: a malformed value reached CI twice in #3162, failing in opposite
@@ -1076,6 +1103,9 @@ jobs:
       - name: Test the changelog-parity gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changelog-parity.test.sh
+      - name: Test the Dependabot plugin bump helper
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/dependabot-plugin-bump.test.sh
       - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         id: changelog_parity_check
         continue-on-error: true
@@ -1445,7 +1475,9 @@ jobs:
             detector-eval-coverage=${{ steps.detector_eval_coverage.outcome }}
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
+            conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
+            adr-numbers=${{ steps.adr_numbers.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}

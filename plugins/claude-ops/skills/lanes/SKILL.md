@@ -26,8 +26,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 ## Pre-computed context
 
-claude CLI: !`claude --version 2>/dev/null || echo "MISSING (required)"`
-jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
+claude CLI version, then jq: !`claude --version 2>/dev/null || echo "claude CLI MISSING (required)"; command -v jq >/dev/null 2>&1 && echo "jq present" || echo "jq MISSING (required)"`
 Lane config: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/probe-lane-config.sh" 2>/dev/null || echo "unknown"`
 
 ## Variables

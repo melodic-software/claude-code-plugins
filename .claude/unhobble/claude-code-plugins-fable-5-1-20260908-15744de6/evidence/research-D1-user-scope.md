@@ -168,7 +168,7 @@ Bootstrap comment confirming user scope is the mechanism, not a preference:
 
 CI holds the dogfooding claim to the files:
 
-> docs/CLOUD-SESSIONS.md promises `enabledPlugins` "turns on the whole catalog, so this repo
+> docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole catalog, so this repo
 > dogfoods everything it publishes"; nothing enforced it ... The failure is silent by
 > construction: .claude/cloud-bootstrap.sh computes its install set from that same
 > enabledPlugins map.

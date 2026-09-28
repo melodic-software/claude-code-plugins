@@ -58,6 +58,44 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
   still falls through to the portable default.
+- `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
+  to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
+  number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
+  non-blank line, surrounding backticks stripped, or, when that line opens a code fence, the first
+  non-blank line inside the fence. A plain scalar under per-key override;
+  `parse-branch-issue.sh` reads the three layers itself. Every note it prints on stderr names the
+  file and the reason, never the pattern. Parsing rules:
+  - A leading UTF-8 BOM and CRLF line endings are accepted, and so are trailing whitespace and a
+    closing `#` sequence on the heading (`## branch_issue_pattern ##`). Headings inside fenced
+    blocks are ignored.
+  - A layer whose section exists but yields no usable pattern **stops resolution**. The script
+    prints a note containing `resolution stopped` and no issue number, and exits 1. It does not
+    fall back to a lower layer, the userConfig, or the default, because any of those could close
+    the wrong issue; the no-number path already exists and `create` relays the note. A
+    higher-precedence layer that already supplied a valid pattern wins, since the lower layer is
+    never read. The stop reasons:
+    - a **near-miss heading**: an H2 outside a fence whose text contains `branch_issue_pattern` in
+      any case but is not the exact heading (`## branch_issue_pattern:`, `## Branch_Issue_Pattern`,
+      `## branch_issue_pattern (ERE)`);
+    - a section with no value before the next H2 or the end of the file;
+    - a first value line that is a heading or an HTML comment (`<!--`);
+    - an empty or unterminated fence;
+    - a pattern that fails validation.
+
+    This diverges from the config-cascade rule to degrade soft on a malformed layer, and this repo's
+    `config-cascade` convention records it as a declared deviation. A userConfig value that fails
+    validation is still reported and ignored, so the default applies.
+
+  A pattern passes validation when it compiles as an ERE and keeps within these limits, which are
+  checked before it is compiled: at most 200 characters, every `{m}`, `{m,}`, or `{m,n}` bound at
+  most 16, no quantifier on a group whose body already holds a quantifier (`(a+)+`,
+  `([a-z]+-)*`, `(x{0,5}){0,5}`), and no backreference. The deprecated userConfig value goes
+  through the same checks. A pattern with no capture group, or a last capture that is not all
+  digits, yields no issue number. Absent everywhere → the plugin's
+  `branch_issue_pattern` userConfig, then the built-in `<type>/<N>-<slug>` (and
+  `routine-issue-<N>`) convention. That userConfig twin is deprecated: it is still read as a
+  fallback, with a deprecation note on stderr, until a later minor release removes it, no earlier
+  than 2026-12-27.
 
 Absent sections are absent, never empty.
 
@@ -96,7 +134,11 @@ merge authority its lane holds, are properties of the target repository, which t
 user-settings-scoped `babysit_*` `userConfig` keys structurally cannot express. The split is
 deliberate and both surfaces coexist: `userConfig` keeps the personal and machine scalars the
 babysit-prs mechanic documents (watched owners, self logins, engine thresholds); this surface holds
-the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
+the lane policy a team reviews and tracks. Because `pluginConfigs` is read from user settings, each
+`babysit_*` `userConfig` key has one value per machine: an operator with several identity domains
+leaves those keys unset or launches the lane with a per-domain `--settings` file. Which keys stay in
+`userConfig` and which move to this surface is recorded in
+[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
 One `## <key>` H2 per key, exactly like the convention keys above. Every value is a scalar except

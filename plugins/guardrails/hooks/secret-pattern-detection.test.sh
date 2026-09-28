@@ -144,8 +144,9 @@ assert_exit "backslash-spelled repo root still scans in-project file → exit 2"
 
 # --- NotebookEdit: the payload shape Claude Code sends ------------------------
 # A real NotebookEdit carries tool_input.notebook_path and new_source (a required
-# string, "" on a delete), never file_path; notebook_json above builds a file_path
-# shape. nb_json <notebook_path> <new_source> [edit_mode] [file_path].
+# string, "" on a delete), never file_path. nb_json extends notebook_json with an
+# optional edit_mode and a riding file_path:
+# nb_json <notebook_path> <new_source> [edit_mode] [file_path].
 nb_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" --arg m "${3:-}" --arg fp "${4:-}" \
     '{tool_name:"NotebookEdit",tool_input:({notebook_path:$np,new_source:$s}
@@ -784,6 +785,35 @@ RC=0
 bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
 assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
+# --- a plugin-bundled GitHub server names its tools with a scoped segment
+# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'" | scoped create_or_update_file)" 2>&1)
+RC=$?
+assert_exit "MCP scoped create_or_update_file: secret → exit 2" 2 "$RC"
+assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "k = '$AWS_TOKEN'" | scoped push_files)" 2>&1)
+RC=$?
+assert_exit "MCP scoped push_files: secret in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
+RC=0
+bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" | scoped push_files)" >/dev/null 2>&1 || RC=$?
+assert_exit "MCP scoped push_files: clean → exit 0" 0 "$RC"
+
+# The hooks.json row must route both name shapes here, and not delete_file.
+MATCHER=$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("secret-pattern-detection.sh")) | .matcher | select(test("github"))' "$HOOK_DIR/hooks.json")
+for name in mcp__github__push_files mcp__github__create_or_update_file \
+  mcp__plugin_github_github__push_files mcp__plugin_my-plugin_github__create_or_update_file; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row matches $name" 0 "$RC"
+done
+for name in mcp__github__delete_file mcp__plugin_github_github__delete_file mcp__gitlab__push_files; do
+  RC=0
+  jq -en --arg m "$MATCHER" --arg n "$name" '$n | test($m)' >/dev/null || RC=$?
+  assert_exit "hooks.json GitHub row does not match $name" 1 "$RC"
+done
+
 # --- the allowlist is the SAME list, asked of a repo-relative path
 RC=0
 bash "$HOOK" <<<"$(mcp_single_json "docs/.env.example" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
@@ -968,8 +998,12 @@ if ((D1_WIN)); then
     "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
   if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
-    assert_exit "D1 windows: 8.3 short spelling → exit 2" 2 \
+    # block-hook-bypass exempts a redirect to this spelling (#4678), so the
+    # Write declines too; a short component nothing backs still scans.
+    assert_exit "D1 windows: 8.3 short spelling → exit 0" 0 \
       "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+    assert_exit "D1 windows: 8.3 spelling with a nonexistent name~9 component → exit 2" 2 \
+      "$(d1_rc "$D1_HOME" "$(cygpath -s -m "$D1_TEMP")/spd-nope~9/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   else
     echo "SKIP: D1 windows 8.3 case (the temp path has no short spelling on this volume)"
   fi
@@ -1007,6 +1041,43 @@ if [[ "${OSTYPE:-}" == linux* ]]; then
   "$D1_SHIM/realpath" / >/dev/null
   if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
 elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+
+# 8.3 short-name spellings on any host (#4678). The Windows lane does not run
+# this suite on an 8.3 volume, so the seam runs with OSTYPE forced to cygwin, in
+# a lowercase fixture holding a `c:` directory, so a `c:/...` drive spelling
+# names a real relative path. A symlink named in the 8.3 shape stands in for the
+# short alias, which the resolver expands to its long target as cygpath -l
+# expands a real one. Each answer must match block-hook-bypass's for the same
+# spelling.
+D1_83="/tmp/spd-d1-83-$$"
+d1_83_rc() { # <target> [PATH] -> spd_temp_declines' status with temp candidate c:/longna~1
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  (cd "$D1_83" && PATH="${2:-$PATH}" CLAUDE_PROJECT_DIR=C:/spd-d1-root bash -c 'OSTYPE=cygwin; source "$1/hook-utils.sh"; eval "$2"
+    hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("c:/longna~1"); }
+    spd_temp_declines "$3"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1")
+}
+rm -rf "$D1_83"
+if [[ -d /usr ]] && mkdir -p "$D1_83/c:/longname/claude" &&
+  ln -s "$D1_83/c:/longname" "$D1_83/c:/longna~1" 2>/dev/null && test -L "$D1_83/c:/longna~1" &&
+  ln -s /usr "$D1_83/c:/longna~1/tousr~1" 2>/dev/null; then
+  assert_eq "D1 8.3 sim: short spelling under temp declines" 0 "$(d1_83_rc "c:/longna~1/claude/x/f.txt")"
+  assert_eq "D1 8.3 sim: nonexistent name~9 component scans" 1 "$(d1_83_rc "c:/longna~1/nope~9/f.txt")"
+  assert_eq "D1 8.3 sim: a~b component scans" 1 "$(d1_83_rc "c:/longna~1/a~b/f.txt")"
+  assert_eq "D1 8.3 sim: x~ component scans" 1 "$(d1_83_rc "c:/longna~1/x~/f.txt")"
+  assert_eq "D1 8.3 sim: short alias linking out of temp scans" 1 "$(d1_83_rc "c:/longna~1/tousr~1/f.txt")"
+  : >"$D1_LOG"
+  assert_eq "D1 8.3 sim: short spelling outside every temp candidate scans" 1 \
+    "$(d1_83_rc "c:/progra~1/f.txt" "$D1_SHIM:$PATH")"
+  assert_eq "D1 8.3 sim: that miss spawned no resolver" "" "$(cat "$D1_LOG")"
+else
+  echo "SKIP: D1 8.3 simulation (no symlink could be made on this host; no coverage here, not a pass)"
+fi
+rm -f "$D1_83/c:/longname/tousr~1" "$D1_83/c:/longna~1"
+rm -rf "$D1_83"
+if ((!D1_WIN)); then
+  assert_exit "D1 posix: short-name spelling under temp still scans" 2 \
+    "$(d1_rc "$D1_ROOT" "/tmp/spd~1/spd-d1-$$/f.txt")"
+fi
 
 # The dispatcher runs this guard beside the other Write|Edit guards.
 D1_DISPATCH_RC=0

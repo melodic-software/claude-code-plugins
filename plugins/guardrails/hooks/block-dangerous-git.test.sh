@@ -475,6 +475,32 @@ run "sh -c 'git push --force' (shell -c wrapper, blocked)" "sh -c 'git push --fo
 run "bash -c compound (wrapped operator chain, blocked)" "bash -c 'git status && git clean -fd'" 2
 run "bash -c 'git status' (wrapped read-only, allowed)" "bash -c 'git status'" 0
 run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
+# wsl runs its command line in a Linux distro: through the default shell, or as
+# argv after -e / --exec / --shell-type none (#4242).
+run "wsl git reset --hard (blocked)" "wsl git reset --hard" 2
+run "wsl.exe -e git reset --hard (blocked)" "wsl.exe -e git reset --hard" 2
+run "wsl git clean -fdx (blocked)" "wsl git clean -fdx" 2
+run "wsl.exe -- git push --force origin main (blocked)" "wsl.exe -- git push --force origin main" 2
+run "WSL.EXE -d Ubuntu -u root --cd / git reset --hard (run options, blocked)" \
+  "WSL.EXE -d Ubuntu -u root --cd / git reset --hard" 2
+run "wsl --shell-type none git reset --hard (blocked)" "wsl --shell-type none git reset --hard" 2
+run "wsl -e sh -c 'git reset --hard' (nested shell, blocked)" "wsl -e sh -c 'git reset --hard'" 2
+run "wsl bash -c 'git reset --hard' (default shell keeps the nested operand, blocked)" \
+  "wsl bash -c 'git reset --hard'" 2
+run "wsl ~ git reset --hard (legacy home argument, blocked)" "wsl ~ git reset --hard" 2
+run "wsl git status '&&' git clean -fd (bare operator reaches the distro shell, blocked)" \
+  "wsl git status '&&' git clean -fd" 2
+# Git Bash double-quotes a word carrying whitespace when it builds wsl's Windows
+# command line, so the distro shell reads this as one command word.
+run "wsl 'git status && git clean -fd' (one quoted command word, allowed)" \
+  "wsl 'git status && git clean -fd'" 0
+run "wsl --bogus git reset --hard (unknown option stepped over, blocked)" "wsl --bogus git reset --hard" 2
+run "wsl -e git commit -m 'a; git reset --hard' (exec argv keeps the message, allowed)" \
+  "wsl -e git commit -m 'a; git reset --hard'" 0
+run "wsl echo hi (allowed)" "wsl echo hi" 0
+run "wsl git status (allowed)" "wsl git status" 0
+run "wsl --install -d Ubuntu (management verb, allowed)" "wsl --install -d Ubuntu" 0
+run "wsl (no command line, allowed)" "wsl" 0
 run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FOO git push --force" 2
 run "bash -O extglob -c 'git reset --hard' (shopt operand, blocked)" "bash -O extglob -c 'git reset --hard'" 2
 run "bash --rcfile /dev/null -c 'git reset --hard' (rcfile operand, blocked)" "bash --rcfile /dev/null -c 'git reset --hard'" 2
@@ -743,6 +769,8 @@ run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
 run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
 run_pwsh "PS: git push --force-with-lease=main:<40-hex> (immutable expectation, allowed)" "git push --force-with-lease=main:0123456789abcdef0123456789abcdef01234567" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
+run_pwsh "PS: wsl.exe -e git reset --hard (launcher sink, blocked — #4242)" "wsl.exe -e git reset --hard" 2
+run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
@@ -1526,8 +1554,8 @@ run_pwsh "PS hs: the herestring-subexpr token opens the expandable body" "$ps_hs
 # special-construct region walk pairs the `"` of the `@"` opener with the `"` of
 # the `"@` closer, so it cannot see inside a here-string at all: the new arm has
 # to blank the here-string itself, or the caller's re-classification loop makes
-# no progress, exhausts its four attempts and exits 0 with the sibling never
-# checked (the invariant #2667 pinned).
+# no progress and exhausts its attempts with the sibling never checked, which
+# is the invariant pinned in (#2667).
 run_pwsh "PS hs: an unrelated token does not open the sink at all (sibling never reached)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
@@ -1631,8 +1659,8 @@ pin_sink_trigger "classify: an opener line with no # enters no sink" \
 # of its sink loop, ahead of the allow-list question, so no value of the allow
 # option can reach it. A token cannot be given: every token-granted round spends
 # the SHARED _ps_sink_attempts budget, and a sixth grantable trigger pushes a
-# command that settles in four rounds past the cap, where the loop exits 0 with a
-# plainly visible destructive sibling never checked.
+# command that settles in four rounds past the cap, where the loop refuses as
+# budget-exhausted without ever reading the destructive sibling.
 #
 # The gate payload that measured it: four sink constructs and a live
 # `git reset --hard` on line 1, a commented opener, and a closer line carrying a
@@ -1667,6 +1695,44 @@ run_pwsh "PS hs: an unrelated sink token does not open the comment-tail shape ei
 run_pwsh "PS hs: the removed token string does not open the expandable-body sink" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+# THE BUDGET REFUSES (#4682). Once the loop has blanked five granted sink shapes
+# and the remainder, re-classified once more, still cannot be read, the guard
+# refuses. It used to exit 0 there with the destructive text still visible: a
+# here-string opener with trailing whitespace is a special construct whose
+# region walk makes no progress, so under that one token every round was spent
+# on it and the `git reset --hard` beside it was never read.
+PS_BUDGET_NOPROGRESS="$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')"
+PS_BUDGET_FIVE_TRIGGERS="$(printf '%s\n%s\n%s' 'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard; Write-Output @" ' "\$(y)" '"@')"
+PS_SINK_TOKENS_5=ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
+run_pwsh "PS budget: a no-progress special construct beside reset --hard is blocked under its token" \
+  "$PS_BUDGET_NOPROGRESS" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS budget: five sink triggers plus reset --hard are blocked under all five sink tokens" \
+  "$PS_BUDGET_FIVE_TRIGGERS" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
+  "$PS_BUDGET_FIVE_TRIGGERS" 2
+# The same no-progress round from a call operator whose quoted target stays
+# opaque: the differential found it allowed under its one token.
+run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
+  "\$a=& 'git reset --hard'" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
+guard_invoke --tool PowerShell --command "$PS_BUDGET_FIVE_TRIGGERS" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+assert_contains "PS budget: the refusal names the exhausted budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: and says no allow token clears it" "$GUARD_ERR" "No allow token clears this"
+assert_absent "PS budget: it does not point at an allow token" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+# A command that settles inside the budget is still read, not refused.
+run_pwsh "PS budget: three granted triggers then git status are still allowed" \
+  'Write-Host {a}; iex b; pwsh -File c.ps1; git status' 0 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+run_pwsh "PS budget: three granted triggers then reset --hard are blocked by the reset check" \
+  'Write-Host {a}; iex b; pwsh -File c.ps1; git reset --hard' 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
+run_pwsh "PS budget: a no-progress construct beside a harmless line stays allowed (git-free)" \
+  "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+
 # The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
 # before it. A closer line carrying a SECOND opener is joined onto the first
 # opener's prefix by a reduction that never rescans the joined line, so a command

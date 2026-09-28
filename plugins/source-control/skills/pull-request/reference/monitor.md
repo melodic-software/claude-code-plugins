@@ -55,7 +55,7 @@ Establish a baseline poll: `gh pr checks <N>` (REST check-runs when more than on
 
 ## 3.0.1 Auto-watch setup (Monitor tool)
 
-**Every monitor invocation MUST ensure a session-persistent event watch exists.** Runs immediately after 3.0.0, before terminal state checks, CI polling, and comment processing.
+**Every monitor invocation ensures a session-persistent event watch exists.** Runs immediately after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
 1. Resolve PR identity: `PR_NUMBER=$(gh pr view --json number -q '.number' | tr -d '\r')`, `OWNER=$(gh repo view --json owner -q .owner.login)`, `REPO=$(gh repo view --json name -q .name)`
 2. Check if a Monitor watch is already running for this PR: `TaskList` and look for a task whose description contains `PR #$PR_NUMBER CI + comments`

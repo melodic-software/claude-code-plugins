@@ -3,6 +3,49 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.70] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.6.69] - 2026-09-28
+
+### Documentation
+
+- README "Why the row stays synchronous" records the decision not to run the report-only row with `async: true` ([#4677](https://github.com/melodic-software/claude-code-plugins/issues/4677)). The hooks reference (re-fetched 2026-09-28) delivers an async hook's output on the next conversation turn, not alongside the tool result, and in an idle session only after the next user message. It kills a still-running async hook at `claude -p` teardown, enforces no `timeout` on one, and shows neither of its fields to the user. Report-only findings already use `additionalContext` alone, so the user-visible loss would be the once-per-session missing-`typos` notice, and the agent would get the last edit's finding after it had moved on. Kept synchronous at 472 to 649 ms per edit on Windows and about 30 ms on Linux. No behavior change.
+
+## [0.6.67] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.6.66] - 2026-09-27
+
+### Changed
+
+- README: the hook budget no longer publishes 26.0 spawn-equivalents (0.6.35) as the current figure. It adds the 2026-09-19 audit's 18.7 on 0.6.55 for the Windows host and a 2026-09-27 same-method Linux comparison showing 0.6.62 about 30 percent below 0.6.35.
+
+## [0.6.65] - 2026-09-27
+
+- **`setup` probes `jq` and `typos` at load time.** The two `command -v` checks run as pre-computed
+  context, so `check` reads the result instead of making two Bash calls. The FAIL rules are
+  unchanged, a policy-disabled injection falls back to the Bash probe, and any post-remediation
+  re-check still probes live.
+
+## [0.6.64] - 2026-09-27
+
+- README: documents that a gitignored path is still scanned, because the hook names the file explicitly and `--force-exclude` covers only typos' own excludes; `[files] extend-exclude` is the lever.
+- README: documents the write paths the `Write|Edit|NotebookEdit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README: documents the write-mode timeout tail. The second typos pass rewrites the file before the hook discloses it, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
+
+## [0.6.63] - 2026-09-27
+
+### Changed
+
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+
 ## [0.6.62] - 2026-09-25
 
 ### Changed

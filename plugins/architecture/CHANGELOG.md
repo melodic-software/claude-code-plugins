@@ -3,6 +3,51 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-28
+
+### Added
+
+- `improve deepening` checks the branch against its base before the scan (`origin/HEAD`, a fetch,
+  and a behind count, each its own Bash call) and again before the handoff. A behind branch is
+  reported and the user decides whether to bring it current; the skill never merges or rebases.
+- Phase 1 sizes the scan fan-out as one subagent per area the scope decomposed into, and names the
+  count and areas before dispatching. No fixed default width is stated.
+- The candidate artifact ends with a `phase-1.5: downgraded=<n> dropped=<n> corrected=<n>` line, so
+  a reader sees the verification gate ran and what it caught.
+- A multi-candidate handoff records landing order and why, the files several candidates touch, and
+  which candidates depend on another landing first. The skill interviews each selected candidate
+  and still implements none.
+- The handoff states that a suite skipped for a missing tool is not a pass and a stub is not the
+  tool, and that retiring a public name sweeps comments and test assertions as well as call sites,
+  keeping passages that record what a past version dropped. The scan briefing carries the same
+  skipped-suite rule.
+
+### Changed
+
+- The HTML report groups cards into `Strong`, `Worth exploring`, and `Speculative` bands in that
+  order, at every count, with no cap, pagination, or collapsed card.
+- `agreed-shape` and `graft-record` are optional in the candidate artifact. A candidate that goes to
+  implementation without the interview carries `agreed-shape: skipped: <reason>` instead of an
+  empty field.
+
+### Fixed
+
+- The topic-docs binding names the Write tool as the way to create the memory root's `.gitignore`
+  guard. A `printf`/`echo` redirect, the obvious shell form, is refused by the `guardrails`
+  plugin's write-bypass check.
+
+## [0.11.2] - 2026-09-27
+
+### Fixed
+
+- `render-landscape.sh` and `landscape-record.sh --drift-against` refuse a record that is valid JSON
+  but not in the one-object-per-line layout the collector writes (compacted to one line, or one key
+  per line). Both read objects by line, so such a record read as empty: the renderer wrote an empty
+  landscape, printed `thin=yes` and exited 0, and the drift check reported every repository and edge
+  as added. Both now exit 1 with a message naming the layout problem, before writing any artifact or
+  printing any drift line. Arrays that are genuinely empty still read as empty, including in a
+  compacted record.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed

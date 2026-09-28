@@ -3,6 +3,50 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.10] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
+
+## [0.62.9] - 2026-09-27
+
+### Changed
+
+- **`audit-skill-visibility` re-verifies the `skillOverrides` exemption and routes inert
+  entries.** The exemption is re-stamped against the skills page and Claude Code 2.1.283 on
+  2026-09-27, with a recheck trigger on a release note saying plugin skills honor
+  `skillOverrides`. The skill now says an entry naming a plugin skill never takes effect and that
+  `claude-config:audit`, when installed, reports those entries (#4654).
+
+## [0.62.7] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.62.6] - 2026-09-27
+
+- **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the
+  `claude --version` and `command -v jq` probes on one line, and `observability` renders the
+  `--hook-events` and `--pipeline --observed` calls of `probe-observability-state.sh` on one line.
+  Each probe keeps its own fallback and labels its missing case; the git lines stay separate body
+  calls.
+
+## [0.62.5] - 2026-09-27
+
+- `audit-performance` names the no-execution route to per-hook Stop timings: the harness's `stop_hook_summary` transcript record carries a `hookInfos` array of `{"command", "durationMs"}`. The Gotchas entry "Never time a hook by running it" gives the operator a `jq` filter that extracts those records alone, labeled undocumented and unstable with a dated recheck trigger, and "Reading the report" item 2 points at it beside the warning against summing hook cost. The skill itself still reads no transcript.
+
 ## [0.62.4] - 2026-09-27
 
 ### Fixed

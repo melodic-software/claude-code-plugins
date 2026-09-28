@@ -5,6 +5,50 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.74] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.7.73] - 2026-09-27
+
+### Changed
+
+- **Statusline tee: an unchanged render starts no process, a writing render one.** The tee started
+  about 14 processes on every render (`date`, `jq`, `mkdir`, `chmod`, a `find` retention sweep, a
+  temp-write subshell, a second `date`, a second `jq`, `mv`). Now:
+  - A built-in reader takes `session_id`, `version` and `context_window` from the payload, byte for
+    byte what `jq -c` printed. A payload it cannot prove (over 64 KiB, an escape in those fields, a
+    number jq versions spell differently) still goes to `jq`.
+  - A render whose snapshot body matches this session's last write, made less than 60 seconds
+    earlier (`CG_TEE_NOCHANGE_FLOOR`), writes nothing. A per-session `.<session>.json.last` record
+    holds that body; a target replaced since that write is rewritten.
+  - Timestamps and the future-timestamp ceiling come from `printf '%(...)T'`, and the no-regression
+    guard reads the target's `captured_at` with a builtin `read`.
+  - `mkdir` and `chmod` run only when the directory is missing, and the 14-day prune (which now
+    also reaps last-write records) runs at most once an hour behind `.prune-stamp`, re-asserting
+    the owner-only directory mode.
+  - The temp file is written without a subshell, so it takes the inherited umask inside the
+    owner-only directory.
+  Snapshot content and the reader contract are unchanged, except that `captured_at` can trail the
+  latest render by up to the 60-second floor. Below bash 4.2 every render still writes and prunes.
+  Measured on Linux with `strace`: 16 processes per render before, 2 after on an unchanged render
+  and 3 on a changed one, counting the wrapped statusline and its pipe (#4675).
+- **Statusline shim: runs the installed tee, not the first equal-mtime copy.** The shim picked the
+  newest tee by mtime, and plugin cache copies can carry equal mtimes, so the first glob match won:
+  a verifier traced 0.7.38 running while 0.7.54 was installed. With two or more live candidates it
+  now ranks the version directory `installed_plugins.json` names first, then compares dotted-number
+  version names by value, then keeps the mtime order for any other pair. The same rule as the
+  rate-limit-guard shim; still builtins only and never writes. Shim revision 4; re-run
+  `/context-guard:setup apply` to refresh the installed copy (#4675).
+
+## [0.7.72] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
 ## [0.7.71] - 2026-09-24
 
 ### Changed

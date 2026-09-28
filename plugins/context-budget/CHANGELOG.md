@@ -5,6 +5,41 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.34] - 2026-09-28
+
+### Changed
+
+- **The settings-write checkpoint claims only what it sees**
+  ([#3864](https://github.com/melodic-software/claude-code-plugins/issues/3864)). The audit
+  skill said the checkpoint asks on "any settings-surface write", but its matcher is
+  `Write|Edit|MultiEdit|NotebookEdit`. The skill, README, `hooks.json` description, and hook
+  header now say it covers file-editing tool calls, and name the routes it does not see. Those
+  are shell writes (redirects, heredocs, `sed -i`, scripts), files rendered into place by a
+  dotfile manager or any other program, and `managed-settings.d/` drop-ins. The README records
+  why the hook is not widened to `Bash|PowerShell`. The audit `fix` path now makes its
+  project-settings edit with a file-editing tool, so the checkpoint covers the plugin's own write.
+
+## [0.6.33] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `node` and the Claude Code CLI at load time.** `command -v node`,
+  `node --version`, `command -v claude`, and `claude --version` run as pre-computed context, so
+  `check` reads four rows instead of making those Bash calls. The two version probes are
+  pre-approved in `allowed-tools`, since a load-time command that is not allowed aborts the skill
+  outside auto mode. The FAIL rules are unchanged, and a policy-disabled injection falls back to
+  the Bash probe.
+
+## [0.6.32] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output.
+
 ## [0.6.31] - 2026-09-25
 
 ### Changed

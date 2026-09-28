@@ -39,6 +39,11 @@ worse than generating none.
 
 Each names its successor. There is no router skill.
 
+Each `SKILL.md` frontmatter carries `metadata.workflow-stage` and `metadata.summary`. Claude Code
+does not act on `metadata`; both keys are read by the marketplace's own
+[`scripts/generate-cheatsheet.mjs`](../../scripts/generate-cheatsheet.mjs), which places each skill
+in a stage and prints its summary in [`docs/skill-cheat-sheet.md`](../../docs/skill-cheat-sheet.md).
+
 ## Reference
 
 - [`reference/techniques.md`](reference/techniques.md): the technique catalog, by loop phase. Each

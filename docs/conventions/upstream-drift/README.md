@@ -346,7 +346,7 @@ contract to fit its exceptions.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
-| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records: version-pinned facts table with per-fact basis, table-wide as-of dates, and fact-scoped event triggers. |
+| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records: version-pinned facts table with per-fact basis, a per-row verified version and date, and fact-scoped event triggers. |
 | [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records: dated upstream-claim stamps; drift outcomes recorded in its changelog. |
 | [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
 | [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, the quoted upstream basis it rests on, and a trigger written per row rather than the generic divergence-at-fetch. A verdict is re-derived when its own trigger fires, not on any fetch that differs. |

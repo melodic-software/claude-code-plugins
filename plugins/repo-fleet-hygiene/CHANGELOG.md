@@ -3,6 +3,55 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.37] - 2026-09-28
+
+### Fixed
+
+- **`audit` can confirm `merged-remote-branch` at `HIGH` again on hosts whose Git transport lives in global or system config.** The live `ls-remote` probe went through the same wrapper as every local probe, which pins `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` to `/dev/null`. That also dropped a global `core.sshCommand` (Git for Windows' bundled ssh cannot reach the Windows OpenSSH agent) and a system `credential.helper`, so every probe failed. Heads already deleted upstream were then reported at `MEDIUM`, and live ones never reached `HIGH`. The probe now keeps global and system config, with the same argv allowlist and `GIT_TERMINAL_PROMPT=0`. It runs only when `remote get-url` names the same github.com repository with and without that config, so a global `url.*.insteadOf` can rewrite the transport but cannot redirect the probe to another repository. A mismatch counts as a probe failure (`MEDIUM`). Every other probe still pins global and system config.
+
+## [0.23.36] - 2026-09-27
+
+### Fixed
+
+- `audit` records a `.git` marker under `--root` that is not a working tree as a `discovery-skip`
+  finding and audits the rest of the fleet. It exited 2 with no report on the first such husk, for
+  example the zero-byte `.git` uv writes into `packages/uv/sdists-v9`. A `--repo` target or the
+  implicit default target that is not a working tree still stops the run.
+
+## [0.23.35] - 2026-09-27
+
+### Fixed
+
+- `audit` on Windows Git Bash prints the `Action plan:` path and the `Apply dry-run:` plan argument
+  as a native `C:/...` path through `cygpath -m`. It printed the MSYS `/tmp/...` form, which
+  PowerShell, editors, and `/repo-fleet-hygiene:apply` in a PowerShell tool cannot open. Without
+  `cygpath`, and on every other host, the path prints unchanged.
+
+## [0.23.34] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` walks UTF-8 byte-wise (RFC 3629) instead of the 0.23.33 regex
+  allowlist, so LRM/RLM (U+200E/U+200F) and ALM (U+061C) from Unicode `Bidi_Control` escape
+  too. bash 3.2 signed-byte `printf '%d' "'c"` is corrected. Em dashes and other printable
+  UTF-8 still render raw.
+
+## [0.23.33] - 2026-09-27
+
+### Fixed
+
+- `audit` escapes C1 controls (including the one-byte CSI), U+2028/U+2029, bidi override and
+  isolate controls, and malformed UTF-8 in report values again. 0.23.32 printed them raw, so a
+  crafted path could inject terminal controls. Other printable UTF-8 still prints as itself.
+- A repository with no findings shows `Kind counts: none` instead of an em dash.
+
+## [0.23.32] - 2026-09-27
+
+### Fixed
+
+- `audit` `display_value` no longer `%q`-escapes printable UTF-8 under `LC_ALL=C`.
+  Control bytes still take the `%q` path so crafted paths cannot forge report lines.
+
 ## [0.23.31] - 2026-09-23
 
 ### Changed

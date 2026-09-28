@@ -208,6 +208,12 @@ rev-parse)
   esac
   ;;
 remote)
+  # A global url.*.insteadOf seen only when global config is kept (#4211).
+  if [[ "${1:-}" == "get-url" && "$base" == canonical-a && -n "${FAKE_GLOBAL_INSTEADOF:-}" &&
+    "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]]; then
+    printf '%s\n' "$FAKE_GLOBAL_INSTEADOF"
+    exit 0
+  fi
   if [[ "${1:-}" == "get-url" && "${2:-}" == "origin" ]]; then
     case "$base" in
     discovered-a | canonical-a) printf '%s\n' 'https://github.com/acme/repo-a.git' ;;
@@ -446,6 +452,9 @@ ls-remote)
   # Live remote existence probe for merged-remote-branch HIGH confidence. Default: echo the
   # matching tip. feature/stale-cached is present only in the local remote-tracking inventory
   # (auto-deleted upstream); ls-remote returns empty. feature/ls-fail forces a probe error → MEDIUM.
+  # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
+  # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
+  [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -902,6 +911,22 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+# #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
+# rewrites the transport for the same repository still confirms HIGH; one that points the remote
+# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+instead_of_out="$TMP/instead-of.txt"
+for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
+  FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+    bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
+  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+    grep -Fq "Confidence: ${rewrite#*|}"; then
+    printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
+  else
+    printf 'FAIL: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}" >&2
+    failures=$((failures + 1))
+  fi
+done
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
@@ -1075,6 +1100,58 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
+# display_value renders raw only well-formed printable UTF-8 (#4208). The invalid --canonical error
+# echoes its operand through display_value before any Git probe, so each case pins the exact line.
+# Every rendering is checked under C and, when the host has one, a UTF-8 operator locale: the
+# verdict must not follow the caller's locale.
+display_locales=(C)
+display_utf8_locale="$(locale -a 2>/dev/null | grep -Ei -m1 '^(C|en_US)\.utf-?8$' || true)"
+[[ -n "$display_utf8_locale" ]] && display_locales+=("$display_utf8_locale")
+display_err="$TMP/display-value.err"
+assert_display_value() {
+  local label="$1" value="$2" expected="$3" loc
+  for loc in "${display_locales[@]}"; do
+    LC_ALL="$loc" bash "$SCRIPT" --canonical "$value" >/dev/null 2>"$display_err"
+    if [[ "$(cat "$display_err")" == "Error: $expected" ]]; then
+      printf 'PASS: %s (LC_ALL=%s)\n' "$label" "$loc"
+    else
+      printf 'FAIL: %s (LC_ALL=%s)\n  expected: %s\n  actual:   %s\n' "$label" "$loc" \
+        "Error: $expected" "$(LC_ALL=C od -An -c "$display_err")" >&2
+      failures=$((failures + 1))
+    fi
+  done
+}
+assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
+  $'invalid --canonical value: em\xe2\x80\x94dash'
+# spellchecker:off
+# café (U+00E9) and U+1F600 stay $'...' byte escapes so the fixture stays ASCII.
+# typos splits on the backslash and would read the ASCII prefix as "calf".
+assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
+  $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
+# spellchecker:on
+assert_display_value "C0 ESC stays escaped" $'esc\x1b[31m' \
+  "\$'invalid --canonical value: esc\\E[31m'"
+assert_display_value "C1 CSI U+009B is escaped" $'csi\xc2\x9b31m' \
+  "\$'invalid --canonical value: csi\\302\\23331m'"
+assert_display_value "invalid UTF-8 byte 0xFF is escaped" $'bad\xff' \
+  "\$'invalid --canonical value: bad\\377'"
+assert_display_value "RTL override U+202E is escaped" $'rtl\xe2\x80\xaeexe.txt' \
+  "\$'invalid --canonical value: rtl\\342\\200\\256exe.txt'"
+assert_display_value "bidi isolate U+2066 is escaped" $'lri\xe2\x81\xa6x' \
+  "\$'invalid --canonical value: lri\\342\\201\\246x'"
+assert_display_value "line separator U+2028 is escaped" $'ls\xe2\x80\xa8x' \
+  "\$'invalid --canonical value: ls\\342\\200\\250x'"
+assert_display_value "overlong UTF-8 is escaped" $'over\xc0\xaf' \
+  "\$'invalid --canonical value: over\\300\\257'"
+assert_display_value "UTF-8-encoded surrogate is escaped" $'surr\xed\xa0\x80' \
+  "\$'invalid --canonical value: surr\\355\\240\\200'"
+assert_display_value "truncated UTF-8 sequence is escaped" $'cut\xe2\x80' \
+  "\$'invalid --canonical value: cut\\342\\200'"
+assert_display_value "LRM U+200E is escaped" $'lrm\xe2\x80\x8ex' \
+  "\$'invalid --canonical value: lrm\\342\\200\\216x'"
+assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
+  "\$'invalid --canonical value: alm\\330\\234x'"
+
 # Config resolution ladder: explicit --config > project-scoped > user-global > none,
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
@@ -1230,6 +1307,38 @@ if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/bare-live" --repo
   printf 'PASS: discovery of bare-with-live-tree emits a finding and continues\n'
 else
   printf 'FAIL: discovery of bare-with-live-tree emits a finding and continues\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A .git marker that is not a working tree under --root is a discovery-skip, not a run abort
+# (#4207). uv writes a zero-byte .git into its sdists cache; git answers "invalid gitfile format".
+mkdir -p "$TMP/husk-root/packages/uv/sdists-v9" "$TMP/husk-root/repo-b/.git"
+: >"$TMP/husk-root/packages/uv/sdists-v9/.git"
+husk_out="$TMP/husk-root-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/husk-root" --detail >"$husk_out" 2>&1
+husk_status=$?
+if [[ "$husk_status" -ne 2 ]] &&
+  grep -Fq "Finding: discovery-skip" "$husk_out" &&
+  grep -Fq "Target: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out" &&
+  grep -Fq "discovered path is not a Git working tree" "$husk_out" &&
+  grep -Fq "Repo: $TMP/repo-b" "$husk_out" &&
+  grep -Fq "Discovery skips: 1 non-repository" "$husk_out" &&
+  ! grep -Fq "Error: not a Git working tree" "$husk_out"; then
+  printf 'PASS: a non-working-tree .git under --root is a discovery-skip and the fleet is audited\n'
+else
+  printf 'FAIL: a non-working-tree .git under --root aborted or went unreported (exit %s)\n' "$husk_status" >&2
+  sed -n '1,40p' "$husk_out" >&2
+  failures=$((failures + 1))
+fi
+# The operator named this path directly, so the typo-stops-the-run rule still holds.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/husk-root/packages/uv/sdists-v9" \
+  >"$husk_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "Error: not a Git working tree: $TMP/husk-root/packages/uv/sdists-v9" "$husk_out"; then
+  printf 'PASS: explicit --repo on a non-working-tree .git marker still hard-fails\n'
+else
+  printf 'FAIL: explicit --repo on a non-working-tree .git marker failed without the rejection\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -1950,6 +2059,96 @@ else
   failures=$((failures + 1))
 fi
 
+# On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
+# a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
+# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
+# the <user> placeholder, which the machine-specific-paths gate treats as portable.
+WIN_BIN="$TMP/win-bin"
+WIN_TMP="$TMP/wintmp"
+mkdir -p "$WIN_BIN" "$WIN_TMP"
+printf '#!/usr/bin/env bash\nprintf "MINGW64_NT-10.0-26100\\n"\n' >"$WIN_BIN/uname"
+cat >"$WIN_BIN/cygpath" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "-m" && "$2" == "--" && $# -eq 3 ]] || exit 2
+case "$3" in
+"$MOCK_WIN_TMP"/*) printf 'C:/Users/<user>/AppData/Local/Temp/%s\n' "${3#"$MOCK_WIN_TMP"/}" ;;
+*) printf '%s\n' "$3" ;;
+esac
+EOF
+chmod +x "$WIN_BIN/uname" "$WIN_BIN/cygpath"
+win_native="C:/Users/<user>/AppData/Local/Temp"
+win_out="$TMP/win-plan-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" TMPDIR="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" >"$win_out" 2>&1 || true
+win_default_plan="$(compgen -G "$WIN_TMP/repo-fleet-hygiene-plan.*.json" | head -n 1)"
+win_default_native="$win_native/${win_default_plan#"$WIN_TMP"/}"
+if [[ -n "$win_default_plan" ]] &&
+  grep -Fxq "Action plan: $win_default_native" "$win_out" &&
+  grep -Fq -- "--apply-plan $win_default_native" "$win_out" &&
+  ! grep -Fq "$WIN_TMP" "$win_out"; then
+  printf 'PASS: Windows default plan path prints in native form on both plan lines\n'
+else
+  printf 'FAIL: Windows default plan path not native (plan=%s)\n' "$win_default_plan" >&2
+  sed -n '/^Action plan:/,/^Apply dry-run:/p' "$win_out" >&2
+  failures=$((failures + 1))
+fi
+win_explicit_out="$TMP/win-explicit-out.txt"
+PATH="$WIN_BIN:$PATH" MOCK_WIN_TMP="$WIN_TMP" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/explicit.json" >"$win_explicit_out" 2>&1 || true
+if [[ -f "$WIN_TMP/explicit.json" ]] &&
+  grep -Fxq "Action plan: $win_native/explicit.json" "$win_explicit_out" &&
+  grep -Fq -- "--apply-plan $win_native/explicit.json" "$win_explicit_out"; then
+  printf 'PASS: Windows explicit --plan-file is written as given and printed in native form\n'
+else
+  printf 'FAIL: Windows explicit --plan-file path handling\n' >&2
+  failures=$((failures + 1))
+fi
+# Without cygpath the audit still reports, with the path as bash sees it.
+rm -f "$WIN_BIN/cygpath"
+win_nocyg_out="$TMP/win-nocygpath-out.txt"
+PATH="$WIN_BIN:$PATH" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$WIN_TMP/nocyg.json" >"$win_nocyg_out" 2>&1 || true
+if command -v cygpath >/dev/null 2>&1; then
+  printf 'SKIP: host cygpath present; cannot test its absence\n'
+elif grep -Fxq "Action plan: $WIN_TMP/nocyg.json" "$win_nocyg_out"; then
+  printf 'PASS: Windows host without cygpath prints the plan path unchanged\n'
+else
+  printf 'FAIL: Windows host without cygpath lost the plan path\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Printable UTF-8 renders as itself; controls, C1 controls, line separators, bidi overrides, and
+# malformed bytes are still one %q field (#4208). The caller's locale must not change the answer.
+display_probe_script="$TMP/display-probe.sh"
+cat >"$display_probe_script" <<'EOF'
+. "$1"
+eval "$(sed -n "/^repo_kind_counts_text()/,/^}/p" "$1")"
+F_KIND=(merged-branch)
+F_REPO_IDX=(1)
+print_field Branch "feature/café-über"
+print_field Target "/tmp/Ångström/日本語/😀"
+print_field "Kind counts" "$(repo_kind_counts_text 0)"
+for bad in $'a\nFinding: forged' $'a\033[31m' $'a\xc2\x9b[31m' $'a\xc2\x85b' $'a\xe2\x80\xa8b' \
+  $'a\xe2\x80\xaeb' $'a\xe2\x81\xa6b' $'a\x9bb' $'ab\xc3' $'a\xed\xa0\x80'; do
+  print_field Bad "$bad"
+done
+EOF
+for display_locale in C C.UTF-8; do
+  display_probe="$(LC_ALL="$display_locale" bash "$display_probe_script" "$SCRIPT" 2>/dev/null)"
+  display_readable="$(printf '%s\n' "$display_probe" | sed -n 1,3p)"
+  display_bad_total="$(printf '%s\n' "$display_probe" | grep -c '^Bad: ')"
+  display_bad_escaped="$(printf '%s\n' "$display_probe" | grep -c "^Bad: \\$'")"
+  display_lines="$(printf '%s\n' "$display_probe" | wc -l | tr -d ' ')"
+  if [[ "$display_readable" == $'Branch: feature/café-über\nTarget: /tmp/Ångström/日本語/😀\nKind counts: none' &&
+    "$display_bad_total" -eq 10 && "$display_bad_escaped" -eq 10 && "$display_lines" -eq 13 ]]; then
+    printf 'PASS: display_value keeps printable UTF-8 readable and escapes controls (LC_ALL=%s)\n' \
+      "$display_locale"
+  else
+    printf 'FAIL: display_value under LC_ALL=%s rendered:\n%s\n' "$display_locale" "$display_probe" >&2
+    failures=$((failures + 1))
+  fi
+done
+
 # Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence. Sourcing brings the
 # finding registry and both action predicates in; repo_verdict itself sits past the source guard,
 # so it is still extracted.
@@ -2069,8 +2268,12 @@ run_git_probe -C "$TMP/wt-a" status --porcelain >/dev/null 2>&1 && status_reject
 allowed_log=true
 run_git_probe -C "$TMP/wt-a" log -1 --format=%ct HEAD >/dev/null 2>&1 || allowed_log=false
 allowed_ls_remote=true
-run_git_probe -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared >/dev/null 2>&1 ||
+git_probe_allowed -C "$TMP/canonical-a" ls-remote --heads origin refs/heads/feature/shared ||
   allowed_ls_remote=false
+ls_remote_rejected=true
+run_ls_remote_probe "$TMP/canonical-a" --upload-pack=x refs/heads/feature/shared >/dev/null 2>&1 &&
+  ls_remote_rejected=false
+run_ls_remote_probe "$TMP/canonical-a" origin HEAD >/dev/null 2>&1 && ls_remote_rejected=false
 if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
   printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
@@ -2095,6 +2298,12 @@ if [[ "$allowed_ls_remote" != "true" ]]; then
   failures=$((failures + 1))
 else
   printf 'PASS: ls-remote --heads probe is admitted by the Git allowlist\n'
+fi
+if [[ "$ls_remote_rejected" != "true" ]]; then
+  printf 'FAIL: run_ls_remote_probe admitted a non-allowlisted remote or ref\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: run_ls_remote_probe rejects a non-allowlisted remote or ref\n'
 fi
 
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).

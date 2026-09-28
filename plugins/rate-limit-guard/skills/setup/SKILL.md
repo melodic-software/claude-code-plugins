@@ -3,7 +3,18 @@ description: "Verify the rate-limit-guard plugin's wiring on this machine: jq, t
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
+the tool's path when present, or `absent` when missing:
+
+- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+
+A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+`command -v` probe via Bash instead.
 
 ## Purpose
 
@@ -22,8 +33,10 @@ conformingly write:
   the value. Do **not** uninstall to reconfigure: that drops this plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
   default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
-  project's directory for a `project`/`local` scope, or the write lands at a scope that does not
-  load. Afterwards rerun `check` in a **fresh session**, because the rendered `${user_config.*}` is
+  project's directory for a `project`/`local` scope, or the rerun adds a second install
+  record at the scope passed and enables the plugin there; the value itself always lands in user
+  settings. A rejected value prints a warning yet exits 0, so read the output.
+  Afterwards rerun `check` in a **fresh session**, because the rendered `${user_config.*}` is
   injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a
   same-session `check` still reports the old value; report the observed effective value, never an
   unobserved change.
@@ -63,7 +76,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
 
-1. **`jq`.** `command -v jq`. FAIL if absent: without it the wrapper cannot tee (it stays
+1. **`jq`.** The pre-computed `jq` row. FAIL if absent: without it the wrapper cannot tee (it stays
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare

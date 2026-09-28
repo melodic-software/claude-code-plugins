@@ -17,17 +17,17 @@ async page => {
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
   const Q_MARK = "❓", R_MARK = "➡️";
   const recHead = async () => page.evaluate(() => { const h = [...document.querySelectorAll("#dscroll section.blk > h4")].find(x => /Recommendation/.test(x.textContent)); return h ? h.textContent : ""; });
-  const openAssumptions = s => {
+  const openAssumptions = s => { // unconfirmed commitments on questions decided by accept or own (Q24)
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
-      if (!dec || q.archived || !(q.commits || []).length) continue;
-      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)));
+      if (!["accept", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
+      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
     return n;
   };
-  const open = n => n + (n === 1 ? " assumption open" : " assumptions open");
+  const open = n => n + " to confirm";
   const counter = async () => page.evaluate(() => { const el = document.getElementById("assumeCount"); return el && !el.hidden ? el.textContent : ""; });
   try {
   if (PHASE === 1) {
@@ -37,9 +37,9 @@ async page => {
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
 
-    // AC26: no watcher has ever polled, so the rung 5 message shows 30 s after load
-    const rung5 = await page.waitForFunction(() => /Claude is not listening: type next in the terminal/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
-    ok("AC26: rung 5 message with no watcher", rung5, await page.textContent("#pill"));
+    // AC26: no watcher has ever polled and every event is handled, so the calm Idle shows 30 s after load
+    const rung5 = await page.waitForFunction(() => /^Idle$/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
+    ok("AC26: with no watcher and nothing pending the pill reads Idle", rung5 && await page.$eval("#pill", el => el.className === "pill rest"), await page.textContent("#pill"));
 
     // AC17: number order within a group, whatever the insertion order
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
@@ -134,7 +134,7 @@ async page => {
     await page.click("main.detail h3"); await page.keyboard.press("a");
     ok("a arms Reconfirm, choice 1, on a stale question", /^1\s*Reconfirm/.test((await armed()).trim()), await armed());
     ok("stale chip in the rail", /Stale/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("upstream-pending dimmed with its chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /upstream pending/.test(el.textContent)));
+    ok("upstream-pending dimmed with its Waiting on chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /Waiting on P2/.test(el.textContent)));
     await pick("P1"); await page.click("main.detail h3");
     await page.keyboard.press("n");
     ok("AC16: n goes to the next item needing you (stale P2)", await sel() === "P2", await sel());
@@ -226,7 +226,14 @@ async page => {
     const vk = await frame("vk"), vf = await frame("vf"), vh = await frame("vh");
     ok("AC32: kind svg and format svg give the same iframe srcdoc", !!vk.srcdoc && vk.srcdoc === vf.srcdoc && /svgmark/.test(vk.srcdoc));
     ok("AC32: svg only inside a sandboxed iframe", vk.sandbox === "" && vf.sandbox === "" && vk.svgs === 0 && vf.svgs === 0 && !/<svg/.test(vk.text + vf.text));
-    ok("AC32: html only inside a sandboxed iframe", vh.sandbox === "" && /htmlmark/.test(vh.srcdoc) && !vh.mark && !/htmlmark/.test(vh.text));
+    ok("AC32: html only inside a sandboxed iframe", vh.sandbox === "allow-scripts" && /htmlmark/.test(vh.srcdoc) && !vh.mark && !/htmlmark/.test(vh.text));
+    const hf = await (await page.$("#fbody iframe")).contentFrame();
+    await hf.waitForSelector("#scriptmark", {state: "attached", timeout: 3000}).catch(() => {});
+    const hs = await hf.evaluate(() => {
+      const probe = f => { try { f(); return "reached"; } catch (e) { return "blocked"; } };
+      return {built: !!document.getElementById("scriptmark"), parentDom: probe(() => parent.document.title), storage: probe(() => localStorage.length), cookie: probe(() => document.cookie)};
+    });
+    ok("an html visual's script runs, in an opaque origin that cannot reach the page", hs.built && hs.parentDom === "blocked" && hs.storage === "blocked" && hs.cookie === "blocked", JSON.stringify(hs));
     await page.click('[data-vtab="v:vm"]'); await page.waitForTimeout(150);
     const mm = await page.evaluate(() => ({code: (document.querySelector("#fbody pre code") || {}).textContent, text: document.getElementById("fbody").innerText, frame: !!document.querySelector("#fbody iframe")}));
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));
@@ -281,6 +288,18 @@ async page => {
     const ev = await events(), acc = ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
+    // Accept all goes with the revision each question was opened at: A2 was opened in phase 1,
+    // before the shell's revise, so a dialog opened only now still refuses it until A2 is opened again.
+    await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
+    ok("Accept all opened after the revise still lists A2", await page.evaluate(() => document.getElementById("dlg").open && /A2/.test(document.getElementById("dlgBody").innerText)));
+    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    const acc2 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
+    ok("Accept all refuses a question revised after the user opened it", acc2 === 0 && /Skipped A2/.test(await page.textContent("#toast")), acc2 + " " + await page.textContent("#toast"));
+    await pick("A2");
+    await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
+    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
+    ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;
@@ -315,9 +334,30 @@ async page => {
   if (PHASE === 4) { // its own server: D1's one event was delivered in 2020 and never handled, and no watcher has polled
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
-    await page.waitForFunction(() => /Waiting on Claude/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
-    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent}; });
-    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Waiting on Claude: D1. Type next in the terminal" && pill.code === "next" && pill.cls === "pill idle", JSON.stringify(pill));
+    await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
+    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
+    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Not listening: type next" && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
+    // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
+    await page.addInitScript(() => {
+      const Real = window.EventSource;
+      window.__streams = 0;
+      window.EventSource = function (url, init) { window.__streams++; return new Real(url, init); };
+      window.EventSource.prototype = Real.prototype;
+    });
+    await page.goto(base + "?silentMs=1000");
+    const reopened = await page.waitForFunction(() => window.__streams >= 2, null, {timeout: 14000}).then(() => true).catch(() => false);
+    const streams = await page.evaluate(() => window.__streams);
+    ok("a stream silent past the ping window is dropped for polling and reopened", reopened, "streams " + streams);
+    ok("the page stays online through the fallback", await page.evaluate(() => !/Offline|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
+  }
+  if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
+    await page.goto(base);
+    await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
+    const lbl = await page.textContent("#roundLbl");
+    ok("the header round comes from the newest question's stage only", lbl === "Design round 1", lbl);
+    const rounds = await page.$$eval(".qbtn", els => els.length);
+    ok("both stages' questions are listed", rounds >= 3, String(rounds));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

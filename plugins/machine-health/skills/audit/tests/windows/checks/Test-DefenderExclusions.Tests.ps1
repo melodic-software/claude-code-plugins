@@ -42,6 +42,43 @@ Describe 'Test-DefenderExclusions -- baseline' -Tag 'check' {
         $result.needs_admin | Should -BeTrue
     }
 
+    It 'reports OK with zero counts when every exclusion property is $null' {
+        # The shape Get-MpPreference really returns on a host with no exclusions.
+        Mock Test-IsElevated { $true }
+        Mock Get-MpPreference {
+            [pscustomobject]@{
+                ExclusionPath      = $null
+                ExclusionExtension = $null
+                ExclusionProcess   = $null
+            }
+        }
+        $result = Invoke-DefenderExclusionsAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'OK'
+        $result.detail.exclusion_path_count | Should -Be 0
+        $result.detail.exclusion_extension_count | Should -Be 0
+        $result.detail.exclusion_process_count | Should -Be 0
+        $result.detail.unexpected_path_count | Should -Be 0
+        @($result.detail.unexpected_paths).Count | Should -Be 0
+    }
+
+    It 'ignores blank entries alongside real ones' {
+        Mock Test-IsElevated { $true }
+        Mock Get-MpPreference {
+            $sep = [char]92
+            [pscustomobject]@{
+                ExclusionPath      = @($null, '', '   ', "<drive>:${sep}Users${sep}<user>${sep}.dotnet")
+                ExclusionExtension = @('')
+                ExclusionProcess   = $null
+            }
+        }
+        $result = Invoke-DefenderExclusionsAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.detail.exclusion_path_count | Should -Be 1
+        $result.detail.exclusion_extension_count | Should -Be 0
+        $result.detail.unexpected_path_count | Should -Be 0
+    }
+
     It 'reports UNKNOWN when Get-MpPreference is unavailable' {
         Mock Test-IsElevated { $true }
         Mock Get-MpPreference { throw 'Defender API unavailable' }

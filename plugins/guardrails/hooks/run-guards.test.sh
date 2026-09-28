@@ -868,4 +868,265 @@ guard_invoke --via dispatched --hook "$HOOK_DIR/secret-pattern-detection.sh" \
 assert_exit "dispatched secret guard: non-repo root, outside write blocks" 2 "$GUARD_RC"
 assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS Access Key"
 
+# --- substitution count: refused before the first guard is sourced -----------
+# The Bash row's cost grows with the number of command and process
+# substitutions while every per-command cap still holds (#4684), and a row
+# cancelled at its hooks.json timeout blocks nothing. Each run below is under
+# `timeout 20`, a hang backstop and the only timing check: a wall-clock
+# threshold on a shared shard would measure the shard.
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].command' "$HOOK_DIR/hooks.json")
+read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
+ROW_CAP=""
+for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
+  [[ "${BASH_ROW_ARGS[i]}" == --max-substitutions ]] && ROW_CAP=${BASH_ROW_ARGS[i + 1]}
+done
+if [[ "$ROW_CAP" =~ ^[1-9][0-9]*$ ]]; then
+  ok "the Bash row passes --max-substitutions $ROW_CAP"
+else
+  bad "the Bash row passes no --max-substitutions cap"
+  ROW_CAP=256
+fi
+
+subst_cmd() { # <n> [tail]: `echo ` then <n> sibling `$(: rm)`, then <tail>
+  local s="echo " k
+  for ((k = 0; k < $1; k++)); do s+='$(: rm)'; done
+  printf '%s%s' "$s" "${2-}"
+}
+rep() { # <text> <n>
+  local s="" k
+  for ((k = 0; k < $2; k++)); do s+="$1"; done
+  printf '%s' "$s"
+}
+tool_payload() { # <tool> <command>
+  jq -n --arg t "$1" --arg c "$2" '{tool_name:$t,cwd:"/x",tool_input:{command:$c}}'
+}
+cap_run() { # <stdin> <run-guards argv>... -> OUT, ERR, RC
+  local input="$1"
+  shift
+  : >"$SEEN"
+  RC=0
+  OUT=$(timeout 20 bash "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+CAP_MSG="more than the $ROW_CAP the guards can read"
+
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a command at the cap reaches the guards" 0 "$RC"
+assert_contains "cap: the guard ran on a command at the cap" "$(cat "$SEEN")" 'echo $(: rm)'
+cap_run "$(tool_payload Bash "$(subst_cmd "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: one past the cap is refused" 2 "$RC"
+assert_contains "cap: the refusal names the cap" "$ERR" "$CAP_MSG"
+assert_contains "cap: the refusal names the count" "$ERR" "holds $((ROW_CAP + 1)) command or process substitutions"
+assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
+cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
+
+# Every spelling counts, quoted or not, and backticks count in pairs.
+for spelling in '<(:)' '>(:)' '$((1))' "'\$(:)'" '"$(:)"'; do
+  cap_run "$(tool_payload Bash "echo $(rep "$spelling" "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+  assert_exit "cap: $((ROW_CAP + 1)) of $spelling are refused" 2 "$RC"
+done
+cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: $ROW_CAP backtick pairs reach the guards" 0 "$RC"
+cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")\`")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: an unpaired backtick past the pairs counts as one more" 2 "$RC"
+cap_run "$(tool_payload PowerShell "echo $(rep '$(1)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a PowerShell command past the cap is refused" 2 "$RC"
+cap_run "$(write_json "$TEST_TMPDIR/w.txt" "$(rep '$(:)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a payload with no command field is not counted" 0 "$RC"
+# An unprimed payload (a NUL in it) is counted whole.
+cap_nul=$(jq -n --arg c "$(subst_cmd "$((ROW_CAP + 1))")" '{tool_name:"Bash",tool_input:{command:($c + ([0] | implode))}}')
+cap_run "$cap_nul" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/nul.sh"
+assert_exit "cap: an unprimed payload past the cap is refused" 2 "$RC"
+cap_nul=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')
+cap_run "$cap_nul" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/nul.sh"
+assert_eq "cap: an unprimed payload under the cap reaches the guard" "nul=1 cmd=git x" "$(cat "$SEEN")"
+cap_run "$PAYLOAD" --max-substitutions 0 "$TEST_TMPDIR/block.sh"
+assert_exit "cap: a malformed cap is the dispatcher's could-not-run, not a verdict" 0 "$RC"
+assert_contains "cap: the malformed cap is reported" "$ERR" "rc=70"
+
+# The shipped row, with every guard on it. At the cap the guards judge the
+# command, so a root delete behind the substitutions is refused by its own
+# guard; past it, the two measured payloads (#4684) are refused by the count.
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a benign command at the cap is allowed" 0 "$RC"
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP" '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a root delete at the cap is refused" 2 "$RC"
+assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
+assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
+cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,339 sibling substitutions are refused" 2 "$RC"
+assert_contains "cap row: 2,339 are refused by the count" "$ERR" "$CAP_MSG"
+cap_run "$(tool_payload Bash "$(subst_cmd 2330 '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,330 substitutions then a root delete are refused" 2 "$RC"
+assert_contains "cap row: that one is refused by the count too" "$ERR" "$CAP_MSG"
+# --- over-length: the first block ends the chain (#4528) ----------------------
+# Past --max-command-len the guards after a block would only add reasons to a
+# decided verdict, and a row that outlives its hooks.json timeout is cancelled
+# with the block discarded. Below or at the ceiling every guard still runs.
+BIG_CMD=$(printf '%*s' 20000 '' | tr ' ' x)
+BIG_PAYLOAD=$(jq -nc --arg c "$BIG_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+AT_CMD=$(printf '%*s' 16384 '' | tr ' ' x)
+AT_PAYLOAD=$(jq -nc --arg c "$AT_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+over_run() { # <payload> <dispatcher arg>... -> OUT ERR RC, SEEN reset
+  local payload="$1"
+  shift
+  : >"$SEEN"
+  OUT=$(bash "$DISPATCH" "$@" <<<"$payload" 2>"$TEST_TMPDIR/over.err")
+  RC=$?
+  ERR=$(cat "$TEST_TMPDIR/over.err")
+}
+over_run "$BIG_PAYLOAD" --max-command-len 16384 "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "over the ceiling: the block stands" 2 "$RC"
+assert_contains "over the ceiling: the block reason reaches stderr" "$ERR" "BLOCKED: stub"
+assert_eq "over the ceiling: no guard runs after the block" "0" "$(grep -c . "$SEEN")"
+over_run "$BIG_PAYLOAD" --max-command-len 16384 "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "over the ceiling: a guard ahead of the block still runs" 2 "$RC"
+assert_eq "over the ceiling: only the guard ahead of the block ran" "1" "$(grep -c '^x' "$SEEN")"
+over_run "$AT_PAYLOAD" --max-command-len 16384 "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "at the ceiling: the block wins" 2 "$RC"
+assert_eq "at the ceiling: the guard after the block still runs" "1" "$(grep -c '^x' "$SEEN")"
+over_run "$BIG_PAYLOAD" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/allow.sh"
+assert_eq "no --max-command-len: the guard after the block still runs" "1" "$(grep -c '^x' "$SEEN")"
+# A NUL leaves the payload unprimed; its own length stands in for the
+# command's, which it can only exceed.
+NUL_BIG_PAYLOAD=$(jq -nc --arg c "$BIG_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:($c + "\u0000")}}')
+over_run "$NUL_BIG_PAYLOAD" --max-command-len 16384 "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/nul.sh"
+assert_exit "unprimed over the ceiling: the block stands" 2 "$RC"
+assert_eq "unprimed over the ceiling: no guard runs after the block" "0" "$(grep -c . "$SEEN")"
+over_run "$PAYLOAD" --max-command-len 16k "$TEST_TMPDIR/allow.sh"
+assert_eq "a --max-command-len that is not a whole number runs no guard" "" "$(cat "$SEEN")"
+assert_contains "a --max-command-len that is not a whole number is reported" "$OUT$ERR" "run-guards"
+
+# The shipped row. The guards carrying a MAX_COMMAND_LEN ceiling refuse an
+# over-length command before they tokenize it, so the row answers at once and
+# the uncapped guards never see it. Each ceiling guard keeps its kill switch:
+# with the first disabled, the next one blocks.
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].command' "$HOOK_DIR/hooks.json")
+read -r -a BASH_ROW_TOKS <<<"$BASH_ROW"
+BASH_ROW_ARGS=()
+for ((i = 0; i < ${#BASH_ROW_TOKS[@]}; i++)); do
+  [[ "${BASH_ROW_TOKS[i]}" == */run-guards.sh ]] || continue
+  BASH_ROW_ARGS=("${BASH_ROW_TOKS[@]:i+1}")
+  break
+done
+ROW_MAX=""
+for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
+  [[ "${BASH_ROW_ARGS[i]}" == --max-command-len ]] && ROW_MAX=${BASH_ROW_ARGS[i + 1]}
+done
+assert_eq "the Bash|PowerShell row declares --max-command-len" "16384" "$ROW_MAX"
+ceiling_guards=0
+for g in $(guards_of "$BASH_ROW"); do
+  g_max=$(sed -n 's/^MAX_COMMAND_LEN=\([0-9]*\)$/\1/p' "$HOOK_DIR/$g")
+  [[ -n "$g_max" ]] || continue
+  ceiling_guards=$((ceiling_guards + 1))
+  assert_eq "$g's MAX_COMMAND_LEN equals the row's --max-command-len" "$ROW_MAX" "$g_max"
+done
+if ((ceiling_guards >= 2)); then
+  ok "the Bash|PowerShell row runs $ceiling_guards guards that carry the ceiling"
+else
+  bad "the Bash|PowerShell row runs $ceiling_guards guards that carry the ceiling; the short-circuit needs one to block"
+fi
+first_guard=$(guards_of "$BASH_ROW" | head -1)
+if [[ -n "$(sed -n 's/^MAX_COMMAND_LEN=\([0-9]*\)$/\1/p' "$HOOK_DIR/$first_guard")" ]]; then
+  ok "the row's first guard ($first_guard) carries the ceiling, so an over-length command is refused before any tokenize"
+else
+  bad "the row's first guard ($first_guard) carries no ceiling: an over-length command is tokenized before any guard refuses it"
+fi
+
+HEREDOC_BODY=""
+while ((${#HEREDOC_BODY} < 70000)); do HEREDOC_BODY+=$'The quick brown fox jumps over the lazy dog, again.\n'; done
+HEREDOC_PAYLOAD=$(jq -nc --arg c "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" \
+  '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+row_t0=${EPOCHREALTIME:-}
+ROW_ERR=$(cd "$HOOK_DIR" && RUN_GUARDS_PROFILE=1 bash "$DISPATCH" "${BASH_ROW_ARGS[@]}" <<<"$HEREDOC_PAYLOAD" 2>&1 >/dev/null)
+ROW_RC=$?
+row_t1=${EPOCHREALTIME:-}
+assert_exit "the shipped row blocks a ~70 KB command" 2 "$ROW_RC"
+assert_contains "the shipped row names the ceiling" "$ROW_ERR" "too long to parse safely"
+assert_eq "the shipped row runs one guard on a ~70 KB command" "1" "$(grep -c '^run-guards: .* ms rc=' <<<"$ROW_ERR")"
+if [[ -n "$row_t0" && -n "$row_t1" ]]; then
+  row_ms=$(((${row_t1/./} - ${row_t0/./}) / 1000))
+  # A tenth of the row's 60-second timeout; measured at 64 ms.
+  if ((row_ms < 6000)); then
+    ok "the shipped row answers a ~70 KB command in ${row_ms} ms"
+  else
+    bad "the shipped row took ${row_ms} ms on a ~70 KB command"
+  fi
+fi
+ROW_ERR=$(cd "$HOOK_DIR" && CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false RUN_GUARDS_PROFILE=1 \
+  bash "$DISPATCH" "${BASH_ROW_ARGS[@]}" <<<"$HEREDOC_PAYLOAD" 2>&1 >/dev/null)
+ROW_RC=$?
+assert_exit "first ceiling guard disabled: the row still blocks" 2 "$ROW_RC"
+assert_contains "first ceiling guard disabled: the next ceiling guard is the one that blocks" \
+  "$(grep '^run-guards: .* ms rc=2' <<<"$ROW_ERR")" "block-dangerous-git.sh"
+
+# --- one tokenization per event -----------------------------------------------
+# Every guard that parses the event's command gets the segments a parse of its
+# own would report, argv and HOOK_SEG_* alike, while the string is walked once.
+# A parse cut short by a guard's `exit` inside its callback is never kept.
+# count.sh wraps the library's uncached parse to tally the strings it walks;
+# the wrapper is defined in the dispatcher's shell, so the tally covers every
+# guard after it.
+stub count.sh '[[ -n "$(declare -F bps_orig_uncached)" ]] || {
+  eval "bps_orig_uncached() $(declare -f hook::bash_parse_segments_uncached | tail -n +2)"
+  hook::bash_parse_segments_uncached() {
+    printf "walk %q\n" "$1" >>"'"$SEEN"'.walks"
+    bps_orig_uncached "$@"
+  }
+}
+exit 0'
+PARSE_BODY='bps_cb() {
+  local rec="$PARSE_LABEL:" j
+  rec+=" [$*] q=[${HOOK_SEG_WORD_QUOTED[*]-}]"
+  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    rec+=" R:${HOOK_SEG_REDIR_OP[j]}|${HOOK_SEG_REDIR_FD[j]}|${HOOK_SEG_REDIR_TARGET[j]}|${HOOK_SEG_REDIR_QUOTED[j]}|${HOOK_SEG_REDIR_OPAQUE[j]}"
+  done
+  printf "%s\n" "$rec" >>"'"$SEEN"'"
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" bps_cb
+  fi
+  [[ -n "${PARSE_EXIT_ON:-}" && "$1" == "$PARSE_EXIT_ON" ]] && exit 2
+  return 0
+}
+hook::buffer_stdin_to INPUT || exit 0
+hook::jq_fields "$INPUT" ".tool_input.command" || exit 0
+hook::bash_parse_segments "${HOOK_JQ_FIELDS[0]}" bps_cb
+exit 0'
+stub parse-a.sh "PARSE_LABEL=a; PARSE_EXIT_ON=; ${PARSE_BODY}"
+stub parse-b.sh "PARSE_LABEL=b; PARSE_EXIT_ON=; ${PARSE_BODY}"
+stub parse-c.sh "PARSE_LABEL=c; PARSE_EXIT_ON=; ${PARSE_BODY}"
+stub parse-exit.sh "PARSE_LABEL=x; PARSE_EXIT_ON=echo; ${PARSE_BODY}"
+SHARE_CMD=$'git commit -m "héllo ✓" 2>&1 >out.log && bash -c \'echo inner > f\'; cat <<EOF >>log\nbody\nEOF\necho "tail" <in'
+SHARE_PAYLOAD=$(jq -nc --arg c "$SHARE_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+printf -v SHARE_WALK 'walk %q' "$SHARE_CMD"
+share_by_label() { # <label> -> that guard's records, label stripped
+  sed -n "s/^$1://p" "$SEEN"
+}
+: >"$SEEN"
+bash "$TEST_TMPDIR/parse-a.sh" <<<"$SHARE_PAYLOAD" >/dev/null 2>&1
+SHARE_ALONE=$(share_by_label a)
+: >"$SEEN"
+: >"$SEEN.walks"
+bash "$DISPATCH" "$TEST_TMPDIR/count.sh" "$TEST_TMPDIR/parse-a.sh" "$TEST_TMPDIR/parse-b.sh" \
+  "$TEST_TMPDIR/parse-c.sh" <<<"$SHARE_PAYLOAD" >/dev/null 2>&1
+assert_eq "shared parse: the first guard sees what it sees alone" "$SHARE_ALONE" "$(share_by_label a)"
+assert_eq "shared parse: a replaying guard sees the same segments" "$SHARE_ALONE" "$(share_by_label b)"
+assert_eq "shared parse: a third guard sees the same segments" "$SHARE_ALONE" "$(share_by_label c)"
+assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&|2|1|0|0 R:>||out.log|0|0"
+assert_eq "shared parse: the event's command is walked once" "1" \
+  "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
+assert_eq "shared parse: a callback's re-parse is walked per guard, never cached" "3" \
+  "$(grep -cxF 'walk echo\ inner\ \>\ f' "$SEEN.walks")" # portability-ok: grep -F fixed string of a recorded walk token, not a GNU word boundary
+: >"$SEEN"
+: >"$SEEN.walks"
+bash "$DISPATCH" "$TEST_TMPDIR/count.sh" "$TEST_TMPDIR/parse-exit.sh" "$TEST_TMPDIR/parse-b.sh" \
+  "$TEST_TMPDIR/parse-c.sh" <<<"$SHARE_PAYLOAD" >/dev/null 2>&1
+SHARE_RC=$?
+assert_exit "shared parse: a guard that exits mid-parse still blocks" 2 "$SHARE_RC"
+assert_eq "shared parse: after a cut-short parse the next guard sees every segment" "$SHARE_ALONE" "$(share_by_label b)"
+assert_eq "shared parse: and the guard after it too" "$SHARE_ALONE" "$(share_by_label c)"
+assert_eq "shared parse: a cut-short parse is not kept, so the command is walked twice" "2" \
+  "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
+
 report

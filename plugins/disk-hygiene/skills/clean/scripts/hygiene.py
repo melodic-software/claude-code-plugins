@@ -130,11 +130,13 @@ class HygieneError(Exception):
 
 
 QUIET_SCAN_NOTE = (
-    "Quiet output: children_rollup is omitted from stdout only. The snapshot "
-    'file named by "snapshot" carries every row in full, in this mode exactly '
-    "as in the default one; read per-child detail there. Re-run without "
-    "--quiet for the rollup and the full interpretation note. Hints are "
-    "discovery signals, never cleanup verdicts."
+    "Quiet output: children_rollup is omitted from stdout only, and "
+    "truncated_paths is the count of truncated paths rather than the list. The "
+    'snapshot file named by "snapshot" carries every row and every truncated '
+    "path in full, in this mode exactly as in the default one; read per-child "
+    "detail and the coverage gaps there. Re-run without --quiet for the rollup "
+    "and the full interpretation note. Hints are discovery signals, never "
+    "cleanup verdicts."
 )
 
 # Root-children mode's coverage qualification is not a restatement of the
@@ -145,8 +147,10 @@ QUIET_SCAN_NOTE = (
 # does not represent those entries, so a caller reading only quiet stdout has
 # no other signal that the inventory is partial by construction.
 QUIET_ROOT_CHILDREN_SCAN_NOTE = (
-    "Quiet output: children_rollup is omitted from stdout only; the snapshot "
-    'file named by "snapshot" carries every row in full. Coverage limit, '
+    "Quiet output: children_rollup is omitted from stdout only, and "
+    "truncated_paths is the count of truncated paths rather than the list; the "
+    'snapshot file named by "snapshot" carries every row and every truncated '
+    "path in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
     "immediate directories, so the volume root itself and every skipped "
     "OS-owned/hidden/system/reparse entry were never walked, and "
@@ -208,8 +212,12 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     emitting it to stdout as well is duplication for a caller that only needs
     the frontier and will read detail from the snapshot. ``--quiet`` drops that
     stdout copy, and with it the long interpretation note that mostly explains
-    the rollup, and changes nothing else: the same run happens, the same
-    snapshot is written, and the decision-relevant fields all survive.
+    the rollup. It also replaces the ``truncated_paths`` list with its length,
+    since a depth-cut home scan truncates well over a hundred paths: the count
+    says how much went unwalked, stays present at zero so a clean scan is
+    distinguishable, and the snapshot keeps the list. Nothing else changes: the
+    same run happens, the same snapshot is written, and every other field
+    survives unchanged.
 
     Root-children mode gets its own quiet note. Its default note carries a
     coverage qualification (the volume root and the skipped OS-owned, hidden,
@@ -220,6 +228,8 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     if not quiet:
         return payload
     trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
+    if isinstance(trimmed.get("truncated_paths"), list):
+        trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
     trimmed["note"] = (
         QUIET_ROOT_CHILDREN_SCAN_NOTE
         if payload.get("root_children_mode")
@@ -2103,6 +2113,12 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         kind = "file"
     else:
         kind = "other"
+    # A directory's st_size is not a stable observation: on NTFS one lstat
+    # reports the index allocation and the next reports 0, so an unchanged
+    # directory would flap drifted/clear. Callers compare the descendant set
+    # separately, so a directory needs only object identity here.
+    if kind == "directory":
+        return same_object_identity(info, entry)
     checks = (
         kind == entry.get("kind"),
         info.st_size == entry.get("stat_size"),
@@ -2636,10 +2652,13 @@ def evidence_adjusted_protections(
     return sorted(adjusted)
 
 
+PLATFORM_BLOCKER = "execution-platform-unsupported"
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
-        return ["execution-platform-unsupported"]
+        return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
         return ["dirfd-anchoring-unavailable"]
@@ -2917,8 +2936,21 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
+    # A blocker that is a fact about the platform, identical for every
+    # candidate, routes the operator to the manual handoff lane; only a
+    # blocker about a path means "do not proceed".
+    platform_only = {reason for item in results for reason in item["blockers"]} == {
+        PLATFORM_BLOCKER
+    }
+    if not blocked:
+        outcome = "explicit-approval"
+    elif platform_only:
+        outcome = "manual-handoff-lane"
+    else:
+        outcome = "blocked"
     payload = {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
+        "outcome": outcome,
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
@@ -3377,9 +3409,20 @@ def handoff_verify(
             "checks applied; they are NOT in the approved list, so removing one "
             "needs its own approval, and each is removable only AFTER every "
             "path beneath it is gone. clear/not_clear count the approved paths "
-            "only."
+            "only; not_clear includes gone paths, which do not by themselves "
+            "make the command exit non-zero."
         ),
     }
+
+
+def handoff_verify_blocks(result: dict[str, Any]) -> bool:
+    """True when any approved path's verdict means "do not proceed".
+
+    `gone` is the terminal state verify-one-delete-one drives each approved path
+    to, so from the second round on at least one path reads `gone` while every
+    verdict is correct. Only `drifted` and `contested` block.
+    """
+    return any(item["verdict"] not in {"clear", "gone"} for item in result["verdicts"])
 
 
 def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[str]:
@@ -3648,7 +3691,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 _PARSER_VALUE_TYPES = {"int": int}
 
 
-def _add_flag(command: argparse.ArgumentParser, flag: engine_grammar.Flag) -> None:
+def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
     """Declare one grammar flag on a subparser.
 
     A valueless flag is always ``store_true`` here even when the grammar marks
@@ -3683,8 +3726,12 @@ def build_parser() -> argparse.ArgumentParser:
         if spec.help is not None:
             options["help"] = spec.help
         command = subparsers.add_parser(spec.name, **options)
+        containers: dict[str, argparse._ActionsContainer] = {}
+        for group in spec.one_of:
+            exclusive = command.add_mutually_exclusive_group(required=True)
+            containers.update(dict.fromkeys(group, exclusive))
         for flag in spec.flags:
-            _add_flag(command, flag)
+            _add_flag(containers.get(flag.name, command), flag)
     return parser
 
 
@@ -3747,6 +3794,9 @@ def main(argv: list[str] | None = None) -> int:
                 admitted, skipped = enumerate_root_children(
                     target, policy, known_mounts
                 )
+                # This status and large-target-confirmation-required name the
+                # documented next step, so they exit 0 and `status` carries the
+                # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
                     return emit(
                         {
@@ -3763,7 +3813,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "'clean everything' is not selection."
                             ),
                         },
-                        5,
+                        0,
                     )
                 resolved_children = normalize_root_child_selection(
                     selected_root_children, admitted
@@ -3797,7 +3847,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "--confirmed-large-scan."
                             ),
                         },
-                        5,
+                        0,
                     )
                 try:
                     snapshot = scan_tree(
@@ -3868,7 +3918,7 @@ def main(argv: list[str] | None = None) -> int:
                             "full walk, add --confirmed-large-scan."
                         ),
                     },
-                    5,
+                    0,
                 )
             try:
                 snapshot = scan_tree(target, policy, args.max_depth)
@@ -3918,7 +3968,10 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                load_json(Path(args.paths)), entry_map(snapshot)
+                {"version": SCHEMA_VERSION, "paths": [args.path]}
+                if args.path is not None
+                else load_json(Path(args.paths)),
+                entry_map(snapshot),
             )
             vcs_evidence = (
                 validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
@@ -3926,11 +3979,11 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
-            return emit(result, 3 if result["not_clear"] else 0)
+            return emit(result, 3 if handoff_verify_blocks(result) else 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
-            return emit(checked, 3 if checked["status"] == "blocked" else 0)
+            return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
         if checked["status"] != "ready-for-explicit-approval":

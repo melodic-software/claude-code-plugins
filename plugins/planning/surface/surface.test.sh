@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, schema.py, and the JSON
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js
+# (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
 # The browser suites run only where playwright-cli resolves; elsewhere they print a SKIP with
@@ -78,10 +79,15 @@ grade() { # suite output-file
 }
 
 if command -v playwright-cli >/dev/null 2>&1; then
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX")
+  # No fixture write or trap before the scratch dir is proven to exist.
+  if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || [[ ! -d "$tmp" ]]; then
+    echo "FAIL: mktemp gave no scratch dir"
+    exit 1
+  fi
   d="$tmp/d3"
   c="$tmp/c3"
   e="$tmp/e3"
+  j="$tmp/journey"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
   pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
@@ -90,6 +96,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
+    bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -125,7 +132,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40"><text x="10" y="25">filemark</text></svg>' \
     >"$c/diagrams/flow.svg"
   bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
-  CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 \
+  CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 --emoji-markers true \
     --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
   cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')
   for n in 1 2 3; do
@@ -138,7 +145,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
-  unhandled() { "$py" "$here/round.py" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
+  unhandled() { "$py" "$here/round.py" --dir "${1:-$c}" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
   read -r -a seqs <<<"$(unhandled)"
   [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
   # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
@@ -164,12 +171,88 @@ if command -v playwright-cli >/dev/null 2>&1; then
   eport=$(sed -n 's/^PORT=//p' "$e/.interview-session.env" | tr -d '\r')
   sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
   pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
+  # Phase 5, same server: an interview round 3, then a newer design round 1, for the header's
+  # derived round across two stages.
+  for r in interview-3:3 design-1:1; do
+    bash "$here/round.sh" --dir "$e" add-round --file "tests/fixtures/ui_d/round-${r%:*}.json" --round "${r#*:}" >/dev/null ||
+      bad "ui_c.5: add-round ${r%:*} refused"
+  done
+  sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
+  pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
+
+  # The journey runs against a fifth server seeded with an empty interview. It walks the whole
+  # flow on one page in seven phases; the shell writes as Claude between them.
+  mkdir -p "$j/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
+  bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
+  bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
+  jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
+  for n in 1 2 3 4 5 6 7; do
+    sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
+  done
+  jhandle() {
+    local s
+    read -r -a s <<<"$(unhandled "$j")"
+    [[ "${#s[@]}" -eq 0 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${s[@]}" >/dev/null
+  }
+  japply() { # name ops-json
+    printf '%s' "$2" >"$j/ops/$1.json"
+    bash "$here/round.sh" --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
+  }
+  jrun() { pw run-code --filename "$(script_path "$tmp/uj$1.js")" >"$tmp/uj$1.out" 2>&1; }
+  jrun 1
+  jhandle
+  japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}]}'
+  japply b '{"ops": [{"op": "wait", "id": "Q3", "waitsOn": "the retry benchmark", "by": "claude"},
+    {"op": "wait", "id": "Q5", "waitsOn": "whether the version must be pinned to the lock file or float with each new runner image release", "by": "user"},
+    {"op": "set-status", "text": "Researching the retry benchmark for Q3"}]}'
+  jrun 2
+  # Phase 2 leaves its Answer anyway on Q3, then a note: the note gets the Notes reply.
+  read -r -a js <<<"$(unhandled "$j")"
+  note=${js[${#js[@]} - 1]}
+  [[ "${#js[@]}" -lt 2 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${js[@]:0:${#js[@]}-1}" >/dev/null
+  japply c '{"ops": [{"op": "activity", "text": "Added a retry note to Q1", "ids": ["Q1"]},
+    {"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true},
+    {"op": "reply", "id": "Q3", "text": "The benchmark settles it: three retries."}]}'
+  bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round2.json --round 2 >/dev/null
+  japply d '{"ops": [{"op": "note-reply", "seq": '"$note"', "text": "Yes, on track."}]}'
+  jrun 3
+  jhandle
+  japply e '{"ops": [{"op": "confirm-commitments", "id": "Q2", "reason": "Confirmed in the terminal"},
+    {"op": "record-terminal", "id": "Q4", "decision": "accept"},
+    {"op": "confirm-commitments", "id": "Q4", "reason": "Said yes in the terminal"},
+    {"op": "restate", "sections": {"goal": "Ship green builds to staging on their own.",
+      "constraints": "Builds stop at ten minutes.", "planningOwned": "How the cache key is built."}}]}'
+  jrun 4
+  jhandle
+  bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --force >/dev/null
+  japply f '{"ops": [{"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
+    "constraints": "Builds stop at ten minutes."}}]}'
+  jrun 5
+  jhandle
+  # Near the 500-character line cap, with an unbroken token: phase 6 checks the page never widens.
+  long="on the runner image, whether a supercalifragilisticexpialidocious_unbroken_token_that_never_wraps_0123456789 is acceptable"
+  long="$long; $long; $long; and whether the lock file wins over the runner image default for every job"
+  japply g '{"ops": [{"op": "wait", "id": "Q5", "clear": true},
+    {"op": "record-terminal", "id": "Q5", "decision": "own", "text": "Pin it to the lock file."},
+    {"op": "record-terminal", "id": "Q7", "decision": "accept"},
+    {"op": "wait", "id": "Q3", "waitsOn": "a second benchmark '"$long"'", "by": "claude"},
+    {"op": "set-status", "text": "Running a second benchmark '"$long"'"},
+    {"op": "group", "id": "g3", "title": "Release", "dependsOn": ["g2"]},
+    {"op": "add", "question": {"id": "Q8_runner_image_cache_key_follow_up_0123456789", "group": "g1", "stage": "interview",
+      "short": "Cache key follow-up", "title": "Should the cache key include the runner image?",
+      "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on main"}]}},
+    {"op": "record-terminal", "id": "Q8_runner_image_cache_key_follow_up_0123456789", "decision": "accept"}]}'
+  jrun 6
+  japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true}]}'
+  jrun 7
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
-  for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 154 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 154))
+  echo "SKIP: 262 browser checks not run, 100 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 262))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

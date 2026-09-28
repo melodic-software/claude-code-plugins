@@ -87,28 +87,44 @@ melodic-software/claude-code-plugins#4503.
 
 ### provenance
 
-- skill: provenance:audit
-- args: sweep
+- skill: attribution:audit
+- args: audit
 - applies-when: repo has tracked markdown
 - checked: true
 
 #### Notes
 
-Runs before every prose rewriter so fingerprints stay intact.
+Runs before every prose rewriter so fingerprints stay intact. `audit` is the read-only action;
+`sweep` is the fix pipeline and would apply fixes before the user reviews the findings. Apply the
+approved findings with `attribution:audit fix <file>`, one file at a time when the per-file
+closure record is wanted.
 
 ### codebase-health
 
 - skill: codebase-health:audit
-- args: --fix
+- args:
 - applies-when: repo has docs or config that describe its code
 - checked: true
+
+#### Notes
+
+The audit's `--fix` applies nothing: it suggests `/implementation:implement` and then
+`/verification:confirm`, and tells the model not to invoke either. The bare audit stops at the
+report, and the step applies the agreed fixes itself.
 
 ### overengineering
 
 - skill: overengineering:audit, overengineering:realign
-- args:
+- args: agent-instructions repo-hooks vcs-hooks ci-lanes gate-scripts satellite-workflows
 - applies-when: repo has hooks, CI workflows, rules, or gate scripts
 - checked: false
+
+#### Notes
+
+The args are the layers the repository owns. `agent-hooks` also walks user- and machine-scope
+settings and every enabled plugin's hook manifest, and `branch-protection`, `forge-apps`, and
+`external-integrations` live on the forge or an outside service, so this sweep could only record
+them as delegated. Audit those four in a separate org- or machine-level pass.
 
 ### native-overlap
 
@@ -165,8 +181,9 @@ Drop findings on `~/.claude`; the dotfiles sweep handles them.
 #### Notes
 
 Run the audit, then `fix`. Apply deletes and rewrites only; skip C1 and C3 moves, which belong to
-the instruction-placement step. Drop findings on `~/.claude` and auto-memory; the dotfiles sweep
-handles them.
+the instruction-placement step. C9 additions are in scope too: one line per missing build or test
+command, verified against the repo's manifest or task runner. Drop findings on `~/.claude` and
+auto-memory; the dotfiles sweep handles them.
 
 ### prompting-postures
 

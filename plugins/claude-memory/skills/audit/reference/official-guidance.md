@@ -303,6 +303,6 @@ first session after an upgrade), where the import is still what carries it.
 
 ## No official scoring rubric
 
-There is no official scoring rubric for CLAUDE.md quality. The `/claude-md-management:claude-md-improver` plugin's 6-category, 100-point rubric is invented by the plugin author, not derived from official documentation.
+There is no official scoring rubric for CLAUDE.md quality. The 6-category, 100-point rubric shipped by the `claude-md-improver` skill of the `claude-md-management` plugin (Anthropic's `claude-plugins-official` marketplace, not this one) is invented by the plugin author, not derived from official documentation.
 
 The official quality measure is the **deletion test**: "Would removing this cause Claude to make mistakes?"

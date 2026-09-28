@@ -154,8 +154,8 @@ marker within the one approved checkout:
    only in that case.
 3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
    declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
-4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
-   option adds no approval surface and creates no token.
+4. The checkout is one exact human-approved path, given inline as `--path` or listed in
+   `handoff-paths.json`. The evidence option adds no approval surface and creates no token.
 
 The engine discovers `.git` markers from live descendants and requires their repository-root set to
 equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared
@@ -204,6 +204,20 @@ literal unsubstituted placeholder counts as absent); absent every channel the fl
 `--data-root` is mandatory at the guard even though the engine's grammar leaves it optional: an
 otherwise exact call that omits it is denied, because the engine would then fall back to the raw
 `CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set.
+
+**Handing the values over up front.** A plugin `UserPromptExpansion` hook matching
+`disk-hygiene:clean$` runs `engine_context.py` through the same launcher, with the same
+`--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
+`resolve_authorized_data_root()` results as `additionalContext`, so the skill needs no denied call to
+learn them. It grants nothing: the guard still judges every call, and a hook that fails prints
+nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
+come from the guard's `launch_disclosure` for the probe's install root. One divergence is possible: a plugin hook receives
+`CLAUDE_PLUGIN_DATA` in its environment and a skill hook may not, so where neither derivation
+resolves, the note can name an env-supplied root the skill guard then denies. That denial names
+the fix. Verified 2026-09-27 against https://code.claude.com/docs/en/hooks ("UserPromptExpansion":
+typing `/skillname` fires it, it matches on `command_name`, and `additionalContext` reaches Claude
+alongside the expanded prompt); recheck when that section changes, or if a release note names the
+event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
 
 `--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
 and `--root-children` are the valueless scan flags; the guard permits at most one of each and
@@ -465,11 +479,22 @@ in monitor mode, emits the `systemMessage` itself when nothing resolves, so a ho
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
 Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. And the guard's own no-interpreter path is unchanged: the launcher exits 0
-silently in guard mode, so routing the belt through it closes "cannot start against the alias stub",
-not "fails closed when no Python exists at all". That residual is why the registration shape is
-asserted by `hooks/run-python-hook.test.sh` and `test_hygiene.py`, and verified as step 1 of
-`/disk-hygiene:setup check`.
+nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
+every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
+the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
+difference from the watchdog is the engine gate's marker-free commands: they proceed unchecked with a
+once-per-session `systemMessage` and `additionalContext` notice rather than an `ask`, because a
+missing interpreter is persistent where a missed deadline is transient, and an `ask` on every
+`PowerShell(*& $*)` call would stop unrelated work. The Stop detector is kept as the end-of-turn
+backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
+<https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
+exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
+a prompt even in auto mode) and <https://code.claude.com/docs/en/headless> (a prompt in a `-p` run
+with no permission host is denied); recheck when either page changes PreToolUse exit-code or `ask`
+semantics. The README states each surface in one table. The launch shape is asserted by
+`hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
+both are verified as step 1 of `/disk-hygiene:setup check`.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
@@ -533,13 +558,15 @@ NON-EMPTY child is not knowable without walking it, so every such child reads `d
 loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
 subtree.
 
-The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout
-and nothing else. The two copies are otherwise identical, and the snapshot is the copy the engine
-treats as the record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`,
-`status`, `target`, the three coverage terms, `empty_directory_count`, both byte totals,
-`truncated_paths`, `errors`, `policy_sources` and `os_autoclean`, so every field a keep-or-review
-decision rests on survives, and it replaces the closing note with a short one naming where the
-rows went. That field set holds in `--root-children` mode too, which reports
+The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
+The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
+record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
+the three coverage terms, `empty_directory_count`, both byte totals, `errors`, `policy_sources`
+and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
+closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
+of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
+flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
+suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
 `empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.

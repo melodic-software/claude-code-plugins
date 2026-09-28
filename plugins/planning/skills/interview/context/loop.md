@@ -68,6 +68,25 @@ Run rounds until the stop condition is met. Each round:
 5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7"); a hedged reply is not an accept-shorthand (see "Hedged flag")
 6. **Recompute the tree.** What subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check:** when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes, since a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+8. **Frontier empty: sweep.** In `me` and `auto` with a register, run the assumption sweep before Step 3 ([`assumption-sweep.md`](assumption-sweep.md)); an `open` row it adds starts another round
+
+### Constraint ledger
+
+The ledger's `## Constraint ledger` section sits above `## Open-question register` in `interview-checklist.md`. One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`, numbered contiguously:
+
+```text
+- C1 | confirmed | V1 ships without SSO | user, round 1
+- C2 | inherited | no new runtime dependencies | docs/topics/exports/PLAN.md Brief
+```
+
+- **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
+- **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
+- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
+- **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
+
+### Composed artifacts and historical evidence
+
+Rules: SKILL.md Step 2 "Composed artifacts are candidates", "Label evidence by when it was true", and "What, not how: the mechanism tripwire". A process change is one the survey finds (a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out.
 
 ### Where a round may fire
 
@@ -174,6 +193,8 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 
 Tick on resolve. Surface the open set periodically (every few questions, or on request), not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
 
+**Commitment rows written after later ids exist.** When a commitment row is registered after rows with higher ids already exist (the page degrading to the terminal, a sweep item that turns out to be a part), it takes the next free `Q<N>` and names its headline in the question field: `- Q14 | open | round 4 | (part of Q5) token scope for the review step |`. For a late row, "numbered after their headline" in "Commitment rows" means the next free id, naming the headline, never an id squeezed in beside the headline, which would duplicate or gap the register and halt the gate.
+
 ### Incremental persistence + branch-out
 
 - **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section, so resolved branches survive a crash, context clear, or overflow.
@@ -222,7 +243,7 @@ Fields: `Q<N> | status | round | question | resolution`. Statuses:
 
 **Commitment rows.** A recommendation's `Commits you to:` parts (SKILL.md Stance "Relentless mode") are rows of their own, written `open` at ask-time and numbered after their headline, so the ids stay contiguous and the gate grades each one. The question field names the headline: `- Q6 | open | round 2 | (part of Q5) token scope for the review step |`. An explicit acceptance of the headline resolves each to `answered` with `accepted via Q5: <value>`; choosing an alternative or rejecting the headline sets each to `withdrawn` with `pruned by Q5 = <answer>`. The read-only decision table gives each part its own row number, and the `me` decision tree gives each its own checkbox. Unattended, each part takes the ladder on its own: a codebase-resolvable headline does not make its parts resolvable, and a part that is the user's decision is `blocked` like any other row.
 
-**Commitment parts on the page.** On the page surface a recommendation's parts are the question's `commits` entries ([`surface.md`](surface.md) R1 and R3), never rows of their own: `export-ledger` rewrites the register one row per page question at wrap-up. The page is stricter than the terminal rule: accepting the headline confirms only the parts the user ticks, a terminal answer mirrored with `record-terminal` ticks none, and every unticked part of an answered question reaches the Brief as a named risk through `export-brief`. That includes a question answered with an alternative, whose parts the terminal rule withdraws: at wrap-up, move those risks to the Brief's `### Out-of-scope` as withdrawn. The register gate does not grade parts. Commitment rows from earlier terminal rounds become page questions of their own under `import-ledger`: resolve or withdraw each by hand when its headline is answered. When the page degrades to the terminal, register each `commits` entry of a still-open question as a commitment row before the next round.
+**Commitment parts on the page.** On the page surface a recommendation's parts are the question's `commits` entries ([`surface.md`](surface.md) R1 and R3), never rows of their own: `export-ledger` rewrites the register one row per page question at wrap-up. The page is stricter than the terminal rule: accepting the headline confirms only the parts the user ticks. An alternative withdraws the parts, so they do not reach the Brief; a defer's open row covers them. An `own` answer keeps its unticked parts, which reach the Brief as named risks through `export-brief`, as do an accept's; that over-counts an unhedged `own` answer, the safe direction. On its own, a terminal answer mirrored with `record-terminal` ticks none: after the user confirms parts in the terminal, tick them with a `confirm-commitments` op rather than leaving them unconfirmed. The register gate does not grade parts. Commitment rows from earlier terminal rounds become page questions of their own under `import-ledger`: resolve or withdraw each by hand when its headline is answered. When the page degrades to the terminal, register each `commits` entry of a still-open question as a commitment row before the next round.
 
 **Hedged flag.** A hedged reply (SKILL.md Stance "Relentless mode") resolves at most its headline, which resolves to `answered` with `hedged: <answer>`; its commitment rows stay `open` under the drift check. Downstream passes treat a row carrying `hedged:` with the same scrutiny as a `free-text:` one. On the page, mirror a hedged terminal reply with `record-terminal` as `own` with the text prefixed `hedged:`, never as `accept`, which records accept-all; it exports as `free-text: hedged: <answer>`. A hedged "Own answer" typed on the page gets the same echo on its wake and exports as plain `free-text: <answer>`. The Step 3 confirmation restate lists every row carrying `hedged:`, and every `free-text:` row whose answer is hedged, for explicit confirmation.
 

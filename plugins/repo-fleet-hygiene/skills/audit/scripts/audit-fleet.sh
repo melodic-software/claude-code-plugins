@@ -131,13 +131,80 @@ to_native_path() {
   printf '%s' "$text"
 }
 
+# An MSYS mount such as /tmp carries no drive letter for to_native_path to rewrite; only the mount
+# table knows it is %LOCALAPPDATA%\Temp. cygpath reads that table and ships with Git for Windows
+# and MSYS2. It forks once per call, so it is kept to the file paths an operator must open from
+# another shell, not run over every report value. The result goes to a named variable rather than
+# stdout so a non-Windows path reaches the report byte-for-byte, trailing newlines included.
+to_native_file_path() { # <out-var> <path>
+  local path="$2" native
+  if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
+    native="$(cygpath -m -- "$path" 2>/dev/null)" && [[ -n "$native" ]]; then
+    path="$native"
+  fi
+  printf -v "$1" '%s' "$path"
+}
+
+# True when $1 is well-formed UTF-8 (the RFC 3629 section 4 grammar: no overlong form, surrogate,
+# code point above U+10FFFF, or stray/truncated continuation byte) made only of printable
+# characters. Rejected even when well-formed: C0 controls and DEL, C1 controls U+0080..U+009F (U+009B
+# is the 8-bit CSI that terminals act on like ESC [), the Unicode Bidi_Control characters that
+# reorder displayed text, and U+2028/U+2029, which Unicode line breaking treats as mandatory breaks.
+# Decoded byte by byte under LC_ALL=C, where the POSIX locale's [[:cntrl:]] covers only C0 and DEL
+# and every byte above 0x7F is one opaque character, so the verdict ignores the operator's locale.
+utf8_printable() {
+  local value="$1" LC_ALL=C
+  local i=0 n=${#value} byte cp need lo hi
+  while ((i < n)); do
+    printf -v byte '%d' "'${value:i:1}"
+    # bash 3.2 (macOS system bash) returns a byte above 0x7F as a signed char: 0xFF reads as -1.
+    ((byte < 0)) && byte=$((byte + 256))
+    i=$((i + 1))
+    lo=0x80 hi=0xBF
+    if ((byte <= 0x7F)); then
+      ((byte >= 0x20 && byte <= 0x7E)) || return 1
+      continue
+    elif ((byte >= 0xC2 && byte <= 0xDF)); then
+      need=1 cp=$((byte & 0x1F))
+    elif ((byte >= 0xE0 && byte <= 0xEF)); then
+      need=2 cp=$((byte & 0x0F))
+      ((byte == 0xE0)) && lo=0xA0
+      ((byte == 0xED)) && hi=0x9F
+    elif ((byte >= 0xF0 && byte <= 0xF4)); then
+      need=3 cp=$((byte & 0x07))
+      ((byte == 0xF0)) && lo=0x90
+      ((byte == 0xF4)) && hi=0x8F
+    else
+      return 1
+    fi
+    while ((need > 0)); do
+      ((i < n)) || return 1
+      printf -v byte '%d' "'${value:i:1}"
+      ((byte < 0)) && byte=$((byte + 256))
+      ((byte >= lo && byte <= hi)) || return 1
+      cp=$(((cp << 6) | (byte & 0x3F)))
+      i=$((i + 1)) need=$((need - 1)) lo=0x80 hi=0xBF
+    done
+    # C1 controls; Bidi_Control U+061C, U+200E..U+200F, U+202A..U+202E, U+2066..U+2069; and
+    # U+2028..U+2029, which share the U+2028..U+202E run with the embedding/override controls.
+    ((cp <= 0x9F || cp == 0x61C)) && return 1
+    ((cp >= 0x200E && cp <= 0x200F)) && return 1
+    ((cp >= 0x2028 && cp <= 0x202E)) && return 1
+    ((cp >= 0x2066 && cp <= 0x2069)) && return 1
+  done
+  return 0
+}
+
 # Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
 # %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
 # let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
 display_value() {
+  # LC_ALL=C keeps %q byte-wise: an escaped value renders every byte above 0x7F as \ooo. The
+  # [[:print:]] test is only the printable-ASCII fast path, since under C locale every byte above
+  # 0x7F fails it; anything else must pass utf8_printable to render raw.
   local value="$1" escaped
   local LC_ALL=C
-  if [[ "$value" =~ ^[[:print:]]*$ ]]; then
+  if [[ "$value" != *[![:print:]]* ]] || utf8_printable "$value"; then
     to_native_path "$value"
   else
     printf -v escaped '%q' "$value"
@@ -260,6 +327,44 @@ run_git_probe() {
       GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat GIT_TERMINAL_PROMPT=0
     command git "$@"
   )
+}
+
+# ls-remote reaches the network, so it needs the operator's transport config: a global
+# core.sshCommand (Git for Windows' bundled ssh cannot reach the Windows OpenSSH agent), a system
+# credential.helper, http.* proxies. run_git_probe discards all of it with global/system config,
+# which failed every probe (#4211). run_transport_git keeps global/system config for the same
+# allowlisted argv; run_ls_remote_probe then binds the result back to the pinned view by requiring
+# the remote URL to name the same github.com repository with and without that config, so a global
+# url.*.insteadOf can rewrite the transport but never redirect the probe to another repository.
+run_transport_git() {
+  if ! git_probe_allowed "$@"; then
+    printf 'Rejected non-allowlisted Git probe\n' >&2
+    return 126
+  fi
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
+    # Subshell-local env only; SC2030/SC2031 are false cross-function hits vs run_git_probe.
+    # shellcheck disable=SC2030,SC2031
+    export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat \
+      GIT_TERMINAL_PROMPT=0
+    command git "$@"
+  )
+}
+
+run_ls_remote_probe() {
+  local repo="$1" remote="$2" ref="$3" pinned_url transport_url pinned_key
+  local PARSED_KEY="" PARSED_SLUG=""
+  git_probe_allowed -C "$repo" ls-remote --heads "$remote" "$ref" || {
+    printf 'Rejected non-allowlisted Git probe\n' >&2
+    return 126
+  }
+  pinned_url="$(run_git_probe -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
+    transport_url="$(run_transport_git -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
+    parse_github_url "$pinned_url" || return 1
+  pinned_key="$PARSED_KEY"
+  parse_github_url "$transport_url" && [[ "$PARSED_KEY" == "$pinned_key" ]] || return 1
+  run_transport_git -C "$repo" ls-remote --heads "$remote" "$ref"
 }
 
 # Convention-root reads (worktreeroot.path, plus a retired alias the
@@ -1639,13 +1744,15 @@ BARE_LIVE_TREE_EVIDENCE=()
 BARE_LIVE_TREE_COMMON_KEYS=()
 
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
-# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
-# plus the scope remedies, because the operator did not choose this path and the bare rejection
-# gives them nothing to act on.
+# prerequisite. "config" and "discovery" return 1 so the caller records a stale-config entry or a
+# discovery-skip and continues: a husk a package cache left under --root (uv writes a zero-byte
+# .git into its sdists cache) must not abort every repository after it. "cli" and "default" stop
+# the run. "default" is the implicit no-argument target — the same hard failure, plus the scope
+# remedies, because the operator did not choose this path and the bare rejection gives them
+# nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
-  [[ "$origin" == "config" ]] && return 1
+  [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
   printf 'Error: ' >&2
   display_value "$message" >&2
   printf '\n' >&2
@@ -2115,7 +2222,7 @@ repo_kind_counts_text() {
     fi
   done
   if [[ ${#keys[@]} -eq 0 ]]; then
-    printf '%s' '—'
+    printf '%s' 'none'
     return 0
   fi
   local first=true kind_sorted
@@ -2666,7 +2773,7 @@ analyze_repo() {
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
         live_status=0
-        live_out="$(run_git_probe -C "$canonical" ls-remote --heads "$canonical_remote" \
+        live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
         live_oid=""
         if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
@@ -3127,9 +3234,11 @@ fi
   printf '\n  ]\n'
   printf '}\n'
 } >"$PLAN_FILE" || fail "cannot write plan file: $PLAN_FILE"
-print_field 'Action plan' "$PLAN_FILE"
+plan_file_display=""
+to_native_file_path plan_file_display "$PLAN_FILE"
+print_field 'Action plan' "$plan_file_display"
 printf 'Apply dry-run: %s --apply-plan ' "$0"
-display_value "$PLAN_FILE"
+display_value "$plan_file_display"
 printf '\n'
 
 # --- Optional detail: collapsed per-target blocks + confidence groups -------

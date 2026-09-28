@@ -3,6 +3,111 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eight of the nine listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: surface enumerations, check
+  lists, run mechanics, and the long "not for" lists. `check-listing-budget.sh
+  plugins/claude-config/skills` goes from 6,640 to 4,341 characters. No skill is renamed or
+  merged.
+
+## [0.51.0] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: token-budgeted lanes, `--unattended`, and `--resume`.** Phase B no longer
+  fans out one lane per skill. A lane's budget is 0.25 of the lane model's own context window at
+  3.5 bytes per token (Anthropic glossary, verified 2026-09-28), and the line figure is derived per
+  run from measured bytes per line. Plugins pack whole into lanes; only a plugin larger than the
+  budget splits by skill, and the Phase D cost line names each split. `--unattended`, declared by
+  the caller and never inferred, turns the ~20-dispatch confirmation into a cost-line disclosure.
+  Each lane report lands at
+  `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/lanes/<lane-id>.md`, ending
+  in a completion marker that carries the lane's input digest (file list and content hashes,
+  partition digest, catalog and conflict-criteria versions, prompt digest, harness version,
+  resolved target model, scope, `--opinion`, `--no-stopping-condition`). `--resume` picks the
+  latest run under the state key, refuses to attach while its lease is live (naming `heartbeat_at`
+  and `stale_after_s`), and re-runs only lanes that are incomplete or whose digest changed. The
+  lease is `audit-pass`'s `run-state.sh`, invoked with
+  `--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions`. New `scripts/lane-runs.sh`
+  (`partition`, `digest`, `marker`, `plan`, `latest`, `attach`) with a test suite, and three
+  evals (#4114).
+
+### Changed
+
+- **`audit-instructions`: in a marketplace repository, `plugins/**` is the editable set.**
+  `conflict-criteria.md` 1.6.0 rewrites the "Known limit" section: when
+  `.claude-plugin/marketplace.json` is present, Phase A inventories the plugin source as locally
+  owned, the installed cache is read for residency only, and the report names drift between the
+  install record's commit (or version) and HEAD. The Phase A inventory note points at the rule
+  (#4114).
+
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **`audit-instructions`: Phase D names the disposition for a lane whose residency is
+  unresolved.** The Phase B hand-off told such a lane to report "as conditional rather than as
+  findings", but Phase D defined only the findings table with a diff per row, so the result
+  landed as an ordinary actionable finding. The Proposed change column now takes a closed set, a
+  proposal, `no change proposed`, or `RESIDENCY-UNRESOLVED: <condition>`, and the last carries no
+  fenced diff and is not re-judged in Phase C. The Phase B hand-off and the Phase A inventory
+  note use the same name. Under `--persist-findings` such candidates are held out of `--from`
+  and counted by a new `emit-findings.sh --declined-residency <n>` line, separate from the I28
+  carve-out count. New eval and fixture (#4314).
+
+## [0.50.0] - 2026-09-27
+
+### Added
+
+- **The audit engine reports `skillOverrides` entries that can never take effect.** Plugin skills
+  are not affected by `skillOverrides` (skills and settings-reference pages, verified 2026-09-27),
+  so an entry keyed for one is inert. Category G gains two rows:
+  - `G/skill-override-plugin` (`warning`), one per key in the user, project or local settings
+    file whose text before the first `:` names a plugin in the installed registry or in any
+    scope's `enabledPlugins` keys, `false` included. The anchor is the key's JSON pointer, and the
+    detail names the levers that do reach plugin skills. A colon key whose prefix names no known
+    plugin, such as `apps/web:deploy` or `anthropic-skills:pdf`, is a `skip` row, never a finding
+    and never clean. Keys only; no override value reaches a row.
+  - `G/skill-override-home-local` (`info`) when `<user dir>/settings.local.json` holds a non-empty
+    `skillOverrides` object. That file is the project-local file for sessions started in the home
+    directory, so its entries reach no other project. An unreadable or invalid file is
+    `not-inspectable`.
+  The engine's `scopes` block lists that file as `user-local`, so the read is disclosed even when
+  it is none of the audited scopes. A home-rooted run reads the shared settings file once, by file
+  identity. Not detected, by design: an alias key that names no skill at all, since bundled and
+  claude.ai-synced skill names are not enumerable from files and the check would flag working
+  keys such as `doctor`. The exemption quotes in the checklist, validation categories and the
+  audit-pass doctor handoff now match the live settings-reference wording (#4654).
+
+## [0.49.3] - 2026-09-27
+
+### Fixed
+
+- `audit-prompting-postures` Phase D no longer does nothing on a clean run. With no proposed addition
+  to refute, the verifier now checks the verdicts instead: that a component needs a posture it was
+  judged not to need, that a classification is wrong, or that a `PRESENT` citation does not carry
+  the posture. A reversal becomes a row with its corrected verdict. The verifier attestation line is
+  now required on every run, names surface batches in both places it is described, and says which
+  check the verifier ran (`proposals` or `verdicts`). A new eval covers the clean-audit case.
+
+## [0.49.2] - 2026-09-27
+
+### Changed
+
+- `audit`'s env-var checklist row drops its `**MANDATORY**:` prefix. The row still requires reading `code.claude.com/docs/en/env-vars` verbatim and searching it for each env var name, and still says WebSearch alone is insufficient (#4120).
+
+## [0.49.1] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq`, `curl`, `awk`, and `sort` at load time.** The four `command -v` checks run as
+  pre-computed context, so `check` reads their results instead of making four Bash calls. The FAIL
+  rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
 ## [0.49.0] - 2026-09-26
 
 ### Added

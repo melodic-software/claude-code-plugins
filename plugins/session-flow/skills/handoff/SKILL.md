@@ -1,5 +1,5 @@
 ---
-description: "Write a mid-session save-point for /clear-and-resume, a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the user reports the session is heavy, a context-measuring mechanism says to fork, or the assistant's own responses are visibly drifting, repeating, or looping. Never on the assistant's estimate of the remaining window, a budget reading is not a decay signal. For delegating the continuation to a background agent, use the sibling continue-in-background skill."
+description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
 argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
@@ -236,7 +236,10 @@ ticked. Emit the rails block before ending the turn, always.
   and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
-  (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
+  (`--no-previous`), including when the directory holds only unrelated-task handoffs. The
+  `chain:` list `new` writes holds every hop the `previous_handoff` pointers reach, oldest first
+  and ending with this file, so a consumer reads the whole chain without walking files; a legacy
+  predecessor with no `chain:` of its own has its pointers walked for it. When
   present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
   amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
   the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
