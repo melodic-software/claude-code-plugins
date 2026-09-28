@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.4.35] - 2026-09-28
+## [1.4.36] - 2026-09-28
 
 ### Fixed
 
@@ -11,6 +11,12 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   5782849, 5782977, 2409473, and 11362305 return 404. The 2026-08-12 and
   2026-07-18 verbatim reads stay in the skill text. The live URLs are gone so
   the checker is not fetching pages the help center no longer serves.
+
+## [1.4.35] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `co-write, rhyme` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
 
 ## [1.4.34] - 2026-09-27
 

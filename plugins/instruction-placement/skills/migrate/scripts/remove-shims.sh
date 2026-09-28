@@ -4,9 +4,9 @@
 # The only mutating script in this skill, and it refuses far more often than it
 # acts. In order, and every gate fails closed:
 #
-#   1. It prints what removal costs. A directly read AGENTS.md is absent from
-#      /memory and /context, and fires no InstructionsLoaded hook. The record
-#      is in reference/sources.md.
+#   1. It prints what removal costs, from reference/sources.md ("What shim removal
+#      costs"). As of the 2026-09-28 recheck, /memory lists a directly read
+#      AGENTS.md and InstructionsLoaded still does not fire for that read.
 #   2. It refuses without --confirm. There is no blanket-yes and no all-repos
 #      mode: one repository per run, one confirmation per run.
 #   3. It refuses unless the INSTALLED claude-memory and instruction-placement

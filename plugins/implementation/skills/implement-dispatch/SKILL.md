@@ -134,7 +134,7 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (when the `toolchain` plugin is installed; else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it. See Phase boundaries) |
-| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" |
+| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route; see [`reference/run-end-outcome-verify.md`](reference/run-end-outcome-verify.md)) |
 
 ## What this skill does NOT do
 
@@ -142,6 +142,7 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 - **Does not create or revise plans**. A planning pass produces plans; this skill executes routing tables
 - **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (when installed) is the SSOT; this skill invokes it main-side at the right moments, falling back to the project's own build command when that plugin is absent
 - **Does not offer a phase-verifier opt-out.** Autonomous runs always dispatch it; the interactive mechanical carve-out is not a default in both modes. [`reference/phase-verifier-mandate.md`](reference/phase-verifier-mandate.md)
+- **Does not treat post-phase orchestrator source commits as a numbered phase.** The worker plus verifier pair for those commits is unpaid and parked; [`reference/run-end-outcome-verify.md`](reference/run-end-outcome-verify.md)
 
 ## Gotchas
 
