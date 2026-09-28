@@ -2,7 +2,7 @@
 
 ## Decision
 
-**Out of scope** — this marketplace does not sign agent-produced changes
+**Out of scope.** This marketplace does not sign agent-produced changes
 (what instructions, review prompts, workflows, and runs produced a commit).
 
 - **Option 1 (taken):** CI/CD supply-chain tooling, not agent tooling. Close #4703.
