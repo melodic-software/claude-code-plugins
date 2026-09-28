@@ -188,10 +188,10 @@ sign what instructions, review prompts, workflows, or runs produced a commit.
 - **Claim:** agent-run artifact attestation (SLSA / in-toto / Sigstore predicates over
   prompts, model, skill set, instruction-file digests) is not in this marketplace.
 - **Basis:** #4703 options 1–3. `attribution` is prose provenance, not supply chain.
-  GitHub's `actions/attest-build-provenance` emits a SLSA build predicate from runner
-  context with no slot for prompts or instruction digests. The vetted in-toto list has
-  no AI-agent-run predicate. Ledger:
+  The hosted CI build-provenance action (`actions/attest-build-provenance`) emits a
+  SLSA build predicate from runner context with no slot for prompts or instruction
+  digests. The vetted in-toto list has no AI-agent-run predicate. Ledger:
   `docs/out-of-scope/agent-run-artifact-attestation.md`.
 - **As of:** 2026-09-28.
-- **Recheck:** a maintainer names a predicate URI they will own, or GitHub/in-toto
-  publishes an agent-run predicate this marketplace is asked to emit.
+- **Recheck:** a maintainer names a predicate URI they will own, or the hosted forge
+  and the in-toto project publish an agent-run predicate this marketplace is asked to emit.
