@@ -13,7 +13,7 @@ above it is the linear `apply` interview, walked as bolded numbered steps (0 thr
 than headings. Find a step directly with:
 
 ```shell
-grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
+grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md" # portability-ok: plain grep -n, no GNU-only flag; a prose apostrophe elsewhere in this file joins this line with an unrelated `pwd -P` mention
 ```
 
 - Layer selection (`layer=`), the non-interactive `subject_pattern=` write, and the

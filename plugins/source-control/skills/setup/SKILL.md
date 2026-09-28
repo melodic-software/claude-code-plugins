@@ -49,8 +49,8 @@ single layer's value as the effective convention; a reader who cannot see which 
 tell why `/source-control:commit` behaves as it does.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, team and overlay are **not applicable**
-([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade
-#4672): do not read `${REPO_ROOT}/.claude/source-control.md` or the overlay as the team layer,
+([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
+do not read `${REPO_ROOT}/.claude/source-control.md` or the overlay as the team layer,
 report both as N/A with the reason `project root is the home directory (or an ancestor of it)`,
 and resolve user-global only. `parse-branch-issue.sh` prints that note on stderr. Git
 tracked/ignored probes do not apply: there is no consumer repository to answer against.

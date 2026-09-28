@@ -65,8 +65,8 @@ fi
 note() { echo "parse-branch-issue: $*" >&2; }
 
 # True when two paths name the same file or directory. Existing directories
-# compare via `pwd -P` (case-folded) so a native `C:/Users/x` and an MSYS
-# `/c/Users/x` of the same home still match. Existing files compare by that
+# compare via `pwd -P` (case-folded) so a native `C:/Users/<user>` and an MSYS
+# `/c/Users/<user>` of the same home still match. Existing files compare by that
 # physical parent plus the leaf. Missing paths compare after slash-folding,
 # trailing-slash strip, and case-fold. Empty is never equal to anything.
 # Never `cd` a file: that prints "Not a directory" on stderr.
