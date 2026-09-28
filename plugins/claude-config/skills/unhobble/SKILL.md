@@ -78,7 +78,8 @@ when `.claude/topic-docs.yaml` sets one). Name
 `scripts/check-contract-slice-prune.sh --check-diff` as the reason: a pull request that leaves a
 path there fails that gate, and the slice is pruned before merge, which deletes the ledger.
 
-- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention`),
+- `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
+  `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
   the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
   No absolute host path, in any field.
@@ -145,7 +146,8 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
    automatically skill-only: inventory every component type that same table lists (MCP and LSP
    servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
    LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin
-   is `non-derivable`. Only then apply this rubric to its skills, commands, and agents: `policy`
+   is `non-derivable`. Only then apply this rubric to its skills, commands, agents, output styles,
+   workflows, and settings: `policy`
    when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
    carries a machine fact or procedure the model cannot derive; `behavioral` when all are
    convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
