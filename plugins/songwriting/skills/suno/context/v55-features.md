@@ -46,7 +46,7 @@ Clip length, 2-minute auto-selection, verification, and privacy rows verified 20
 | Result | Fine-tuned v5.5 reflecting YOUR production patterns, instrumentation, harmonic preferences |
 | Privacy | Private, non-shareable |
 
-Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed against <https://help.suno.com/en/articles/11362305>; min-tracks and training-time figures are not in official docs. Treat them as unverified.
+Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed against `help.suno.com article 11362305 (URL returned 404 on 2026-09-28)`; min-tracks and training-time figures are not in official docs. Treat them as unverified.
 
 **Key behavior:** style tags now operate **relative to your baseline**, not generic averages. If your catalog is heavy on lo-fi tape saturation, "polished mix" might still come out warmer than generic Suno polished mix.
 
@@ -122,4 +122,4 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 
 ## Sources
 
-Primary: `help.suno.com/en/articles/11362305` (v5.5 release), `help.suno.com/en/articles/11362369` (Voices), `help.suno.com/en/articles/11362497` (Custom Models), `suno.com/blog/v5-5`.
+Primary: article 11362305 (v5.5 release; that URL returned 404 on 2026-09-28), `help.suno.com/en/articles/11362369` (Voices), `help.suno.com/en/articles/11362497` (Custom Models), `suno.com/blog/v5-5`.

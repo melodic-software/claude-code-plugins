@@ -3,6 +3,15 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.35] - 2026-09-28
+
+### Fixed
+
+- **Dead Suno help-center links from the link-checker report (#3928).** Articles
+  5782849, 5782977, 2409473, and 11362305 return 404. The 2026-08-12 and
+  2026-07-18 verbatim reads stay in the skill text. The live URLs are gone so
+  the checker is not fetching pages the help center no longer serves.
+
 ## [1.4.34] - 2026-09-27
 
 ### Changed
@@ -1186,9 +1195,9 @@ Every absence below is **scoped to the pages named** and asserts nothing about
 Suno's documentation as a whole.
 
 - **Official, read verbatim by `curl` (not a summarizing fetch), bodies whole:**
-  `help.suno.com` [5782849](https://help.suno.com/en/articles/5782849) (1,177
+  `help.suno.com` 5782849 (1,177
   chars of extracted text) and
-  [5782977](https://help.suno.com/en/articles/5782977) (805 chars). Neither
+  5782977 (805 chars). Neither
   addresses genre order or fusion; neither mentions timestamp cues in the Lyrics
   box or any adherence rate. 5782849 points *away* from positional prompting for
   v4.5+: *"In previous models, you would want to prioritize certain genre and
