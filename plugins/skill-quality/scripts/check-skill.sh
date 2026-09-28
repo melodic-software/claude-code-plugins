@@ -673,6 +673,52 @@ else
       warn "skill name '$EFFECTIVE_NAME' contains the word '$reserved_word', which a Skills API upload rejects ('anthropic' and 'claude' are reserved there; Claude Code loads it and ships bundled skills carrying the word); rename the $name_source if the skill will ever be uploaded"
     fi
   done
+
+  # Frontmatter `model` is honored for the rest of the current turn. Accept
+  # inherit, an alias or model id, and one optional [1m] suffix. Empty, spaced,
+  # or otherwise non-scalar values are the defect. Auto mode keeping the
+  # session model when the named model is unsupported is runtime behavior,
+  # documented on the skills page, not a second finding here.
+  # Basis: https://code.claude.com/docs/en/skills#frontmatter-reference
+  if grep -qE '^model:' <<<"$FRONTMATTER"; then
+    RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
+    CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
+    if [[ ! "$CUR_MODEL" =~ ^(inherit|[A-Za-z0-9._-]+(\[1[mM]\])?)$ ]]; then
+      err "frontmatter model '$CUR_MODEL' is not inherit, a model alias, or a model id with an optional [1m] suffix"
+    fi
+  fi
+
+  # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
+  # A quoted scalar or a block scalar may contain it. Claude Code's skills
+  # reference: when the YAML between the markers does not parse, the skill
+  # still loads with no fields set
+  # (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  desc_header="$(grep -E '^description:' <<<"$FRONTMATTER" | head -n 1 || true)"
+  desc_value="${desc_header#description:}"
+  desc_value="${desc_value#"${desc_value%%[![:space:]]*}"}"
+  desc_value="${desc_value%"${desc_value##*[![:space:]]}"}"
+  case "$desc_value" in
+  \"* | \'*) ;;
+  \|* | \>*) ;; # portability-ok: case glob for a literal greater-than block scalar, not a GNU grep word boundary
+  *:[[:space:]]*)
+    err "description is an unquoted plain scalar containing ': ' (YAML mapping indicator). Quote it or reword it; unparsed frontmatter loads the skill with no fields set"
+    ;;
+  *) ;;
+  esac
+
+  # compatibility is optional. The Agent Skills spec says most skills do not
+  # need the field and, when it is present, it is 1-500 characters
+  # (https://agentskills.io/specification). Claude Code accepts it and does not
+  # act on it (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # Absence is success.
+  if grep -qE '^compatibility:[[:space:]]*' <<<"$FRONTMATTER"; then
+    RAW_COMPAT="$(skill_frontmatter::field compatibility <<<"$FRONTMATTER")"
+    CUR_COMPAT="$(skill_frontmatter::strip_quotes "$RAW_COMPAT")"
+    COMPAT_LEN="$(skill_frontmatter::codepoint_len "$CUR_COMPAT")"
+    if ((COMPAT_LEN < 1 || COMPAT_LEN > 500)); then
+      err "compatibility is $COMPAT_LEN characters (Agent Skills spec requires 1-500 when the field is present); omit it when the skill has no environment requirement"
+    fi
+  fi
 fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------

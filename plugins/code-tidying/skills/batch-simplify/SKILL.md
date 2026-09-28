@@ -181,7 +181,7 @@ For each group:
 
 1. **Mark the task in_progress** via `TaskUpdate`
 
-2. **Spawn a simplifier agent** via the `Agent` tool. Use `subagent_type: "pr-review-toolkit:code-simplifier"` when that plugin is installed, else `subagent_type: "general-purpose"`. The prompt includes:
+2. **Spawn a simplifier agent** via the `Agent` tool. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Use the **parent session's model** for simplifiers unless the sweep is repo-wide (repo mode), where a cheaper tier is acceptable when the orchestrator states it in the spawn line. The prompt includes:
    - The complete list of files in the group (absolute paths)
    - The ecosystem and the consuming project's relevant convention files (its `CLAUDE.md` / `.claude/rules` paths), when they exist
    - Instructions to read each file and check for redundancy/inconsistency/dead code/simplification opportunities

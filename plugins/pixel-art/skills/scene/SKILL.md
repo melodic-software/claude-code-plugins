@@ -14,14 +14,23 @@ Compose a moving pixel-art scene the user opens in any browser.
 
 ## 1. Brief
 
-Pin down, from the request or by asking (defaults stated in one line when unspecified):
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md): the shared fields, the `brief.md`
+file before the first build, one-line defaults, and the presence-gated `/planning:interview`
+offer (planning owns a numbered-question brief; the in-skill brief is the fallback and the
+default). Then add:
 
 - **Beats**: what happens, in order, and how long each lasts; loop or play once.
-- **Cast and set**: characters (existing sprite specs or new ones), location, time of day, mood.
+- **Cast and set**: characters (existing sprite specs or new ones), location, time of day.
 - **Resolution**: a fixed logical size such as 160x144, 240x160, 320x180; everything is drawn
   there and integer-scaled.
-- **Palette**: locked, typically 16 to 32 colors.
 - **Audio**: none, or a WAV path / audio artifact from another tool, passed in explicitly.
+
+Mood, palette, style references, and proportions still come from the shared brief and apply to
+the cast. When view does not apply, default it to "scene" in the defaults line.
+
+When a cast member is an existing spec with `brief.md` beside it, read that file and extend it.
+Do not re-ask fields it answers. Write this scene's `brief.md` beside the scene template before
+the first build.
 
 ## 2. Author
 
@@ -54,11 +63,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <out-dir>
 
 With a browser automation tool present (a Playwright CLI or MCP, the built-in browser tools),
 serve the output directory (`python3 -m http.server <port> --bind 127.0.0.1 --directory <out-dir>`,
-run in the background) and open the scene over `http://127.0.0.1:<port>/`, capture screenshots at several timeline points, read them, and critique: silhouettes
+run in the background) and open the scene over `http://127.0.0.1:<port>/`, capture screenshots at several timeline points, read them, and critique. Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and check silhouettes
 against the background, palette contrast, beat timing, text legibility, stray non-integer or
-smoothed pixels. Fix, rebuild, re-capture; typically 2 to 4 rounds. Without one, say that the scene
+smoothed pixels. Fix, rebuild, re-capture. Stop when every done criterion passes, or after the
+round budget (typically 2 to 4) with the failing criteria named. Without a browser tool, say that the scene
 is unreviewed visually, check the script parses (`node --check` on the extracted script when Node
-is present), and ask the user to open it and describe what they see.
+is present), grade whatever criteria the script can speak to, mark the rest fail with the reason
+"not seen", and ask the user to open it and describe what they see.
 
 ## 4. Deliver
 
