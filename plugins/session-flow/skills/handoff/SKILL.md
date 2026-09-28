@@ -355,6 +355,9 @@ ticked. Emit the rails block before ending the turn, always.
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   NOT relax this
+- **Does not offer a resident / no-stop mode.** `/implementation:implement-dispatch` resident
+  phase boundaries record plan marks and the commit; they do not invoke this skill. Dual-owner
+  split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
 - **Does not orient from durable state**; the position panel restates what this turn already
