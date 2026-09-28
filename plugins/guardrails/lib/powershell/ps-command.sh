@@ -410,6 +410,8 @@ ps::blank_herestrings() {
   PS_HERESTRING_QUOTE=""
   PS_HERESTRING_EXPANDABLE=0
   PS_HERESTRING_EXPANDABLE_SUBEXPR=0
+  # Read by the sourcing guard, not within this library.
+  # shellcheck disable=SC2034
   PS_HERESTRING_OPENER_COMMENT_CHAR=0
   PS_REDUCTION_UNTRUSTED=0
   PS_REDUCTION_UNTRUSTED_REASON=""
