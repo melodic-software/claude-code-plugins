@@ -9,8 +9,6 @@ metadata:
   summary: Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies
 ---
 
-**Arguments.** `[scope] [--target-model <version>] [--opinion] [--persist-findings] [--unattended]`. Full form: [scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)
-
 ## Purpose
 
 Audit whether the instructions you have written for Claude Code are still earning their context cost
@@ -122,7 +120,7 @@ subcommand set, the distribution facts behind it, and their recheck triggers are
 
 ## Arguments
 
-Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
+Full form: `[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]`; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all). Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
