@@ -110,6 +110,10 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 # consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
+  # Git bash on Windows keeps a CR on jq's last TSV field, so "node" would
+  # miss the exact match below and every real node row would be flagged.
+  cmd="${cmd//$'\r'/}"
+  cmd="${cmd%"${cmd##*[![:space:]]}"}"
   case "$cmd" in
   */* | *\\*)
     base="${cmd##*/}"
