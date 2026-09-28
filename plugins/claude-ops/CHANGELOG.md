@@ -29,6 +29,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
   a store row.
 
+## [0.63.15] - 2026-09-28
+
+### Fixed
+
+- **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
+- **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+
 ## [0.63.13] - 2026-09-28
 
 ### Changed

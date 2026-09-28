@@ -490,7 +490,8 @@ fi
 # Server-managed settings are fetched at sign-in and cached under the config
 # root. The cache is not the live policy. Saying where it is, and that this
 # reader does not fold it in, is the difference between an honest managed report
-# and one that implies completeness it cannot have.
+# and one that implies completeness it cannot have. A policy that did not load
+# is still diagnosed from /status and claude doctor.
 remote_cache=""
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   remote_cache="$(mscope::remote_cache_file "$USER_CONFIG_ROOT")"
@@ -498,7 +499,7 @@ if [[ -n "$USER_CONFIG_ROOT" ]]; then
 else
   emit managed remote-cache skipped "-"
 fi
-note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line. 'managed' above means the local managed surfaces only."
+note "Server-managed settings are fetched at sign-in and cached at ${remote_cache:-the configuration directory remote-settings.json} (the managed remote-cache record above). The cache is user-writable and can be stale; this reader does not fold it into the effective set. The cache is not the live policy. 'managed' above means the local managed surfaces only. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line."
 
 # --- The four file scopes -----------------------------------------------------
 
