@@ -66,6 +66,25 @@ network split each falls on. Name the start state too (cold start, fresh load, w
 different measurement. End at the moment the user or caller can act, not when loading finishes.
 See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
 
+**Parallel units on one event.** When several units run **in parallel** for a single user-visible
+event (Claude Code hooks on one hook event, parallel CI jobs surfaced as one wait, concurrent
+requests behind one wall-clock barrier), the user waits for the **slowest** unit, not the sum. Record:
+
+- **Event metric:** wall-clock time for the whole event (for hooks, the event's `total_duration_ms`
+  or equivalent; not the sum of per-hook CPU).
+- **Unit metric:** the unit under study, plus its **marginal cost**: how much slower the event is
+  with this unit than it would be if only the next-slowest peer remained (excess over the
+  next-slowest unit on that event). A Stop hook at 300 ms matters only when it is 300 ms **above**
+  the next-slowest Stop hook, not when read in isolation.
+- **Event-level target:** the realistic/ideal targets for the user-visible wait, held beside the
+  unit-level targets.
+- **Summed CPU or syscall totals:** optional secondary figures; never substitute them for the event
+  wall-clock target.
+
+On MSYS/Cygwin, when the counter is a process count, state which accounting the goal uses (Job
+Object +2 per external command vs PATH-shim `spawns=`); see
+[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash).
+
 **Scaling arm when state grows with use.** When the subject **reads state whose size grows with
 real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
 entries), a single-size measurement can pass while realistic use fails. The metric MUST be measured
@@ -142,8 +161,10 @@ Metric:     <exact command> -> <field>
 Counter:    <drift-immune counter>   [ranked above the duration]
 Correlation: <evidence the counter moves the duration> | unproven   [REQUIRED]
 Boundary:   start <event> -> end <event>; <which side of the split each falls on>; <start state>
+Event:      <wall-clock metric when units run in parallel> | n/a
+Unit:       <unit under study + marginal over next-slowest peer> | n/a
 Floor:      <value> (measured by: <command>)
-Realistic:  <value>    Ideal: <value>
+Realistic:  <value>    Ideal: <value>   [event-level realistic/ideal when parallel]
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
 Scaling:    <sizes and per-arm results> | n/a (fixed-size subject)
 Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>

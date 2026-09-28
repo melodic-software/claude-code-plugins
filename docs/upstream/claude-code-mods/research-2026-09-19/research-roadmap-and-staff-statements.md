@@ -22,7 +22,7 @@ Lane: `x-threads/`, with corrections in its `VERIFICATION.md`.
 `company: null`, `bio: "SWE in SF"`, `twitter_username: null`;
 `author_association` reads `CONTRIBUTOR`, not `MEMBER`;
 `gh api orgs/anthropics/members/poteat` → 404. That 404 means "not a *public*
-member", so the badge is **neutral on employment, not evidence against it** — an
+member", so the badge is **neutral on employment, not evidence against it**: an
 outsider cannot distinguish "not a member" from "private member".
 `x-threads/VERIFICATION.md` row 9; `community-falsification/VERIFICATION.md`
 row 2f. The architecture PDF attached to #91870 carries the byline *"Alice
@@ -36,7 +36,7 @@ this corpus**; everything attributed to them is from GitHub.
 | 2026-09-03T18:00:23Z | poteat | Issue #91870 opened: *"Mods - make Claude 10x more extensible"* |
 | 2026-09-03T18:01:25Z | @ClaudeDevs | *"We're exploring a new way to let you extend and customize Claude Code: Function Hooks. … **It hasn't shipped yet**, we'd love feedback on this on our GitHub issue."* |
 | 2026-09-03T19:11:27Z | bcherny | *"Your input needed: would you use this? This is an early look at how we're thinking about making Claude Code way more extensible."* |
-| 2026-09-09 (self-declared heading in an edited issue body) | poteat | The Community Update — see below |
+| 2026-09-09 (self-declared heading in an edited issue body) | poteat | The Community Update, see below |
 | 2026-09-09T22:30:08Z | poteat | First `mods/` commit; PR #93215 opened 22:31:07Z, self-merged 22:34:33Z |
 | 2026-09-14T17:30:10Z | bcherny | *"**Claude Mods are landing now.** Someone already built a Tetris-in-Claude mod 🤯"* |
 | 2026-09-18T18:04:08Z | trq212 | *"We're adding support for AGENTS.md to Claude Code. Starting today in version 2.1.277…"* |
@@ -50,11 +50,11 @@ this corpus**; everything attributed to them is from GitHub.
 author typed into an edited issue body; GitHub exposes no body-edit time, so the
 date is self-declared and unverifiable from metadata. And bcherny's Sep 14 link
 *"See issue for the latest community update"* resolves to comment 5666255143 by
-`sezaakgun`, `author_association: NONE` — **a community member's Tetris demo,
+`sezaakgun`, `author_association: NONE`: **a community member's Tetris demo,
 not an Anthropic update**. The phrase is accurate; a reader skimming it as
 "Anthropic's latest update" would be wrong. `x-threads/VERIFICATION.md` rows 2, 6.
 
-## The Community Update — the roadmap, verbatim
+## The Community Update: the roadmap, verbatim
 
 > **AI;DR**: We're shipping in N weeks.
 
@@ -95,30 +95,30 @@ mods/agents-md: the AGENTS.md project-instructions mod`. `OBSERVED` · HIGH.
 
 All `STAFF` · HIGH, all in #91870, quoted with comment id and UTC time.
 
-**`$` and its purpose — 5530356661, 2026-09-03T18:34:27Z**
+**`$` and its purpose: 5530356661, 2026-09-03T18:34:27Z**
 > to clarify: `$.fs`, `$.http`, and `$.process` will very likely exist. Our
 > prerogative is not to restrict what plugins can do; that's your org admin's
 > job. The point is that there's no _ambient_ support, everything goes through
 > `$` so that admins can audit, allowlist, deny, log, etc. any event.
 
-**The onion model — 5530555431, 2026-09-03T18:50:55Z**
+**The onion model: 5530555431, 2026-09-03T18:50:55Z**
 > the plugin registered first 'owns' all subsequent hooks on a given event
 > instance. There is no capability for a plugin 'further down the chain' to
 > inhibit a plugin above it; it's an "onion model".
 
-**MCP coverage — 5531058610, 2026-09-03T19:33:04Z**
+**MCP coverage: 5531058610, 2026-09-03T19:33:04Z**
 > the current plan is for `tool.call` to hook into both MCP tool calls as well as
 > non-MCP tool calls.
 
-**Subagent coverage — 5560100559, 2026-09-06T15:04:35Z**
+**Subagent coverage: 5560100559, 2026-09-06T15:04:35Z**
 > [does a `tool.call` hook see tool calls made inside a subagent?] Yes, it does
 > today in our internal prototype.
 
-**Runtime — 5532000239, 2026-09-03T20:54:00Z**
+**Runtime: 5532000239, 2026-09-03T20:54:00Z**
 > yep, keeping it all in-process on Bun is extraordinarily fast. we're looking at
 > a p99 of 50μs per hook tbh.
 
-**Plugin integration — 5539280904, 2026-09-04T10:41:20Z**
+**Plugin integration: 5539280904, 2026-09-04T10:41:20Z**
 > To the extent possible, we are intending function hooks to cleanly integrate
 > with plugins as they exist today, as a new type of hook. Therefore
 > dependencies, versions, etc. will all go unchanged.
@@ -129,13 +129,13 @@ manual validation tool."* · *"We're not changing anything on that level with th
 function hooks work. You need enterprise endpoint management to prevent certain
 scenarios"* · *"we want really good OTEL support day one."*
 
-**Non-TypeScript escape hatches — 5561046073, 2026-09-06T17:52:01Z**
+**Non-TypeScript escape hatches: 5561046073, 2026-09-06T17:52:01Z**
 > `$.process.run` is our intended escape hatch. If you're willing to pay the
 > spawn cost, you can do it that way. As well, there's a `$.http.fetch` so you
 > could spin up a daemon in Python and have your function hook cheaply call out
 > over the local network
 
-**Classic-hook compatibility and tiers — 5574036379, 2026-09-07T17:39:14Z**
+**Classic-hook compatibility and tiers: 5574036379, 2026-09-07T17:39:14Z**
 > Our internal prototype now introduces a `classic.PreToolUse` event (and the
 > others, 1:1), which 'wraps' the core shell hooks you already have configured,
 > and has the same in/out data interface.
@@ -143,7 +143,7 @@ scenarios"* · *"we want really good OTEL support day one."*
 > The `next.to` (also new to the design) allows you to skip tiers. There are five
 > tiers: `[prepend] [user] [append] [builtin] [core]`.
 
-**`/plugin-types` — 5541093682, 2026-09-04T13:25:58Z, then 5609917069,
+**`/plugin-types`: 5541093682, 2026-09-04T13:25:58Z, then 5609917069,
 2026-09-09T23:01:55Z**
 > I disavow knowledge of any such flag. If such a flag existed, I would put the
 > typings under a `/plugin-types` command.
@@ -151,16 +151,16 @@ scenarios"* · *"we want really good OTEL support day one."*
 > If anyone decides to enable the experimental flag, `/plugin-types` will make
 > available a full listing of the available `$` affordances.
 
-**Isolation — 5546290346, 2026-09-04T20:49:39Z**
+**Isolation: 5546290346, 2026-09-04T20:49:39Z**
 > It's a boundary! The current design is a Bun Worker surrounding the entire
 > plugin realm, with each plugin then having a `node:vm` wrapper - that's not
 > part of the contract though, the contract is merely that you don't get access
 > to ambients.
 
-**What `validate` checks — 5560061162, 2026-09-06T14:57:49Z**
+**What `validate` checks: 5560061162, 2026-09-06T14:57:49Z**
 > `validate` only syntactically checks your plugin.
 
-**Load order — 5738020815, 2026-09-19T00:53:54Z**
+**Load order: 5738020815, 2026-09-19T00:53:54Z**
 > The order is always in the following order: `[org-prepend] [user] [org-append]
 > [built-in]` … mods cannot dictate their own registration order, full-stop.
 
@@ -172,8 +172,8 @@ scenarios"* · *"we want really good OTEL support day one."*
 | User-authored project-instruction mods | *"you'll be able to build custom versions of project instructions yourself as you'd like too"* | **Stated intent** |
 | `agentId` on events, for subagent transcripts | *"Indeed, we'll fix this."* | Committed, unshipped |
 | `next.budget` correctness on `session.end` | *"I'll ensure `next.budget` is relaying the correct time in this case."* | Committed, unshipped |
-| `on(...).catch(...)` for fail-closed | proposed 2026-09-08, restated 2026-09-16 | **Now shipped** — present in the `.d.ts` and works (`OBSERVED`) |
-| `tool.check` | referred to as future (*"Once we have `tool.check`"*) | **Now shipped** — in the 92-event catalog (`SOURCE`) |
+| `on(...).catch(...)` for fail-closed | proposed 2026-09-08, restated 2026-09-16 | **Now shipped**: present in the `.d.ts` and works (`OBSERVED`) |
+| `tool.check` | referred to as future (*"Once we have `tool.check`"*) | **Now shipped**: in the 92-event catalog (`SOURCE`) |
 | `$.ui.ask` originating a question | *"there ought be a e.g. `$.ui.ask`"* | **Now shipped as a method, with no event** (`SOURCE`) |
 | Raised node limits / WebAssembly | *"I think we'll up the node limits. re WebAssembly et al, it is in my plans"* | Aspiration |
 | Mod ordering managers | *"every mod system in the world … end up **converging** to the same solution: a community-managed repository of order-compatibility information - i.e. a Mod Manager"* | **Speculation by staff, not a roadmap item** |
@@ -208,7 +208,7 @@ Flagged so no later agent promotes it:
 1. **"Landing now" and "upcoming" are reconciled by the built-in / user-authored
    split.** This corpus's inference. `INFERRED`
 2. **Desktop support.** Demoed in an internal prototype 2026-09-03; every claim
-   beyond that is inference. `INFERRED` — see `research-surfaces.md`.
+   beyond that is inference. `INFERRED`; see `research-surfaces.md`.
 3. **The install path** (`claude plugin marketplace add` / `claude plugin
    install`). Community-sourced; **no staff statement names either command**.
    Staff corroborate only the hedged intent that packaging is unchanged.

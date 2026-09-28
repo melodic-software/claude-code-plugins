@@ -64,6 +64,11 @@ Filled instance for the repository in use as of 2026-07-25.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
   clause.
 - Open lane issues: #1288–#1295.
+- Lane telemetry sinks (exact title match; excluded from triage frontier):
+  `Lane telemetry: babysit-loop` → **#3742**;
+  `Lane telemetry: attend-queue` → **#3739**.
+  Launch config may pin a different issue via `lanes[].telemetry.issue`; when unset, resolve by
+  these defaults for this repository.
 
 ### Tier is not the rung
 

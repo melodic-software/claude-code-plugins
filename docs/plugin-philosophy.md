@@ -655,6 +655,45 @@ custom channel. Where both exist they converge to one idempotent state. The `set
 the `setup`-skill requirement above; these native idioms may complement the headless dimension, and
 never replace it.
 
+### Install subactions and refusal
+
+The `apply` verb stays closed. A write that installs something is an optional subaction of `apply`,
+never a new verb and never implied by bare `apply`. Subaction **names** stay locally informative;
+the fleet does not converge onto one spelling (#3574).
+
+Three sanctioned name shapes, picked by what the write actually installs:
+
+| Shape | When | Live examples |
+|---|---|---|
+| Tool-named | the write installs one named tool through the consumer's existing package manager | `install-ruff`, `install-biome` |
+| Class-named | the write provisions a dependency class or a CLI, not one tool name | `install-deps`, `install-build-deps`, `install-cli`, `install-lint` |
+| Object-named | the write installs a named hook or file | `install-commit-msg`, `install-pre-commit-content` |
+
+A new install subaction picks one of those three. It does not invent a fourth grammar, and it does
+not rename a sibling to match.
+
+**Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
+rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
+gap; name the reason from this list. Two reasons may appear together.
+
+1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
+2. The only install command is unpinned (`@latest`), so it is not idempotent.
+3. The tool has no per-repo dependency-manager path (cargo/Homebrew/a pre-built binary, not a
+   lockfile).
+
+`go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
+refusals. They stay; they are not defects against a missing subaction.
+
+- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal uses
+  the three-reason template; the fleet is not renamed onto one spelling.
+- **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
+  `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
+  `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
+  `install-hint` and `install-browser` are not setup subactions.
+- **As of:** 2026-09-28.
+- **Recheck:** a setup skill grows a fourth name shape, or a maintainer converges the fleet onto
+  one spelling.
+
 ## Prerequisites and failure behavior
 
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
