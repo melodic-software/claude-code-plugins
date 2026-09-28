@@ -131,7 +131,7 @@
 #  23. Completion-criteria signal on a 3+ step numbered procedure (WARN)
 #  24. disable-model-invocation stated explicitly (FAIL in plugins/; WARN
 #      elsewhere)
-#  25. Description/verb-contract polarity: read-only vs mutate (WARN;
+#  25. Description/verb-contract polarity: read-only vs mutate (FAIL;
 #      description lead vs Naming verb vs body; #2896)
 #  26. Long spoke files carry a table of contents: a reference|references|context
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
@@ -1931,7 +1931,7 @@ else
   note "invocation mode: model-invoked (fleet default)"
 fi
 
-# --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
+# --- Check 25: description/verb-contract polarity (FAIL) --------------------
 # plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
@@ -1946,10 +1946,9 @@ fi
 #     never-mutates claim;
 #   - "remediation" as a noun and a negated "or rewrites" list are not
 #     mutate-advertising.
-# Advisory only: a static scan cannot judge whether an audit skill should
-# gain a --fix path (out of scope) or whether a name should change (no
-# rename campaign). A WARN is a factual-consistency candidate to
-# hand-verify, not a mandate to rewrite the fleet.
+# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
+# factual defect in the listing surface being routed on. Hand-verify before
+# exempting; --fix in the description is the compliant override shape.
 # Fenced code blocks are ignored in the body so a literal example cannot
 # satisfy or trip the body limbs.
 
@@ -2038,7 +2037,7 @@ elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
 fi
 
 if [[ -n "$VC_HIT" ]]; then
-  warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+  err "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
 else
   note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
 fi
