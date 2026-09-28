@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.9] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next**: do not tick before the user reviews findings; when a step leaves only
+  report-only tiers, tick `no fix-eligible findings (N report-only)` instead of `no findings`
+  (`tick.sh report-only`, `reference/next.md`).
+
 ## [0.13.8] - 2026-09-28
 
 ### Fixed
