@@ -370,5 +370,15 @@ assert_contains "graph supplies the contained module" "$gtext" '"path":"src/Only
 assert_not_contains "file reference is not used when the graph is present" "$gtext" "src/FromFile/FromFile.csproj"
 assert_contains "containment source is the graph" "$gtext" '"containment": "dependency-graph.json"'
 
+LINK="$TEST_TMPDIR/link-repo"
+mkdir -p "$LINK/src/Api"
+printf '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n' >"$LINK/src/Api/Api.csproj"
+printf 'outside.json\n' >"$LINK/.gitignore"
+printf '{ "ConnectionStrings": { "Orders": "Server=leak.db.example;Database=o" } }\n' >"$LINK/outside.json"
+ln -s ../../outside.json "$LINK/src/Api/appsettings.json"
+commit_repo "$LINK"
+bash "$COLLECT" --repo "$LINK" --out "$TEST_TMPDIR/link.json" --generated-on 2026-09-28 >/dev/null 2>&1
+assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$(cat "$TEST_TMPDIR/link.json")" "leak.db.example"
+
 printf 'cases=%s failed=%s\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

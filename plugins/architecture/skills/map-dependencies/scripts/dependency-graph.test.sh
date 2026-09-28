@@ -392,5 +392,18 @@ assert_equals "portfolio still exits 0" "$?" "0"
 assert_contains "portfolio still collects Serilog" "$port_out" '"Serilog"'
 assert_contains "portfolio still collects MediatR" "$port_out" '"MediatR"'
 
+# A scan root whose name is a sed program must stay data. GNU sed's e flag would
+# run the command if the root were interpolated into a substitution.
+hostile_root="$TEST_TMPDIR/p|touch $TEST_TMPDIR/pwned;:|e;#"
+mkdir -p "$hostile_root/src"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$hostile_root/src/App.csproj"
+hostile_out="$(bash "$GRAPH" "$hostile_root" 2>&1)"
+if [[ -e "$TEST_TMPDIR/pwned" ]]; then
+  fail "a hostile root name runs no command" "pwned exists"
+else
+  pass "a hostile root name runs no command"
+fi
+assert_contains "a hostile root still yields a repo-relative path" "$hostile_out" '"src/App.csproj"'
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

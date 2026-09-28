@@ -53,7 +53,8 @@ This skill never writes the consumer's root instruction file or its topic doc.
 The record is schema_version 1 in the one-object-per-line layout the script writes. The shipped
 libraries are XState `createMachine` and Stateless `Configure` / `Permit` / `PermitIf`. Confidence
 is `high` only when every transition came from one of those tables. Ad hoc `.Status =` assignments,
-and an XState `invoke`, are refusals: the record says so and the renderer draws no transitions.
+an XState `invoke`, and an XState transition to a state the `states` object does not declare
+(`undeclared-target`) are refusals: the record says so and the renderer draws no transitions.
 
 Several entities in one record are not a diagram until the operator names one.
 

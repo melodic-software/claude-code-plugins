@@ -212,7 +212,7 @@ fi
 while IFS= read -r -d '' rel; do
   [[ -n "$rel" ]] || continue
   abs="$root/$rel"
-  [[ -f "$abs" ]] || continue
+  [[ -f "$abs" && ! -L "$abs" ]] || continue
   [[ -n "$actors_abs" && "$abs" == "$actors_abs" ]] && continue
   base="$(basename "$rel")"
   case "$base" in

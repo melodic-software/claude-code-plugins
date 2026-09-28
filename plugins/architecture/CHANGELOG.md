@@ -41,6 +41,14 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   refused) and draw no picture when it is unset. Flow, events, dependencies, and
   states are mermaid with no key. `landscape_dialect` stays with `map-landscape`.
 
+### Fixed
+
+- `map-dependencies` and `map-landscape`'s `portfolio-facts.sh` no longer build a sed program from
+  the scan root, so a directory name cannot run a command through GNU sed's `e` flag.
+- The shared redactor treats standalone credential words in a key (`DB_PASS`, `REDIS_AUTH`,
+  `ENCRYPTION_KEY`), `key: value` and JSON credential pairs, and token-only URL userinfo as secret.
+- The containers, context, and deployment collectors skip tracked symlinks.
+
 ## [0.12.3] - 2026-09-28
 
 ### Changed

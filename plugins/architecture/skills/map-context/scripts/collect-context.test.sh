@@ -221,5 +221,15 @@ assert_contains "thin: the artifact names the landscape rung" "$thin_md" "/archi
 assert_contains "thin: the artifact names the container rung" "$thin_md" "containers (the deployables inside this system)"
 assert_contains "thin: the focal system is still drawn" "$thin_md" "= softwareSystem \"thin-checkout\""
 
+link_repo="$(init_repo "$TEST_TMPDIR/link-checkout")"
+mkdir -p "$link_repo/src"
+printf 'outside.json\n' >"$link_repo/.gitignore"
+printf '{ "Partner": { "BaseUrl": "https://leak.partner.example/api" } }\n' >"$link_repo/outside.json"
+ln -s ../outside.json "$link_repo/src/appsettings.json"
+git -C "$link_repo" add -A
+git -C "$link_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$link_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/link.json" >/dev/null 2>&1
+assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$(cat "$TEST_TMPDIR/link.json")" "leak.partner.example"
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

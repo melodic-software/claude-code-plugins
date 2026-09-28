@@ -203,7 +203,7 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
     if (mode == "on" && t ~ /^[A-Za-z_][A-Za-z0-9_]*:/ && index(t, "target") == 0) {
       trig = t; sub(/:.*/, "", trig)
       target = trim(substr(t, index(t, ":") + 1)); sub(/,.*/, "", target); target = unquote(trim(target))
-      add_state(ent, target); add_trans(ent, state, target, trig, ""); continue
+      add_trans(ent, state, target, trig, ""); continue
     }
     if (mode == "on" && t ~ /^[A-Za-z_][A-Za-z0-9_]*:/ && index(t, "target") > 0) {
       trig = t; sub(/:.*/, "", trig)
@@ -214,7 +214,7 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
         guard = substr(t, index(t, "guard"))
         sub(/^guard:[[:space:]]*/, "", guard); sub(/[,}].*/, "", guard); guard = unquote(trim(guard))
       }
-      add_state(ent, target); add_trans(ent, state, target, trig, guard); continue
+      add_trans(ent, state, target, trig, guard); continue
     }
     if (t ~ /^[{}),; \t]+$/) {
       closes = gsub(/}/, "", t)

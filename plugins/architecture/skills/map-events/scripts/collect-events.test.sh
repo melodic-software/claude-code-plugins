@@ -174,5 +174,23 @@ rc=$?
 set +e
 assert_equals "bad layout exits 1" "$rc" "1"
 
+# A tab inside a generic argument must not shift the internal TSV fields and
+# forge record keys.
+TABS="$TEST_TMPDIR/tabs"
+mkdir -p "$TABS/src"
+printf 'namespace T;\npublic class P { void Go() { bus.Publish<X\t1\tinjected\t-\t9\tstatic\tforged>(); } }\n' >"$TABS/src/P.cs"
+git -C "$TABS" init -q
+git -C "$TABS" config user.email "fixture@example.invalid"
+git -C "$TABS" config user.name "Fixture"
+git -C "$TABS" config commit.gpgsign false
+git -C "$TABS" add -A
+git -C "$TABS" commit -q -m fixture
+bash "$COLLECT" --repo "$TABS" --generated-on 2026-09-28 --out "$OUT/tabs.json"
+assert_equals "tab fixture collect exits 0" "$?" "0"
+tabs="$(cat "$OUT/tabs.json")"
+assert_not_contains "a tab in source does not forge a file field" "$tabs" '"file":"injected"'
+assert_contains "the edge still cites the real file" "$tabs" '"file":"src/P.cs","line":2,'
+assert_equals "every line field is still an integer" "$(grep -c '"line":[^0-9]' "$OUT/tabs.json")" "0"
+
 printf 'cases=%s failed=%s\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

@@ -74,6 +74,9 @@ function find_body(rel, start_line,    i, n, depth, started, line, stripped, c, 
     gsub(/"[^"]*"/, "\"\"", stripped)
     for (j = 1; j <= length(stripped); j++) {
       c = substr(stripped, j, 1)
+      # An expression-bodied member has no block; the next brace belongs to someone else.
+      if (!started && substr(stripped, j, 2) == "=>") return 0
+      if (!started && c == ";") return 0
       if (c == "{") {
         if (!started) {
           started = 1
@@ -318,6 +321,10 @@ END {
     for (i = 1; i <= nentries; i++)
       msg = msg " " ent_rel[i] ":" ent_cite[i]
     refuse(msg)
+    exit 3
+  }
+  if (!find_body(ent_rel[1], ent_line[1] + 0)) {
+    refuse("refused: the entry has no block body (expression-bodied or abstract); this adapter traces block-bodied methods only: " ent_rel[1] ":" ent_cite[1])
     exit 3
   }
   walk(ent_rel[1], ent_line[1] + 0, 1)

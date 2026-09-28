@@ -369,7 +369,8 @@ done < <(
     -o -name 'pom.xml' -o -name 'build.gradle*' \
     -o -name 'Gemfile' -o -name 'composer.json' \
     \) -print 2>/dev/null |
-    sed "s|^${root}/||" | LC_ALL=C sort
+    ROOT="$root/" awk 'index($0, ENVIRON["ROOT"]) == 1 { $0 = substr($0, length(ENVIRON["ROOT"]) + 1) } { print }' |
+    LC_ALL=C sort
 )
 
 proj_files=()

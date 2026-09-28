@@ -251,11 +251,30 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
   }
 }
 
-function redact_secret_key(key,    n) {
-  n = redact_last_segment(key)
-  gsub(/[^a-z0-9]/, "", n)
-  if (n == "pwd" || n == "sas") return 1
-  return n ~ /password|passwd|secret|token|apikey|accountkey|accesskey|privatekey|signingkey|sharedaccess|credential/
+# A key is secret when its last segment, split into words on separators and
+# camelCase boundaries, has a credential word (DB_PASS, MYSQL_PWD, REDIS_AUTH,
+# ENCRYPTION_KEY, clientSecret), or when it names a credential compound.
+function redact_secret_key(key,    parts, n, leaf, words, i, c, prev, t, nw) {
+  n = split(key, parts, ".")
+  leaf = parts[n]
+  n = split(leaf, parts, "__")
+  leaf = parts[n]
+  words = ""
+  prev = ""
+  for (i = 1; i <= length(leaf); i++) {
+    c = substr(leaf, i, 1)
+    if (c ~ /[A-Z]/ && prev ~ /[a-z0-9]/) words = words "_"
+    words = words c
+    prev = c
+  }
+  words = tolower(words)
+  nw = split(words, parts, /[^a-z0-9]+/)
+  for (i = 1; i <= nw; i++) {
+    t = parts[i]
+    if (t ~ /^(pass|pwd|passwd|password|secret|secrets|token|tokens|key|keys|auth|sas|sig|credential|credentials|apikey)$/) return 1
+  }
+  gsub(/[^a-z0-9]/, "", words)
+  return words ~ /password|passwd|secret|token|apikey|accountkey|accesskey|privatekey|signingkey|sharedaccess|credential/
 }
 
 # A run of 40 or more base64 characters mixing upper case, lower case, and
@@ -276,8 +295,9 @@ function redact_secret_value(v,    l, i) {
     for (i = 0; i < 16; i++) redact_aws_id_re = redact_aws_id_re "[A-Z0-9]"
   }
   l = tolower(v)
-  if (l ~ /(^|[^a-z0-9])(password|pwd|accountkey|sharedaccesskey|sharedaccesssignature|sig|client_?secret|api_?key|access_?token|token)[[:space:]]*=/) return 1
-  if (l ~ /[a-z][a-z0-9+.-]*:\/\/[^\/@[:space:]]*:[^\/@[:space:]]*@/) return 1
+  if (l ~ /(^|[^a-z0-9])(password|passwd|pwd|pass|accountkey|sharedaccesskey|sharedaccesssignature|sig|client_?secret|secret|api_?key|access_?token|token)["']?[[:space:]]*[=:]/) return 1
+  if (l ~ /[a-z][a-z0-9+.-]*:\/\/[^\/@[:space:]]+@/) return 1
+  if (l ~ /[a-z][a-z0-9+.-]*:\/\/[^\/@[:space:]]*:[^@[:space:]]*@/) return 1
   if (l ~ /(^|[^a-z0-9])(basic|bearer)[[:space:]]+[a-z0-9+\/=._~-]/) return 1
   if (index(l, "private key") > 0) return 1
   if (v ~ /(^|[^A-Za-z0-9])(gh[pousr]_|github_pat_)[A-Za-z0-9]/) return 1

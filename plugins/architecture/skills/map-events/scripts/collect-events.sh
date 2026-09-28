@@ -117,6 +117,7 @@ trap 'rm -f "$raw" "$types" "$edges_tsv" "$msg_body" "$edge_body" "$find_body"' 
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   case "$rel" in
+  *$'\t'*) continue ;;
   *.cs) ;;
   *) continue ;;
   esac
@@ -150,6 +151,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     {
       line = strip($0)
       sub(/\r$/, "", line)
+      gsub(/\t/, " ", line)
       if (line ~ /^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*;/) {
         u = line
         sub(/^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+/, "", u)

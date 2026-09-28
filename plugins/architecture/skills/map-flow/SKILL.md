@@ -63,7 +63,8 @@ carries `file` and `line` of the call site, `resolution` (`statically-resolved`,
 
 The shipped adapter reads tracked `*.cs` only. A route attribute or `MapGet`/`MapPost` string
 selects the entry when the argument contains `/`. Otherwise the argument is a method name. Two
-matches are a refusal that names every site. A repository with no C# file is a refusal. That is
+matches are a refusal that names every site. An entry with no block body (expression-bodied or
+abstract) is a refusal. A repository with no C# file is a refusal. That is
 the result. Do not fill it from another language.
 
 A call whose receiver is declared as an interface (`I` plus an uppercase letter), or whose method

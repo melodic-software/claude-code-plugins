@@ -357,6 +357,37 @@ set +e
 assert_equals "flat record exits 1" "$frc" "1"
 assert_not_contains "flat writes nothing" "$(ls "$TEST_TMPDIR/flat-out" 2>/dev/null || true)" "deployment.md"
 
+# A sidecar is its own placement; standalone credential words redact; a tracked
+# symlink to an untracked file is not a source.
+repo6="$TEST_TMPDIR/sidecar"
+init_repo "$repo6"
+mkdir -p "$repo6/deploy/k8s" "$repo6/deploy/prod"
+{
+  printf 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  namespace: prod\nspec:\n  template:\n    spec:\n      containers:\n'
+  printf '        - name: app\n          image: ghcr.io/acme/app:1\n          env:\n'
+  printf '            - name: RABBITMQ_DEFAULT_PASS\n              value: "%s-PASS6"\n' "$fake"
+  printf '            - name: MAPS_KEY\n              value: "%s-MAPS6"\n' "$fake"
+  printf '        - name: sidecar\n          image: ghcr.io/acme/proxy:1\n          env:\n'
+  printf '            - name: SPRING_APPLICATION_JSON\n              value: '"'"'{"spring.datasource.password":"%s-JSON6"}'"'"'\n' "$fake"
+} >"$repo6/deploy/k8s/web.yaml"
+printf 'outside.yaml\n' >"$repo6/.gitignore"
+printf 'services:\n  leak:\n    image: leak.example/linked:1\n' >"$repo6/outside.yaml"
+ln -s ../../outside.yaml "$repo6/deploy/prod/compose.yaml"
+commit_all "$repo6"
+bash "$COLLECT" --repo "$repo6" --out "$TEST_TMPDIR/sidecar.json" --generated-on 2026-09-28 >/dev/null
+side="$(cat "$TEST_TMPDIR/sidecar.json")"
+assert_contains "sidecar: the app container is placed" "$side" '{"container":"app","env":"prod"'
+assert_contains "sidecar: the sidecar container is placed" "$side" '{"container":"sidecar","env":"prod"'
+assert_contains "sidecar: the sidecar keeps its own image" "$side" '"name":"sidecar","detail":"ghcr.io/acme/proxy:1"'
+for needle in PASS6 MAPS6 JSON6; do
+  assert_not_contains "sidecar: $needle is redacted in the record" "$side" "$needle"
+done
+assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$side" "leak.example"
+bash "$RENDER" --record "$TEST_TMPDIR/sidecar.json" --out "$TEST_TMPDIR/sidecar-out" >/dev/null
+for needle in PASS6 MAPS6 JSON6; do
+  assert_not_contains "sidecar: $needle is redacted in the markdown" "$(cat "$TEST_TMPDIR/sidecar-out/deployment.md")" "$needle"
+done
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
   exit 0

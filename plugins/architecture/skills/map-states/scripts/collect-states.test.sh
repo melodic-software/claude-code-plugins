@@ -142,6 +142,14 @@ assert_equals "xstate render" "$?" "0"
 assert_contains "xstate arrow" "$(cat "$out/xsdir/states.md")" "new --> submitted: SUBMIT"
 assert_contains "xstate confidence" "$xsum" "confidence=high"
 
+typo="$TEST_TMPDIR/typo"
+init_repo "$typo"
+mkdir -p "$typo/src"
+sed 's/SUBMIT: "submitted"/SUBMIT: "submited"/' "$xs/src/machine.js" >"$typo/src/machine.js"
+git -C "$typo" add src && git -C "$typo" commit -q -m x
+bash "$COLLECT" --repo "$typo" --out "$out/typo.json" >/dev/null
+assert_contains "a misspelled xstate target is refused" "$(cat "$out/typo.json")" '"reason": "undeclared-target"'
+
 inv="$TEST_TMPDIR/invoke"
 init_repo "$inv"
 printf '%s\n' 'createMachine({ id: "o", initial: "a", states: { a: { invoke: { src: "svc" }, on: { GO: "b" } }, b: {} } })' >"$inv/m.js"

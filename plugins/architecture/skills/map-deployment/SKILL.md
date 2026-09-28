@@ -93,6 +93,7 @@ Shipped readers, both when both are present:
 - Docker Compose (`compose.yaml`, `docker-compose.yml`, and `compose.<env>.yaml`). The environment
   is the filename suffix, or the parent directory when the file sits under `deploy/<env>/`.
 - Kubernetes manifests whose `kind` is Deployment, StatefulSet, DaemonSet, Service, or Ingress.
+  Each container of a workload, a sidecar included, is its own placement.
   The environment is the namespace, otherwise the parent directory.
 
 Terraform, Pulumi, Bicep, CloudFormation, Helm, and Kustomize are recognized. If any of them is
@@ -192,4 +193,5 @@ End every run with this block, in this order:
 - **Two tools are not half-read.** Seeing Terraform beside Compose refuses the whole record.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.
 - **A reformatted record is refused.** Render exits 1 and writes nothing.
-- **Tracked files only.** `git ls-files` is the source list.
+- **Tracked files only.** `git ls-files` is the source list. A tracked symlink is skipped, so it
+  cannot pull in an untracked file.

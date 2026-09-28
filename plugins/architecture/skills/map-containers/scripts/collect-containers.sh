@@ -198,7 +198,7 @@ done <"$files_list"
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
   abs="$root/$rel"
-  [[ -f "$abs" ]] || continue
+  [[ -f "$abs" && ! -L "$abs" ]] || continue
   base="${rel##*/}"
   name="${base%.*}"
   dir="${rel%/*}"
@@ -267,7 +267,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
         [[ "$src" == "$dir"/* ]] || continue
       fi
       src_abs="$root/$src"
-      [[ -f "$src_abs" ]] || continue
+      [[ -f "$src_abs" && ! -L "$src_abs" ]] || continue
       if grep -q -F 'WebApplication.CreateBuilder' "$src_abs"; then
         web_builder=1
       fi
@@ -446,7 +446,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   *) continue ;;
   esac
   abs="$root/$rel"
-  [[ -f "$abs" ]] || continue
+  [[ -f "$abs" && ! -L "$abs" ]] || continue
   image="$(awk '
     {
       line = $0
@@ -499,7 +499,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   *) continue ;;
   esac
   abs="$root/$rel"
-  [[ -f "$abs" ]] || continue
+  [[ -f "$abs" && ! -L "$abs" ]] || continue
   parsed="$(mktemp)"
   awk '
     function flush() {
@@ -586,7 +586,7 @@ done <"$files_list"
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
   abs="$root/$rel"
-  [[ -f "$abs" ]] || continue
+  [[ -f "$abs" && ! -L "$abs" ]] || continue
   base="$(basename "$rel")"
   case "$base" in
   containers.json | containers.md | containers.dsl | context.json | context.md | context.dsl | landscape.json | landscape.md | landscape.dsl | portfolio.md | dependency-graph.json | dependencies.md | package.json | package-lock.json | npm-shrinkwrap.json)

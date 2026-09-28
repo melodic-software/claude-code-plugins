@@ -128,9 +128,12 @@ for refused in mermaid structurizr; do
   assert_equals "$refused is a usage error" "$?" "2"
 done
 
-sed 's/"name":"Domain"/"name":"evil\\")\\n@enduml```x"/' "$TEST_TMPDIR/layers.json" >"$TEST_TMPDIR/hostile.json"
+# shellcheck disable=SC2016 # backticks are literal fixture text
+sed 's/"name":"Domain"/"name":"evil\\")\\n@enduml```x"/; s/"generated_on": "2026-09-28"/"generated_on": "2026\r## Injected`x`"/' "$TEST_TMPDIR/layers.json" >"$TEST_TMPDIR/hostile.json"
 render hostile --graph "$TEST_TMPDIR/hostile.json" --group-by directory
 assert_equals "hostile: one @enduml line" "$(grep -c '^@enduml$' "$TEST_TMPDIR/hostile/components.md")" "1"
+assert_equals "hostile: generated_on carries no control byte" "$(grep -c $'\r' "$TEST_TMPDIR/hostile/components.md")" "0"
+assert_contains "hostile: generated_on is kept as plain text" "$(cat "$TEST_TMPDIR/hostile/components.md")" "Generated on 2026## Injectedx from"
 assert_contains "hostile: the name is drawn, sanitized" "$(cat "$TEST_TMPDIR/hostile/components.md")" "evil')n@enduml'''x"
 
 render layered2 --graph "$TEST_TMPDIR/layers.json" --group-by layer --layers host,application,domain

@@ -252,7 +252,7 @@ is_compose() {
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
-  [[ -f "$repo/$rel" ]] || continue
+  [[ -f "$repo/$rel" && ! -L "$repo/$rel" ]] || continue
   base="$(basename "$rel")"
   case "$base" in
   deployment.json | deployment.md | deployment.dsl) continue ;;
@@ -577,22 +577,16 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       if (n >= 2) return parts[n - 1]
       return "default"
     }
-    function flush(    e, img, reps) {
+    function is_workload() { return kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" }
+    # One workload can hold several containers (a sidecar); each is its own placement.
+    function flush(    e) {
       if (kind == "" || meta == "") return
       e = env_for(ns, path)
       remember_env(e)
       evidence[e] = path
-      if (kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet") {
-        if (cname == "") cname = meta
-        img = cimage
-        reps = replicas
-        if (reps == "") reps = "undeclared"
-        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(cname), jesc(e), jesc(e), jesc(img), jesc(reps), "", jesc(e), jesc(path) >> places
-        image[e SUBSEP cname] = img
-        replica_of[e SUBSEP cname] = reps
-        printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(e "/" cname), jesc(e), jesc(cname), jesc(img), jesc(path) >> nodes
+      if (is_workload()) {
+        if (cname == "" && emitted == 0) cname = meta
+        if (cname != "") emit_container(e)
       } else if (kind == "Service") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/svc-" meta), jesc(e), jesc(meta), jesc(sport), jesc(path) >> nodes
@@ -603,18 +597,33 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         ing_host[e SUBSEP meta] = host
       }
     }
-    BEGIN { kind = ""; meta = ""; ns = ""; path = "" }
+    function emit_container(e,    img, reps) {
+        emitted++
+        img = cimage
+        reps = replicas
+        if (reps == "") reps = "undeclared"
+        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(cname), jesc(e), jesc(e), jesc(img), jesc(reps), "", jesc(e), jesc(path) >> places
+        image[e SUBSEP cname] = img
+        replica_of[e SUBSEP cname] = reps
+        printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(e "/" cname), jesc(e), jesc(cname), jesc(img), jesc(path) >> nodes
+    }
+    function reset_resource() {
+      kind = ""; meta = ""; ns = ""; replicas = ""; cname = ""; cimage = ""; sport = ""; host = ""
+      in_meta = 0; in_c = 0; in_env = 0; ek = ""; cind = -1; emitted = 0
+    }
+    BEGIN { reset_resource(); path = "" }
     {
       raw = $0
       sub(/\r$/, "", raw)
       if (raw ~ /^-- MAPDEP FILE /) {
         flush()
         path = trim(substr(raw, 15))
-        kind = ""; meta = ""; ns = ""; replicas = ""; cname = ""; cimage = ""; sport = ""; host = ""
-        in_meta = 0; in_c = 0; in_env = 0; ek = ""
+        reset_resource()
         next
       }
-      if (raw ~ /^---[[:space:]]*$/) { flush(); kind = ""; meta = ""; ns = ""; replicas = ""; cname = ""; cimage = ""; sport = ""; host = ""; in_meta = 0; in_c = 0; in_env = 0; next }
+      if (raw ~ /^---[[:space:]]*$/) { flush(); reset_resource(); next }
       if (raw ~ /\t/ || index(raw, "{{") > 0) { bad = 1; next }
       if (raw ~ /^kind:[[:space:]]*/) { kind = trim(substr(raw, 6)); next }
       if (raw ~ /^metadata:[[:space:]]*$/) { in_meta = 1; next }
@@ -625,11 +634,17 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         replicas = raw; sub(/.*replicas:[[:space:]]*/, "", replicas); replicas = trim(replicas); next
       }
       if (raw ~ /containers:[[:space:]]*$/) { in_c = 1; next }
+      # A list item at the first container item indent starts the next container.
+      if (in_c && raw ~ /^[[:space:]]+-[[:space:]]*name:/) {
+        match(raw, /^[[:space:]]+/)
+        if (cind < 0 || RLENGTH == cind) {
+          cind = RLENGTH
+          if (cname != "" && is_workload()) emit_container(env_for(ns, path))
+          cname = trim(substr(raw, index(raw, ":") + 1)); cimage = ""; in_env = 0; ek = ""; next
+        }
+      }
       if (in_env && raw ~ /name:[[:space:]]*/) {
         ek = trim(substr(raw, index(raw, ":") + 1)); next
-      }
-      if (in_c && raw ~ /^[[:space:]]+-[[:space:]]*name:[[:space:]]*/) {
-        cname = trim(substr(raw, index(raw, ":") + 1)); next
       }
       if (in_c && raw ~ /^[[:space:]]+image:[[:space:]]*/) {
         cimage = trim(substr(raw, index(raw, ":") + 1)); gsub(/^["'\'']|["'\'']$/, "", cimage); next

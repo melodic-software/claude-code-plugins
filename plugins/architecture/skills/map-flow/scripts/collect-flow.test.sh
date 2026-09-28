@@ -155,6 +155,16 @@ else
   fail "missing entry wrote a record" "present"
 fi
 
+printf 'public class Short\n{\n    public Task Entry() => service.DoWork();\n    public void Other()\n    {\n        Helper.Run();\n    }\n}\n' >"$repo/src/Transport/Short.cs"
+git -C "$repo" add src
+git -C "$repo" commit --quiet -m "expression-bodied"
+expr="$(bash "$COLLECT" --repo "$repo" --entry "Entry" --out "$TEST_TMPDIR/expr.json" 2>&1)"
+assert_equals "expression-bodied entry exits 3" "$?" "3"
+assert_contains "expression-bodied entry states the reason" "$expr" "no block body"
+assert_not_contains "expression-bodied entry does not borrow the next method" "$expr" "Helper"
+git -C "$repo" rm --quiet src/Transport/Short.cs
+git -C "$repo" commit --quiet -m "drop expression-bodied"
+
 cp "$repo/src/Transport/OrdersEndpoint.cs" "$repo/src/Transport/OrdersEndpoint2.cs"
 git -C "$repo" add src
 git -C "$repo" commit --quiet -m "duplicate"

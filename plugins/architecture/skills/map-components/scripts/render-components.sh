@@ -252,6 +252,12 @@ fi
 generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$graph" | head -n 1)"
 [[ -n "$generated_on" ]] || generated_on="unknown"
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
+# Record text lands in markdown prose: drop control bytes, backticks, and quotes.
+# shellcheck disable=SC1003 # the backslash is a tr operand, not an escape
+prose() { printf '%s' "$1" | tr -d '\000-\037`"\\'; }
+generated_on="$(prose "$generated_on")"
+unknown_reason="$(prose "$unknown_reason")"
+source_name="$(prose "$source_name")"
 
 md_out="$outdir/components.md"
 
