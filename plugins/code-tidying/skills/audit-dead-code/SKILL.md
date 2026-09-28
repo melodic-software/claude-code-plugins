@@ -1,5 +1,5 @@
 ---
-description: "Hunt dead code across a repository in four lanes: Knip (TS/JS), vulture (Python), gopls (Go), and a portable grep lane. Adjudicate candidates against dynamic-usage evidence, emitting Tier 1 (dead) and Tier 2 (uncertain) findings plus native suppressions. Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (use /code-tidying:tidy), diff-scoped simplification (use /code-tidying:batch-simplify), comment residue (use /code-tidying:audit-comment-residue), or unused dependencies and coverage-based runtime detection."
+description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false

@@ -38,6 +38,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$HOOK_DIR/rewrite-guard.sh"
 
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
@@ -165,7 +167,7 @@ git_dir_entry_here() {
 # (https://git-scm.com/docs/gitrepository-layout, "$GIT_DIR", fetched
 # 2026-08-09). Reading the filesystem rather than asking git also means an
 # inherited GIT_DIR/GIT_WORK_TREE cannot make some other repository answer —
-# the same protection hook::in_git_working_tree and file_is_gitignored buy by
+# the same protection hook::in_git_working_tree and hook::file_is_gitignored buy by
 # unsetting those, here for free.
 #
 # CLAUDE_PROJECT_DIR is the last resort, for a project that is no working tree
@@ -305,7 +307,7 @@ physically_inside() {
 # edit on a git-less POSIX host — silently, repo-wide, and although git is not
 # a documented prerequisite of this hook (README "Requirements" lists Bash, jq
 # and markdownlint-cli2; the setup skill checks those). An undecidable verdict
-# therefore lints, the same direction file_is_gitignored takes below for the
+# therefore lints, the same direction hook::file_is_gitignored takes below for the
 # same reason.
 #
 # The fail-open is bounded, but NOT by the opt-in gate alone, and the escaping
@@ -396,38 +398,15 @@ fi
 # the question. A session running inside a linked worktree under a path the
 # parent repository ignores (`.claude/worktrees/**` is a common one) would then
 # read every file it edits as ignored.
-file_is_gitignored() {
-  local dir="${FILE%/*}" base="${FILE##*/}"
-
-  command -v git >/dev/null 2>&1 || return 1
-  [[ -n "$base" && "$dir" != "$FILE" ]] || return 1
-
-  # `git check-ignore` consults the index unless --no-index is passed, so a
-  # TRACKED file that happens to match an exclude pattern is reported as not
-  # ignored — which is the wanted answer: a file under version control is part
-  # of the reviewable artifact whatever the patterns say. Exit 0 = ignored,
-  # 1 = not ignored, 128 = error; only 0 skips.
-  # https://git-scm.com/docs/git-check-ignore (fetched 2026-08-08)
-  (
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    cd "$dir" 2>/dev/null || exit 1
-    git check-ignore -q -- "./$base" 2>/dev/null
-  )
-}
-
-# Opt-out for the scope escape above, read from the CLAUDE_PLUGIN_OPTION_<KEY>
+# Opt-out for the scope escape, read from the CLAUDE_PLUGIN_OPTION_<KEY>
 # environment mirror rather than a `${user_config.*}` placeholder — shell-form
 # hook commands reject that substitution outright, and every option is exported
 # to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference,
 # "User configuration", https://code.claude.com/docs/en/plugins-reference,
 # fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
-LINT_GITIGNORED=0
-[[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" == "true" ]] &&
-  LINT_GITIGNORED=1
-
-if ((LINT_GITIGNORED == 0)) && file_is_gitignored; then
+# Shared helper: hook::gitignored_out_of_scope in rewrite-guard.sh (#4671).
+if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
   # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
   # verdict — the repository declared this path out of scope in its own
   # .gitignore, and announcing the skip on every scratch-file edit would spend
