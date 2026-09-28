@@ -3,14 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.1] - 2026-09-28
+## [0.26.2] - 2026-09-28
 
 ### Changed
 
 - **macOS engine execution stays behind the platform-name gate**
   ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
-  reversal trigger has not fired. The safety model quotes it and records the 2026-09-28
-  re-affirmation. No code change.
+  reversal trigger has not fired. The safety model quotes it and records the four-part
+  2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
+  change. Version is 0.26.2 so it serializes after the #4669 0.26.1 data-root channel
+  close.
 
 ## [0.26.0] - 2026-09-28
 
