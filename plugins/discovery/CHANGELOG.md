@@ -1,5 +1,21 @@
 # Changelog: discovery plugin
 
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **Research Phase 2 fans out per gap when nesting is available.** One topic with several gaps had
+  no fan-out path: research-deep splits only topics that share no claims, and the "parallel
+  workers for breadth within a phase" principle had no step that fired it, so a five-gap brief ran
+  serially under one 40-turn limit and left on-point primaries unfetched. With `nested spawning
+  available` and 3 or more numbered gaps, the researcher now dispatches one generic gap worker per
+  gap, or per group of gaps sharing a primary (capped at 5), in one turn. Workers gather and return
+  URLs, on-disk artifact paths and quoted spans, never verdicts; the researcher keeps the
+  falsification query, confirms each cited primary from its artifact before counting it as Tier
+  0/1, and leaves unanswered gaps open. Recipe: the discipline file's new "Per-gap fan-out (Phase
+  2)". The researcher's parallel-worker clause and research-deep's multi-topic check point at it,
+  and `contract.test.sh` pins all four. The discipline file gains a Contents block now that it passes 300 lines (#4151).
+
 ## [0.24.10] - 2026-09-28
 
 ### Changed
@@ -47,22 +63,6 @@
   explorer run spent 8 redundant full reads and 2 scan-then-read pairs, roughly a quarter of its
   turns, re-reading files it already held. `contract.test.sh` section 13 asserts the rule in all
   three agents (#4258).
-
-## [0.25.0] - 2026-09-28
-
-### Added
-
-- **Research Phase 2 fans out per gap when nesting is available.** One topic with several gaps had
-  no fan-out path: research-deep splits only topics that share no claims, and the "parallel
-  workers for breadth within a phase" principle had no step that fired it, so a five-gap brief ran
-  serially under one 40-turn limit and left on-point primaries unfetched. With `nested spawning
-  available` and 3 or more numbered gaps, the researcher now dispatches one generic gap worker per
-  gap, or per group of gaps sharing a primary (capped at 5), in one turn. Workers gather and return
-  URLs, on-disk artifact paths and quoted spans, never verdicts; the researcher keeps the
-  falsification query, confirms each cited primary from its artifact before counting it as Tier
-  0/1, and leaves unanswered gaps open. Recipe: the discipline file's new "Per-gap fan-out (Phase
-  2)". The researcher's parallel-worker clause and research-deep's multi-topic check point at it,
-  and `contract.test.sh` pins all four. The discipline file gains a Contents block now that it passes 300 lines (#4151).
 
 ## [0.24.7] - 2026-09-27
 
