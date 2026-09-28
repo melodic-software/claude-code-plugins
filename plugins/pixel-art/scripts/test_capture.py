@@ -142,6 +142,8 @@ class CaptureTest(unittest.TestCase):
             self.assertGreater(later, 20)
             webm = out / "scene.webm"
             self.assertGreater(webm.stat().st_size, 1000)
+            if not (shutil.which("ffprobe") and shutil.which("ffmpeg")):
+                self.skipTest("shots checked; ffprobe/ffmpeg absent, so video timing is unchecked")
             probe = subprocess.run(
                 [
                     "ffprobe", "-v", "error", "-select_streams", "v:0",
