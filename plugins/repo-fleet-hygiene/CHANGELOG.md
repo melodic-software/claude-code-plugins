@@ -3,6 +3,20 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-28
+
+### Added
+
+- **`/repo-fleet-hygiene:sync` fast-forwards canonical checkouts and parks divergent work (#3992).**
+  Bare invocation is a dry run. `--apply` asks once, or `--yes` skips the prompt. The remote
+  default branch comes from `git ls-remote --symref origin HEAD`. A non-fast-forward, dubious
+  ownership, a missing worktree root, and a stash that does not apply cleanly are skipped and
+  reported. A dirty default branch is stashed onto a new `sync-park/<utc>` branch in a linked
+  worktree (`park-<timestamp>` when the dirty branch is the default). No-argument
+  scope is `ghq root` when `ghq` is present, else the cwd git toplevel, else exit 3.
+  `CLAUDE_PROJECT_DIR` is not scope. `audit` uses the same ladder when it has no CLI or config
+  scope, and names the rung. Decision record: `skills/sync/SKILL.md`.
+
 ## [0.23.41] - 2026-09-28
 
 ### Fixed

@@ -1518,6 +1518,23 @@ if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   UNRESOLVED_SCOPE=true
 fi
 
+if [[ "$UNRESOLVED_SCOPE" == "true" ]]; then
+  # ghq roots, then the git cwd. CLAUDE_PROJECT_DIR stays out of this (#2599).
+  _fleet_ladder="${BASH_SOURCE[0]%/*}/../../../scripts/resolve-fleet-scope.sh"
+  if [[ -f "$_fleet_ladder" ]]; then
+    if _fleet_ladder_out="$(bash "$_fleet_ladder" --fallback-only)"; then
+      while IFS= read -r _fleet_path; do
+        [[ -n "$_fleet_path" ]] && REPO_ARGS+=("$_fleet_path")
+      done <<<"$_fleet_ladder_out"
+      if [[ ${#REPO_ARGS[@]} -gt 0 ]]; then
+        UNRESOLVED_SCOPE=false
+        _fleet_scope_ladder=1
+      fi
+    fi
+  fi
+  unset _fleet_ladder _fleet_ladder_out _fleet_path
+fi
+
 # Scope provenance: which rung actually supplied the audited roots/repos. This is a different
 # question from which config FILE was consumed. Config-supplied scope is ADDITIVE to any
 # CLI-supplied scope, so both contributions are named rather than one masking the other. Bare
@@ -1535,6 +1552,9 @@ SCOPE_PROVENANCE=""
 if [[ "$config_scope_count" -gt 0 ]]; then
   [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
+fi
+if [[ "${_fleet_scope_ladder:-}" == 1 ]]; then
+  SCOPE_PROVENANCE="${SCOPE_PROVENANCE:+$SCOPE_PROVENANCE; }scope ladder (ghq or git cwd)"
 fi
 
 # Last --show-origin record for one worktree-root key. Prints the origin
@@ -1852,7 +1872,7 @@ EOF
 
 if [[ "$UNRESOLVED_SCOPE" == "true" ]]; then
   reject_target default \
-    "no scope resolved: no bare path, --root, or --repo, and no config-supplied fleet.root/fleet.repo"
+    "no scope resolved: no bare path, --root, or --repo, no config-supplied fleet.root/fleet.repo, no ghq root, and the cwd is not a git toplevel. CLAUDE_PROJECT_DIR is not scope."
 fi
 
 # main_worktree <dir>: the repository-of-record checkout for <dir>, or non-zero when the porcelain

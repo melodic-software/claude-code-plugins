@@ -34,7 +34,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Capability | Owner | Availability in this release |
 |---|---|---|
 | Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
-| Machine-wide discovery with no argument (ghq / configured roots / agent state / bounded sweep ladder) | `repo-fleet-hygiene` | Not shipped. Remaining contract work, not an open issue; a no-scope run fails with remedies rather than guessing a root |
+| No-argument scope | `repo-fleet-hygiene` | Shipped as a named ladder: explicit args, fleet config, then `ghq root` when `ghq` is present, then the cwd git toplevel, else exit 3. `CLAUDE_PROJECT_DIR` is not scope (#2599, #3992) |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |

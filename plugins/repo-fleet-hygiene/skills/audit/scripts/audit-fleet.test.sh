@@ -1239,8 +1239,8 @@ fi
 
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if (cd "$TMP/noconf" && REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out" 2>&1); then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1261,8 +1261,8 @@ else
 fi
 
 # A Git project directory still does not become scope without config or CLI paths (#2599).
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+if (cd "$TMP/noconf" && REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out" 2>&1); then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1278,8 +1278,8 @@ cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]
     maxDepth = 5
 SCOPELESS
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+if ( cd "$TMP" && REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1 ); then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then

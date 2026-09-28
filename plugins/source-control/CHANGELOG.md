@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.5] - 2026-09-28
+
+### Added
+
+- **`worktree-create.sh --existing-branch` checks out a local branch that already exists (#3992).**
+  It does not pass `-b` or `--force`. `git worktree add` still refuses when that branch is
+  checked out in another worktree. `--base-ref` cannot be combined with it.
+
 ## [0.62.4] - 2026-09-28
 
 ### Changed

@@ -142,7 +142,7 @@ Usage:
   $PROG --name <name> [--root <dir> | --root-file <path>]
         [--fallback-root <dir> | --fallback-root-file <path>]
         [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
-        [--session-id <id>]
+        [--session-id <id>] [--existing-branch <branch>]
 
 Root resolution, most specific first:
   --root/--root-file (explicit, per invocation), then worktreeroot.path
@@ -260,6 +260,7 @@ data_root_file_given=0
 base_ref=""
 repo_dir="."
 session_id=""
+existing_branch=""
 
 # need_value <flag> — guard against a value-taking flag given as the last token
 # with no argument. Without this, `shift 2` on a single remaining positional
@@ -316,6 +317,11 @@ while [[ $# -gt 0 ]]; do
   --repo-dir)
     need_value "$@"
     repo_dir="$2"
+    shift 2
+    ;;
+  --existing-branch)
+    need_value "$@"
+    existing_branch="$2"
     shift 2
     ;;
   --session-id)
@@ -808,7 +814,7 @@ fi
 # defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
 # settings.json (not git config), so the helper does not probe it — the skill
 # reads the effective setting and passes it through this flag.
-[[ -z "$base_ref" ]] && base_ref="fresh"
+if [[ -z "$existing_branch" ]]; then [[ -z "$base_ref" ]] && base_ref="fresh"; fi
 
 # resolve_default_remote <repo-toplevel> — echo the repository's effective
 # default remote name, or return non-zero when none can be resolved. `origin` is
@@ -922,6 +928,7 @@ refresh_remote_branch() {
   wait "$pid"
 }
 
+if [[ -z "$existing_branch" ]]; then
 case "$base_ref" in
 head)
   base_commit="HEAD"
@@ -969,8 +976,17 @@ fresh)
   exit 2
   ;;
 esac
-
-if ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
+fi
+if [[ -n "$existing_branch" ]]; then
+  if ! git -C "$toplevel" show-ref --verify --quiet "refs/heads/$existing_branch"; then
+    printf '%s: --existing-branch %q is not a local branch\n' "$PROG" "$existing_branch" >&2
+    exit 2
+  fi
+  if ! git -C "$toplevel" worktree add "$worktree_path" "$existing_branch" >&2; then
+    printf '%s: git worktree add failed for existing branch %q (it may already be checked out)\n' "$PROG" "$existing_branch" >&2
+    exit 4
+  fi
+elif ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
   printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
   exit 4
 fi

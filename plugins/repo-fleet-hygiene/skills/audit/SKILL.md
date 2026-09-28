@@ -66,8 +66,10 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no scope resolves, no bare path, no `--root`, no `--repo`, and no config-supplied
-`fleet.root`/`fleet.repo`, the run **stops** and names the ways to supply scope plus
-`/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
+`fleet.root`/`fleet.repo`, the same scope ladder `/repo-fleet-hygiene:sync` uses
+tries `ghq` roots and then the git work tree that contains the cwd. `CLAUDE_PROJECT_DIR`
+is still not a repository. When that ladder is empty the run **stops** and names the
+ways to supply scope plus `/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
 yourself. The project directory is **not** a fallback scope: auditing the session's incidental
 working directory would silently audit whatever tree the shell happens to sit in. Config
 resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
