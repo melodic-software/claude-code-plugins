@@ -104,11 +104,20 @@ hook::begin --repo-root eol_root_to eol-normalizer PostToolUse
 # ONE DELIBERATE DEVIATION, and it is not a content or message difference: a file
 # that needs no rewrite is no longer opened for writing, so its mtime is no
 # longer touched by this hook. Nothing this hook reports changes.
+#
+# A file the repository gitignores is left alone unless
+# eol_normalizer_lint_gitignored is set, and ACTION reads `gitignored`. The
+# check costs a git process, so it runs only on the arm that would rewrite,
+# never on the common already-canonical path.
 EOL_PLAN=$(normalize_eol_plan "$REPO_ROOT" "$FILE")
 ACTION="${EOL_PLAN%% *}"
 if [[ "${EOL_PLAN##* }" == 1 ]]; then
-  hook::rewrite_guard_begin "$FILE"
-  normalize_eol_apply "$ACTION" "$FILE"
+  if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED:-false}" "$FILE"; then
+    ACTION="gitignored"
+  else
+    hook::rewrite_guard_begin "$FILE"
+    normalize_eol_apply "$ACTION" "$FILE"
+  fi
 fi
 # `basename` is a builtin strip for the reason given at the source line above:
 # this runs on every Write and Edit, and FILE names an existing regular file, so
@@ -121,7 +130,8 @@ esac
 hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"
 
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
-# attr was unspecified, the path is -text, content sniffed binary, or idempotent.
+# attr was unspecified, the path is -text or gitignored, content sniffed binary,
+# or idempotent.
 # The message is non-empty only when the take found changed bytes, and EOL_MSG
 # above is non-empty only for the lf and crlf arms, so its emptiness is the whole
 # verdict.

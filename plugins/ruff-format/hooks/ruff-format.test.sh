@@ -616,6 +616,32 @@ else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
 fi
 
+# --- Gitignored path (#4671): neither rewritten nor reported by default ------
+# `x=1` would be reformatted and `undefined_name` reported (F821); under an
+# ignored directory neither happens, unless ruff_format_lint_gitignored is set.
+# Ruff's own respect-gitignore does not reach an explicitly passed path.
+REPO_IGN="$WORK/gitignored"
+new_ruff_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n.venv/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'x=1\nprint(undefined_name)\n' >"$REPO_IGN/.work/scratch.py"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.py")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.py")
+if [[ -z "$OUT" ]]; then ok "gitignored: no findings reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.py")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.py")"
+fi
+run_hook_env "$REPO_IGN/.work/scratch.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q '^x = 1$' "$REPO_IGN/.work/scratch.py"; then
+  ok "gitignored + ruff_format_lint_gitignored=true: file formatted"
+else
+  fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.py")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

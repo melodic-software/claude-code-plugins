@@ -10,6 +10,9 @@
 # that also reported findings (#3406), against the single-document stdout
 # contract hook::emit_channels exists to uphold.
 #
+# It also carries the gitignore scope gate every rewriting hook applies before
+# it runs its tool (hook::gitignored_out_of_scope, at the end of this file).
+#
 # SINGLE SOURCE OF TRUTH: lib/rewrite-guard.sh at the marketplace repo root.
 # The copies at plugins/*/hooks/rewrite-guard.sh exist because installed
 # plugins are cache-isolated and must be self-contained — never edit a copy.
@@ -164,4 +167,47 @@ hook::rewrite_disclose() {
   hook::rewrite_take_disclosure "$2" "$3"
   [[ -n "$HOOK_REWRITE_MESSAGE" ]] || return 0
   hook::emit_channels "$1" "" "$HOOK_REWRITE_MESSAGE"
+}
+
+# True when the repository enclosing <file> gitignores it (hook-precision rule
+# 6, #4671). A rewrite of an ignored file has no `git checkout` to undo it.
+#
+# `git check-ignore` consults the index unless --no-index is passed, so a
+# TRACKED file matching an ignore pattern reads as not ignored: a file under
+# version control is part of the reviewable artifact whatever the patterns say.
+# Exit 0 = ignored, 1 = not ignored, 128 = error; only 0 answers true.
+# https://git-scm.com/docs/git-check-ignore (fetched 2026-09-28)
+#
+# FAILS TOWARD ACTING. Git absent, the directory gone, no repository, or a
+# check-ignore error all answer false, so the hook runs as before. A skip that
+# fired on an error would disable the hook invisibly and repo-wide.
+#
+# Git's repository-selection environment is cleared: an inherited
+# GIT_DIR/GIT_WORK_TREE from a wrapper that launched the session would make
+# another repository answer, and a linked worktree under a path its parent
+# ignores (`.claude/worktrees/**`) would read every file as ignored. The
+# check runs from the file's own directory with a `./<base>` spelling, so no
+# path translation is needed on Windows Git Bash.
+#   hook::file_is_gitignored "$FILE" && ...
+hook::file_is_gitignored() {
+  local file="$1" dir base
+  dir="${file%/*}" base="${file##*/}"
+  command -v git >/dev/null 2>&1 || return 1
+  [[ -n "$base" && "$dir" != "$file" ]] || return 1
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    cd "${dir:-/}" 2>/dev/null || exit 1
+    git check-ignore -q -- "./$base" 2>/dev/null
+  )
+}
+
+# True when the hook should leave <file> alone because the repository ignores
+# it and the plugin's `<plugin>_lint_gitignored` opt-in, passed as <opt-in>
+# from its CLAUDE_PLUGIN_OPTION_* mirror, is not the string "true". Any other
+# value, including garbage, reads as the manifest default (false).
+#   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_X_LINT_GITIGNORED:-false}" "$FILE" && emit_skipped
+hook::gitignored_out_of_scope() {
+  [[ "$1" == "true" ]] && return 1
+  hook::file_is_gitignored "$2"
 }
