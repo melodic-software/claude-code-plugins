@@ -397,7 +397,8 @@ fi
 HOME20="$WORK/home20"
 DIR20="$HOME20/.claude/rate-limit-guard"
 LOCK20="$DIR20/.rate-limits.json.lock"
-mkdir -p "$LOCK20"
+mkdir -p "$DIR20"
+: >"$LOCK20"
 run "$HOME20" '{"session_id":"sess-no-windows"}' cat >/dev/null
 if [[ ! -e "$HOME20/$TEE_REL" ]]; then
   ok "held lock → windowless writer skips its write"
@@ -410,23 +411,53 @@ if jq -e '.rate_limits' <"$HOME20/$TEE_REL" >/dev/null 2>&1; then
 else
   fail "window-bearing writer lost its snapshot to a held lock"
 fi
-rmdir "$LOCK20" 2>/dev/null || true
-HOME21="$WORK/home21"
-DIR21="$HOME21/.claude/rate-limit-guard"
-LOCK21="$DIR21/.rate-limits.json.lock"
-mkdir -p "$LOCK21"
-touch -t 200001010000 "$LOCK21"
-run "$HOME21" '{"session_id":"sess-no-windows"}' cat >/dev/null
-if [[ -e "$HOME21/$TEE_REL" ]]; then
-  ok "stale lock is stolen — windowless writer proceeds on a fresh machine"
-else
-  fail "stale lock permanently blocked the writer"
-fi
-if [[ ! -e "$LOCK21" ]]; then
-  ok "stolen stale lock directory removed"
-else
-  fail "stale lock directory survived"
-fi
+rm -f "$LOCK20"
+# A stale lock file, and a stale lock directory left by an older version.
+for kind in file directory; do
+  HOME21="$WORK/home21-$kind"
+  DIR21="$HOME21/.claude/rate-limit-guard"
+  LOCK21="$DIR21/.rate-limits.json.lock"
+  mkdir -p "$DIR21"
+  if [[ "$kind" == file ]]; then : >"$LOCK21"; else mkdir "$LOCK21"; fi
+  touch -t 200001010000 "$LOCK21"
+  run "$HOME21" '{"session_id":"sess-no-windows"}' cat >/dev/null
+  if [[ -e "$HOME21/$TEE_REL" ]]; then
+    ok "stale lock $kind is stolen — windowless writer proceeds on a fresh machine"
+  else
+    fail "stale lock $kind permanently blocked the writer"
+  fi
+  if [[ ! -e "$LOCK21" ]]; then
+    ok "stolen stale lock $kind removed"
+  else
+    fail "stale lock $kind survived"
+  fi
+done
+
+# --- Case 21a: racing acquirers never hold a lock together ------------------
+# Sixteen acquirers race each lock in a tight loop; each winner logs in/out
+# around a short hold. uutils mkdir (Ubuntu 25.10+) let two racers both win.
+lock_race() { # <acquire fn> <release fn> <label> <attempts>; the drain acquirer never steals
+  local log="$WORK/race-$3.log" dir="$WORK/race-$3" _
+  mkdir -p "$dir"
+  : >"$log"
+  for _ in $(seq 16); do
+    # shellcheck disable=SC2016  # the inner script expands its own variables
+    bash -c 'source "$1" </dev/null
+      for _ in $(seq "$6"); do
+        "$2" "$4" 0 || continue
+        printf "in %s\n" "$$" >>"$5"; sleep 0.01; printf "out %s\n" "$$" >>"$5"
+        "$3"
+      done' _ "$TEE" "$1" "$2" "$dir" "$log" "$4" &
+  done
+  wait
+  if awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{exit (bad||!n||h!="")}' "$log"; then
+    ok "$3 lock: one holder at a time under a race"
+  else
+    fail "$3 lock: two holders at once under a race"
+  fi
+}
+lock_race acquire_tee_lock release_tee_lock writer 20
+lock_race acquire_drain_lock release_drain_lock drain 200
 
 # --- The enablement gate (_rlg_tee_enabled) ----------------------------------
 # Third limb of the contract: the tee's WRITE is gated by
@@ -1138,14 +1169,15 @@ fi
 # on a Linux runner without this shim, where the real jq emits LF.
 HOME_CRW="$WORK/home-crlf-windows"
 CRW_DIR="$HOME_CRW/.claude/rate-limit-guard"
-mkdir -p "$CRW_DIR/.rate-limits.json.lock"
+mkdir -p "$CRW_DIR"
+: >"$CRW_DIR/.rate-limits.json.lock"
 run_crlf "$HOME_CRW"
 if jq -e '.rate_limits' <"$HOME_CRW/$TEE_REL" >/dev/null 2>&1; then
   ok "crlf: the window-bearing verdict survives CRLF (writes through a held lock)"
 else
   fail "crlf: a CR on the window-bearing token blocked a window-bearing write"
 fi
-rmdir "$CRW_DIR/.rate-limits.json.lock" 2>/dev/null || true
+rm -f "$CRW_DIR/.rate-limits.json.lock"
 HOME_CRG="$WORK/home-crlf-gate"
 mkdir -p "$HOME_CRG"
 write_settings "$HOME_CRG/.claude/settings.json" "$USER_FALSE"

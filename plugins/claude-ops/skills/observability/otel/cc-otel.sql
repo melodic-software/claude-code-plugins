@@ -58,7 +58,7 @@
 -- `.bail off` is a duckdb CLI dot command (this file is a CLI init file, its only consumer);
 -- the CLI default for init files is bail-on-first-error, which would otherwise abort the
 -- whole load — including prune-otel-store.sh's `duckdb -init` compaction invocation, which
--- only needs the macros below and deliberately points CC_OTEL_STORE at an empty dir so the
+-- only needs the macros below and deliberately points CC_OTEL_STORE at a dir with no store files so the
 -- hot-view binds fail fast instead of re-inferring the full store schema per COPY.
 .bail off
 

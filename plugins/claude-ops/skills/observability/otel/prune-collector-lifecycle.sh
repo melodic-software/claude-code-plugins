@@ -19,6 +19,18 @@ OWN_SENTINEL=false
 STOPPED=false
 SENTINEL=""
 
+# Take the sentinel, or return 1 when another prune holds it. It stays a directory, which the
+# Collector start script tests for (-d), but the directory alone is not an arbiter everywhere:
+# uutils mkdir (Ubuntu 25.10+) lets two racers both succeed. An owner token created with
+# noclobber (bash's own O_EXCL open, atomic on GNU, uutils, macOS and Git Bash) decides.
+take_sentinel() {
+  mkdir "$SENTINEL" 2>/dev/null && (set -o noclobber && : >"$SENTINEL/owner") 2>/dev/null
+}
+release_sentinel() {
+  rm -f "$SENTINEL/owner" 2>/dev/null || true
+  rmdir "$SENTINEL" 2>/dev/null || true
+}
+
 require_windows_service() {
   if [[ "$OS_KIND" != windows ]]; then
     err "Collector retention lifecycle requires the provisioning-owned Windows service '$COLLECTOR_SERVICE_NAME'"
@@ -113,7 +125,7 @@ cleanup() {
   # Release last: the sentinel covers the complete stop -> mutate -> restart lifecycle, including
   # a failed restart attempt. The next operator run may then retry recovery explicitly.
   if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then
-    rmdir "$SENTINEL" 2>/dev/null || true
+    release_sentinel
   fi
   trap - EXIT
   exit "$original_rc"
