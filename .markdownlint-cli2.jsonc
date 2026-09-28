@@ -2,7 +2,7 @@
   // GitHub Flavored Markdown (GFM) ruleset for markdownlint-cli2.
   // The $schema URL pins to the markdownlint-cli2 devDependency of
   // melodic-software/standards (its package.json), where this file is authored
-  // and synced into consumers from. Authoring-time validation only — it makes
+  // and synced into consumers from. Authoring-time validation only: it makes
   // no claim about which markdownlint-cli2 version a consumer runs. In standards,
   // bump it alongside that dependency; markdownlint-schema-pin.test.sh fails the
   // standards build if the two drift apart.
@@ -11,7 +11,7 @@
   // Globs are passed by the caller (CLI / CI), not declared here.
   "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.2/schema/markdownlint-cli2-config-schema.json",
   "ignores": [
-    // Build, dependency, and cache trees — not authored markdown.
+    // Build, dependency, and cache trees: not authored markdown.
     "**/node_modules/**",
     "**/.venv/**",
     "**/bin/**",
@@ -26,7 +26,7 @@
     "MD046": { "style": "fenced" }, // Fenced (not indented) code blocks
     "MD048": { "style": "backtick" }, // Backtick (not tilde) code fences
     "MD024": { "siblings_only": true }, // Allow duplicate headings under different parents
-    "MD060": false, // Table column style — disabled; allows any pipe spacing (its default flags tables matching no supported style)
+    "MD060": false, // Table column style: disabled; allows any pipe spacing (its default flags tables matching no supported style)
 
     // --- Relaxed for GFM / prose ---
     "MD013": false, // No hard line-length limit (tables and code exceed 80)

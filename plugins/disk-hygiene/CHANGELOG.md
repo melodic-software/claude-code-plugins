@@ -14,6 +14,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   operator answer is stored as `source: human` and is not asked again while identity holds. A
   catalogued disposition does not authorize deletion.
 
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

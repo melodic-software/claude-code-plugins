@@ -5,6 +5,26 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.15.0] - 2026-09-28
+
+### Added
+
+- `do-your-research` audits pending recommendations: each option, verdict, default, or next step
+  the user has not yet settled is grounded on the affected code and its blast radius and on
+  current consensus, then reported old → new → why, or unchanged with why, as verified,
+  judgment, or withheld. The description now
+  triggers on 'go research and update your recommendations', 'are these recommendations
+  grounded', and 're-check what you recommended'.
+- `do-your-research-deep` inventories recommendations as a fifth item type, one ledger row each, with
+  a withheld verdict for a consequential recommendation that cannot be settled.
+- The shared loop's Report step re-states a pending recommendation the audit changed as old →
+  new → why, where new may be a withheld open question.
+- `context/recommendation-basis.md` states the recommendation-basis contract once for this
+  plugin's skills: the grounding bar and three outcomes, `Basis: verified`, `Basis: judgment`
+  (never on a consequential recommendation), or withheld as an open question naming the evidence
+  that would settle it, plus the old → new → why re-statement.
+- `do-your-research` names `/discipline:do-your-research-deep` in a `## Next` section.
+
 ## [0.14.9] - 2026-09-26
 
 ### Changed
