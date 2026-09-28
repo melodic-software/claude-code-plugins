@@ -4576,6 +4576,70 @@ class HandoffVerifyTests(unittest.TestCase):
             )
 
     @staticmethod
+    def empty_directory_with_ntfs_size(temporary: str) -> tuple[Path, dict[str, Any]]:
+        """An unchanged empty directory whose snapshot recorded a non-zero size.
+
+        NTFS reports a directory's st_size as its index allocation on one lstat
+        and 0 on the next (#4005); the snapshot here holds the 4096 reading
+        while the live directory reports whatever this filesystem reports.
+        """
+        root = Path(temporary) / "target"
+        (root / ".playwright-cli").mkdir(parents=True)
+        snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+        entry["stat_size"] = int(entry["stat_size"]) + 4096
+        (Path(temporary) / "snapshot.json").write_text(
+            json.dumps(snapshot), encoding="utf-8"
+        )
+        return root, snapshot
+
+    def test_directory_stat_identity_ignores_size_but_not_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+            live = os.lstat(root / ".playwright-cli")
+            self.assertNotEqual(live.st_size, entry["stat_size"])
+            self.assertTrue(hygiene.same_stat_identity(live, entry))
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "inode": entry["inode"] + 1})
+            )
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "kind": "file"})
+            )
+
+    def test_unchanged_empty_directory_verifies_clear_on_every_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.empty_directory_with_ntfs_size(temporary)
+            for attempt in range(5):
+                with self.subTest(attempt=attempt + 1):
+                    status, payload = self.handoff_verify_cli(
+                        temporary, [".playwright-cli"]
+                    )
+                    self.assertEqual(0, status)
+                    self.assertEqual(
+                        ["clear"], [item["verdict"] for item in payload["verdicts"]]
+                    )
+
+    def test_preview_routes_directories_through_the_shared_comparator(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate(".playwright-cli")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+
+    @staticmethod
     def nested_residue(root: Path) -> Path:
         """outer/middle/inner/leaf.tmp plus one unrelated top-level file."""
         deep = root / "outer" / "middle" / "inner"

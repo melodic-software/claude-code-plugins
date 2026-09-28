@@ -2113,6 +2113,12 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         kind = "file"
     else:
         kind = "other"
+    # A directory's st_size is not a stable observation: on NTFS one lstat
+    # reports the index allocation and the next reports 0, so an unchanged
+    # directory would flap drifted/clear. Callers compare the descendant set
+    # separately, so a directory needs only object identity here.
+    if kind == "directory":
+        return same_object_identity(info, entry)
     checks = (
         kind == entry.get("kind"),
         info.st_size == entry.get("stat_size"),
