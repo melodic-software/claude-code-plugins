@@ -1,17 +1,24 @@
 # pixel-art
 
 A Claude Code plugin for making pixel art with nothing installed beyond Python 3: sprites,
-animation cycles laid out for game engines, and animated scenes that open in any browser.
+animation cycles laid out for game engines, tilesets, UI skins, effect sheets, and animated scenes
+that open in any browser.
 
 | Skill | What it does |
 |---|---|
 | `/pixel-art:sprite` | A static sprite (character, item, icon, portrait, face) as a PNG sheet |
 | `/pixel-art:animate` | Idle, walk, attack and other cycles in 1, 4 or 8 directions, as an engine sprite sheet plus GIF previews |
+| `/pixel-art:tileset` | Terrain, autotiles, and parallax layers as the target engine's tileset sheet |
+| `/pixel-art:ui` | Window skins, icon sets, HUD elements, and bitmap fonts |
+| `/pixel-art:vfx` | Hit sparks, spells, and explosions as a cell sheet (MV-style animations for RPG Maker) |
 | `/pixel-art:scene` | A cutscene, title screen, ambient loop or short pixel film as one self-contained HTML file |
 
 ```shell
 /pixel-art:sprite a 32x32 potion icon, PICO-8 palette
 /pixel-art:animate a knight, walk and attack, 4 directions, RPG Maker MZ
+/pixel-art:tileset an RPG Maker MZ A2 grass autotile
+/pixel-art:ui an MZ window skin
+/pixel-art:vfx a hit spark for MZ animations
 /pixel-art:scene the knight walks to a campfire at dusk and says one line, 240x160
 ```
 
@@ -19,9 +26,11 @@ animation cycles laid out for game engines, and animated scenes that open in any
 
 1. The model records a `brief.md` beside the spec (subject, style references, proportions, palette,
    and the done criteria), then turns the request into a spec: a locked palette and frames, written
-   by hand for small sprites or by a short procedural generator for larger ones. A later round reads
-   that brief instead of asking again. The palette may be an inline object, a bundled preset
-   (`pico-8`, `nes`, `game-boy`, or a CC0 Lospec set in `palettes/`), or a project palette file.
+   by hand for small sprites or by a short procedural generator for larger ones. Tilesets, UI skins,
+   and effect sheets use that same spec. A later round reads that brief instead of asking again. The
+   palette may be an inline object, a bundled preset (`pico-8`, `nes`, `game-boy`, or a CC0 Lospec
+   set in `palettes/`), or a project palette file. The sheet shape comes from
+   `reference/engine-layouts.md`.
 2. `scripts/render.py` (Python standard library only) writes the engine asset at 1x, an upscaled
    preview, a GIF per animation, and frame data. `scripts/embed.py` builds scenes into one HTML file.
    `scripts/capture.py` serves that file and, when a browser is present, saves timeline shots and
@@ -61,7 +70,8 @@ can supply music or effects without either plugin depending on the other.
 ## Example
 
 `examples/campfire/` holds the generator for an RPG Maker MZ walking character and a cutscene that
-reuses it. Copy the folder somewhere writable, then:
+reuses it. `examples/tileset/a2_ground.py`, `examples/ui/window_mz.py`, and `examples/vfx/spark_mz.py`
+each write a spec for an engine sheet. Copy a folder somewhere writable, then:
 
 ```shell
 python3 hero_mz.py
