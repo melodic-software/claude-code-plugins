@@ -7,7 +7,7 @@ you pass in.
 | Skill | What it does |
 |---|---|
 | `/retro-audio:sfx` | One effect from parameters or a preset (coin, jump, laser, explosion) |
-| `/retro-audio:tune` | A short loop from MML text, with a chip preset |
+| `/retro-audio:music` | A short loop from MML text, with a chip preset |
 
 ```shell
 python3 scripts/sfx.py --preset jump --out jump.wav

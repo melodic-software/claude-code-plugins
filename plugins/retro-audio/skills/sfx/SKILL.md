@@ -1,5 +1,5 @@
 ---
-description: "Render a retro sound effect to WAV from an sfxr-style parameter set, standard library only. Use when: 'sound effect', '8-bit sfx', 'pickup sound', 'jump sound', 'explosion sfx', 'chiptune effect'. Not for a song or loop (use /retro-audio:tune) or a picture."
+description: "Render a retro sound effect to WAV from an sfxr-style parameter set, standard library only. Use when: 'sound effect', '8-bit sfx', 'pickup sound', 'jump sound', 'explosion sfx', 'chiptune effect'. Not for a song or loop (use /retro-audio:music) or a picture."
 argument-hint: "<effect> [preset coin|jump|laser|explosion]"
 user-invocable: true
 disable-model-invocation: false
@@ -36,7 +36,7 @@ as an argument. Do not open or edit the scene plugin's files from here.
 
 ## Next
 
-/retro-audio:tune to score a loop in the same chip voice.
+/retro-audio:music to score a loop in the same chip voice.
 
 ## Gotchas
 
