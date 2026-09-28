@@ -150,6 +150,51 @@ else
   fail "failed proof keeps the shared resource and reports it" "$msg"
 fi
 
+code="$(run_pwsh take "
+  \$dir = '$TEST_TMPDIR/take'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -Take { throw 'drained, then failed' } -Prove { } -Release { }
+  } catch { }
+  Complete-UnattendedResult -Status failed
+  (Get-Content -Raw (Join-Path \$dir 'result-latest.json') | ConvertFrom-Json).held_resources -join ','
+")"
+msg="$(cat "$TEST_TMPDIR/take.out")"
+if [[ "$msg" == *fleet* ]]; then
+  pass "a take that fails partway still reports the resource held"
+else
+  fail "a take that fails partway still reports the resource held" "$msg"
+fi
+
+code="$(run_pwsh native "
+  \$dir = '$TEST_TMPDIR/native'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Invoke-IdempotentStep -Name 'tool' -Done { \$false } -Action { & pwsh -NoProfile -Command 'exit 7' }
+    'recorded-ok'
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/native.out")"
+if [[ "$msg" == *'exited 7'* && "$msg" != *recorded-ok* ]]; then
+  pass "a native command's nonzero exit fails the step"
+else
+  fail "a native command's nonzero exit fails the step" "$msg"
+fi
+
+code="$(WIZARD_TEST_SECRET="$SECRET" run_pwsh jsonredact "
+  \$dir = '$TEST_TMPDIR/jsonredact'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  \$value = Resolve-UnattendedSecret -Name 'WIZARD_TEST_SECRET'
+  try { Add-Preflight -Name 'db' -Test { \$false } -Fix \"retry with \$value\" } catch { }
+  Complete-UnattendedResult -Status failed
+")"
+if ! grep -Fq "$SECRET" "$TEST_TMPDIR/jsonredact/result-latest.json" \
+  && grep -Fq 'retry with ***' "$TEST_TMPDIR/jsonredact/result-latest.json"; then
+  pass "the result JSON redacts a secret carried in a step detail"
+else
+  fail "the result JSON redacts a secret carried in a step detail" "$(cat "$TEST_TMPDIR/jsonredact/result-latest.json" 2>/dev/null)"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0

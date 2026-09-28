@@ -89,3 +89,10 @@ them to paste the transcript.
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the
   rest of the script is unattended.
+- Redaction runs when the script completes or throws. A run killed before
+  that (Ctrl+C, a closed window, a reboot) leaves the transcript unredacted,
+  so never print a secret, and tell the human to delete the transcript of an
+  interrupted run.
+- `Assert-PriorResult` trusts the file it reads. When a lower-privilege stage
+  feeds an elevated one, put the result directory where only the elevated
+  principal can write.

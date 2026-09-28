@@ -131,7 +131,13 @@ function Invoke-IdempotentStep {
             })
         return
     }
+    # A native command's nonzero exit is not a terminating error under
+    # $ErrorActionPreference = 'Stop', so check it before recording success.
+    $global:LASTEXITCODE = 0
     & $Action
+    if ($LASTEXITCODE -ne 0) {
+        throw "step $Name failed: native command exited $LASTEXITCODE"
+    }
     $script:Steps.Add([pscustomobject]@{
             name   = $Name
             status = 'ok'
@@ -146,8 +152,9 @@ function Use-GuardedResource {
         [Parameter(Mandatory = $true)][scriptblock] $Prove,
         [Parameter(Mandatory = $true)][scriptblock] $Release
     )
-    & $Take
+    # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
+    & $Take
     & $Prove
     & $Release
     $script:Held.Remove($Name) | Out-Null
@@ -187,6 +194,13 @@ function Complete-UnattendedResult {
         redacted        = $true
     }
     $json = $payload | ConvertTo-Json -Depth 6
+    foreach ($secret in $script:Secrets) {
+        if ($secret) {
+            # A step detail or error message can carry a secret too; escape it as JSON does.
+            $escaped = ($secret | ConvertTo-Json).Trim('"')
+            $json = $json.Replace($escaped, '***')
+        }
+    }
     $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
     $out = Join-Path $script:ResultDirectory "result-$stamp.json"
     $latest = Join-Path $script:ResultDirectory 'result-latest.json'
