@@ -3,6 +3,16 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.71] - 2026-09-28
+
+### Changed
+
+- **`markdown-format.test.sh` host-skips four PATH-shape cases on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The suite
+  probes whether `cygpath -m` rewrites a POSIX mktemp path and prints a counted
+  `SKIP (host: ...)` line for the PATH-probed trim, empty-component, out-of-repo bun, and
+  `~/.local/bin` preference assertions. Linux CI is unchanged.
+
 ## [0.11.70] - 2026-09-28
 
 ### Changed

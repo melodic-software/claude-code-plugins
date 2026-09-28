@@ -1,4 +1,4 @@
-# Claude Code "mods" — verified research hub
+# Claude Code "mods": verified research hub
 
 Single aligned report. Every later agent (planning interview, devil's advocate,
 implementers) and the human maintainer reads this as ground truth.
@@ -10,7 +10,7 @@ implementers) and the human maintainer reads this as ground truth.
 | Report date | 2026-09-19 |
 | Claude Code under test | **2.1.278** (GitHub release `v2.1.278` published 2026-09-19T03:10:40Z; npm publish 2026-09-19T01:48:59Z; `latest` on npm and the newest repo tag) |
 | `anthropics/claude-code` `mods/` | commit **`92ec78f2`**, `mods` subtree `c37231235cb1194d509d8c0b211f187ef93272fb` |
-| Repo `main` at read time | **`bf7d404e`** — `mods/` is **unchanged** between the two; the one commit ahead touches `CHANGELOG.md` and `feed.xml` only |
+| Repo `main` at read time | **`bf7d404e`**; `mods/` is **unchanged** between the two; the one commit ahead touches `CHANGELOG.md` and `feed.xml` only |
 | Declarations read | `mods/types/claude-code.d.ts`, 12,990 lines, first line `// Written by Claude Code 2.1.277.` |
 | This repo's CLI pin | **2.1.276** on `origin/main` (2.1.268 on local `main`) |
 | First `mods/` commit | `d9c456d7`, 2026-09-09T22:30:08Z; 83 commits at `92ec78f2`; proposal issue #91870 opened 2026-09-03 |
@@ -33,7 +33,7 @@ verifier lowered has been raised here.
    `prepend`, `user`, `append`, `builtin`, `core`. `next(e)` descends; `{ deny }`
    returned **instead of** `next(e)` refuses. `core` is a tier and the base of
    the fold (`.d.ts:9530`, `:9547`); a plugin seats only in the four
-   `PluginTier` values `prepend | user | append | builtin` — why the CLI's
+   `PluginTier` values `prepend | user | append | builtin`, which is why the CLI's
    invalid-tier error and a 2026-09-19 maintainer comment list four. `SOURCE` `OBSERVED`
 3. Every capability (`fs`, `http`, `process`, `clock`, `ui`, …) is a `$` call, so
    all but one are hookable: `$.ui.ask` is declared with no `ui.ask` event and
@@ -41,8 +41,8 @@ verifier lowered has been raised here.
    DOM, no ambient timers (`$.clock` provides them). `SOURCE`
 4. The surface is real and shipping in 2.1.278: **92 statically-named events**
    (38 engine + 54 op), 33 `classic.*` bridge events, 19 `$` nouns. `SOURCE`
-5. Four mods ship inside the binary — `sec-default`, `diff`, `telemetry`,
-   `agents-md` — and `mods/` is their published source. AGENTS.md support in
+5. Four mods ship inside the binary (`sec-default`, `diff`, `telemetry`,
+   `agents-md`), and `mods/` is their published source. AGENTS.md support in
    2.1.277 is `agents-md`. `SOURCE` `OBSERVED`
 6. A mod **you** write is off by default: the GrowthBook rollout gate
    `tengu_plugin_hooks_modules` defaults `false`;
@@ -52,7 +52,7 @@ verifier lowered has been raised here.
    lookup is *server-side* is `INFERRED` from the binary's GrowthBook
    provenance strings; the remote lookup was not observed)
 7. Authoring and testing work today: `claude plugin test`, `claude plugin
-   validate`, `--plugin-dir`, `claude-code/testing` — verified green on
+   validate`, `--plugin-dir`, `claude-code/testing`, verified green on
    Windows 11. `claude plugin test` is hidden from `--help` and unregistered
    without the flag. `/plugin-types` is named by `mods/README.md` as a slash
    command but was **never run end to end by any lane**. `OBSERVED`
@@ -60,7 +60,7 @@ verifier lowered has been raised here.
    `code.claude.com/docs` and all 7,158 lines of `CHANGELOG.md`. `OBSERVED`
 9. **Distribution is the blocker, not capability.** No marketplace listing, no
    signing change, and a consumer without the gate loads the module **silently
-   not at all** — no warning, no stderr, nothing. `OBSERVED` `SOURCE` `STAFF`
+   not at all**: no warning, no stderr, nothing. `OBSERVED` `SOURCE` `STAFF`
 10. Planned, stated by staff and undated: "shipping in N weeks" (self-dated
     2026-09-09 in an issue body edited in place; GitHub exposes no body-edit
     time, so the date is unverifiable from metadata), product name "Claude
@@ -132,7 +132,7 @@ Wait+spike / reusable-skill / incumbent verdicts, 8 interview questions),
 `BLINDSPOTS.md` (13 ranked blindspot cards, experiment-only
 gaps), `VERIFICATION.md` (synthesis faithfulness, 2026-09-19).
 
-**Verification:** 149 claims graded — 141 FAITHFUL, 7 STRONGER-THAN-EVIDENCE, 1 WRONG.
+**Verification:** 149 claims graded: 141 FAITHFUL, 7 STRONGER-THAN-EVIDENCE, 1 WRONG.
 
 ## Lane directories
 

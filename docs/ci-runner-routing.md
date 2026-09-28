@@ -81,6 +81,25 @@ earliest successful full run. **As of:** 2026-09-28. **Recheck:** github-iac
 `docs/topics/ci-perf/GOAL.md` or `snapshots/targets.tsv` changes the numbers, or
 `ci.yml` gains or drops a required job.
 
+## Contract-only `ci-status`
+
+A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
+runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
+the `ci-lanes` commit status on the head SHA. The composite waits up to 540 s
+for an in-flight full run, then ends on a settled `success`, `failure`, or
+`error`.
+
+**Operator remedy.** When a contract-only `ci-status` is red:
+
+- If `ci-lanes` on that SHA is already `success`, re-run the red contract-only
+  `ci` run. An empty commit is the wrong move.
+- If `ci-lanes` is `failure` or missing, re-run the full workflow.
+
+A body edit while a failed full run is being re-run can still read the old
+failure without waiting (#4670). Distinguishing that re-run from a
+contract-only sibling is a ci-workflows composite change; this repository
+pins the composite and documents the remedy until that pin moves.
+
 ## Toolchain integrity
 
 The plugin-gate toolchain is identical everywhere it runs. Node executables

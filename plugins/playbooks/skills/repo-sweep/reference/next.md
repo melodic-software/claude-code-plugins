@@ -42,8 +42,13 @@ every branch name, step id, and playbook name you put in a command.
 3. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
    and `bash S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
-4. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
-5. Unless resuming, record `base=$(git rev-parse HEAD)` and write
+4. Re-check `applies-when` (the catalog row's last column) with the same cheap evidence
+   `plan.md` uses (`git ls-files`, globs, `ls`). When it no longer holds, record each
+   `plugin:skill` with `bash S/skill-version.sh <plugin:skill>...`, then `bash S/tick.sh <id>
+   not-applicable "<one-line evidence>" <skill@version>...`, report, and stop the step without
+   running section 3. Evidence must be one line with no commas.
+5. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
+6. Unless resuming, record `base=$(git rev-parse HEAD)` and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally
    HEAD.

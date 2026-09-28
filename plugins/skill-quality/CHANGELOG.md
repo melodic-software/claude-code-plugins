@@ -3,6 +3,14 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.6] - 2026-09-28
+
+### Changed
+
+- **`check`: Check 25 is a FAIL (#4586).** The fleet corpus is green under the verb-contract gate;
+  mismatches now fail `check-skill.sh` and a new `scripts/check-all-skills-verb-contract.sh` CI
+  step scans every marketplace skill so changed-file scoping cannot hide drift on main.
+
 ## [0.24.5] - 2026-09-27
 
 ### Added

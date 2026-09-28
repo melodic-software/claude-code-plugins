@@ -3,6 +3,22 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.8] - 2026-09-28
+
+### Fixed
+
+- **`verify` ties MET to deployed code, not only a measured tree**
+  ([#4441](https://github.com/melodic-software/claude-code-plugins/issues/4441)). Step 3 compares
+  the harness path/version with `installed_plugins.json` (or the project-scope install record) and
+  refuses **MET** when they differ without a post-deployment re-measurement. The report adds
+  `Measured:` and `Deployed:` lines.
+- **`goal` and `snapshot` document parallel event-level targets and MSYS process accounting**
+  ([#4439](https://github.com/melodic-software/claude-code-plugins/issues/4439),
+  [#4440](https://github.com/melodic-software/claude-code-plugins/issues/4440)). Goals for hooks
+  (and similar parallel units) record event wall time, unit marginal cost, and event-level
+  realistic/ideal targets. `harness-integrity.md` states the Job Object +2-per-external-command rule
+  on Git Bash and how it differs from PATH-shim `spawns=` census output.
+
 ## [0.2.7] - 2026-09-28
 
 ### Fixed
