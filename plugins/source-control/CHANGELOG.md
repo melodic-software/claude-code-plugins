@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.5] - 2026-09-28
+
+### Changed
+
+- **`/source-control:worktree` keeps create and cleanup gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** The session-id rule, the stranded-work removal rule, and the do-not-nest rule sit in the first 20,000 bytes. The nesting-invariant measurement stays in this file and follows the action gates.
+
 ## [0.62.4] - 2026-09-28
 
 ### Changed
