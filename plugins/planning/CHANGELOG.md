@@ -23,6 +23,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   (`plugins/planning/scripts/check-open-questions.sh`), and old ledgers still import. As of:
   2026-09-28, planning 0.45.4. Recheck: a ledger exported before v1 fails import, or the register
   gate starts grading resolution fields.
+
 ## [0.45.4] - 2026-09-28
 
 ### Changed
