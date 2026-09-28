@@ -223,3 +223,67 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $result[0].trend.delta | Should -Match '\+2'
     }
 }
+
+Describe 'Invoke-TrendAnalysis -- drivers CodeIntegrity repeat' -Tag 'lib' {
+    BeforeAll {
+        function New-DriversPrior {
+            param([int] $Count, $Newest, [string[]] $ChecksRan = @('drivers'))
+            $metrics = @{ 'drivers.unsigned_in_store_count' = 0; 'drivers.code_integrity_event_count' = $Count }
+            if ($null -ne $Newest) { $metrics['drivers.code_integrity_newest_event_unix'] = [long]$Newest }
+            New-HistoryEntry -TopMetrics $metrics -ChecksRan $ChecksRan
+        }
+        function New-DriversNow {
+            param([int] $Count, $Newest)
+            New-CheckStub -Id 'drivers' -Category 'drivers' -Severity 'WARN' -Detail @{
+                unsigned_in_store_count          = 0
+                code_integrity_event_count       = $Count
+                code_integrity_newest_event_unix = $Newest
+            }
+        }
+    }
+
+    It 'upgrades to CRIT when a newer event follows a prior run that also saw one' {
+        $result = Invoke-TrendAnalysis -CheckResults @(New-DriversNow -Count 2 -Newest 2000) `
+            -HistoryTail @(New-DriversPrior -Count 1 -Newest 1000)
+        $result[0].severity | Should -Be 'CRIT'
+        $result[0].trend.adjusted_from | Should -Be 'WARN'
+        $result[0].notes | Should -Match 'trend upgrade: repeat: CodeIntegrity'
+    }
+
+    It 'stays WARN when the only event is the one the prior run already counted' {
+        $result = Invoke-TrendAnalysis -CheckResults @(New-DriversNow -Count 1 -Newest 1000) `
+            -HistoryTail @(New-DriversPrior -Count 1 -Newest 1000)
+        $result[0].severity | Should -Be 'WARN' -Because 're-reading one event inside the 7-day window is not a repeat'
+        $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+    }
+
+    It 'stays WARN when the prior run saw no CodeIntegrity events' {
+        $result = Invoke-TrendAnalysis -CheckResults @(New-DriversNow -Count 1 -Newest 2000) `
+            -HistoryTail @(New-DriversPrior -Count 0 -Newest $null)
+        $result[0].severity | Should -Be 'WARN'
+    }
+
+    It 'stays WARN when the prior run predates the newest-event marker' {
+        $result = Invoke-TrendAnalysis -CheckResults @(New-DriversNow -Count 1 -Newest 2000) `
+            -HistoryTail @(New-DriversPrior -Count 3 -Newest $null)
+        $result[0].severity | Should -Be 'WARN'
+    }
+
+    It 'compares against the newest run where drivers ran, skipping runs where it did not' {
+        $history = @(
+            New-DriversPrior -Count 1 -Newest 1000
+            New-DriversPrior -Count 0 -Newest $null
+            New-DriversPrior -Count 5 -Newest 1500 -ChecksRan @('disk-space')
+        )
+        $result = Invoke-TrendAnalysis -CheckResults @(New-DriversNow -Count 1 -Newest 2000) -HistoryTail $history
+        $result[0].severity | Should -Be 'WARN' -Because 'the newest run where drivers ran saw zero events'
+    }
+
+    It 'survives the history JSON round trip' {
+        $history = @(New-DriversPrior -Count 1 -Newest 1790000000) |
+            ForEach-Object { $_ | ConvertTo-Json -Depth 5 | ConvertFrom-Json }
+        $now = New-DriversNow -Count 1 -Newest 1790003600 | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $result = Invoke-TrendAnalysis -CheckResults @($now) -HistoryTail $history
+        $result[0].severity | Should -Be 'CRIT'
+    }
+}
