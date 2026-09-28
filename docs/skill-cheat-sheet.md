@@ -91,6 +91,9 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/pixel-art:animate`](../plugins/pixel-art/skills/animate/SKILL.md) | `pixel-art` | Author, render, and review pixel-art animation cycles and sprite sheets |
 | [`/pixel-art:scene`](../plugins/pixel-art/skills/scene/SKILL.md) | `pixel-art` | Author, render, and review a self-contained HTML pixel-art scene |
 | [`/pixel-art:sprite`](../plugins/pixel-art/skills/sprite/SKILL.md) | `pixel-art` | Author, render, and review a static pixel-art sprite |
+| [`/pixel-art:tileset`](../plugins/pixel-art/skills/tileset/SKILL.md) | `pixel-art` | Author, render, and review an engine tileset or parallax |
+| [`/pixel-art:ui`](../plugins/pixel-art/skills/ui/SKILL.md) | `pixel-art` | Author, render, and review pixel-art UI skins, icons, and fonts |
+| [`/pixel-art:vfx`](../plugins/pixel-art/skills/vfx/SKILL.md) | `pixel-art` | Author, render, and review pixel-art effects and animation cells |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test
@@ -242,6 +245,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
+| [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |
 | [`/work-items:scan-todos`](../plugins/work-items/skills/scan-todos/SKILL.md) | `work-items` | Sweep source comments for TODO and FIXME markers, resolve or file each |
 | [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route a spec container's macro journey. Status, execution shape, next step |
 | [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker. Add, list, close, stats |
