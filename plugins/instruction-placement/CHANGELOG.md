@@ -3,6 +3,15 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.8] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
+
 ## [0.15.7] - 2026-09-28
 
 ### Changed
