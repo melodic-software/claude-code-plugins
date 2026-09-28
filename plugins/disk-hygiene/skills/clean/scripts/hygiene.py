@@ -1608,11 +1608,7 @@ def scan_tree(
                         walked = False
                         truncated.append(relative)
                         unwalked_reasons[relative] = "protected"
-                    elif (
-                        not sizes_only
-                        and max_depth is not None
-                        and depth >= max_depth
-                    ):
+                    elif max_depth is not None and depth >= max_depth:
                         # A depth cut is the one truncation reason emptiness can
                         # answer. One cheap first-child probe (no recursion, no
                         # count) decides it: an empty directory has no
