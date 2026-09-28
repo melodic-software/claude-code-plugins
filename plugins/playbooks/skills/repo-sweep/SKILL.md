@@ -36,7 +36,7 @@ carry the meanings below; any other non-zero code is a failed `gh`, `git`, or `j
 | Script | Does | Exit codes |
 |---|---|---|
 | `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when. `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
-| `skill-version.sh <skill>...` | `<skill>@<version>`. `plugin:skill`: the installed plugin's version, `@unknown` when not installed. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 0 |
+| `skill-version.sh [--dir <loaded-dir>] <skill>...` | `<skill>@<version>`. `plugin:skill`: with `--dir` before it, the version of the copy the session loaded, from the nearest `plugin.json` or the plugin cache path, naming on stderr a version that differs from the install record; else the installed plugin's version, `@unknown` when not installed. `REPO_SWEEP_PLUGIN_DIRS` (colon-separated, as passed to `--plugin-dir`) overrides the install record. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 2 `--dir` with no value or no skill after it |
 | `history.sh <catalog>` | TSV id, recommendation (`run`, `rerun`, `rerun-optional`), reason, from merged sweep PRs then `Playbook-Step` trailers | 1 catalog error |
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
@@ -106,6 +106,16 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   inference from the 2.1.280 binary, which keys its bundled-skills directory on its own version;
   no docs page states it. Recheck when that docs table changes or a Claude Code release note
   gives bundled skills their own versions.
+- A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
+  `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
+  reports the installed version, which may never have run; `next` passes each skill's loaded
+  directory and stops after an update notice. A `--plugin-dir` sweep sets
+  `REPO_SWEEP_PLUGIN_DIRS` to the same directories. Record: the running session keeps the
+  versions it loaded
+  ([plugins: loading](https://code.claude.com/docs/en/plugins/loading), fetched 2026-09-28);
+  the Skill tool's "Base directory for this skill" line is the only source of the loaded path,
+  and no docs page names it. Recheck when the loading page changes or a plugin env var exposes
+  the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
 - An override exists because the skill hardcodes its own branch, PR, or commit structure. State

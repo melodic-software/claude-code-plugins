@@ -1,5 +1,56 @@
 # Changelog: discovery plugin
 
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **Research Phase 2 fans out per gap when nesting is available.** One topic with several gaps had
+  no fan-out path: research-deep splits only topics that share no claims, and the "parallel
+  workers for breadth within a phase" principle had no step that fired it, so a five-gap brief ran
+  serially under one 40-turn limit and left on-point primaries unfetched. With `nested spawning
+  available` and 3 or more numbered gaps, the researcher now dispatches one generic gap worker per
+  gap, or per group of gaps sharing a primary (capped at 5), in one turn. Workers gather and return
+  URLs, on-disk artifact paths and quoted spans, never verdicts; the researcher keeps the
+  falsification query, confirms each cited primary from its artifact before counting it as Tier
+  0/1, and leaves unanswered gaps open. Recipe: the discipline file's new "Per-gap fan-out (Phase
+  2)". The researcher's parallel-worker clause and research-deep's multi-topic check point at it,
+  and `contract.test.sh` pins all four. The discipline file gains a Contents block now that it passes 300 lines (#4151).
+
+## [0.24.10] - 2026-09-28
+
+### Changed
+
+- **A direct dispatch of `researcher` learns the gate it owes.** The post-dispatch acceptance gate
+  lives in the research skill body, and a parent that dispatches `discovery:researcher` without
+  loading the skill (to keep its own context small) never reads it. `researcher.md` now states
+  that whatever dispatched it owes the gate and points at the skill's "Post-dispatch acceptance
+  gate" and the parent contract's "Running the acceptance gate". Its return payload carries a
+  fixed `gate_owed:` line naming the three gate scripts and the section, so the obligation arrives
+  in band. The parent contract says the same for a direct dispatcher. `contract.test.sh` section
+  15 pins all three (#4275).
+
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **`discovery:research-verifier`**, a read-only agent (`Read, Grep, Glob, WebFetch, WebSearch`,
+  `model: sonnet`) that grades a research artifact's verifier-owned outcome-gate rows (currently
+  4, 7 and 12) in a fresh context and returns the literal `verification:` line the parent writes
+  into `RESEARCH.md`. The research skill carries a copyable dispatch block for it right after the
+  acceptance gate (#4231).
+
+### Changed
+
+- **The research index records verification state, and a skip is recorded.** `RESEARCH.md`
+  frontmatter carries `verification:`: the researcher writes `pending` in its first write, and the
+  parent replaces it with the verifier's line or, on the cost path, with `skipped (cost)`. `pending`
+  left after the post-dispatch boundary closes is the one wrong value (#4231).
+- **`check-dispatch-artifact.sh` prints `verification=<value>`** on its own line after a usable
+  verdict, read from the index frontmatter (`unrecorded` when absent). It never changes the exit
+  status (#4231).
+- `agents/tool-honesty.test.sh` owes a `persistence:` axis only from agents whose allowlist holds
+  `Write`, and accepts `target_as_received:` as the echo-back field.
+
 ## [0.24.8] - 2026-09-28
 
 ### Changed

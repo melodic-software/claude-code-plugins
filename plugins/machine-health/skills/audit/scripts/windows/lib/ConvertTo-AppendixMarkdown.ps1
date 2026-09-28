@@ -17,12 +17,16 @@ Neutrally named. The per-check inventory keys are documented here -- when a
 new check adds a renderable inventory, extend this function.
 
 Known inventory keys (by check.id):
-    winget-upgrades : detail.upgrades (list of name/id/current/available)
-    drivers         : detail.oldest_drivers (list of name/version/date)
+    winget-upgrades : detail.kev_matches (upgrade/id/cve/vendor/product/basis)
+                      + detail.upgrades (list of name/id/current/available)
+    drivers         : detail.code_integrity_events (time/provider/id/message)
+                      + detail.oldest_drivers (list of name/version/date)
     services        : detail.startup_inventory + detail.stopped_auto_services
     event-log-errors: detail.top_sources (provider_and_id/count/first/last)
     windows-update  : detail.recent_hotfixes
 #>
+
+. (Join-Path $PSScriptRoot 'ConvertTo-DetailMarkdown.ps1')
 
 function ConvertTo-AppendixMarkdown {
     [CmdletBinding()]
@@ -104,31 +108,62 @@ $($Row -join "`n")
 
 function Get-WingetUpgradeAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = @(Get-AppendixInventory -Detail $Detail -Key 'upgrades')
-    if ($items.Count -eq 0) { return $null }
+    $sections = [System.Collections.Generic.List[string]]::new()
 
-    $rows = foreach ($u in $items) {
-        "| $($u.name) | ``$($u.id)`` | $($u.current_version) | $($u.available_version) |"
+    $kev = @(Get-AppendixInventory -Detail $Detail -Key 'kev_matches')
+    if ($kev.Count -gt 0) {
+        $rows = foreach ($k in $kev) {
+            $basis = $k.PSObject.Properties['match_basis'] ? $k.match_basis : ''
+            ("| $(Format-MarkdownCell $k.upgrade) | ``$(Format-MarkdownCell $k.upgrade_id)`` | " +
+                "$(Format-MarkdownCell $k.cve_id) | $(Format-MarkdownCell "$($k.vendor) / $($k.product)") | " +
+                "$(Format-MarkdownCell $basis) |")
+        }
+        $sections.Add((Format-AppendixDetail -Summary "CISA KEV matches ($($kev.Count))" `
+                    -Column @('Upgrade', 'Id', 'CVE', 'Vendor / Product', 'Basis') -Row @($rows)))
     }
 
-    return Format-AppendixDetail -Summary "winget upgrades ($($items.Count))" `
-        -Column @('Name', 'Id', 'Installed', 'Available') -Row @($rows)
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'upgrades')
+    if ($items.Count -gt 0) {
+        $rows = foreach ($u in $items) {
+            "| $($u.name) | ``$($u.id)`` | $($u.current_version) | $($u.available_version) |"
+        }
+        $sections.Add((Format-AppendixDetail -Summary "winget upgrades ($($items.Count))" `
+                    -Column @('Name', 'Id', 'Installed', 'Available') -Row @($rows)))
+    }
+
+    if ($sections.Count -eq 0) { return $null }
+    return ($sections -join "`n`n")
 }
 
 function Get-DriverAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $items = @(Get-AppendixInventory -Detail $Detail -Key 'oldest_drivers')
-    if ($items.Count -eq 0) { return $null }
+    $sections = [System.Collections.Generic.List[string]]::new()
 
-    $rows = foreach ($d in $items) {
-        $date = $d.driver_date ? ($d.driver_date -split 'T')[0] : 'n/a'
-        "| $($d.device_name) | $($d.manufacturer) | $($d.driver_version) | $date |"
+    $events = @(Get-AppendixInventory -Detail $Detail -Key 'code_integrity_events')
+    if ($events.Count -gt 0) {
+        $rows = foreach ($e in $events) {
+            ("| $(Format-MarkdownCell $e.time_created) | $(Format-MarkdownCell $e.provider_name) | " +
+                "$(Format-MarkdownCell $e.id) | $(Format-MarkdownCell $e.message -MaxLength 300) |")
+        }
+        $total = $Detail.PSObject.Properties['code_integrity_event_count'] ?
+            $Detail.code_integrity_event_count : $events.Count
+        $sections.Add((Format-AppendixDetail -Summary "CodeIntegrity events ($($events.Count) of $total)" `
+                    -Column @('Time', 'Provider', 'Id', 'Message') -Row @($rows)))
     }
 
-    $totalCount = $Detail.PSObject.Properties['total_drivers'] ? $Detail.total_drivers : $items.Count
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'oldest_drivers')
+    if ($items.Count -gt 0) {
+        $rows = foreach ($d in $items) {
+            $date = $d.driver_date ? ($d.driver_date -split 'T')[0] : 'n/a'
+            "| $($d.device_name) | $($d.manufacturer) | $($d.driver_version) | $date |"
+        }
+        $totalCount = $Detail.PSObject.Properties['total_drivers'] ? $Detail.total_drivers : $items.Count
+        $sections.Add((Format-AppendixDetail -Summary "oldest drivers ($($items.Count) of $totalCount)" `
+                    -Column @('Device', 'Manufacturer', 'Version', 'Date') -Row @($rows)))
+    }
 
-    return Format-AppendixDetail -Summary "oldest drivers ($($items.Count) of $totalCount)" `
-        -Column @('Device', 'Manufacturer', 'Version', 'Date') -Row @($rows)
+    if ($sections.Count -eq 0) { return $null }
+    return ($sections -join "`n`n")
 }
 
 function Get-ServicesAppendix {

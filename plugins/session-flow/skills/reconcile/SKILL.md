@@ -74,6 +74,13 @@ part that is done.
      step 2 proved its work done, never on a hunch.
    - **Work still running** → leave it tracked and running; a *kill* is gated
      (see the autonomy policy), never a side effect of tidying.
+   - **A worker that reported finished** → before retiring it, check whether a
+     background shell or task it launched is still running. Its report does not
+     settle its own background work: a hung shell keeps a returned worker listed
+     as active long after the worker is done. Each such task is **work still
+     running**, surfaced by name with the worker that launched it; stopping it
+     goes through the kill gate like any other. The worker is not reported
+     retired while one of its tasks is pending that confirmation.
    Reconcile **this session's own** ledger only. A spawned subagent owns an
    internal task list the parent cannot see, do not attempt to reconcile it.
 4. **Sibling-session liveness, read-only inventory.** Report, but do not
@@ -90,7 +97,8 @@ part that is done.
    it when reporting rather than pasting the raw span. These sessions are
    visible but not controllable: report their liveness; retire nothing.
 5. **Report.** Lead with any gated kill, surfaced as a question for the
-   user, not an action; then one list: what was retired / closed, what is
+   user, not an action, including a finished worker's still-running
+   background task; then one list: what was retired / closed, what is
    still running, and the sibling-session liveness inventory marked
    report-only.
 

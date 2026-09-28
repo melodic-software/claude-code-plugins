@@ -89,7 +89,12 @@ One row per check. Trend arrow uses `↑` (worsening), `↓` (improving), `→` 
 |---|---|---|---|---|
 | storage | disk-space | **WARN** | C: at 87% used (13% free) | ↑ +8pp |
 | security | defender | OK | Signatures 1 day old, RTP on | → |
+| config | my-check [custom] | **WARN** | ... | · |
 ```
+
+A check registered through the catalog overlay rather than shipped carries a `[custom]` suffix
+after its id, in this table and in its finding heading, so a reader can tell a model-authored
+check from a shipped one.
 
 ## Finding section format
 
@@ -111,6 +116,13 @@ Each finding within CRIT/WARN/INFO gets this structure:
 **Suggested action:** {{human_authored_or_omitted}}
 
 ````
+
+The detail slot is a compact `| Detail | Value |` table (`ConvertTo-DetailMarkdown`): scalar keys
+first, then each list as a count with a short preview, cut at 10 rows with a pointer to
+`latest.json` for the rest. Full evidence lists (the CISA KEV matches behind a `winget-upgrades`
+finding, the CodeIntegrity events behind a `drivers` finding) render in the appendix. A WARN or
+CRIT finding with no trend history carries the line "No trend history for this check; single
+reading." after its severity.
 
 The **Suggested action** line is only rendered when the catalog entry or check script itself provides one. Skills should not manufacture actions; an empty action line encourages the human to investigate rather than rubber-stamp.
 

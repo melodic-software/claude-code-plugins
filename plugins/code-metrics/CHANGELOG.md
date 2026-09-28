@@ -3,6 +3,19 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.19] - 2026-09-28
+
+### Fixed
+
+- **Two same-named Python modules under hyphenated directories no longer make the whole Python lane
+  `unavailable`.** mypy's module walk stops at a directory whose name is not an identifier, so
+  `a-dir/mod.py` and `b-dir/mod.py` both derive `mod`, and mypy used to stop before analysis with a
+  duplicate-module error. The `mypy-report` collector now holds the later file of each such pair
+  out before running mypy, measures every other file, and reports the run row as `partial` with
+  each held-out file named in its reason. A duplicate that only mypy's `__init__.py` naming mode
+  produces is held out from mypy's own message and the run repeats. Any other blocking mypy error
+  still reads `unavailable` with mypy's message.
+
 ## [0.3.18] - 2026-09-27
 
 ### Fixed
