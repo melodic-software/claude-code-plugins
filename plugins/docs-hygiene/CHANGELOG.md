@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.9] - 2026-09-28
+
+### Changed
+
+- **`write-for-agents` names the headless append flags** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The surface table adds `--append-system-prompt-file` and `--append-subagent-system-prompt` / `--append-subagent-system-prompt-file`, each `-p` only. The spec `docs/specs/agent-doc-surfaces.md` carries the same rows.
+
 ## [0.23.8] - 2026-09-28
 
 ### Changed
