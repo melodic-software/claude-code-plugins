@@ -3,6 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- **`/architecture:map-containers` charts deployables and the stores they bind (#4644).**
+  Output kind comes from the committed project SDK, `OutputType`, `AzureFunctionsVersion`,
+  or a Dockerfile image. A directory name is not an output kind. A library referenced by a
+  deployable is a contained module. A shared-infrastructure edge exists only when two
+  deployables' committed configuration names the same store host, and the edge cites both
+  keys. Credentials are removed before write. The collector reads git HEAD only.
+  `diagram_dialect.system` (`likec4` or `c4-plantuml`) chooses the C4 view; unset writes the
+  fact report and no view file. Mermaid is not a value of that key.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

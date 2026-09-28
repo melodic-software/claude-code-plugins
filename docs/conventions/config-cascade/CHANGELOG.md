@@ -7,6 +7,12 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table, 2026-09-28 (architecture readers)
+
+- **`architecture` is also read by `/architecture:map-containers`.** `architecture_dir` still has
+  no default. `diagram_dialect.system` stays owned by authoring-formats. No `contract_version`
+  bump: layering is unchanged.
+
 ## Deviations and Implementers table, 2026-09-28 (gitignore)
 
 - **gitignore postures declared, not converged (#3573).** Recommend stays the

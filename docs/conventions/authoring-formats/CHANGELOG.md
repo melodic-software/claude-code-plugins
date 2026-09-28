@@ -6,6 +6,12 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.3] - 2026-09-28
+
+Clarification. `diagram_dialect.system` is also read by `/architecture:map-containers` for the
+as-built container view. The key is still unset by default, and mermaid is still refused. When
+the key is unset, that skill writes its fact report and no C4 view file.
+
 ## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the

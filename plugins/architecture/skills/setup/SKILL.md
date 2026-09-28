@@ -40,7 +40,7 @@ Detail`, with a remediation line under it for every FAIL row. The rows to cover:
 | A resolver `duplicate:` warning on stderr (a `CLAUDE.md` copy of the region) | INFO | Report it with the doctrine's remediation, remove the copy. It does not change the resolved home. |
 
 `architecture_dir` has no documented default, so an absent declaration is a FAIL here rather than an
-INFO: `map-landscape` cannot run without it. `landscape_dialect` absent is a PASS reported with its
+INFO: `map-landscape` and `map-containers` cannot run without it. `landscape_dialect` absent is a PASS reported with its
 default, `mermaid`.
 
 `check` never infers a home, never writes any file, and never creates a directory.

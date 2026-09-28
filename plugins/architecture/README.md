@@ -77,6 +77,14 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## What runs
+
+`/architecture:map-containers` charts one repository's deployables and the stores they bind.
+Output kind comes from the project SDK, `OutputType`, `AzureFunctionsVersion`, or a Dockerfile
+image. A directory name is not evidence, and source is not read. A library referenced by a
+deployable is contained in that container. Two deployables that name the same store host are one
+shared-infrastructure edge, and the edge cites both config keys.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +106,7 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-containers
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -114,7 +123,7 @@ portfolio", "who owns which repo", "chart our repositories".
 `map-landscape` reads two keys from a topic doc at your repository's convention
 home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
 default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+`mermaid`). `map-containers` uses the same `architecture_dir` and reads `diagram_dialect.system` for the C4 diagram file. The contract lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
 `architecture_dir` declared and none confirmed, `map-landscape` stops and points

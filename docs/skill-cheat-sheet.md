@@ -40,6 +40,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/architecture:map-containers`](../plugins/architecture/skills/map-containers/SKILL.md) | `architecture` | Chart deployables and the stores they bind as a C4 container view |
 | [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |

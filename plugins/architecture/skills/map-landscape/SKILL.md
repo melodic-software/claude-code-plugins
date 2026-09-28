@@ -201,7 +201,8 @@ End every run with this block, in this order, filled from the record and the scr
 ## What this skill does NOT do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
-- Container-level or component-level C4 views. This is the landscape altitude only.
+- Container-level or component-level C4 views. Deployables and the stores they bind are
+  `/architecture:map-containers`. This skill is the landscape altitude only.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.
@@ -214,6 +215,7 @@ End every run with this block, in this order, filled from the record and the scr
 ## Next
 
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
+- The question is which deployables run and which stores they bind: `/architecture:map-containers`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.
 - The landscape settles a decision worth keeping: `/architecture:record-decision`.
