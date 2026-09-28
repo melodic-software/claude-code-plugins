@@ -52,7 +52,7 @@
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "block-windows-drive-tmp guard",
-      "description": "Block writes whose target is a Windows drive-root temp path (/tmp, C:\\tmp, \\tmp, /c/tmp) that resolves to <drive>:\\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes",
+      "description": "Block writes whose target is a Windows drive-root temp path (/tmp, C:\\tmp, \\tmp, /c/tmp) that resolves to <drive>:\\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes. On Git for Windows, a Bash-tool /tmp that cygpath/mount shows is the usertemp mount of %TEMP% is not blocked; /c/tmp, C:\\tmp, drive-root \\tmp, PowerShell /tmp, and the file-path lane still are. curl -o/--output and wget -O/--output-document destinations are judged the same way as cp/mv",
       "default": true
     },
     "block_exported_msys_pathconv_enabled": {
@@ -153,5 +153,5 @@
       "min": 1
     }
   },
-  "version": "0.39.3"
+  "version": "0.40.0"
 }

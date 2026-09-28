@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.39] - 2026-09-28
+
+### Fixed
+
+- **`audit` classifies each repository's worktrees against that repository's own worktree root** ([#4212](https://github.com/melodic-software/claude-code-plugins/issues/4212)). One root was resolved for the whole fleet from the first target that had one. With a global `worktreeroot.path = D:/worktrees` and an `includeIf` giving the chezmoi source `~/.local/share/chezmoi-worktrees`, an audit that reached chezmoi first reported a correctly placed `D:/worktrees/github-iac-*` worktree as `worktree-outside-configured-root`. It then advised recreating it under the chezmoi root. Each canonical checkout's `worktreeroot.path` is now read with `git -C <canonical>`, which honors `includeIf`, and that repository's findings and rollup name the root it used. A checkout with no key keeps the fleet default. The header still names the fleet default, and `worktree-root-conformance-summary` lists every repository whose own root differed.
+
 ## [0.23.38] - 2026-09-28
 
 ### Fixed

@@ -7,6 +7,12 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Consumer gotchas tier, 2026-09-28
+
+- **Ratified `consumer-gotchas.md` (#3547).** Documents the concatenating cascade tier for
+  consumer-contributed skill gotchas (local config vs upstream issues). No `contract_version` bump:
+  additive guidance sibling to the core contract; participating plugins wire readers per plugin.
+
 ## Deviations and Implementers table, 2026-09-28
 
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
