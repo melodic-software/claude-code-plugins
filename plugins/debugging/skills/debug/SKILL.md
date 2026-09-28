@@ -175,6 +175,7 @@ Required before declaring done:
 - File the architectural finding with your issue tracker
 - If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 - Make the recommendation **after** the fix is in, not before. The post-fix view has more information than the pre-fix one
+- State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
 
 ## What this skill does NOT do
 

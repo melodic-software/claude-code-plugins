@@ -5,6 +5,15 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.15.1] - 2026-09-28
+
+### Changed
+
+- **`pick-for-the-problem` states the chosen option under the plugin's recommendation-basis
+  contract** (`context/recommendation-basis.md`): `Basis: verified` with the source URLs or tool
+  output it rests on, `Basis: judgment` only where the call is not consequential, or withheld as an
+  open question when research cannot settle a consequential choice.
+
 ## [0.15.0] - 2026-09-28
 
 ### Added
