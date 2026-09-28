@@ -432,7 +432,7 @@ home="$(mktemp -d)"
   git checkout -q -b feature
   printf 'y = 2\n' >changed.py
   git add changed.py && git commit -q -m change
-  git tag mark
+  git tag --no-sign mark
   printf 'z = 3\n' >third.py
   git add third.py && git commit -q -m third
   mkdir -p .claude

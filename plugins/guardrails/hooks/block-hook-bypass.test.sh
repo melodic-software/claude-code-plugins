@@ -11,10 +11,6 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/block-hook-bypass.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# Without CLAUDE_PLUGIN_DATA hook::notice_once emits every time; an inherited
-# one latches the levers notice, so later blocking cases see no document. The
-# latch cases pass their own directory.
-unset CLAUDE_PLUGIN_DATA
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"

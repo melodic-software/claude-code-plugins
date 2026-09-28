@@ -6868,6 +6868,7 @@ class GuardTests(unittest.TestCase):
             with (
                 self.subTest(target=target),
                 mock.patch.object(Path, "resolve", return_value=Path(target)),
+                mock.patch.object(Path, "is_file", return_value=True),
             ):
                 self.assertEqual(
                     trusted, guard._trusted_system_readonly_head("/usr/bin/ls")

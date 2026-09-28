@@ -18,7 +18,8 @@ source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 
 unset CODE_METRICS_DISABLE_BUNDLED
 REPORTS="$(mktemp -d)"
-trap 'rm -rf "$REPORTS"' EXIT
+EMPTY_PATH="$(mktemp -d)"
+trap 'rm -rf "$REPORTS" "$EMPTY_PATH"' EXIT
 export CODE_METRICS_REPORT_DIR="$REPORTS"
 
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
@@ -34,7 +35,11 @@ assert_contains "markdown carries the run table" "$out" "## Coverage of this run
 assert_contains "markdown carries the plugin-default reference" "$out" "| file_lines | 1000 |"
 assert_contains "markdown lists the python fixture" "$out" "cm_sample.py"
 
-out="$(CODE_METRICS_DISABLE_BUNDLED=1 bash "$SCRIPT" --all "$SOURCES" 2>/dev/null || true)"
+# A host scc would still measure; the tool-free PATH keeps every collector away.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_assert_tool_free_path "$EMPTY_PATH"
+out="$(CODE_METRICS_DISABLE_BUNDLED=1 PATH="$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES" 2>/dev/null || true)"
 assert_contains "all-unavailable run renders the Measured nothing headline" "$out" "Measured nothing"
 
 bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1

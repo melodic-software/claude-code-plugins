@@ -40,7 +40,11 @@
 # (git missing, repo root unresolved, bad argument).
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# Parameter expansion, not dirname: with coreutils off PATH, bash 5.3 fails
+# `cd ""` before the git check below can name what is missing.
+SCRIPT_SRC="${BASH_SOURCE[0]}"
+[[ "$SCRIPT_SRC" == */* ]] || SCRIPT_SRC="./$SCRIPT_SRC"
+SCRIPT_DIR="$(cd "${SCRIPT_SRC%/*}" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 
 case "${1:-}" in

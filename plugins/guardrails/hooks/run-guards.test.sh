@@ -28,8 +28,6 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data"
-# The repo's settings set a telemetry sink; its extra output skews the jq counts.
-unset HOOK_TELEMETRY_SINK
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "FAIL: jq is required for these tests" >&2

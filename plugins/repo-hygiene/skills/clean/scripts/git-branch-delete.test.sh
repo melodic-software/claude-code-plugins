@@ -575,7 +575,7 @@ git -C "$REPO" checkout -q -b feat/tagged
 echo tg >"$REPO/tg"
 git -C "$REPO" add tg
 git -C "$REPO" commit -qm tagged
-git -C "$REPO" tag keep/tagged
+git -C "$REPO" tag --no-sign keep/tagged
 git -C "$REPO" checkout -q main
 CAP_LIVE="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/cap-live.tsv" | sed -n 's/^TipCapture: //p')"
 out="$(run_delete --capture "$CAP_LIVE" --force-review feat/tagged 2>&1)"

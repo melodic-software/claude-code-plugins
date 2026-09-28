@@ -187,8 +187,10 @@ if [[ $JSCPD_ON_PATH -eq 1 ]]; then
   mapfile -t hook_copies < <(printf '%s\n' plugins/*/hooks/hook-utils.sh)
   out="$(bash "$SCRIPT" --json --registry "$REAL_REGISTRY" "${hook_copies[@]}")"
   assert_eq "the real hook-utils cluster run exits 0" 0 "$?"
-  assert_doc "the real hook-utils cluster reports zero debt through the registry" "$out" \
-    'd["summary"]["duplicated_lines"] == 0 and any(e["path"] == "hooks/hook-utils.sh" for e in d["excluded"])'
+  # Clones inside one copy are the library's own duplication, not replication
+  # across copies, so only a group spanning two files counts as debt here.
+  assert_doc "the real hook-utils cluster reports zero cross-copy debt through the registry" "$out" \
+    'all(len({i["file"] for i in m["instances"]}) == 1 for m in d["measures"]) and any(e["path"] == "hooks/hook-utils.sh" for e in d["excluded"])'
 else
   printf 'SKIP jscpd (not on PATH): real hook-utils cluster case\n'
 fi
