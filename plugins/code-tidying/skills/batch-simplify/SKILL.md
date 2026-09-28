@@ -19,7 +19,16 @@ scope is **mutation detected after a scoped invocation**.
 the axis line: settings or environment, plan, platform or provider, host surface; give the enable
 path (`disableBundledSkills`, `skillOverrides`).
 
-**`unattended`:** run the step when it resolves; record the Native step result block without asking.
+**Result block.** The Phase 8 report opens with this block, whichever state the step ended in:
+
+```text
+Native step: simplify
+State: ran | did not resolve in this session (<axis>) | mutation detected after a scoped invocation
+Scope: <file groups the step ran over, or none>
+Outside-scope changes: none | <paths>
+```
+
+**`unattended`:** run the step when it resolves; record the result block without asking.
 
 ## Repository context. Gather first
 
