@@ -21,7 +21,10 @@
 // Scope: settings.json / settings.local.json under a .claude directory (any
 // depth — project or user-global), plus managed-settings.json. Nothing else
 // matches, by design (hook-precision: false positives erode trust in the
-// prompt).
+// prompt). The matcher sees file-editing tool calls only: a settings write
+// through Bash/PowerShell, or one rendered into place by another program,
+// never reaches this script, and the hook is deliberately not widened to the
+// shell lane (#3864; README "Hook" records the decision).
 
 let raw = '';
 process.stdin.on('data', (d) => { raw += d; });
