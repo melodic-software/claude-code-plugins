@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.23] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` points at the invocation-context rubric** for `context: fork`, the
+  anti-candidate classes, and the background posture. A user-invoked report that should still
+  print in the invoking turn sets `background: false` (#3545). Serialized above in-flight 0.13.14.
+
 ## [0.13.22] - 2026-09-28
 
 ### Added

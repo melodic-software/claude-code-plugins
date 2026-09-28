@@ -3,6 +3,15 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-09-28
+
+### Changed
+
+- **`audit` runs in a forked subagent with `background: false`.** The skill is a read-only,
+  argument-scoped design-quality report with no mid-run human gate. Isolation keeps tool-source
+  reading out of the parent conversation; blocking keeps the scorecard in the invoking turn
+  (#3545).
+
 ## [0.5.2] - 2026-09-28
 
 ### Added

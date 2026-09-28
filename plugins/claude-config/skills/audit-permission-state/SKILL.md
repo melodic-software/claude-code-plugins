@@ -3,6 +3,8 @@ description: "Report the Claude Code permission state in effect: merges every se
 argument-hint: "(none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced"
 user-invocable: true
 disable-model-invocation: false
+context: fork
+background: false
 metadata:
   workflow-stage: anytime
   summary: Report the permission rules actually in effect and what auto mode drops

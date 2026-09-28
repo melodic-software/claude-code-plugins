@@ -241,6 +241,11 @@ which owns the model-invoked default, the three exception classes a `true` may c
 when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
 invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
 
+Write `context: fork` only after reading the
+[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md),
+which owns when a fork pays, the anti-candidate classes, and the background posture. A user-invoked
+report that should still print in the invoking turn sets `background: false`.
+
 ---
 
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)

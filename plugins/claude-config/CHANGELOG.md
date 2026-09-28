@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.1] - 2026-09-28
+
+### Changed
+
+- **`audit-permission-state` runs in a forked subagent with `background: false`.** The body is a
+  read-only, argument-scoped report with no mid-run gate. Isolation keeps its file reading out of
+  the parent conversation; blocking keeps the report in the invoking turn so `audit-pass` can wait
+  (#3545). Serialized above in-flight 0.52.0.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed

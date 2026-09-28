@@ -12,6 +12,7 @@
 - [Time-sensitive content](#time-sensitive-content)
 - [Evaluation and iteration](#evaluation-and-iteration)
 - [Model coverage](#model-coverage)
+- [Invocation context](#invocation-context)
 - [Agent model](#agent-model)
 
 Locally-owned Melodic Software guidance (not part of the upstream playbook). Anthropic's
@@ -297,16 +298,18 @@ questions:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#test-with-all-models-you-plan-to-use>.
 Verified 2026-09-10. Recheck: the alias list changes.
 
-## Skill model
+## Invocation context
 
-Frontmatter `model` on a skill is honored for the rest of the current turn, then the session model
-returns. `inherit` keeps the active model. In auto mode, a model auto mode does not support is not
-used and the session keeps its current model. With `context: fork`, the value sets the forked
-subagent instead.
+Whether a skill body runs in the current conversation or in an isolated subagent is owned by
+[`docs/conventions/invocation-context/README.md`](../../../../../docs/conventions/invocation-context/README.md).
+This page does not restate the fork semantics, the anti-candidate classes, or the background
+posture. Read that rubric before setting `context: fork`. A user-invoked report that should still
+arrive in the invoking turn sets `background: false`.
 
-**Record.** Claim: the sentences above. Basis:
-<https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of: 2026-09-28.
-Recheck: that row changes the turn scope, the auto-mode exception, or the `context: fork` rule.
+**Record.** Frontmatter rows `context`, `agent`, `background` and the isolated-prompt claim:
+<https://code.claude.com/docs/en/skills#run-skills-in-a-subagent> and
+<https://code.claude.com/docs/en/skills#frontmatter-reference>. Verified 2026-09-28. Recheck: that
+page drops or redefines `context: fork` or `background`.
 
 ## Agent model
 
