@@ -2820,6 +2820,10 @@ run "echo > gitless absolute still blocked" "echo hi > ${GITLESS_DIR}/y.ps1" 2
 # Inherited GIT_DIR must not make a gitless target look like the session repo.
 run "cat > gitless ignores inherited GIT_DIR (allowed)" \
   "cat > ${GITLESS_DIR}/z.ps1" 0 GIT_DIR="${GIT_REPO_DIR}/.git"
+# An inherited ceiling must not hide the work tree around a nested target.
+mkdir -p "${GIT_REPO_DIR}/sub"
+run "cat > nested in a work tree ignores GIT_CEILING_DIRECTORIES (blocked)" \
+  "cat > ${GIT_REPO_DIR}/sub/x.ps1" 2 GIT_CEILING_DIRECTORIES="${GIT_REPO_DIR}"
 GITLESS_LINK="/tmp/bhb-3689-link-$$"
 rm -rf "$GITLESS_LINK"
 mkdir -p "$GITLESS_LINK"

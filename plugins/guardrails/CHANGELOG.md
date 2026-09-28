@@ -12,7 +12,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   The guard resolves the write target, including a leading `$HOME` or `~/`, and
   runs `git rev-parse --show-toplevel` from that directory. A failure means no
   formatter or verify hook would have seen the Write, so the redirect is allowed.
-  A toplevel still blocks. `echo`/`printf` redirects are unchanged. The temp-tree
+  A toplevel still blocks, and the probe ignores inherited `GIT_DIR`,
+  `GIT_WORK_TREE`, and `GIT_CEILING_DIRECTORIES` so none of them can hide an
+  enclosing work tree. `echo`/`printf` redirects are unchanged. The temp-tree
   and plugin-data scratch defaults are unchanged and still apply first.
 
 ## [0.41.3] - 2026-09-28

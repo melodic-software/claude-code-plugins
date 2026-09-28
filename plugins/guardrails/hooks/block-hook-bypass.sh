@@ -1247,7 +1247,8 @@ target_exempt() {
 # cannot place stays blocked. `$HOME` and `~/` are the two expansions the
 # reported false positive uses; any other metacharacter stays blocked.
 # Inherited GIT_DIR / GIT_WORK_TREE are unset so the probe is about this
-# directory, not the session's repository.
+# directory, not the session's repository; GIT_CEILING_DIRECTORIES is unset so
+# an inherited ceiling cannot hide an enclosing work tree.
 _bbh_cat_gitless() {
   local s="$1" target abs dir
   ((SEG_TGT_OPQ[s])) && return 1
@@ -1296,7 +1297,7 @@ _bbh_cat_gitless() {
   else
     return 1
   fi
-  if env -u GIT_DIR -u GIT_WORK_TREE git -C "$dir" rev-parse --show-toplevel >/dev/null 2>&1; then
+  if env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CEILING_DIRECTORIES git -C "$dir" rev-parse --show-toplevel >/dev/null 2>&1; then
     return 1
   fi
   return 0

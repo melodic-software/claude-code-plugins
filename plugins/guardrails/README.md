@@ -323,7 +323,7 @@ out of scope until such a signal exists.
   as a static default, because neither has a fixed spelling: the scratchpad path
   carries a session id, so it resolves at run time.
 
-  **A `cat >` whose target has no git toplevel is allowed** (since **0.40.2**).
+  **A `cat >` whose target has no git toplevel is allowed** (since **0.41.4**).
   The guard resolves that target, including a leading `$HOME` or `~/`, and runs
   `git rev-parse --show-toplevel` from its directory. When that fails, no
   formatter or verify hook would have seen the Write either, so the redirect is
