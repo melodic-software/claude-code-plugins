@@ -8,6 +8,9 @@ their checks is required; `ci-status` is the only one. Flip with
 `/source-control:pull-request ready`, which merges the base, reviews and verifies the merged head,
 and then marks it ready.
 
+Title every pull request in Conventional Commits form, `<type>(<scope>): <subject>`, taken from
+its first commit subject. `ci-status` fails a title without the type.
+
 ## When to stop and when to keep going
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
