@@ -3,11 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.11] - 2026-09-28
+## [0.62.12] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- **The three guarded-mutation CLIs share one preamble (#3449).**
+  `guarded_mutation.py` owns the worker-lease check, the snapshot load, and the
+  head pin that `refresh_pr_branch.py`, `manage_feedback_ledger.py`, and
+  `request_review.py` each opened with. The helper documents what it checks,
+  what it permits, what it refuses, and that a refusal is still the exception
+  the caller already saw. Dry runs still skip the lease. What the guard permits
+  is unchanged.
 
 ## [0.62.10] - 2026-09-28
 
