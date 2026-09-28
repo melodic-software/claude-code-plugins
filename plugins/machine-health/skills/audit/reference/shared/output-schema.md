@@ -173,13 +173,16 @@ Compact. One line per run. Append-only, never rewritten.
   "remediation_counts": { "attempted": 1, "succeeded": 1, "failed": 0 },
   "duration_seconds": 247,
   "checks_ran": ["disk-space", "event-log-errors"],
+  "check_severities": { "disk-space": "WARN", "event-log-errors": "OK" },
   "top_metrics": { "disk-space.used_pct": 87 }
 }
 ```
 
 `checks_ran` lists the ids of the checks that produced a usable result this run. Cadence-skipped, script-missing, and failed-dispatch (timeout / no output / invalid JSON) checks are absent, so a failed run does not defer the next one. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
 
-`top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. It captures every scalar detail key of every check that ran, keyed `<check.id>.<detailKey>`; the trend engine reads one well-known key per check (`Get-TrendRelevantKey`).
+`check_severities` maps each id in `checks_ran` to its final severity, after trend, correlation, and the custom-check clamp. The clamp counts a custom check's clean (OK or INFO) runs from it (`catalog-overlay.md`, "Custom checks"). Lines written before this field existed lack it, and count as no evidence.
+
+`top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. It captures every scalar detail key of every check that ran, keyed `<check.id>.<detailKey>`; the trend engine reads one well-known key per check (`Get-TrendRelevantKey`), and the `drivers` repeat rule reads `drivers.code_integrity_event_count` and `drivers.code_integrity_newest_event_unix`. A scalar that must survive into history is a number, bool, or plain string: `ConvertFrom-Json` turns an ISO-8601 string into a DateTime, which the flattener drops.
 
 ## Timestamp and text encoding
 

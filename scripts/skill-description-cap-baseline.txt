@@ -28,5 +28,4 @@ plugins/claude-ops/skills/audit-skill-visibility          # 1467
 plugins/improvement/skills/find                           # 1212
 plugins/overengineering/skills/audit                      # 1202
 plugins/overengineering/skills/realign                    # 1130
-plugins/work-items/skills/decompose                       # 1110
 plugins/work-items/skills/setup                           # 1273

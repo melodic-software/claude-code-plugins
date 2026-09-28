@@ -151,6 +151,17 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# One topic with many gaps fans out inside Phase 2 when nesting is available;
+# the principle alone never fired (#4151).
+assert_present 'the discipline file carries the per-gap fan-out recipe' \
+  'skills/research/context/discipline.md' '^## Per-gap fan-out \(Phase 2\)$'
+assert_present 'research Phase 2 names the per-gap fan-out step' \
+  'skills/research/SKILL.md' '^\*\*Fan out per gap when nesting is available\.\*\*'
+assert_present 'the researcher body points at the per-gap fan-out' \
+  'agents/researcher.md' 'Per-gap fan-out \(Phase 2\)'
+assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
+  'skills/research-deep/SKILL.md' 'Per-gap fan-out \(Phase 2\)'
+
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
 #
