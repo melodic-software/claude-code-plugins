@@ -3685,7 +3685,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 _PARSER_VALUE_TYPES = {"int": int}
 
 
-def _add_flag(command: argparse.ArgumentParser, flag: engine_grammar.Flag) -> None:
+def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
     """Declare one grammar flag on a subparser.
 
     A valueless flag is always ``store_true`` here even when the grammar marks
@@ -3720,8 +3720,12 @@ def build_parser() -> argparse.ArgumentParser:
         if spec.help is not None:
             options["help"] = spec.help
         command = subparsers.add_parser(spec.name, **options)
+        containers: dict[str, argparse._ActionsContainer] = {}
+        for group in spec.one_of:
+            exclusive = command.add_mutually_exclusive_group(required=True)
+            containers.update(dict.fromkeys(group, exclusive))
         for flag in spec.flags:
-            _add_flag(command, flag)
+            _add_flag(containers.get(flag.name, command), flag)
     return parser
 
 
@@ -3958,7 +3962,10 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                load_json(Path(args.paths)), entry_map(snapshot)
+                {"version": SCHEMA_VERSION, "paths": [args.path]}
+                if args.path is not None
+                else load_json(Path(args.paths)),
+                entry_map(snapshot),
             )
             vcs_evidence = (
                 validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
