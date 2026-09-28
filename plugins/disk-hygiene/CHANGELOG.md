@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-28
+
+### Added
+
+- **One gated verify-and-recycle call per tier**
+  ([#4224](https://github.com/melodic-software/claude-code-plugins/issues/4224)).
+  `handoff-apply` re-verifies the tier and recycles each still-clear path inside
+  the process the hook `ask` approved. The ask text names the tier, the count,
+  and every path, and that prompt is the approval. A declined prompt is a new
+  call, which verifies again. The decision stays `ask`. Paths with more than
+  1000 recorded descendants are not batched.
+
 ## [0.28.1] - 2026-09-28
 
 ### Changed

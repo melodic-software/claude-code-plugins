@@ -158,7 +158,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown. When the hook `ask` for `apply` or `handoff-apply` already lists that tier, the count, and every path, that prompt is the approval: do not also ask `AskUserQuestion` |
 
 ## 1. Create a read-only snapshot
 
@@ -437,9 +437,20 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
+- **Permission prompts: what settings can and cannot change.** A settings `allow` rule cannot
+  remove the deletion prompts. `scan`, `preview`, and `handoff-verify` are already hook `allow`.
+  `apply` and `handoff-apply` stay hook `ask`, and so do PowerShell deletion spellings. Auto mode
+  drops wildcard interpreter rules, and a skill `allowed-tools` grant clears on the next user
+  message, so neither one turns this `ask` into a silent approval.
+  **Claim:** hook `ask` prompts the user and a settings allow rule does not silently approve that
+  call. **Basis:** Claude Code hooks permission decision control at
+  `https://code.claude.com/docs/en/hooks` (an `ask` decision prompts; the classifier can still
+  deny and cannot approve the call silently). **As of:** 2026-09-28. **Recheck:** that page stops
+  saying `ask` prompts, or a release note says a settings allow overrides a hook `ask`.
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  handoff-apply, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook
+  runtime's own absolute interpreter. Do supporting inspection with non-Bash read-only tools. Shell
+  expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`

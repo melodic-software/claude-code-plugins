@@ -101,12 +101,25 @@ engine plan:
    stashes duplicated elsewhere (or none); and the exact approved path supplied by the existing
    operator-confirmation lane.
 
-   **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
-   path's check ages while every later path is still being walked and probed, so its `clear`
-   is already stale at emission, and staler after each intervening deletion. Pair each
-   deletion with its own fresh `--path` handoff-verify run (verify one → delete that one →
-   next); reserve the `--paths` file form for reporting. A clear verdict is valid only at emission
-   time: delete immediately, and re-run handoff-verify after any delay or interruption.
+   **One `handoff-apply` per tier, not one verify and one delete per path.** Freshness is
+   the check inside the process the hook `ask` approved, not a verify that finished before
+   the human answered. Run:
+
+   ```text
+   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
+     --snapshot "<run-dir>/snapshot.json" --confirm-tier "<tier>" \
+     --report "<run-dir>/handoff-report.json" \
+     --path "<relative>" --path "<relative>" \
+     --data-root "${CLAUDE_PLUGIN_DATA}"
+   ```
+
+   Repeat `--path` for every path in that one tier. The hook `ask` lists the tier, the count,
+   and every path; that prompt is the approval, so do not also ask `AskUserQuestion`. The
+   process re-verifies every path and stats each one again immediately before recycling it.
+   A declined or interrupted prompt means the next attempt is a new `handoff-apply`, which
+   verifies again. A path whose snapshot descendant count is over 1000 is skipped as
+   `batch-too-wide`; run that path in its own call. `--paths` remains the file form.
+   Do not author a separate PowerShell delete per path.
 
    When settled removals empty inventoried directories, `handoff-verify` names those containers
    in the same round under `emptied_containers`, deepest first. They are not in the approved

@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import windows_recycle  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -3593,6 +3594,105 @@ def handoff_verify(
     }
 
 
+# A wider tree ages inside one batch. Paths over this descendant count are
+# reported and not recycled in a mixed call; the operator runs them alone.
+HANDOFF_BATCH_DESCENDANT_CAP = 1000
+
+
+def approved_path_payload(paths: list[str] | None, paths_file: str | None) -> dict[str, Any]:
+    """The approved list from repeatable ``--path`` words or a ``--paths`` file."""
+    if paths:
+        return {"version": SCHEMA_VERSION, "paths": list(paths)}
+    if not paths_file:
+        raise HygieneError("handoff requires --path or --paths")
+    return load_json(Path(paths_file))
+
+
+def run_handoff_apply(
+    snapshot: dict[str, Any], approved: list[str], tier: str
+) -> dict[str, Any]:
+    """Re-verify, then recycle, in this process. A refusal is not a delete.
+
+    ``handoff_verify`` runs after the human has approved this process. Each
+    clear path is statted again immediately before its recycle. There is no
+    remembered verdict from an earlier call: a declined prompt is a new call.
+    """
+    verified = handoff_verify(snapshot, approved)
+    by_verdict = {item["path"]: item for item in verified["verdicts"]}
+    target, _mounts = resolve_snapshot_target(snapshot)
+    entries = entry_map(snapshot)
+    path_set = set(entries)
+    recycled: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    for relative in approved:
+        verdict = by_verdict.get(relative, {})
+        if verdict.get("verdict") != "clear":
+            skipped.append(
+                {
+                    "path": relative,
+                    "outcome": "not-clear",
+                    "detail": ",".join(verdict.get("reasons") or ["not-clear"]),
+                }
+            )
+            continue
+        descendants = descendant_set_size(relative, path_set)
+        if descendants > HANDOFF_BATCH_DESCENDANT_CAP:
+            skipped.append(
+                {
+                    "path": relative,
+                    "outcome": "batch-too-wide",
+                    "detail": str(descendants),
+                }
+            )
+            continue
+        entry = entries[relative]
+        path = target.joinpath(*PurePosixPath(relative).parts)
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            skipped.append({"path": relative, "outcome": "gone", "detail": ""})
+            continue
+        except OSError as exc:
+            skipped.append(
+                {"path": relative, "outcome": "unverified", "detail": str(exc)}
+            )
+            continue
+        if not same_removal_identity(path, entry) or is_linkish(path):
+            skipped.append({"path": relative, "outcome": "changed-or-link", "detail": ""})
+            continue
+        if stat.S_ISDIR(info.st_mode):
+            live_kind = "directory"
+        elif stat.S_ISREG(info.st_mode):
+            live_kind = "file"
+        else:
+            live_kind = "other"
+        if live_kind != entry.get("kind"):
+            skipped.append({"path": relative, "outcome": "changed-or-link", "detail": live_kind})
+            continue
+        size = entry.get("logical_size")
+        try:
+            windows_recycle.recycle_path(path, size if isinstance(size, int) else None)
+        except windows_recycle.RecycleRefused as exc:
+            skipped.append(
+                {"path": relative, "outcome": "recycle-refused", "detail": exc.reason}
+            )
+            continue
+        recycled.append({"path": relative, "kind": live_kind})
+    return {
+        "status": "handoff-apply-complete",
+        "tier": tier,
+        "recycled": recycled,
+        "skipped": skipped,
+        "verdicts": verified["verdicts"],
+        "paths_recycled": len(recycled),
+    }
+
+
+def descendant_set_size(relative: str, paths: set[str]) -> int:
+    prefix = relative + "/"
+    return sum(1 for name in paths if name.startswith(prefix))
+
+
 def handoff_verify_blocks(result: dict[str, Any]) -> bool:
     """True when any approved path's verdict means "do not proceed".
 
@@ -4182,20 +4282,27 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         snapshot = load_json(Path(args.snapshot))
-        if args.command == "handoff-verify":
+        if args.command in {"handoff-verify", "handoff-apply"}:
             approved = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}
-                if args.path is not None
-                else load_json(Path(args.paths)),
+                approved_path_payload(args.path or None, args.paths),
                 entry_map(snapshot),
             )
-            vcs_evidence = (
-                validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
-                if args.vcs_evidence
-                else None
-            )
-            result = handoff_verify(snapshot, approved, vcs_evidence)
-            return emit(result, 3 if handoff_verify_blocks(result) else 0)
+            if args.command == "handoff-verify":
+                vcs_evidence = (
+                    validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
+                    if args.vcs_evidence
+                    else None
+                )
+                result = handoff_verify(snapshot, approved, vcs_evidence)
+                return emit(result, 3 if handoff_verify_blocks(result) else 0)
+            if not args.execute:
+                raise HygieneError("handoff-apply requires the explicit --execute flag")
+            if args.confirm_tier not in TIERS:
+                raise HygieneError("handoff-apply requires --confirm-tier")
+            report_path = state_output_path(Path(args.report))
+            report = run_handoff_apply(snapshot, approved, args.confirm_tier)
+            write_json(report_path, report)
+            return emit(report, 0 if not report["skipped"] else 4)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":

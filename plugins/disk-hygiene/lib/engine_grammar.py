@@ -236,20 +236,46 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
+            # Repeatable so one verify names every path in the tier. The
+            # mutating handoff-apply re-checks each path again inside the
+            # process the prompt approved.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeatable"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
             _data_root_flag(),
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
+        one_of=(("--paths", "--path"),),
+    ),
+    Subcommand(
+        "handoff-apply",
+        (
+            Flag("--execute", takes_value=False, required=True),
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag("--confirm-tier", required=True, choices=TIERS, example="high"),
+            Flag("--report", required=True, example="report.json"),
+            Flag(
+                "--paths",
+                example="paths.json",
+                help="approved-path list file",
+            ),
+            Flag(
+                "--path",
+                repeatable=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help="snapshot-relative approved path; repeat for the tier",
+            ),
+            _data_root_flag(),
+        ),
+        help="re-verify and recycle one tier in the process the prompt approved",
         one_of=(("--paths", "--path"),),
     ),
     Subcommand(

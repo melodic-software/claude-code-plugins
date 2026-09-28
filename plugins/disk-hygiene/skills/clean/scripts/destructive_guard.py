@@ -1176,6 +1176,78 @@ def is_exact_engine_apply(command: str, authority: str | None) -> bool:
     return classify_exact_engine_command(command, authority) == "apply"
 
 
+def _flag_values(words: list[str], flag: str) -> list[str]:
+    values: list[str] = []
+    index = 0
+    while index < len(words) - 1:
+        if words[index] == flag:
+            values.append(words[index + 1])
+            index += 2
+            continue
+        index += 1
+    return values
+
+
+def _path_under_authority(value: str, authority: str | None) -> Path | None:
+    """Resolve ``value`` only when it stays inside the authorized data root."""
+    if not authority:
+        return None
+    try:
+        path = Path(value).expanduser().resolve(strict=False)
+        root = Path(authority).expanduser().resolve(strict=False)
+    except OSError:
+        return None
+    if path != root and root not in path.parents:
+        return None
+    return path
+
+
+def _paths_under_authority(value: str, authority: str | None, key: str) -> list[str]:
+    path = _path_under_authority(value, authority)
+    if path is None or not path.is_file():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    rows = payload.get(key) if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return []
+    if key == "paths":
+        return [item for item in rows if isinstance(item, str)]
+    return [
+        item["path"]
+        for item in rows
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    ]
+
+
+def mutation_prompt_reason(command: str, kind: str, authority: str | None) -> str:
+    """The hook ``ask`` text: tier, count, and every path. Still ``ask``, never ``allow``."""
+    tokens = _literal_shell_words(command) or []
+    try:
+        words = tokens[tokens.index(kind) + 1 :]
+    except ValueError:
+        words = []
+    tiers = _flag_values(words, "--confirm-tier")
+    paths = _flag_values(words, "--path")
+    if not paths:
+        plans = _flag_values(words, "--plan")
+        files = _flag_values(words, "--paths")
+        if plans:
+            paths = _paths_under_authority(plans[0], authority, "candidates")
+        elif files:
+            paths = _paths_under_authority(files[0], authority, "paths")
+    tier = tiers[0] if tiers else "unspecified"
+    listed = ", ".join(paths) if paths else "(path list unreadable)"
+    verb = "recycle" if kind == "handoff-apply" else "apply"
+    return (
+        f"disk-hygiene is ready to {verb} tier {tier}, "
+        f"{len(paths)} path(s): {listed}. "
+        "This prompt is the approval for that tier and those exact paths."
+    )
+
+
 def is_exact_kill_switch_probe(command: str) -> bool:
     """Return True only for the exact, argument-free bundled probe invocation.
 
@@ -2390,16 +2462,17 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
-    if command_kind == "apply" and enabled:
+    if command_kind in {"apply", "handoff-apply"} and enabled:
+        rule = "exact-engine-apply" if command_kind == "apply" else "exact-engine-handoff-apply"
         return _settle(
             command,
             tool_name,
             start,
             "ask",
-            "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+            rule,
+            mutation_prompt_reason(command, command_kind, authority),
         )
-    denied_by_kill_switch = command_kind == "apply"
+    denied_by_kill_switch = command_kind in {"apply", "handoff-apply"}
     return _settle(
         command,
         tool_name,

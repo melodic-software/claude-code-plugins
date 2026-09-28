@@ -10476,6 +10476,10 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "handoff-apply": (
+            "handoff-apply --execute --snapshot s --confirm-tier high "
+            "--report r --path relative/exact.tmp"
+        ),
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -10900,6 +10904,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "handoff-apply": "ask",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
@@ -10911,6 +10916,24 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 with self.subTest(subcommand=subcommand, surface=surface):
                     decision = self.run_main(command, argv)
                     self.assertEqual(verdict, decision["permissionDecision"])
+
+    def test_handoff_apply_ask_names_the_tier_count_and_every_path(self) -> None:
+        self.set_env_data_root()
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self.expected.resolve().as_posix()
+        command = (
+            f'"{guard._display_python()}" "{script}" handoff-apply --execute '
+            f'--snapshot s --confirm-tier medium --report r '
+            f'--path a.tmp --path b.tmp --data-root "{root}"'
+        )
+        decision = self.run_main(command, self.argv())
+        reason = decision["permissionDecisionReason"]
+        self.assertEqual("ask", decision["permissionDecision"])
+        self.assertIn("tier medium", reason)
+        self.assertIn("2 path(s)", reason)
+        self.assertIn("a.tmp", reason)
+        self.assertIn("b.tmp", reason)
+        self.assertNotIn('"allow"', json.dumps(decision))
 
     def test_literal_env_placeholder_is_no_authority(self) -> None:
         (self.config / "plugins" / "known_marketplaces.json").unlink()
@@ -11135,7 +11158,11 @@ class EngineGrammarTests(unittest.TestCase):
                     for flag in spec.flags:
                         if not flag.takes_value and (flag.required or optionals):
                             self.assertTrue(getattr(namespace, flag.dest), flag.name)
-                        if flag.repeatable and optionals:
+                        if (
+                            flag.repeatable
+                            and optionals
+                            and flag.name not in self.grouped(spec)
+                        ):
                             self.assertEqual(
                                 [self.value(flag), self.value(flag)],
                                 getattr(namespace, flag.dest),
@@ -11290,13 +11317,18 @@ class EngineGrammarTests(unittest.TestCase):
                     words = self.words(spec, optionals=False, chosen=flag)
                     with self.subTest(subcommand=spec.name, flag=name):
                         namespace = self.parse(spec.name, words)
-                        self.assertEqual(
-                            self.value(flag), getattr(namespace, flag.dest)
+                        expected = (
+                            [self.value(flag)] if flag.repeatable else self.value(flag)
                         )
+                        self.assertEqual(expected, getattr(namespace, flag.dest))
                         for other in group:
                             if other != name:
                                 other_flag = spec.flag(other)
-                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                                other_value = getattr(namespace, other_flag.dest)
+                                if other_flag.repeatable:
+                                    self.assertEqual([], other_value)
+                                else:
+                                    self.assertIsNone(other_value)
                         self.assertEqual(spec.name, self.classify(spec.name, words))
 
     def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
@@ -11339,6 +11371,50 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+
+class HandoffApplyTests(unittest.TestCase):
+    """One verify-and-recycle process per tier. Covers windows_recycle.py."""
+
+    def test_only_clear_paths_are_recycled_and_a_second_call_reverifies(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "keep.tmp").write_text("a", encoding="utf-8")
+            (root / "drop.tmp").write_text("b", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            calls: list[str] = []
+
+            def recycle(path: Path, size: int | None = None) -> None:
+                calls.append(path.name)
+                if path.name == "drop.tmp":
+                    raise hygiene.windows_recycle.RecycleRefused("network-path")
+
+            verifies: list[list[str]] = []
+            real = hygiene.handoff_verify
+
+            def spy(snapshot_arg, approved, vcs_evidence=None):
+                verifies.append(list(approved))
+                return real(snapshot_arg, approved, vcs_evidence)
+
+            with (
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handoff_verify", side_effect=spy),
+                mock.patch.object(hygiene.windows_recycle, "recycle_path", side_effect=recycle),
+                mock.patch.object(hygiene.os, "unlink", side_effect=AssertionError("permanent")),
+            ):
+                first = hygiene.run_handoff_apply(snapshot, ["keep.tmp", "drop.tmp"], "high")
+                (root / "keep.tmp").write_text("changed", encoding="utf-8")
+                second = hygiene.run_handoff_apply(snapshot, ["keep.tmp"], "high")
+            self.assertEqual(["keep.tmp", "drop.tmp"], calls[:2])
+            self.assertEqual(2, len(verifies))
+            self.assertEqual(["keep.tmp"], [item["path"] for item in first["recycled"]])
+            self.assertEqual("recycle-refused", first["skipped"][0]["outcome"])
+            self.assertTrue((root / "drop.tmp").exists())
+            self.assertEqual("not-clear", second["skipped"][0]["outcome"])
+            self.assertEqual([], second["recycled"])
+            self.assertEqual(2, len(calls))
 
 
 if __name__ == "__main__":
