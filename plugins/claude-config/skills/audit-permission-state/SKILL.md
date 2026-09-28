@@ -182,7 +182,7 @@ finding <severity> [<check>] <scope> <detail>
 lint summary findings=<n> checks_run=<n> status=<read|incomplete>
 ```
 
-Nine checks: three `C2-*` dead-config gates, `C5-disableType`, and five `C6-*` rules-that-cannot-match.
+Eleven checks: three `C2-*` dead-config gates, `C5-disableType`, and seven `C6-*` rules-that-cannot-match, including a malformed Tool(content) rule and an uncompilable Read/Edit path.
 `reference/criteria.md` maps each to the sentence it follows from and lists the legitimate rule shapes
 the checks are written NOT to flag.
 
@@ -245,10 +245,11 @@ nothing surfaces which. Stage: `managed-conformance.sh`, fed the inventory.
 **This report never prescribes.** It says what the consumer's own policy does and does not achieve;
 every rule string it prints came from a file it read. It ships no security floor of its own.
 
-**Completeness is bounded on every run.** Server-managed settings are delivered at sign-in and have no
-local path, so "managed" means the local surfaces only; a surface that could not be read gets its own
-note saying so, because an administrator reading silence as "no policy deployed" is the failure this
-report exists to prevent.
+**Completeness is bounded on every run.** Server-managed settings are fetched at sign-in and cached
+at `~/.claude/remote-settings.json`. The cache is user-writable and can be stale, so "managed" means
+the local admin surfaces only; the cache is not folded in. The failure read is the Organization
+policy line in `/status`. A surface that could not be read gets its own note saying so, because an
+administrator reading silence as "no policy deployed" is the failure this report exists to prevent.
 
 ## Reading the output honestly
 
@@ -264,24 +265,29 @@ collapse it in the report:
 - **Every scope and every managed surface emits a record on every OS**, including the ones that do
   not apply here (`not-applicable`). A surface missing from the output is a defect in this reader,
   not evidence about the machine.
-- **`managed` means the LOCAL managed surfaces.** Server-managed settings arrive remotely at sign-in
-  and have no local path, so no local reader can see them. The script says so on every run; carry it
-  into the report rather than implying completeness.
-- **An `ask` finding carries an open upstream discrepancy.** The permissions page says content-scoped
-  `ask` rules always prompt, "even in auto mode"; issues #83766 and #42797 report them auto-approved
-  under `defaultMode: "auto"`. This plugin follows the documented behavior, the only source
-  with a stated contract, but say so when reporting an `ask` result, and point at `permissions.deny`
-  where the outcome must hold regardless. See `reference/criteria.md`.
+- **`managed` means the LOCAL managed surfaces.** Server-managed settings are cached at
+  `~/.claude/remote-settings.json`. The cache is not the live policy, and the script does not fold
+  it into the effective set. The failure read is the Organization policy line in `/status`. The
+  script says so on every run; carry it into the report rather than implying completeness.
+- **An `ask` finding names where the contract lives.** The quote is on the auto mode config page:
+  content-scoped ask rules always force a prompt, even in auto mode, and the classifier cannot
+  auto-approve a match. v2.1.257 fixed the compound-command and subshell miss only. #42797 is
+  closed. #83766 is still open. Say so when reporting an `ask` result, and point at
+  `permissions.deny` where the outcome must hold regardless. See `reference/criteria.md`.
 - **`invalid-json` is not `absent`.** A malformed settings file contributes no rules to the
-  inventory, but its rules may still be a live problem for the operator. Report it as a finding, not
-  as an empty scope.
+  inventory. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed
+  refuses startup (exit 1) and names the source, from v2.1.259. A user, project, or local file
+  shows a Settings Error; after continue, `/status` names the file, and an unparsable user
+  `settings.json` pauses the retention sweep and warns in `/status`. Report the parse failure, not
+  an empty scope, and do not describe a managed parse failure as silent non-enforcement.
 
 ## Scopes
 
 Five, and the two easy to get wrong: `local` resolves **through worktrees to the main checkout**, so
 a reader anchored on the worktree root looks where the file is not; `startdir-local` is a
 pre-v2.1.211 copy that is **not** a fallback, since permission rules from both files stay in effect.
-`managed` is four surfaces per OS, not one file. `reference/criteria.md` §Scopes has the full table
+`managed` is four admin surfaces per OS, not one file, plus a `remote-cache` record for
+`~/.claude/remote-settings.json` that is not folded into the effective set. `reference/criteria.md` §Scopes has the full table
 and the dated record for the `pre-v2.1.211` boundary.
 
 **Four documented conditions keep the local file beside `.claude/settings.json` instead**, and the
