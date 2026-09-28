@@ -264,6 +264,35 @@ else
 fi
 rm -rf "$root"
 
+# shfmt is the other prerequisite. Hiding it is an environment answer, and it
+# must fire before any coverage report.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'names P1')"
+mirror="$(mktemp -d)"
+while IFS= read -r d; do
+  [[ -d "$d" ]] || continue
+  for exe in "$d"/*; do
+    [[ -f "$exe" && -x "$exe" ]] || continue
+    [[ "$(basename "$exe")" == "shfmt" ]] && continue
+    [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
+  done
+done < <(printf '%s\n' "${PATH//:/$'\n'}")
+outf="$(mktemp)"
+errf="$(mktemp)"
+(cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
+RC=$?
+OUT="$(cat "$outf")"
+ERR="$(cat "$errf")"
+rm -f "$outf" "$errf"
+rm -rf "$mirror"
+if [[ $RC -eq 2 && "$ERR" == *"shfmt not found"* && -z "$OUT" ]]; then
+  ok "a missing shfmt exits 2 with a diagnostic on stderr and nothing on stdout"
+else
+  fail "missing shfmt not handled: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
 # ============================ extraction precision =========================
 
 # A COMMENTED emit call site is prose about the detector, not a call site. A
@@ -584,9 +613,10 @@ rm -rf "$root"
 # naming P4 proves the sites below the shape were still read.
 
 p3b_case() {
-  local label="$1" shape="$2"
+  local label="$1"
+  shift
   mk_tree
-  mk_detector det.sh 'emit warning P1 SRC "message"' "$shape" 'emit error P4 SRC "message"'
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@" 'emit error P4 SRC "message"'
   mk_evals evals.json "$(evals_json 'exercises P1 classification')"
   run_gate "$(pair det.sh evals.json)" --check
   if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
@@ -609,60 +639,53 @@ p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
 p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
 p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
 
-# AN UNTERMINATED `${`/`((` WHOSE TAIL CARRIES A `<<` IS UNDECIDABLE, and must
-# answer exit 2 rather than guess. All four fixtures below are valid bash and
-# each is a SILENT LOSS under some resolution strategy, in both directions:
-#   - `x=${unset:-$(cat <<EOF` really does open a heredoc; returning the bare
-#     head throws that opener away.
-#   - `hint=${HINT:-<<EOF ...` and `mask=$(( (1 << SHIFT) -` do NOT; keeping
-#     the whole tail arms on that data, and the junk skip then closes on the
-#     file's own later terminator.
-#   - keeping the tail after the last unclosed `$(` pops that `$(` on any `)`
-#     and loses the opener again, and cannot see a backtick substitution.
-# Refusing a verdict is the answer that cannot be wrong
-# invisibly, so these assert exit 2 and nothing finer.
-undecidable_case() {
+# A SPAN A LINE WALK COULD NOT DECIDE is valid bash, and the parser reads it.
+# Each fixture below was a silent loss under some earlier guess about where
+# the shell ended and the data began. The parser's answer is the call after
+# the span, still seen: exit 1 naming P4. Withholding a verdict was the line
+# walk's only non-silent option. It is not this scanner's answer.
+parsed_span_case() {
   local label="$1"
   shift
   mk_tree
   mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
   mk_evals evals.json "$(evals_json 'exercises P1 classification')"
   run_gate "$(pair det.sh evals.json)" --check
-  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
-    ok "P3b: $label withholds a verdict"
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"emit call site"* ]]; then
+    ok "P3b: $label is parsed, and the call after it is still seen"
   else
-    fail "P3b $label did not withhold: rc=$RC out='$OUT' err='$ERR'"
+    fail "P3b $label was not read through: rc=$RC out='$OUT' err='$ERR'"
   fi
   rm -rf "$root"
 }
 
 # A real opener inside a command substitution.
-undecidable_case 'an unterminated `${` carrying a heredoc opener' \
+parsed_span_case 'an unterminated `${` carrying a heredoc opener' \
   'x=${unset:-$(cat <<EOF' 'cat <<HELP' 'EOF' ')}' 'emit error P4 SRC "message"' 'HELP'
-undecidable_case 'an unterminated `((` carrying a heredoc opener' \
+parsed_span_case 'an unterminated `((` carrying a heredoc opener' \
   'x=$(( a + $(cat <<EOF' 'cat <<HELP' 'EOF' ') ))' 'emit error P4 SRC "message"' 'HELP'
 # `hint=${HINT:-<<EOF ...}` prints the text `<<EOF ...`; bash opens no heredoc.
-undecidable_case 'a `<<` that is data inside an unterminated `${`' \
+parsed_span_case 'a `<<` that is data inside an unterminated `${`' \
   'hint=${HINT:-<<EOF opens a heredoc body' '}' 'emit error P4 SRC "message"' \
   'cat <<EOF' 'usage text' 'EOF' 'emit warning P1 SRC "message"'
 # A line-wrapped arithmetic expansion: the `<<` is the left-shift operator.
-undecidable_case 'a left shift inside an unterminated `$((`' \
+parsed_span_case 'a left shift inside an unterminated `$((`' \
   'mask=$(( (1 << SHIFT) -' '         1 ))' 'emit error P4 SRC "message"' \
   'cat <<SHIFT' 'usage text' 'SHIFT' 'emit warning P1 SRC "message"'
 # A `)` that is not a command-substitution closer, which defeats the
 # last-unclosed-`$(` strategy, and a backtick substitution, which it cannot see.
-undecidable_case 'an unterminated `${` whose tail holds a subshell `)`' \
+parsed_span_case 'an unterminated `${` whose tail holds a subshell `)`' \
   'usage=${U:-$( (echo banner) && cat <<HELP' '  prog <<DATA' 'HELP' ')}' \
   'emit error P4 SRC "message"' "cat <<'DATA'" 'fixture text' 'DATA'
-undecidable_case 'an unterminated `${` carrying a backtick substitution' \
+parsed_span_case 'an unterminated `${` carrying a backtick substitution' \
   'x=${UNSET:-`cat <<EOF' 'body' 'EOF' '`}' 'emit error P4 SRC "message"'
 
-# An unterminated span with NO `<<` in its tail is ORDINARY -- 61 such hits
-# across 34 tracked files, every one a jq filter or a `${var%%...}` pattern --
-# and must stay readable. Refusing on those would have made three real scripts
-# inside the discovery glob un-gateable for no benefit.
-p3b_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
-p3b_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
+# A span that closes on the next line is ordinary shell (a jq filter, a
+# wrapped arithmetic expression) and must stay readable. The closer is part
+# of the fixture: a span that never closes does not parse, and that answer
+# is the unclosed-heredoc case below, not a guess about the lines after it.
+p3b_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"' ')}'
+p3b_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3)' '))'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
 # The escaped character must leave a SEPARATOR behind, not vanish. Emitting ""
 # instead of a space rejoins two non-adjacent `<` into a `<<` operator, which
@@ -672,7 +695,7 @@ p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portabil
 p3b_case 'an escaped char that vanishes rejoins `<` into `<<`' 'cat <\<<EOF' # portability-ok: fixture shell with an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
-p3b_case 'a comment opened after `(`' 'f() (#<<EOF'
+p3b_case 'a comment opened after `(`' 'f() (#<<EOF' ':' ')'
 
 # (The delimiter-carrying-punctuation cases live with the other `p3b_arms`
 # calls below, after that helper is defined.)
@@ -799,11 +822,9 @@ p3b_samecase() {
 p3b_samecase 'a `#` after a command substitution `)`' 'echo $(printf a)#tag; emit error P4 SRC "x"'
 p3b_samecase 'a `#` after a backtick' 'echo `printf a`#tag; emit error P4 SRC "x"'
 
-# THE STRUCTURAL GUARD. Every heredoc defect in this scanner ends in one
-# observable state -- a body skip that never closes -- so an unclosed state at
-# EOF must be exit 2, whatever shape of shell produced it. These two assert
-# that directly, and they are the cases that hold when the enumeration above
-# misses the next shape.
+# A FILE THE PARSER CANNOT READ is exit 2. An unclosed heredoc is that file.
+# A trailing backslash that the parser accepts is a finished call, so the id
+# on that line is a normal uncovered finding rather than an unreadable file.
 unclosed_case() {
   local label="$1"
   shift
@@ -820,7 +841,21 @@ unclosed_case() {
 }
 
 unclosed_case 'a heredoc never closed before EOF' 'usage() { cat <<USAGE' 'emit error P9 SRC "x"'
-unclosed_case 'a line continuation dangling at EOF' "emit error P4 SRC \"x\" \\"
+
+# A trailing continuation the parser accepts is one finished call. P4 is
+# uncovered because the suite does not name it; that is a finding, not an
+# unreadable file.
+mk_tree
+# shellcheck disable=SC1003  # the trailing backslash is the continuation under test
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "x" \'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"emit call site"* ]]; then
+  ok "P3b: a trailing continuation the parser accepts is a finished call"
+else
+  fail "P3b trailing continuation: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
 
 p3b_arms 'a heredoc opened beside a parameter expansion' 'usage() { cat ${opt} <<USAGE' \
   'emit error P9 SRC "someday"' 'USAGE' '}'
@@ -967,6 +1002,53 @@ if [[ $RC -eq 2 && "$ERR" == *"emit call site"* && -z "$OUT" ]]; then
   ok "N2: a quoted literal that is not an id is unreadable, not silently dropped"
 else
   fail "N2 quoted non-id wrongly resolved: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# ===== #4222: calls a line walk lost, which the parser must still see =====
+# Round 6 is the simplest one: a command substitution inside double quotes.
+# The others are the rest of the open set that the syntax tree represents as
+# a CallExpr. A quoted `eval` or `trap` body is data, not a call, which is
+# the same answer as help text (P3); re-parsing those strings would count
+# prose again.
+
+parser_sees_p1() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P2 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P2 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P1"* && "$ERR" != *"P9"* && "$ERR" != *"emit call site"* ]]; then
+    ok "parser: $label"
+  else
+    fail "parser $label: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+# shellcheck disable=SC2016  # the unexpanded $(emit ...) IS the call under test
+parser_sees_p1 'a command substitution inside double quotes (round 6)' 'x="$(emit error P1)"'
+parser_sees_p1 'a quoted command word' '"emit" error P1 SRC "message"'
+parser_sees_p1 'time -p in front of the call' 'time -p emit error P1 SRC "message"'
+parser_sees_p1 'coproc in front of the call' 'coproc emit error P1 SRC "message"'
+parser_sees_p1 'a leading redirection' '>/dev/null emit error P1 SRC "message"'
+parser_sees_p1 'a += assignment prefix' 'x+=1 emit error P1 SRC "message"'
+parser_sees_p1 'bare eval whose next word is the emitter' 'eval emit error P1 SRC "message"'
+parser_sees_p1 'two heredocs on one line' \
+  'cat <<A <<B' 'emit error P9 SRC "someday"' 'A' 'body' 'B' 'emit error P1 SRC "message"'
+parser_sees_p1 'deprecated $[ ] arithmetic before a real heredoc' \
+  'x=$[ 1 << EOF ]' 'cat <<EOF' 'emit error P9 SRC "someday"' 'EOF' 'emit error P1 SRC "message"'
+
+# A quoted eval body is not a call. P9 must not become an uncovered id.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' "eval 'emit error P9'"
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && -z "$ERR" ]]; then
+  ok "parser: a quoted eval body is data, not a call site"
+else
+  fail "parser quoted eval counted: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
