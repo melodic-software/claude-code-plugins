@@ -1472,18 +1472,25 @@ def root_children_skipped_reason_counts(
 
 def withheld_home_container_note(skipped: list[dict[str, Any]]) -> str:
     """Sentence naming the current user's home when its container is withheld."""
-    container = volume_root_home_container_name()
     names = {
         item["name"].casefold()
         for item in skipped
         if isinstance(item.get("name"), str)
     }
-    if container.casefold() not in names:
+    container = volume_root_home_container_name()
+    withheld = None
+    if container.casefold() in names:
+        withheld = container
+    elif "users" in names:
+        withheld = "Users"
+    elif "home" in names:
+        withheld = "home"
+    if withheld is None:
         return ""
     home = user_home()
     home_text = str(home) if home is not None else "the current user's home directory"
     return (
-        f" {container} is withheld as OS-owned; the current user's home "
+        f" {withheld} is withheld as OS-owned; the current user's home "
         f"({home_text}) is a separate target."
     )
 
