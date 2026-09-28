@@ -85,6 +85,19 @@
       }
     },
     {
+      "name": "gopls-lsp",
+      "source": "./plugins/gopls-lsp",
+      "category": "development",
+      "tags": ["go", "gopls", "lsp", "windows"],
+      "relevance": {
+        "topic": "Go",
+        "signals": {
+          "filesRead": ["**/*.go"],
+          "cli": ["gopls", "go"]
+        }
+      }
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",

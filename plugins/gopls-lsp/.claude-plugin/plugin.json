@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "gopls-lsp",
+  "version": "0.1.0",
+  "description": "Go language server control case: spawn the native gopls executable with no shell and probe that it answers LSP initialize.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["go", "gopls", "lsp", "windows"]
+}
