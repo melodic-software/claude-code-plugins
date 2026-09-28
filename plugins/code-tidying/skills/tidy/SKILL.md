@@ -122,14 +122,15 @@ ad hoc scope. The run then:
 - borrows the watch-for list, the lane-specific extra exclusions, and the Conventional Commits type
   from the closest template (`templates/polyglot-services-lane.template.md` for source code, the
   `docs-prose` lane for markdown), filling each template `<placeholder>` from the scoped files or
-  dropping the entry when nothing in scope fills it;
+  dropping just that placeholder's clause when nothing in scope fills it;
 - takes verification from the repository's documented test command;
 - names its branch `chore/tidy-adhoc-<slug>-YYYY-MM-DD`, where `<slug>` is the first glob's literal
   directory prefix in kebab case (`github-scripts` for `.github/scripts/*.mjs`), or `root` when the
   glob has no directory;
 - skips the anchor-commit lookup and hunts the whole scope, since no earlier sweep is known to cover
   the same globs;
-- writes no `.claude/tidy-lanes/` file, so Phase H states the globs in the PR body.
+- writes no `.claude/tidy-lanes/` file, so Phase H's Summary names the globs in place of the lane
+  and `none (ad hoc)` in place of the anchor commit.
 
 ## Workflow (8 phases)
 
