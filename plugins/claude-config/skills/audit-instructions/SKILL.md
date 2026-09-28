@@ -303,6 +303,11 @@ rows to `lane-runs.sh plan --run-dir <run-dir>`: dispatch only the `rerun` lanes
 touches, and a changed partition re-runs them all. With no prior run, `--resume` says so and starts
 a new one.
 
+The standing execution model and the report identity contract are recorded together in
+[context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
+lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a
+later change to either lands in one place.
+
 A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
 plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
 carried in a variable or through inline Python, which that guard blocks because it cannot resolve
@@ -398,7 +403,10 @@ its place. It names the lane budget (tokens and the derived line figure), every 
 partition split by skill and into how many lanes, any over-budget skill, and on a `--resume` how
 many lanes were reused and how many re-ran. It also confirms the run added zero new interactive gates (report-only contract
 unchanged; the target-model fail-loud stop is an invocation-time validation abort, not an
-interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table:
+interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table.
+Each row's identity is `(check, claim, sites)` per
+[context/execution-and-report.md](context/execution-and-report.md); presentation fields stay
+outside the hash. An I15 conflict is one finding with two sites.
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|

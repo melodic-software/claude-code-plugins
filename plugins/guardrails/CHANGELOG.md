@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.2] - 2026-09-28
+
+### Fixed
+
+- **`block-windows-drive-tmp` no longer blocks a Bash-tool `/tmp` that already is `%TEMP%`** ([#4251](https://github.com/melodic-software/claude-code-plugins/issues/4251)). On a stock Git for Windows install `/tmp` is a `usertemp` mount of the platform temp (`cygpath -w /tmp` equals `%TEMP%`), so `mkdir -p /tmp/x` was a false positive. One cached probe per hook process: when `cygpath -w /tmp` matches `%TEMP%`/`%TMP%`, or the `mount` line for `/tmp` carries `usertemp`, the Bash command lane skips the POSIX `/tmp` arm. `/c/tmp`, `C:\tmp`, drive-root `\tmp`, PowerShell `/tmp`, and the Write/Edit file-path lane stay blocked. Linux CI's `/tmp` tmpfs has no `usertemp` flag, so the existing OSTYPE=msys fixtures still deny.
+- **`curl -o` / `wget -O` destinations are judged.** `curl -sS -o /tmp/x https://example.com` and `wget -O /tmp/a.html https://example.com` exited 0 while `mkdir` and `cp` of the same path exited 2. A dest-flag walker reads `-o`/`--output` and `-O`/`--output-document` (space, `=`, and glued `-oFILE` forms); a URL that merely contains `/tmp` is not a write target.
+
 ## [0.38.13] - 2026-09-28
 
 ### Changed

@@ -9,7 +9,9 @@ resolve: which layers exist, what order they resolve in, and what a later layer 
 plugin that reads config from a consuming repo resolves it the same way, so an operator who learns one
 surface has learned all of them.
 
-This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history).
+This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history),
+and topic siblings such as [`consumer-gotchas.md`](consumer-gotchas.md) (concatenating consumer gotchas
+for participating skills, #3547).
 
 ## Boundary: this contract owns the axis, never the keys
 

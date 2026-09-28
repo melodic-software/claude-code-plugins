@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.15] - 2026-09-28
+
+### Changed
+
+- **`audit` report groups out-of-repo findings by owner** ([#4596](https://github.com/melodic-software/claude-code-plugins/issues/4596)). The inline report lists in-repo findings first and in full, then one summary row per out-of-repo owner (count, verdict mix, pointer to the artifact). Finding ids and artifact rows are unchanged. #4597 already scoped the playbooks repo-sweep entry off the four org-level layers; a direct audit still walks every settings scope, so this is a report view, not a walk filter. Eval 13 covers the rollup.
+
 ## [0.4.14] - 2026-09-27
 
 ### Fixed

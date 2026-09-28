@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.2] - 2026-09-28
+
+### Changed
+
+- **CI waits poll REST and name a queued job as queued** ([#3955](https://github.com/melodic-software/claude-code-plugins/issues/3955)). `pull-request`'s `monitor.md` gains "Waiting on a pending check". Any wait longer than one read is a fixed-schedule REST poll at the monitor cadence, never `gh pr checks --watch`, whatever the worker count, because `--watch` re-runs its GraphQL query every 10 seconds for as long as the wait lasts. Before the first wait, each pending Actions job is read from the jobs API and reported as queued (with its `runs-on` labels and age) or running, since `gh pr checks` puts both in `pending`. Pool occupancy (`N/M busy`) is added when the token can list runners (admin only), and otherwise reported as not readable. The section says which action each state calls for: a running job is the change's own time, a queued one behind a busy pool is fleet capacity, and a queued job with no runner routes to `stuck_queued`. The §3.1 poll step, the `pull-request` cadence line, and `babysit-prs`'s `loop.md` CI check and Monitor fallback point at it. `stuck-checks.md` reports a `stuck_queued` check as queued on its runner label, not as a slow job.
+
 ## [0.62.1] - 2026-09-28
 
 ### Changed

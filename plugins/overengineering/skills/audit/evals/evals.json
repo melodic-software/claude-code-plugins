@@ -169,6 +169,20 @@
         "Writes a checkpoint through that route after each completed layer, re-reading and merging first, with scope naming only the layers completed so far",
         "Never uses a shell content-write for the artifact"
       ]
+    },
+    {
+      "id": 13,
+      "name": "out-of-repo-findings-rollup-per-owner-in-the-report",
+      "prompt": "/overengineering:audit — this is a 37-file repo. Walk everything; I need the report, not a filter.",
+      "expected_output": "Walks every settings scope the harness merges, including user and machine, and writes one artifact row per plugin hook manifest as before. The inline report lists in-repo findings first, in full. Out-of-repo findings (user-scope plugin hook manifests owned upstream, ~/.claude/settings.json, machine-scope settings) collapse to one summary row per owner: count, verdict mix, and a pointer at the artifact rows. Finding ids in the artifact are identical to a run without the rollup. It does not add a custody=repo argument and does not skip out-of-repo layers.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Renders in-repo findings before any out-of-repo content in the inline report",
+        "Gives each out-of-repo owner at most one row in the report (count, verdict mix, pointer to artifact rows)",
+        "Leaves the findings artifact rows and finding ids unchanged",
+        "Does not skip out-of-repo layers and does not introduce a custody-scope argument"
+      ]
     }
   ]
 }
