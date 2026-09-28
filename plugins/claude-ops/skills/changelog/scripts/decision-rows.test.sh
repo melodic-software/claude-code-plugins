@@ -16,7 +16,11 @@ fi
 if printf '%s\n' $'skip\t\t\t\t' | bash "$SCRIPT" >/dev/null 2>/tmp/dec-err.txt; then
   bad "skip should fail"
 else
-  grep -q "skip leaves no row" /tmp/dec-err.txt && ok "skip has no row" || bad "skip message"
+  if grep -q "skip leaves no row" /tmp/dec-err.txt; then
+    ok "skip has no row"
+  else
+    bad "skip message"
+  fi
 fi
 
 if printf '%s\n' $'adopt\towner\t\t1\t' | bash "$SCRIPT" >/dev/null 2>/tmp/dec-err.txt; then
@@ -28,7 +32,11 @@ fi
 if printf '%s\n' $'replace\towner\tnamed\t1\treplaced' | bash "$SCRIPT" >/dev/null 2>/tmp/dec-err.txt; then
   bad "replaced state should fail"
 else
-  grep -q "nominated" /tmp/dec-err.txt && ok "replace stays nominated" || bad "replace message"
+  if grep -q "nominated" /tmp/dec-err.txt; then
+    ok "replace stays nominated"
+  else
+    bad "replace message"
+  fi
 fi
 
 dir="$(mktemp -d)"
