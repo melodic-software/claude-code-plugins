@@ -1,5 +1,5 @@
 ---
-description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
+description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (component decisions handed to the session, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
 argument-hint: "<action> [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)"
 user-invocable: true
 disable-model-invocation: false
@@ -66,7 +66,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 
 | Action | Description | Detail |
 |--------|-------------|--------|
-| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
+| `apply` | Ingest → explore → research → interview → hand the decision list to the session. Does not plan, implement, verify, or close issues | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
 | `diff` | Resolve the range, apply the cap, emit component decisions. Read-only | See "Action: diff" below |
 | `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
@@ -86,7 +86,7 @@ If action is unknown, show action table.
 detects a new CC release in conversation, default to `fetch` or `diff` and offer `apply`. Do not
 auto-start the pipeline.
 
-The full pipeline runs explore → research → interview → plan → implement → verify as the phases below. If the consumer project ships its own stage skills for these, prefer them at each phase.
+The pipeline runs ingest → explore → research → interview → handoff as the phases below.
 
 ### Phase 0. Ingest
 
@@ -108,7 +108,7 @@ Write the decisions as TSV and render them with `scripts/changelog-decisions.sh`
 
 ### Phase 2. Research
 
-For items needing enrichment (P1 items with behavioral changes, P2 items with unclear scope):
+For decisions needing enrichment (a `correct` row for a behavioral change, an `adopt` or `note` row with unclear scope):
 
 1. Spawn **parallel research subagents**. One per feature cluster (use a Claude Code documentation-focused agent type when available)
 2. Instruct each subagent to ground every claim in a primary source fetched during the task (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it.
@@ -124,17 +124,8 @@ For items needing enrichment (P1 items with behavioral changes, P2 items with un
 
 ### Phase 3. Interview
 
-Present triage table to user via `AskUserQuestion` or structured markdown:
-
-```markdown
-| # | Change | Classification | Affected files | Action needed |
-|---|--------|---------------|----------------|---------------|
-| 1 | <summary> | P1 | <files> | <specific update> |
-| 2 | <summary> | P2 | — | <evaluation + recommendation> |
-| N | <summary> | P3 | — | No action |
-```
-
-User picks scope: "all P1+P2", "just P1", or specific items by number.
+Present the decision list rendered by `scripts/changelog-decisions.sh` via `AskUserQuestion` or
+structured markdown. User picks scope: every row, one lens, or specific rows by number.
 
 Lock brief: confirmed scope becomes implementation contract.
 
