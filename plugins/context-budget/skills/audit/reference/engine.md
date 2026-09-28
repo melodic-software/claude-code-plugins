@@ -151,4 +151,12 @@ success.
 Every measurement is a **headless** session spawned against the pinned binary. Interactive
 sessions can compose the payload differently (deferral eligibility is partly server-decided), so
 records carry `sessionKind: "headless"` and reports repeat it. The spawned session's prompt is
-`/context`, which the CLI handles itself. A measurement makes no model API call.
+`/context`. **Claim:** that count is the token-counting API, or, from Claude Code 2.1.261, a
+local estimate when the token-counting API is unavailable, instead of extra small-model
+requests. It is not a generation call, and it is not always a measured API count. Connectors
+can also arrive after the first turn.
+**Basis:** [changelog](https://code.claude.com/docs/en/changelog) 2.1.261 ("Changed `/context`
+token counting to use a local estimate when the token-counting API is unavailable") and 2.1.260
+("Fixed claude.ai connectors staying absent for the whole session when the startup connector
+fetch timed out"). **As of:** 2026-09-28. **Recheck trigger:** a release note says `/context`
+always calls the token-counting API, or that a missed connector fetch is no longer retried.
