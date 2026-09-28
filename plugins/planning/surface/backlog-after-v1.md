@@ -2,9 +2,9 @@
 
 Recorded backlog for
 [#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653):
-what the V1 SPEC (section 11, Deferred) and the #4455 merge gate left after
-#4547 and #4561. This file is the tracked copy of that list. The local SPEC
-folder named in #4653 is retired.
+what the V1 SPEC (section 11, Deferred) and the #4455 merge gate left after #4547
+and #4561. This file is the tracked copy of that list. The local SPEC folder
+named in #4653 is retired.
 
 **Claim:** each row below is build, drop, or park as written. Items that make
 the page a durable store stay parked. Hedged-kind and the register gate wait
