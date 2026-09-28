@@ -1097,6 +1097,11 @@ expect "PS: Set-Content beside a granted & \$sh call still blocked" 2 \
 expect "PS: iex beside a granted & \$sh call still blocked" 2 \
   --tool PowerShell --command "& \$sh x.sh record dir; iex \$payload" \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+# The skip is a function argument, so an inherited variable of that name grants nothing.
+# shellcheck disable=SC2016
+expect "PS: inherited PS_WRITE_BYPASS_SKIP_POSITIONAL grants nothing" 2 \
+  --tool PowerShell --command '& $sh x.sh record dir' \
+  -- PS_WRITE_BYPASS_SKIP_POSITIONAL=1
 expect "PS: Bash cat redirect still blocked under ps-computed-positional" 2 \
   --command 'cat > foo.txt' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional CLAUDE_PROJECT_DIR=

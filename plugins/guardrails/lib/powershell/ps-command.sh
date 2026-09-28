@@ -2471,8 +2471,12 @@ ps::print_unparsable_git_block_message() {
 # SCOPE: this covers the write-GATE bypass only. Secret-pattern and hardcoded-path
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
+#
+# An optional second argument `skip-positional` turns off the computed-call
+# two-positional arm only; block-hook-bypass passes it on a
+# ps-computed-positional grant.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg head lcq lcq_bt q="\"'" blanked_gate opaque_gate
+  local cmd="$1" skip="${2-}" scan lcs seg head lcq lcq_bt q="\"'" blanked_gate opaque_gate
   PS_WRITE_BYPASS_ARM=""
   ps::blank_herestrings "$cmd"
   # The write twin of the git refusal: the reduction just dropped lines that
@@ -2596,9 +2600,9 @@ ps::write_bypass() {
       return 0
     fi
     # A caller holding the ps-computed-positional grant re-runs with
-    # PS_WRITE_BYPASS_SKIP_POSITIONAL=1, so the arms below still see the command
-    # instead of this early return hiding a Set-Content beside the call.
-    if ((!${PS_WRITE_BYPASS_SKIP_POSITIONAL:-0})) &&
+    # `skip-positional`, so the arms below still see the command instead of
+    # this early return hiding a Set-Content beside the call.
+    if [[ "$skip" != skip-positional ]] &&
       ps::computed_call_has_positional_write_signal "$opaque_gate"; then
       # shellcheck disable=SC2034 # read by block-hook-bypass
       PS_WRITE_BYPASS_ARM=computed-positional

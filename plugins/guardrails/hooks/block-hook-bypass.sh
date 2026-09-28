@@ -1441,7 +1441,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       if [[ "$_bbh_allow_list" == *",ps-computed-positional,"* ]]; then
         # The grant skips only that arm: re-scan without it so every later arm
         # (Set-Content, a redirect, iex, ...) still runs on the same command.
-        if PS_WRITE_BYPASS_SKIP_POSITIONAL=1 ps::write_bypass "$COMMAND"; then
+        if ps::write_bypass "$COMMAND" skip-positional; then
           block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
         fi
       else
