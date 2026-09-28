@@ -3,11 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.23] - 2026-09-28
+## [0.63.25] - 2026-09-28
 
 ### Changed
 
 - **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+
+## [0.63.24] - 2026-09-28
+
+### Changed
+
+- **audit-install-state**, **audit-skill-visibility**, **audit-performance:** bake person-invoked `/doctor` and `/skill-doctor` suggest sentences with the `unattended` argument; store rows record `baked.suggest_sentence` ([#4050](https://github.com/melodic-software/claude-code-plugins/issues/4050)). Full `integration` axis parity waits on #4049.
 
 ## [0.63.22] - 2026-09-28
 
