@@ -23,6 +23,28 @@ read, so its shape is stable within the `v1` schema string.
 A reader ignores keys it does not know: fields are added within `v1` (the rollups and the run
 row's `hint` were), never renamed or removed.
 
+## Path relativity (parked schema break, #3842)
+
+`code-metrics/v1` does not change the meaning of path fields and does not bump
+the schema string.
+
+`measures[].file`, clone `instances[].file`, and other path fields that do not
+already name another root are relative to the working directory the audit was
+invoked from. `scripts/dispatch.sh` rebases git's root-relative listings onto
+the cwd so a run from a subdirectory still emits cwd-relative paths.
+
+Some additive keys already record a different root and keep it: `missing` is
+root-relative; duplication rollup directories are relative to the repository
+root; registry matching compares instance paths root-relative after
+normalization.
+
+**Claim:** making every remaining path field root-relative is a breaking change
+to `code-metrics/v1`. Parked. **Basis:** #3842 (three open decisions: new
+schema version vs additive field vs in-place; which root; which key). This
+file's stability rule above. **As of:** 2026-09-28. **Recheck:** a maintainer
+records those three decisions and funds the producer change.
+
+
 ## Duplication rollups
 
 `summary.by_lane` maps each lane to `{"groups", "duplicated_lines"}` over the surviving clone

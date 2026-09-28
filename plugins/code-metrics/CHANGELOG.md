@@ -3,6 +3,15 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.21] - 2026-09-28
+
+### Changed
+
+- **Park making report paths root-relative in the v1 schema (#3842).**
+  `measures[].file` and other cwd-relative path fields stay cwd-relative.
+  Changing their meaning is a breaking schema change. The current relativity
+  is now stated in `reference/report-schema.md`. No producer change.
+
 ## [0.3.20] - 2026-09-28
 
 ### Changed
