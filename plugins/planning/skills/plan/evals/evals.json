@@ -113,6 +113,18 @@
         "Does not self-approve silently: the approval basis is recorded rather than implied",
         "Does not treat the standing mandate as clearing listed displaced answers, which stay uncleared"
       ]
+    },
+    {
+      "id": 10,
+      "name": "collapse-self-check-d34-residue",
+      "prompt": "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. Most of the plan is mechanical wiring — collapse those sections and keep the plan short.",
+      "expected_output": "Before collapsing any section as mechanical, re-checks that it contains no judgment calls or design decisions; sections that only look mechanical but encode choices stay expanded or are flagged rather than folded away.",
+      "files": [],
+      "expectations": [
+        "Output does not collapse a plan section solely because the user called it mechanical without re-checking for hidden judgment calls",
+        "Any collapsed section is limited to steps a model would sequence without novel decisions, or the skill leaves the section expanded",
+        "Output still ends at an explicit approval gate and does not begin implementation"
+      ]
     }
   ]
 }
