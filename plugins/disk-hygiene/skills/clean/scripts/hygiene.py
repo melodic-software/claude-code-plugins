@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import investigated_catalog  # noqa: E402  (sibling module; catalog is a hint)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -226,6 +227,8 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if "catalog_summary" in snapshot:
+        payload["catalog_summary"] = snapshot["catalog_summary"]
     if snapshot.get("inventory_mode") == "sizes-only":
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = snapshot.get("rollup_precision")
@@ -273,6 +276,55 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise HygieneError(f"JSON root must be an object: {path}")
     return value
+
+
+def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
+    """Attach prior dispositions from the data-root catalog, when one exists.
+
+    A missing or unreadable catalog leaves the snapshot unchanged. Scan stays
+    read-only on the target either way. ``prior_disposition`` is a report hint.
+    """
+    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not data_value or snapshot.get("inventory_mode") == "sizes-only":
+        return
+    catalog_path = Path(data_value).expanduser() / "catalog.json"
+    if not catalog_path.is_file():
+        return
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        snapshot["catalog_summary"] = {"status": "unreadable"}
+        return
+    if not isinstance(payload, dict):
+        snapshot["catalog_summary"] = {"status": "unreadable"}
+        return
+    snapshot["catalog_summary"] = investigated_catalog.annotate_entries(
+        snapshot.get("entries") or [], payload
+    )
+
+
+def write_catalog_files(
+    catalog_payload: dict[str, Any], report: dict[str, Any]
+) -> tuple[Path, Path]:
+    """Write catalog.json and CATALOG.md under the plugin data root."""
+    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not data_value:
+        raise HygieneError(
+            "a generated-state root is required: pass --data-root or set CLAUDE_PLUGIN_DATA"
+        )
+    data_root = Path(data_value).expanduser()
+    json_path = state_output_path(data_root / "catalog.json")
+    markdown_path = state_output_path(data_root / "CATALOG.md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(
+        json.dumps(catalog_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    markdown_path.write_text(
+        investigated_catalog.render_markdown(catalog_payload, report),
+        encoding="utf-8",
+    )
+    return json_path, markdown_path
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -4065,6 +4117,7 @@ def main(argv: list[str] | None = None) -> int:
                         2,
                     )
                 snapshot["root_children_skipped"] = skipped
+                annotate_investigated_catalog(snapshot)
                 write_json(output_path, snapshot)
                 skipped_counts = root_children_skipped_reason_counts(skipped)
                 home_note = withheld_home_container_note(skipped)
@@ -4137,6 +4190,7 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     2,
                 )
+            annotate_investigated_catalog(snapshot)
             write_json(output_path, snapshot)
             return emit(
                 scan_stdout_payload(
@@ -4182,6 +4236,50 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         snapshot = load_json(Path(args.snapshot))
+        if args.command == "catalog":
+            findings_payload = (
+                load_json(Path(args.findings)) if args.findings else {"records": []}
+            )
+            answers_payload = (
+                load_json(Path(args.answers)) if args.answers else {"answers": []}
+            )
+            findings = findings_payload.get("records")
+            answers = answers_payload.get("answers")
+            if findings is None:
+                findings = []
+            if answers is None:
+                answers = []
+            if not isinstance(findings, list) or not isinstance(answers, list):
+                raise HygieneError("catalog findings and answers must be arrays")
+            data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+            existing = None
+            if data_value:
+                catalog_path = Path(data_value).expanduser() / "catalog.json"
+                if catalog_path.is_file():
+                    existing = load_json(catalog_path)
+            merged, report = investigated_catalog.sync_catalog(
+                snapshot.get("entries") or [],
+                existing if isinstance(existing, dict) else None,
+                findings,
+                answers,
+                args.run_id,
+            )
+            json_path, markdown_path = write_catalog_files(merged, report)
+            return emit(
+                {
+                    "status": "catalog-complete",
+                    "catalog": str(json_path),
+                    "rendered": str(markdown_path),
+                    "records": len(merged["records"]),
+                    **report,
+                    "note": (
+                        "A catalog disposition is a hint. It does not authorize "
+                        "deletion, skip preview, or shorten approval. Render "
+                        "new_or_changed first, then one line per unchanged "
+                        "entry, and end with questions."
+                    ),
+                }
+            )
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
                 {"version": SCHEMA_VERSION, "paths": [args.path]}

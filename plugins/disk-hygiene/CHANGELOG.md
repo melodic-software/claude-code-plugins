@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-28
+
+### Added
+
+- **Investigated-entry catalog** ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)).
+  `catalog` writes `catalog.json` and `CATALOG.md` under the plugin data root. A scan annotates a
+  matching entry with `prior_disposition` while identity holds. An identity or descendant-set change
+  drops the record. Unknown owners stay `keep` and the report ends with one question each. An
+  operator answer is stored as `source: human` and is not asked again while identity holds. A
+  catalogued disposition does not authorize deletion.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

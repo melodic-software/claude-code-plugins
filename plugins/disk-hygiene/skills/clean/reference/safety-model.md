@@ -10,6 +10,12 @@
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
+## Investigated catalog
+
+`catalog.json` records conclusions and the evidence for them. It does not record an approval.
+Preview and apply do not read it. A `remove` disposition in the catalog still requires the same
+preview, approval token, and revalidation as an entry that has never been catalogued.
+
 ## Trust boundaries
 
 The target path, optional policy, model-authored plan, filesystem metadata, Git output, and process

@@ -404,6 +404,62 @@ it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), 
 revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
 lane from the engine steps above.
 
+## Investigated catalog
+
+The scan forgets. After it, record what the investigation concluded so the next run
+does not derive it again. The engine writes `catalog.json` and a rendered
+`CATALOG.md` under the plugin data root. A record holds `path`, `identity`
+(device, inode, kind), `owner`, `provenance` (2-4 sentences), `evidence` (each
+item names a source and a file path, command, or URL), `disposition`, `tier`,
+`size`, `first_seen_run`, `last_seen_run`, `last_verified`, and `source`
+(`engine` or `human`).
+
+Catalog every immediate child of the target, every hinted or empty entry at
+any depth, and every out-of-place entry (no protected reason and no recognizable
+app or config convention). Deeper entries catalog at owner level: one record
+per owning tool or product, not one per file. Nothing that looks out of place
+is skipped. Small, empty, and probably fine are findings to record.
+
+The scan annotates a matching entry with `prior_disposition` when identity still
+holds. Lead the report with new or changed entries. Give unchanged entries one
+line each. An identity change or a descendant-set change invalidates the record:
+the thing being described is not the thing that was described.
+
+A record is a hint, never authorization. A catalogued `remove` does not shorten
+approval, skip a preview, or survive a failed revalidation. The same rule as a
+filename hint.
+
+### Local investigation procedure
+
+Run this procedure for every catalogued entry before writing a finding. It is
+required. Record each source you actually used in `evidence`:
+
+- manifests and READMEs
+- config file contents
+- `Get-Command` (or the platform equivalent)
+- running processes
+- scheduled tasks
+- PATH, both user and machine
+- installed programs
+- git remotes and status
+- dotfile and settings references
+
+Escalation to `/discovery:research` is presence-gated and permitted only when the local procedure finds no owner. Do not call it when an owner was found. If that skill is not available, stop at the question. `/discovery:explore` applies only to repository strays.
+
+Write the conclusions to a findings file and run:
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" catalog \
+  --snapshot "<run-dir>/snapshot.json" --run-id "<run-id>" \
+  --findings "<run-dir>/findings.json" --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+An operator answer is a separate file passed as `--answers`. It is stored with
+`source: human` and is not asked again while identity holds. Until an unknown
+owner is answered, the disposition stays `keep`. The report ends with one
+question per entry whose owner is still unknown. Unknown must read as
+unresolved, not as low priority.
+
 ## Gotchas
 
 Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale
@@ -428,9 +484,9 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  catalog, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's
+  own absolute interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
