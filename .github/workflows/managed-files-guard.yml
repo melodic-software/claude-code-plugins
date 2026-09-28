@@ -23,8 +23,8 @@ name: managed-files-guard
 #
 # Hosted-only shape: `runs-on` names the approved hosted label directly, so the
 # same bytes serve public and un-enrolled private targets. A private target
-# enrolled for local CI routing needs a sibling that names the managed fleet
-# label instead (see the component README) and is not a consumer of this file.
+# enrolled for local CI routing takes the fleet-routed sibling,
+# components/managed-files-guard/managed-files-guard-fleet.yml, instead.
 
 on:
   pull_request:
