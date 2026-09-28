@@ -31,7 +31,13 @@ config has chosen no Markdown style, so the hook does not run there at all
   rewrites nor default-rule findings are imposed, the same doctrine as
   `bash-format`'s shfmt gate. A `package.json` `markdownlint-cli2` property
   does not open the gate: markdownlint-cli2 honors it only under an explicit
-  `--config` flag, not by discovery.
+  `--config` flag, not by discovery. A file under no git working tree has no
+  repository root, so when `CLAUDE_PROJECT_DIR` is set the walk stops there
+  instead, which lets an unpacked or vendored project's root config opt it in.
+  A config in your home directory or above it never does on that path: a
+  session started in `~` would otherwise let a personal
+  `~/.markdownlint-cli2.jsonc` rewrite every `.md` under home. A config inside a
+  working tree, a dotfiles repository rooted at `~` included, is unaffected.
 - **Gitignored paths are out of scope.** A file git excludes, a scratch tier
   such as `.work/**`, build output, or a vendored tree, is neither rewritten nor
   reported on. Your ignore rules already say which paths are not part of the

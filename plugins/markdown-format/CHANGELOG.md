@@ -7,10 +7,8 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, that a missing-prerequisite or trust-gate notice appears on the first skip and then every eighth, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
-- README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
-- README and markdown-format.sh: document the timeout tail. `--fix` rewrites in place before the hook reports, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
-- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
+- README: a missing-prerequisite or trust-gate notice appears in full on the first skip for each session and subagent, then as a shorter renewal on the eighth skip and every eighth after that (`HOOK_NOTICE_RENEW_EVERY`), not only once per session.
+- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes, and names `perl -i`, `tee`, `cp`, and `node -e` among the forms it does not detect.
 
 ## [0.11.74] - 2026-09-28
 
