@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.18] - 2026-09-28
+
+### Changed
+
+- **audit-install-state**, **audit-skill-visibility**, **audit-performance:** bake person-invoked `/doctor` and `/skill-doctor` suggest sentences with the `unattended` argument; store rows record `baked.suggest_sentence` ([#4050](https://github.com/melodic-software/claude-code-plugins/issues/4050)). Full `integration` axis parity waits on #4049.
+
 ## [0.63.17] - 2026-09-28
 
 ### Fixed
