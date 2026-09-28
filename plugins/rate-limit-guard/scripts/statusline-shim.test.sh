@@ -721,7 +721,7 @@ H25="$WORK/h25"
 WREC="$(plant_tee "$H25" "mkt" "rate-limit-guard" "0.8.1" "winrec")"
 plant_tee "$H25" "mkt" "rate-limit-guard" "0.8.9" "winstaged" >/dev/null
 touch -t 202501010000 "$WREC"
-write_record "$H25/.claude" "mkt" 'C:\\Users\\op\\.claude\\plugins\\cache\\mkt\\rate-limit-guard\\0.8.1'
+write_record "$H25/.claude" "mkt" 'C:\\Users\\<user>\\.claude\\plugins\\cache\\mkt\\rate-limit-guard\\0.8.1'
 make_wrapped "$H25/render.sh" 0
 run "$H25" bash "$H25/render.sh"
 assert_contains "$ERR" "TEE:winrec" "a backslash-escaped Windows installPath names the installed version"
@@ -767,8 +767,8 @@ assert_contains "$ERR" "TEE:norec-high" "a record naming only another plugin lea
 rm -f "$(cache_path "$H28/.claude" "rate-limit-guard")"
 printf 'not json\0with a NUL' >"$H28/.claude/plugins/installed_plugins.json"
 run "$H28" bash "$H28/render.sh"
-assert_contains "$ERR" "TEE:norec-high" "an unparseable record leaves the version order in charge"
-assert_eq "" "$(printf '%s' "$ERR" | grep -v '^TEE:')" "an unparseable record prints nothing to stderr"
+assert_contains "$ERR" "TEE:norec-high" "an unparsable record leaves the version order in charge"
+assert_eq "" "$(printf '%s' "$ERR" | grep -v '^TEE:')" "an unparsable record prints nothing to stderr"
 
 # --- 37. the record and the version order are miss-only ---------------------
 # A cache hit still costs no fork and never reads the record: xtrace shows no
