@@ -214,6 +214,11 @@ that you cannot locate in `plugins/` on the default branch, it is not ours, what
 says. Install from the source above rather than from a mirror or a directory listing, and treat an
 aggregator's metadata as unverified.
 
+Inbound requests to list this marketplace on third-party awesome-lists
+(including [awesome-ai-plugins](https://github.com/hashgraph-online/awesome-ai-plugins))
+are declined here: this repository does not maintain those entries, and an
+aggregator listing is not an install path.
+
 ## License
 
 [MIT](LICENSE).
