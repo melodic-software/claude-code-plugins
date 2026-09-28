@@ -54,9 +54,10 @@ engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, 
 subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform, the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. `--quiet` shapes the
-scan's stdout and nothing else: it omits `children_rollup` and shortens the closing note, leaving
-every counter, byte total, coverage gap, error and policy source in place. The snapshot file
-carries the rollup in full in both modes, so read per-child detail there and pass `--quiet`
+scan's stdout and nothing else: it omits `children_rollup`, prints `truncated_paths` as a count
+instead of the list, and shortens the closing note, leaving every counter, byte total, error and
+policy source in place. The snapshot file carries the rollup and the truncated-path list in full in
+both modes, so read per-child detail and the coverage gaps there and pass `--quiet`
 whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
@@ -73,7 +74,10 @@ is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
 `--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
-target; scan those without the flag.
+target; scan those without the flag. `root-children-selection-required` and
+`large-target-confirmation-required` name the next step, not a failure, so `scan` exits 0 for them
+and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
+blocked target, 3 when elevation is needed or filesystem state could not be verified.
 
 - Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking
@@ -174,7 +178,8 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 [confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an expensive step
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
-root, or a VCS boundary, is recorded in `truncated_paths`; report them as coverage gaps, never as clean,
+root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
+the snapshot the list); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the

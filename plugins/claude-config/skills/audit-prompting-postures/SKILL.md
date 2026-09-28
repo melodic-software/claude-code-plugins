@@ -141,6 +141,13 @@ addition: "argue this component's purpose does not need this posture, or that it
 it." A refuted finding is **demoted to `info` and kept, never dropped**. It stays a row carrying its
 refutation, because deleting it erases the evidence that Phase D ran and disagreed.
 
+**A run with no proposed addition still runs Phase D, on the verdicts.** Refuting proposals can only
+remove findings, so on a clean run the same verifier is prompted the other way: "argue that a
+component needs a posture it was judged not to need, that its purpose classification is wrong, or
+that a `PRESENT` citation does not carry the posture." Each reversal becomes a row with its
+corrected verdict and the verifier's argument; a reversal to `MISSING` carries its proposed addition
+like any other finding. A clean audit is reported clean only after this check.
+
 ### When dispatch is unavailable
 
 Phase D **requires** fresh-context, non-fork verifier dispatch. When the Agent tool is blocked,
@@ -149,8 +156,8 @@ unavailable, or the session cannot spawn subagents:
 1. **Disclose in the report header** that Phase D did not run and why.
 2. **Mark unverified proposals.** Every proposed addition that did not receive an independent
    verifier carries an `(unverified)` marker and is never presented as a confident finding.
-3. **Add a verifier attestation line** to the report tail, naming components verified, verified
-   inline, or skipped, alongside the existing coverage and Sources lines.
+3. **The verifier attestation line** at the report tail says Phase D did not run, and names the
+   surface batches verified inline or skipped.
 
 Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
 
@@ -200,8 +207,8 @@ fetch failed in Phase C, so the fifth column then carries the guide POINTER, whi
 is named for, and a pointer is never dressed up as guide wording) and `(unverified)` (Phase D could
 not verify this proposal; see "When dispatch is unavailable"). End with a coverage line naming components
 inventoried, classified and unclassified, and a Sources line citing the pages fetched this run with
-dates. When Phase D ran, end with a verifier attestation line naming surface batches verified, verified
-inline, or skipped.
+dates. End every run with a verifier attestation line naming the surface batches verified, verified
+inline, or skipped, and which check the verifier ran on each: `proposals` or `verdicts`.
 
 ## Gotchas
 

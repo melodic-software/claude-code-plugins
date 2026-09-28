@@ -13,6 +13,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `skillOverrides`. The skill now says an entry naming a plugin skill never takes effect and that
   `claude-config:audit`, when installed, reports those entries (#4654).
 
+## [0.62.7] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
 ## [0.62.6] - 2026-09-27
 
 - **`lanes` and `observability` merge adjacent pre-compute probes.** `lanes` renders the

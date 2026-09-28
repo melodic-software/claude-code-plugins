@@ -28,7 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-USAGE='usage: claim.sh <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]'
+USAGE='usage: claim.sh <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0'
 wit_help_if_requested "$USAGE" "$@"
 
 ID="${1:-}"

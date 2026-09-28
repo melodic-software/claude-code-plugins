@@ -1706,13 +1706,15 @@ BARE_LIVE_TREE_EVIDENCE=()
 BARE_LIVE_TREE_COMMON_KEYS=()
 
 # reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
-# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
-# plus the scope remedies, because the operator did not choose this path and the bare rejection
-# gives them nothing to act on.
+# prerequisite. "config" and "discovery" return 1 so the caller records a stale-config entry or a
+# discovery-skip and continues: a husk a package cache left under --root (uv writes a zero-byte
+# .git into its sdists cache) must not abort every repository after it. "cli" and "default" stop
+# the run. "default" is the implicit no-argument target — the same hard failure, plus the scope
+# remedies, because the operator did not choose this path and the bare rejection gives them
+# nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
-  [[ "$origin" == "config" ]] && return 1
+  [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
   printf 'Error: ' >&2
   display_value "$message" >&2
   printf '\n' >&2
