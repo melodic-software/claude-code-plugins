@@ -66,6 +66,16 @@ network split each falls on. Name the start state too (cold start, fresh load, w
 different measurement. End at the moment the user or caller can act, not when loading finishes.
 See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
 
+**Scaling arm when state grows with use.** When the subject **reads state whose size grows with
+real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
+entries), a single-size measurement can pass while realistic use fails. The metric MUST be measured
+at **two or more sizes** spanning realistic use (for example 50 KB and 10 MB on the same transcript
+shape, not two sizes that exercise different code paths). Record each arm's size and result. **Done
+when** must state whether cost stays flat as size grows, or grows only within a stated bound (for
+example "p50 does not grow faster than linear in transcript bytes"). If the bound is unknown,
+`unproven` is legal and travels to verify like `Correlation:`. `/performance:target` should flag
+such candidates when ranking; if it did not, name the growing-state read here anyway.
+
 ### 2. The floor, computed before any work
 
 The irreducible cost this target cannot go below whatever the code does. Compute it by measuring the
@@ -135,7 +145,8 @@ Boundary:   start <event> -> end <event>; <which side of the split each falls on
 Floor:      <value> (measured by: <command>)
 Realistic:  <value>    Ideal: <value>
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
-Done when:  <criteria, including whether merge is in scope>
+Scaling:    <sizes and per-arm results> | n/a (fixed-size subject)
+Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
 Target (from /performance:target): <candidate> @ <E1..E4>
 ```
 
@@ -166,3 +177,6 @@ Target (from /performance:target): <candidate> @ <E1..E4>
   signal (the raw events the score is built from) and measure that instead.
 - **A goal built on an E3/E4 candidate must record that.** Optimizing an unmeasured target can
   succeed against its own metric and change nothing a user perceives.
+- **One size is not enough when the subject re-reads growing state.** A hook that re-reads the
+  whole transcript can look fine at 50 KB and fail at 10 MB; the scaling arms exist to catch that
+  before work is spent.
