@@ -510,6 +510,24 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.41.1, repeat Edit/Write verifiers (#4390).** A second markdown edit at the same
+HEAD does not re-walk deleted-path history, and a second skill reference at the
+same manifests does not re-read every `plugin.json`. The deleted-path set is
+keyed by the HEAD sha in the common git dir. The tracked-file list is reused
+only while that cache is strictly newer than the index, and the plugin index
+only while it is strictly newer than every manifest, so a same-tick rewrite is
+read again. A failed history walk is not cached. Shallow clones are still
+detected from `.git/shallow`.
+
+**0.41.2, the remaining PostToolUse execs (#4390).** The cold finding fire's incidental `awk`, `tr`, and `cut` are gone: 25 process creations and execs to 19, and 19 to 13 on the second edit at the same HEAD. What remains on that fire is the shell, the dispatcher, and five `git` processes. The goal, the floor, and why the ideal k × S wall is below that floor are in [`reference/edit-write-guards/PLAN.md`](reference/edit-write-guards/PLAN.md).
+
+The three report-only rows stay synchronous.
+
+- **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`.
+- **Basis**: [hooks reference](https://code.claude.com/docs/en/hooks), "Run hooks in the background", re-fetched 2026-09-28. An async hook's `additionalContext` and `systemMessage` are delivered on the next conversation turn and are not shown to the user. In an idle session the response waits for the next user message. Under `claude -p`, a hook still running at teardown is killed. `timeout` is not enforced on an async hook. These findings are advisory context for the edit that just landed; a next-turn delivery misses that edit. Blocking guards stay synchronous and fail closed.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: that section changes when async output is delivered beside the tool result, when `-p` waits for a running async hook, or when `timeout` applies to one.
+
 **0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
 en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the
 whole row: 10 KB **7.23 s -> 132 ms**, 16 KB (just under the ceiling)

@@ -106,7 +106,9 @@ task, your output destination, or the main session's sink and confirm gate.
 2. **Map the component.** Read its installed source under the plugin cache: manifest
    (`.claude-plugin/plugin.json`), the component itself (SKILL.md / agent .md / hooks.json +
    scripts / config surfaces), and how it resolves config (which layers, what wins). Establish
-   what it *actually* does vs what it claims. Run `claude plugin validate` on it.
+   what it *actually* does vs what it claims. Run `claude plugin validate --json` on it and read
+   each `contents` and `manifest` file's `errors` and `warnings`. The flag needs Claude Code
+   v2.1.259 or later; without it, run the text form.
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1

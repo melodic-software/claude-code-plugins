@@ -4,15 +4,15 @@ Output of `inventory.sh --date 2026-09-26` for a fictional configuration, render
 (the script emits the same columns tab-separated, after a `# mcp-posture inventory 2026-09-26`
 header line). Treat this table as the Phase 1 output; do not run the script.
 
-| scope | name | effective | transport | launcher | package | pin | publisher | sandboxed |
-|---|---|---|---|---|---|---|---|---|
-| local | github | yes | stdio | npx | @modelcontextprotocol/server-github@2025.4.8 | exact | @modelcontextprotocol | no |
-| project | filesystem | yes | stdio | npx | @modelcontextprotocol/server-filesystem | floating-unversioned | @modelcontextprotocol | no |
-| project | github | shadowed-by:local | stdio | npx | @modelcontextprotocol/server-github@latest | floating-tag | @modelcontextprotocol | no |
-| user | fetch | yes | stdio | uvx | mcp-server-fetch==2025.4.7 | exact | pypi | no |
-| user | mailer | yes | stdio | npx | postmark-mcp@latest | floating-tag | unscoped | no |
-| user | notes | yes | stdio | docker | mcp/notes:latest | floating-tag | mcp | no |
-| user | search | yes | http | remote | `https://mcp.example.com` | n/a | mcp.example.com | n/a |
+| scope | name | effective | transport | launcher | package | pin | publisher | sandboxed | provided_by |
+|---|---|---|---|---|---|---|---|---|---|
+| local | github | yes | stdio | npx | @modelcontextprotocol/server-github@2025.4.8 | exact | @modelcontextprotocol | no | - |
+| project | filesystem | yes | stdio | npx | @modelcontextprotocol/server-filesystem | floating-unversioned | @modelcontextprotocol | no | - |
+| project | github | shadowed-by:local | stdio | npx | @modelcontextprotocol/server-github@latest | floating-tag | @modelcontextprotocol | no | - |
+| user | fetch | yes | stdio | uvx | mcp-server-fetch==2025.4.7 | exact | pypi | no | - |
+| user | mailer | yes | stdio | npx | postmark-mcp@latest | floating-tag | unscoped | no | - |
+| user | notes | yes | stdio | docker | mcp/notes:latest | floating-tag | mcp | no | - |
+| user | search | yes | http | remote | `https://mcp.example.com` | n/a | mcp.example.com | n/a | - |
 
 Footer lines:
 
