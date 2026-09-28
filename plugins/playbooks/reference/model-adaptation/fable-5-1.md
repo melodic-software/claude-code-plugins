@@ -18,8 +18,7 @@ Each delta carries a Claude-Code-applicability tag, as in the sibling chapters:
 - `[CC: API-side]` applies to API integrations, not interactive Claude Code use.
 
 Each default below names the section of the live prompting guide it rests on. Rechecked 2026-09-28
-against that page. Sections the guide has and this chapter does not turn into a standing correction
-are listed under "Guide sections this chapter does not restate".
+against that page.
 
 ## Batching: you issue implied tool calls one per turn more often
 
@@ -119,7 +118,7 @@ user must decide. `[CC: direct]`
 Conversation histories must be append-only. Append each assistant turn exactly as the API returned it,
 thinking blocks included, and never edit an earlier turn between requests. For accounts created on or
 after 2026-08-31, a replayed thinking block whose prefix has changed returns a 400, or the API drops
-the affected blocks when the request sets `thinking.block_binding.prefix_mismatch_behavior` to
+the affected blocks when the request sets the beta field `thinking.block_binding.prefix_mismatch_behavior` to
 `"drop_block"`. The guide does not say a later model will enforce that prefix check for every account.
 On older accounts the thinking page says the check runs only when the request sets that field
 (guide section: "Keep the conversation history append-only"; thinking page, "Preserved thinking").
@@ -157,32 +156,12 @@ the moment of use, per this chapter's standing rule. `[CC: API-side]`
   prohibition.
 - **Do not read another version's chapter.** Meta-rule 3 in the skill body owns this routing.
 
-## Guide sections this chapter does not restate
-
-The live guide has sections this chapter does not turn into standing corrections. Read the named
-section when that symptom is the task. The prompt blocks stay on the page.
-
-- **Consider all effort levels.** Start at `high`, then test the other levels on your own evals.
-  Effort names do not mean the same amount of thinking across models. The cost comparison is
-  "Cross-model effort economics" above; this is the sweep the guide asks for first.
-- **Tell the model what to preserve in compaction summaries.** A client-side compaction summary
-  should be told which constraints, decisions, and exact details to keep. Server-side compaction
-  already does this.
-- **Reduce safeguard false positives.** A benign coding request can still return
-  `stop_reason: "refusal"`. The guide names compile-check phrasing, lesser-known languages, and
-  base64 in tool output.
-- **Leave room for long outputs at xhigh and max effort.** At those levels a long deliverable may
-  be drafted in thinking and written out again. The guide's starting point is `high` unless you
-  have measured a quality gain.
-- **Give vision work tools to crop and zoom.** On dense charts the model does better when it can
-  crop and enlarge a region.
-
 ## Sources
 
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>,
   the live "Prompting Claude Fable 5.1" page, read 2026-09-28. Two fetches that day returned
   identical bytes (54,502 B, MD5 `e0eaef3718f51f871fccac2141919cd3`). The "without changes" claim,
-  the formatting default including fewer quotation marks, and the deferred sections above rest on it.
+  the formatting default including fewer quotation marks, and the quoting default rest on it.
   The page has no section on keeping or removing an instructed check.
 - <https://platform.claude.com/docs/en/build-with-claude/thinking>, read 2026-09-28. Two fetches
   that day returned identical bytes (74,179 B, MD5 `e058ca2056a2bd9a80ffe13c620364ba`). Basis for

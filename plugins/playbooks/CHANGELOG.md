@@ -8,7 +8,7 @@ only after that version increases.
 
 ### Changed
 
-- **Fable 5.1 recheck, not a doctrine rewrite ([#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346)).** The adaptation chapter keeps the guide's "without changes" claim, drops the unconfirmed "keep instructed checks" section, confirms forced `tool_choice` and thinking-block readability against the thinking page, and names the guide sections it still does not restate. The calibration pointer, the context-economy `keep:all` record, and the prompt-caching header are restated with a 2026-09-28 status instead of being left past their recheck triggers, and the prompt-caching chapter records that cache diagnostics is generally available.
+- **Fable 5.1 recheck, not a doctrine rewrite ([#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346)).** The adaptation chapter keeps the guide's "without changes" claim, drops the unconfirmed "keep instructed checks" section, confirms forced `tool_choice` and thinking-block readability against the thinking page, and adds the guide's quoting-retrieved-sources default. The calibration pointer, the context-economy `keep:all` record, and the prompt-caching header are restated with a 2026-09-28 status instead of being left past their recheck triggers, and the prompt-caching chapter records that cache diagnostics is generally available.
 
 ## [0.13.22] - 2026-09-28
 
