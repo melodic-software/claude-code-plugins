@@ -1,8 +1,8 @@
 # Windows language servers
 
-Status for epic [#3535](https://github.com/melodic-software/claude-code-plugins/issues/3535).
-This page points at the child branches. It does not close the epic. The child
-plugins are not in this branch.
+Acceptance record for epic [#3535](https://github.com/melodic-software/claude-code-plugins/issues/3535).
+The child plugins are not in this branch. They are the acceptance, on their own
+pull requests.
 
 ## Rule
 
@@ -26,13 +26,31 @@ does not reopen it.
 The commits above are rebased on `origin/main` `019ec38f7`. Each child README
 holds the four-part record for its server choice and spawn plan.
 
-## Still open
+## Acceptance
 
-Merging the child branches is still required before this marketplace installs
-the plugins. After that, an operator on Windows confirms the LSP tool in
-Claude Code: a TypeScript file, a multi-project C# solution, and a Go module.
-Cloud sessions do not start plugin language servers, so that check is not a
-CI result.
+[#3535](https://github.com/melodic-software/claude-code-plugins/issues/3535)
+closes on this record. The deliverable is the rule above plus the three child
+plugins. Each child pull request closes its own issue:
+
+- [#3537](https://github.com/melodic-software/claude-code-plugins/issues/3537)
+  starts the npm TypeScript server through `node` and `lib/cli.mjs`.
+- [#3536](https://github.com/melodic-software/claude-code-plugins/issues/3536)
+  starts the `csharp-ls` apphost and sets `DOTNET_ROOT` from the `dotnet` host.
+- [#3539](https://github.com/melodic-software/claude-code-plugins/issues/3539)
+  probes native `gopls` and accepts only an ELF, PE, or Mach-O file that
+  answers LSP `initialize`.
+
+[#3538](https://github.com/melodic-software/claude-code-plugins/issues/3538)
+is already closed. Python stays the uv native executable.
+
+Merging those branches is what installs the plugins. This page does not wait
+on a further Windows operator session. The child pull requests record that
+session as an optional follow-up. Cloud CI does not start plugin language
+servers, and the spawn contracts are already tested on the child branches.
+
+A report of trouble around sixty projects
+([claude-code#38683](https://github.com/anthropics/claude-code/issues/38683))
+is an upstream client observation. It is not a plugin deliverable of this epic.
 
 ## Verification
 
