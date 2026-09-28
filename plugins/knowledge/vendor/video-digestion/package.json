@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test transcript/manual-caption-clean.test.js transcript/vtt-parser.test.js"
+  },
   "description": "Shared video transcript and frame-processing library",
   "exports": {
     "./frames/models": "./frames/models.js",
