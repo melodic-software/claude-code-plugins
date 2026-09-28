@@ -1258,21 +1258,25 @@ _bbh_cat_gitless() {
   # positive uses. A quoted pathname is one word to bash (`"/dev/null ../../etc/pw"`,
   # #2226) and is not a path this probe can trust.
   if ((SEG_TGT_Q[s])); then
+    # shellcheck disable=SC2016,SC2088  # matching the literal $home/~ spellings; expansion would defeat the check
     case "$target" in
       '$home' | '$home/'* | '~' | '~/'*) ;;
       *) return 1 ;;
     esac
   fi
   if [[ -n "${HOME:-}" ]]; then
+    # shellcheck disable=SC2016,SC2088  # matching the literal $home/~ spellings before substituting HOME by hand
     case "$target" in
       '$home') target="$HOME" ;;
       '$home/'*) target="${HOME}/${target#\$home/}" ;;
       '~') target="$HOME" ;;
       '~/'*) target="${HOME}/${target#\~/}" ;;
+      *) ;;
     esac
   fi
   case "$target" in
     *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['* | *\\*) return 1 ;;
+    *) ;;
   esac
   abs="$(_scratch_abs_target "$target")" || return 1
   [[ -n "$abs" ]] || return 1

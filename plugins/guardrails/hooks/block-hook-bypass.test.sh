@@ -2827,6 +2827,7 @@ ln -s "$GIT_REPO_DIR" "${GITLESS_LINK}/into-repo"
 run "cat > symlink into a git work tree (blocked)" \
   "cat > ${GITLESS_LINK}/into-repo/x.ps1" 2
 if ! git -C "$HOME" rev-parse --show-toplevel >/dev/null 2>&1; then
+  # shellcheck disable=SC2016  # the fixture command's own $HOME expands when run() evals it, not here
   run "cat > quoted \$HOME (allowed)" 'cat > "$HOME/x.ps1"' 0
   run "cat > tilde home (allowed)" 'cat > ~/x.ps1' 0
 fi
