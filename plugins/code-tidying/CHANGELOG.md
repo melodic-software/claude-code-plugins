@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.7] - 2026-09-28
+
+### Fixed
+
+- `audit-dead-code` description matches grep-lane coverage (shell and PowerShell only) and states
+  orphaned-file limits (#4525).
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed
