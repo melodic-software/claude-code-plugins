@@ -12,6 +12,7 @@ Exit 3 means no browser tool was found. The scene is visually unreviewed.
 import argparse
 import base64
 import json
+import math
 import os
 import shutil
 import signal
@@ -19,6 +20,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -111,8 +113,8 @@ def parse_at(text):
         if not part:
             continue
         value = float(part)
-        if value < 0:
-            raise ValueError(f"timeline point {part} is negative")
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"timeline point {part} must be a finite number >= 0")
         times.append(value)
     if not times:
         raise ValueError("--at needs at least one time in seconds")
@@ -297,7 +299,14 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
     scene = Path(scene).resolve()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    server = _serve(scene.parent)
+    # A previous run's shots, video, or manifest would read as this run's result.
+    for stale in [*out_dir.glob("shot-*.png"), out_dir / "scene.webm", out_dir / "manifest.json"]:
+        stale.unlink(missing_ok=True)
+    # Serve a copy of the scene alone: scenes are self-contained, and serving scene.parent would
+    # give the page same-origin read access to every sibling file.
+    served = Path(tempfile.mkdtemp(prefix="pixel-capture-"))
+    shutil.copy2(scene, served / scene.name)
+    server = _serve(served)
     profile = out_dir / ".chrome-profile"
     if profile.exists():
         shutil.rmtree(profile)
@@ -404,6 +413,7 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
                 else:
                     proc.kill()
         shutil.rmtree(profile, ignore_errors=True)
+        shutil.rmtree(served, ignore_errors=True)
 
 
 def main(argv=None):

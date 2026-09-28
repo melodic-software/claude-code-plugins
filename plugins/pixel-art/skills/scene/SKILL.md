@@ -65,7 +65,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <out-dir>
 
 ## 3. Review loop
 
-Run one command. It serves the scene directory and, when a browser is on `PATH`, seeks the
+Run one command. It serves a copy of the self-contained scene (nothing beside it) and, when a browser is on `PATH`, seeks the
 timeline and writes shots (and a WebM when `--record` is set):
 
 ```bash

@@ -94,6 +94,9 @@ def count_tunic(rows):
 class CaptureTest(unittest.TestCase):
     def test_parse_at(self):
         self.assertEqual(capture.parse_at("0, 1.5, 6"), [0.0, 1.5, 6.0])
+        for bad in ("inf", "nan", "-1"):
+            with self.assertRaises(ValueError):
+                capture.parse_at(bad)
 
     def test_example_exposes_capture_contract(self):
         text = (CAMPFIRE / "scene.html").read_text()
