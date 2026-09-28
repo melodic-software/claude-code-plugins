@@ -68,7 +68,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 |--------|-------------|--------|
 | `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
-| `diff` | Resolve the range, apply the cap, orient on repo impact. Read-only analysis table | See "Action: diff" below |
+| `diff` | Resolve the range, apply the cap, emit component decisions. Read-only | See "Action: diff" below |
 | `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
 | `help` | Show action table | *(inline)* |
 
@@ -102,16 +102,9 @@ Resolve the range, check the cap, and check version alignment:
 
 ### Phase 1. Explore
 
-Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
+Run `scripts/discover-surfaces.sh` on the repo (marketplace or consumer) and orient on those surfaces. Classify with the five lenses in `context/classification-rubric.md`: `correct`, `replace`, `adopt`, `note`, `skip`. Group items that share one component effect into one decision. `skip` leaves no row.
 
-1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
-2. Classify each item per `context/classification-rubric.md`:
-   - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
-   - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
-   - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
-
-Output: structured table with item, classification, affected files, rationale.
+Write the decisions as TSV and render them with `scripts/changelog-decisions.sh`. Each kept row carries its lens and the sentence that lens requires. A `replace` row is `nominated` until a human verdict. When the changelog and a docs page disagree, the `correct` sentence cites the changelog for behavior and the pair is listed under Docs lag.
 
 ### Phase 2. Research
 
@@ -145,41 +138,20 @@ User picks scope: "all P1+P2", "just P1", or specific items by number.
 
 Lock brief: confirmed scope becomes implementation contract.
 
-### Phase 4. Plan
+### Phase 4. Handoff
 
-Plan the concrete edits for the confirmed scope, down to the section and text each file changes. One
-changelog item often touches several surfaces: a new hook event, for example, needs an update in
-every surface that documents hook events, rules, hook scripts, and reference docs alike.
+`apply` does not plan, implement, verify, or close issues. It hands the rendered decisions to the
+session:
 
-### Phase 5. Implement
+1. A decision that fits this session's scope is edited in this session's PR, one owner plugin per PR, subject `chore(<plugin>): address Claude Code v<range> changelog`.
+2. A decision too large for the session is filed through the work-items seam when that seam is installed, and printed for the user when it is not.
+3. A `replace` row stays `nominated`. This skill does not write the native-surfaces verdict.
+4. The ledger update is the last PR in the set. Its subject is the same form, so `status` can read it.
 
-Once the plan is approved, run Phases 5 and 6 without stopping between steps: done means every
-confirmed item is edited and verification passes. Stop and ask only when a check fails for a reason
-you cannot explain or an item needs a change outside the confirmed scope. Execute plan:
+The marketplace's stage skills own planning, implementation, and verification. This skill stops at the decision list.
 
-1. Edit files per the approved plan
-2. Run the consumer repo's markdown linter on every touched `.md` file (e.g. `npx markdownlint-cli2`), when one is configured
-3. If hook scripts touched: run their tests with the consumer repo's test runner
-4. If settings.json touched: `jq empty .claude/settings.json`
-
-### Phase 6. Verify
-
-Run the consumer repo's verification workflow (build/test/lint) on affected ecosystems. At minimum: markdown lint on all touched files.
-
-### Phase 7. Close issues (optional)
-
-If user approves:
-
-1. If the consumer repo files CC-release tracking issues, search for matching open ones using
-   that repo's own convention (label, title marker, or milestone) via `gh issue list --state open --search '...'`
-2. For each issue whose title matches an implemented changelog item: close with comment citing this session's work
-
-The last commit of an `apply` moves the read marker to the top of the applied range, in a subject of
-the form `chore(<scope>): address Claude Code v<A>..<B> changelog`, so `status` reports the new
-marker from the ledger and, until the ledger exists, from that subject.
-
-End the run with a report that leads with what waits on the user (the Phase 7 approval, any item
-deferred or blocked), then what changed and what verification showed.
+End the run with a report that leads with what waits on the user (a decision too large for this
+session, a `replace` still nominated), then the decision list.
 
 ---
 
@@ -188,7 +160,7 @@ deferred or blocked), then what changed and what verification showed.
 The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
 
 - **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
-- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits the triage table only. Answers "is this range worth an `apply`?"
+- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emit the decision ledger from `scripts/changelog-decisions.sh`, not an item table. Answers "which component decisions does this range force?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
 ---
@@ -200,4 +172,6 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
-| `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `context/classification-rubric.md` | Choosing a lens (`correct`, `replace`, `adopt`, `note`, `skip`) for a component effect. |
+| `scripts/changelog-decisions.sh` | Rendering the decision TSV. Drops `skip`, rejects a kept row with no sentence, prints `nominated` for an open `replace`. |
+| `scripts/discover-surfaces.sh` | Listing marketplace or consumer surfaces before explore. |

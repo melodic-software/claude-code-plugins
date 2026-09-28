@@ -1,6 +1,20 @@
 # Classification rubric for CC changelog items
 
-P1/P2/P3 criteria for triaging Claude Code changelog items.
+Five lenses. A `diff` emits one decision row per component effect, never one row per changelog item. `skip` counts toward the read marker and leaves no row.
+
+| Lens | Required sentence | Row |
+|---|---|---|
+| `correct` | what a component states that is now false, and what is true | Corrected. Cite the changelog for behavior when it and a docs page disagree, and copy that pair into Docs lag |
+| `replace` | the component behavior a native surface now covers | Replaced with native. The store cell reads `nominated` until a human writes the verdict. This run never writes `replaced` |
+| `adopt` | the problem the component works around or lacks, which the upstream change solves | Adopted. `defer pending probe` when the only evidence is a doc page or a live probe still to run |
+| `note` | one line on why it is worth remembering and not acting on | Noted |
+| `skip` | none | no row |
+
+P1/P2/P3 are retired names. What used to be P1 is `correct` or `adopt`. What used to be P2 is `adopt` or `note`. What used to be P3 is `skip`.
+
+# Retired item tiers
+
+The notes below are signals for choosing a lens. They are not the output.
 
 ## Three-tier classification
 

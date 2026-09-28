@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.23] - 2026-09-28
+
+### Changed
+
+- **`/claude-ops:changelog` emits decisions about components** ([#4024](https://github.com/melodic-software/claude-code-plugins/issues/4024)). The five lenses are `correct`, `replace`, `adopt`, `note`, and `skip`. `scripts/changelog-decisions.sh` renders the ledger and drops every `skip`. A kept row without its sentence is rejected. A `replace` row reads `nominated` while the native-surfaces verdict is still pending, and the renderer refuses to print `replaced`. A changelog/docs disagreement is listed under Docs lag. `scripts/discover-surfaces.sh` prints the marketplace classes on a marketplace tree and the consumer classes on a consumer tree. `apply` hands the decision list to the session and to the marketplace's stage skills. It does not plan, implement, verify, or close issues itself. `status`, the read marker, and the replay cap are unchanged.
+
 ## [0.63.22] - 2026-09-28
 
 ### Changed
