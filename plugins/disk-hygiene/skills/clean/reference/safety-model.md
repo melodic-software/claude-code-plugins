@@ -7,6 +7,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Investigation catalog (parked)](#investigation-catalog-parked)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -596,6 +597,21 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+## Investigation catalog (parked)
+
+The component investigates and then forgets. There is no persisted `catalog.json` or rendered
+`CATALOG.md` under the plugin data root. Per-run investigation in the skill body stays the
+procedure. A catalogued disposition would still be a hint, never authorization, so shipping the
+artifact is a record-shape design, not a shortcut around preview or approval.
+
+**Claim:** do not persist a catalog of investigated entries until a maintainer approves the record
+shape. Record shape, catalog scope, investigation procedure, and unknown-owner questions stay
+unshipped as one structural artifact. **Basis:** #4008 (`work-class: structural`, `needs-human`)
+covers those four decisions together because they are one artifact and one pass. Option A parks
+the record-shape design rather than shipping a shape the operator has not approved. **As of:**
+2026-09-28. **Recheck:** a maintainer approves the record shape (and scope, procedure, and
+unknown-owner questions) and funds the catalog as its own issue, or unparks #4008.
 
 ## Outcome vocabulary
 

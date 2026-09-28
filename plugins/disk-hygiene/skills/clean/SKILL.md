@@ -235,6 +235,9 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
    interpolate names from one batch member. Triage of the entry is done when each of the five
    questions has an evidence-backed answer or is recorded as unknown. An unknown answer to question
    2 or 4 rules out High in step 3; an unknown on question 4 keeps the entry at Low.
+   A persisted catalog of those conclusions is parked (#4008 Option A) until a maintainer
+   approves the record shape. The recorded decision lives in
+   [the safety model](reference/safety-model.md#investigation-catalog-parked).
 
 ## 3. Classify and report
 

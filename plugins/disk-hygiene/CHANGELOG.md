@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.7] - 2026-09-28
+
+### Changed
+
+- **Persisted catalog of investigated entries stays parked pending record-shape design**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). Option A:
+  investigation remains per-run. Do not ship `catalog.json` / `CATALOG.md` until a maintainer
+  approves record shape, scope, procedure, and unknown-owner questions. Serializes after
+  #4007 (0.27.6) and #4006 (0.27.5).
+
 ## [0.27.0] - 2026-09-28
 
 ### Added
