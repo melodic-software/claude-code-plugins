@@ -62,7 +62,7 @@ Install nothing.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment. A version
    manager can return a per-call path whose directory name contains a process id (fnm's
-   `fnm_multishells\<pid>_<timestamp>\node` is the usual shape). That path is ephemeral: it is
+   `fnm_multishells\<pid>_<timestamp>\node` is the usual shape). That path is ephemeral: it is <!-- portability-ok: Windows path, not a shell regex -->
    not the persisted Machine or User PATH the hook process inherits. FAIL when the only hit is
    an ephemeral shim, and say so. Report the persisted resolution separately, from
    `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`, not from the current
@@ -108,7 +108,7 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   On Windows, print this PowerShell form instead:
 
   ```powershell
-  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk
+  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
   ```
 
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
