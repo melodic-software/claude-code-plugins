@@ -93,6 +93,12 @@ engine plan:
    dirty/untracked/ignored content, an unconfirmed head, a linked-worktree "stash copy", or a
    non-duplicated stash leaves the categorical VCS protections in place and returns `contested`.
 
+   A throwaway local checkout (no remote, untracked files, zero commits with files present) stays
+   `contested`. Do not delete it outside the engine, even when the operator asks. Warn that
+   unpushed and untracked content would be lost, and stop. The operator removes that tree
+   themselves. There is no `accept_unpublished` relaxation of gates 1–2; the recorded Option A
+   lives in [the safety model](safety-model.md#standalone-git-checkout-evidence).
+
    The exception is deliberately limited to the Git-specific reasons: `vcs-tracked-content`,
    `vcs-metadata`, `.git`'s own `baseline-protected-name`, and the scan's opaque `.git` truncation.
    Every other protected name, mount/link/reparse check, identity/descendant check, handle check, and
@@ -143,7 +149,8 @@ engine plan:
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
    in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
-   around a lock, or delete under a stale verdict.
+   around a lock, or delete under a stale verdict. A `contested` VCS path is this rule, not an
+   invitation to leave the lane: never `rm` / `Remove-Item` it as a workaround for gates 1–2.
 
 ## The PowerShell guard lane
 

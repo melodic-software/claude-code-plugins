@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Changed
+
+- **Contested throwaway Git checkouts stay contested; the model never deletes them outside
+  the engine**
+  ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)). Option A:
+  gates 1–2 (empty porcelain including untracked, `github.com` remote-confirmed heads) do
+  not grow an `accept_unpublished` relaxation. A local repo with no remote, or with
+  untracked files, remains `contested`. The operator who wants that tree gone removes it
+  themselves; the skill warns that unpushed and untracked content would be lost and stops.
+  Serializes after #3855 (0.27.1), #3856 (0.27.2), and #4224 (0.27.3).
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

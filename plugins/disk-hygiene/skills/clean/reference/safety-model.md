@@ -181,6 +181,23 @@ unsupported providers, missing tools, timeouts, diagnostics, malformed output, s
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
 categorical reasons.
 
+A throwaway local checkout that cannot pass those four gates stays `contested`. There is no
+`accept_unpublished` (or equivalent) acknowledgement that relaxes gates 1–2. The model never
+deletes a `contested` VCS path outside the engine, even when the operator asks: that bypass is
+what #4227 recorded (the categorical refusal removed the checks, not the deletion). Warn that
+unpushed and untracked content would be lost, and stop. The operator who wants that tree gone
+removes it themselves, outside this skill.
+
+**Claim:** gates 1–2 stay categorical; a local Git repository with no remote, or with untracked
+or gitignored-present files, cannot reach `clear`; the model does not delete it outside the
+engine. **Basis:** #4227 (disk-hygiene 0.23.12, Windows 11, Claude Code 2.1.278): `cdtest` /
+`cdtest-cov` stayed `contested` with `vcs-metadata` plus `baseline-protected-name`, then the
+model deleted them outside the engine. Option A is the safer default (forbid the bypass)
+rather than an unpaid engine acknowledgement. **As of:** 2026-09-28. **Recheck:** the owner
+funds a per-path unpublished acknowledgement that still keeps link, mount, handle, and
+identity categorical, or a documented recurrence of the out-of-engine bypass after this
+instruction.
+
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
 deletion remains a per-path manual handoff under the existing hook-issued `ask`, and the
