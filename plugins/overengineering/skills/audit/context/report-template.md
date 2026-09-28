@@ -70,6 +70,19 @@ it.
    Cap the inline list **only when the artifact was written**; the artifact carries the rest.
    When no branch identity resolved and this summary is the only record, emit **every** finding
    inline. A cap here would discard the tail of a scheduled detached run.
+   **Custody grouping (report view only).** In-repo findings render first, in full. Findings whose
+   custody is out-of-repo (a `settings:` identifier outside the tree, a user- or machine-scope
+   plugin hook manifest the repo does not own) collapse to **one summary row per owner**: the
+   owning plugin, marketplace, or settings scope, the count of findings, the verdict mix, and a
+   pointer to the underlying artifact rows. Artifact rows and finding ids are unchanged; only this
+   view groups them. #4597 scoped the playbooks `repo-sweep` hygiene entry off the four org-level
+   layers; a direct `/overengineering:audit` still walks every settings scope the harness merges,
+   so this grouping is what keeps those rows from burying the in-repo list.
+   **Claim:** a custody *filter* is declined; the walk stays complete and only the inline report
+   groups by owner. **Basis:** #4597 already took the org-level layers off the repo-sweep entry;
+   a walk filter would hide user- and machine-scope incumbents this skill still has to name
+   (§12). **As of:** 2026-09-28. **Recheck:** when a consumer-config key scopes the walk itself,
+   or when the harness stops merging user and machine settings into a repo session.
 5. **The proposed ablation batch**, when one was produced: its items, an owner and a re-check date
    each, and the observation window's end date.
 6. **Open checkpoints**: the intent questions awaiting an answer (attended), or the count of

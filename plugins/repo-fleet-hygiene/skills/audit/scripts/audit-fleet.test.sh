@@ -140,7 +140,7 @@ rev-parse)
     not-the-layout) printf '%s\n' "$TEST_ROOT/conform-root/not-the-layout" ;;
     conform) printf '%s\n' "$TEST_ROOT/fake-home/.codex/worktrees/session1/conform" ;;
     no-origin-canon) printf '%s\n' "$TEST_ROOT/no-origin-canon" ;;
-    no-origin-canon-feature-ok) printf '%s\n' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok" ;;
+    no-origin-canon-feature-ok) printf '%s\n' "${MOCK_NO_ORIGIN_WT_PARENT:-$TEST_ROOT/conform-root}/no-origin-canon-feature-ok" ;;
     # bare-live / bare-pure: show-toplevel fails (not a work tree). bare-live-link is a real linked
     # worktree of the misconfigured main and answers normally.
     bare-live-link) printf '%s\n' "$TEST_ROOT/bare-live-link" ;;
@@ -293,7 +293,7 @@ worktree)
   no-origin-canon)
     printf 'worktree %s\0HEAD no-main\0branch refs/heads/main\0\0' "$TEST_ROOT/no-origin-canon"
     # worktree-create names <checkout-basename>-<slug> when origin is absent.
-    printf 'worktree %s\0HEAD no-ok\0branch refs/heads/feature/ok\0\0' "$TEST_ROOT/conform-root/no-origin-canon-feature-ok"
+    printf 'worktree %s\0HEAD no-ok\0branch refs/heads/feature/ok\0\0' "${MOCK_NO_ORIGIN_WT_PARENT:-$TEST_ROOT/conform-root}/no-origin-canon-feature-ok"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -455,6 +455,7 @@ ls-remote)
   # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
   # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
   [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
+  [[ "${FAKE_LS_REMOTE_ALWAYS_FAIL:-}" != 1 ]] || exit 7
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -485,6 +486,11 @@ config)
   mock=""
   if [[ "$key" == "worktreeroot.path" ]]; then
     mock="${MOCK_WORKTREEROOT_PATH:-}"
+    # Per-repository value, the way an includeIf override answers `git -C <repo> config`.
+    # MOCK_WORKTREEROOT_BY_REPO is a space-separated list of <repo-basename>=<path>.
+    for entry in ${MOCK_WORKTREEROOT_BY_REPO:-}; do
+      [[ "${entry%%=*}" == "$base" ]] && mock="${entry#*=}"
+    done
     # MOCK_WORKTREEROOT_PATH_FOR="<repo-basename>=<path>" models an includeIf that gives one
     # repository its own root.
     if [[ -n "${MOCK_WORKTREEROOT_PATH_FOR:-}" && "$base" == "${MOCK_WORKTREEROOT_PATH_FOR%%=*}" ]]; then
@@ -916,6 +922,24 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable"
+# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+all_fail_out="$TMP/ls-remote-all-fail.txt"
+FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
+assert_contains_file "all-fail ls-remote emits fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
+if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
+  grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
+else
+  printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+  "Finding: merged-remote-branch" "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
 # at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
@@ -1735,6 +1759,51 @@ else
     "$no_origin_target_blocks" >&2
   failures=$((failures + 1))
 fi
+
+# #4212: each canonical checkout is classified against its own worktreeroot.path. conform-canon
+# resolves conform-root; no-origin-canon resolves split-root (an includeIf override) and its one
+# worktree sits there. Before the fix the first target's root classified both repositories.
+mkdir -p "$TMP/split-root/no-origin-canon-feature-ok/.git"
+split_out="$TMP/split-root-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
+  MOCK_NO_ORIGIN_WT_PARENT="$TMP/split-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_out" 2>&1 || true
+split_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$split_out" | grep -F 'Target: ' || true)"
+if [[ "$split_outside_targets" == *no-origin-canon-feature-ok* ]]; then
+  printf 'FAIL: worktree under its own includeIf root flagged outside another repository root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: worktree under its own includeIf root is not flagged outside\n'
+fi
+assert_contains_file "per-repo includeIf root counts the worktree conforming" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/split-root)" "$split_out"
+assert_contains_file "fleet summary counts both repositories against their own roots" \
+  "2 of 6 linked worktrees are outside their repository's configured root or wrong layout (3 conforming, 1 tool-owned)" "$split_out"
+assert_contains_file "fleet summary groups by resolved root" \
+  "$TMP/conform-root (1 repository), $TMP/split-root (1 repository)" "$split_out"
+
+# The remedy for a genuinely misplaced worktree names that repository's root, not the fleet's.
+split_misplaced_out="$TMP/split-root-misplaced-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_misplaced_out" 2>&1 || true
+assert_contains_file "misplaced worktree remedy names its own repository root" \
+  "Recreate at $TMP/split-root/no-origin-canon-feature-ok with /source-control:worktree create" "$split_misplaced_out"
+assert_not_contains_file "misplaced worktree remedy does not borrow the first target's root" \
+  "Recreate at $TMP/conform-root/no-origin-canon-feature-ok" "$split_misplaced_out"
+
+# A repository with no key of its own falls back to source-control worktree_root, never to a
+# root another target resolved through its own includeIf.
+split_fallback_out="$TMP/split-root-fallback-output.txt"
+MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/split-root" \
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/nohome" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$split_fallback_out" 2>&1 || true
+assert_contains_file "repository without its own key uses the fallback root" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/conform-root)" "$split_fallback_out"
+assert_not_contains_file "repository without its own key does not borrow another target's root" \
+  "Recreate at $TMP/split-root/no-origin-canon-feature-ok" "$split_fallback_out"
 
 # Fallback to source-control pluginConfigs when melodic key is absent.
 mkdir -p "$TMP/settings-home/.claude"
