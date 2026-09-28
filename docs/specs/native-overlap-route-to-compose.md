@@ -29,6 +29,21 @@ they held is in `## Brief`, `## Open questions`, and Phase 4 below.
 - Units 2 to 9 are deferred as filed (#4049 to #4056) with the notes above recorded on each issue.
   Unit 2 is C4 (`work-class: structural`, `needs-human`); a person reviews and merges it.
 
+## Status (2026-09-28)
+
+`plugins/claude-ops/skills/audit-native-overlap/scripts/epic_status.py` reads the
+checkout and reports each remaining unit. It does not edit the store or a skill
+body. On this tree it exits 1 with `phase5` and `phase6` open.
+
+- Phase 4 (#4049) is on main: every store row carries `integration`, and the
+  class rules reject a built-in `wrap` and a non-`route` `defer` row.
+- Phases 7 to 11 are on main: `run-e2e` has the Native step, the review and
+  design rows have the route phrase, and the three session-flow export sites
+  have the suggest sentence with `baked.suggest_sentence`.
+- Phase 5 (#4050) and Phase 6 (#4051) are not on main. Their drafts bake the
+  doctor suggest sentences and the `simplify` Native step. This status does not
+  copy those skill bodies. The parent stays open until those two units merge.
+
 ## Brief
 
 **Spec container:** melodic-software/claude-code-plugins#4047
@@ -206,7 +221,10 @@ Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/sk
 - `jq '.pairs | length' canonical-pairs.json` prints 16 and `jq '.pairs[] | select(.native.name=="skill-doctor")' canonical-pairs.json` is non-empty.
 - `grep -n 'VALIDATED_AGAINST = "2.1.263"' inventory.py` matches; `jq -r .version plugins/claude-ops/.claude-plugin/plugin.json` is greater than `0.45.2`; `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/claude-ops/skills/inventory/evals/evals.json` exits 0; `scripts/affected-tests.sh --run` passes.
 
-### Phase 4: Policy unit, the `integration` axis and the two new grammars [TODO]
+### Phase 4: Policy unit, the `integration` axis and the two new grammars [DONE]
+
+Done on main in #5058. `epic_status.py` reports `phase4` ok when every row carries
+`integration` and the class rules hold.
 
 Files: `docs/native-surfaces/records.json` (MODIFY, every row, plus two new rows), `docs/native-surfaces.md` (regenerated), `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `docs/conventions/native-references/README.md` (MODIFY), `docs/conventions/native-references/CHANGELOG.md` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` (MODIFY, "Verdicts and the human gate", "The apply step"), `plugins/claude-ops/.claude-plugin/plugin.json` and `CHANGELOG.md` (MODIFY).
 
@@ -230,6 +248,9 @@ Pre-flight consumer check, first work item: `Grep` for readers of `records.json`
 
 ### Phase 5: Sweep unit, claude-ops [TODO]
 
+Not on main. #4050 drafts the doctor and skill-doctor suggest sentences. `epic_status.py`
+reports `phase5` open until those sentences and `baked.suggest_sentence` are in this tree.
+
 Files: `plugins/claude-ops/skills/audit-install-state/SKILL.md`, `audit-skill-visibility/SKILL.md`, `audit-performance/SKILL.md` (MODIFY), `records.json` and the view (baked flags), `plugins/claude-ops/.claude-plugin/plugin.json` and `CHANGELOG.md` (MODIFY). `morning-brief` is KEEP (defer row).
 
 A suggest unit, confirmed 2026-09-11: `doctor` is model-disabled, so no skill in this plugin can compose it, and all three `doctor` rows take `suggest`. The suggest bases name `DISABLE_DOCTOR_COMMAND` and the `skillOverrides` entry as the gate, not `disableBundledSkills`, which `/doctor` alone survives.
@@ -247,6 +268,9 @@ A suggest unit, confirmed 2026-09-11: `doctor` is model-disabled, so no skill in
 
 ### Phase 6: Sweep unit, code-tidying [TODO]
 
+Not on main. #4051 drafts the `simplify` Native step. `epic_status.py` reports `phase6`
+open until that heading, the axis line, and `baked.native_step` are in this tree.
+
 Files: `plugins/code-tidying/skills/tidy/SKILL.md`, `batch-simplify/SKILL.md` (MODIFY), `records.json` and the view, `plugins/code-tidying/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
 The first wrap unit. `simplify` is model-invocable and mutates the working tree, which is batch-simplify's own contract, so the mutation clause is satisfied by scope: the invocation names the file set, the pre-step fingerprint is the set of tracked files outside that scope, and any change outside it is the fourth state.
@@ -260,7 +284,10 @@ The first wrap unit. `simplify` is model-invocable and mutates the working tree,
 - skill-quality check passes for both skills; `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 --upstream-sha d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` exits 0; `grep -c "## Native step: simplify (bundled skill)" plugins/code-tidying/skills/batch-simplify/SKILL.md` prints 1.
 - Positive path in this cloud session, where `simplify` resolves: invoking `/code-tidying:batch-simplify` over a small changed set yields a report with a `Native step` result block and no change outside the named scope; negative path on a host with `disableBundledSkills` set: the report carries `did not resolve in this session` and the axis line; both transcript excerpts are quoted in the PR body.
 
-### Phase 7: Sweep unit, testing [TODO]
+### Phase 7: Sweep unit, testing [DONE]
+
+`run-e2e` carries `## Native step: run (bundled skill)` and the axis line, and the
+store row's `native_step` flag is true. `epic_status.py` reports `phase7` ok.
 
 Files: `plugins/testing/skills/run-e2e/SKILL.md` (MODIFY), `records.json` and the view, `plugins/testing/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
@@ -271,7 +298,10 @@ Files: `plugins/testing/skills/run-e2e/SKILL.md` (MODIFY), `records.json` and th
 
 - skill-quality check passes; self-check with the pinned SHA exits 0; `grep -c "settings or environment, plan, platform or provider, host surface" plugins/testing/skills/run-e2e/SKILL.md` prints at least 1; positive and negative transcript excerpts quoted in the PR body.
 
-### Phase 8: Sweep unit, review [TODO]
+### Phase 8: Sweep unit, review [DONE]
+
+Both review skills carry the route phrase `resolves in your session`. `epic_status.py`
+reports `phase8` ok.
 
 Files: `plugins/review/skills/code-review/SKILL.md`, `plugins/review/skills/security-review/SKILL.md` (MODIFY, phrase only), `records.json` and the view, `plugins/review/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
@@ -282,7 +312,9 @@ Files: `plugins/review/skills/code-review/SKILL.md`, `plugins/review/skills/secu
 
 - skill-quality check passes for both; self-check with the pinned SHA exits 0; `jq -r '.rows[] | select(.component.plugin=="review") | .integration' records.json` prints `route` twice.
 
-### Phase 9: Sweep unit, visualization [TODO]
+### Phase 9: Sweep unit, visualization [DONE]
+
+`visualize` carries the design route phrase. `epic_status.py` reports `phase9` ok.
 
 Files: `plugins/visualization/skills/visualize/SKILL.md` (MODIFY), `records.json` and the view, `plugins/visualization/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
@@ -294,7 +326,9 @@ Files: `plugins/visualization/skills/visualize/SKILL.md` (MODIFY), `records.json
 
 - `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 2>&1 | grep -c "visualization:visualize"` prints 0; skill-quality check passes.
 
-### Phase 10: Sweep unit, prototype [TODO]
+### Phase 10: Sweep unit, prototype [DONE]
+
+`explore-directions` carries the design route phrase. `epic_status.py` reports `phase10` ok.
 
 Files: `plugins/prototype/skills/explore-directions/SKILL.md` (MODIFY), `records.json` and the view, `plugins/prototype/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 
@@ -305,7 +339,10 @@ Files: `plugins/prototype/skills/explore-directions/SKILL.md` (MODIFY), `records
 
 - `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 2>&1 | grep -c "prototype:explore-directions"` prints 0; skill-quality check passes.
 
-### Phase 11: Sweep unit, session-flow [TODO]
+### Phase 11: Sweep unit, session-flow [DONE]
+
+`clean-stop`, `handoff`, and `retro` carry the `/export` suggest sentence, and each
+row's `suggest_sentence` flag is true. `epic_status.py` reports `phase11` ok.
 
 Files: `plugins/session-flow/skills/clean-stop/SKILL.md`, `handoff/SKILL.md`, `retro/SKILL.md` (MODIFY), `records.json` and the view, `plugins/session-flow/.claude-plugin/plugin.json` and `CHANGELOG.md`.
 

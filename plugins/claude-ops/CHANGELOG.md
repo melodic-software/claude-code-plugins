@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.1] - 2026-09-28
+
+### Added
+
+- **`epic_status.py` reports which native-overlap units are in the checkout (#4047).**
+  The script is read-only. On this tree phases 4 and 7 through 11 are present and
+  phases 5 and 6 (#4050, #4051) are still open. The spec status section quotes that
+  result. The script does not bake suggest sentences or a Native step.
+
 ## [0.63.0] - 2026-09-28
 
 ### Added
