@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.5] - 2026-09-28
+## [0.45.6] - 2026-09-28
 
 ### Added
 
@@ -18,6 +18,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `/Users/<name>` or `/home/<name>` path unless the line carries `<!-- path-example -->`, since a
   committed PLAN.md is read on other machines. The plan-reviewer brief's plan-mechanics axis
   carries the same check, so the reviewer catches it even when the gate is skipped (#4271).
+
+
+## [0.45.5] - 2026-09-28
+
+### Added
+
+- **`planning:interview scope` action** ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)):
+  ad hoc scope rounds with ledger + register gate, no `PLAN.md` Brief; returns `Scope decisions:`
+  for callers such as repo-sweep. `interview-defenses.test.sh` re-pins the frontmatter, Action
+  Router, Step 1, Step 1.5, and Step 4 digests; `scope` skips auto-detect and the prior-Brief
+  prompt, and leaves the
+  auto-guard and unattended path unchanged.
 
 ## [0.45.4] - 2026-09-28
 
