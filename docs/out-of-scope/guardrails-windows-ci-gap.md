@@ -21,11 +21,11 @@ Git-Bash-host failures are not a merge-gate gap.
 names its Windows job and says adding a platform-agnostic suite buys no
 coverage. #3683 (open PR) covers `hardcoded-path-check` host-skip and leaves
 `block-windows-drive-tmp` as a real MSYS writer-path gap. The four suites
-#3683 does not name are `block-hook-bypass`, `coverage-manifest`,
+`#3683` does not name are `block-hook-bypass`, `coverage-manifest`,
 `run-guards`, and `secret-pattern-detection`.
 **As of:** 2026-09-28.
 **Recheck:** a Windows Git Bash host where the four extra suites pass, or
-#3683's drive-tmp fix lands and someone re-runs the six.
+`#3683`'s drive-tmp fix lands and someone re-runs the six.
 
 ## Rationale
 
