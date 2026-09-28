@@ -60,8 +60,10 @@ dc_is_excluded_path() {
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
 #
-# `nolane` is source this roster has no symbol detector for. The grep lane can
-# still report those files as `unreferenced-file`. `other` is not source.
+# `nolane` is a source file this roster has no symbol detector for (Rust, .NET,
+# and the other extensions below). The grep lane can still report it as
+# `unreferenced-file`. `other` is not source (docs, manifests, markup) and is
+# outside the coverage total.
 dc_lang_of_path() {
   case "${1,,}" in
   *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) printf 'ts' ;;
