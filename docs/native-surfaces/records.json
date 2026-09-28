@@ -224,7 +224,7 @@
         "kind": "skill"
       },
       "verdict": "complementary",
-      "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Registry-row only: the routing line for this pair lives on audit-install-state, which owns the shared surface description for the plugin.",
+      "reason": "Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing line for the shared surface description still lives on audit-install-state.",
       "evidence": [
         "`doctor` present in the extraction as bundled-skill",
         "markers: gated",
@@ -237,8 +237,8 @@
         "date": "2026-08-23"
       },
       "recheck": {
-        "trigger": "a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill",
-        "verified": "2026-09-11"
+        "trigger": "a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule starts covering transcripts",
+        "verified": "2026-09-28"
       },
       "baked": {
         "description_phrase": false,
