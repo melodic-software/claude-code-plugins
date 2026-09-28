@@ -230,12 +230,12 @@ END {
       role_seen[c_to[i]] = 1
     }
     # Stable participant order: first appearance.
-    pn = 0
+    pcount = 0
     for (i = 1; i <= m; i++) {
-      if (!(c_from[i] in printed)) { printed[c_from[i]] = 1; pn++; order[pn] = c_from[i] }
-      if (!(c_to[i] in printed)) { printed[c_to[i]] = 1; pn++; order[pn] = c_to[i] }
+      if (!(c_from[i] in printed)) { printed[c_from[i]] = 1; pcount++; order[pcount] = c_from[i] }
+      if (!(c_to[i] in printed)) { printed[c_to[i]] = 1; pcount++; order[pcount] = c_to[i] }
     }
-    for (i = 1; i <= pn; i++)
+    for (i = 1; i <= pcount; i++)
       emit("  participant " order[i] " as " order[i])
     for (i = 1; i <= m; i++) {
       arrow = (c_sync[i] == "asynchronous" ? "-->>" : "->>")

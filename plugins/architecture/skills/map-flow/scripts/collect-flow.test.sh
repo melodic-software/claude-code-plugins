@@ -98,7 +98,7 @@ git -C "$repo" commit --quiet -m "fixture"
 out="$TEST_TMPDIR/out"
 mkdir -p "$out"
 record="$out/flow.json"
-stdout="$(bash "$COLLECT" --repo "$repo" --entry "/orders/{id}" --generated-on 2026-09-28 --out "$record")"
+bash "$COLLECT" --repo "$repo" --entry "/orders/{id}" --generated-on 2026-09-28 --out "$record" >/dev/null
 assert_equals "collect exits 0" "$?" "0"
 blob="$(cat "$record")"
 assert_contains "subject is the github repo name" "$blob" '"subject": "billing"'
@@ -139,7 +139,11 @@ assert_equals "render structurizr exits 0" "$?" "0"
 dsl="$(cat "$dsl_dir/flow.dsl")"
 assert_contains "structurizr dynamic view" "$dsl" "dynamic sys"
 assert_not_contains "structurizr does not write sequenceDiagram" "$dsl" "sequenceDiagram"
-[[ ! -f "$dsl_dir/flow.md" ]] && pass "structurizr does not write flow.md" || fail "structurizr wrote flow.md" "present"
+if [[ ! -f "$dsl_dir/flow.md" ]]; then
+  pass "structurizr does not write flow.md"
+else
+  fail "structurizr wrote flow.md" "present"
+fi
 
 depth_record="$TEST_TMPDIR/depth.json"
 bash "$COLLECT" --repo "$repo" --entry "/orders/{id}" --depth 1 --out "$depth_record" >/dev/null
@@ -154,7 +158,11 @@ assert_contains "artifact states the stopping point" "$(cat "$depth_md_dir/flow.
 bad="$(bash "$COLLECT" --repo "$repo" --entry "/missing" --out "$TEST_TMPDIR/missing.json" 2>&1)"
 assert_equals "missing entry exits 3" "$?" "3"
 assert_contains "missing entry states the reason" "$bad" "refused: entry point not found"
-[[ ! -f "$TEST_TMPDIR/missing.json" ]] && pass "missing entry writes nothing" || fail "missing entry wrote a record" "present"
+if [[ ! -f "$TEST_TMPDIR/missing.json" ]]; then
+  pass "missing entry writes nothing"
+else
+  fail "missing entry wrote a record" "present"
+fi
 
 cp "$repo/src/Transport/OrdersEndpoint.cs" "$repo/src/Transport/OrdersEndpoint2.cs"
 git -C "$repo" add src
@@ -174,7 +182,11 @@ git -C "$py" commit --quiet -m "py"
 py_out="$(bash "$COLLECT" --repo "$py" --entry "main" --out "$TEST_TMPDIR/py.json" 2>&1)"
 assert_equals "non-csharp exits 3" "$?" "3"
 assert_contains "non-csharp states the adapter" "$py_out" "C#"
-[[ ! -f "$TEST_TMPDIR/py.json" ]] && pass "non-csharp writes nothing" || fail "non-csharp wrote a record" "present"
+if [[ ! -f "$TEST_TMPDIR/py.json" ]]; then
+  pass "non-csharp writes nothing"
+else
+  fail "non-csharp wrote a record" "present"
+fi
 
 flat="$TEST_TMPDIR/flat.json"
 tr '\n' ' ' <"$record" >"$flat"
@@ -183,7 +195,11 @@ mkdir -p "$flat_dir"
 flat_err="$(bash "$RENDER" --record "$flat" --out "$flat_dir" 2>&1)"
 assert_equals "reformatted record exits 1" "$?" "1"
 assert_contains "reformatted record names the layout" "$flat_err" "one-object-per-line"
-[[ ! -f "$flat_dir/flow.md" ]] && pass "reformatted record writes nothing" || fail "reformatted record wrote flow.md" "present"
+if [[ ! -f "$flat_dir/flow.md" ]]; then
+  pass "reformatted record writes nothing"
+else
+  fail "reformatted record wrote flow.md" "present"
+fi
 
 # Consecutive identical hops collapse.
 collapse_json="$TEST_TMPDIR/collapse.json"

@@ -200,7 +200,7 @@ summary="$(
         aent[i] = jget(item, "entity")
         aname[i] = jget(item, "name")
         atype[i] = jget(item, "type")
-        anull[i] = jget(item, "nullable")
+        isnull[i] = jget(item, "nullable")
         apk[i] = jget(item, "pk")
         afk[i] = jget(item, "fk")
         aev[i] = jget(item, "evidence")
@@ -209,7 +209,7 @@ summary="$(
       for (i = 1; i <= nr; i++) {
         item = held["relationships", idx["relationships", i]]
         rfrom[i] = jget(item, "from")
-        rto[i] = jget(item, "to")
+        rel_to[i] = jget(item, "to")
         rcard[i] = jget(item, "cardinality")
         rcols[i] = jget(item, "columns")
         ropt[i] = jget(item, "optional")
@@ -331,7 +331,7 @@ summary="$(
         next_r = 0
         for (i = 1; i <= nr; i++) {
           fin = (rfrom[i] in keep_e)
-          tin = (rto[i] in keep_e)
+          tin = (rel_to[i] in keep_e)
           if (fin && tin) {
             drawn_r++
             show_r[drawn_r] = i
@@ -370,7 +370,7 @@ summary="$(
           }
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            print "  " safe(name_of[rto[ri]]) " " rcard[ri] " " safe(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
+            print "  " safe(name_of[rel_to[ri]]) " " rcard[ri] " " safe(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
           }
           print "```" > md
           print "" > md
@@ -388,7 +388,7 @@ summary="$(
               for (a = 1; a <= na; a++) if (aent[a] == id) {
                 flags = ""
                 if (apk[a] == "yes") flags = flags "pk"
-                if (anull[a] == "yes") flags = (flags == "" ? "null" : flags ", null")
+                if (isnull[a] == "yes") flags = (flags == "" ? "null" : flags ", null")
                 if (flags == "") print "  " safe(aname[a]) " " mtype(atype[a]) > dbml
                 else print "  " safe(aname[a]) " " mtype(atype[a]) " [" flags "]" > dbml
               }
@@ -401,7 +401,7 @@ summary="$(
             # kind is recovered from the token
             if (rcard[ri] == "||--||" || rcard[ri] == "||--o|") op = "-"
             else op = ">"
-            print "Ref: \"" safe(name_of[rfrom[ri]]) "\".\"" safe(rcols[ri]) "\" " op " \"" safe(name_of[rto[ri]]) "\".\"id\"" > dbml
+            print "Ref: \"" safe(name_of[rfrom[ri]]) "\".\"" safe(rcols[ri]) "\" " op " \"" safe(name_of[rel_to[ri]]) "\".\"id\"" > dbml
           }
         }
         if (next_r > 0) {
@@ -411,7 +411,7 @@ summary="$(
           print "" > md
           for (i = 1; i <= next_r; i++) {
             ri = outside[i]
-            print "- " safe(rfrom[ri]) " -> " safe(rto[ri]) " (" safe(rcols[ri]) ")" > md
+            print "- " safe(rfrom[ri]) " -> " safe(rel_to[ri]) " (" safe(rcols[ri]) ")" > md
           }
           print "" > md
         }
@@ -425,7 +425,7 @@ summary="$(
           print "|---|---|---|---|---|---|" > md
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            print "| " safe(name_of[rfrom[ri]]) " | " safe(name_of[rto[ri]]) " | " rcard[ri] " | " safe(rcols[ri]) " | " ropt[ri] " | " safe(rev[ri]) " |" > md
+            print "| " safe(name_of[rfrom[ri]]) " | " safe(name_of[rel_to[ri]]) " | " rcard[ri] " | " safe(rcols[ri]) " | " ropt[ri] " | " safe(rev[ri]) " |" > md
           }
           print "" > md
         }
@@ -435,7 +435,7 @@ summary="$(
           print "| Entity | Column | Type | Nullable | PK | FK | Evidence |" > md
           print "|---|---|---|---|---|---|---|" > md
           for (a = 1; a <= na; a++) if (aent[a] in keep_e) {
-            print "| " safe(name_of[aent[a]]) " | " safe(aname[a]) " | " safe(atype[a]) " | " anull[a] " | " apk[a] " | " afk[a] " | " safe(aev[a]) " |" > md
+            print "| " safe(name_of[aent[a]]) " | " safe(aname[a]) " | " safe(atype[a]) " | " isnull[a] " | " apk[a] " | " afk[a] " | " safe(aev[a]) " |" > md
           }
           print "" > md
         }

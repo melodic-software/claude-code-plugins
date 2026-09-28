@@ -81,7 +81,7 @@ Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`, the same functio
 string cannot become a field. The closing report quotes the summary line, not a raw value.
 
 `subject` is the github.com origin repository name when that remote resolves, otherwise the
-directory basename. `--focal` overrides the name drawn in the centre. The helper is inline in
+directory basename. `--focal` overrides the name drawn in the center. The helper is inline in
 `collect-context.sh`, the same github.com rule `portfolio-facts.sh` uses.
 
 ## Render
@@ -142,7 +142,7 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Gotchas
 
-- **Scope is one software system.** A system context diagram draws that system in the centre,
+- **Scope is one software system.** A system context diagram draws that system in the center,
   with people and the other software systems directly connected to it. Primary element: the
   software system in scope. Supporting elements: people and those other software systems. Verified
   2026-09-28 against <https://c4model.com/diagrams/system-context>. Recheck when that page changes

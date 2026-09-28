@@ -139,7 +139,7 @@ function alias(s,    a) {
 /^[[:space:]]*\{"from":/ {
   en++
   ekind[en] = jstr($0, "kind")
-  eto[en] = jstr($0, "to")
+  edge_to[en] = jstr($0, "to")
   eres[en] = jstr($0, "resolution")
   efile[en] = jstr($0, "file")
   eline[en] = jnum($0, "line")
@@ -168,15 +168,15 @@ END {
     for (i = 1; i <= en; i++) {
       if (unrouted == "yes" && ekind[i] != "unresolved-publish" && eres[i] != "unresolved") {
         orphan = 0
-        for (j = 1; j <= fn; j++) if ((fkind[j] == "orphan-publisher" || fkind[j] == "orphan-consumer") && fcon[j] == eto[i]) orphan = 1
+        for (j = 1; j <= fn; j++) if ((fkind[j] == "orphan-publisher" || fkind[j] == "orphan-consumer") && fcon[j] == edge_to[i]) orphan = 1
         if (!orphan) continue
       }
       a = alias(ekind[i] "_" efile[i] "_" eline[i])
-      b = alias(eto[i] == "" ? "unresolved" : eto[i])
+      b = alias(edge_to[i] == "" ? "unresolved" : edge_to[i])
       arrow = "-->"
       if (ekind[i] == "publish") arrow = "-.->"
       label = ekind[i] " " efile[i] ":" eline[i]
-      print "  " a "[\"" safe(ekind[i]) "\"] " arrow "|\"" safe(label) "\"| " b "[\"" safe(eto[i]) "\"]" > out
+      print "  " a "[\"" safe(ekind[i]) "\"] " arrow "|\"" safe(label) "\"| " b "[\"" safe(edge_to[i]) "\"]" > out
     }
     print "```" > out
     print "" > out
@@ -191,7 +191,7 @@ END {
       if (ekind[i] != "publish" && ekind[i] != "send" && ekind[i] != "unresolved-publish") continue
       dir = ekind[i]
       if (dir == "unresolved-publish") dir = "publish"
-      print "handoff: map-events contract=" safe(eto[i]) " direction=" dir " file=" efile[i] " line=" eline[i] > out
+      print "handoff: map-events contract=" safe(edge_to[i]) " direction=" dir " file=" efile[i] " line=" eline[i] > out
     }
   } else {
     print "workspace \"events\" \"Events\" {" > out

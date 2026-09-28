@@ -61,6 +61,8 @@
 # Exit: 0 = written (including thin and unknown); 1 = unreadable graph, wrong
 # schema, wrong layout, unknown container, or missing output directory;
 # 2 = usage; 3 = a container must be chosen (nothing written).
+# Artifact text keeps markdown backticks. They are literal, not substitutions.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 usage() {
@@ -468,11 +470,11 @@ function bfs(start,   q, qh, qt, cur, i) {
     for (i = 1; i <= ne; i++) {
       if (eclass[i] != "project") continue
       if (efrom[i] != cur) continue
-      if (eto[i] in reached) continue
-      if (!(eto[i] in is_project)) continue
-      reached[eto[i]] = 1
+      if (edge_to[i] in reached) continue
+      if (!(edge_to[i] in is_project)) continue
+      reached[edge_to[i]] = 1
       qt++
-      q[qt] = eto[i]
+      q[qt] = edge_to[i]
     }
   }
 }
@@ -509,7 +511,7 @@ BEGIN {
 /^[[:space:]]*\{"from":/ {
   ne++
   efrom[ne] = unquote(field($0, "from"))
-  eto[ne] = unquote(field($0, "to"))
+  edge_to[ne] = unquote(field($0, "to"))
   ekind[ne] = unquote(field($0, "kind"))
   eevidence[ne] = unquote(field($0, "evidence"))
   next
@@ -517,11 +519,11 @@ BEGIN {
 END {
   for (i = 1; i <= ne; i++) {
     ek = norm_edge(ekind[i])
-    if (ek == "project" && (efrom[i] in is_project) && (eto[i] in is_project)) eclass[i] = "project"
+    if (ek == "project" && (efrom[i] in is_project) && (edge_to[i] in is_project)) eclass[i] = "project"
     else if (ek == "package") eclass[i] = "package"
     else if (ek == "unresolved" || ek == "project") eclass[i] = "unresolved"
     else eclass[i] = "other"
-    if (eclass[i] == "project") indegree[eto[i]]++
+    if (eclass[i] == "project") indegree[edge_to[i]]++
   }
 
   nproj = 0
@@ -614,9 +616,9 @@ END {
   nviol = 0
   for (i = 1; i <= ne; i++) {
     if (!(efrom[i] in reached)) continue
-    if (eclass[i] == "project" && (eto[i] in reached)) {
+    if (eclass[i] == "project" && (edge_to[i] in reached)) {
       ninternal++
-      if (is_violation(efrom[i], eto[i])) nviol++
+      if (is_violation(efrom[i], edge_to[i])) nviol++
     } else if (eclass[i] == "package") nexternal++
     else if (eclass[i] == "unresolved") nunresolved++
     else nother++
@@ -710,16 +712,16 @@ END {
   for (i = 1; i <= er; i++) {
     a = eorder[i]
     printf "row\t| %s | %s | %s | %s |\n", md(safe(name[efrom[a]])), md(safe(name_of_to(a))), md(safe(ekind[a])), md(safe(eevidence[a]))
-    if (eclass[a] == "project" && (eto[a] in reached) && is_violation(efrom[a], eto[a]))
-      printf "vio\t| %s | %s | %s |\n", md(safe(name[efrom[a]])), md(safe(name[eto[a]])), md(safe(eevidence[a]))
+    if (eclass[a] == "project" && (edge_to[a] in reached) && is_violation(efrom[a], edge_to[a]))
+      printf "vio\t| %s | %s | %s |\n", md(safe(name[efrom[a]])), md(safe(name[edge_to[a]])), md(safe(eevidence[a]))
     if (eclass[a] == "unresolved")
-      printf "unr\t| %s | %s | %s |\n", md(safe(name[efrom[a]])), md(safe(eto[a])), md(safe(eevidence[a]))
+      printf "unr\t| %s | %s | %s |\n", md(safe(name[efrom[a]])), md(safe(edge_to[a])), md(safe(eevidence[a]))
   }
 }
 
 function name_of_to(i) {
-  if (eto[i] in name) return name[eto[i]]
-  return eto[i]
+  if (edge_to[i] in name) return name[edge_to[i]]
+  return edge_to[i]
 }
 function is_violation(from, to,   lf, lt) {
   if (nlayers == 0) return 0
@@ -782,18 +784,18 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   printf "mmd\t  }\n"
   for (i = 1; i <= ne; i++) {
     if (eclass[i] != "project") continue
-    if (!(efrom[i] in reached) || !(eto[i] in reached)) continue
+    if (!(efrom[i] in reached) || !(edge_to[i] in reached)) continue
     label = edge_label(ekind[i], eevidence[i])
-    vio = is_violation(efrom[i], eto[i])
+    vio = is_violation(efrom[i], edge_to[i])
     if (vio) label = label ", layer violation"
-    printf "mmd\t  Rel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[eto[i]], label
-    if (vio) printf "mmd\t  UpdateRelStyle(%s, %s, \"#b00020\", \"#b00020\", 0, 0)\n", alias[efrom[i]], alias[eto[i]]
+    printf "mmd\t  Rel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[edge_to[i]], label
+    if (vio) printf "mmd\t  UpdateRelStyle(%s, %s, \"#b00020\", \"#b00020\", 0, 0)\n", alias[efrom[i]], alias[edge_to[i]]
     if (vio) {
-      printf "dsl\t      %s -> %s \"%s\" {\n", alias[efrom[i]], alias[eto[i]], label
+      printf "dsl\t      %s -> %s \"%s\" {\n", alias[efrom[i]], alias[edge_to[i]], label
       printf "dsl\t        tags \"LayerViolation\"\n"
       printf "dsl\t      }\n"
     } else {
-      printf "dsl\t      %s -> %s \"%s\"\n", alias[efrom[i]], alias[eto[i]], label
+      printf "dsl\t      %s -> %s \"%s\"\n", alias[efrom[i]], alias[edge_to[i]], label
     }
     drawn++
   }
@@ -844,9 +846,9 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
   np = 0
   for (i = 1; i <= ne; i++) {
     if (eclass[i] != "project") continue
-    if (!(efrom[i] in reached) || !(eto[i] in reached)) continue
+    if (!(efrom[i] in reached) || !(edge_to[i] in reached)) continue
     fc = gcur[efrom[i]]
-    tc = gcur[eto[i]]
+    tc = gcur[edge_to[i]]
     if (fc == tc) continue
     key = fc "\t" tc
     if (!(key in pair_count)) {
@@ -858,7 +860,7 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
       pair_vio[key] = 0
     }
     pair_count[key]++
-    if (is_violation(efrom[i], eto[i])) pair_vio[key] = 1
+    if (is_violation(efrom[i], edge_to[i])) pair_vio[key] = 1
   }
   for (i = 1; i <= np; i++)
     for (j = i + 1; j <= np; j++)

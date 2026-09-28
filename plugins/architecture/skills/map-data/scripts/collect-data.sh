@@ -222,12 +222,12 @@ MODS="$TMP/modules.tsv"
 ENTS="$TMP/entities.tsv"
 ATTRS="$TMP/attributes.tsv"
 RELS="$TMP/relationships.tsv"
-MIS="$TMP/mismatches.tsv"
-empty_tsvs "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MIS"
+MISMATCHES="$TMP/mismatches.tsv"
+empty_tsvs "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
 
 refuse() {
   local reason="$1"
-  write_record refused "$reason" none none "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MIS"
+  write_record refused "$reason" none none "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
   exit 0
 }
 
@@ -911,7 +911,7 @@ fi
 
 shipped_tools="$(grep -c '"shipped":"yes"' "$MECH" || true)"
 if [[ "${shipped_tools:-0}" -ge 2 ]]; then
-awk -v winner="$winner_tool" -v rels="$RELS" -v mis="$MIS" '
+awk -v winner="$winner_tool" -v rels="$RELS" -v mismatches="$MISMATCHES" '
   function field(line, key,    re, s, i) {
     re = "\"" key "\":\""
     i = index(line, re)
@@ -945,17 +945,17 @@ awk -v winner="$winner_tool" -v rels="$RELS" -v mis="$MIS" '
       if (!(k in other)) {
         i = win[k]
         detail = from[i] "." cols[i] " -> " to[i] " is declared by " winner " and absent from the other shipped tier"
-        printf "{\"kind\":\"missing-in-other\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mis
+        printf "{\"kind\":\"missing-in-other\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mismatches
       } else {
         j = other[k]
         i = win[k]
         if (card[i] != card[j]) {
           detail = from[i] "." cols[i] " cardinality " card[i] " in " winner " and " card[j] " in " tool[j]
-          printf "{\"kind\":\"cardinality\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mis
+          printf "{\"kind\":\"cardinality\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mismatches
         }
         if (opt[i] != opt[j]) {
           detail = from[i] "." cols[i] " optionality " opt[i] " in " winner " and " opt[j] " in " tool[j]
-          printf "{\"kind\":\"optionality\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mis
+          printf "{\"kind\":\"optionality\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[i], "evidence")) >> mismatches
         }
       }
     }
@@ -963,7 +963,7 @@ awk -v winner="$winner_tool" -v rels="$RELS" -v mis="$MIS" '
       if (!(k in win)) {
         j = other[k]
         detail = from[j] "." cols[j] " -> " to[j] " is declared by " tool[j] " and absent from " winner
-        printf "{\"kind\":\"missing-in-winner\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[j], "evidence")) >> mis
+        printf "{\"kind\":\"missing-in-winner\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", jesc(detail), jesc(field(line[j], "evidence")) >> mismatches
       }
     }
   }
@@ -1031,7 +1031,7 @@ sort -o "$MODS" "$MODS"
 sort -o "$ENTS" "$ENTS"
 sort -o "$ATTRS" "$ATTRS"
 sort -o "$RELS" "$RELS"
-sort -o "$MIS" "$MIS"
+sort -o "$MISMATCHES" "$MISMATCHES"
 
-write_record drawn "" "$winner_tier" "$winner_tool" "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MIS"
+write_record drawn "" "$winner_tier" "$winner_tool" "$MECH" "$MODS" "$ENTS" "$ATTRS" "$RELS" "$MISMATCHES"
 exit 0

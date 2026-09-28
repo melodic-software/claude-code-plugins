@@ -180,7 +180,7 @@ BEGIN { focal = "" }
 /^[[:space:]]*\{"from":/ {
   en++
   efrom[en] = jstr($0, "from")
-  eto[en] = jstr($0, "to")
+  edge_to[en] = jstr($0, "to")
   ekind[en] = jstr($0, "kind")
   evia[en] = jstr($0, "via")
   eev[en] = jstr($0, "evidence")
@@ -212,7 +212,7 @@ END {
     for (i = 1; i <= en; i++) {
       if (ekind[i] == "shared-infrastructure") continue
       fa = idalias[efrom[i]]
-      ta = idalias[eto[i]]
+      ta = idalias[edge_to[i]]
       if (fa == "" || ta == "") continue
       label = "Uses"
       if (ekind[i] == "calls") label = "Calls"
@@ -227,7 +227,7 @@ END {
     if (shared == 0) print "| none | none | none |" > out
     for (i = 1; i <= en; i++) {
       if (ekind[i] != "shared-infrastructure") continue
-      print "| " safe(efrom[i]) " | " safe(eto[i]) " | " safe(eev[i]) " |" > out
+      print "| " safe(efrom[i]) " | " safe(edge_to[i]) " | " safe(eev[i]) " |" > out
     }
     print "" > out
     print "## Evidence" > out
@@ -249,7 +249,7 @@ END {
     for (i = 1; i <= en; i++) {
       if (ekind[i] == "shared-infrastructure") continue
       fa = idalias[efrom[i]]
-      ta = idalias[eto[i]]
+      ta = idalias[edge_to[i]]
       if (fa == "" || ta == "") continue
       label = "Uses"
       if (ekind[i] == "calls") label = "Calls"
@@ -270,7 +270,7 @@ END {
     if (shared == 0) print "none" > out
     for (i = 1; i <= en; i++) {
       if (ekind[i] != "shared-infrastructure") continue
-      print safe(efrom[i]) " -> " safe(eto[i]) " " safe(eev[i]) > out
+      print safe(efrom[i]) " -> " safe(edge_to[i]) " " safe(eev[i]) > out
     }
     for (i = 1; i <= cn; i++) {
       if (csum[i] != "") print safe(cname[i]) " " safe(csum[i]) > out

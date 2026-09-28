@@ -154,6 +154,8 @@ mkdir -p "$TEST_TMPDIR/unkout"
 bash "$RENDER" --graph "$TEST_TMPDIR/unknown.json" --out "$TEST_TMPDIR/unkout" >"$TEST_TMPDIR/unkout.txt"
 assert_equals "unknown render: exits 0" "$?" "0"
 unkmd="$(cat "$TEST_TMPDIR/unkout/components.md")"
+# The artifact quotes the word unknown in markdown backticks.
+# shellcheck disable=SC2016
 assert_contains "unknown render: says unknown" "$unkmd" 'ecosystem `unknown`'
 assert_not_contains "unknown render: no diagram" "$unkmd" 'C4Component'
 assert_contains "unknown render: summary is thin" "$(cat "$TEST_TMPDIR/unkout.txt")" 'thin=yes'

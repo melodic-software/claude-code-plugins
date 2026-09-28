@@ -150,13 +150,13 @@ CREATE TABLE "Post" (
 );
 EOF
 commit_all "$repo3"
-bash "$COLLECT" --repo "$repo3" --out "$TEST_TMPDIR/mis.json" --generated-on 2026-09-28
-mis="$(cat "$TEST_TMPDIR/mis.json")"
-assert_contains "mismatch keeps prisma as the winner" "$mis" '"source_tool": "prisma"'
-assert_contains "mismatch reports optionality" "$mis" '"kind":"optionality"'
-assert_not_contains "mismatch does not flip the diagram token" "$mis" '"tool": "sql-migration"'
-bash "$RENDER" --record "$TEST_TMPDIR/mis.json" --out "$TEST_TMPDIR/mis-out" --dialect mermaid --scope shop >/dev/null
-mismd="$(cat "$TEST_TMPDIR/mis-out/data-model.md")"
+bash "$COLLECT" --repo "$repo3" --out "$TEST_TMPDIR/record.json" --generated-on 2026-09-28
+record="$(cat "$TEST_TMPDIR/record.json")"
+assert_contains "mismatch keeps prisma as the winner" "$record" '"source_tool": "prisma"'
+assert_contains "mismatch reports optionality" "$record" '"kind":"optionality"'
+assert_not_contains "mismatch does not flip the diagram token" "$record" '"tool": "sql-migration"'
+bash "$RENDER" --record "$TEST_TMPDIR/record.json" --out "$TEST_TMPDIR/record-out" --dialect mermaid --scope shop >/dev/null
+mismd="$(cat "$TEST_TMPDIR/record-out/data-model.md")"
 assert_contains "mismatch is on the artifact" "$mismd" "optionality"
 assert_contains "diagram follows the model" "$mismd" 'User ||--o{ Post'
 
