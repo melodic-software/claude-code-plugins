@@ -45,7 +45,9 @@ moves in lockstep with the first. The coupling remains, plus a layer.
 - **Externalize environment-varying values**: hardcoded endpoints, credentials, paths, tunables
   move to the platform's configuration mechanism with safe defaults. The test is variance: a
   value that genuinely differs per environment/operator is config; one that never varies stays
-  inline (a knob nothing turns is speculative coupling to a future that has not arrived).
+  inline (a knob nothing turns is speculative coupling to a future that has not arrived). The
+  cross-cutting rule text lives in `docs/plugin-philosophy.md` § Design boundary → **Hardcoded
+  consumer specifics**; this catalog keeps the remediation mechanism only.
 - **Introduce events / mediator / pub-sub for many-to-many knowledge**: when N components each
   know M others by name, or a workflow hardcodes its observers, publish domain events and let
   subscribers register. This trades knowledge-of-identity for message coupling.
