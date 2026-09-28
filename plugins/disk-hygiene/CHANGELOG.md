@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2] - 2026-09-28
+
+### Changed
+
+- **macOS engine execution stays behind the platform-name gate**
+  ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
+  reversal trigger has not fired. The safety model quotes it and records the four-part
+  2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
+  change. Version is 0.28.2 so it serializes after 0.28.1 on main.
+
+## [0.28.1] - 2026-09-28
+
+### Changed
+
+- **`--root-children` admits regular files through the same ladder as directories**
+  ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). This supersedes
+  #2588 criterion 2 ("the volume root's own files are never inventoried"). On an OS-managed
+  volume root, regular files are admitted and non-regular types fall to
+  `not-regular-file-or-directory`. On any other target, files stay `not-a-directory`. A per-platform OS-owned file
+  name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
+  `root_children_skipped` by reason with counts; `empty_file_count` sits beside
+  `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
+  current user's home as a separate target.
+
 ## [0.28.0] - 2026-09-28
 
 ### Added

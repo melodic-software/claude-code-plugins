@@ -6,6 +6,30 @@
       "prompt": "I changed several files in the API app. What needs testing?",
       "expected_output": "Analyzes git diff to classify changed files by test type needed. Generates a test plan with unit/integration/architecture/E2E sections. Identifies coverage gaps. Suggests /testing:write for gaps and /testing:run-e2e if UI/API changes exist.",
       "files": []
+    },
+    {
+      "id": 2,
+      "name": "clean-tree-says-so-and-does-not-invent-gaps",
+      "prompt": "/testing:plan \u2014 working tree is clean and this branch matches the default branch. What needs testing?",
+      "expected_output": "Reads git status and the diff range, reports that there are no changed files to classify, and does not invent coverage gaps or a test list for unmodified code.",
+      "files": [],
+      "expectations": [
+        "Inspects git status / the requested range rather than assuming files changed",
+        "Reports that there is nothing in the range to classify",
+        "Does not generate a unit/integration/E2E plan for unmodified files"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ui-change-routes-write-and-run-e2e",
+      "prompt": "I added a new settings page in the web app. /testing:plan",
+      "expected_output": "Classifies the UI change as needing unit or component tests plus E2E. Suggests /testing:write for the missing tests and /testing:run-e2e for the UI path, and does not treat a page change as unit-only.",
+      "files": [],
+      "expectations": [
+        "Classifies the changed files as including a UI/E2E concern",
+        "Suggests /testing:write for coverage gaps",
+        "Suggests /testing:run-e2e rather than stopping at unit tests"
+      ]
     }
   ]
 }

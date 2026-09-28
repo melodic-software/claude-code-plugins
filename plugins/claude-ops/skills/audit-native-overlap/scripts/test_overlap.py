@@ -39,7 +39,13 @@ BASE_ROW = {
         "trigger": "a Claude Code release adds, removes, or renames a bundled skill in this lane",
         "verified": "2026-08-23",
     },
-    "baked": {"description_phrase": False, "boundary_section": True},
+    "integration": "route",
+    "baked": {
+        "description_phrase": False,
+        "boundary_section": True,
+        "native_step": False,
+        "suggest_sentence": False,
+    },
     "budget_caveat": False,
 }
 
@@ -597,6 +603,111 @@ class SelfCheckTests(unittest.TestCase):
         )
         self.assertEqual(self.repo.self_check(), 0)
 
+    def test_missing_integration_is_a_problem(self):
+        row = deep_copy(BASE_ROW)
+        del row["integration"]
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("integration" in problem for problem in problems))
+
+    def test_builtin_command_rejects_wrap(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
+        row["integration"] = "wrap"
+        row["baked"]["boundary_section"] = False
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("never `wrap`" in problem for problem in problems))
+
+    def test_builtin_command_allows_suggest_with_invocation_evidence(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
+        row["integration"] = "suggest"
+        row["baked"]["boundary_section"] = False
+        row["evidence"] = ["invocation mode: local-jsx command type, not a prompt"]
+        self.assertEqual(overlap.validate_row(row, 0), [])
+
+    def test_session_skill_rejects_suggest(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "morning", "class": "session-skill", "markers": []}
+        row["integration"] = "suggest"
+        row["observation"]["class"] = "live-roster"
+        row["baked"]["boundary_section"] = False
+        row["evidence"] = ["invocation mode: session roster, not a bundled registration"]
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("session-skill" in problem for problem in problems))
+
+    def test_session_skill_route_is_legal(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "morning", "class": "session-skill", "markers": []}
+        row["integration"] = "route"
+        row["observation"]["class"] = "live-roster"
+        row["baked"]["boundary_section"] = False
+        self.assertEqual(overlap.validate_row(row, 0), [])
+
+    def test_model_disabled_bundled_skill_takes_suggest_only(self):
+        row = deep_copy(BASE_ROW)
+        row["native"]["markers"] = ["gated", "model-invocation-disabled"]
+        row["integration"] = "route"
+        row["baked"]["boundary_section"] = False
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(
+            any("model-invocation-disabled" in problem for problem in problems)
+        )
+        row["integration"] = "suggest"
+        row["evidence"] = [
+            "invocation mode: model-invocation-disabled (disableModelInvocation)"
+        ]
+        self.assertEqual(overlap.validate_row(row, 0), [])
+
+    def test_defer_overrides_model_disabled_and_takes_route(self):
+        # design-sync is both defer and model-invocation-disabled. The
+        # confirmed verdict table records route; defer wins because nothing
+        # is baked from a defer row.
+        row = deep_copy(BASE_ROW)
+        row["native"]["name"] = "design-sync"
+        row["native"]["markers"] = ["hidden", "gated", "model-invocation-disabled"]
+        row["verdict"] = "defer"
+        row["integration"] = "route"
+        row["baked"]["boundary_section"] = False
+        self.assertEqual(overlap.validate_row(row, 0), [])
+        row["integration"] = "suggest"
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("`defer`" in problem for problem in problems))
+
+    def test_marketplace_plugin_rejects_suggest(self):
+        row = deep_copy(MARKETPLACE_ROW)
+        row["integration"] = "suggest"
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("route` or `wrap`" in problem for problem in problems))
+
+    def test_plugin_backed_builtin_allows_wrap_with_evidence(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {
+            "name": "security-review",
+            "class": "plugin-backed-builtin",
+            "markers": [],
+        }
+        row["integration"] = "wrap"
+        row["evidence"] = ["invocation mode: Skill-tool reachable prompt command"]
+        self.assertEqual(overlap.validate_row(row, 0), [])
+
+    def test_wrap_without_invocation_evidence_is_a_problem(self):
+        row = deep_copy(BASE_ROW)
+        row["integration"] = "wrap"
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("invocation mode" in problem for problem in problems))
+
+    def test_native_step_requires_wrap(self):
+        row = deep_copy(BASE_ROW)
+        row["baked"]["native_step"] = True
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("native_step" in problem for problem in problems))
+
+    def test_suggest_sentence_requires_suggest(self):
+        row = deep_copy(BASE_ROW)
+        row["baked"]["suggest_sentence"] = True
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("suggest_sentence" in problem for problem in problems))
+
     def test_agent_rows_are_never_baked(self):
         row = deep_copy(BASE_ROW)
         row["component"] = {"plugin": "demo", "skill": "some-agent", "kind": "agent"}
@@ -623,7 +734,13 @@ MARKETPLACE_ROW = {
         "trigger": "the upstream repository's default branch moves past the pinned commit",
         "verified": "2026-09-01",
     },
-    "baked": {"description_phrase": False, "boundary_section": False},
+    "integration": "route",
+    "baked": {
+        "description_phrase": False,
+        "boundary_section": False,
+        "native_step": False,
+        "suggest_sentence": False,
+    },
     "budget_caveat": False,
 }
 
@@ -1355,6 +1472,91 @@ class PresenceMentionTests(unittest.TestCase):
         code, out = self.check()
         self.assertEqual(code, 0)
         self.assertNotIn("presence condition", out)
+
+
+class SuggestAndNativeStepParityTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = TempRepo()
+        self.addCleanup(self.repo.cleanup)
+
+    def _export_suggest_row(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
+        row["integration"] = "suggest"
+        row["evidence"] = ["invocation mode: local-jsx command type"]
+        row["baked"]["suggest_sentence"] = True
+        return row
+
+    def test_suggest_sentence_forward_parity_wants_the_shape(self):
+        self.repo.write_store(make_store([self._export_suggest_row()]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra="\n## Boundary, the built-in `export` command\n\nDetail.\n",
+        )
+        self.assertEqual(self.repo.self_check(), 1)
+
+    def test_suggest_sentence_forward_parity_holds_on_the_shape(self):
+        self.repo.write_store(make_store([self._export_suggest_row()]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra=(
+                "\n## Boundary, the built-in `export` command\n\nDetail.\n\n"
+                "If /export is available in your session (gate basis: recorded here), "
+                "run it for a durable copy.\n"
+            ),
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_suggest_shape_without_a_row_is_an_orphan(self):
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "orphan",
+            extra=(
+                "\nIf /export is available in your session (basis), run it for a copy.\n"
+            ),
+        )
+        self.assertEqual(self.repo.self_check(), 1)
+
+    def test_bare_available_phrase_is_not_a_suggest_orphan(self):
+        # claude-ops:changelog carries this phrase in unrelated prose.
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "changelog",
+            extra=(
+                "\nUpdate first or changes may reference features not yet "
+                "available in your session.\n"
+            ),
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_native_step_forward_parity_wants_the_heading(self):
+        row = deep_copy(BASE_ROW)
+        row["integration"] = "wrap"
+        row["evidence"] = ["invocation mode: model-invocable, no disableModelInvocation"]
+        row["baked"]["native_step"] = True
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.assertEqual(self.repo.self_check(), 1)
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra="\n## Boundary, the bundled `doctor` skill\n\nDetail.\n\n"
+            "## Native step: doctor (bundled skill)\n\n"
+            "When it resolves in your session, invoke it.\n",
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_generate_renders_the_integration_column(self):
+        self.repo.generate()
+        text = self.repo.view_path.read_text(encoding="utf-8")
+        self.assertIn("| Lane | Rows | Baked | Integration | Verdicts |", text)
+        self.assertIn("- **Integration:** `route`", text)
 
 
 class ScanTests(unittest.TestCase):
