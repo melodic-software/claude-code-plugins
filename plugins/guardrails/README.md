@@ -24,14 +24,19 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 Since **0.31.0** the always-on guards are registered through one dispatcher per event,
 `hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
-process, and sources each guard in turn inside that one bash process. The table below
+process, and sources each guard in turn inside that one bash process. Since **0.41.0**
+those rows are exec form: `"command": "node"` with `hooks/exec-bash.mjs` and the
+dispatcher script in `args`. Node finds Git Bash (never the WSL relay) and spawns it;
+bash still sources every guard in one process. `workflow-resilience-check.sh` is
+the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the
+default-off checker exits in node before bash starts. The table below
 still names every guard, and every guard still ships as its own script with its own
 contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
 standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the
-dispatcher line for its event, so the registration stays readable per guard. What the
-dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
+dispatcher for its event, so the registration stays readable per guard. What the
+dispatcher owns: the spawn shape (one bash process per Bash/PowerShell call where there
 were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
-PostToolUse where there were three), the exit code (2 if any guard blocks, and every
+PostToolUse where there were three, each started by the node entry), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons; that
 is deliberate, not leftover work, so a dual-blocked PowerShell sink prints both
 denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)); measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host. This Linux checkout cannot produce that figure), and the merge
@@ -509,6 +514,24 @@ out of scope until such a signal exists.
   written there is not guarded: run git as its own Bash command.
 
 ### Hook budget accounting
+
+**0.41.1, repeat Edit/Write verifiers (#4390).** A second markdown edit at the same
+HEAD does not re-walk deleted-path history, and a second skill reference at the
+same manifests does not re-read every `plugin.json`. The deleted-path set is
+keyed by the HEAD sha in the common git dir. The tracked-file list is reused
+only while that cache is strictly newer than the index, and the plugin index
+only while it is strictly newer than every manifest, so a same-tick rewrite is
+read again. A failed history walk is not cached. Shallow clones are still
+detected from `.git/shallow`.
+
+**0.41.2, the remaining PostToolUse execs (#4390).** The cold finding fire's incidental `awk`, `tr`, and `cut` are gone: 25 process creations and execs to 19, and 19 to 13 on the second edit at the same HEAD. What remains on that fire is the shell, the dispatcher, and five `git` processes. The goal, the floor, and why the ideal k × S wall is below that floor are in [`reference/edit-write-guards/PLAN.md`](reference/edit-write-guards/PLAN.md).
+
+The three report-only rows stay synchronous.
+
+- **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`.
+- **Basis**: [hooks reference](https://code.claude.com/docs/en/hooks), "Run hooks in the background", re-fetched 2026-09-28. An async hook's `additionalContext` and `systemMessage` are delivered on the next conversation turn and are not shown to the user. In an idle session the response waits for the next user message. Under `claude -p`, a hook still running at teardown is killed. `timeout` is not enforced on an async hook. These findings are advisory context for the edit that just landed; a next-turn delivery misses that edit. Blocking guards stay synchronous and fail closed.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: that section changes when async output is delivered beside the tool result, when `-p` waits for a running async hook, or when `timeout` applies to one.
 
 **0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
 en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the

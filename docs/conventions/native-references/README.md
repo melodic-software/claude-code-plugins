@@ -164,8 +164,11 @@ Six properties the section keeps:
 3. **A mutation gate per surface that mutates.** Naming an overlap without naming what it writes
    invites an unrequested mutation.
 4. **One owning description, pointers elsewhere.** Where two components in the *same plugin* both
-   overlap the surface, one carries the description and the other points at it with a same-plugin
-   relative link and adds only what is specific to itself. Cross-plugin pointers are forbidden.
+   overlap the surface, one carries the description phrase and the other points at it with a
+   same-plugin relative link and adds only what is specific to itself. The rule governs
+   description phrases only: a second skill may carry a Native step or a suggest sentence for
+   the same surface, with a same-plugin pointer to the owner's Boundary, and never a second
+   phrase. Cross-plugin pointers are forbidden.
 5. **Presence-gated language throughout**: the body inherits the description's gate; it never
    promotes a surface to available because the body is longer.
 6. **Upstream specifics carry their basis and date**, per
@@ -196,7 +199,8 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | A baked native reference traces to a store row | **Deterministic**: built, as the overlap self-check's store↔baked-line parity pass |
 | Every non-`defer` extraction-evidence row has its Boundary section (`baked.boundary_section` true, and a `## Boundary` section in the component naming that row's surface as a code span) | **Deterministic**: built, in the same self-check, as a blocking problem (exit 1). The tier carries no advisory grade: advisory belongs to detect-then-judge, where a tool narrows a set a human then rules on, and nothing here needs a ruling. A consumer gate passes a degraded run because degraded reports what this repository cannot fix by editing its own files; a missing section is fixable in the change that adds the row |
 | Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic**: built, in the same self-check |
-| The phrase uses the presence gate rather than an availability assertion | **Detect-then-judge**: the `resolves in your session` token is greppable, but deciding whether a *different* sentence asserts availability is a judgment about meaning. Candidate check named, not built: flag a component description naming a bundled or built-in surface with no gate token. Build trigger: a second assertion-shaped native reference reaches `main` after this doc |
+| The phrase uses the presence gate rather than an availability assertion | **Deterministic**: built. The overlap self-check flags a description that names a bundled or built-in surface behind a presence condition with no gate token. Deciding whether some other sentence asserts availability remains a judgment about meaning; the built check is the greppable candidate, and it blocks as an advisory (exit 3), not as a store defect |
+| A `wrap` row's Native step and a `suggest` row's sentence trace to the store | **Deterministic**: built, in the same self-check. Forward parity looks for the heading `## Native step: <name> (<class>)` and for the sentence shape `If /<name> is available in your session (`. Reverse parity scans bodies for that sentence shape only, never the bare phrase |
 | The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design |
 
 ## Adopters
@@ -221,6 +225,82 @@ unit, each running apply, verify, PR, close, never a single fleet-wide edit, bec
 and spends shared budget. **Boundary sections** are not routing-affecting and spend no budget, so
 Boundary-only baking may land across several plugins in one change; the unit rule does not apply
 to it.
+
+## Runtime relationship
+
+`verdict` says whether the surfaces overlap. `integration` says what a component does about it
+at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
+
+| Class | Values |
+|---|---|
+| `builtin-command` | `route` or `suggest`. Never `wrap`: a built-in command is not invoked by the Skill tool |
+| `bundled-skill` | `route` or `wrap` |
+| `bundled-skill` carrying `model-invocation-disabled` | `suggest` only. The model never lists the surface, so a route phrase is dead text. The marker is set from the registration the row's evidence names, never from the bare name |
+| `plugin-backed-builtin` | `route` or `wrap` |
+| `marketplace-plugin` | `route` or `wrap`. The wrap grammar for this class is seam-phrasing's, not the Native step below |
+| `session-skill` | `route` only |
+| verdict `defer` | `route`, and this wins over the class, including a model-disabled bundled skill. Nothing is baked from a defer row |
+
+A `wrap` or `suggest` row carries an evidence line naming the observed invocation mode. Skill-tool
+reach is per surface; the class rules are a floor.
+
+## The Native step (wrap)
+
+A `wrap` row bakes a body section, not a second description phrase. The heading is literal:
+
+```text
+## Native step: <name> (<class>)
+```
+
+In order, the section carries:
+
+1. The gate token `resolves in your session`.
+2. The identity check by class. Bundled: the name is in the listing; invoke by alias where the
+   Skill tool resolves one; check the description as advisory. A description that reads as a
+   different surface is a likely user or project shadow, so skip with a warning, except where
+   the bundled surface itself defers to a project skill of the same name, as `run` does. A name
+   with no description, which `name-only` and budget overflow both produce, is invoked with a
+   stated "identity confirmed by name alone" warning. Plugin: the namespaced form, plus
+   marketplace provenance when the CLI resolves it.
+3. The mutation clause. A mutating surface may be wrapped only where the wrapping skill's own
+   contract mutates the same thing, the invocation passes an explicit scope or report-only
+   argument, the skill fingerprints what the surface may write before the step and diffs after,
+   and an unexpected diff is reported as "mutation detected after a scoped invocation", with the
+   run exiting degraded.
+4. The invocation form, and what this skill adds before or after the native step.
+5. The skip-and-report contract for `did not resolve in this session`, invocation refused (the
+   report names the reason and never retries: not in the session's skills allowlist, disabled
+   for model invocation by `disableBundledSkills` or `skillOverrides`, or a permission deny,
+   which is alias-aware), identity mismatch, mutation detected, and resolved but degraded (the
+   surface ran a weaker procedure and said so; the wrapper relays that disclosure and never
+   restates the step as the full procedure). Each state names the axis line `settings or
+   environment, plan, platform or provider, host surface` and the enable path.
+6. A note that the wrapped body enters context once and stays there.
+7. The bare `unattended` argument, declared by the caller, under which the skill records
+   instead of asks and never invokes a mutating surface.
+
+## The suggest sentence
+
+A `suggest` row addresses the person, not the model. The sentence shape is:
+
+```text
+If /<name> is available in your session (<basis>), run it for <job>.
+```
+
+`<basis>` is a same-file four-part verification record per upstream-drift naming the surface's
+own gate. For `/doctor` that gate is `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry,
+because `/doctor` survives `disableBundledSkills`. For every other bundled skill the gate
+includes `disableBundledSkills` as well. Place the sentence at the start of the run when the
+surface covers everything the skill does, and at the end when coverage is partial. A
+model-disabled bundled skill is suggested as `/<name>` exactly as a built-in command is. The
+wording is "reserved for the person to run", never "cannot be invoked" as an absolute. An
+unattended run records the sentence in output.
+
+The suggest token `is available in your session (` differs from the route token `resolves in
+your session` by design: the route token is a condition the model observes in its listing, and
+the suggest token is one the person checks. It is not the rejected assertion phrasing `always
+available`. Parity keys on the sentence shape, so unrelated prose that merely says "available
+in your session" is not a suggest sentence.
 
 ## Versioning
 

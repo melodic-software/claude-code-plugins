@@ -91,7 +91,7 @@ assert_not_contains "the default names no critique section" "$OUT" "critique"
 # the status token is how an unreadable scope is distinguished from a clean one,
 # and losing it here would reintroduce the defect the token exists to fix.
 assert_contains "the entry diff keeps its status token" "$OUT" "entry-diff summary allow_before="
-assert_contains "the plane lint keeps its status token" "$OUT" "checks_run=9 status="
+assert_contains "the plane lint keeps its status token" "$OUT" "checks_run=11 status="
 assert_contains "the diff keeps its own DIFF-NOTE records" "$OUT" "DIFF-NOTE:"
 
 # --- Case 9: a failed inventory fails the run --------------------------------

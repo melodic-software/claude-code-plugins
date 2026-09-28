@@ -179,6 +179,19 @@ case first, the two caps with their sources) is the fuller form of tip 5.
 Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
 row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.
 
+## Skill `model` (Melodic Software addition)
+
+A skill may set frontmatter `model`. The override lasts for the rest of the current turn and is
+not saved; the session model resumes on the next prompt. `inherit` keeps the active model. A value
+the organization's `availableModels` list excludes is not used. In auto mode, and in plan mode while
+the classifier reviews commands, a model auto mode does not support is not used either, and the
+session keeps its current model. With `context: fork`, the value sets the forked subagent's model
+instead.
+
+**Record.** Claim: the sentences above. Basis:
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of: 2026-09-28.
+Recheck: that row changes the turn scope, the auto-mode exception, or the `context: fork` rule.
+
 ## Arguments (Melodic Software addition)
 
 `arguments` in frontmatter names positional slots. It is not keyword arguments. With

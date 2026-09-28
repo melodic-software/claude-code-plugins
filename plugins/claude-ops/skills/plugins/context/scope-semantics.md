@@ -271,6 +271,14 @@ re-run on 2.1.261**: it needs an interactive session, which a non-interactive pr
 drive. The `≥ 2.1.163` gate for `--force` is likewise **not re-verified on 2.1.261**, because the
 current docs page states the flag without naming the version that introduced it.
 
+**Headless sessions can run it.** `/reload-plugins` also runs in the desktop app, the Agent SDK,
+and non-interactive `-p` when it is typed into the session directly, from Claude Code 2.1.260.
+Plugin MCP server changes in those sessions wait until the next session.
+**Claim, basis, as of, recheck:** that sentence,
+[prompt caching](https://code.claude.com/docs/en/prompt-caching), 2026-09-28, and a re-fetch of
+that paragraph that drops those sessions. Whether a loop whose skill body is already in context
+can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
+
 **Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
 agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors. Per
 `code.claude.com/docs/en/plugins-reference`, "monitors require a session restart". Recommend bare `/reload-plugins` by default; call out the restart requirement
@@ -310,6 +318,14 @@ So follow the docs' own two-step rather than predicting the cause:
 Never recommend `--force` pre-emptively alongside every reload. It exists specifically to opt into a
 real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
 warning.
+
+**Headless sessions can run `/reload-plugins`.** Claim: the command is available in non-interactive
+`-p` sessions, the Agent SDK, and the desktop app, from Claude Code 2.1.260. In those sessions it
+runs only on input typed into the session, it does not apply plugin MCP server changes, and a copy
+that arrives over Remote Control or a relayed message is refused. Basis:
+<https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins> and the `/reload-plugins`
+row of <https://code.claude.com/docs/en/commands>. As of: 2026-09-28. Recheck: that section stops
+listing headless sessions, or changes the typed-input and MCP limits.
 
 ## `pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules
 
