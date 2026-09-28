@@ -326,7 +326,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     *) ;;
     esac
     if ((!_ps_grantable)) || ! allowed "ps-unparsable-$PS_SINK_TRIGGER"; then
-      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) && PS_SINK_TRIGGER="herestring-comment-char"
+      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) && PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
       ps::print_unparsable_block_message "$COMMAND"
       # The trigger rides along in the form token: five distinct shapes reach this
       # sink, and one collapsed token cannot show which of them is over-blocking.

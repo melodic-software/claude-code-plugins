@@ -1439,7 +1439,11 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       _bbh_allow_list=",${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW:-},"
       _bbh_allow_list="${_bbh_allow_list// /}"
       if [[ "$_bbh_allow_list" == *",ps-computed-positional,"* ]]; then
-        :
+        # The grant skips only that arm: re-scan without it so every later arm
+        # (Set-Content, a redirect, iex, ...) still runs on the same command.
+        if PS_WRITE_BYPASS_SKIP_POSITIONAL=1 ps::write_bypass "$COMMAND"; then
+          block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+        fi
       else
         block_bypass "powershell-computed-positional" "PowerShell call through a variable (& \$var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>"
       fi

@@ -1087,6 +1087,16 @@ expect "PS: Set-Content still blocked under ps-computed-positional" 2 \
 expect "PS: splat still blocked under ps-computed-positional" 2 \
   --tool PowerShell --command '& $w @p' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+# The positional arm returns before the cmdlet scans, so a granted token must not
+# carry a Set-Content or iex that shares the command with the granted call.
+# shellcheck disable=SC2016
+expect "PS: Set-Content beside a granted & \$sh call still blocked" 2 \
+  --tool PowerShell --command "& \$sh x.sh record dir; Set-Content f.txt x" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+# shellcheck disable=SC2016
+expect "PS: iex beside a granted & \$sh call still blocked" 2 \
+  --tool PowerShell --command "& \$sh x.sh record dir; iex \$payload" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
 expect "PS: Bash cat redirect still blocked under ps-computed-positional" 2 \
   --command 'cat > foo.txt' \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional CLAUDE_PROJECT_DIR=
