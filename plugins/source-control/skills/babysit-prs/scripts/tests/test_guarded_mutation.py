@@ -23,7 +23,9 @@ from babysit_lease import LeaseHeldError
 HEAD = "a" * 40
 
 
-def _args(*, apply: bool, token: str | None = None, pin: str = HEAD) -> argparse.Namespace:
+def _args(
+    *, apply: bool, token: str | None = None, pin: str = HEAD
+) -> argparse.Namespace:
     return argparse.Namespace(
         pr="owner/repo#1",
         apply=apply,
