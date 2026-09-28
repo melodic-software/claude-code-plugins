@@ -131,6 +131,20 @@ run "eval git commit --no-verify (eval prefix, blocked)" \
 run "env -S 'ls -la' (split-string non-git, allowed)" \
   "env -S 'ls -la'" 0
 
+# --- wsl / wsl.exe run their command line in a Linux distro (#4242) ----------
+run "wsl git commit --no-verify (default-shell command line, blocked)" \
+  'wsl git commit --no-verify -m x' 2
+run "wsl.exe -e git commit --no-verify (exec argv, blocked)" \
+  'wsl.exe -e git commit --no-verify -m x' 2
+run "wsl -d Ubuntu -u root -- git push --no-verify (run options + --, blocked)" \
+  'wsl -d Ubuntu -u root -- git push --no-verify' 2
+run "wsl -e bash -c 'git commit --no-verify' (nested shell, blocked)" \
+  "wsl -e bash -c 'git commit --no-verify -m x'" 2
+run "wsl -e git commit -m '--no-verify' (exec keeps the message one word, allowed)" \
+  "wsl -e git commit -m '--no-verify'" 0
+run "wsl git commit -m x (allowed)" 'wsl git commit -m x' 0
+run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
+
 # --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
@@ -223,6 +237,9 @@ run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
 run_pwsh "PS: git commit -m here-string (allowed here — noncanonical's concern, no bypass)" \
   "$(printf '%s\n%s\n%s' "git commit -m @'" "msg" "'@")" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: wsl git commit --no-verify (launcher sink, blocked — #4242)" \
+  "wsl git commit --no-verify -m x" 2
+run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: backtick-continued commit (fail-closed block)" \
   "$(printf 'git commit `\n --no-verify')" 2
 run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
@@ -279,6 +296,38 @@ run_pwsh "PS: a here-string body containing a # (allowed)" \
 run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
 run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
+
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+run_pwsh "PS: a quote on a confirmed opener prefix hiding --no-verify (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git commit --no-verify -m x" "\"@")" 2
+run_pwsh "PS: a backslash on a confirmed opener prefix hiding --no-verify (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git commit --no-verify -m x" "\"@")" 2
+run_pwsh "PS: a <# earlier than a confirmed opener hiding --no-verify (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git commit --no-verify -m x" "\"@")" 2
+run_pwsh "PS: shape 9 — a commented opener behind {} with no git (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
+run_pwsh "PS: a bare CR hiding git commit --no-verify (blocked)" \
+  $'Write-Output hi\rgit commit --no-verify -m x' 2
+run_pwsh "PS: CRLF canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS #4683 shape 9: --no-verify behind commented opener and grouping (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host {x} # @'" "git commit --no-verify -m x" "'@")" 2
+run_pwsh "PS #4683 shape 2: --no-verify behind backslash-escaped quote opener (blocked)" \
+  "$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "git commit --no-verify -m x" '"@')" 2
+run_pwsh "PS #4683 table bare CR hiding --no-verify (blocked)" \
+  "$(printf 'Write-Output x\rgit commit --no-verify -m x')" 2
+run_pwsh "PS #4683 A1: --no-verify behind mixed quotes and backslash (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a\\'b'\" c\" @\"" "git commit --no-verify -m x" '"@')" 2
+run_pwsh "PS #4683 A2: --no-verify behind apostrophe-straddle opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "git commit --no-verify -m x" "'@")" 2
+run_pwsh "PS #4683 N1: --no-verify behind quote-then-opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "git commit --no-verify -m x" "'@")" 2
+run_pwsh "PS #4683 B1: --no-verify behind backtick opener (blocked)" \
+  "$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; git commit --no-verify -m x" "'@")" 2
+run_pwsh "PS #4683 S5: --no-verify behind block-comment opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "git commit --no-verify -m x" "'@")" 2
+run_pwsh "PS #4683 N2: --no-verify behind orphan closer (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output \"it's\" @'" "it's" "'@" "git commit --no-verify -m x")" 2
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git

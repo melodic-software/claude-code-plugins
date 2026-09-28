@@ -1,5 +1,5 @@
 ---
-description: "Capture a baseline or post-change performance snapshot with the HOST QUALIFIED FIRST: repeated no-op spawns characterize the machine's own noise, and a wall-clock claim is REFUSED outright from a host carrying the bimodal contention signature, naming the drift-immune counter it can still report instead. Interleaves before/after arms within one run rather than comparing two passes, since a host that drifts 6x in an hour attributes its own drift to the change. Reports a counter alongside and ranked above any duration. Use when: capturing a before or after snapshot, running the comparison between them, or asking whether this machine can support a timing claim at all: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists yet (run /performance:goal), or when the claim is about code shape rather than runtime (that is /verification:measure metrics)."
+description: "Capture a baseline or post-change snapshot with the host qualified first: refuse a wall-clock claim from a bimodal-contention host and name the drift-immune counter instead. Interleaves before/after arms in one run. Use when: 'capture a baseline', 'take a post snapshot', 'run the A/B', 'can I even measure here'. Runs after /performance:goal; hands off to /performance:verify. Skip when no goal with a computed floor exists, or when the claim is code shape (/verification:measure)."
 user-invocable: true
 argument-hint: "[baseline|post] [<target>] (e.g. /performance:snapshot baseline, /performance:snapshot post)"
 disable-model-invocation: false
@@ -44,6 +44,20 @@ The refusal names what it can still report. That matters: an unexplained refusal
 reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
+### 1b. Measuring-tool integrity (before timing)
+
+Before any timed arm runs, record the **measuring tool's identity** for every executable the goal's
+metric command names (harness scripts, summarizers, census wrappers): resolved path, `git rev-parse
+HEAD` or content hash when the tree is a checkout, and `--version` output when the tool provides it.
+Check that **every flag** the goal's metric command uses appears in that copy's `--help` (or is
+exercised in a dry run). A stale checkout, wrong plugin root, or missing flag support **stops the
+run** and names the fix (update the tool, point at the installed plugin copy, or change the goal's
+command). Carry the record in the report:
+
+```text
+Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing>
+```
+
 **Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
 variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
 pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
@@ -60,6 +74,27 @@ For a process-spawn count, run the bundled census rather than writing one:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-spawn-census.sh" --shim-dir <stable-dir> --before <cmd>
 --after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
 the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
+Report the census as **`spawns=` (PATH-shim accounting)** in the snapshot; when the goal instead
+tracks a Windows Job Object or other host counter, state that label explicitly and cite the MSYS
++2-per-external-command rule from
+[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash)
+so a +2 delta is not chased as a mystery third process.
+
+### 2b. Code path under test (before each arm)
+
+The goal must name which **code path(s)** the metric is meant to exercise (for example skip with no
+interpreter versus Python run path, cold cache versus warm). Before **each** arm, either **reset**
+the state files that select the path (markers, sentinel files, cache keys) or **record** their
+values and carry them in the report. After the arm, report which path actually ran, with evidence
+(a marker file, exit code, or the set of processes spawned). Use a line per arm:
+
+```text
+Path (<arm>): <intended path from goal> -> <observed path> (evidence: <marker | exit | processes>)
+```
+
+An arm whose observed path does not match the goal's named path is **flagged**; its duration is not
+reported as the goal's headline metric. A harness that always exercised the rare path while the
+common session path stayed unmeasured is exactly the failure this step prevents.
 
 A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
 fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
@@ -110,6 +145,12 @@ per-pair ratios (`ratio.py`) alongside per-arm percentiles (`summarize.py`). It 
 hand-rolled loop gets wrong: an arm whose probe exits 127 (a command that never ran, which a loop
 records as a fast clean sample), a drive-letter path in an arm, a ratio from too few pairs, and a
 clock it cannot read. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --help` lists the options.
+
+The paired-ratio median carries its own floor beside the percentile floor: at least 20 pairs, the
+default of `${CLAUDE_PLUGIN_ROOT}/scripts/ratio.py`. Below it, report the raw per-pair ratios and no
+median, since six repeats of two identical arms at five pairs gave medians from 0.78x to 1.00x and
+one run reported 17.12x. A lowered `BENCH_MIN_PAIRS` prints itself on the line; carry it into the
+report.
 
 Grounded, Tier 1, `benchstat`'s own documentation: *"The best way to do this is to interleave before
 and after runs, rather than running, say, 10 iterations of the before benchmark, and then 10
@@ -221,5 +262,10 @@ stored one.
   still costs a full process, and a spawn census that ignores its own substitutions undercounts.
 - **A `PATH` shim directory from `mktemp -d` invalidates a `PATH`-keyed cache every run.** The
   harness then measures its own randomization and reports "no improvement".
+- **A stale harness copy produces plausible wrong numbers.** Record path, revision, and flag support
+  before timing; a missing column in the output is too late to catch a nine-commit drift.
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.
+- **Stale markers send every sample down the wrong path.** Reset or record path-selecting state
+  before each arm, and report observed path with evidence; a mismatch is flagged, not folded into
+  the headline metric.

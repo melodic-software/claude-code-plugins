@@ -34,8 +34,11 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 - target containment; an OS-managed root (per `system_roots()`: the OS drive holding an existing
   Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
   a recursive walk target, while `--root-children` may address that same root only as a listing of
-  immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
-  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  immediate non-OS child entries (regular files and directories) with explicit `--root-child`
+  selection (never a whole-root
+  walk); `--root-children` is also valid on a non-OS directory (a user home), where only
+  directories are admitted, so approved immediate children can be re-inventoried into one snapshot
+  without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
@@ -116,6 +119,16 @@ be a large new trust surface, while the manual lane's per-item revalidation rule
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
 
+**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
+execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
+question, not this trigger firing. **Basis:** the trigger quoted from the
+[#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
+affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
+near-miss recurrence), reopen as a design issue with full security review." No post-#1109
+near-miss recurrence is on the record in this checkout; #3855 remains the open related
+design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
+manual lane, or #3855 closing with a per-primitive design.
+
 ## Manual-handoff revalidation (`handoff-verify`)
 
 `handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without
@@ -154,8 +167,8 @@ marker within the one approved checkout:
    only in that case.
 3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
    declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
-4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
-   option adds no approval surface and creates no token.
+4. The checkout is one exact human-approved path, given inline as `--path` or listed in
+   `handoff-paths.json`. The evidence option adds no approval surface and creates no token.
 
 The engine discovers `.git` markers from live descendants and requires their repository-root set to
 equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared
@@ -479,11 +492,22 @@ in monitor mode, emits the `systemMessage` itself when nothing resolves, so a ho
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
 Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. And the guard's own no-interpreter path is unchanged: the launcher exits 0
-silently in guard mode, so routing the belt through it closes "cannot start against the alias stub",
-not "fails closed when no Python exists at all". That residual is why the registration shape is
-asserted by `hooks/run-python-hook.test.sh` and `test_hygiene.py`, and verified as step 1 of
-`/disk-hygiene:setup check`.
+nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
+every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
+the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
+difference from the watchdog is the engine gate's marker-free commands: they proceed unchecked with a
+once-per-session `systemMessage` and `additionalContext` notice rather than an `ask`, because a
+missing interpreter is persistent where a missed deadline is transient, and an `ask` on every
+`PowerShell(*& $*)` call would stop unrelated work. The Stop detector is kept as the end-of-turn
+backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
+<https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
+exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
+a prompt even in auto mode) and <https://code.claude.com/docs/en/headless> (a prompt in a `-p` run
+with no permission host is denied); recheck when either page changes PreToolUse exit-code or `ask`
+semantics. The README states each surface in one table. The launch shape is asserted by
+`hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
+both are verified as step 1 of `/disk-hygiene:setup check`.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
@@ -550,13 +574,13 @@ subtree.
 The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
-the three coverage terms, `empty_directory_count`, both byte totals, `errors`, `policy_sources`
+the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`
 and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
 of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
 flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
 suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
-`empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
+`empty_directory_count` and `empty_file_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.
 
@@ -564,7 +588,8 @@ Root-children mode's quiet note is its own. That mode's default note carries a c
 qualification the ordinary one has no reason to: the volume root itself and every skipped
 OS-owned, hidden, system or reparse entry were never walked, so the inventory is partial by
 construction. Nothing else on stdout encodes that. The skipped entries are recorded as
-`root_children_skipped` in the snapshot alone, and `truncated_paths` does not stand in for them,
+`root_children_skipped` in the snapshot as the full list (stdout carries the same field grouped by
+reason with counts), and `truncated_paths` does not stand in for them,
 so a quiet note that dropped the qualification would be dropping a fact rather than a duplicate.
 The quiet root-children note therefore keeps the coverage sentence and drops only the rollup
 prose.

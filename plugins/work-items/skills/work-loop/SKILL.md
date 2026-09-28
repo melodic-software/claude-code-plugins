@@ -1,5 +1,5 @@
 ---
-description: "Run the work-item backlog as a self-paced autonomous drain loop: each cycle sweeps raw intake through mechanical triage, admits items through the work-class gate (fail-closed), executes admitted items via /work-items:work under an adaptive item cap, and evaluates the drain exit condition. Worker lane of the loop-lane three-session topology. Authors PRs, NEVER merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Launch via /loop (self-paced). Sibling skills: /work-items:attend-queue (attended escalation lane), /work-items:work (single-item pick + execute), /work-items:triage (raw intake), /work-items:track (backlog CRUD)."
+description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
 argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]"
 user-invocable: true
 disable-model-invocation: false
@@ -290,6 +290,14 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
+   **Background-job launch mode.** When Claude Code runs this lane as a background job, the harness
+   blocks Write/Edit to the shared default-branch checkout until the session calls `EnterWorktree`.
+   This lane deliberately runs on that checkout and must not call `EnterWorktree` (that terminal
+   would transition the long-lived orchestrator). Step 0's gitignore preflight does not lift the
+   harness block, so the escalation record write is refused and only the tracker marker comment
+   survives. For the out-of-band notification leg, launch the lane in an interactive foreground
+   session on the default-branch checkout, or accept that background launches lose the record
+   ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta

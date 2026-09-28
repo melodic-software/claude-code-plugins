@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "typos-format",
-  "version": "0.6.67",
+  "version": "0.7.0",
   "description": "Spell-check on edit via typos-cli, unconditionally. Report-only by default, honoring the consuming repo's own typos configuration when one is present.",
   "author": {
     "name": "Melodic Software",
@@ -26,6 +26,12 @@
       "type": "boolean",
       "title": "Apply corrections",
       "description": "Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only.",
+      "default": false
+    },
+    "typos_format_lint_gitignored": {
+      "type": "boolean",
+      "title": "Act on files git ignores",
+      "description": "By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope.",
       "default": false
     }
   }

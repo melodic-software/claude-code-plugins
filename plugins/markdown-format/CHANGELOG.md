@@ -3,6 +3,28 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.72] - 2026-09-28
+
+### Changed
+
+- **The gitignore gate uses the shared `hook::gitignored_out_of_scope` helper** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). Behavior is unchanged: a gitignored Markdown file is still skipped unless `markdown_format_lint_gitignored` is `true`. The local `file_is_gitignored` copy is gone.
+
+## [0.11.71] - 2026-09-28
+
+### Changed
+
+- **`markdown-format.test.sh` host-skips four PATH-shape cases on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The suite
+  probes whether `cygpath -m` rewrites a POSIX mktemp path and prints a counted
+  `SKIP (host: ...)` line for the PATH-probed trim, empty-component, out-of-repo bun, and
+  `~/.local/bin` preference assertions. Linux CI is unchanged.
+
+## [0.11.70] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.11.69] - 2026-09-28
 
 ### Security

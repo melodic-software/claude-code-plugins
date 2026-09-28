@@ -1,5 +1,75 @@
 # Changelog: discovery plugin
 
+## [0.25.2] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the six listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: phase enumerations, dispatch
+  mechanics, and restated skip lists. `check-listing-budget.sh plugins/discovery/skills` goes
+  from 4,376 to 2,372 characters. The research description still orders single-topic
+  routing before multi-topic `research-deep`. No skill is renamed or merged, and `setup` stays
+  `disable-model-invocation: true`.
+
+## [0.25.1] - 2026-09-28
+
+### Fixed
+
+- **The acceptance gates can run without a prompt, and setup offers the rules**
+  ([#4233](https://github.com/melodic-software/claude-code-plugins/issues/4233)).
+  `reference/parent-contract.md` "Operator setup" now prints six direct-path allow rules (quoted
+  and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers), and
+  `/discovery:setup` reports whether they are present, stale, or absent, and in an interactive
+  `apply` offers to write them to `~/.claude/settings.json`. The rules pin the installed version's
+  cache directory rather than wildcarding it: a `*` in the path's version segment sits before the
+  program name ends, so it can stand in for `../../usr/bin/<program> <arguments>`, and Claude Code
+  warns about such rules at startup. After an update, re-run `apply` to refresh them.
+- **The pre-flight `--help` probes run as one chained call**, so a session without allow rules
+  sees one prompt instead of three; the allow rules cover the probes and the gates alike.
+- **The PowerShell exit code is read before piping.** "How to invoke" warns that piping a gate
+  through `Select-Object -First` can leave `$LASTEXITCODE` empty or stale, and shows capturing it
+  first.
+- **A research parent can dispatch from `research/SKILL.md` alone.** The hub now carries the
+  envelope's labeled lines and both baseline commands. `scripts/contract.test.sh` fails when that
+  copy and the parent contract disagree.
+- **Local folders outside a repository and machine state belong to research.** The research and
+  explore descriptions both say so, and research cites such reads as Tier 0 primaries.
+- **Research names the no-project-root case.** An interactive run asks where the artifact goes; a
+  non-interactive run writes under `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` and announces the
+  path.
+- **Research looks up the branch only without a topic argument.** An explicit topic makes no
+  `git branch` call.
+
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **Research Phase 2 fans out per gap when nesting is available.** One topic with several gaps had
+  no fan-out path: research-deep splits only topics that share no claims, and the "parallel
+  workers for breadth within a phase" principle had no step that fired it, so a five-gap brief ran
+  serially under one 40-turn limit and left on-point primaries unfetched. With `nested spawning
+  available` and 3 or more numbered gaps, the researcher now dispatches one generic gap worker per
+  gap, or per group of gaps sharing a primary (capped at 5), in one turn. Workers gather and return
+  URLs, on-disk artifact paths and quoted spans, never verdicts; the researcher keeps the
+  falsification query, confirms each cited primary from its artifact before counting it as Tier
+  0/1, and leaves unanswered gaps open. Recipe: the discipline file's new "Per-gap fan-out (Phase
+  2)". The researcher's parallel-worker clause and research-deep's multi-topic check point at it,
+  and `contract.test.sh` pins all four. The discipline file gains a Contents block now that it passes 300 lines (#4151).
+
+## [0.24.10] - 2026-09-28
+
+### Changed
+
+- **A direct dispatch of `researcher` learns the gate it owes.** The post-dispatch acceptance gate
+  lives in the research skill body, and a parent that dispatches `discovery:researcher` without
+  loading the skill (to keep its own context small) never reads it. `researcher.md` now states
+  that whatever dispatched it owes the gate and points at the skill's "Post-dispatch acceptance
+  gate" and the parent contract's "Running the acceptance gate". Its return payload carries a
+  fixed `gate_owed:` line naming the three gate scripts and the section, so the obligation arrives
+  in band. The parent contract says the same for a direct dispatcher. `contract.test.sh` section
+  15 pins all three (#4275).
+
 ## [0.24.9] - 2026-09-28
 
 ### Added

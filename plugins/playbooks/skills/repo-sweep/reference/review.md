@@ -3,10 +3,19 @@
 Turn what went wrong in the last step into filed issues. Nothing is filed without the user's
 approval.
 
-1. Ask the user what went wrong in the last step: wrong findings, missed findings, a skill that
+1. Dispatch a separate reviewer agent (Task tool or subagent). It must not be the session that
+   ran the step. Give it only:
+   - repo-sweep procedure files (`reference/next.md`, this file, the step skill's SKILL.md and
+     references it used),
+   - the step's artifacts (`.work/repo-sweep/`, the PR checklist line for that step, `git diff`
+     from the step base or the absence of a diff),
+   - and the user's complaints once you have them (step 2 below).
+   Never give it the executing agent's reasoning, tool transcript, or chat history. It returns a
+   classified problem list: skill defect, catalog defect, executing-agent error, harness issue.
+2. Ask the user what went wrong in the last step: wrong findings, missed findings, a skill that
    ignored its override, a confusing prompt, a catalog entry in the wrong place or with the wrong
    arguments. Add anything you saw yourself, including `guard.sh` stop lines.
-2. Sort each problem:
+3. Merge the reviewer's list with the user's report, then sort each problem:
    - A skill defect: invoke `/plugin-quality:audit` via the Skill tool on that skill, passing
      the problem as the evidence. Draft an issue against the plugin that owns the skill.
    - A catalog problem (order, membership, arguments, applies-when, override text): draft an
@@ -21,6 +30,6 @@ approval.
    has no plugin here to file against: ask the user to report it to Anthropic with `/bug`
    ([commands](https://code.claude.com/docs/en/commands), fetched 2026-09-27; recheck when that
    page drops or renames `/bug`).
-3. Show every draft (title, body, target repository). File each one with `gh issue create` only
+4. Show every draft (title, body, target repository). File each one with `gh issue create` only
    after the user approves it, and print the URLs.
-4. Tell the user to `/clear` and run `/playbooks:repo-sweep next`.
+5. Tell the user to `/clear` and run `/playbooks:repo-sweep next`.

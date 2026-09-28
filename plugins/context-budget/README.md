@@ -35,10 +35,40 @@ saving.
 
 ## Hook
 
-A PreToolUse checkpoint returns `permissionDecision: "ask"` for any Write/Edit targeting a
-Claude Code settings surface, so settings edits prompt even in auto mode. It is a checkpoint,
-not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks` removes
-non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
+A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
+(`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) targets a Claude Code settings file, so those
+edits prompt even in auto mode. The files it matches are `settings.json` and `settings.local.json`
+under any `.claude` directory (project or user-global), plus `managed-settings.json`. It is a
+checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
+removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
+
+**What it does not see.** The checkpoint matches tool names and file paths, not the file on
+disk. These routes change a settings file without an ask:
+
+- A write through the shell: a redirect, a heredoc, `sed -i`, `cp`, `tee`, or a script run by
+  `Bash` or `PowerShell`. None of them passes through a file-editing tool.
+- A tool that renders configuration into place from a source elsewhere, such as a dotfile manager
+  applying a template or symlink. That write is a legitimate action by another program, inside the
+  session or outside it.
+- A drop-in under `managed-settings.d/`, which the path match does not include.
+
+For a signal that fires whatever wrote the file, Claude Code's `ConfigChange` hook event runs
+when a settings file changes during a session. It can stop the new settings from applying to the
+running session, but it cannot ask, it discards any message, and the file on disk has already
+changed. That is a different control from this one, and this plugin does not register it.
+Verified 2026-09-28 against Claude Code 2.1.280 at <https://code.claude.com/docs/en/hooks>
+("ConfigChange" and "FileChanged", and the matcher table that filters PreToolUse on
+`tool_name`). Recheck when that page gives `ConfigChange` an `ask` outcome or a visible message,
+or gives PreToolUse a matcher on target path.
+
+**Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
+would put an always-on `Bash|PowerShell` hook under the
+[hook-budget](../../docs/conventions/hook-budget/README.md) ceiling on every shell call in every
+consumer. It would recognize a settings write only by guessing from the command string, and it
+would still miss the render-into-place route. So even after paying that cost, the checkpoint could
+not honestly claim every settings write. The `/context-budget:audit fix` path edits project
+settings through a file-editing tool, so the checkpoint does cover this plugin's own write path.
+Treat a future audit that finds this gap as re-filing it, not as a new defect.
 
 The registration carries no `if` filter, so the hook process spawns on every matched write and the
 script decides. An `if` gate was evaluated for this row on 2026-09-02 and rejected. On Windows,
@@ -109,7 +139,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that forces a permission prompt (permissionDecision ask) on any Write/Edit targeting a Claude Code settings surface |
+| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that asks on Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. Shell writes and files rendered into place are outside the matcher. |
 
 ### How to set these
 

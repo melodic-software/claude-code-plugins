@@ -131,6 +131,8 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Sub-topic promotion check**. When a phase grows beyond ANY of (>5 distinct work items / >300 LOC delta / own exploration or research need / 2+ sub-phases of its own / independent commit boundary), recommend promoting it to its own topic directory with its own PLAN.md. Sub-topics keep the parent PLAN.md scannable and give the promoted work its own clean-context boundary. Full criteria in [context/plan-template.md](context/plan-template.md) "Sub-Topic Promotion Trigger".
 
+**Phase merge floor**. The inverse bound: a phase of one file and a few lines with no verification need of its own merges into the adjacent phase it serves. Every phase pays a full dispatch, sanity-check, commit and plan-mark cycle, which a one-line phase does not earn. The threshold is judgment (the nearest anchor is Step 4.5's ~100 LOC parallelism floor); keep a small phase separate when it is its own commit boundary or needs its own Sanity Check.
+
 **File inventory for large-scope plans**. When a plan or phase touches ≥10 files, emit a checkbox inventory table per phase (file, action, rationale). Checkboxes enforce verification discipline. The agent ticks each file as processed; the reviewer sees completeness at a glance. Include KEEP rows for files audited and deliberately left unchanged. Full format in [context/plan-template.md](context/plan-template.md) "File Inventory".
 
 **Sanity-check verifiable-criterion enforcement**. Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable (a specific grep, file Read assertion, build exit code, test exit code, or runtime probe). Never vague (~~"documented appropriately"~~, ~~"behaves as expected"~~, ~~"all cases covered"~~). Rewrite vague criteria as exact commands a fresh session can execute without inferential judgment. Full format guide in [context/plan-template.md](context/plan-template.md) "Sanity-Check Format". Phase-scoped sanity checks are also what backs implementation's every-step-lands-green expectation: each phase can be verified green at its own boundary rather than only at the end.
@@ -146,9 +148,15 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 **Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline. Fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
-2. Dispatch a read-only general sub-agent with the prompt from [context/plan-reviewer.md](context/plan-reviewer.md)
-3. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
-4. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
+2. **Surface the cost.** Tell the user a fresh-context plan review runs now: one bounded sub-agent
+   (default `effort: medium`, capped turns) versus blocking the orchestrator for a long serial review
+   at session effort. One sentence is enough; the user picks consciously.
+3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from
+   [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
+   sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
+   lower per invocation (per Claude Code sub-agent docs).
+4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
+5. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 
 Trivial single-file plans (3–5 bullets, no new types): the reviewer brief may be shortened to structural-integrity checks only; still dispatch fresh context, never inline self-critique.
 
@@ -171,16 +179,22 @@ If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Te
 
 This step runs only when the blast-radius assessment triggers it. Note: Step 3 (plan stress-test sub-agent) already ran. This is the deeper, formal version.
 
-1. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
+1. **Surface the cost.** Tell the user a formal `/planning:devils-advocate` run is starting in fresh
+   context (another serial sub-agent, typically higher turn budget than Step 3) before dispatching.
+2. **Dispatch `/planning:devils-advocate` via the Skill tool to a fresh-context sub-agent**. Hand it the plan (plus the Brief, the interview ledger `<memory_dir>/<topic-slug>/interview-checklist.md` when one exists, and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them. Sub-agent findings are synthesis, not ground truth
 
-2. **Evaluate findings**. If `/planning:devils-advocate` produces CRITICAL or HIGH findings:
+   **Audit judgment (untested):** at MEDIUM or higher blast radius, Step 3 and Step 4 may dispatch against
+   the same plan draft in one message when Step 4's criteria read off the draft rather than Step 3's
+   findings. Document when used; default remains serial.
+
+3. **Evaluate findings**. If `/planning:devils-advocate` produces CRITICAL or HIGH findings:
    - Run targeted research to resolve the specific issues surfaced (invoke `/discovery:research` via the Skill tool if installed, or the strongest research capability available)
    - Update the plan based on new evidence. An adopted mitigation or update that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
    - Re-assess: does the updated plan survive scrutiny?
 
-3. **Iterate if needed**. Repeat the Plan-Stress-Research cycle until the plan achieves HIGH confidence on all claims. See [context/research-iterate.md](context/research-iterate.md) for the loop protocol
+4. **Iterate if needed**. Repeat the Plan-Stress-Research cycle until the plan achieves HIGH confidence on all claims. See [context/research-iterate.md](context/research-iterate.md) for the loop protocol
 
-4. **Escalation guard**. If 3 iterations haven't resolved the issues, present the remaining risks to the user explicitly. Don't loop indefinitely. The user may accept known risks or redirect the approach entirely
+5. **Escalation guard**. If 3 iterations haven't resolved the issues, present the remaining risks to the user explicitly. Don't loop indefinitely. The user may accept known risks or redirect the approach entirely
 
 ### Plan changes after the Brief
 
@@ -237,6 +251,8 @@ This is the cheap binary self-check on the artifact; it does NOT replace the hum
 
 Present the final plan to the user. The plan is a proposal, not a commitment. The user approves, modifies, or rejects it before execution begins.
 
+**The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet).
+
 **Include in the presentation:**
 
 1. The structured plan (from Step 2, updated by Steps 3-4 if applicable)
@@ -286,7 +302,7 @@ Read [context/review-mode.md](context/review-mode.md) when invoked with `review`
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes, and write each `superseded-by-plan` row's result to the ledger once the user has replied to that row (reconfirmed or restored, per "Plan changes after the Brief"). The plan is not approved while any listed change lacks its reply: when an interview ledger exists, rerun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>` before handing off and require exit 0 (no `open` or `superseded-by-plan` row left); with or without a ledger, a listed change still lacking its reply means asking for it and not handing off. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged. The PR-description paste is its only publication surface. It is the **living source of truth** for the stage. A fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
+After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes and its `Approval:` line (who approved and when, or the unattended basis Step 5 names), and write each `superseded-by-plan` row's result to the ledger once the user has replied to that row (reconfirmed or restored, per "Plan changes after the Brief"). The plan is not approved while any listed change lacks its reply: when an interview ledger exists, rerun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>` before handing off and require exit 0 (no `open` or `superseded-by-plan` row left); with or without a ledger, a listed change still lacking its reply means asking for it and not handing off. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged. The PR-description paste is its only publication surface. It is the **living source of truth** for the stage. A fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` /
 `[DOING]` / `[DONE]`), never in a separate status block. Copy the skeleton from
