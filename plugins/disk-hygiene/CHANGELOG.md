@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-09-28
+## [0.28.8] - 2026-09-28
 
 ### Added
 
@@ -23,6 +23,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Fixed
 
 - **Test wrappers convert the suite path with `cygpath -m` when that tool exists** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Under Git Bash a native Windows Python treated an MSYS path as a dotted module name (`ValueError: Empty module name`). `test_wrapper::python_file_to` in `scripts/test-wrapper-lib.sh` is the conversion.
+
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
 
 ## [0.28.6] - 2026-09-28
 
