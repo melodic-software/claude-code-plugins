@@ -126,6 +126,10 @@ A Bash rule matches the command text, not the program: `Bash(git push *)` does n
 the usual invocation, not a security boundary; use sandboxing for enforcement that does not depend
 on command text.
 
+The verifier also holds `PowerShell`, which a Bash rule does not cover. Deny the same commands as
+`PowerShell(...)` rules (for example `"PowerShell(git push *)"`) where the PowerShell tool is
+available.
+
 Basis: the Claude Code sub-agents page ("Control subagent capabilities": `disallowedTools`
 specifiers and Bash deny rules; "Choose the subagent scope": fields ignored for plugin
 subagents) and the permissions page ("What a Bash rule doesn't match"), at

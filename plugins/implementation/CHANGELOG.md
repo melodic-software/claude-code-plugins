@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.0] - 2026-09-28
+## [0.19.7] - 2026-09-28
 
 ### Added
 
@@ -13,7 +13,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - **`implementer` and `phase-verifier` list `PowerShell` in their `tools`.** A Windows worker or
   verifier can run `.ps1` and pwsh-native commands directly instead of launching pwsh through
   Bash, and briefs no longer carry that invocation form by hand. On a host without the
-  PowerShell tool the entry resolves to nothing and Bash remains (#4272).
+  PowerShell tool the entry resolves to nothing and Bash remains. The README notes that narrowing
+  the verifier now needs `PowerShell(...)` deny rules beside the Bash ones (#4272).
 
 ## [0.19.6] - 2026-09-28
 
