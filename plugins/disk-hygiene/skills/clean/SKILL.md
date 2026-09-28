@@ -286,6 +286,8 @@ they are all `null` with `unwalked_reasons` naming the cause, never `0`, never a
 placeholders, hard links, or sparse extents. The block opens no directory the walk did not, so a `--max-depth 1` pass
 returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, but a recursive total is bought only by
 fanning a deeper scan out over that subtree, report those rows as coverage gaps, never as small or clean.
+`scan-complete` carries `scale`. Read it before treating `target_reclaimable_local_bytes` as the target. `scale.reading` is `inventoried-floor` when any immediate child is unwalked or any path was truncated: the reclaimable figure is only what the walk entered, `scale.unwalked_immediate_children` is how many frontier rows were not walked, and `scale.free_bytes` is the volume (or `null` when the read fails). `complete` means the inventoried reclaimable bytes cover every walked entry. `scale` does not authorize a deletion and does not skip a finding.
+
 `scan-complete` also carries `unhinted_entries`, `entries` minus `hinted_entries`, every inventoried entry no hint
 judged. So quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
 and the measurement: [the safety model](reference/safety-model.md). When a run needs the frontier ranked but not

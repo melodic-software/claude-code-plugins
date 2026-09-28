@@ -3419,6 +3419,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "empty_file_count",
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
+                "scale",
                 "truncated_paths",
                 "children_rollup",
                 "errors",
@@ -11304,6 +11305,38 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+
+class ScaleReportTests(unittest.TestCase):
+    def test_a_depth_cut_is_an_inventoried_floor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "home"
+            nested = root / "AppData" / "Local"
+            nested.mkdir(parents=True)
+            (nested / "bulk.bin").write_bytes(b"x" * 4096)
+            (root / "empty-dir").mkdir()
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            scale = snapshot["scale"]
+            self.assertEqual("inventoried-floor", scale["reading"])
+            self.assertGreater(scale["unwalked_immediate_children"], 0)
+            self.assertIn("floor", scale["note"])
+            self.assertEqual(
+                snapshot["target_reclaimable_local_bytes"],
+                scale["inventoried_reclaimable_local_bytes"],
+            )
+            if scale["free_bytes"] is not None:
+                self.assertGreaterEqual(scale["free_bytes"], 0)
+
+    def test_a_fully_walked_target_reads_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "flat"
+            root.mkdir()
+            (root / "a.tmp").write_bytes(b"hi")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual("complete", snapshot["scale"]["reading"])
+            self.assertEqual(0, snapshot["scale"]["unwalked_immediate_children"])
 
 
 if __name__ == "__main__":

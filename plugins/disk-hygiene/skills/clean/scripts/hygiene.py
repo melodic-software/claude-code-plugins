@@ -219,6 +219,7 @@ def scan_complete_payload(
         "empty_file_count": snapshot["empty_file_count"],
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
+        "scale": snapshot.get("scale"),
         "truncated_paths": snapshot["truncated_paths"],
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
@@ -1689,6 +1690,51 @@ def normalize_root_child_selection(
     return resolved
 
 
+def scale_report(target: Path, snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Separate inventoried reclaimable bytes from the volume and the unwalked bulk.
+
+    A depth-cut home scan can report a few hundred engine-eligible bytes while
+    tens of gigabytes sit in children the walk did not enter. ``reading`` is
+    ``inventoried-floor`` in that case so the reclaimable figure is not the disk.
+    Free space is read on every platform. This report does not change a
+    disposition.
+    """
+    try:
+        free: int | None = int(shutil.disk_usage(target).free)
+    except OSError:
+        free = None
+    rollup = snapshot.get("children_rollup") or []
+    unwalked = 0
+    if isinstance(rollup, list):
+        for row in rollup:
+            if isinstance(row, dict) and row.get("walked") is False:
+                unwalked += 1
+    truncated = snapshot.get("truncated_paths") or []
+    floor = unwalked > 0 or bool(truncated)
+    reading = "inventoried-floor" if floor else "complete"
+    if reading == "complete":
+        note = (
+            "inventoried reclaimable bytes cover every walked entry; "
+            f"free_bytes={free}"
+        )
+    else:
+        note = (
+            "inventoried reclaimable bytes are a floor of walked entries, "
+            "not the target's bulk; "
+            f"unwalked_immediate_children={unwalked}; free_bytes={free}"
+        )
+    return {
+        "free_bytes": free,
+        "inventoried_logical_bytes": snapshot.get("target_logical_bytes"),
+        "inventoried_reclaimable_local_bytes": snapshot.get(
+            "target_reclaimable_local_bytes"
+        ),
+        "unwalked_immediate_children": unwalked,
+        "reading": reading,
+        "note": note,
+    }
+
+
 def scan_tree(
     target: Path,
     policy: dict[str, Any],
@@ -1892,6 +1938,7 @@ def scan_tree(
         if sizes_only
         else sorted(entries, key=lambda entry: entry["path"]),
     }
+    payload["scale"] = scale_report(target, payload)
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = "exact" if not truncated else "partial"

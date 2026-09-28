@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Added
+
+- **Scan emits a `scale` report (#4004).** `target_reclaimable_local_bytes` on a
+  depth-cut home scan is an inventoried floor, not the disk. `scale.reading` is
+  `inventoried-floor` when any immediate child is unwalked or any path was
+  truncated, and names `unwalked_immediate_children` plus `free_bytes` (read on
+  every platform). A fully walked target reads `complete`. The report does not
+  authorize deletion.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed
