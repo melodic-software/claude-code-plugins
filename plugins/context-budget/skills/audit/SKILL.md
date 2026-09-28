@@ -91,11 +91,12 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot \
   --sdk-dir "${CLAUDE_PLUGIN_DATA}/sdk" --out <data-dir>/baseline.json
 ```
 
-Each measurement spawns a short-lived headless session against the pinned binary (the `/context`
-prompt is handled by the CLI itself, so no model API call is made) and records: per-category
-tokens, the live tool list, per-agent tokens, the skill-listing signature, and the binary stamp.
-Exit 3 means measurement is unavailable. The JSON record names the remediation; relay it and
-stop. Never substitute an estimate.
+Each measurement spawns a short-lived headless session against the pinned binary and records
+per-category tokens, the live tool list, per-agent tokens, the skill-listing signature, and the
+binary stamp. `/context` counts with the token-counting API or, from Claude Code 2.1.261, a
+local estimate when that API is unavailable. The dated record is in
+`reference/engine.md` under "Session-kind boundary." Exit 3 means measurement is unavailable.
+The JSON record names the remediation; relay it and stop. Never substitute an estimate of your own.
 
 ### 3. Attribute the built-in tool pools
 
