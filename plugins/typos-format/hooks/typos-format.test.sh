@@ -2067,6 +2067,44 @@ ro_case "a non-ASCII token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offs
 ro_case "a stderr line" 0 'warning: something'
 # spellchecker:on
 
+# --- Gitignored path (#4671): neither reported nor rewritten by default ------
+# `teh` would be reported (and rewritten in write mode); under an ignored
+# directory neither happens, unless typos_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_typos_repo "$REPO_IGN" NO_CONFIG
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'this has teh typo\n' >"$REPO_IGN/.work/scratch.txt" # spellchecker:disable-line
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.txt")"
+OUT=$(run_stub_default "$REPO_IGN/.work/scratch.txt")
+if [[ -z "$OUT" ]]; then ok "gitignored: no findings reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.txt")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten (report-only default)"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.txt")"
+fi
+run_stub "$REPO_IGN/.work/scratch.txt" >/dev/null
+if [[ "$(cat "$REPO_IGN/.work/scratch.txt")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten (write mode, no opt-in)"
+else
+  fail "gitignored write: file was rewritten: $(cat "$REPO_IGN/.work/scratch.txt")"
+fi
+OUT=$(run_stub_default "$REPO_IGN/.work/scratch.txt" \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED=true)
+if printf '%s' "$OUT" | grep -q 'teh'; then
+  ok "gitignored + typos_format_lint_gitignored=true: findings reported"
+else
+  fail "gitignored + opt-in: no findings: $OUT"
+fi
+run_stub "$REPO_IGN/.work/scratch.txt" \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q ' the ' "$REPO_IGN/.work/scratch.txt"; then
+  ok "gitignored + lint_gitignored + write: file rewritten"
+else
+  fail "gitignored + opt-in write: not rewritten: $(cat "$REPO_IGN/.work/scratch.txt")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
