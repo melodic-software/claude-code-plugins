@@ -5,7 +5,7 @@
 ### Added
 
 - **Fleet pipeline gap analysis** ([#3614](https://github.com/melodic-software/claude-code-plugins/issues/3614)).
-  `docs/topics/evaluation-methodology/gap-analysis.md` records adopt / already-covered / rejected
+  `docs/specs/evaluation-methodology-gap-analysis.md` records adopt / already-covered / rejected
   verdicts for each Agent Skills evaluation pipeline element against this fleet's `evals.json`
   corpus and `/evals:*` skills.
 
