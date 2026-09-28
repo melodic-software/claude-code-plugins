@@ -394,6 +394,19 @@
       "tags": ["build", "lint", "format", "ecosystem", "toolchain", "setup", "skill"]
     },
     {
+      "name": "typescript-lsp-stdio",
+      "source": "./plugins/typescript-lsp-stdio",
+      "category": "development",
+      "tags": ["typescript", "javascript", "lsp", "windows", "node", "skill"],
+      "relevance": {
+        "topic": "TypeScript",
+        "signals": {
+          "filesRead": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+          "cli": ["node", "npm"]
+        }
+      }
+    },
+    {
       "name": "testing",
       "source": "./plugins/testing",
       "category": "testing",

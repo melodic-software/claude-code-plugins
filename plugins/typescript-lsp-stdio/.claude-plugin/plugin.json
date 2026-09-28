@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "typescript-lsp-stdio",
+  "version": "0.1.0",
+  "description": "Windows-safe TypeScript language server spawn: node plus typescript-language-server lib/cli.mjs --stdio, or a real PATH executable, never a .cmd shim and never shell true.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["typescript", "lsp", "windows", "node", "skill"]
+}

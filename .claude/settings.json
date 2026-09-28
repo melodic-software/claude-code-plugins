@@ -36,7 +36,8 @@
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
     "pixel-art@melodic-software": false,
-    "playgrounds@melodic-software": false
+    "playgrounds@melodic-software": false,
+    "typescript-lsp-stdio@melodic-software": true
   },
   "extraKnownMarketplaces": {
     "melodic-software": {
