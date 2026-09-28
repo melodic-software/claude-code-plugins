@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-09-28
+
+### Changed
+
+- **Windows check envelope stays per-script (#3451).** Each of the 19 checks
+  keeps its own stopwatch / try-catch / UNKNOWN fallback / duration restamp.
+  `Write-HealthResult.ps1` remains the result builder and emitter. A
+  body-taking envelope helper is unpaid. Recorded in
+  `skills/audit/reference/windows/check-envelope.md`.
+
 ## [0.14.0] - 2026-09-28
 
 ### Added
