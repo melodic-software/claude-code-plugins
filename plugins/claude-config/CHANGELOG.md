@@ -3,6 +3,27 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.5] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: parent record for the execution model and the report identity
+  contract (#4113).** New `context/execution-and-report.md` states the two standing contracts
+  the skill body already implements in pieces: token-budgeted plugin-atomic lanes with
+  `--unattended` and `--resume` over per-lane run files, and `(check, claim, sites)` finding
+  identity with I15 as one finding of two sites. Persist admission of I30 to I33 is recorded
+  there as the contract the persist unit satisfies; until those crosswalk rows exist they stay
+  declined `no-severity-crosswalk-row`. Phase D names the identity contract on the findings
+  table. No scanner, emit, or lane-runs change.
+
+## [0.51.4] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15:** point shared-surface *ownership* questions at the rejected-concept
+  ledger entry for #3568 (`docs/out-of-scope/shared-surface-instruction-governance.md`). I15 still
+  detects conflicting pairs only; `conflict-criteria.md` 1.6.1.
+
 ## [0.51.3] - 2026-09-28
 
 ### Fixed

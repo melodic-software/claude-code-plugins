@@ -121,6 +121,16 @@ Parse `$ARGUMENTS`:
 - Anything else, a free-text focus hint (a path, a mechanism name). Narrow attention with it; it
   does not change the layer scope, and a hint that matches nothing is reported, not silently dropped.
 
+The inline report groups by custody: in-repo findings first and in full; out-of-repo findings
+(user- and machine-scope settings, plugin hook manifests owned upstream) as one summary row per
+owner. The findings artifact is unchanged. See
+[context/report-template.md](context/report-template.md) "Custody grouping".
+**Claim:** the walk still covers every settings scope; only the inline report groups out-of-repo
+findings per owner. **Basis:** issue #4596 after #4597 scoped the playbooks repo-sweep entry off
+the four org-level layers; a direct `/overengineering:audit` still walks every harness-merged
+scope. **As of:** 2026-09-28. **Recheck:** when this skill gains a custody-scope argument or stops
+walking user or machine settings.
+
 ## Before the walk
 
 1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch

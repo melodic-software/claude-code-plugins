@@ -174,6 +174,41 @@ out="$(printf '%s' "$kill_payload" |
   CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED=true bash "$HOOK" 2>&1)"
 expect_has "an explicit true leaves the hook running" "$out" "stale"
 
+# --- #3713 advisory abort boundary ------------------------------------------
+idx_empty_rc=0
+printf '' | bash "$HOOK" >/dev/null 2>"$repo/empty.err" || idx_empty_rc=$?
+expect_eq "empty stdin exits 0" "0" "$idx_empty_rc"
+idx_mal_rc=0
+printf 'not-json' | bash "$HOOK" >/dev/null 2>"$repo/mal.err" || idx_mal_rc=$?
+expect_eq "malformed JSON exits 0" "0" "$idx_mal_rc"
+idx_min_rc=0
+run_hook "$(payload_for "$repo/src/a.cs")" >/dev/null 2>"$repo/min.err" || idx_min_rc=$?
+expect_eq "minimal valid Write payload exits 0" "0" "$idx_min_rc"
+
+IDX_COPY="$repo/index-drift-abort.sh"
+cp "$HOOK" "$IDX_COPY"
+python3 - "$IDX_COPY" <<'PY'
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+text = p.read_text()
+needle = "trap _idx_on_exit EXIT\n"
+if needle not in text:
+    raise SystemExit("abort-boundary trap line missing")
+p.write_text(text.replace(needle, needle + "exit 3\n", 1))
+PY
+# File-fed stdin: the injected exit happens before the hook reads the payload.
+# A pipe would leave printf writing to a closed fd; with `pipefail` that is
+# SIGPIPE (141), the #4458 abort-boundary harness bug, not a hook failure.
+idx_abort_rc=0
+printf '%s' "$(payload_for "$repo/src/a.cs")" >"$repo/abort.in"
+idx_abort_err=$(bash "$IDX_COPY" <"$repo/abort.in" 2>&1 >/dev/null) || idx_abort_rc=$?
+expect_eq "injected exit 3 fails open (exit 0)" "0" "$idx_abort_rc"
+expect_has "injected failure names the hook on stderr" "$idx_abort_err" \
+  "index-drift: did not run (status 3); fail-open"
+idx_abort_lines=$(printf '%s\n' "$idx_abort_err" | grep -c . || true)
+expect_eq "injected failure writes one stderr line" "1" "$idx_abort_lines"
+
 rm -rf "$repo" "$noindex" "$killrepo"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
