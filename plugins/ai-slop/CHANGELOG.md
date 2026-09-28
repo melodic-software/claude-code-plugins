@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.3] - 2026-09-28
+
+### Changed
+
+- **Target-set resolution stays spread across `detect.sh` (#3420).** The arg
+  loop, `--paths-file`, `list_repo_markdown`, `normalize_dir_target`,
+  `expand_dir_target`, and the scan-loop skip keep their own listing
+  discipline. A resolver module is unpaid. #3407 is already closed at the
+  no-args path. Recorded in `skills/audit/reference/target-resolution.md`.
+
 ## [0.11.2] - 2026-09-28
 
 ### Changed
