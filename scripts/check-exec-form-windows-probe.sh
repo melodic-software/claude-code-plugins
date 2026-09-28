@@ -14,7 +14,7 @@
 # Spawn half (Windows, or EXEC_FORM_WINDOWS_PROBE_FORCE=1): spawn node.exe with
 # an args array and a stdin payload, with no shell. If the sentinel arg is
 # missing or the process image is bash.exe, exit 1 and the fleet sweep stops
-# (anthropics/claude-code#90495: exec-form args dropped, the hook still routed
+# (#90495: exec-form args dropped, the hook still routed
 # through bash.exe). On any other host the spawn half prints a SKIP line and
 # exits 0 when the spellings are clean. That skip is fail-soft: it does not
 # show that #90495 is absent and it does not authorize converting .sh rows.
