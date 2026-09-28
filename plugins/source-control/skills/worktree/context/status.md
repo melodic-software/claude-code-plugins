@@ -4,7 +4,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
 ## Data collection
 
-1. **Worktree list**: Read the fact record from `${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh` (`worktree_facts_parse_z` on `git worktree list --porcelain -z`). Do not parse porcelain by hand. The record carries path, HEAD, branch, bare, linked, prunable, and the decoded lock reason. `landed-work.sh` emits that record as TSV; empty columns are `-`.
+1. **Worktree list**: Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>`. Do not parse porcelain by hand. It prints a header and one TSV row per worktree: `path head branch bare linked locked lock_reason prunable`, with `-` for an empty column. `locked` is `yes` for a lock with no reason too.
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 

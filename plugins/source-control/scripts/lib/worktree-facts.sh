@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Worktree fact record for source-control (sourceable; not invoked directly).
+# Worktree fact record for source-control. Sourced by the scripts; run directly
+# with `list` to print the record (see the end of this file).
 #
 # One porcelain parse, one lock-reason codec, and one TSV row schema. Callers
 # read WT_FACT_* after worktree_facts_parse_z. An empty column is `-`, applied
@@ -46,16 +47,18 @@ worktree_decode_lock_reason() {
 
 # Read NUL-delimited `git worktree list --porcelain -z` from FILE.
 # Fills WT_FACT_PATH, WT_FACT_HEAD, WT_FACT_BRANCH, WT_FACT_BARE (yes|no),
-# WT_FACT_LOCKED (decoded reason, empty when unlocked), WT_FACT_LINKED (yes|no), WT_FACT_PRUNABLE (yes|no).
+# WT_FACT_LOCKED (decoded reason, empty when unlocked or locked without one),
+# WT_FACT_IS_LOCKED (yes|no, set for a reasonless lock too), WT_FACT_LINKED (yes|no), WT_FACT_PRUNABLE (yes|no).
 # The first record consumes the main slot, including a bare hub, so a later
 # linked worktree is never reported as the main checkout.
 worktree_facts_parse_z() {
-  local file="$1" line path="" head="" branch="" detached=0 bare=0 locked="" prunable=""
+  local file="$1" line path="" head="" branch="" detached=0 bare=0 locked="" is_locked=no prunable=""
   WT_FACT_PATH=()
   WT_FACT_HEAD=()
   WT_FACT_BRANCH=()
   WT_FACT_BARE=()
   WT_FACT_LOCKED=()
+  WT_FACT_IS_LOCKED=()
   WT_FACT_LINKED=()
   WT_FACT_PRUNABLE=()
 
@@ -71,6 +74,7 @@ worktree_facts_parse_z() {
       WT_FACT_BARE+=("no")
     fi
     WT_FACT_LOCKED+=("$locked")
+    WT_FACT_IS_LOCKED+=("$is_locked")
     if [[ -n "$prunable" ]]; then
       WT_FACT_PRUNABLE+=("yes")
     else
@@ -82,6 +86,7 @@ worktree_facts_parse_z() {
     detached=0
     bare=0
     locked=""
+    is_locked=no
     prunable=""
   }
 
@@ -96,8 +101,14 @@ worktree_facts_parse_z() {
     "branch "*) branch="${line#branch refs/heads/}" ;;
     "detached") detached=1 ;;
     "bare") bare=1 ;;
-    "locked") locked="" ;;
-    "locked "*) locked="$(worktree_decode_lock_reason "${line#locked }")" ;;
+    "locked")
+      locked=""
+      is_locked=yes
+      ;;
+    "locked "*)
+      locked="$(worktree_decode_lock_reason "${line#locked }")"
+      is_locked=yes
+      ;;
     "prunable" | "prunable "*) prunable="yes" ;;
     *) ;;
     esac
@@ -134,3 +145,25 @@ worktree_fact_row() {
   local IFS=$'\t'
   printf '%s\n' "${cols[*]}"
 }
+
+# Run directly: `bash worktree-facts.sh list [REPO_DIR]` prints a header and one
+# row per worktree: path head branch bare linked locked lock_reason prunable.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  [[ "${1:-}" == list ]] || {
+    echo "usage: bash worktree-facts.sh list [REPO_DIR]" >&2
+    exit 2
+  }
+  porcelain="$(mktemp)" || exit 4
+  trap 'rm -f "$porcelain"' EXIT
+  git -C "${2:-.}" worktree list --porcelain -z >"$porcelain" || {
+    echo "error: git worktree list failed in ${2:-.}" >&2
+    exit 4
+  }
+  worktree_facts_parse_z "$porcelain"
+  worktree_fact_row path head branch bare linked locked lock_reason prunable
+  for i in "${!WT_FACT_PATH[@]}"; do
+    worktree_fact_row "${WT_FACT_PATH[$i]}" "${WT_FACT_HEAD[$i]}" "${WT_FACT_BRANCH[$i]}" \
+      "${WT_FACT_BARE[$i]}" "${WT_FACT_LINKED[$i]}" "${WT_FACT_IS_LOCKED[$i]}" \
+      "${WT_FACT_LOCKED[$i]}" "${WT_FACT_PRUNABLE[$i]}"
+  done
+fi

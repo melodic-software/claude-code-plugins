@@ -152,7 +152,7 @@ Exit 4 prints `FOREIGN CLAIM: <reason>`. Stop; another session holds a live clai
 
 ## Action: `status`
 
-Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts from `${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh` (do not parse porcelain by hand) plus one batched `gh pr list` and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched `gh pr list` and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
 
 The **Work** axis answers a question age and PR state cannot: whether removing a worktree would destroy a commit. It is classified first and outranks the rest, so a worktree holding unpushed unlanded commits is `stranded`, never merely `stale`. An unprovable verdict reports `unknown` and is treated exactly as `stranded`, the engine reports `?` rather than `no` so that an ambiguity is never read as safe.
 

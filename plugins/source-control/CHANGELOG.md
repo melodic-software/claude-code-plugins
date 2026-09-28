@@ -11,7 +11,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `git worktree list --porcelain -z`, encodes and decodes the lock reason, and
   prints TSV rows whose empty columns are `-`. `landed-work.sh`,
   `worktree-claim.sh`, and `worktree-create.sh` call it. The worktree skill
-  points at that module instead of describing a hand parse.
+  runs `worktree-facts.sh list <repo>`, which prints the record as TSV
+  (`path head branch bare linked locked lock_reason prunable`), instead of
+  describing a hand parse. `locked` is `yes` for a reasonless lock too, so
+  cleanup never reads such a tree as unlocked.
 
 ## [0.62.9] - 2026-09-28
 

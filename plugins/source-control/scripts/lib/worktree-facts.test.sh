@@ -11,7 +11,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
-EXPECTED_CASES=13
+EXPECTED_CASES=14
 
 pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: %s\n' "$1"; }
 fail() {
@@ -90,6 +90,12 @@ encoder="$(grep -Rnl 'lane active on %s' "$SCRIPT_DIR/.." --include='*.sh' | gre
 assert_eq "lock-reason text has one home" "$encoder" "$(realpath "$SCRIPT_DIR/worktree-facts.sh")"
 parse_home="$(grep -Rnl 'line#worktree ' "$SCRIPT_DIR/.." --include='*.sh' | grep -v '\.test\.sh$' | xargs -n1 realpath)"
 assert_eq "porcelain parse has one home" "$parse_home" "$(realpath "$SCRIPT_DIR/worktree-facts.sh")"
+
+# A reasonless lock is still a lock, and `list` prints it.
+git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/bare-lock" -b bare-lock
+git -C "$TEST_TMPDIR/repo" worktree lock "$TEST_TMPDIR/bare-lock"
+listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$TEST_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
+assert_eq "list: a reasonless lock reads locked=yes, lock_reason=-" "$listed" "yes|-"
 
 echo "---"
 if [[ "$FAILED" -eq 0 && "$CASE_NUM" -eq "$EXPECTED_CASES" ]]; then
