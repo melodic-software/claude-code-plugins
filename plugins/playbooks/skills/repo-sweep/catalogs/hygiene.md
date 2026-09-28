@@ -48,6 +48,7 @@ session without `/clear` between them.
 - skill: testing:audit
 - args: .
 - applies-when: repo has tests in JavaScript, TypeScript, Python, or C#
+- prime: false
 - checked: true
 
 ### scan-todos

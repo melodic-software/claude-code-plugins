@@ -38,10 +38,12 @@ every branch name, step id, and playbook name you put in a command.
 1. If this session showed a `Plugin updated: <name> · Run /reload-plugins to apply` notice, stop:
    ask the user to run `/reload-plugins` or start a new session, then rerun `next`. Until then
    the session runs the versions it loaded, which the step's record would misname.
-2. Invoke `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool.
-3. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
+2. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
    and `bash S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
+3. When the row's `prime` column (last field) is not `false`, invoke
+   `/session-flow:orchestrate` and `/discipline:use-your-skills` via the Skill tool. Single
+   detector steps set `- prime: false` in the catalog and skip both.
 4. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
 5. Unless resuming, record `base=$(git rev-parse HEAD)` and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
