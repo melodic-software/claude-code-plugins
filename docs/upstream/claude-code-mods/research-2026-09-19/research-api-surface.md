@@ -4,8 +4,8 @@ Self-contained. Pin: 2026-09-19, Claude Code 2.1.278, `mods/` at `92ec78f2`,
 declarations written by 2.1.277. Basis labels: `OBSERVED` / `SOURCE` / `BINARY` /
 `STAFF` / `COMMUNITY` / `INFERRED`.
 
-**The full verbatim catalog — every event name, every noun member, in
-declaration order, with file-and-line citations — is
+**The full verbatim catalog (every event name, every noun member, in
+declaration order, with file-and-line citations) is
 `repo-primary/RESEARCH-event-catalog.md`.** This sidecar is the summary. A
 fresh-context verifier scripted a set-diff of that catalog against the `.d.ts`
 and found **0 invented and 0 missed** names, matching in declaration order
@@ -25,10 +25,10 @@ export type EventName = keyof EventOf;                         // :L3875
 
 | Family | Count | Where | Basis |
 |---|---|---|---|
-| `EngineEventOf` — the fold points | **38** | `.d.ts:L3213` | `SOURCE` HIGH |
-| `OpEventOf` — one per `$` method | **54** | `.d.ts:L5460` | `SOURCE` HIGH |
+| `EngineEventOf`: the fold points | **38** | `.d.ts:L3213` | `SOURCE` HIGH |
+| `OpEventOf`: one per `$` method | **54** | `.d.ts:L5460` | `SOURCE` HIGH |
 | **Statically named before any plugin noun** | **92** | 38 + 54 | `SOURCE` HIGH |
-| `ClassicEventOf` — `classic.<HookEvent>` | **33** | derived from the 33-member `HookInput` union, `.d.ts:L4240` | `SOURCE` HIGH |
+| `ClassicEventOf`: `classic.<HookEvent>` | **33** | derived from the 33-member `HookInput` union, `.d.ts:L4240` | `SOURCE` HIGH |
 | `NounEventOf` | **0 until a plugin declares a noun** | `.d.ts:L5359` | `SOURCE` HIGH |
 | `$` nouns on `CoreEngineInterface` | **19** | `.d.ts:L2016` | `SOURCE` HIGH |
 | Noun members (depth-2) | **69** | scripted walk | `SOURCE` HIGH |
@@ -87,7 +87,7 @@ Matchers narrow the type as well as the dispatch. A `ui.render` matcher's
 `AskUserQuestion, UserMessage, AssistantMessage, ToolUse, ToolResult, ToolGroup,
 ToolProgress, CommandOutput, Spinner, TurnDuration, InfoNotice, SessionMode,
 PromptHint, AbovePrompt, Pane`. `SOURCE` · HIGH · `.d.ts:L7291`. (The producing
-lane omitted this list; its verifier added it — `repo-primary/VERIFICATION.md`
+lane omitted this list; its verifier added it, per `repo-primary/VERIFICATION.md`
 row 9.7.)
 
 ## UI primitives per `RenderSurface`
@@ -126,7 +126,7 @@ Interaction events, and what `next(e)` resolves to: `SOURCE` · HIGH ·
 | `Select` | `ui.select` | `{ element, value }` |
 | `Client` | `ui.message` | `{}`; only this plugin's hooks see it; one per instance per frame |
 | `Pane` / `AbovePrompt` | `ui.scroll` | `{}` after moving to `e.offset`; no `next` leaves it undrawn |
-| focus ring | `ui.focus` | — |
+| focus ring | `ui.focus` | none |
 
 `TextProps` (`.d.ts:L9509-9527`): `hover, color, backgroundColor, dimColor, bold,
 italic, underline, strikethrough, inverse, wrap`, with
@@ -139,7 +139,7 @@ draws the engine's own; only `--plugin-dir` is told why. `SOURCE` · HIGH.
 `$.ui.mount` (test kit) hands back a `Mounted` drawing with **thirteen** members:
 `drawn, find, findAll, press, input, select, key, pointer, post, advance, resize,
 redraw, unmount`. `SOURCE` · HIGH · `.d.ts:L11807`, `:L11819` (the producing lane
-listed five; its verifier corrected it — `repo-primary/VERIFICATION.md` row 9.8).
+listed five; its verifier corrected it, per `repo-primary/VERIFICATION.md` row 9.8).
 
 ## Options
 
@@ -153,7 +153,7 @@ Six rules, each load-bearing: `SOURCE` · HIGH ·
 `mods/agents-md/README.md:L47-74`, `repo-primary/RESEARCH-mod-definition.md`
 
 1. **Scope.** Options are read from user settings (`~/.claude/settings.json`),
-   `--settings`, or managed settings — *"a project's `.claude/settings.json` is
+   `--settings`, or managed settings: *"a project's `.claude/settings.json` is
    **not** read for plugin options."* **Per-repository configuration is not
    expressible through this mechanism.**
 2. **Key is `<name>@<provenance>`**: `agents-md@builtin` bundled,
@@ -163,7 +163,7 @@ Six rules, each load-bearing: `SOURCE` · HIGH ·
    new mode.
 4. An out-of-enum value degrades to the default and is told once in the
    transcript; it does not fail.
-5. `/plugin` can turn a built-in off — the supported off-switch for a built-in mod.
+5. `/plugin` can turn a built-in off, the supported off-switch for a built-in mod.
 6. **The host fills the default before `register` sees it**, so a plugin cannot
    tell "unset" from "set to the default".
 
@@ -228,7 +228,7 @@ still declares every pattern it *could* use. `SOURCE` · HIGH.
 
 `.claude-plugin/plugin.json` is an ordinary manifest. `telemetry` adds
 `"types": "./types/index.d.ts"`; `agents-md` adds `userConfig`. **No `hooks` key
-appears in any of the four** — the module is found through the conventional
+appears in any of the four**; the module is found through the conventional
 `hooks/hooks.json` path. `SOURCE` · HIGH.
 
 ## Noun contracts (composing mods)
@@ -240,8 +240,8 @@ in `claude-code`, and names that file as `"types"` in `plugin.json`. The value i
 the implementation cannot drift from what callers read. `SOURCE` · HIGH ·
 `mods/README.md:L84-107`.
 
-`diff` consumes `telemetry`'s noun and degrades silently when absent — *"where it
-is absent the rows are dropped and nothing else changes"* — the documented
+`diff` consumes `telemetry`'s noun and degrades silently when absent (*"where it
+is absent the rows are dropped and nothing else changes"*), the documented
 posture for an optional noun, with a first-class test for the absent case.
 `SOURCE` · HIGH.
 
@@ -251,7 +251,7 @@ posture for an optional noun, with a first-class test for the absent case.
 |---|---|---|
 | Files a hooks module may link | **512** | `BINARY` HIGH (`var eo=512`, plus the refusal template *"is past the 512 files a hooks module may link and was not read"*) |
 | Total module bytes | **8,388,608** (8 MiB) | `BINARY` HIGH (`var oo=8388608`, refusal template) |
-| Hook budget `ms` | **10,000** per dispatch, the hook's **own** time; waits on `next` and `$` are free, `$.clock` waits excepted | `SOURCE` `OBSERVED` HIGH — `.d.ts:L4173-4205`; cut observed live at 10,249.9 ms |
+| Hook budget `ms` | **10,000** per dispatch, the hook's **own** time; waits on `next` and `$` are free, `$.clock` waits excepted | `SOURCE` `OBSERVED` HIGH: `.d.ts:L4173-4205`; cut observed live at 10,249.9 ms |
 | `.catch` handler grace `catchMs` | **1,000** | `SOURCE` HIGH |
 | `lingerMs` | **5,000** | `SOURCE` HIGH |
 | Test timeout | **5,000 ms** default, or `timeoutMs` | `SOURCE` HIGH |
