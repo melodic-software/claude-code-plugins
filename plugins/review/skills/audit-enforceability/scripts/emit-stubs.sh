@@ -487,13 +487,7 @@ volume_normalizes() {
     VOLUME_NORMALIZES=0
     return 0
   fi
-  if dev="$(stat -c '%d' "$dir" 2>/dev/null)"; then
-    :
-  elif dev="$(stat -f '%d' "$dir" 2>/dev/null)"; then
-    :
-  else
-    dev=""
-  fi
+  dev="$(stat -c '%d' "$dir" 2>/dev/null || stat -f '%d' "$dir" 2>/dev/null)" # portability-ok: BSD stat -f is the same-line fallback for the GNU device id
   if [[ -n "$dev" && "$dev" == "$VOLUME_NORMALIZES_DEV" ]]; then
     return 0
   fi
@@ -527,7 +521,7 @@ volume_normalizes() {
       ;;
     esac
   fi
-  fstype="$(stat -f -c '%T' "$dir" 2>/dev/null || true)"
+  fstype="$(stat -f -c '%T' "$dir" 2>/dev/null || true)" # portability-ok: GNU stat filesystem type; an empty result falls through to diskutil below
   if [[ -z "$fstype" ]] && command -v diskutil >/dev/null 2>&1; then
     fstype="$(diskutil info "$dir" 2>/dev/null | awk -F': ' 'tolower($1) ~ /file system personality|type \(bundle\)/ { print tolower($2); exit }')"
   fi
