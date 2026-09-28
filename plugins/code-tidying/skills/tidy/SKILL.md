@@ -110,6 +110,17 @@ Bundled templates (copy + adapt into `.claude/tidy-lanes/`):
 
 Read the resolved lane file in full at Phase A entry; do not infer scope from this table.
 
+### Ad hoc scope when no lane fits (#4536)
+
+When the repository has no bundled or project lane whose globs cover the files (for example a lone
+`.github/scripts/*.mjs` tree with `node --test`), **`dry-run` with an explicit glob argument** is
+the supported path: pass the glob list as the lane name is not used; instead treat the argument as
+the hunt scope, use the watch-for list from the closest template (`templates/polyglot-services-lane.template.md`
+or `docs-prose` for markdown-only), and take verification from the repo's documented test command.
+No `.claude/tidy-lanes/<lane>.md` file is written. Phase H still ships one structure-only commit when
+the user proceeds past `dry-run`. Document the scope in the PR body because it is not recorded in a
+lane file.
+
 ## Workflow (8 phases)
 
 Run in order. Each phase has one job, and every phase runs whatever the tidying's size.

@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.8] - 2026-09-28
+
+### Added
+
+- `tidy` documents the supported **ad hoc scope** path when no lane fits (`dry-run` + explicit globs,
+  no lane file written) (#4536).
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed
