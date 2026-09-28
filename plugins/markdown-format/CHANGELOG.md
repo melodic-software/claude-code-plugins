@@ -3,6 +3,22 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.72] - 2026-09-28
+
+### Changed
+
+- **The gitignore gate uses the shared `hook::gitignored_out_of_scope` helper** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). Behavior is unchanged: a gitignored Markdown file is still skipped unless `markdown_format_lint_gitignored` is `true`. The local `file_is_gitignored` copy is gone.
+
+## [0.11.71] - 2026-09-28
+
+### Changed
+
+- **`markdown-format.test.sh` host-skips four PATH-shape cases on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The suite
+  probes whether `cygpath -m` rewrites a POSIX mktemp path and prints a counted
+  `SKIP (host: ...)` line for the PATH-probed trim, empty-component, out-of-repo bun, and
+  `~/.local/bin` preference assertions. Linux CI is unchanged.
+
 ## [0.11.70] - 2026-09-28
 
 ### Changed

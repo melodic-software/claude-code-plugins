@@ -294,6 +294,9 @@ const deferredSaved = { AlphaTool: 400, BetaTool: 100, GammaTool: 0, 'AlphaTool+
 // sums to the token. Every bucket is present in every run, so the reading is
 // comparable and the negative verdict is measured, not unmeasured.
 if (mode === 'nonadd') prefixSaved['AlphaTool+BetaTool'] = 1200;
+// saturate — combined prefix numbers would add, but the run is marked a
+// synthesized zero. The verdict must be unmeasured, not the true the
+// arithmetic would publish.
 const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
 // The deferred bucket is dropped (omitted, not reported as 0) when:
 //   novocab      — this fake "version" has no deferred bucket in any run;
@@ -318,6 +321,12 @@ if (mode === 'skillsig' && key === 'AlphaTool+BetaTool') {
   lines.push('', '### Skills', '', '| Skill | Source | Tokens |', '|---|---|---|',
     '| drift-skill | User | 100 |');
 }
+// A deny run can raise a disclosure the baseline does not. The attribution
+// record must keep it (#3356 H3).
+if (mode === 'saturate' && key === 'AlphaTool+BetaTool') {
+  lines.push('', '<!-- synthesized-zero: System tools -->');
+}
+if (key) lines.push('', `Caveat: deny-run disclosure for ${key}`);
 process.stdout.write(lines.join('\n') + '\n');
 EOF
 case "$(uname -s)" in
@@ -419,8 +428,54 @@ if attr control "$actl" --tools AlphaTool,BetaTool --verify-additivity; then
     "plan-mode EnterPlanMode is known-uncovered" "EnterPlanMode omitted from knownUncovered"
   assert_eq "$(jsonget "$actl" 'JSON.stringify(j.knownUncovered.notes).includes("MCP")')" "true" \
     "interactive-only MCP servers are noted as a class" "MCP class note missing"
+  assert_eq "$(jsonget "$actl" 'j.caveats.filter((c)=>c.startsWith("cli-parse mode")).length')" "1" \
+    "shared cli-parse caveat is kept once" "baseline caveat duplicated or dropped"
+  assert_eq "$(jsonget "$actl" 'j.caveats.includes("deny-run disclosure for AlphaTool")')" "true" \
+    "a per-tool deny run's caveat reaches the attribution record" "deny-run caveat discarded"
+  assert_eq "$(jsonget "$actl" 'j.caveats.includes("deny-run disclosure for AlphaTool+BetaTool")')" "true" \
+    "the combined deny run's caveat reaches the attribution record" "combined-run caveat discarded"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("EndConversation")')" "true" \
+    "EndConversation is known-uncovered in a headless sweep" "EndConversation omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'JSON.stringify(j.knownUncovered.deniedAbsent)')" "[]" \
+    "no operator deny leaves deniedAbsent empty" "deniedAbsent populated without --operator-deny"
 else
   fail "attribute --verify-additivity (control scenario) exited nonzero"
+fi
+
+adeny="$WORK/attr-operator-deny.json"
+if attr control "$adeny" --tools AlphaTool,BetaTool --operator-deny AskUserQuestion,EnterPlanMode; then
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.tools.includes("AskUserQuestion")')" "false" \
+    "an operator-denied interactive tool is not labeled structurally unreachable" \
+    "AskUserQuestion stayed in knownUncovered.tools under --operator-deny"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.deniedAbsent.includes("AskUserQuestion")')" "true" \
+    "operator-denied AskUserQuestion is recorded as deniedAbsent" "AskUserQuestion missing from deniedAbsent"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.deniedAbsent.includes("EnterPlanMode")')" "true" \
+    "operator-denied EnterPlanMode is recorded as deniedAbsent" "EnterPlanMode missing from deniedAbsent"
+  assert_eq "$(jsonget "$adeny" 'j.knownUncovered.tools.includes("Artifact")')" "true" \
+    "an interactive tool the operator did not deny stays known-uncovered" "Artifact dropped without a deny"
+else
+  fail "attribute --operator-deny exited nonzero"
+fi
+
+# Synthesized zero: the combined prefix arithmetic adds, and the guard must
+# still refuse a verdict.
+asat="$WORK/attr-saturate.json"
+if attr saturate "$asat" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$asat" 'j.additivity.additive')" "null" \
+    "a synthesized zero publishes no summed additivity verdict" "saturated additivity published a boolean"
+  assert_eq "$(jsonget "$asat" 'j.additivity.comparable')" "false" \
+    "a synthesized zero marks the summed record unmeasured" "saturated additivity stayed comparable"
+  assert_eq "$(jsonget "$asat" 'j.additivity.perBucket["System tools"].additive')" "null" \
+    "the synthesized prefix bucket has no verdict" "saturated prefix verdict published a boolean"
+  assert_eq "$(jsonget "$asat" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "a real deferred bucket still gets its verdict" "saturated run dropped the deferred verdict"
+  if [[ "$(jsonget "$asat" 'j.additivity.reasons.join(" ")')" == *"synthesized zero"* ]]; then
+    ok "additivity record names the synthesized zero"
+  else
+    fail "synthesized-zero reason missing from additivity record"
+  fi
+else
+  fail "attribute --verify-additivity (saturate scenario) exited nonzero"
 fi
 
 # A product interactive-only name that WAS a candidate this run is not
@@ -588,8 +643,23 @@ if node "$ENGINE" verify-catalogue --binary "$WORK/fake-strings-bin" --catalogue
     "missing count includes detection-only absent key" "missing count wrong"
   assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="detection-only").tokens.find((t)=>t.name==="enabledMcpjsonServers").present')" "false" \
     "camelCase in detection is extracted (not silently skipped)" "detection-only key not extracted"
+  assert_eq "$(jsonget "$vcat" 'Object.prototype.hasOwnProperty.call(j, "unstored")')" "false" \
+    "verify-catalogue omits unstored unless --find-unstored" "unstored present without the flag"
 else
   fail "verify-catalogue exited nonzero on a readable fake binary"
+fi
+
+printf 'padding CLAUDE_CODE_DISABLE_CRON CLAUDE_CODE_ENABLE_DESIGN_SYNC CLAUDE_CODE_DISABLE_WORKFLOWS' >"$WORK/fake-strings-bin"
+vunstored="$WORK/verify-unstored.json"
+if node "$ENGINE" verify-catalogue --find-unstored --binary "$WORK/fake-strings-bin" --catalogue "$minicat" --out "$vunstored" >/dev/null; then
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_DISABLE_CRON")')" "true" \
+    "find-unstored reports an env name no row cites" "CLAUDE_CODE_DISABLE_CRON missing from unstored"
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_ENABLE_DESIGN_SYNC")')" "true" \
+    "find-unstored reports the second uncited env name" "CLAUDE_CODE_ENABLE_DESIGN_SYNC missing from unstored"
+  assert_eq "$(jsonget "$vunstored" 'j.unstored.includes("CLAUDE_CODE_DISABLE_WORKFLOWS")')" "false" \
+    "find-unstored does not report an env name a row already cites" "cited env name listed as unstored"
+else
+  fail "verify-catalogue --find-unstored exited nonzero"
 fi
 
 # ReDoS-shaped title (long same-case run then _) must finish, not hang.
