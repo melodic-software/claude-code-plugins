@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.8] - 2026-09-28
+
+### Fixed
+
+- **interview surface:** an `html` visual whose content is built by a script no longer renders
+  as a blank panel. The page renders `html` visuals in `<iframe sandbox="allow-scripts">`, never
+  with `allow-same-origin`, so the frame stays an opaque origin that cannot read the token,
+  cookies, storage or page DOM; `svg` keeps an empty sandbox. The exported report still runs no
+  scripts and now says so above an `html` visual that contains one. `context/surface.md` states
+  the rule, and the browser suite and exporter tests cover both behaviors.
+
 ## [0.44.7] - 2026-09-27
 
 ### Fixed

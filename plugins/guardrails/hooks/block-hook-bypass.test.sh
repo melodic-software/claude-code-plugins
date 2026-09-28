@@ -460,6 +460,28 @@ run "commit msg mentioning python3 -c open (allowed)" \
 run "python3 -c single-quoted open write (blocked)" \
   "python3 -c 'open(\"x\",\"w\").write(\"a\")'" 2
 
+# --- A child shell's -c operand is a command, re-parsed (#4243) --------------
+# The same text one level down in `bash -c` / `sh -c` is the same write, so the
+# operand's segments are judged like the top level's.
+run "bash -c echo > file (blocked)" "bash -c 'echo secret > a.txt'" 2
+run "sh -c echo > file (blocked)" "sh -c 'echo secret > a.txt'" 2
+run "bash -c cat heredoc > file (blocked)" \
+  "$(printf "bash -c 'cat > a.txt <<EOF\nsecret\nEOF'")" 2
+run "bash -lc printf > file (blocked)" "bash -lc 'printf %s x > a.txt'" 2
+run "FOO=1 /bin/bash -c echo > file (prefixed shell path, blocked)" \
+  "FOO=1 /bin/bash -c 'echo x > a.txt'" 2
+run "bash -c nested sh -c echo > file (blocked)" \
+  "bash -c \"sh -c 'echo x > a.txt'\"" 2
+run "bash -c python3 -c write (blocked)" \
+  "bash -c \"python3 -c 'open(\\\"x\\\",\\\"w\\\").write(1)'\"" 2
+run "bash -c staged write then mv (blocked)" "bash -c 'echo x > f; mv f dst'" 2
+run "bash -c git status (allowed)" "bash -c 'git status'" 0
+run "bash -c echo (no redirect, allowed)" "bash -c 'echo hi'" 0
+run "bash -c echo > /dev/null (discard, allowed)" "bash -c 'echo x > /dev/null'" 0
+run "bash -c sort > out (non-producer, allowed)" "bash -c 'sort a > out'" 0
+run "echo prose naming bash -c echo > f (allowed)" "echo \"bash -c 'echo x > f'\"" 0
+run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
+
 # --- Case-insensitive command-token detection (matters on Windows) ----------
 run "uppercase CAT > file (blocked)" "CAT > foo.txt" 2
 run "uppercase ECHO > file (blocked)" "ECHO hello > foo.txt" 2

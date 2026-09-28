@@ -71,8 +71,8 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 
 | Argument | Action | Purpose |
 |----------|--------|---------|
-| *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster → resume the current phase; the invocation or conversation already names a scope → `identify`; otherwise → confirm scope with the user first (see "Bare invocation: confirm scope first") |
-| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Rosters every surviving candidate in a labeled multiplicity bucket (N=1 / N=2 / N≥3) with its instance count; artifact-creating outputs stay reserved for N≥3. Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
+| *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster (defined in "Phases per invocation") → resume the current phase; the invocation or conversation already names a scope → `identify`; otherwise → confirm scope with the user first (see "Bare invocation: confirm scope first") |
+| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`), or surveys inline with a Tier 0 grep per candidate when the corpus is small or `--inline` is passed; ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Rosters every surviving candidate in a labeled multiplicity bucket (N=1 / N=2 / N≥3) with its instance count; artifact-creating outputs stay reserved for N≥3. Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
 | `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (bucket assignment + Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN` plus the assigned `bucket:`. OPTIONAL. Does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
 | `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references by invoking `/docs-hygiene:rename-references` via the Skill tool if a heading/identifier changed; verify |
@@ -92,6 +92,7 @@ Accepted by `identify` and `batch` (the roster-producing surfaces); `batch` pass
 | `--fix` | off | Apply ONLY the non-abstracting remedies (`trim-to-citation`, `normalize-wording`). Never writes a new artifact; still honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful with `--fix` |
+| `--inline` | off | `identify` only. Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it |
 | `--parallel-waves` | off | `batch` only. Permit parallel dispatch within a wave whose candidates the overlap matrix proves disjoint. Without it every wave runs sequentially, because there is no file-level locking |
 
 Bare invocation (no flags) stays read-only: it reports the buckets and stops, matching `/docs-hygiene:audit-noise` and `/docs-hygiene:audit-derivability`. Full flag semantics: `actions/identify.md`.
@@ -192,7 +193,9 @@ The `unwind` action implements Metz's 3-step recovery for the wrong-abstraction 
 identify-cluster → architect-plan → execute-migration → sweep-references → verify
 ```
 
-For multi-session work, persist the candidate roster, plan, and per-phase status to working notes in the consuming repository (wherever its conventions put task notes) so a fresh session can resume from durable state instead of re-deriving it. End each phase with a short status entry: what's done, what's next.
+For multi-session work, persist the candidate roster, plan, and per-phase status to working notes in the consuming repository (wherever its conventions put task notes) so a fresh session can resume from durable state instead of re-deriving it. End each phase with a short status entry: what's done, what's next. When the caller forbids commits (a sweep step recording "no findings", for one), keep those notes out of the tracked tree.
+
+An **active candidate roster** is a persisted roster with at least one candidate still open: not yet executed, refused, or deferred with a tracking note. Only an active roster triggers resume. A roster whose every candidate is refused or done is closed: its first line reads `status: closed`, and a bare invocation treats it as absent. The resume gates in the action router above and in `actions/identify.md` (step 1 and the pre-dispatch sanity check) use this definition.
 
 Per-phase checklist: `context/execution-checklist.md`.
 
