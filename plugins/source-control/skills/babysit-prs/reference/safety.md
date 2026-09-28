@@ -419,6 +419,14 @@ Two facts about the wrappers' bare names, both of which decide the invocation fo
     have prompted, so an uncovered wrapper invocation is refused outright with no classifier and no
     prompt; `bypassPermissions` executes it immediately
     ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
+    **`--permission-prompts none` is the unattended form that keeps the mode.** From Claude Code
+    v2.1.259, `claude -p --permission-mode auto --permission-prompts none` leaves auto mode and its
+    classifier in place and denies only a call that would have prompted. It is not `dontAsk` (which
+    denies every uncovered call with no classifier) and not `bypassPermissions`. Denials are
+    readable from stream-json `permission_denials`. **Claim, basis, as of, recheck:** that
+    sentence, [headless](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
+    and [changelog](https://code.claude.com/docs/en/changelog) 2.1.259, 2026-09-28, and that
+    headless section dropping the flag or changing what it denies.
     So a merge or thread-resolution call can be **denied without ever surfacing**. Do not wait on a
     prompt that will not arrive; under auto mode read the denial in `/permissions` → **Recently
     denied**. An explicit `permissions.ask` rule still forces a prompt in `auto` and

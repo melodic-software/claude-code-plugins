@@ -92,10 +92,15 @@ Two rules follow from the same reasoning:
 - **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
   produced nothing.
 
-Keep the brace group free of `$`. The worktree-isolation guard cannot verify a composed pre-compute
-block that expands anything other than bare `$HOME`, and the skill then fails to load from an
-isolated agent. The guard's exact trigger is not pinned down, so leaving `$` out of the group is the
-form that is safe under every reading.
+Keep a brace group that contains `git` free of `$`. The worktree command-shape check blocks a
+command when it cannot verify from the text that any git the command runs stays inside the
+worktree. A `$` expansion in a block that never runs git is not that check. The compose gate
+(`scripts/check-skill-precompute-compose.sh`) already fires only when a pre-compute block holds a
+git command and more than one injection line. **Claim, basis, as of, recheck:** the four checks
+and the git scope,
+[worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) and
+`plugins/source-control/skills/worktree/reference/gather-block.md`, 2026-09-28, and a re-fetch of
+that section that stops scoping the command-shape check to git.
 
 ### `pipefail` is an open question; the brace group is correct either way
 
