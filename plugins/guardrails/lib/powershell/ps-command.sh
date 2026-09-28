@@ -1380,7 +1380,7 @@ ps::might_invoke_git() {
   # `=` is in the predecessor class for the same reason the literal-git probe
   # above carries it: `$p=saps $tool …` assigns the launcher's result with no
   # space around the operator, which is ordinary PowerShell (#2928).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(=])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(=])(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
   return 1
 }
 
@@ -1643,7 +1643,9 @@ ps::has_dynamic_invocation() {
 # True (0) when a process launcher / nested shell sits at a command position:
 # Start-Process (alias saps) launches a program the same way the Bash guard sees
 # through `nice`/`nohup`/`sudo`/`env`; pwsh/powershell/cmd run a nested command
-# string, the parity analog of the Bash guard's `sh -c`/`bash -c` see-through.
+# string, the parity analog of the Bash guard's `sh -c`/`bash -c` see-through,
+# and wsl runs its command line inside a Linux distribution (the Bash lane's
+# hook::wsl_operand).
 # Routed to the sink so ps::might_invoke_git decides — it blocks only when the
 # literal `git` is present in the launched argv / command string (`Start-Process
 # git -ArgumentList …`, `pwsh -Command 'git …'`), and passes a launcher with no
@@ -1656,7 +1658,7 @@ ps::has_launcher() {
   # The .exe-suffixed spellings (cmd.exe, powershell.exe, pwsh.exe) and the
   # `start` alias of Start-Process are the same launchers, not a new class —
   # a spelling gap here would skip the sink entirely (review round 4).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([[:space:]]|$) ]] && return 0
   # Assignment-glued launcher (`$out=pwsh $script`). Same `$name=` /
   # `$scope:name=` LHS as has_dynamic_invocation — about_Assignment_Operators,
   # not a generic `=` separator. Quote-BLANKED so `Write-Host "shell=pwsh $x"`
@@ -1664,7 +1666,7 @@ ps::has_launcher() {
   # section.key=cmd` is git(1) `-c <name>=<value>`, not an assignment, and
   # does not match. Spelled out literally, never shared through a variable.
   ps::blank_quoted_spans_to blanked "$lc"
-  [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
+  [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([[:space:]]|$) ]]
 }
 
 # Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
@@ -1969,7 +1971,7 @@ ps::_blank_cmd_statements() {
         fi
         ;;
       launcher)
-        if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([^a-z0-9_-]|$) ]]; then
+        if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd|wsl)(\.exe)?([^a-z0-9_-]|$) ]]; then
           ps::_skip_statement_tail_to end "$cmd" "$i"
           i=$end
           out+=" "

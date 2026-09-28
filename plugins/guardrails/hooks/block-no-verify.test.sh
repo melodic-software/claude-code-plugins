@@ -131,6 +131,20 @@ run "eval git commit --no-verify (eval prefix, blocked)" \
 run "env -S 'ls -la' (split-string non-git, allowed)" \
   "env -S 'ls -la'" 0
 
+# --- wsl / wsl.exe run their command line in a Linux distro (#4242) ----------
+run "wsl git commit --no-verify (default-shell command line, blocked)" \
+  'wsl git commit --no-verify -m x' 2
+run "wsl.exe -e git commit --no-verify (exec argv, blocked)" \
+  'wsl.exe -e git commit --no-verify -m x' 2
+run "wsl -d Ubuntu -u root -- git push --no-verify (run options + --, blocked)" \
+  'wsl -d Ubuntu -u root -- git push --no-verify' 2
+run "wsl -e bash -c 'git commit --no-verify' (nested shell, blocked)" \
+  "wsl -e bash -c 'git commit --no-verify -m x'" 2
+run "wsl -e git commit -m '--no-verify' (exec keeps the message one word, allowed)" \
+  "wsl -e git commit -m '--no-verify'" 0
+run "wsl git commit -m x (allowed)" 'wsl git commit -m x' 0
+run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
+
 # --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
@@ -223,6 +237,9 @@ run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
 run_pwsh "PS: git commit -m here-string (allowed here — noncanonical's concern, no bypass)" \
   "$(printf '%s\n%s\n%s' "git commit -m @'" "msg" "'@")" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: wsl git commit --no-verify (launcher sink, blocked — #4242)" \
+  "wsl git commit --no-verify -m x" 2
+run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: backtick-continued commit (fail-closed block)" \
   "$(printf 'git commit `\n --no-verify')" 2
 run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
