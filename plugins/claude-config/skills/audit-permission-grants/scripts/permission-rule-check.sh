@@ -295,7 +295,7 @@ _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs
 # scope. Narrowing an `error`-tier check's reach is not a reporting-format change.
 # The leading `[A-Za-z_][A-Za-z0-9_]*` is `CCPERM_TOOL_TOKEN_ERE`'s own tool-name
 # grammar, kept consistent with the library #2260 extracted.
-P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\([^)]*(${_p2_path})[^)]*\\)"
+P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\(${CCPERM_BALANCED_ERE}(${_p2_path})${CCPERM_BALANCED_ERE}\\)"
 # `~user/…` in a Bash rule — not the portable `~/` anchor (Read/Edit resolve that
 # per user). Bash rules match literally and do not expand tilde-user forms.
 # Require `~` to begin a shell word (immediately after `(` or whitespace), not
@@ -305,7 +305,7 @@ P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[
 # Inert tokens inside Bash(...) only — not Read/Edit or other tools.
 # shellcheck disable=SC2016  # single quotes deliberate: \$ and % are literal ERE, not shell expansion
 P4_INERT_TOKEN_ERE='%USERPROFILE%|\$env:USERPROFILE'
-P4_BASH_INERT_ERE="Bash\\([^)]*(${P4_INERT_TOKEN_ERE})[^)]*\\)"
+P4_BASH_INERT_ERE="Bash\\(${CCPERM_BALANCED_ERE}(${P4_INERT_TOKEN_ERE})${CCPERM_BALANCED_ERE}\\)"
 
 # Inert ONLY outside a plugin skill. The skills page, "Available string
 # substitutions": "Claude Code substitutes ${CLAUDE_SKILL_DIR} and
@@ -321,7 +321,7 @@ P4_BASH_INERT_ERE="Bash\\([^)]*(${P4_INERT_TOKEN_ERE})[^)]*\\)"
 # settings permissions.allow array.
 # shellcheck disable=SC2016
 P4_PLUGIN_ONLY_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|\$\{CLAUDE_PLUGIN_DATA\}'
-P4_BASH_PLUGIN_ONLY_ERE="Bash\\([^)]*(${P4_PLUGIN_ONLY_TOKEN_ERE})[^)]*\\)"
+P4_BASH_PLUGIN_ONLY_ERE="Bash\\(${CCPERM_BALANCED_ERE}(${P4_PLUGIN_ONLY_TOKEN_ERE})${CCPERM_BALANCED_ERE}\\)"
 
 findings=()
 # Severity tallies, kept by `emit` so the gate modes partition on the SAME
@@ -483,6 +483,28 @@ top_level_tokens() {
   printf '%s\n' "$1" | grep -oE "$CCPERM_TOOL_TOKEN_ERE" 2>/dev/null
 }
 
+scan_malformed_rule() {
+  # scan_malformed_rule <rule-text> <source-label>
+  # One settings entry is one rule: Tool or Tool(specifier). Parentheses inside
+  # the specifier are literal. Text after the closing parenthesis (Bash(ls) x)
+  # is not a second rule, even though a bare word matches the token grammar.
+  # Claude Code reports that shape as invalid settings. Keeping only the first
+  # token would call it Bash(ls).
+  local text="$1" src="$2" rest tok
+  rest="${text#"${text%%[![:space:]]*}"}"
+  [[ -n "$rest" ]] || return 0
+  tok="$(printf '%s\n' "$rest" | grep -oE "^${CCPERM_TOOL_TOKEN_ERE}" 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$tok" ]]; then
+    emit error P5 "$src" "malformed Tool(content) rule '$text' — it is not Tool or Tool(specifier). Claude Code reports this shape as invalid settings."
+    return 0
+  fi
+  rest="${rest#"$tok"}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"
+  if [[ -n "$rest" ]]; then
+    emit error P5 "$src" "malformed Tool(content) rule '$text' — text after the closing parenthesis is not part of a rule. Claude Code reports this shape (for example Bash(ls) x) as invalid settings instead of ignoring it."
+  fi
+}
+
 scan_bare_tool() {
   # scan_bare_tool <text> <source-label> — flag a bare `Bash`/`PowerShell`
   # token (the whole-tool grant that auto mode drops). Matching runs on
@@ -626,13 +648,14 @@ scan_settings_allow() {
     return 0
   fi
   if ! tr -d '\r' <"$file" | jq -e . >/dev/null 2>&1; then
-    scope_status+=("$short: NOT VALID JSON — its rules were not read")
+    scope_status+=("$short: NOT VALID JSON — its rules were not read. An interactive session shows a Settings Error for a user, project, or local file; after continue, /status names the file. A -p run skips the broken file. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup instead (exit 1, source named, v2.1.259+).")
     unparsable_settings=$((unparsable_settings + 1))
     return 0
   fi
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     n=$((n + 1))
+    scan_malformed_rule "$rule" "$label"
     scan_bare_tool "$rule" "$label"
     scan_agent "$rule" "$label"
     scan_rule "$rule" "$label" ""

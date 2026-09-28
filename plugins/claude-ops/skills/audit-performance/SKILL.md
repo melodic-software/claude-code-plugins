@@ -1,6 +1,6 @@
 ---
 description: "Slowness diagnostic that never 'fixes', run while Claude Code is slow, before restarting or deleting: version, retention sweep, install bloat, hook and subagent fan-out, and a Windows kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues."
-argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
+argument-hint: "[unattended] [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -160,7 +160,7 @@ run; it is never silently absent.
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
 `total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
 I/O after the first launch of the day), `settings-unparsable-pauses-sweep` (the sweep has been
-silently OFF. Nothing was cleaned for as long as that error existed), `history.mb` and
+OFF, and `/status` warns. Nothing was cleaned for as long as that error existed), `history.mb` and
 `home_root_state` sizes (unmanaged, grow forever). `last-cleanup-stale` is weaker evidence than it
 looks: the sweep defers while sessions are active, so a stale sentinel on a busy machine has a
 benign explanation. Report both readings.
@@ -271,6 +271,12 @@ Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the
 per-keystroke render cost), and every entry in `timings_seconds` (a slow phase names a slow
 subsystem).
+
+## Run-end suggestion
+
+Shared `/doctor` surface facts live in [audit-install-state's Boundary section](../audit-install-state/SKILL.md#boundary-the-bundled-doctor-skill). If /doctor is available in your session (gate basis in that section), run it for the quick health-and-fix pass this timed capture does not perform.
+
+**`unattended`:** record the suggestion in the report's final section; do not ask.
 
 ## Gotchas
 
