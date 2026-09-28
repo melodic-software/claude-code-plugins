@@ -100,6 +100,54 @@ Each row was re-derived this session by resolving the tag to its commit and read
   parses the run id out of this record, prints it as the evidence behind condition 2, and exits 2
   if the record is not there to read.
 
+## Canary host decision (#4282)
+
+**Decision.** Do not unarchive `melodic-software/claude-lane-sandbox`. Do not add
+the canary workflow to this marketplace repository. Do not create a throwaway
+host from this checkout.
+
+- **Option A (taken):** cutover condition 2's CI-canary component continues to
+  rest on the knowledge-corpus record in [The CI canary](#the-ci-canary). The
+  two-pin three-case matrix named in #4282 (repo pin `v1.0.222` vs latest pin
+  `v1.0.231`, cases A/B/C) is not built here.
+- **Option B (declined here):** unarchive the sandbox, or stand up a new private
+  throwaway with an org-visible Anthropic secret, and run that matrix. That
+  remains a maintainer action in a repository they choose.
+
+- **Claim:** this marketplace does not host the #4282 canary infrastructure;
+  condition 2 stays on the existing knowledge-corpus run id until a maintainer
+  records a replacement run in [The CI canary](#the-ci-canary).
+- **Basis:** #4282 (sandbox archived, `git push` refused). [The CI canary](#the-ci-canary)
+  already records run `35475056935` on `melodic-software/knowledge-corpus` as of
+  2026-09-19. Building the matrix in this repo would add a live
+  `claude-code-action` workflow and a secret this checkout does not own.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** a maintainer names a live host and records a new run id
+  in [The CI canary](#the-ci-canary), or `claude-lane-sandbox` is unarchived.
+
+## Install-dependent loader tests parked (#4283)
+
+Claude Code and Codex loading behavior is backed by empirical tests. Cursor,
+Grok Build, and Muse Code were not installed in the environment that did the
+AGENTS.md migration research, so every claim about their loader stays at docs
+or source grade.
+
+- **Option A (taken):** do not install those tools from this checkout. Do not
+  add CI that assumes they are present. Claims remain graded below empirical
+  until a maintainer host runs the loader recipe named in #4283.
+- **Option B (declined):** install Cursor, Grok Build, and Muse Code here or
+  in a throwaway host from this PR.
+
+- **Claim:** empirical loader tests for Cursor, Grok Build, and Muse Code are
+  not run from this marketplace; cutover evidence for those tools stays docs
+  or source grade.
+- **Basis:** #4283 (install explicitly out of scope for the migration; the gap
+  tracked as its own item). This cloud checkout does not ship those binaries.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** a maintainer names a host with the tool installed and
+  records empirical results (whether each tool reads AGENTS.md / CLAUDE.md,
+  import expansion, precedence) into this file, replacing the docs/source grade.
+
 ## The canary recipe
 
 Not restated here. The prompt shape, where the token goes, why the token is never committed, the

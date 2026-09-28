@@ -290,6 +290,14 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
+   **Background-job launch mode.** When Claude Code runs this lane as a background job, the harness
+   blocks Write/Edit to the shared default-branch checkout until the session calls `EnterWorktree`.
+   This lane deliberately runs on that checkout and must not call `EnterWorktree` (that terminal
+   would transition the long-lived orchestrator). Step 0's gitignore preflight does not lift the
+   harness block, so the escalation record write is refused and only the tracker marker comment
+   survives. For the out-of-band notification leg, launch the lane in an interactive foreground
+   session on the default-branch checkout, or accept that background launches lose the record
+   ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta

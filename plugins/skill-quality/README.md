@@ -22,7 +22,12 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
-  The effective name (the declared field, else the directory leaf) is at most 64 codepoints
+  A plain (unquoted, non-block) `description` that contains `": "` FAILs: that is a YAML mapping
+  indicator, and the skills reference says unparsed frontmatter loads the skill with no fields set
+  (<https://code.claude.com/docs/en/skills#frontmatter-reference>). A quoted or block scalar may
+  contain the indicator. `compatibility`, when present, is 1-500 characters and FAILs outside that
+  (Agent Skills spec; Claude Code accepts the field and does not act on it). Absence is success:
+  the spec says most skills do not need the field. The effective name (the declared field, else the directory leaf) is at most 64 codepoints
   (FAIL; the Agent Skills spec's `name` cap, <https://agentskills.io/specification>, enforced by
   its `skills-ref` validator) and carries neither `anthropic` nor `claude` (WARN; a Skills API
   upload requirement, <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>,

@@ -73,6 +73,12 @@ case "$(cat "$TMP/err")" in *"did not land"*) pass "edit that does not land: std
 body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
 run four partial '2 .mjs files uncovered' p:q@2.0
 assert_eq "partial coverage tick" "0 - [x] four: p:q@2.0, no findings, partial coverage: 2 .mjs files uncovered" "$rc $out"
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four not-applicable 'no tracked tests' p:q@2.0
+assert_eq "not-applicable" "0 - [x] four: p:q@2.0, not applicable: no tracked tests" "$rc $out"
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four report-only 3 p:q@2.0
+assert_eq "report-only" "0 - [x] four: p:q@2.0, no fix-eligible findings (3 report-only)" "$rc $out"
 
 for bad in "two" "two in-progress p:b@1" "two committed xyz p:b@1" "two committed abc1234" "two no-findings p:b" "two done p:b@1"; do
   read -ra args <<<"$bad"

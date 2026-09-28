@@ -157,6 +157,21 @@ jobs:
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
+  #
+  # GUARDRAILS SUITES ARE NOT IN THIS LANE (#4527). Six of 22
+  # `plugins/guardrails/hooks/*.test.sh` and `lib/git-hooks/*.test.sh` suites
+  # fail on a Windows 11 Git Bash host and none of them run here, so a Windows
+  # regression in those six currently ships green:
+  #   block-hook-bypass, block-windows-drive-tmp, coverage-manifest,
+  #   hardcoded-path-check, run-guards, secret-pattern-detection.
+  # `hardcoded-path-check` and `block-windows-drive-tmp` overlap #3683 (host-skip
+  # the path-form cases; drive-tmp is a real MSYS writer-path gap, not a skip).
+  # `block-hook-bypass` carries host-gated `windows temp:` cases that have never
+  # run in CI. `coverage-manifest` and `run-guards` may not be Windows-specific.
+  # Do not add these suites here without a per-suite triage against this job's
+  # 20-minute timeout and the ~140 ms spawn cost; a host-skip or a Linux-side
+  # fix is the default until that triage lands. Each host-gated case that still
+  # cannot run must print a counted SKIP line rather than pass silently.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent

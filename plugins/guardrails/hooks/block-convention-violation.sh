@@ -339,7 +339,7 @@ first_herestring_subject() {
       }
       continue
     fi
-    if [[ "$line" == *"@'" || "$line" == *'@"' ]]; then
+    if ps::line_confirms_herestring_opener "$line"; then
       hs_quote="${line: -1}"
       in_hs=1
     fi
@@ -622,7 +622,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # only when no other trigger fired, so a flagged command whose first trigger was
   # another construct (a `{`, say) reported that trigger and was deferred.
   if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
-    PS_SINK_TRIGGER="herestring-comment-char"
+    PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
     ps::print_unparsable_block_message
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
     exit 2

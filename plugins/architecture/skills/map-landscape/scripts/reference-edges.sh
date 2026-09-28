@@ -32,7 +32,7 @@
 #
 #   {"from":…,"to":…,"type":…,"relation":…,"count":N,"files":[…]}
 #
-#   from      this repository's directory basename
+#   from      github.com origin repository name when origin resolves; else directory basename (#4554)
 #   to        `owner/repo`
 #   type      uses-workflow | installs-plugin | depends-on | cites
 #   relation  internal (owner matches this repository's) | external
@@ -119,6 +119,9 @@ repo="$(cd "$repo_arg" 2>/dev/null && pwd)" || {
   printf 'reference-edges.sh: unreadable: %s\n' "$repo_arg" >&2
   exit 1
 }
+# Tentative identity: directory basename. Overridden below when a github.com
+# origin resolves, so two differently named checkouts of the same repository
+# share one node key (#4554).
 name="$(basename "$repo")"
 
 if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
@@ -196,6 +199,12 @@ remote_slug() {
   printf '%s/%s' "$o" "$r"
 }
 self_slug="$(remote_slug)" || self_slug=""
+
+# Prefer the github.com repository name as the subject identity when origin
+# resolves (#4554). Edge `from` and portfolio `name` must agree across checkouts.
+if [[ -n "$self_slug" ]]; then
+  name="${self_slug#*/}"
+fi
 
 # The owner this run resolved, for a caller that has to record which
 # organization the graph was drawn from. Reading it back from here keeps one
