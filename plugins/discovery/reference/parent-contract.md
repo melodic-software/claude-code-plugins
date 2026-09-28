@@ -275,6 +275,17 @@ credential files is the sandbox, which the OS applies to every Bash command and 
 outside any file boundary and stays held by instruction. The plugin cannot ship any of this: a
 plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys.
 
+- *Claim.* Bash argument patterns do not bound what a shell can read; the sandbox's
+  `denyRead` and `credentials.files` deny entries do, for every Bash command and its children.
+- *Basis.* [Permissions](https://code.claude.com/docs/en/permissions): "Bash permission patterns
+  that try to constrain command arguments are fragile." [Sandboxing](https://code.claude.com/docs/en/sandboxing):
+  "You can also deny write or read access using `sandbox.filesystem.denyWrite` and
+  `sandbox.filesystem.denyRead`", and it names `sandbox.credentials.files` entries with
+  `"mode": "deny"`.
+- *As of.* Both pages fetched 2026-09-28 (Claude Code 2.1.283).
+- *Recheck trigger.* Either span leaves its page, or a release note changes sandbox filesystem or
+  credential isolation.
+
 ## Harness facts the dispatch design rests on
 
 Eleven harness behaviors this plugin's dispatch design depends on, each with one dated record here
