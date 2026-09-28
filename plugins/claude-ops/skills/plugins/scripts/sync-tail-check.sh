@@ -10,6 +10,7 @@
 #   sync-tail-check.sh --check-permissions [--settings <file>]
 #   sync-tail-check.sh --check-orphan [--cache <dir>] [--known <file>] [--marketplace <name>]
 #   sync-tail-check.sh --check-drift [--fixture <dir> | --offline]
+#   sync-tail-check.sh --dry-run [--fixture <dir>]
 #
 # Exit: 0 nothing actionable, 1 a finding the operator can act on, 2 usage
 # or a missing tool, 3 a check input that cannot be read.
@@ -23,6 +24,7 @@ Usage:
   sync-tail-check.sh --check-permissions [--settings <file>]
   sync-tail-check.sh --check-orphan [--cache <dir>] [--known <file>] [--marketplace <name>]
   sync-tail-check.sh --check-drift [--fixture <dir> | --offline]
+  sync-tail-check.sh --dry-run [--fixture <dir>]
 
 Exit: 0 nothing actionable; 1 a finding; 2 usage or a missing tool;
 3 an input that cannot be read. The script never writes the settings file,
@@ -37,6 +39,7 @@ KNOWN=""
 MARKET=""
 FIXTURE=""
 OFFLINE=0
+DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,6 +81,11 @@ while [[ $# -gt 0 ]]; do
     ;;
   --offline)
     OFFLINE=1
+    shift
+    ;;
+  --dry-run)
+    MODE="drift"
+    DRY_RUN=1
     shift
     ;;
   *)
@@ -227,12 +235,32 @@ emit_item() {
   printf '%s status=%s note=%s\n' "$1" "$2" "$3"
   if [[ "$2" == "open" || "$2" == "waiting-on-release" ]]; then
     DRIFT_OPEN=1
+    DRIFT_IDS="${DRIFT_IDS} $1"
   fi
+}
+
+print_proposed() {
+  local id
+  for id in "$@"; do
+    case "$id" in
+    a) echo "proposed a: add a claude-settings target for claude-code-account-rotation with the shared marketplace and SessionStart hook, mapped like claude-settings-github-iac. This script does not push it." ;;
+    b) echo "proposed b: point the release.yml error text at a workflow file that exists, or add the missing file. Do not change job logic." ;;
+    c) echo "proposed c: change the README version sentence to the latest published release tag." ;;
+    d) echo "proposed d: name dependabot[bot] in the managed-files-guard Acceptance during soak bullet." ;;
+    e) echo "proposed e: widen the github-iac dependabot ignore to melodic-software/ci-workflows/*. A 404 stays unprobed; do not invent the file." ;;
+    f) echo "proposed f: state that the next version comes from published Releases, not the latest tag." ;;
+    g) echo "proposed g: disable or repair the upstream claude-community SessionEnd hook. This repository cannot edit that marketplace." ;;
+    h) echo "proposed h: leave actions/checkout in the standards component until a ci-workflows release absorbs it." ;;
+    *) echo "proposed $id: operator action, not applied" ;;
+    esac
+  done
+  echo "dry-run: no file was written"
 }
 
 classify_drift() {
   local dir="$1"
   DRIFT_OPEN=0
+  DRIFT_IDS=""
   if [[ -f "$dir/targets.fail" ]]; then
     emit_item a unprobed "standards claude-settings targets could not be read"
   elif [[ -f "$dir/targets.txt" ]] && grep -q 'account-rotation' "$dir/targets.txt"; then
@@ -326,6 +354,10 @@ classify_drift() {
     emit_item h unprobed "no managed-files-guard workflow"
   fi
 
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    # shellcheck disable=SC2086
+    print_proposed $DRIFT_IDS
+  fi
   if [[ "$DRIFT_OPEN" -eq 1 ]]; then
     echo "status: actionable"
     exit 1
@@ -346,6 +378,9 @@ g status=unprobed note=upstream claude-community SessionEnd hook; disable it or 
 h status=unprobed note=standards managed-files-guard still carries actions/checkout until a ci-workflows release absorbs it
 status: offline
 EOF
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    print_proposed a b c d e f g h
+  fi
   exit 0
 }
 
@@ -401,6 +436,9 @@ fetch_live() {
 }
 
 check_drift() {
+  if [[ "$DRY_RUN" -eq 1 && -z "$FIXTURE" ]]; then
+    OFFLINE=1
+  fi
   if [[ "$OFFLINE" -eq 1 ]]; then
     print_offline
   fi

@@ -12,7 +12,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   does not write settings. It reports removed-marketplace cache trees against the 14-day
   plugins-reference window and the 7-day claude-directory window, and a missing tree as
   `unobserved`. Adjacent drift in standards, ci-workflows, and github-iac is classified
-  `open`, `clear`, `waiting-on-release`, or `unprobed`. Nothing is deleted and no other
+  `open`, `clear`, `waiting-on-release`, or `unprobed`. `--dry-run` prints the operator
+  action for each open row and edits nothing. Nothing is deleted and no other
   repository is edited.
 
 ## [0.63.22] - 2026-09-28

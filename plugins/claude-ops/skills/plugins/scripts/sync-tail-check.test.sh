@@ -27,6 +27,12 @@ assert_contains() {
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "did not expect: $3" ;;
+  *) pass "$1" ;;
+  esac
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq required" >&2
@@ -146,6 +152,17 @@ OUT="$(bash "$SUT" --check-drift --offline)"
 assert_exit "offline drift check does not fetch" 0 "$?"
 assert_contains "offline names account-rotation" "$OUT" "a status=unprobed"
 assert_contains "offline status" "$OUT" "status: offline"
+assert_not_contains "offline check does not claim a write" "$OUT" "dry-run:"
+
+OUT="$(bash "$SUT" --dry-run)"
+assert_exit "dry-run without a fixture does not fetch" 0 "$?"
+assert_contains "dry-run names the account-rotation edit" "$OUT" "proposed a:"
+assert_contains "dry-run says it wrote nothing" "$OUT" "dry-run: no file was written"
+
+OUT="$(bash "$SUT" --dry-run --fixture "$FIX")"
+assert_exit "dry-run of an open fixture is still actionable" 1 "$?"
+assert_contains "dry-run proposes the cited-workflow edit" "$OUT" "proposed b:"
+assert_not_contains "dry-run of an open fixture does not propose the clear header" "$OUT" "proposed f:"
 
 OUT="$(bash "$SUT" 2>&1)"
 assert_exit "no mode is usage" 2 "$?"

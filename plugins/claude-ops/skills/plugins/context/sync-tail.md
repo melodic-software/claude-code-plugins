@@ -1,7 +1,7 @@
 # Operator-gated sync tail
 
 Read-only checks for the tail of the plugin-sync cluster (#4186, following #3733, #3728, #3734,
-#3681, #3688). The script is `scripts/sync-tail-check.sh`. It does not write
+\#3681, \#3688). The script is `scripts/sync-tail-check.sh`. It does not write
 `~/.claude/settings.json`, does not delete a cache tree, and does not edit standards,
 ci-workflows, or github-iac.
 
@@ -27,4 +27,4 @@ ci-workflows, or github-iac.
 | g | upstream claude-community SessionEnd hook. Always `unprobed` here. | none |
 | h | standards managed-files-guard still runs `actions/checkout`. | `waiting-on-release` |
 
-`--offline` prints the commands and does not call `gh`. `--fixture <dir>` classifies files the tests plant. A live run calls `gh` and degrades each failed read to `unprobed`.
+`--offline` prints the commands and does not call `gh`. `--dry-run` does the same and adds a `proposed` line per row; with `--fixture` it classifies that tree and proposes only the open rows. Neither writes a file. `--fixture <dir>` classifies files the tests plant. A live `--check-drift` calls `gh` and degrades each failed read to `unprobed`.

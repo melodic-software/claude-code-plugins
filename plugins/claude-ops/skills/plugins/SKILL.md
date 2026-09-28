@@ -102,6 +102,7 @@ The row catalog and the doc disagreement on the 7-day and 14-day windows are in
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-permissions
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-orphan
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-drift
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --dry-run
 ```
 
 `--offline` on the drift check skips `gh`. Exit 1 is a finding. Exit 0 is nothing actionable.
