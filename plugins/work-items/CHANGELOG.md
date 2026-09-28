@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.3] - 2026-09-28
+
+### Fixed
+
+- **Jira conformance no longer shares temp, git config, or PATH with a parallel
+  job ([#3694](https://github.com/melodic-software/claude-code-plugins/issues/3694)).**
+  `bindings/jira.test.sh` uses a private temp root, a private `GIT_CONFIG_GLOBAL`
+  and `HOME`, and a PATH of system directories plus a gh/curl shim. Another job's
+  fixture bin cannot land on that PATH, and neither pass reaches the real `gh` or
+  `curl`. Pinning the suite to one CPU already passed 10/10, so the serial
+  allowlist entry is removed. It was not the fix.
+
 ## [0.41.2] - 2026-09-28
 
 ### Changed
