@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [0.38.25] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
 ## [0.38.24] - 2026-09-28
 
 ### Fixed
