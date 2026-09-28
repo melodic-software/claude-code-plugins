@@ -77,6 +77,19 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md). It carries the two conditions that bind the write (filename checking and the unchanged unbounded-corpus rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
 
+**Then dispatch the sibling verifier**, once every gate above exits 0, for every row the outcome gate's Owner column marks verifier:
+
+```text
+Agent({
+  subagent_type: "discovery:research-verifier",
+  description: "Verify research: <topic>",
+  prompt: "Target: <the index= path the artifact gate printed>
+           Rows: 4, 7, 12"
+})
+```
+
+Write its `verification_line` into the index frontmatter, replacing `verification: pending`. A FAIL row sends the run back to the phase that row names. **When you choose not to pay for the verifier** (the cost path), write `verification: skipped (cost)` instead; never leave `pending` once this boundary closes. The artifact gate prints the current value as `verification=<value>`, so a re-run after the write shows it landed. Brief, write-back and project-fit rules: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
+
 ## Topic
 
 Research the following topic: $ARGUMENTS

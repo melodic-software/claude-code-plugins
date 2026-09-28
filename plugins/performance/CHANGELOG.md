@@ -3,6 +3,30 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-09-28
+
+### Fixed
+
+- **`goal` reads its inputs and states the contention predicate** ([#4270](https://github.com/melodic-software/claude-code-plugins/issues/4270)).
+  A new section 0 quotes the chosen candidate's `/performance:target` row verbatim and stops when
+  the ranking says to instrument that candidate first; with no ranking, it records the tier the
+  user's evidence earns rather than the baseline's tier. Section 2 passes the spawn probe's
+  summary to `is_measurable()` and quotes its reason, stating the two-part signature (spread at
+  or above 3.0x AND a slow mode at or above 500 ms). The Output line reads
+  `Target (from /performance:target): <candidate> @ <E1..E4>`. New eval 10 for the
+  instrument-first stop.
+- **`snapshot` states the paired-ratio median's 20-pair floor** beside the percentile floor,
+  mirroring `scripts/ratio.py`; below it the raw per-pair ratios are reported and no median.
+
+## [0.2.2] - 2026-09-28
+
+### Fixed
+
+- **The skills now point at the bundled harness scripts** ([#4269](https://github.com/melodic-software/claude-code-plugins/issues/4269)). No skill body named anything in `scripts/`, so one snapshot run hand-rolled its own interleaving harness and reported 63 ms for a command that exited 127 in every sample. `snapshot` now runs `ab.sh` for interleaving (and says not to hand-roll a timing loop), names `run-spawn-census.sh` for spawn counts and `summarize.py` for the percentile floor. `verify` names `differential.py` and `discriminate.py`.
+- **`snapshot`'s `spawn_noise` import anchors to `${CLAUDE_PLUGIN_ROOT}/lib`.** The `parents[3]` recipe assumed a `skills/<skill>/scripts/` caller the plugin does not ship, so a run replaced it with a hardcoded versioned cache path.
+- **`harness_require_python` pins the interpreter by absolute path and runs it once.** It returned the bare name `python3` or `python`, which resolves by `PATH` order and can reach a stub. It now uses the `type -P` path and skips (by name) any candidate that fails `import sys`.
+- **`harness-integrity.md` covers resolution as well as spelling.** It adds failure 6 (the 63 ms / exit-127 signature), a rule 6 bullet on bare-name interpreter resolution, and checklist items for absolute-path interpreters, exit codes 127 and 126, and using the bundled harness. New evals: `snapshot` 8 and 9, `verify` 11.
+
 ## [0.2.1] - 2026-09-27
 
 ### Changed

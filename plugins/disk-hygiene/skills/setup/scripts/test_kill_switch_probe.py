@@ -13,6 +13,11 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
+import re
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -20,6 +25,9 @@ from pathlib import Path
 from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+PLUGIN_ROOT = SCRIPT_DIR.parents[2]
+PROBE_RELPATH = Path("skills", "setup", "scripts", "kill_switch_probe.py")
+GUARD_RELPATH = Path("skills", "clean", "scripts", "destructive_guard.py")
 
 
 def load_module(name: str, filename: str):
@@ -220,6 +228,101 @@ class ProbeTests(unittest.TestCase):
         text = stdout.getvalue()
         self.assertEqual(1, len([line for line in text.splitlines() if line]))
         json.loads(text)
+
+    def test_report_carries_launch_disclosure_beside_kill_switch_fields(self) -> None:
+        self.write_toggle(False)
+        result = self.run_probe()
+        for key in ("effective", "source", "degraded", "detail", "settings_path"):
+            self.assertIn(key, result)
+        self.assertFalse(result["effective"])
+        self.assertEqual(
+            os.fspath(Path(sys.executable).resolve()).replace("\\", "/"),
+            result["hook_python"],
+        )
+        self.assertTrue(os.path.isabs(str(result["hook_python"])))
+        self.assertIn("data_root", result)
+
+
+class LaunchDisclosureParityTests(unittest.TestCase):
+    """The probe reports what the belt's denial guidance names, run for run.
+
+    Both sides run as subprocesses of the same interpreter from the same install
+    root, the way the ``clean`` belt admits the probe, with ``CLAUDE_PLUGIN_DATA``
+    absent (it is not in the Bash tool's environment, and a skill hook gets none).
+    """
+
+    _GUARD_INTERPRETER = re.compile(r'Python interpreter "([^"]+)" for engine/probe')
+    _GUARD_DATA_ROOT = re.compile(r'Pass --data-root "([^"]+)"')
+
+    def setUp(self) -> None:
+        self.environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+
+    def run_probe(self, plugin_root: Path) -> dict[str, object]:
+        completed = subprocess.run(
+            [sys.executable, os.fspath(plugin_root / PROBE_RELPATH)],
+            capture_output=True,
+            text=True,
+            env=self.environment,
+            check=True,
+        )
+        return json.loads(completed.stdout)
+
+    def run_belt_denial(self, plugin_root: Path) -> str:
+        """The belt's reason for denying the probe under a bare interpreter name."""
+        command = f'python "{(plugin_root / PROBE_RELPATH).as_posix()}"'
+        completed = subprocess.run(
+            [
+                sys.executable,
+                os.fspath(plugin_root / GUARD_RELPATH),
+                "--plugin-root",
+                os.fspath(plugin_root),
+            ],
+            input=json.dumps({"tool_name": "Bash", "tool_input": {"command": command}}),
+            capture_output=True,
+            text=True,
+            env=self.environment,
+            check=True,
+        )
+        output = json.loads(completed.stdout)["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        return output["permissionDecisionReason"]
+
+    def assert_parity(self, plugin_root: Path) -> dict[str, object]:
+        reported = self.run_probe(plugin_root)
+        reason = self.run_belt_denial(plugin_root)
+        interpreter = self._GUARD_INTERPRETER.search(reason)
+        self.assertIsNotNone(interpreter, reason)
+        self.assertEqual(interpreter.group(1), reported["hook_python"])
+        data_root = self._GUARD_DATA_ROOT.search(reason)
+        if reported["data_root"] is None:
+            self.assertIsNone(data_root, reason)
+            self.assertIn("did not receive an authorized data root", reason)
+        else:
+            self.assertIsNotNone(data_root, reason)
+            self.assertEqual(data_root.group(1), reported["data_root"])
+        return reported
+
+    def test_marketplace_cache_install_reports_the_denial_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            plugins = Path(temporary).resolve() / "plugins"
+            plugin_root = plugins / "cache" / "acme" / "disk-hygiene" / "0.4.8"
+            shutil.copytree(
+                PLUGIN_ROOT,
+                plugin_root,
+                ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+            )
+            reported = self.assert_parity(plugin_root)
+            self.assertEqual(
+                (plugins / "data" / "disk-hygiene-acme").as_posix(),
+                reported["data_root"],
+            )
+
+    def test_checkout_install_reports_the_denial_values(self) -> None:
+        self.assert_parity(PLUGIN_ROOT)
 
 
 if __name__ == "__main__":

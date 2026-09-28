@@ -113,6 +113,18 @@
         "States that a metric green while the symptom is visible is the wrong metric",
         "Names the underlying raw signal (the individual shift events) as the metric to measure"
       ]
+    },
+    {
+      "id": 10,
+      "name": "stops-when-the-ranking-says-instrument-first",
+      "prompt": "/performance:goal the transcript parser. Here is the ranking /performance:target produced: | 3 | transcript parser | E2 | wall-clock share inferred from one trace | parse calls per session | split the transcript read from the parse |. Closing line: the parser should not be optimized until the transcript split exists; instrument that first. Set me a p50 target.",
+      "expected_output": "Quotes the candidate's ranking row verbatim as the goal's input, reads the ranking's closing line as an instrument-first recommendation, and STOPS without setting a target: a goal cannot be set on a cost nobody has attributed. Names the next step as the instrument the ranking named (splitting the transcript read from the parse), then /performance:target again. Does not proceed to compute a floor or propose p50 numbers, and does not substitute the baseline's evidence tier for the candidate's.",
+      "files": [],
+      "expectations": [
+        "Quotes the chosen candidate's ranking row as the goal's input",
+        "STOPS because the ranking says to instrument this candidate first, without setting a target",
+        "Names the ranking's instrument as the next step, followed by /performance:target"
+      ]
     }
   ]
 }
