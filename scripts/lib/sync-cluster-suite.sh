@@ -64,6 +64,60 @@ sync_cluster_suite::_manifest() {
     >"$_scs_fixture/plugins/$1/.claude-plugin/plugin.json"
 }
 
+# Literal plugins/<path> entries inside the gate's copies=(...) array, skipping
+# globs. A second adopter otherwise makes --check fail in this fixture because
+# the extra copy is absent.
+sync_cluster_suite::_literal_copies() {
+  local script="$1" line inside=0 rest token
+  inside=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == copies=* ]]; then
+      inside=1
+    fi
+    if ((inside == 0)); then
+      continue
+    fi
+    rest="$line"
+    while [[ "$rest" =~ plugins/[^[:space:]\)\"\']+ ]]; do
+      token="${BASH_REMATCH[0]}"
+      if [[ "$token" != *'*'* && "$token" != *'?'* ]]; then
+        printf '%s\n' "$token"
+      fi
+      rest="${rest#*"$token"}"
+    done
+    if [[ "$line" == *')'* ]]; then
+      inside=0
+    fi
+  done <"$script"
+}
+
+sync_cluster_suite::_materialize_literal_copies() {
+  local path plugin
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    [[ "$path" == "$_scs_copy" ]] && continue
+    mkdir -p "$_scs_fixture/${path%/*}"
+    sync_cluster_suite::_write "$_scs_fixture/$path" "$_scs_v1"
+    plugin="${path#plugins/}"
+    plugin="${plugin%%/*}"
+    mkdir -p "$_scs_fixture/plugins/$plugin/.claude-plugin"
+    if [[ ! -f "$_scs_fixture/plugins/$plugin/.claude-plugin/plugin.json" ]]; then
+      sync_cluster_suite::_manifest "$plugin" 0.1.0
+    fi
+  done < <(sync_cluster_suite::_literal_copies "$_scs_script")
+}
+
+sync_cluster_suite::_bump_literal_carriers() {
+  local path plugin
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    plugin="${path#plugins/}"
+    plugin="${plugin%%/*}"
+    mkdir -p "$_scs_fixture/plugins/$plugin/.claude-plugin"
+    sync_cluster_suite::_manifest "$plugin" 0.2.0
+  done < <(sync_cluster_suite::_literal_copies "$_scs_script")
+}
+
 # _new_fixture -> fresh tree with the gate and the shared engine it sources
 # copied in, plus the four directories the cluster occupies.
 sync_cluster_suite::_new_fixture() {
@@ -81,6 +135,7 @@ sync_cluster_suite::_base_fixture() {
   sync_cluster_suite::_write "$_scs_fixture/$_scs_copy" "$_scs_v1"
   sync_cluster_suite::_manifest "$_scs_src_plugin" 0.1.0
   sync_cluster_suite::_manifest "$_scs_copy_plugin" 0.1.0
+  sync_cluster_suite::_materialize_literal_copies
 }
 
 sync_cluster_suite::_drift_copy() {
@@ -210,6 +265,7 @@ sync_cluster_suite::_case_check_bump() {
     fi
     sync_cluster_suite::_manifest "$_scs_copy_plugin" 0.2.0
     sync_cluster_suite::_manifest "$_scs_src_plugin" 0.2.0
+    sync_cluster_suite::_bump_literal_carriers
     if sync_cluster_suite::_run_mode --check-bump "$base" >/dev/null 2>&1; then
       ok "--check-bump passes once the carrying plugins bumped"
     else

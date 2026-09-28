@@ -9,9 +9,8 @@
 #
 # Canonical copy: lib/html-escape.mjs. Each adopting plugin carries the same
 # path within its own root (lib/html-escape.mjs) because a plugin cache cannot
-# see the repo-root canonical. The review plugin is the first adopter. A
-# path-within-plugin registry line stays out until a second plugin carries the
-# file: the drift checker rejects a registration that spans only one plugin.
+# see the repo-root canonical. Review was the first adopter; education and
+# testing carry it too, and the path-within-plugin registry line is live.
 # The arrow line in scripts/cross-plugin-source-registry.txt is the duplication
 # audit's cluster. This script is the dedicated drift check.
 #
@@ -26,7 +25,11 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-html-escape.sh"
 src="lib/html-escape.mjs"
-copies=(plugins/review/lib/html-escape.mjs)
+copies=(
+  plugins/review/lib/html-escape.mjs
+  plugins/education/lib/html-escape.mjs
+  plugins/testing/lib/html-escape.mjs
+)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="adopting"

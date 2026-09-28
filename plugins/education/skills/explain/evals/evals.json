@@ -97,6 +97,19 @@
         "Treats the user's next prompt as the success test: the close equips them to name what they mean (reusing the term correctly) rather than re-gesturing at the confusion",
         "Still lands at rung 1 first with a concrete analogy and inline definitions"
       ]
+    },
+    {
+      "id": 9,
+      "name": "offered-html-view-keeps-the-markdown-record",
+      "prompt": "/education:explain what a hash map is, and if you can, show it as a page too.",
+      "expected_output": "Writes the plain-language explanation in markdown first. Offers a research and concept explainer HTML view in one sentence and does not emit a file until the reader accepts. When building, runs build-concept-view.mjs and does not hand-write HTML. A non-interactive run keeps the markdown and says the environment cannot serve a view.",
+      "files": [],
+      "expectations": [
+        "The markdown explanation is written before any HTML and remains the deliverable",
+        "The page is offered, not emitted, until the reader accepts and a local file can be served",
+        "The page is produced by build-concept-view.mjs, not by hand-written markup",
+        "The page is named as a research and concept explainer, not as a diagram (that remains education:eli5)"
+      ]
     }
   ]
 }

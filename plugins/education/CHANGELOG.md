@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-28
+
+### Added
+
+- **`explain`:** an offered HTML view for the research and concept explainer genre (#3606). The markdown explanation stays the deliverable. The page is built only after the reader accepts, by `build-concept-view.mjs`, which escapes every field through the shared helper.
+
 ## [0.11.3] - 2026-09-27
 
 ### Fixed

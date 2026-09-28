@@ -14,6 +14,14 @@ rule, genre rubric, or cascade keys.
   repository's files stay in place until those lanes are wired through the
   helper. No boundary-rule, genre, or cascade-key change.
 
+## Reports and research offer lanes, 2026-09-28
+
+- **`education:explain` and `testing:audit` offer HTML views (#3606).** Research
+  and concept explainer, and report. Offer, not emit: the markdown record stays
+  the deliverable. Each lane names its genre and stays inside the 40-line
+  budget. The escape helper gains education and testing as adopters. No
+  boundary-rule, genre-list, or cascade-key change.
+
 ## Interactive userConfig smoke test, 2026-09-28
 
 - **Parked until a CLI host funds the interactive smoke (#3604).** The

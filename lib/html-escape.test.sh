@@ -205,6 +205,87 @@ check(
     skill.includes("build-explainer.mjs"),
 );
 
+async function exerciseOfferedBuilder(label, builderRel, exportName, model, fragments) {
+  const builderPath = `${root}/${builderRel}`;
+  const builderUrl = pathToFileURL(builderPath).href;
+  const imported = await import(builderUrl);
+  const build = imported[exportName];
+  const page = build(model);
+  const verdict = validateRenderedPage(page);
+  check(`${label} page passes the validator`, verdict.ok, verdict.failures.join(","));
+  check(`${label} hostile markup is not a live script tag`, !/<script[\s>]/i.test(page)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  check(
+    `${label} quote and angle-bracket payloads are inert text`,
+    fragments.every((item) => page.includes(escapeHtml(item))),
+  );
+  const source = readFileSync(builderPath, "utf8");
+  const pageFn = source.slice(
+    source.indexOf(`export function ${exportName}`),
+    source.indexOf("function readStdin"),
+  );
+  const interpolations = pageFn.match(/\$\{[^}]+\}/g) ?? [];
+  const stray = interpolations.filter(
+    (item) => !/^\$\{(?:e\(|termRows\(|findingRows\(|CSS)/.test(item),
+  );
+  check(
+    `${label} template interpolates only escaped calls or pre-escaped fragments`,
+    stray.length === 0,
+    stray.join(" "),
+  );
+  const cli = spawnSync(process.execPath, [builderPath], {
+    input: JSON.stringify(model),
+    encoding: "utf8",
+  });
+  check(
+    `${label} CLI emits the same page as the function`,
+    cli.status === 0 && cli.stdout === page,
+    `status ${cli.status} ${cli.stderr}`,
+  );
+}
+
+const conceptHostile = `<img src=x onerror=alert(1)>`;
+await exerciseOfferedBuilder(
+  "concept",
+  "plugins/education/skills/explain/scripts/build-concept-view.mjs",
+  "buildConceptPage",
+  {
+    title: conceptHostile,
+    analogy: `"><script>alert(1)</script>`,
+    doing: "javascript:alert(1)",
+    terms: [{ term: conceptHostile, plain: "data:text/html,<script>alert(1)</script>" }],
+    next_rung: "'><img src=x onerror=alert(1)>",
+  },
+  [conceptHostile, `"><script>alert(1)</script>`],
+);
+const explainSkill = readFileSync(`${root}/plugins/education/skills/explain/SKILL.md`, "utf8");
+check(
+  "explain names the research genre and keeps markdown as the deliverable",
+  explainSkill.includes("Genre: research and concept explainer.") &&
+    explainSkill.includes("The markdown explanation is the deliverable.") &&
+    explainSkill.includes("build-concept-view.mjs"),
+);
+
+const auditHostile = `</td></tr><script>alert(1)</script>`;
+await exerciseOfferedBuilder(
+  "audit",
+  "plugins/testing/skills/audit/scripts/build-audit-view.mjs",
+  "buildAuditPage",
+  {
+    title: auditHostile,
+    summary: conceptHostile,
+    coverage: `" onmouseover="alert(1)`,
+    findings: [{ rule: conceptHostile, location: auditHostile, detail: "https://evil.example/payload" }],
+  },
+  [auditHostile, conceptHostile],
+);
+const auditSkill = readFileSync(`${root}/plugins/testing/skills/audit/SKILL.md`, "utf8");
+check(
+  "audit names the report genre and keeps the findings record",
+  auditSkill.includes("Genre: report.") &&
+    auditSkill.includes("The markdown findings record is the deliverable.") &&
+    auditSkill.includes("build-audit-view.mjs"),
+);
+
 if (failed > 0) process.exit(1);
 NODE
 

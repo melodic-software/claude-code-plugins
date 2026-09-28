@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-09-28
+
+### Added
+
+- **`audit`:** an offered HTML view for the report genre (#3606). The markdown findings record stays the deliverable a later fix pass re-reads. The page is built only after the reader accepts, by `build-audit-view.mjs`, which escapes every field through the shared helper.
+
 ## [0.9.3] - 2026-09-28
 
 ### Changed

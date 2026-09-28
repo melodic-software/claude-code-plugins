@@ -309,6 +309,14 @@ which is another cost of copying.
 - **Recheck:** a lane that cannot cite a public page-shape and must ship a
   checked-in HTML page of its own, or a license change on either source.
 
+## Offer lanes after wave 1
+
+`education:explain` offers a research and concept explainer view. `testing:audit`
+offers a report view of the can't-fail findings. Both keep the markdown record
+as the deliverable and build a page only after the reader accepts. Neither
+copies `html-chrome.html`. Each builder inlines the token floor the way
+`review:pr-explainer` does, and each plugin carries `lib/html-escape.mjs`.
+
 ## What this convention does not do
 
 - It never makes HTML the record: the markdown record stays authoritative everywhere.

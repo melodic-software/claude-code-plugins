@@ -132,6 +132,26 @@ the file suppresses every config finding. Exemptions are counted in the coverage
   which configure the runner in their own surfaces rather than in a config object read here.
 - **Write anything on bare invocation**. Persisting is only ever behind `--persist-findings`.
 
+## Offered HTML view
+
+Genre: report. The markdown findings record is the deliverable. A later fix pass re-reads that record, so the view is offered rather than emitted. The page has no loop-closure control.
+
+Offer the page in one sentence after the markdown report. Do not write a file, and do not paste HTML, as part of the offer.
+
+Build the page only when the reader accepts and the environment can serve a local file. A CI run or any other non-interactive run does not emit the page: say that the environment cannot serve a view, and stop. The markdown stands.
+
+When you build, pass JSON on stdin. `findings` are the rows the detector already printed. Do not rescan in order to fill them.
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/build-audit-view.mjs" <<'EOF'
+{"title":"","summary":"","coverage":"","findings":[{"rule":"","location":"","detail":""}]}
+EOF
+```
+
+Write stdout to an untracked temp file. Do not `git add` it. Tell the reader the path. The builder escapes every field and stamps the generator marker. Do not hand-write the HTML and do not pre-escape values. `${CLAUDE_SKILL_DIR}/scripts/build-audit-view.mjs --check <file>` flags a page that bypasses the builder.
+
+Palette and the accessibility floor are the inlined chrome tokens. Node missing: deliver the markdown and say the page was not built.
+
 ## Next
 
 - A finding names a test that needs a real assertion: `/testing:write`.

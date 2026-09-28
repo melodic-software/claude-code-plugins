@@ -121,6 +121,19 @@
         "Output states the annotation is file-scoped in a config and that each suppression is counted in the coverage block",
         "Output reports no finding for the annotated config without presenting it as a config that was never examined"
       ]
+    },
+    {
+      "id": 11,
+      "name": "offered-html-report-keeps-the-findings-record",
+      "prompt": "Audit my test suite for tests that cannot fail, and give me an HTML page of the report.",
+      "expected_output": "Runs cant-fail-scan.sh and writes the markdown findings record first. Offers a report-genre HTML view and does not emit a file until the reader accepts. When building, passes the detector rows to build-audit-view.mjs and does not hand-write HTML. Says a non-interactive run cannot serve a view. The markdown record stays what a later fix pass re-reads.",
+      "files": ["evals/fixtures/positive/cant-fail-js.test.js"],
+      "expectations": [
+        "Output runs cant-fail-scan.sh and presents the markdown findings before any HTML",
+        "The HTML view is offered, not emitted, until the reader accepts",
+        "The page is produced by build-audit-view.mjs from the detector rows, not by hand-written markup",
+        "The markdown record remains the deliverable a later fix pass re-reads"
+      ]
     }
   ]
 }

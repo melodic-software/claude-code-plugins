@@ -108,6 +108,30 @@ path, the first-party sibling in this same plugin:
 One line, standard close. `explain` is one-shot; `teach` is the persistent,
 mission-driven coach when the user wants ongoing depth or practice.
 
+## Offered HTML view
+
+Genre: research and concept explainer. The markdown explanation is the deliverable. The page is an offered view of that prose, not a diagram. A diagram is still `/education:eli5`.
+
+Offer the page in one sentence after the explanation. Do not write a file, and do not paste HTML, as part of the offer.
+
+Build the page only when the reader accepts and the environment can serve a local file. A CI run or any other non-interactive run does not emit the page: say that the environment cannot serve a view, and stop. The markdown stands.
+
+When you build, pass JSON on stdin:
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/build-concept-view.mjs" <<'EOF'
+{"title":"","analogy":"","doing":"","terms":[{"term":"","plain":""}],"next_rung":""}
+EOF
+```
+
+Write stdout to an untracked temp file. Do not `git add` it. Tell the reader the path. The builder escapes every field and stamps the generator marker. Do not hand-write the HTML and do not pre-escape values. `${CLAUDE_SKILL_DIR}/scripts/build-concept-view.mjs --check <file>` flags a page that bypasses the builder.
+
+The page has no loop-closure control and no script. Palette and the accessibility floor are the inlined chrome tokens. Node missing: deliver the markdown and say the page was not built.
+
+## Next
+
+/education:teach
+
 ## Gotchas
 
 - **Don't climb unasked.** The default is rung 1. Delivering the peer-level
