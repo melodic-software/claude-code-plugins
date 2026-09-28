@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [0.38.11] - 2026-09-28
+
+### Changed
+
+- **`workflow` names its two ordered slots**
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  `arguments: [mode, modifier]` maps `$mode` to the first argument and `$modifier` to the second.
+  An empty mode is the default row. An empty modifier on `continue` stays suggest-only. `auto` is
+  still the only modifier.
+
 ## [0.38.10] - 2026-09-28
 
 ### Changed

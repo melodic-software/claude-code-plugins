@@ -1235,6 +1235,81 @@ else
   fail "a # glued to the value should fail as malformed: $out"
 fi
 
+# write_arg_body <plugin> <skill> <hint-or-dash-to-omit> -- body on stdin.
+# Hint "-" omits argument-hint. The frontmatter always carries description.
+write_arg_body() {
+  local plugin="$1" skill="$2" hint="$3"
+  mkdir -p "$TMP/plugins/$plugin/skills/$skill"
+  {
+    echo '---'
+    echo 'description: "Fixture skill."'
+    if [[ "$hint" != "-" ]]; then
+      printf 'argument-hint: "%s"\n' "$hint"
+    fi
+    if [[ "$hint" == "NAMED" ]]; then
+      echo 'arguments: [tier]'
+    fi
+    echo 'disable-model-invocation: false'
+    echo '---'
+    echo
+    cat
+  } >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
+}
+
+# --- 8c. Unescaped $N in a skill that admits arguments (#3543). -------------
+ARG_DOC='skill-authoring/SKILL.md'
+
+reset_fixture
+make_plugin argname ""
+printf 'Use $1 here.\n' | write_arg_body argname digit '[mode]'
+out="$(run_fixture)"
+if has_fail_line 'unescaped \$1' && grep -q "$ARG_DOC" <<<"$out" &&
+  grep -q 'argname/skills/digit/SKILL.md' <<<"$out"; then
+  ok "an unescaped \$1 in a skill with an argument-hint fails"
+else
+  fail "an unescaped \$1 should fail: $out"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Use \$1 here.\n' | write_arg_body argname escaped '[mode]'
+out="$(run_fixture)"
+if grep -q 'argname/skills/escaped/SKILL.md' <<<"$out"; then
+  fail "a single-backslash escape should pass: $out"
+else
+  ok 'a single-backslash \$1 passes'
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Use $1 in a shell example.\n' | write_arg_body argname noarg -
+out="$(run_fixture)"
+if grep -q 'argname/skills/noarg/SKILL.md' <<<"$out"; then
+  fail "a no-argument skill should keep a literal \$1: $out"
+else
+  ok "a no-argument skill may contain \$1"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Price is \\\\$1 today.\n' | write_arg_body argname doubled NAMED
+out="$(run_fixture)"
+if has_fail_line 'unescaped \$1' && grep -q 'argname/skills/doubled/SKILL.md' <<<"$out"; then
+  ok "a doubled backslash does not escape \$1"
+else
+  fail "a doubled backslash before \$1 should fail: $out"
+fi
+
+reset_fixture
+make_plugin argname ""
+printf 'Parse $ARGUMENTS only.\n' | write_arg_body argname plain '[mode]'
+out="$(run_fixture)"
+if grep -q 'argname/skills/plain/SKILL.md' <<<"$out"; then
+  fail "\$ARGUMENTS without \$N should pass: $out"
+else
+  ok "\$ARGUMENTS without an indexed placeholder passes"
+fi
+
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?
