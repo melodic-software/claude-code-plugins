@@ -167,8 +167,9 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
-        "boundary_section": true
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": true
       },
       "budget_caveat": true
     },

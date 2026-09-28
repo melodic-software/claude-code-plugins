@@ -3,6 +3,25 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
+
+## [0.15.9] - 2026-09-28
+
+### Changed
+
+- **CI-canary host parked (#4282).** `melodic-software/claude-lane-sandbox` stays
+  archived; this marketplace does not grow a `claude-code-action` canary
+  workflow. Cutover condition 2 continues to rest on the knowledge-corpus run
+  already recorded in `reference/sources.md`. A maintainer who wants the two-pin
+  three-case matrix runs it on a host they choose and replaces that run id.
+
 ## [0.15.8] - 2026-09-28
 
 ### Fixed

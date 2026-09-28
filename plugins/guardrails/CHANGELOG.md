@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
 ## [0.40.0] - 2026-09-28
 
 ### Changed

@@ -444,7 +444,7 @@ declares_both_fixtures B "$CASE_B"
 # frontmatter key states or qualifies either.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "4b5a32a41e797942dd400feb1a0f45d136de8d1ab5f0ceb490d8455ce04c6cd5"
+  "e2a73d2443b93e7a5bfec83f083aff9877aad6151b2fab0316cdd1dbc15181d7"
 
 # The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
 # question to its recommendation — the auto-guard applies inside rounds too"), and the

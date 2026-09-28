@@ -275,7 +275,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the non-UI smoke lane has no native counterpart in this extraction
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `simplify` → `code-tidying:batch-simplify`
