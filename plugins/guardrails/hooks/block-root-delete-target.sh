@@ -293,8 +293,8 @@ PAYLOAD_CWD=""
 RDT_CWD_NUL=0
 
 # Bash and PowerShell only. Exiting on every other tool keeps this guard off
-# the classifier's load path: the PowerShell lane uses a dedicated tokenizer
-# below, never ps::classify_git_command.
+# the classifier's load path. The PowerShell lane uses a dedicated tokenizer
+# below and does not call the shared classifier.
 [[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]] || exit 0
 
 # Nothing to inspect.
