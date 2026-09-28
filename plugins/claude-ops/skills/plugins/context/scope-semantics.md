@@ -473,9 +473,24 @@ removed only once it holds no directory or symlink. So a removed marketplace's t
 same clock as any other orphaned version, marketplace folder included, provided the machine keeps
 any plugin installed. The page says nothing about marketplace removal itself; the marker is the
 observation that connects the two. That the sweep actually removes a marked tree under a removed
-marketplace is inferred from the documented rule, not yet observed. **Recheck trigger:** any Claude
-Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
-the cache layout.
+marketplace is still inferred from the documented rule, not observed. The 2026-09-21 recheck
+(#3835) was skipped: the authoring host that held
+`~/.claude/plugins/cache/p3759mkt/` (Claude Code 2.1.263, Windows 11 Pro, marker
+`1788678603191`) was wiped on 2026-09-15 (#4186), so the tree was gone before the
+14-day clock could be watched. Re-plant on a durable host, keep at least one
+plugin installed, and recheck 14 days after the new marker.
+
+- **Claim:** the orphan sweep's removal of a *removed marketplace's* cache tree
+  remains unobserved; the documented 14-day rule is unchanged.
+- **Basis:** #3835 (probe planted 2026-09-06 on Claude Code 2.1.263); #4186
+  (authoring host wiped 2026-09-15). This checkout has no Windows 11 Claude Code
+  host and no `p3759mkt` tree to inspect. plugins-reference "Plugin cache"
+  (fetched 2026-09-06) is still the documented clock.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** a re-planted throwaway marketplace whose `.orphaned_at`
+  marker is at least 14 days old on a machine that still has some other plugin
+  installed, or any Claude Code release note or `plugins-reference` change
+  touching marketplace removal, the orphan sweep, or the cache layout.
 
 **That observation was taken after an `uninstall`, with no install record left for the removal to
 find.** With plugins from the marketplace still installed, the same command deletes their records at

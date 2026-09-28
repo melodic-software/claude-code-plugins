@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.23] - 2026-09-28
+
+### Changed
+
+- **`marketplace remove` orphan-sweep observation skipped (#3835).** The 2026-09-21
+  recheck of `~/.claude/plugins/cache/p3759mkt/` could not run: the authoring host
+  was wiped on 2026-09-15 (#4186). `scope-semantics.md` now records that skip; the
+  documented 14-day sweep rule is unchanged and still unobserved for a removed
+  marketplace. Re-plant on a durable host.
+
 ## [0.63.22] - 2026-09-28
 
 ### Changed
