@@ -9,7 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`zone-crossing-inject` does not source `hook-utils.sh` on the no-crossing path** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The session id and the event name are taken from the leading scalar strings. A backslash, a shape the scan cannot prove, a band crossing, and any emit still load the library. On this host (`spawn_probe` measurable, `bash -c :` p50 0.77 ms, n=22) the same-zone rewrite fell from 10.4 S to 2.88 S, with 0 child processes. Crossing text is unchanged. The goal is `reference/zone-crossing/PLAN.md`.
+- **`zone-crossing-inject` does not source `hook-utils.sh` on the no-crossing path** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The session id and the event name are taken from the leading scalar strings. A backslash, a shape the scan cannot prove, a band crossing, and any emit still load the library. On this host (`spawn_probe` measurable, `bash -c :` p50 0.77 ms, n=22) the same-zone rewrite fell from 10.4 S to 2.88 S, and the script starts no child process. Crossing text is unchanged. The goal is `reference/zone-crossing/PLAN.md`.
+- **A snapshot rewrite that cannot cross reuses the last zone** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). When only `captured_at` moved (still fresh), or `used_percentage` moved inside the same shipped band with every other byte unchanged and no `zones.json`, the hook reuses the word recorded in `state/<session>.inputs` and does not start the resolver. The census row `context-guard-posttoolbatch-same-zone-rewrite-spawns` fell from 7 to 3 spawns.
 
 ## [0.7.84] - 2026-09-28
 
