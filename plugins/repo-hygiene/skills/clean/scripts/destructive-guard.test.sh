@@ -231,6 +231,8 @@ assert_not_contains "ungated tool block reason offers no ack spelling" "$ungated
 for cmd in \
   "bash /d/plugins/clean-batch.sh --tier all --apply --batch-plan /tmp/p" \
   "bash scripts/remove-path.sh --apply /d/repos/foo" \
+  "bash \"scripts/remove-path.sh\" --apply /d/repos/foo" \
+  "bash scripts/remove-path.sh '--apply' /d/repos/foo" \
   "bash scripts/git-tree-reset.sh --apply" \
   "bash scripts/git-tree-reset-batch.sh --apply" \
   "bash scripts/clean-caches.sh --apply --manifest /tmp/m" \

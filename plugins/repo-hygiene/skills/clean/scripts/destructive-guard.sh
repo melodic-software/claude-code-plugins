@@ -74,8 +74,8 @@ is_destructive() {
   # Basename plus --apply, so a path prefix and a dry-run do not both fire.
   # git-tree-reset-batch is its own alternative: git-tree-reset.sh does not
   # match the batch script, because `.sh` has to follow the name.
-  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([[:space:]]|$)' <<<"$cmd" &&
-    grep -qE '(^|[[:space:]])--apply([[:space:]]|$)' <<<"$cmd"; then
+  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([[:space:]"'\'']|$)' <<<"$cmd" &&
+    grep -qE '(^|[[:space:]"'\''])--apply([[:space:]"'\'']|$)' <<<"$cmd"; then
     return 0
   fi
   if grep -qE "git[[:space:]]+${gopt}worktree[[:space:]]+remove[[:space:]]" <<<"$cmd" &&
