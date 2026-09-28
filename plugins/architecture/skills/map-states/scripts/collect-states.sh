@@ -186,9 +186,19 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
     if (t ~ /^initial:/) { initial = unquote(trim(substr(t, index(t, ":") + 1))); sub(/,.*/, "", initial); initial = unquote(trim(initial)); continue }
     if (t ~ /^states:/) { mode = "states"; continue }
     if (mode == "states" && t ~ /^[A-Za-z_][A-Za-z0-9_]*:/) {
-      state = t; sub(/:.*/, "", state); add_state(ent, state); mode = "state"; continue
+      state = t; sub(/:.*/, "", state); add_state(ent, state); mode = "state"
+      sub(/^[^:]+:/, "", t); t = trim(t)
+      if (t ~ /^\{[[:space:]]*type:[[:space:]]*[\047"]final[\047"][[:space:]]*\},?$/) {
+        final[ent SUBSEP state] = 1
+        mode = "states"
+        continue
+      }
+      if (t == "" || t == "{" || t ~ /^\{\},?$/) {
+        if (t ~ /^\{\}/) mode = "states"
+        continue
+      }
     }
-    if (mode == "state" && t ~ /^on:/) { mode = "on"; continue }
+    if (mode == "state" && t ~ /^on:/) { mode = "on"; sub(/^on:[[:space:]]*/, "", t); t = trim(t); if (t == "" || t == "{") continue }
     if (mode == "state" && t ~ /^type:/ && index(t, "final") > 0) { final[ent SUBSEP state] = 1; continue }
     if (mode == "on" && t ~ /^[A-Za-z_][A-Za-z0-9_]*:/ && index(t, "target") == 0) {
       trig = t; sub(/:.*/, "", trig)
@@ -206,14 +216,18 @@ function parse_xstate(path, evidence,    raw, t, ent, initial, state, mode, trig
       }
       add_state(ent, target); add_trans(ent, state, target, trig, guard); continue
     }
-    if (t ~ /^}/) {
-      if (mode == "on") mode = "state"
-      else if (mode == "state") mode = "states"
-      else if (mode == "states") mode = "root"
-      else if (mode == "root") { finish_entity(ent, initial, "xstate", evidence); mode = "out"; ent = ""; initial = "" }
+    if (t ~ /^[{}),; \t]+$/) {
+      closes = gsub(/}/, "", t)
+      while (closes > 0) {
+        if (mode == "on") mode = "state"
+        else if (mode == "state") mode = "states"
+        else if (mode == "states") mode = "root"
+        else if (mode == "root") { finish_entity(ent, initial, "xstate", evidence); mode = "out"; ent = ""; initial = "" }
+        closes--
+      }
+      if (index(t, ")") > 0 && mode == "root") { finish_entity(ent, initial, "xstate", evidence); mode = "out" }
       continue
     }
-    if (t ~ /^\)/ ) { if (mode == "root") finish_entity(ent, initial, "xstate", evidence); mode = "out"; continue }
     if (mode != "out") { fail("unsupported-syntax"); return }
   }
   if (mode != "out") fail("unsupported-syntax")

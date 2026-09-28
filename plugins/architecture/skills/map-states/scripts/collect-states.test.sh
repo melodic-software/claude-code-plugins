@@ -93,5 +93,62 @@ assert_equals "flat exits 1" "$rc" "1"
 assert_contains "flat names layout" "$msg" "one-object-per-line"
 [[ ! -f "$out/flatdir/states.md" ]] && pass "flat writes nothing" || fail "flat wrote a diagram" "present"
 
+xs="$TEST_TMPDIR/xstate"
+init_repo "$xs"
+mkdir -p "$xs/src"
+cat >"$xs/src/machine.js" <<'JS'
+export const machine = createMachine({
+  id: "order",
+  initial: "new",
+  states: {
+    new: {
+      on: {
+        SUBMIT: "submitted",
+      },
+    },
+    submitted: {
+      on: {
+        CANCEL: { target: "cancelled", guard: "canCancel" },
+      },
+    },
+    cancelled: { type: "final" },
+    legacy: {},
+  },
+});
+JS
+git -C "$xs" add src && git -C "$xs" commit -q -m x
+bash "$COLLECT" --repo "$xs" --generated-on 2026-09-28 --out "$out/xs.json"
+assert_equals "xstate collect" "$?" "0"
+xblob="$(cat "$out/xs.json")"
+assert_contains "xstate library" "$xblob" '"library":"xstate"'
+assert_contains "xstate submit" "$xblob" '"trigger":"SUBMIT"'
+assert_contains "xstate cancel target" "$xblob" '"to":"cancelled"'
+assert_contains "xstate guard kept" "$xblob" '"guard":"canCancel"'
+assert_contains "xstate final" "$xblob" '"name":"cancelled","final":"yes"'
+assert_contains "xstate unreachable" "$xblob" '"state":"legacy"'
+assert_not_contains() { case "$2" in *"$3"*) fail "$1" "unexpected [$3]" ;; *) pass "$1" ;; esac }
+assert_not_contains "final is not a dead-end" "$xblob" '"state":"cancelled","detail"'
+mkdir -p "$out/xsdir"
+xsum="$(bash "$RENDER" --record "$out/xs.json" --out "$out/xsdir")"
+assert_equals "xstate render" "$?" "0"
+assert_contains "xstate arrow" "$(cat "$out/xsdir/states.md")" "new --> submitted: SUBMIT"
+assert_contains "xstate confidence" "$xsum" "confidence=high"
+
+inv="$TEST_TMPDIR/invoke"
+init_repo "$inv"
+printf '%s\n' 'createMachine({ id: "o", initial: "a", states: { a: { invoke: { src: "svc" }, on: { GO: "b" } }, b: {} } })' >"$inv/m.js"
+git -C "$inv" add m.js && git -C "$inv" commit -q -m i
+bash "$COLLECT" --repo "$inv" --out "$out/invoke.json" >/dev/null
+assert_equals "invoke collect exits 0" "$?" "0"
+assert_contains "invoke refused" "$(cat "$out/invoke.json")" '"reason": "unsupported-syntax"'
+mkdir -p "$out/invdir"
+set +e
+imsg="$(bash "$RENDER" --record "$out/invoke.json" --out "$out/invdir" 2>&1)"
+irc=$?
+set -e
+assert_equals "invoke draws nothing" "$irc" "3"
+[[ ! -f "$out/invdir/states.md" ]] && pass "invoke writes no diagram" || fail "invoke wrote a diagram" "present"
+assert_contains "invoke names the reason" "$imsg" "unsupported-syntax"
+
 printf 'failed=%s\n' "$FAILED"
 exit "$FAILED"

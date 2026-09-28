@@ -113,11 +113,13 @@ End every run with this block, in this order:
   machine. Basis: <https://c4model.com/diagrams>, fetched 2026-09-28. As of 2026-09-28. Recheck
   when that index adds a state diagram. On firing, decide whether this skill should read
   `landscape_dialect`, and record the outcome in this plugin's `CHANGELOG.md`.
-- **Only an explicit table is drawn.** Stateless `Configure` / `Permit` / `PermitIf`, and XState
-  `createMachine`, are the shipped grammars. A `.Status =` assignment is a refusal. An XState
-  `invoke` is a refusal and contributes no transition. Verified 2026-09-28 against the Stateless
-  configure/permit shape and the XState `createMachine` shape used by the collector tests. Recheck
-  when either library renames those calls.
+- **Only an explicit table is drawn.** Stateless `Configure` / `Permit` / `PermitIf`, and an XState
+  `createMachine` block whose `states` use `on` targets, are the shipped grammars. A `.Status =`
+  assignment is a refusal. An XState `invoke`, `always`, or `after` is a refusal and contributes
+  no transition. Verified 2026-09-28 against
+  <https://github.com/dotnet-state-machine/stateless> (README: `Configure`, `Permit`, `PermitIf`)
+  and <https://stately.ai/docs/machines> (`createMachine` with `id`, `initial`, `states`, and `on`).
+  Recheck when either page drops those calls.
 - **One entity per diagram.** Two machines and no `--entity` is a refusal that names both. Do not
   draw them on one picture.
 - **Unreachable and dead-end are findings, not a failed run.** A state in the table that no
