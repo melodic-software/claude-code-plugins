@@ -27,7 +27,7 @@ per sub-category:
 | --- | --- | --- |
 | `sensitive-file-deny` | `permissions.deny` (Read patterns) | error |
 | `destructive-bash-deny` | `permissions.deny` (Bash patterns) | error |
-| `ask-rules` | `permissions.ask` (Bash patterns) | warning |
+| `ask-rules` | `permissions.ask` (Bash patterns) | warning; info when the team-tracked `.claude/source-control.md` declares an unattended-push lane (narrowing 1) |
 
 The baseline covers the cross-repo security floor (sensitive `.env*` / `secrets/**` /
 `settings.local.json`; destructive `git push --force` / `git push -f` / `git reset --hard` /

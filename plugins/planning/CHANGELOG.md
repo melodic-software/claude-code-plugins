@@ -3,6 +3,61 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0] - 2026-09-28
+
+### Fixed
+
+- **`plan` nested reviews carry brevity, effort, and cost disclosure**
+  ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)). New
+  `agents/plan-reviewer.md` with bounded `effort` and `maxTurns`; Step 3 dispatches it instead of a
+  generic sub-agent after surfacing cost. Step 4 surfaces cost before `/planning:devils-advocate`.
+  Reviewer prompt asks for brief reasoning and a findings table only.
+
+## [0.44.11] - 2026-09-28
+
+### Added
+
+- **`interview` eval case 25, `out-of-band-return-supersedes-before-the-reply`**
+  ([#3945](https://github.com/melodic-software/claude-code-plugins/issues/3945)). It is the async
+  twin of case 12: a sub-agent's return contradicts Q3's recommendation and is queued in the same
+  turn as a reply that accepts that recommendation. It grades the "Out-of-band drift" rule in
+  `context/loop.md`: the queued return is processed against the register as it stood before the
+  reply, so Q3 is not settled on the superseded recommendation and the user's answer is
+  revalidated; Q3 is restated with the superseded recommendation named; the untouched questions
+  get a one-line pointer instead of a re-printed round; and the rest of the frontier did not wait
+  for the lookup. `interview-defenses.test.sh` updates the roster digest and pins the new case
+  beside case 12.
+
+## [0.44.10] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (part of #4657).** Eight of the 12
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: step lists, artifact names,
+  mode details, and restated scope. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 5,454 characters. `interview` stays at 969: its whole frontmatter is digest-pinned by
+  `tests/interview-defenses.test.sh`, and recomputing that pin is left to an attended change. No
+  skill is renamed or merged, and invocation modes are unchanged.
+
+## [0.44.9] - 2026-09-28
+
+### Fixed
+
+- **`plan`: the approval gate has an unattended branch, the reviewer brief an evidence mandate,
+  and phases a merge floor.**
+  - Step 5 says the gate does not vanish without a human: an unattended run approves only under
+    a standing mandate covering the plan, and records the mandate, who granted it, and the
+    review surface (for example the PR) in PLAN.md's new `Approval:` line; with no mandate it
+    stops and reports the plan unapproved. The anatomy template carries the line and the final
+    persist step fills it.
+  - The Step 3 reviewer prompt carries the devil's advocate evidence mandate (never
+    training-data recall) and runs a read-only probe (`--dry-run`, `--help`, `list`,
+    `--version`) wherever the plan depends on a tool's behavior, citing its output.
+  - A phase merge floor beside the promotion trigger: a one-file, few-line phase with no
+    verification need of its own merges into the adjacent phase it serves.
+  - New eval for the unattended approval basis (#4278).
+
 ## [0.44.8] - 2026-09-28
 
 ### Fixed

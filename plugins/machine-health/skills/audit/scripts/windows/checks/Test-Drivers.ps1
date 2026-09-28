@@ -17,6 +17,52 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Get-GpuDriverInfo.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-VendorUpdateCli.ps1')
 
+function Get-ActiveDefenderPlatformVersion {
+    <#
+    .SYNOPSIS
+    The platform folder name (e.g. 4.18.25010.11-0) the running Defender engine
+    loaded from, read from the WinDefend service ImagePath; $null when unreadable.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    try {
+        $imagePath = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\WinDefend' `
+                -Name ImagePath -ErrorAction Stop).ImagePath
+        if ("$imagePath" -match '\\Windows Defender\\Platform\\([^\\"]+)\\') { return $Matches[1] }
+    } catch {
+        Write-Verbose "Test-Drivers: WinDefend ImagePath unreadable. $($_.Exception.Message)"
+    }
+    return $null
+}
+
+function Test-DefenderPlatformEvent {
+    <#
+    .SYNOPSIS
+    True when every image path a CodeIntegrity event names sits under the active
+    Defender platform folder: the benign shape a platform rollover produces.
+
+    .DESCRIPTION
+    Event paths arrive as \Device\HarddiskVolumeN\... or <drive>:\..., so the
+    match is on the folder tail rather than %ProgramData%. An event that also
+    names a path outside that folder (a platform process loading a foreign
+    image) is kept, so the exclusion can never hide a third-party load.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)] $EventRecord,
+        [string] $PlatformVersion
+    )
+    if ([string]::IsNullOrWhiteSpace($PlatformVersion)) { return $false }
+    $message = if ($EventRecord.PSObject.Properties['Message']) { "$($EventRecord.Message)" } else { '' }
+    if (-not $message) { return $false }
+    $pathStarts = [regex]::Matches($message, '\\Device\\|\b[A-Za-z]:\\').Count
+    $needle = [regex]::Escape("\Windows Defender\Platform\$PlatformVersion\")
+    $platformPaths = [regex]::Matches($message, $needle, 'IgnoreCase').Count
+    return ($pathStarts -gt 0 -and $platformPaths -eq $pathStarts)
+}
+
 function Invoke-DriversCheck {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -47,8 +93,10 @@ function Invoke-DriversCheck {
                 [string]::IsNullOrWhiteSpace($_.SignerName)
             })
 
-        # The kernel logs CodeIntegrity 3001/3004 when it refuses a driver for signature or
-        # catalog violations; any such event in the last 7 days is a real finding.
+        # The kernel logs CodeIntegrity 3001/3004 when it refuses an image for signature or
+        # catalog violations. Events under the active Defender platform folder follow a
+        # platform rollover and are excluded; a survivor is WARN here, and the trend
+        # engine raises it to CRIT only when it recurs across runs (check-catalog.md section 8).
         $ciCutoff = (Get-Date).AddDays(-7)
         $ciEvents = @()
         try {
@@ -63,6 +111,15 @@ function Invoke-DriversCheck {
             }
         }
         $ciEvents = @($ciEvents | Where-Object { $_.TimeCreated -ge $ciCutoff })
+        $platformVersion = $null
+        if ($ciEvents.Count -gt 0) { $platformVersion = Get-ActiveDefenderPlatformVersion }
+        $platformEventCount = @($ciEvents | Where-Object {
+                Test-DefenderPlatformEvent -EventRecord $_ -PlatformVersion $platformVersion
+            }).Count
+        $ciEvents = @($ciEvents | Where-Object {
+                -not (Test-DefenderPlatformEvent -EventRecord $_ -PlatformVersion $platformVersion)
+            })
+        $ciNewest = $ciEvents | Sort-Object TimeCreated -Descending | Select-Object -First 1
 
         # Age signal: stays INFO only. Many OEM drivers are old-but-correct.
         $threeYearsAgo = (Get-Date).AddYears(-3)
@@ -127,11 +184,10 @@ function Invoke-DriversCheck {
         }
 
         # Severity rubric: pnputil problem devices + pending driver updates upgrade
-        # severity even past the existing signing + age rules.
+        # severity even past the existing signing + age rules. One run's CodeIntegrity
+        # reading caps at WARN; CRIT needs the repeat Invoke-TrendAnalysis checks.
         $severity = 'OK'
-        if ($ciEvents.Count -gt 0) {
-            $severity = 'CRIT'
-        } elseif ($unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {
+        if ($ciEvents.Count -gt 0 -or $unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {
             $severity = 'WARN'
         } elseif (($null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0) -or
             $oldSignedCount -gt 0) {
@@ -141,7 +197,11 @@ function Invoke-DriversCheck {
         $summaryParts = [System.Collections.Generic.List[string]]::new()
         $summaryParts.Add("$($drivers.Count) drivers")
         $summaryParts.Add("$($unsignedInStore.Count) unsigned in store")
-        $summaryParts.Add("$($ciEvents.Count) CodeIntegrity event(s) in 7d")
+        $ciPart = "$($ciEvents.Count) CodeIntegrity event(s) in 7d"
+        if ($platformEventCount -gt 0) {
+            $ciPart += " ($platformEventCount under the active Defender platform folder excluded)"
+        }
+        $summaryParts.Add($ciPart)
         $summaryParts.Add("$oldSignedCount signed >3yr old")
         if ($problemDevices.Count -gt 0) {
             $summaryParts.Add("$($problemDevices.Count) device(s) with problem codes")
@@ -159,6 +219,14 @@ function Invoke-DriversCheck {
             unsigned_in_store_count    = $unsignedInStore.Count
             unsigned_in_store          = @($unsignedInStore | Select-Object -First 20)
             code_integrity_event_count = $ciEvents.Count
+            # Unix seconds, not an ISO string: ConvertFrom-Json turns ISO strings into
+            # DateTime, which the history flattener drops. The trend engine's repeat
+            # rule needs a newer event than the prior run's newest, not the same
+            # event re-read inside the 7-day window.
+            code_integrity_newest_event_unix = $ciNewest ?
+                ([datetimeoffset]$ciNewest.TimeCreated).ToUnixTimeSeconds() : $null
+            code_integrity_platform_excluded_count = $platformEventCount
+            defender_platform_version  = $platformVersion
             code_integrity_events      = @($ciEvents | ForEach-Object {
                     [pscustomobject]@{
                         provider_name = $_.ProviderName

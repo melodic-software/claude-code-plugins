@@ -228,7 +228,7 @@ the values you mean, never on the complement:
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
 1. **Mergeable pre-check (MANDATORY before polling):** `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows. Integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
-2. **Poll CI:** `gh pr checks <N>` (REST check-runs instead when more than one worker polls, per "Polling CI from more than one worker" below) every 30s (the standard monitor cadence), max 15 minutes per cycle. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
+2. **Poll CI:** `gh pr checks <N>` (REST check-runs instead when more than one worker polls, per "Polling CI from more than one worker" below) every 30s (the standard monitor cadence), max 15 minutes per cycle. Never `--watch`; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments:** on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately:** if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure:** route to 3.2 (research-driven fix)
@@ -246,7 +246,8 @@ and `PR_NUMBER` set. They emit one `name: bucket` line per check with the same r
 latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`), and they
 always read commit statuses, which the check-runs endpoint omits. So every predicate above that
 keys on a bucket works unchanged. The Monitor watch always uses this read, since babysit-prs arms
-one watch per PR; a one-off read in a single session may keep `gh pr checks`.
+one watch per PR; a one-off read in a single session may keep `gh pr checks`, but a wait never
+uses `--watch` (see "Waiting on a pending check" below).
 
 Why: both `gh` commands query GraphQL (`GH_DEBUG=api` shows `POST /graphql` for `gh pr checks`
 and for `gh pr view --json state`), and
@@ -262,6 +263,64 @@ both APIs, so REST polling does not raise it. Verified 2026-09-25, and 2026-09-2
 and [Rate limits for the GraphQL API](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
 Recheck when either rate-limits page changes its secondary-limit figures, or when a `gh` release
 note says `pr checks` or `pr view` moved off GraphQL or changes the `pr checks` bucket mapping.
+
+### Waiting on a pending check
+
+Any wait longer than one read is a REST poll on a fixed schedule, never `gh pr checks --watch`,
+whatever the worker count. `--watch` re-runs its GraphQL query every `--interval` seconds (default
+10) until every check settles, so its cost grows with how long the wait lasts, not with how much
+changes. A single session that watched a job sitting in a saturated self-hosted queue exhausted the
+account's GraphQL limit before the job had started. Poll with the §3.0.1 REST read at the monitor
+cadence: 30s in the Monitor watch, 60-90s in a blocking loop (§3.0.0), and never faster while every
+pending check is queued.
+
+Before the first wait, split `pending` into **queued** and **running**. The bucket cannot tell them
+apart: every status short of `completed` (`queued`, `in_progress`, `waiting`, `requested`,
+`pending`) lands in `pending`. Read the unfinished Actions jobs for the head SHA instead:
+
+```bash
+gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
+  --jq '.workflow_runs[] | select(.status != "completed") | .id' | tr -d '\r' |
+  while read -r run_id; do
+    gh api --paginate "repos/$OWNER/$REPO/actions/runs/$run_id/jobs?per_page=100" \
+      --jq '.jobs[] | select(.status != "completed") | "\(.name) | \(.status) | \(.labels | join(",")) | created \(.created_at)"'
+  done | tr -d '\r'
+```
+
+A `queued` job has no runner yet, and its `labels` are its `runs-on` set. Report it as queued, with
+its labels and its age since `created_at` (`test: queued on self-hosted,linux for 41m`), never as a
+slow job. When the token can list runners (`GET /repos/{owner}/{repo}/actions/runners`, or
+`GET /orgs/{org}/actions/runners` for an org pool; both need admin access), add the pool's
+occupancy for that label set. Count the runners whose `labels[].name` include every job label: the
+ones with `busy` true over the ones with `status` `online` (`9/9 busy`). A non-admin token gets a
+403 there; report `runner capacity not readable with this token` rather than guessing. A check that
+is not an Actions job (an app's check run, a commit status) has no job record. Its check-run
+`status` still separates `queued` from `in_progress`, just without a label.
+
+The two states call for different action, so the report names which one it is:
+
+- **Running** (`in_progress`): the wait is a property of the change and its tests. Keep polling; a
+  job well past its usual duration is worth opening its log.
+- **Queued behind a busy pool:** the wait is a capacity property of the runner fleet, and nothing on
+  the branch shortens it. Keep the cadence above, report the queue state when it changes rather than
+  on every poll, and raise capacity with whoever owns the pool instead of touching the change.
+- **Queued with no online runner for the label, or queued past the stuck threshold:** nothing will
+  pick it up. Route it per the babysit-prs
+  [stuck-checks reference](../../babysit-prs/reference/stuck-checks.md) (`stuck_queued`).
+
+**Claim:** a long CI wait must poll REST on a fixed schedule and must not use `gh pr checks
+--watch`; a `pending` check is reported as queued or running before the wait starts.
+**Basis:** `gh pr checks --help` (`--interval` default 10) on gh 2.99.0; [Workflow
+jobs](https://docs.github.com/en/rest/actions/workflow-jobs) (`status`, `labels`, `runner_name`);
+[Self-hosted runners](https://docs.github.com/en/rest/actions/self-hosted-runners) (`busy`,
+`status`, `labels`; admin access); [Check runs](https://docs.github.com/en/rest/checks/runs)
+(six `status` values); [Best practices for using the REST
+API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
+("poll only as often as you need to, on a fixed schedule"). Probe on this marketplace's repo the
+same day: jobs read succeeded; both runner-list endpoints returned 403 to a non-admin token.
+Issue #3955 evidence: `--watch` exhausted GraphQL while a self-hosted `test` job was still queued.
+**As of:** 2026-09-28. **Recheck:** when a `gh` release changes `--watch`'s transport or default
+interval, or when either runners endpoint changes its permission requirement.
 
 Compare triggered workflows against the expected set from Phase 2.5. Flag mismatches.
 

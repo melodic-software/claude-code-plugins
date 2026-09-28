@@ -31,6 +31,21 @@ If the user is unavailable, **stop and say what is blocked**. Do not pick a targ
 
 ## What a goal must contain
 
+### 0. Inputs: the ranked candidate
+
+Read the ranking `/performance:target` produced and quote the chosen candidate's row verbatim
+(rank, tier, what is known, the settling counter, the cheapest next instrument). That row is the
+object this goal is about, and its tier is the one the Output's `Target` line carries.
+
+- **The ranking says to instrument this candidate first** (its tier is E3 or E4, or its closing
+  line says the recommendation is to instrument, not to optimize): **STOP.** A goal cannot be
+  set on a cost nobody has measured. The next step is the named instrument, then
+  `/performance:target` again.
+- **No ranking exists** (the user came straight here with a chosen, measured target): record the
+  evidence the user names and the tier it earns under `/performance:target`'s tier table. Never
+  leave the tier blank or fill it with the baseline's tier, which answers a different question
+  about a different object.
+
 ### 1. The metric, and the exact command that produces it
 
 Not "latency". The literal command, its arguments, and the field of its output that is the number.
@@ -51,13 +66,28 @@ network split each falls on. Name the start state too (cold start, fresh load, w
 different measurement. End at the moment the user or caller can act, not when loading finishes.
 See [goal and boundary](../../reference/techniques.md#b-define-the-goal-and-its-boundary).
 
+**Scaling arm when state grows with use.** When the subject **reads state whose size grows with
+real use** (session transcripts, append-only logs, unbounded histories, caches that accumulate
+entries), a single-size measurement can pass while realistic use fails. The metric MUST be measured
+at **two or more sizes** spanning realistic use (for example 50 KB and 10 MB on the same transcript
+shape, not two sizes that exercise different code paths). Record each arm's size and result. **Done
+when** must state whether cost stays flat as size grows, or grows only within a stated bound (for
+example "p50 does not grow faster than linear in transcript bytes"). If the bound is unknown,
+`unproven` is legal and travels to verify like `Correlation:`. `/performance:target` should flag
+such candidates when ranking; if it did not, name the growing-state read here anyway.
+
 ### 2. The floor, computed before any work
 
 The irreducible cost this target cannot go below whatever the code does. Compute it by measuring the
 cheapest possible version of the operation: the empty hook, the no-op spawn, the single round trip,
 the query returning one row.
 
-`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly.
+`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly. Pass
+its summary to `is_measurable(summary)` and quote the returned reason verbatim before stating any
+wall-clock floor. Contention is a two-part predicate: a spread at or above 3.0x across identical
+no-op spawns AND a slow mode at or above 500 ms. A wide spread alone is a healthy cold-then-warm
+host, so never assert "this host drifts with load" from `spread_ratio` by itself. A False keeps
+the floor in counter terms (spawns per operation) rather than milliseconds.
 
 Then compare:
 
@@ -115,8 +145,9 @@ Boundary:   start <event> -> end <event>; <which side of the split each falls on
 Floor:      <value> (measured by: <command>)
 Realistic:  <value>    Ideal: <value>
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
-Done when:  <criteria, including whether merge is in scope>
-Evidence tier of the target: <E1..E4 from /performance:target>
+Scaling:    <sizes and per-arm results> | n/a (fixed-size subject)
+Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
+Target (from /performance:target): <candidate> @ <E1..E4>
 ```
 
 ## Boundary
@@ -146,3 +177,6 @@ Evidence tier of the target: <E1..E4 from /performance:target>
   signal (the raw events the score is built from) and measure that instead.
 - **A goal built on an E3/E4 candidate must record that.** Optimizing an unmeasured target can
   succeed against its own metric and change nothing a user perceives.
+- **One size is not enough when the subject re-reads growing state.** A hook that re-reads the
+  whole transcript can look fine at 50 KB and fail at 10 MB; the scaling arms exist to catch that
+  before work is spent.

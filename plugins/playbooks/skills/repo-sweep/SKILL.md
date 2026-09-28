@@ -36,12 +36,12 @@ carry the meanings below; any other non-zero code is a failed `gh`, `git`, or `j
 | Script | Does | Exit codes |
 |---|---|---|
 | `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when. `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
-| `skill-version.sh <skill>...` | `<skill>@<version>`. `plugin:skill`: the installed plugin's version, `@unknown` when not installed. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 0 |
+| `skill-version.sh [--dir <loaded-dir>] <skill>...` | `<skill>@<version>`. `plugin:skill`: with `--dir` before it, the version of the copy the session loaded, from the nearest `plugin.json` or the plugin cache path, naming on stderr a version that differs from the install record; else the installed plugin's version, `@unknown` when not installed. `REPO_SWEEP_PLUGIN_DIRS` (colon-separated, as passed to `--plugin-dir`) overrides the install record. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 2 `--dir` with no value or no skill after it |
 | `history.sh <catalog>` | TSV id, recommendation (`run`, `rerun`, `rerun-optional`), reason, from merged sweep PRs then `Playbook-Step` trailers | 1 catalog error |
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
 | `state.sh` | `key value` lines: `pr`, `branch`, `pr-state`, `playbook`, `dirty`, `untick-committed <id> <sha> <skill@version>...`, `done-unverified <id>`, `next <id> in-progress\|pending`, `sweep <n> <branch>` | 0 next step found; 1 no markers; 10 no sweep PR; 11 PR merged or closed; 12 dirty tree, step pending; 13 all done; 14 one open sweep on another branch; 15 several open sweeps |
-| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
+| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `report-only <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
 | `guard.sh <base-sha> <pr-snapshot-file>` | Checks a step stayed on the branch and opened no PR | 10 stop (prints `branch-changed`, `base-not-ancestor`, `new-pr` lines); 11 prints `squash git reset --soft <base-sha>` |
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
@@ -66,7 +66,9 @@ Arguments in angle brackets are resolved per repo before the step runs.
 ```
 
 `[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done with
-`committed <short-sha>` or `no findings`. The next step is the first `[~]`, else the first `[ ]`.
+`committed <short-sha>`, `no findings`, or `no fix-eligible findings (N report-only)` when the
+skill produced report-only tiers and the user reviewed them but nothing was edited. The next step
+is the first `[~]`, else the first `[ ]`.
 A `Not run:` list outside the markers records entries left unchecked at plan time.
 
 **Step commit** ends with a `Scope decisions:` section, then one final trailer paragraph:
@@ -106,6 +108,16 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   inference from the 2.1.280 binary, which keys its bundled-skills directory on its own version;
   no docs page states it. Recheck when that docs table changes or a Claude Code release note
   gives bundled skills their own versions.
+- A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
+  `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
+  reports the installed version, which may never have run; `next` passes each skill's loaded
+  directory and stops after an update notice. A `--plugin-dir` sweep sets
+  `REPO_SWEEP_PLUGIN_DIRS` to the same directories. Record: the running session keeps the
+  versions it loaded
+  ([plugins: loading](https://code.claude.com/docs/en/plugins/loading), fetched 2026-09-28);
+  the Skill tool's "Base directory for this skill" line is the only source of the loaded path,
+  and no docs page names it. Recheck when the loading page changes or a plugin env var exposes
+  the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
 - An override exists because the skill hardcodes its own branch, PR, or commit structure. State

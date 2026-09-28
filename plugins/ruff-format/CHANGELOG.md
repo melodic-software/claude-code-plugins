@@ -3,11 +3,23 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-09-28
+
+### Changed
+
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now not fixed, formatted, or reported by Ruff, because a rewrite of an ignored file has no `git checkout` to undo it. Set the new `ruff_format_lint_gitignored` option to `true` to act on gitignored files again. A tracked file that matches an ignore pattern stays in scope, and any failure to decide (git absent, no repository, a `check-ignore` error) acts as before. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`, which follows `markdown-format`'s gate: it consults the index and clears an inherited `GIT_DIR`/`GIT_WORK_TREE`. Ruff's own `respect-gitignore` does not reach a path passed on the command line, even under `--force-exclude`, which is how this hook passes it.
+
 ## [0.7.0] - 2026-09-28
 
 ### Changed
 
 - **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now not fixed, formatted, or reported by Ruff, because a rewrite of an ignored file has no `git checkout` to undo it. Set the new `ruff_format_lint_gitignored` option to `true` to act on gitignored files again. A tracked file that matches an ignore pattern stays in scope, and any failure to decide (git absent, no repository, a `check-ignore` error) acts as before. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`, which follows `markdown-format`'s gate: it consults the index and clears an inherited `GIT_DIR`/`GIT_WORK_TREE`. Ruff's own `respect-gitignore` does not reach a path passed on the command line, even under `--force-exclude`, which is how this hook passes it.
+
+## [0.6.60] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
 
 ## [0.6.59] - 2026-09-27
 

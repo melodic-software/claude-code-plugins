@@ -9,7 +9,9 @@ resolve: which layers exist, what order they resolve in, and what a later layer 
 plugin that reads config from a consuming repo resolves it the same way, so an operator who learns one
 surface has learned all of them.
 
-This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history).
+This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history),
+and topic siblings such as [`consumer-gotchas.md`](consumer-gotchas.md) (concatenating consumer gotchas
+for participating skills, #3547).
 
 ## Boundary: this contract owns the axis, never the keys
 
@@ -265,6 +267,18 @@ surface, or amend this contract) is a separate human-gated decision.
   gitignoring one. Claude Code documents local behavior only for surfaces it actually resolves
   (`CLAUDE.local.md`, `settings.local.json`); a generic `*.local.*` filename has no
   platform-defined meaning.
+- **`source-control` stops `branch_issue_pattern` resolution on an unusable layer (#4673).**
+  Rule 4 of the resolution algorithm would resolve as if a malformed layer were absent. For this
+  one key, `parse-branch-issue.sh` instead fails closed: a layer whose `## branch_issue_pattern`
+  section exists but yields no usable pattern (a near-miss heading, no value, a heading or HTML
+  comment as the first value line, an empty or unterminated fence, or a pattern that fails
+  validation) prints a note naming the layer and the reason, emits no issue number, and exits 1.
+  The consumer is a `Closes #N` line that closes an issue on merge, so a lower layer or the
+  default supplying a different number is worse than no number; the no-number path already exists
+  and `/source-control:pull-request create` relays the note. A higher layer that already supplied
+  a valid pattern still wins, since the lower layer is never read, and a malformed deprecated
+  `userConfig` value is still ignored with a note. Every other `source-control` key keeps the
+  soft degrade.
 
 **Undeclared**, meaning divergence with no recorded rationale:
 
@@ -281,7 +295,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660); enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
+| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660), except the declared fail-closed stop on an unusable `branch_issue_pattern` layer (#4673, see Declared); enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, read by the source-control babysit lane; the work-items lanes tie in via the loop-lane convention only) ride the same surface, with the merge-rung key in the policy-floor class: standing raises bind from the team-tracked layer only, and the one named single-invocation exception is an explicitly typed argument rather than a config value in any layer, per [`loop-lane`](../loop-lane/README.md) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `bugs` | `.claude/bugs.md` | all three | conforms; `lanes` concatenate and deduplicate by lane `name`, with a declared empty-list opt-out that also drops the bundled defaults, and `filing_posture` is a nearest-wins scalar. Keys owned by the plugin's `reference/config.md`, which also partitions them from the plugin's `output_dir` `userConfig` option. That option is never a key in this surface, and a layer declaring it is reported as an inert unknown key. Written (team layer only) by `/bugs:setup apply`, read by `/bugs:scan` |

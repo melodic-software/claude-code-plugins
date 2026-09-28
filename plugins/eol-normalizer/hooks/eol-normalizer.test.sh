@@ -390,7 +390,7 @@ rm -f "$TELS"
 # Without jq the hook cannot parse its input at all; the skip must surface on
 # both channels once per session instead of silently disabling normalization.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
-for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do # portability-ok: names in a PATH shim, not an mktemp -p call
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
@@ -528,7 +528,7 @@ if [[ "$(cr_count "$TRACE_REPO/benign.md")" == "0" ]]; then
 else
   fail "traced benign: fixture is not LF, the trace assertions below are meaningless"
 fi
-for banned in dirname basename mktemp cp cmp perl head wc; do
+for banned in dirname basename mktemp cp cmp perl head wc; do # portability-ok: names in a spawn ban list, not an mktemp -p call
   N="$(trace_execs "$banned" "$TRACE")"
   if [[ "$N" == "0" ]]; then
     ok "traced benign: no $banned spawned"

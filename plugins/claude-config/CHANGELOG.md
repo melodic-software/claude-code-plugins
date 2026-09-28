@@ -3,6 +3,106 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.5] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: parent record for the execution model and the report identity
+  contract (#4113).** New `context/execution-and-report.md` states the two standing contracts
+  the skill body already implements in pieces: token-budgeted plugin-atomic lanes with
+  `--unattended` and `--resume` over per-lane run files, and `(check, claim, sites)` finding
+  identity with I15 as one finding of two sites. Persist admission of I30 to I33 is recorded
+  there as the contract the persist unit satisfies; until those crosswalk rows exist they stay
+  declined `no-severity-crosswalk-row`. Phase D names the identity contract on the findings
+  table. No scanner, emit, or lane-runs change.
+
+## [0.51.4] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` / I15:** point shared-surface *ownership* questions at the rejected-concept
+  ledger entry for #3568 (`docs/out-of-scope/shared-surface-instruction-governance.md`). I15 still
+  detects conflicting pairs only; `conflict-criteria.md` 1.6.1.
+
+## [0.51.3] - 2026-09-28
+
+### Fixed
+
+- **`audit`: unattended-push lane parse accepts CRLF and backticked rungs.** The
+  team-tracked `.claude/source-control.md` reader now strips CR and surrounding
+  backticks/whitespace on the merge value, and the suite pins that shape plus a
+  gawk/mawk PATH shim (#4600).
+
+## [0.51.2] - 2026-09-28
+
+### Fixed
+
+- **The `git push` ask-rule finding no longer tells an autonomous lane to stall itself (#4600).**
+  `audit` recommended adding `Bash(git push *)` and `Bash(git push)` to `permissions.ask` at
+  `warning` even in a repository whose team-tracked `.claude/source-control.md` declares an
+  unattended merge lane, although an ask rule prompts in auto mode and is auto-denied under
+  `dontAsk`. When `babysit_loop_merge` resolves above `human-only` in that file (an explicit
+  `c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane keys that default to the
+  `c2-mechanical` baseline), the push ask rows are now `info` and name the signal. Every push ask
+  row states that the rule blocks unattended lanes. Deny families, force-push included, are
+  unaffected. `required-permissions.md` narrowing 1 names the exemption and the signals that count.
+
+## [0.51.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eight of the nine listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: surface enumerations, check
+  lists, run mechanics, and the long "not for" lists. `check-listing-budget.sh
+  plugins/claude-config/skills` goes from 6,640 to 4,341 characters. No skill is renamed or
+  merged.
+
+## [0.51.0] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: token-budgeted lanes, `--unattended`, and `--resume`.** Phase B no longer
+  fans out one lane per skill. A lane's budget is 0.25 of the lane model's own context window at
+  3.5 bytes per token (Anthropic glossary, verified 2026-09-28), and the line figure is derived per
+  run from measured bytes per line. Plugins pack whole into lanes; only a plugin larger than the
+  budget splits by skill, and the Phase D cost line names each split. `--unattended`, declared by
+  the caller and never inferred, turns the ~20-dispatch confirmation into a cost-line disclosure.
+  Each lane report lands at
+  `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/lanes/<lane-id>.md`, ending
+  in a completion marker that carries the lane's input digest (file list and content hashes,
+  partition digest, catalog and conflict-criteria versions, prompt digest, harness version,
+  resolved target model, scope, `--opinion`, `--no-stopping-condition`). `--resume` picks the
+  latest run under the state key, refuses to attach while its lease is live (naming `heartbeat_at`
+  and `stale_after_s`), and re-runs only lanes that are incomplete or whose digest changed. The
+  lease is `audit-pass`'s `run-state.sh`, invoked with
+  `--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions`. New `scripts/lane-runs.sh`
+  (`partition`, `digest`, `marker`, `plan`, `latest`, `attach`) with a test suite, and three
+  evals (#4114).
+
+### Changed
+
+- **`audit-instructions`: in a marketplace repository, `plugins/**` is the editable set.**
+  `conflict-criteria.md` 1.6.0 rewrites the "Known limit" section: when
+  `.claude-plugin/marketplace.json` is present, Phase A inventories the plugin source as locally
+  owned, the installed cache is read for residency only, and the report names drift between the
+  install record's commit (or version) and HEAD. The Phase A inventory note points at the rule
+  (#4114).
+
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **`audit-instructions`: Phase D names the disposition for a lane whose residency is
+  unresolved.** The Phase B hand-off told such a lane to report "as conditional rather than as
+  findings", but Phase D defined only the findings table with a diff per row, so the result
+  landed as an ordinary actionable finding. The Proposed change column now takes a closed set, a
+  proposal, `no change proposed`, or `RESIDENCY-UNRESOLVED: <condition>`, and the last carries no
+  fenced diff and is not re-judged in Phase C. The Phase B hand-off and the Phase A inventory
+  note use the same name. Under `--persist-findings` such candidates are held out of `--from`
+  and counted by a new `emit-findings.sh --declined-residency <n>` line, separate from the I28
+  carve-out count. New eval and fixture (#4314).
+
 ## [0.50.0] - 2026-09-27
 
 ### Added

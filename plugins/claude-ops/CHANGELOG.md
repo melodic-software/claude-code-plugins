@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.14] - 2026-09-28
+
+### Fixed
+
+- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
+## [0.62.12] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Six of the nine listed skills
+  ran over 500, and two of them over the 1,024-codepoint spec maximum. Each now leads with its use
+  case, keeps its quoted trigger phrases, and names its nearest sibling. What the bodies already
+  carry is cut: the suspect list, the component enumeration, and the "not for" lists.
+  `check-listing-budget.sh plugins/claude-ops/skills` goes from 7,839 to 4,204 characters.
+  `audit-install-state` and `audit-skill-visibility` keep their baked native references in the
+  convention's gate-and-split form, and `audit-skill-visibility`'s now leads the description.
+  `audit-performance` and `audit-skill-visibility` leave
+  `scripts/skill-description-cap-baseline.txt`. No skill is renamed or merged.
+- The native-surfaces store's `/skill-doctor` evidence line names the front-loaded routing clause
+  where it named a Not-for clause, and `docs/native-surfaces.md` is regenerated.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.62.10] - 2026-09-27
 
 ### Fixed
