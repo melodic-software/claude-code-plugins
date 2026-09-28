@@ -1,9 +1,11 @@
-# Unsupported-platform handoff (Windows, macOS)
+# Unsupported-platform handoff (macOS, and a refused Windows path)
 
-The manual removal lane for Windows and macOS, where the `disk-hygiene:clean` engine never
-deletes. Read this only after [`../SKILL.md`](../SKILL.md) section 6 has sent you here: the
-engine lane and this lane never co-execute, and nothing below may be improvised from the engine
-steps.
+The manual removal lane for macOS, and for a Windows path the engine's Recycle Bin apply
+refused. On Windows the engine itself recycles through `IFileOperation` when the bin can
+accept the path; this handoff does not replace that lane, and it must not permanently delete
+a path the bin refused. Read this only after [`../SKILL.md`](../SKILL.md) section 6 has sent
+you here: the engine lane and this lane never co-execute, and nothing below may be improvised
+from the engine steps.
 
 ## Contents
 
@@ -13,8 +15,10 @@ steps.
 
 ## The gated manual lane
 
-Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
-the engine never deletes there. When that is the only blocker on every candidate, preview exits 0
+On macOS, preview reports `execution-platform-unsupported` as a per-candidate blocker, so
+the engine never deletes there. On Windows that blocker is not raised merely because the host
+is Windows; a path the Recycle Bin refuses is skipped by the engine and may be handed here.
+When the platform blocker is the only blocker on every candidate, preview exits 0
 with `outcome: manual-handoff-lane`. Any other blocker exits 3 with `outcome: blocked`, which
 means do not proceed, even when the platform blocker is also present. The default outcome is the report. The manual lane is gated by
 an execution request exactly as the engine lane is: `--execute`, or the user's own in-session

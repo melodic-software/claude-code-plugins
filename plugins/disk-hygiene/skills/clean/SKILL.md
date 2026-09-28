@@ -350,8 +350,9 @@ Run the deterministic gate:
 ```
 
 It rechecks containment, identity and full descendant set, hard protections, Git's index, and live
-handles from current state rather than trusting snapshot annotations. It also proves Linux mount and
-directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
+handles from current state rather than trusting snapshot annotations. It also proves the host's
+deletion primitive: Linux directory-descriptor anchoring and mountinfo, or Windows
+`IFileOperation` recycle. macOS returns `execution-platform-unsupported`. Any
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
 `outcome` names where the preview routes you, and the exit code follows it: `explicit-approval`
@@ -393,16 +394,18 @@ Report `reclaimable_local_bytes_removed` and the observed free-space delta **aft
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
 
-### Unsupported-platform handoff (Windows, macOS)
+### Unsupported-platform handoff (macOS, and a refused Windows path)
 
-Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
-so the engine never deletes there and the default outcome is the report. When, and only when,
-an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read
+On macOS, preview reports `execution-platform-unsupported`, so the engine never deletes there.
+On Windows the engine apply lane sends each revalidated path to the Recycle Bin. A path the bin
+refuses stays on disk (`recycle-refused`) and is not permanently deleted. The manual handoff
+is the fallback for macOS, for a Windows path the bin refused, and when the operator declines
+the engine lane. When, and only when, an execution request was made and the human approved an
+exact single-tier path list in this session, read
 [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
 it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
 revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
-lane from the engine steps above.
+lane from the engine steps above, and do not turn a refused recycle into a permanent delete.
 
 ## Gotchas
 
@@ -415,7 +418,13 @@ and what the guard does when no Python resolves → "Hook launch form".
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
 - Python 3.11 has no `os.path.isjunction`; the engine reads the Windows reparse attribute from `lstat`
-  and treats every reparse point as protected. Windows execution remains disabled.
+  and treats every reparse point as protected. Windows apply uses `IFileOperation` with
+  `FOFX_RECYCLEONDELETE` and refuses when the bin cannot accept the path.
+  **Claim:** that flag means recycle-on-delete, value `0x00080000`, and a failed operation must not
+  be retried as a permanent delete. **Basis:**
+  [FILE_OPERATION_FLAGS2](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/ne-shobjidl_core-file_operation_flags2)
+  fetched 2026-09-28. **As of:** 2026-09-28. **Recheck:** that page stops defining
+  `FOFX_RECYCLEONDELETE` as recycle-on-delete, or the flag value changes.
 - `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
   parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
 - Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,

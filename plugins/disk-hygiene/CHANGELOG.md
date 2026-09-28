@@ -3,6 +3,21 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-28
+
+### Added
+
+- **Windows apply sends paths to the Recycle Bin**
+  ([#4007](https://github.com/melodic-software/claude-code-plugins/issues/4007)).
+  The engine's apply lane on Windows uses `IFileOperation` with `FOFX_RECYCLEONDELETE`,
+  after the same preview and exact-tier token as Linux, and revalidates each entry
+  bottom-up. A path the bin cannot accept (bin disabled, over the bin size, network,
+  removable) is refused and left in place. A failed recycle is not retried as a
+  permanent delete. `execution_blockers` is per primitive, so Windows is not excluded
+  for lacking Linux mountinfo. macOS stays `execution-platform-unsupported`. The manual
+  handoff remains for a refused path and for macOS. Merge still needs the maintainer
+  security review #1116's reversal trigger requires.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

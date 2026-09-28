@@ -11306,5 +11306,155 @@ class EngineGrammarTests(unittest.TestCase):
         self.assertFalse(self.grammar.match_invocation("summarize", []))
 
 
+class WindowsRecycleApplyTests(unittest.TestCase):
+    """Engine-native Windows recycle (#4007). Covers windows_recycle.py."""
+
+    def _ready_patches(self):
+        return (
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            mock.patch.object(
+                hygiene,
+                "deletion_primitive",
+                return_value="windows-ifileoperation-recycle",
+            ),
+            mock.patch.object(
+                hygiene, "hard_protection", side_effect=lambda *_a, **_k: []
+            ),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "linux_mount_points", return_value=(set(), None)),
+        )
+
+    def test_execution_blockers_follow_the_host_primitive(self) -> None:
+        with (
+            mock.patch.object(hygiene, "os_key", return_value="windows"),
+            mock.patch.object(hygiene.windows_recycle, "primitive_available", return_value=True),
+            mock.patch.object(
+                hygiene,
+                "linux_mount_points",
+                side_effect=AssertionError("windows must not consult mountinfo"),
+            ),
+        ):
+            self.assertEqual([], hygiene.execution_blockers())
+        with mock.patch.object(hygiene, "os_key", return_value="macos"):
+            self.assertEqual([hygiene.PLATFORM_BLOCKER], hygiene.execution_blockers())
+        with (
+            mock.patch.object(hygiene, "os_key", return_value="linux"),
+            mock.patch.object(hygiene, "linux_mount_points", return_value=(set(), "down")),
+        ):
+            self.assertEqual(["mount-state-unverified"], hygiene.execution_blockers())
+
+    def test_refused_recycle_is_not_a_permanent_delete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            item = root / "orphan.tmp"
+            item.parent.mkdir()
+            item.write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("orphan.tmp")]}
+
+            def refuse(path: Path, size: int | None = None) -> None:
+                raise hygiene.windows_recycle.RecycleRefused(
+                    hygiene.windows_recycle.REFUSAL_BIN_DISABLED
+                )
+
+            patches = self._ready_patches()
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+                with (
+                    mock.patch.object(
+                        hygiene.windows_recycle, "recycle_path", side_effect=refuse
+                    ),
+                    mock.patch.object(hygiene.os, "unlink", side_effect=AssertionError("permanent")),
+                    mock.patch.object(hygiene.os, "remove", side_effect=AssertionError("permanent")),
+                ):
+                    report = hygiene.apply_plan(snapshot, plan)
+                    verified = hygiene.handoff_verify(snapshot, ["orphan.tmp"])
+            self.assertTrue(item.exists())
+            self.assertEqual([], report["removed"])
+            self.assertEqual("recycle-refused", report["skipped"][0]["outcome"])
+            self.assertIn(
+                hygiene.windows_recycle.REFUSAL_BIN_DISABLED, report["skipped"][0]["detail"]
+            )
+            self.assertNotEqual("gone", verified["verdicts"][0]["verdict"])
+
+    def test_recycle_is_bottom_up_after_the_shared_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            nested = root / "candidate" / "nested"
+            nested.mkdir(parents=True)
+            (nested / "captured.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("candidate")]}
+            order: list[str] = []
+            seen_preview = []
+
+            def record(path: Path, size: int | None = None) -> None:
+                order.append(path.relative_to(root.resolve()).as_posix())
+
+            real_preview = hygiene.preview
+
+            def spy_preview(snapshot_arg, plan_arg, *args, **kwargs):
+                seen_preview.append(True)
+                return real_preview(snapshot_arg, plan_arg, *args, **kwargs)
+
+            patches = self._ready_patches()
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+                with (
+                    mock.patch.object(hygiene, "preview", side_effect=spy_preview),
+                    mock.patch.object(hygiene.windows_recycle, "recycle_path", side_effect=record),
+                    mock.patch.object(hygiene.os, "unlink", side_effect=AssertionError("permanent")),
+                ):
+                    report = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual([True], seen_preview)
+            self.assertEqual(
+                ["candidate/nested/captured.tmp", "candidate/nested", "candidate"],
+                order,
+            )
+            self.assertEqual(3, report["paths_removed"])
+            self.assertTrue((nested / "captured.tmp").exists())
+
+    def test_windows_primitive_still_uses_the_apply_token_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            snapshot = {"session_nonce": "n", "entries": []}
+            plan = {"tier": "high", "candidates": [{"path": "orphan.tmp"}]}
+            checked = {
+                "status": "ready-for-explicit-approval",
+                "approval_token": "a" * 24,
+            }
+            stdout = io.StringIO()
+            with (
+                mock.patch.object(hygiene, "load_json", side_effect=[snapshot, plan]),
+                mock.patch.object(hygiene, "preview", return_value=checked),
+                mock.patch.object(
+                    hygiene, "deletion_primitive", return_value="windows-ifileoperation-recycle"
+                ),
+                mock.patch.object(hygiene, "apply_plan") as apply_plan,
+                redirect_stdout(stdout),
+            ):
+                code = hygiene.main(
+                    [
+                        "apply",
+                        "--execute",
+                        "--snapshot",
+                        "snapshot.json",
+                        "--plan",
+                        "plan.json",
+                        "--confirm-tier",
+                        "high",
+                        "--approval-token",
+                        "b" * 24,
+                        "--report",
+                        str(data / "report.json"),
+                        "--data-root",
+                        str(data),
+                    ]
+                )
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(2, code)
+            self.assertIn("approval token does not match the fresh preview", payload["error"])
+            apply_plan.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

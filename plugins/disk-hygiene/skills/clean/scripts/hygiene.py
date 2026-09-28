@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import windows_recycle  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -2828,10 +2829,18 @@ def evidence_adjusted_protections(
 PLATFORM_BLOCKER = "execution-platform-unsupported"
 
 
-def execution_blockers() -> list[str]:
-    """Return reasons why the mutation lane cannot be proven safe on this host."""
-    if os_key() != "linux":
-        return [PLATFORM_BLOCKER]
+def deletion_primitive() -> str:
+    """The one delete primitive this host is allowed to use, or ``unsupported``."""
+    key = os_key()
+    if key == "linux":
+        return "linux-dirfd-unlink"
+    if key == "windows":
+        return "windows-ifileoperation-recycle"
+    return "unsupported"
+
+
+def _linux_dirfd_blockers() -> list[str]:
+    """Linux anchored-unlink prerequisites. Not consulted on Windows."""
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
         return ["dirfd-anchoring-unavailable"]
@@ -2841,6 +2850,23 @@ def execution_blockers() -> list[str]:
         return ["dirfd-anchoring-unavailable"]
     _, error = linux_mount_points()
     return ["mount-state-unverified"] if error else []
+
+
+def execution_blockers() -> list[str]:
+    """Return reasons why this host's own deletion primitive cannot run.
+
+    The gate is per primitive. Windows is not failed for lacking Linux
+    ``mountinfo`` or directory-descriptor anchoring; macOS still has no
+    primitive and stays ``execution-platform-unsupported``.
+    """
+    primitive = deletion_primitive()
+    if primitive == "linux-dirfd-unlink":
+        return _linux_dirfd_blockers()
+    if primitive == "windows-ifileoperation-recycle":
+        if not windows_recycle.primitive_available():
+            return ["recycle-primitive-unavailable"]
+        return []
+    return [PLATFORM_BLOCKER]
 
 
 def windows_handle_state(path: Path) -> tuple[str, str | None]:
@@ -3117,9 +3143,10 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     # A blocker that is a fact about the platform, identical for every
     # candidate, routes the operator to the manual handoff lane; only a
     # blocker about a path means "do not proceed".
-    platform_only = {reason for item in results for reason in item["blockers"]} == {
-        PLATFORM_BLOCKER
-    }
+    # Lane-wide facts route to the manual handoff. A path-specific blocker does not.
+    lane_wide = {PLATFORM_BLOCKER, "recycle-primitive-unavailable"}
+    reasons = {reason for item in results for reason in item["blockers"]}
+    platform_only = bool(reasons) and reasons <= lane_wide
     if not blocked:
         outcome = "explicit-approval"
     elif platform_only:
@@ -3703,6 +3730,155 @@ def apply_nothing_removed_report(
     }
 
 
+def _descendant_of_refused(relative: str, refused: set[str]) -> bool:
+    return any(
+        relative == refused_path
+        or relative.startswith(refused_path + "/")
+        or refused_path.startswith(relative + "/")
+        for refused_path in refused
+    )
+
+
+def _apply_windows_recycle(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    target: Path,
+    entries: dict[str, dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Bottom-up recycle. A refused path is left in place.
+
+    Uses the same per-entry revalidation as the Linux lane (identity, hard
+    protection, VCS, live handle) and then ``windows_recycle.recycle_path``.
+    There is no second attempt and no permanent-delete call.
+    """
+    before = shutil.disk_usage(target).free
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    logical_removed = 0
+    reclaimable_removed = 0
+    globs = snapshot_protection_globs(snapshot)
+    exact_names = baseline_protected_names() | set(
+        snapshot.get("policy", {}).get("protected_exact_names", [])
+    )
+    for candidate in candidates:
+        candidate_path = target.joinpath(*PurePosixPath(candidate["path"]).parts)
+        candidate_blockers = hard_protection(candidate_path, target, exact_names, set())
+        selected = removal_entries(candidate["path"], entries)
+        if candidate["owner"] != "unmanaged":
+            candidate_blockers.append("native-managed-report-only")
+        vcs = tracked_blocker(candidate_path, target)
+        if vcs:
+            candidate_blockers.append(vcs)
+        if candidate_blockers:
+            skipped.append(
+                {
+                    "path": candidate["path"],
+                    "outcome": "protected",
+                    "detail": ", ".join(sorted(set(candidate_blockers))),
+                }
+            )
+            continue
+        refused: set[str] = set()
+        for relative in selected:
+            if _descendant_of_refused(relative, refused):
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "recycle-refused",
+                        "detail": "ancestor-or-descendant-refused",
+                    }
+                )
+                refused.add(relative)
+                continue
+            entry = entries[relative]
+            path = target.joinpath(*PurePosixPath(relative).parts)
+            if not same_removal_identity(path, entry) or is_linkish(path):
+                skipped.append({"path": relative, "outcome": "changed-or-link"})
+                refused.add(relative)
+                continue
+            fresh_protections = hard_protection(
+                path, target, baseline_protected_names(), set()
+            )
+            if any(glob_matches(relative, pattern) for pattern in globs):
+                fresh_protections.append("consumer-protected-path")
+            fresh_vcs = tracked_blocker(path, target)
+            if fresh_vcs:
+                fresh_protections.append(fresh_vcs)
+            if fresh_protections:
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "protected",
+                        "detail": ", ".join(sorted(set(fresh_protections))),
+                    }
+                )
+                refused.add(relative)
+                continue
+            state, detail = handle_state(path)
+            if state != "clear":
+                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+                    state, "handle-state-unverified"
+                )
+                skipped.append(
+                    {"path": relative, "outcome": outcome, "detail": detail or ""}
+                )
+                refused.add(relative)
+                continue
+            size = entry.get("logical_size")
+            try:
+                windows_recycle.recycle_path(
+                    path, size if isinstance(size, int) else None
+                )
+            except windows_recycle.RecycleRefused as exc:
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "recycle-refused",
+                        "detail": exc.reason,
+                    }
+                )
+                refused.add(relative)
+                continue
+            except PermissionError as exc:
+                skipped.append(
+                    {"path": relative, "outcome": "needs-elevation", "detail": str(exc)}
+                )
+                continue
+            except OSError as exc:
+                skipped.append(
+                    {"path": relative, "outcome": "delete-failed", "detail": str(exc)}
+                )
+                continue
+            logical = entry_logical_file_bytes(entry)
+            reclaimable = entry_reclaimable_local_bytes(entry) or 0
+            logical_removed += logical
+            reclaimable_removed += reclaimable
+            removed.append(
+                {
+                    "path": relative,
+                    "empty_directory": entry_is_empty_directory(entry, entries),
+                    "logical_bytes": logical,
+                    "reclaimable_local_bytes": reclaimable,
+                }
+            )
+    after = shutil.disk_usage(target).free
+    return {
+        "status": "completed-with-skips" if skipped else "completed",
+        "tier": plan["tier"],
+        "target": str(target),
+        "removed": removed,
+        "skipped": skipped,
+        "paths_removed": len(removed),
+        "empty_directories_removed": sum(
+            1 for item in removed if item["empty_directory"]
+        ),
+        "logical_bytes_removed": logical_removed,
+        "reclaimable_local_bytes_removed": reclaimable_removed,
+        "observed_free_space_delta_bytes": after - before,
+    }
+
+
 def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
@@ -3736,6 +3912,8 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 for item in candidates
             ],
         )
+    if deletion_primitive() == "windows-ifileoperation-recycle":
+        return _apply_windows_recycle(snapshot, plan, target, entries, candidates)
     before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
