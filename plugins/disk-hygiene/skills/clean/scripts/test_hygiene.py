@@ -3853,7 +3853,9 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
         off = {"enabled": False, "temporary_files_cleanup": None, "cadence_days": None}
         with tempfile.TemporaryDirectory() as temporary:
             temp_root = self.temp_fixture(Path(temporary))
-            with mock.patch.object(hygiene, "TEMP_ZONE_ENTRY_CAP", 1):
+            # Cap 2 counts both top-level entries in any scandir order, so
+            # a.tmp's bytes always land, and still stops before nested/b.tmp.
+            with mock.patch.object(hygiene, "TEMP_ZONE_ENTRY_CAP", 2):
                 over = self.windows_advisory(temp_root, self.WEEKLY_ON, 1)
                 under = self.windows_advisory(temp_root, off, 1024**3)
         self.assertFalse(over["temp_zone"]["complete"])
