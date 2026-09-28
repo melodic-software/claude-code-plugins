@@ -77,7 +77,7 @@ EOF
 }
 
 # shellcheck source=lib/worktree-facts.sh
-source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh"
+source "$SCRIPT_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit "$EX_ENV"; }
 
 git_unlocated() {
   (

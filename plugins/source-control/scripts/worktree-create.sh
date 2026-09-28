@@ -57,7 +57,7 @@
 set -uo pipefail
 
 # shellcheck source=lib/worktree-facts.sh
-source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh"
+source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
 
 PROG=${0##*/}
 

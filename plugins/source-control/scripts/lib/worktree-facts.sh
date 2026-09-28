@@ -46,7 +46,7 @@ worktree_decode_lock_reason() {
 
 # Read NUL-delimited `git worktree list --porcelain -z` from FILE.
 # Fills WT_FACT_PATH, WT_FACT_HEAD, WT_FACT_BRANCH, WT_FACT_BARE (yes|no),
-# WT_FACT_LOCKED (decoded reason, empty when unlocked), WT_FACT_LINKED (yes|no).
+# WT_FACT_LOCKED (decoded reason, empty when unlocked), WT_FACT_LINKED (yes|no), WT_FACT_PRUNABLE (yes|no).
 # The first record consumes the main slot, including a bare hub, so a later
 # linked worktree is never reported as the main checkout.
 worktree_facts_parse_z() {
