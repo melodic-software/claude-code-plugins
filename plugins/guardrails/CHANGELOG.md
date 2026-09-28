@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.13] - 2026-09-28
+
+### Changed
+
+- **`block-root-delete-target` records why three launcher lines stay refused** ([#4681](https://github.com/melodic-software/claude-code-plugins/issues/4681)). No verdict moves; the guard header and a pinned test table now carry the decision. Measured on util-linux 2.39.3 and GNU coreutils 9.4, and read against util-linux master:
+  - `chrt -r rm -rf /`, `chrt -f rm -rf /` and `chrt rm -rf /`: chrt rejects a non-digit word after a realtime policy before exec ("invalid priority argument" through 2.41, "policy <name> requires a priority argument" from 2.42). They stay refused because the same line under `-o`, `-b`, `-i`, `-d` or `-e` runs `rm` from 2.42, where the priority is optional.
+  - `runuser -u bob rm -rf /` without `--`: runuser's permuting getopt reads `-rf` as its own option and exits 1. It stays refused because under an inherited `POSIXLY_CORRECT` options end at `rm` and the delete runs.
+  - `chroot <dir> rm -rf /`: chroot's `/` is host `<dir>`, so the delete empties `<dir>` and every host directory bind-mounted inside it (a bind-mounted host file was deleted in the measurement). GNU rm's default `--preserve-root` stops only the bare `/` spelling, not `/*` or `--no-preserve-root`.
+
 ## [0.38.12] - 2026-09-28
 
 ### Fixed
