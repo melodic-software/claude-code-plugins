@@ -119,12 +119,16 @@ def _save_point_module():
 
 
 def run(
-    *args: str, env: dict[str, str] | None = None
+    *args: str,
+    env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+    script: Path = SCRIPT,
 ) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, str(script), *args],
         capture_output=True,
         env=env if env is not None else _base_env(),
+        cwd=cwd,
         timeout=30,
     )
 
@@ -1097,6 +1101,84 @@ def test_new_outside_any_git_repo_still_requires_guard_and_uses_absolute_origin_
     target = memory / "handoffs" / HOP1
     text = target.read_text(encoding="utf-8")
     assert f"Handoff origin: plugin-data {real_posix(target)}" in text
+
+
+def _no_memory_dir_args(tmp_path: Path) -> list[str]:
+    args = new_args(tmp_path, tmp_path, "--no-previous")
+    at = args.index("--memory-dir")
+    del args[at : at + 2]
+    return args
+
+
+def _outside_git(tmp_path: Path) -> Path:
+    shutil.copytree(FIXTURES / "projects", tmp_path / "projects", dirs_exist_ok=True)
+    cwd = tmp_path / "home-dir"
+    cwd.mkdir()
+    probe = subprocess.run(
+        ["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode == 0:
+        pytest.skip("tmp_path sits inside a git work tree")
+    return cwd
+
+
+def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
+    cwd = _outside_git(tmp_path)
+    data = tmp_path / "plugin-data"
+    memory = data / "topic-docs"
+    memory.mkdir(parents=True)
+    env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
+    args = _no_memory_dir_args(tmp_path)
+    refused = run(*args, env=env, cwd=cwd)
+    assert refused.returncode == 1, err(refused)
+    assert f"create {real_posix(memory / '.gitignore')}" in err(refused)
+    assert not (cwd / ".work").exists()
+    (memory / ".gitignore").write_text("*\n", encoding="utf-8")
+    result = run(*args, env=env, cwd=cwd)
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(memory / "handoffs" / HOP1)
+    assert not (cwd / ".work").exists()
+
+
+def test_new_without_memory_dir_outside_git_derives_data_dir_from_cache(tmp_path):
+    cwd = _outside_git(tmp_path)
+    config = tmp_path / "config"
+    version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
+    shutil.copytree(
+        SCRIPT.parent,
+        version_dir / "scripts",
+        ignore=shutil.ignore_patterns("tests", "__pycache__"),
+    )
+    memory = config / "plugins" / "data" / "session-flow-my-market" / "topic-docs"
+    memory.mkdir(parents=True)
+    (memory / ".gitignore").write_text("*\n", encoding="utf-8")
+    result = run(
+        *_no_memory_dir_args(tmp_path),
+        cwd=cwd,
+        script=version_dir / "scripts" / "save_point.py",
+    )
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(memory / "handoffs" / HOP1)
+
+
+def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
+    cwd = _outside_git(tmp_path)
+    result = run(*_no_memory_dir_args(tmp_path), cwd=cwd)
+    assert result.returncode == 1
+    assert "pass --memory-dir" in err(result)
+    assert not (cwd / ".work").exists()
+
+
+def test_new_without_memory_dir_inside_git_keeps_the_work_default(tmp_path):
+    repo = make_repo(tmp_path)
+    data = tmp_path / "plugin-data"
+    env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
+    result = run(*_no_memory_dir_args(tmp_path), env=env, cwd=repo)
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(repo / ".work" / "handoffs" / HOP1)
+    assert not data.exists()
 
 
 def test_new_refuses_root_equivalent_memory_dir(tmp_path):
