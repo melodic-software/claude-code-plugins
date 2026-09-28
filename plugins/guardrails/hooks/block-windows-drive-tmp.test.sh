@@ -236,16 +236,24 @@ run_win_payload "PS: Set-Content -Path:D:/a/tmp/x subdir tmp (allowed)" \
 # assertions immune to a harmless reordering of the alternatives.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
+  def rowtext: .command + " " + ((.args // []) | map(tostring) | join(" "));
   [ .hooks.PreToolUse[]
-    | select([.hooks[].command] | any(contains($h)))
+    | select([.hooks[] | rowtext] | any(contains($h)))
     | .matcher | split("|")[] ]
   | sort | join(" ")' "$HOOKS_JSON" 2>/dev/null)
 assert_eq "hooks.json routes the guard to exactly the intended tools" \
   "Bash Edit MultiEdit NotebookEdit PowerShell Write" "$reg"
 # The registration must also NAME A FILE THAT EXISTS — a command path typo
-# registers cleanly and then fails to run on every tool call.
+# registers cleanly and then fails to run on every tool call. Exec form keeps
+# that path in args, after ${CLAUDE_PLUGIN_ROOT}/.
 reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
-  [ .hooks.PreToolUse[].hooks[].command | select(contains($h)) ] | first // ""' \
+  def rowtext: .command + " " + ((.args // []) | map(tostring) | join(" "));
+  [ .hooks.PreToolUse[].hooks[] | rowtext | select(contains($h))
+    | gsub("\\$\\{CLAUDE_PLUGIN_ROOT\\}/"; "")
+    | split(" ")
+    | map(select(endswith(".sh") or endswith(".mjs")))
+    | .[0] // empty ]
+  | first // ""' \
   "$HOOKS_JSON" 2>/dev/null)
 reg_rel="${reg_cmd##*\"/}"
 reg_rel="${reg_rel%% *}" # the dispatcher form carries the guard as an argument
