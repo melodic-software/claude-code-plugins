@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.10] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` review**: dispatch an independent reviewer agent with procedure files and step
+  artifacts only; merge its classified findings with the user's report before filing issues
+  (`reference/review.md`, `SKILL.md`).
+
 ## [0.13.9] - 2026-09-28
 
 ### Fixed

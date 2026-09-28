@@ -20,7 +20,7 @@ default checked state, and override text; changing a sweep means editing the cat
 |---|---|---|
 | `/playbooks:repo-sweep plan` | Recommend per entry, open the selection page, create the sweep branch and draft PR | [reference/plan.md](reference/plan.md) |
 | `/playbooks:repo-sweep next` | Run the first unticked step: audit, review findings with the user, fix, one commit, tick | [reference/next.md](reference/next.md) |
-| `/playbooks:repo-sweep review` | Ask what went wrong in the last step; audit and file each problem after approval | [reference/review.md](reference/review.md) |
+| `/playbooks:repo-sweep review` | Dispatch an independent reviewer on the last step, merge with user report, audit and file each problem after approval | [reference/review.md](reference/review.md) |
 
 No argument: run `state.sh` (below). Exit 10 or 11 means `plan`; exit 0 means `next`. Say
 which you chose.
@@ -125,5 +125,7 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   `plan` flags an override whose tracking issue has closed so it can be removed from the catalog.
 - A skill that commits anyway is squashed into the one step commit by `guard.sh` exit 11. A skill
   that switches branch or opens a PR stops the step (exit 10); run `review` to file it.
+- `review` never reuses the session that ran the step: dispatch a separate reviewer with procedure
+  files and artifacts only, then merge its list with what the user reports.
 - Dotfiles sweeps run in a chezmoi source worktree and apply each changed target right after the
   step commit; see [reference/next.md](reference/next.md).
