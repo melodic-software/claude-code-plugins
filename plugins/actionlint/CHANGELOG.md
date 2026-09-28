@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-09-28
+
+### Changed
+
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored workflow file is no longer reported. Set `actionlint_lint_gitignored` to `true` to lint gitignored workflow files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
+
 ## [0.8.61] - 2026-09-28
 
 ### Changed

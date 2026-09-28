@@ -3,6 +3,54 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.12] - 2026-09-28
+
+### Changed
+
+- **Cutover sources rechecked on Claude Code 2.1.282 (#4281).** The bundle's code default for
+  `tengu_agents_md_mod` is true (`var W=!0` at offset 225456771). The env-vars feature-flag list
+  no longer mentions `AGENTS.md`. The memory page still floors direct reading at v2.1.277, says
+  Bedrock and telemetry-disabled sessions failed only before v2.1.281, and says `/memory` lists a
+  directly read `AGENTS.md` from v2.1.280. `InstructionsLoaded` still does not fire for that
+  direct read. Recorded in `skills/migrate/reference/sources.md` and in "Why the shim stays".
+- **This-repo cutover-check, canary attempted.** `cutover-check.sh --repo` this checkout, without
+  `--skip-canary`. Conditions 1 and 2 are `[MET]` for this repo. Condition 3 is `[UNREACH]`:
+  `claude auth status` is logged out, and both canary legs exited 1 (`Not logged in`). Condition
+  4 is `[MET]` after acknowledging `user-scope.sh`'s user-scope `CLAUDE.md` inventory line. The
+  other nine repos were not in this checkout. The recurring issue stays open. `last_checked` on
+  `agents-md-cutover-check` stays 2026-09-20.
+
+## [0.15.11] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: destination enumerations,
+  silent-failure ladders, and shim-removal mechanics. `setup` is
+  `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
+  plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
+  or merged.
+
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
+
+## [0.15.9] - 2026-09-28
+
+### Changed
+
+- **CI-canary host parked (#4282).** `melodic-software/claude-lane-sandbox` stays
+  archived; this marketplace does not grow a `claude-code-action` canary
+  workflow. Cutover condition 2 continues to rest on the knowledge-corpus run
+  already recorded in `reference/sources.md`. A maintainer who wants the two-pin
+  three-case matrix runs it on a host they choose and replaces that run id.
+
 ## [0.15.8] - 2026-09-28
 
 ### Fixed

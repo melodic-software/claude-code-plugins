@@ -19,6 +19,9 @@ your `PATH`.
   `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
   carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
   `.yaml` twin), so a Write/Edit of any other file never starts a hook process for it.
+- **Gitignored paths are out of scope.** A workflow file the repository gitignores
+  is not reported. Set `actionlint_lint_gitignored` to `true` to lint gitignored
+  workflow files too. A tracked file that matches an ignore pattern stays in scope.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
   actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
   integrations are turned off. Each spawns a subprocess per `run:` block.
@@ -75,10 +78,12 @@ Then verify prerequisites with `/actionlint:setup check`.
 ## Configuration
 
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your
-repository when present. Two `userConfig` options tune the hook itself:
+repository when present. Three `userConfig` options tune the hook itself:
 
 - **`actionlint_enabled`** (boolean, default `true`). Kill switch for the
   actionlint-check hook.
+- **`actionlint_lint_gitignored`** (boolean, default `false`). Set `true` to
+  lint a workflow file the repository gitignores. Off by default.
 - **`stdin_read_timeout`** (number, default `2`, minimum `1`). **Idle** bound in
   seconds on reading the hook payload from stdin. Any byte arriving resets it, so
   a large or slowly-delivered payload is never cut off while it is still coming;
@@ -110,6 +115,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `actionlint_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED` | Lint GitHub Actions workflow files on edit via actionlint |
+| `actionlint_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not reported. Set true to lint gitignored workflow files too. A tracked file that matches an ignore pattern is always in scope. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these
