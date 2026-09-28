@@ -3,6 +3,19 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.41] - 2026-09-28
+
+### Fixed
+
+- `audit` classifies each repository's linked worktrees against that repository's own
+  `worktreeroot.path`, read with `git -C <canonical> config` so an `includeIf` override applies.
+  It used one root for the whole fleet, taken from the first target that resolved one, so a
+  repository whose `includeIf` set a different root had its correctly placed worktrees reported as
+  `worktree-outside-configured-root`, with a remedy naming the other repository's root. A
+  repository with no key of its own falls back to the project directory's key, then source-control
+  `worktree_root`. When repositories resolve different roots, `worktree-root-conformance-summary`
+  lists each root with its repository count.
+
 ## [0.23.40] - 2026-09-28
 
 ### Added

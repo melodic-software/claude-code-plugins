@@ -249,6 +249,28 @@ owner declaration.
   that exists, report which layer supplied each value, degrade soft and visibly on a
   malformed or absent layer).
 
+## Interactive userConfig smoke test (parked)
+
+**Decision.** Park the interactive set-value, persist, and clear smoke of
+`visualization`'s `medium` `userConfig` dial until a host with the interactive
+`/plugin` dialog funds the run. The unset path is already the documented
+behavior the resolution ladders detect. This park keeps gating the
+grandfathered-surface fleet sweep (#3603).
+
+- **Claim:** the interactive `userConfig` smoke stays unrun; #3603 stays gated
+  on it. Do not multiply dial reliance across the fleet from a headless host.
+- **Basis:** `plugins/visualization/.claude-plugin/plugin.json` ships
+  `userConfig.medium` (default `auto`).
+  `plugins/visualization/skills/visualize/SKILL.md` rung 2 is
+  `${user_config.medium}` and treats the literal token as unset. Wave-1
+  probed CLI 2.1.251 on the unset path only. This checkout's CLI is 2.1.280
+  and has no interactive `/plugin` dialog. GitHub records #3603 blocked by
+  #3604. The dial has a bug history roughly v2.1.86 through v2.1.210.
+- **As of:** 2026-09-28.
+- **Recheck:** a machine with the interactive `/plugin` dialog records CLI
+  version and set / persist-across-restart / clear-to-literal-token outcome
+  on #3604.
+
 ## Template vendoring posture
 
 **Decision.** Do not vendor the 31 html-effectiveness corpus templates (20 gallery +
@@ -290,4 +312,6 @@ which is another cost of copying.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces: that sweep is priced and tracked
   separately, gated on the userConfig smoke test.
+- It does not run the interactive userConfig smoke test: see Interactive
+  userConfig smoke test (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

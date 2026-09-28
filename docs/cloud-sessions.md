@@ -49,7 +49,9 @@ first-turn slash gap tracked as #2733).
   handles project setup and runs in local and cloud sessions alike.
 - [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
   is the key reference: repo-committed `.claude/` config reaches cloud sessions; user-level
-  `~/.claude` config never does.
+  `~/.claude` config never does. That is why the fleet `claude-permissions` floor, composed
+  locally by chezmoi into `~/.claude/settings.json`, never reaches a cloud session (#3172;
+  [out-of-scope record](out-of-scope/cloud-session-permission-floor.md)).
 
 ## Set up your own (any account, machine, or repo)
 
@@ -474,6 +476,25 @@ changes the `gh` install path.
    proxy blocks `/releases/latest`, and the pin belongs in `standards`.
 3. This Cursor cloud agent is a different image (`gh` 2.99.0 here). Do not treat a
    Cursor-cloud `gh` version as evidence that Claude Code cloud sessions moved.
+
+### Known gap: no fleet permission floor (#3172)
+
+**Claim:** Cloud sessions compose no `claude-permissions` allow/deny floor. This repository
+does not add the compose step. Recommended path: `standards`
+`components/cloud-environment/setup.sh` does a best-effort `jq` union of the full floor
+into `~/.claude/settings.json`.
+
+**Basis:** [#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172).
+Tracked `.claude/settings.json` has secret-material `deny` only, not the fleet grants.
+Preflight GAP (b) for `git add` / `commit` / `push`, `gh pr create`, `gh issue comment`
+is the standing cloud-session report. Full record:
+[out-of-scope/cloud-session-permission-floor.md](out-of-scope/cloud-session-permission-floor.md).
+
+**As of:** 2026-09-28.
+
+**Recheck:** a cloud session's `~/.claude/settings.json` carries the fleet `allow` grants
+and destructive-git `deny` rules, or `standards` `cloud-environment/setup.sh` gains that
+compose step.
 
 ### Maintenance caveats
 

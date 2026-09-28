@@ -3,6 +3,15 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Fixed
+
+- `inkstats.py` counts a rotoscope work dir's last drawing by `d/index.json` duration (that
+  drawing's `t1`), not one frame after its start. Intermediate holds already come from consecutive
+  start times; the final hold was `1/fps`, which undercounted duration, `per_second`, the on-1s/2s/3s
+  mix, and `offstep` (#4594).
+
 ## [0.1.0]
 
 ### Added
