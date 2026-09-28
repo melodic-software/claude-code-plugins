@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5] - 2026-09-28
+
+### Changed
+
+- **Agent-run artifact attestation is out of scope (#4703).** Signed SLSA / in-toto
+  predicates for what instructions, prompts, and runs produced a commit are CI/CD
+  supply-chain tooling, not this plugin. Return accounting stays human-attested
+  effort and counterfactual. Recorded in `reference/return-accounting.md` and
+  `docs/out-of-scope/agent-run-artifact-attestation.md`.
+
 ## [0.24.4] - 2026-09-28
 
 ### Changed

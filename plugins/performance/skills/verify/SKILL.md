@@ -48,7 +48,31 @@ deny -> ask downgrade in the other and still reports byte-identical output. Enum
 and record which the differential actually exercised; an unexercised mode is an unverified mode, and
 it is reported as such rather than assumed fine.
 
-## 3. Check the harness before believing the result
+## 3. Confirm the measured build is the deployed build
+
+A verify report that says **MET** while the user still runs an older installed copy is worse than
+**NOT MET**: it certifies a tree nobody executes.
+
+Before the verdict:
+
+1. Record **what was measured**: plugin or component version (from the tree or worktree path the
+   harness used), and whether a worktree override, `--plugin-dir`, or project-scope install path
+   was in play.
+2. Record **what is deployed** where the user actually runs: for Claude Code plugins, read
+   `installed_plugins.json` under the effective config directory
+   (`<config>/plugins/installed_plugins.json`, usually `~/.claude/plugins/installed_plugins.json`
+   for user scope, or the project-scope record when the subject runs project-installed). Quote the
+   install record's version and install path for the plugin under test.
+3. **Match or follow up.** When measured and deployed versions differ, **do not** report **MET** on
+   the basis of the worktree measurement alone. Report **NOT MET** with `Not covered: deployed
+   version <x> still live; post-install re-measurement required`, or record an explicit open
+   follow-up (deployment plus a post-deployment snapshot) and keep the verdict **NOT MET** until
+   that re-measurement exists.
+
+Worktree measurements are valid evidence of a change; they are not evidence the change is live until
+deployed versions agree.
+
+## 4. Check the harness before believing the result
 
 Every gate in the harness-integrity checklist. In particular, for any discrimination
 check involved, confirm it asserts that its **two arms differ**, not merely that each produced its
@@ -57,7 +81,7 @@ never exercised the subject. `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/discriminat
 runs such a check with all three assertions, restores from a sidecar copy, and exits 2 rather than 1
 when the harness never ran; prefer it to a hand-built pair of arms.
 
-## 4. Report
+## 5. Report
 
 State the target as **met** or **not met**, with the measurement that explains why.
 
@@ -65,13 +89,15 @@ State the target as **met** or **not met**, with the measurement that explains w
 Target:      <realistic> / <ideal>        Floor: <value>
 Counter:     <before> -> <after>          [headline] [unproven, when Correlation is]
 Correlation: <evidence, repeated from the goal> | unproven
+Measured:    <version/path harness used>
+Deployed:    <installed_plugins.json version/path> | same as measured
 Duration:    <p50/p95 before> -> <after>  [or: REFUSED, <reason from is_measurable>]
 Rig:         <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
 Verdict:     MET | NOT MET | UNMEASURABLE
 Behavior:    UNCHANGED (differential: N inputs, modes covered: <list>)
              | CHANGED: <what changed>    [ranked above the performance claim]
 Cost:        <diff size, new moving parts>   [optional; beside the gain]
-Not covered: <percentiles, inputs, paths, and modes not exercised>
+Not covered: <percentiles, inputs, paths, modes not exercised>
 Overrides:   <any recorded gate override, or none>
 Reproduced by an independent verifier: yes/no, and what diverged
 ```
@@ -88,6 +114,8 @@ Rules that bind the report:
 - **`Cost:` sits beside the gain it buys.** Whether a large diff is worth a small win is the
   human's call; the report makes the trade visible.
 - **Never round a miss into a win.** A target missed by 8% is not met.
+- **`MET` requires measured and deployed to agree** (or a post-deployment re-measurement on the
+  verdict). A worktree-only win with an older install still live is **NOT MET**, not a footnote.
 - **A correctness regression outranks any speedup** and is stated separately, above the performance
   claim, never folded into it.
 - **The counter is the headline; the duration is context.** On a host that failed

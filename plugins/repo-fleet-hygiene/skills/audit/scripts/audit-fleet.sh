@@ -601,6 +601,7 @@ git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
+ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -645,6 +646,8 @@ FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
+LS_REMOTE_ATTEMPTS=0
+LS_REMOTE_FAILURES=0
 # Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
@@ -2802,8 +2805,12 @@ analyze_repo() {
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
         live_status=0
+        LS_REMOTE_ATTEMPTS=$((LS_REMOTE_ATTEMPTS + 1))
         live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
+        if [[ "$live_status" -ne 0 ]]; then
+          LS_REMOTE_FAILURES=$((LS_REMOTE_FAILURES + 1))
+        fi
         live_oid=""
         if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
           live_oid="${live_out%%[[:space:]]*}"
@@ -2979,6 +2986,15 @@ else
   emit_finding worktree-root-unconfigured "fleet" \
     "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset) — placement reported without asserting a convention$per_repository_roots_note" \
     "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
+fi
+
+# When every attempted ls-remote failed, N MEDIUM merged-remote-branch findings are one
+# transport/binding problem, not N independent stale heads (#4211). Empty ls-remote (head
+# already gone) is a successful probe and does not count as a failure.
+if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
+  emit_finding ls-remote-fleet-unavailable "fleet" \
+    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings stay MEDIUM cached observations" \
+    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun. The per-repository MEDIUM findings are not independent live-probe failures"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------

@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **work-loop: document background-job launch mode and the escalation record write ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Step 5 names the harness block on the shared default-branch checkout, why `EnterWorktree` is forbidden, and that the tracker marker remains the escalation of record when the Write tool is refused. Loop-lane convention §2 and `escalation-marker.md` carry the same guidance.
+
 ## [0.41.1] - 2026-09-28
 
 ### Changed
