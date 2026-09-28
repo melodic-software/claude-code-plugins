@@ -103,6 +103,29 @@ class ProduceTest(unittest.TestCase):
             self.assertEqual(bad.returncode, 1)
             self.assertIn('duration', bad.stdout)
 
+    def test_pack_is_shell_quoted_and_names_only_resolve_inside_styles(self):
+        sys.path.insert(0, str(HERE))
+        import produce
+        self.assertEqual(produce.pack_arg('woodcut-ink'), str(HERE.parent / 'styles' / 'woodcut-ink'))
+        self.assertEqual(produce.pack_arg('x; rm -rf ~'), "'x; rm -rf ~'")
+        self.assertEqual(produce.pack_arg('../styles/woodcut-ink'), '../styles/woodcut-ink')
+
+    def test_panel_png_outside_boards_is_part_of_the_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prod = Path(tmp) / 'film'
+            run(['init', str(prod)])
+            fill(prod)
+            (prod / 'assets').mkdir()
+            png = prod / 'assets/panel.png'
+            png.write_bytes((prod / 'boards/storyboard/s1.png').read_bytes())
+            board = json.loads((prod / 'boards/storyboard.json').read_text(encoding='utf-8'))
+            board['panels'][0]['png'] = 'assets/panel.png'
+            (prod / 'boards/storyboard.json').write_text(json.dumps(board), encoding='utf-8')
+            self.assertEqual(run(['approve', str(prod), '--note', 'yes']).returncode, 0)
+            self.assertEqual(run(['shots', str(prod)]).returncode, 0)
+            png.write_bytes(png.read_bytes() + b'changed')
+            self.assertEqual(run(['shots', str(prod)]).returncode, 2)
+
     def test_storyboard_png_cannot_escape_and_gap_in_shots_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             prod = Path(tmp) / 'film'

@@ -57,10 +57,14 @@ Paths in those files are relative to the production directory and stay inside it
    2 until they approve again.
 6. Author one scene module per shot and write `shots.json`. `produce.py shots <dir>` must exit 0.
    `produce.py cuts <dir>` prints the `t0` list.
-7. Render the film into `frames/` with `render.py`, at `shots.json` `fps` and `size`, long enough
-   to reach the last `t1`. `--encode` writes the delivered file beside `frames/`.
-8. `produce.py review <dir>` prints one `inkstats.py <frames> --cuts <dir>/shots.json --pack <pack>`
-   line per pack; a pack the plugin ships resolves to its `styles/` directory. Run each. Then read
+7. `render.py` takes one scene, so author a film scene that plays each shot's module over its
+   `t0`-`t1` span from `shots.json`, and render that into `frames/` at `shots.json` `fps` and
+   `size`, long enough to reach the last `t1`. `--encode` writes the delivered file beside
+   `frames/`.
+8. `produce.py review <dir>` prints `inkstats.py <frames> --cuts <dir>/shots.json --pack <pack>`
+   when every shot uses one pack. With mixed packs it prints one `--t <t0>-<t1> --pack <pack>`
+   line per shot, since the check judges every frame it reads. A pack the plugin ships resolves
+   to its `styles/` directory. Run each. Then read
    frames at 1:1 before calling the film done. A passing check whose frames do not read as the
    pack is a fail; say which mark is wrong.
 
@@ -78,6 +82,7 @@ When the review shows the film is a different style than the pack, that is a new
   treat 2 as a schema error and edit `shots.json` to get past it.
 - Model-sheet PNG files are allowed before approval. A shot render is not.
 - `audio.path` is optional. When present it has to be a file inside the production directory, and
-  `audio.start` is seconds into that file.
+  `audio.start` is seconds into that file. `render.py --encode` does not mux it: the delivered
+  file is silent until the audio is muxed in with ffmpeg.
 - A style pack's bands were learned on films of at least about a third of the source. A much
   shorter film can fail a row the pictures do not deserve; say so, and do not edit the pack.

@@ -21,6 +21,8 @@ Every path in a board or shot is relative to the production directory and must s
 import argparse
 import hashlib
 import json
+import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -34,6 +36,7 @@ BOARD_FILES = (
 )
 BRIEF_FIELDS = ('Subject', 'Length', 'Audience', 'Packs', 'Delivery')
 STYLES = Path(__file__).resolve().parent.parent / 'styles'
+PACK_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*')
 
 
 def production(path):
@@ -61,6 +64,12 @@ def digest(prod):
         root = prod / folder
         if root.is_dir():
             paths.extend(p for p in root.rglob('*') if p.is_file())
+    board, _ = load_json(prod / 'boards/storyboard.json')
+    panels = board.get('panels') if isinstance(board, dict) else None
+    for panel in panels if isinstance(panels, list) else []:
+        png, _ = rel(prod, panel.get('png') if isinstance(panel, dict) else None, 'png')
+        if png:
+            paths.append(png)   # a panel image outside boards/ is still part of what was approved
     for path in sorted({p.resolve() for p in paths if p.is_file()}):
         h.update(str(path.relative_to(prod)).encode())
         h.update(b'\0')
@@ -392,15 +401,23 @@ def cmd_review(prod, frames):
         problems.append('render.json scene is not a file')
     if problems:
         return report(problems)
-    packs = []
-    for shot in data['shots']:
-        if shot['pack'] not in packs:
-            packs.append(shot['pack'])
-    cuts = prod / 'shots.json'
-    for pack in packs:
-        shipped = STYLES / pack   # a pack the plugin ships resolves to its directory
-        print(f'inkstats.py {frames} --cuts {cuts} --pack {shipped if shipped.is_dir() else pack}')
+    shots = data['shots']
+    cuts = shlex.quote(str(prod / 'shots.json'))
+    film = shlex.quote(str(frames))
+    if len({shot['pack'] for shot in shots}) == 1:
+        print(f'inkstats.py {film} --cuts {cuts} --pack {pack_arg(shots[0]["pack"])}')
+        return 0
+    # Mixed packs: the check judges every frame it reads, so each shot is checked on its own span.
+    for shot in shots:
+        print(f'inkstats.py {film} --t {format(shot["t0"], "g")}-{format(shot["t1"], "g")} --pack {pack_arg(shot["pack"])}')
     return 0
+
+
+def pack_arg(pack):
+    """A plain pack name the plugin ships resolves to its styles/ directory; the result is shell-quoted."""
+    if PACK_NAME.fullmatch(pack) and (STYLES / pack).is_dir():
+        pack = str(STYLES / pack)
+    return shlex.quote(pack)
 
 
 def main(argv=None):
