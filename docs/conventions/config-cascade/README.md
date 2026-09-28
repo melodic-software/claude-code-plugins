@@ -345,7 +345,7 @@ sweep, and each migration updates its own row in the same change.
 ### Overlay spelling drift
 
 Every setup surface that owns a `*.local.*` overlay now recommends (or, for
-`source-control`, appends — ratified #3573) the recursive line above. The narrow spellings the
+`source-control`, appends, ratified #3573) the recursive line above. The narrow spellings the
 fleet used to ship, `.claude/*.local.*`, `.claude/ecosystems/*.local.*`, and
 `.claude/autonomy/**/*.local.*`, were each narrowly correct for their own
 surface but collectively defeated the one-line promise: a consumer running
