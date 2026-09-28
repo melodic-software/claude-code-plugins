@@ -4,7 +4,7 @@ This chapter is kept only because Opus 5 is a fallback target for flagged reques
 and Opus 5.5 sessions; Opus 5.5 is the current Opus.
 
 - **Claim:** do not retire this chapter while model-config names Opus 5 as a fallback target.
-- **Basis:** <https://code.claude.com/docs/en/model-config> "Automatic model fallback":
+- **Basis:** <https://code.claude.com/docs/en/model-config#automatic-model-fallback> "Automatic model fallback":
   "Fable 5.1, Fable 5, and Opus 5.5: biology-flagged requests re-run on Opus 5".
   #4349 trigger is that section no longer naming Opus 5. Meta-rule 3 still routes a
   session that has switched.
