@@ -3,6 +3,21 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.4] - 2026-09-28
+
+### Changed
+
+- **Manual-handoff recycle vs permanent is the approval choice, not recycle-then-empty**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). After a recycle,
+  do not empty the Recycle Bin (or Trash) unless the operator asked for the space back now.
+  `os_autoclean` Storage Sense retention is the deferred reclaim. Permanent delete is a distinct
+  irreversible approval and one gated operation per path. The skill-frontmatter belt does not
+  apply inside dispatched subagents; workers stay evidence-only in prose until a subagent-reaching
+  hook exists. The Bash-lane supporting allowlist is named in SKILL.md (absolute-path
+  `[`, `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test`); engine-gate
+  mode answers those with `ask`, belt `allow`. Absolute protect globs and the Git Bash test-wrapper
+  path conversion are not in this slice. Serializes after in-flight 0.26.1-0.26.3 docs/fix tips.
+
 ## [0.26.0] - 2026-09-28
 
 ### Changed

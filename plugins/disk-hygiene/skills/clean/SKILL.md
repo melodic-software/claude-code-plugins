@@ -153,7 +153,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the volume root itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown; on the manual handoff, also **recycle** or **permanent** (permanent named irreversible) |
 
 ## 1. Create a read-only snapshot
 
@@ -194,6 +194,14 @@ and never plan them for removal (the preview blocks them as `truncated-not-inven
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
+The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
+subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
+`curl` without the belt. **Basis:** #4228 audit on Claude Code 2.1.278 (Windows 11); the hooks
+page describes skill-hook lifetime and is silent on subagent reach
+(https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
+**Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
+note names that reach. "Workers return evidence only" is prose until a hook that fires for
+subagents enforces it; do not treat a worker PowerShell recycle or delete as belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -417,8 +425,15 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
   apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
-  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+  interpreter. The same denial text also admits literal-form read-only supporting commands whose
+  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
+  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
+  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
+  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
+  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
+  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
+  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
+  exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
