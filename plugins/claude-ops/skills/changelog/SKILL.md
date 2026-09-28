@@ -105,17 +105,14 @@ Resolve the range, check the cap, and check version alignment:
 Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
 
 1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
-2. Classify each item per `context/classification-rubric.md`:
-   - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
-   - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
-   - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
+2. Classify each item per `context/classification-rubric.md` into `correct`, `replace`, `adopt`, `note`, or `skip`. A `skip` leaves no row. Group the other lenses by owner surface. Each `correct`, `replace`, and `adopt` row carries the sentence that lens requires. A `replace` row's state is `nominated`.
+3. When the changelog and a docs page disagree, the `correct` row cites the changelog for behavior, names the disagreement, and the pair goes in the working set's docs-lag list, not in a decision row.
 
-Output: structured table with item, classification, affected files, rationale.
+Output: decision rows (lens, owner, sentence, items, state), not an item table. Write them with `scripts/decision-rows.sh --write` into `<memory>/claude-code-changelog/<range>/`. `<memory>` is `CLAUDE_PLUGIN_DATA` when set, otherwise `.work`.
 
 ### Phase 2. Research
 
-For items needing enrichment (P1 items with behavioral changes, P2 items with unclear scope):
+For rows needing enrichment (`correct` and `adopt` rows whose sentence is still thin, `replace` rows whose native surface is not named):
 
 1. Spawn **parallel research subagents**. One per feature cluster (use a Claude Code documentation-focused agent type when available)
 2. Instruct each subagent to ground every claim in a primary source fetched during the task (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it.
@@ -134,14 +131,14 @@ For items needing enrichment (P1 items with behavioral changes, P2 items with un
 Present triage table to user via `AskUserQuestion` or structured markdown:
 
 ```markdown
-| # | Change | Classification | Affected files | Action needed |
-|---|--------|---------------|----------------|---------------|
-| 1 | <summary> | P1 | <files> | <specific update> |
-| 2 | <summary> | P2 | — | <evaluation + recommendation> |
-| N | <summary> | P3 | — | No action |
+| # | Lens | Owner | Sentence | Items |
+|---|------|-------|----------|-------|
+| 1 | correct | <file> | was stated / is true | <ids> |
+| 2 | adopt | <component> | problem solved | <ids> |
+| 3 | replace | <component> | overlap; state nominated | <ids> |
 ```
 
-User picks scope: "all P1+P2", "just P1", or specific items by number.
+User picks which decision rows to apply. A `skip` item is not in the table.
 
 Lock brief: confirmed scope becomes implementation contract.
 
@@ -188,7 +185,7 @@ deferred or blocked), then what changed and what verification showed.
 The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
 
 - **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
-- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits the triage table only. Answers "is this range worth an `apply`?"
+- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation (do not fan out); otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits decision rows only, validated by `scripts/decision-rows.sh`. Answers "which component decisions does this range force?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
 ---
@@ -200,4 +197,5 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
-| `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `context/classification-rubric.md` | Assigning correct / replace / adopt / note / skip, source precedence, and the working-set path. |
+| `scripts/decision-rows.sh` | Checking those rows, and writing `<memory>/claude-code-changelog/<range>/decisions.tsv`. |

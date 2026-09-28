@@ -3,6 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.18] - 2026-09-28
+
+### Changed
+
+- **`/claude-ops:changelog` diff and apply speak in component decisions (#4024).**
+  Lenses are `correct`, `replace`, `adopt`, `note`, and `skip`. A `skip` leaves no
+  row. `correct`, `replace`, and `adopt` require a sentence. A `replace` row stays
+  `nominated` until a human writes the native-surfaces verdict. The changelog is
+  the newer statement of behavior; the docs page stays the authority for syntax
+  until a live probe, and a disagreement is docs lag, not a decision row. `diff`
+  writes the working set with `scripts/decision-rows.sh`. The status, range, and
+  replay cap from the earlier slice are unchanged. `apply` still runs the existing
+  phases; handing them to stage skills is a later slice. Decision record:
+  `skills/changelog/context/classification-rubric.md`.
+
 ## [0.62.17] - 2026-09-28
 
 ### Changed
