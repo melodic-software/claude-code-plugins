@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1] - 2026-09-28
+
+### Changed
+
+- **Engine-gate marker-free over-scan stays documented and parked**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Option A:
+  the marker-free fallback still identity-checks every token of every shell command. A
+  separator filter is not parity-preserving. The tokenizer rewrite stays unpaid. Watchdog
+  expiry from PR #3523 still bounds the stall's consequence.
+
 ## [0.27.0] - 2026-09-28
 
 ### Added

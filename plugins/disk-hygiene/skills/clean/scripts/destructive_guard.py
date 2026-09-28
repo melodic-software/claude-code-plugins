@@ -21,9 +21,10 @@ stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
 follow: (1) the strongest identified candidate for the 17s itself is
 ``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every separator-containing word of *every* Bash/
+``os.path.samefile`` on every whitespace token of *every* Bash/
 PowerShell command in *every* session (not only disk-hygiene commands) when
-resolving the plugin-level engine gate — a slow or unreachable path argument
+resolving the plugin-level engine gate — a known over-scan, parked as #3527
+rather than narrowed here; a slow or unreachable path argument
 in an unrelated command is a real, user-reachable way to stall this hook for
 longer than milliseconds; (2) empty stderr is not what an uncaught Python
 exception normally produces (the default handler writes a traceback), so an
@@ -723,13 +724,17 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 
     A path-like word (containing a separator) that is the SAME FILE as the
     bundled engine — a symlink or hard link under any name — gates regardless
-    of its filename. Accepted residuals, all of the copy-evasion class the gate
-    can never close (a byte copy is a different file): a PATH-installed alias
-    with no separator, an alias inside a command the literal parser rejects
-    when the marker is absent, and a copied engine. This is a belt, not the
-    authority: an invocation smuggled past it still answers to the engine's own
-    preview/approval-token containment (and to the skill-frontmatter belt for
-    the rest of the session once that belt has registered).
+    of its filename. The marker-free fallback currently identity-checks every
+    token, not only path-like words: a separator filter would miss a non-marker
+    hard link sitting in the engine directory and invoked as a bare word.
+    Narrowing that probe set is parked (#3527). Accepted residuals, all of the
+    copy-evasion class the gate can never close (a byte copy is a different
+    file): a PATH-installed alias with no separator, an alias inside a command
+    the literal parser rejects when the marker is absent, and a copied engine.
+    This is a belt, not the authority: an invocation smuggled past it still
+    answers to the engine's own preview/approval-token containment (and to the
+    skill-frontmatter belt for the rest of the session once that belt has
+    registered).
     """
 
     def _is_interpreter(word: str) -> bool:
@@ -772,8 +777,11 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
-        # their whitespace tokens for separator-carrying words and identity-
-        # check those — a literal alias path gates even beside an operator.
+        # their whitespace tokens and identity-check each — a literal alias
+        # path gates even beside an operator. The scan is every token, not
+        # only separator-carrying words; a separator filter would drop the
+        # engine-directory bare-word alias the second samefile reading exists
+        # to catch. Known over-scan, parked as #3527.
         #
         # The path-legal tokens are scanned as well, and carry this branch's
         # weight now that a name merely CONTAINING the marker lands here: a

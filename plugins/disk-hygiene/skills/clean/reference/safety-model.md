@@ -7,6 +7,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Engine-gate marker-free over-scan (parked)](#engine-gate-marker-free-over-scan-parked)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -415,9 +416,11 @@ at `https://code.claude.com/docs/en/hooks`, whose matcher table says a `PreToolU
 tool name and whose Windows example uses that exact `Bash|PowerShell` matcher. Recheck when that page
 drops the example, or when a release note names hook matchers. Read `tool_name` from the stdin payload,
 never from an env var. `CLAUDE_TOOL_NAME`
-does not exist. Where both surfaces see the same command their verdicts are idempotent. The gate defers
-instantly (no output) for any command that does not reference the
-engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
+does not exist. Where both surfaces see the same command their verdicts are idempotent. The gate emits no decision (no output) for any command that does not reference the
+engine. Marker-free relevance still identity-checks every token of that command against the
+bundled engine, a known over-scan recorded under
+[Engine-gate marker-free over-scan (parked)](#engine-gate-marker-free-over-scan-parked).
+Its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
 preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
 the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
@@ -596,6 +599,32 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+## Engine-gate marker-free over-scan (parked)
+
+The plugin-level engine gate's marker-free fallback identity-checks every whitespace token of every
+Bash and PowerShell command, not only separator-carrying words. The function docstring and the
+branch comment used to describe a separator filter the code does not apply. Candidate construction
+concatenates marker tokens with the literal-shell-word set without deduping, and each candidate is
+read twice (`samefile` as written, then relative to the engine directory), so a typical command pays
+four filesystem identity probes per word. The as-written reading takes an arbitrary user token and
+can block on a dead drive letter, a disconnected UNC path, or a stale mount. The watchdog from
+PR #3523 bounds the *consequence* of that stall (expiry no longer blocks a marker-free command); it
+does not remove the probes.
+
+A separator filter over both readings is not a free win. A hard link to the engine that sits in the
+engine's own directory and is invoked as a bare word (`alias apply`) gates today because the
+engine-dir-relative reading exists; a separator filter would drop that shape. It is not the already
+accepted PATH-installed alias residual. Narrowing the probe set is a semantics change to the
+security core.
+
+**Claim:** keep the current marker-free identity-check set; document the over-scan; do not ship a
+separator filter or a tokenizer rewrite until a maintainer funds a parity-preserving probe
+reduction. **Basis:** #3527 (`work-class: structural`, `needs-human`, `area: security`). Triage
+2026-09-06 instrumented four `samefile` calls per word and showed that a separator filter loses the
+engine-directory bare-word alias. Option A parks the unpaid rewrite rather than changing the security
+core. **As of:** 2026-09-28. **Recheck:** a maintainer funds a parity-preserving rewrite with the
+#3527 acceptance criteria (corpus differential, hard-link cases, counted probes), or unparks #3527.
 
 ## Outcome vocabulary
 

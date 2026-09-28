@@ -8669,8 +8669,9 @@ class GuardTests(unittest.TestCase):
         ``resolve_mode`` has legitimately resolved to that mode — this is the
         function identified in the module's #1423 investigation note as the
         strongest candidate for the observed stall (it stats every
-        separator-containing word of *every* Bash/PowerShell command in
-        *every* session), so its failure path is covered explicitly.
+        whitespace token of *every* Bash/PowerShell command in
+        *every* session; known over-scan, parked as #3527), so its failure
+        path is covered explicitly.
         """
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
