@@ -158,6 +158,16 @@ run "PS: a commented here-string opener is refused here, not deferred (blocked)"
   $'Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
 run "PS: the @\047 spelling of the commented opener (blocked)" "$r" \
   $'Write-Output x # @\'\ngit commit -m x\n\'@ fine\'' 2 PowerShell
+# Keyed on the flag, not on the trigger name (#4682). The classifier names
+# herestring-comment-char only when no other trigger fired, so a `{` or an `iex`
+# on the same command reported its own trigger and this guard deferred.
+run "PS: a commented opener behind a {} construct is refused (blocked)" "$r" \
+  $'Write-Output {x} # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+run "PS: a commented opener behind an iex is refused (blocked)" "$r" \
+  $'iex a; Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+# ACCEPTED OVER-BLOCK: git-free text is refused too once the flag is up.
+run "PS: a commented opener behind a {} with no git in it (blocked, accepted over-block)" "$r" \
+  $'Write-Output {x} # @"\nhello\n"@' 2 PowerShell
 # ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" "$r" \
   $'Write-Output "#1" @"\nhello\n"@' 2 PowerShell

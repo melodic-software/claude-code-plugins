@@ -695,6 +695,8 @@ class TestVisualFile(ServerCase):
             "session": ".interview-session.env",
             "tmp": ".interview-session.env.ab12.tmp",
             "dot": "images/.hidden.png",
+            "hardlink": "images/link.png",
+            "twin": "images/twin.bin",
         }
         doc = {
             "meta": {},
@@ -790,6 +792,33 @@ class TestVisualFile(ServerCase):
 
     def test_dotfile_in_a_subfolder_is_404(self):
         self.assertEqual(self.fetch("dot")[0], 404)
+
+    def test_hard_link_to_the_session_file_is_404(self):
+        # The link's name and resolved path both pass the runtime-path check; its link count does not.
+        link = self.dir / "images" / "link.png"
+        try:
+            os.link(self.dir / ".interview-session.env", link)
+        except OSError as e:
+            self.skipTest(f"no hard links here: {e}")
+        try:
+            code, raw, _ = self.fetch("hardlink")
+            self.assertEqual(code, 404)
+            self.assertNotIn(self.token.encode(), raw)
+        finally:
+            link.unlink()
+
+    def test_any_file_with_a_second_hard_link_is_404(self):
+        twin = self.dir / "images" / "twin.bin"
+        try:
+            os.link(self.dir / "images" / "ok.bin", twin)
+        except OSError as e:
+            self.skipTest(f"no hard links here: {e}")
+        try:
+            self.assertEqual(self.fetch("twin")[0], 404)
+            self.assertEqual(self.fetch("top")[0], 404)
+        finally:
+            twin.unlink()
+        self.assertEqual(self.fetch("top")[0], 200)
 
     def test_file_over_the_cap_is_413(self):
         code, raw, _ = self.fetch("big")
@@ -1878,6 +1907,10 @@ class TestLease(WaitCase):
 
     def test_3_expired_lease_is_reclaimed(self):
         time.sleep(5.5)
+        # Expired with no watcher having claimed since: no holder anywhere it is shown.
+        self.assertIsNone(self.lease())
+        rc, out = self.rp("lease")
+        self.assertEqual((rc, out), (0, "no lease"))
         code, body = self.wait_as("B")
         self.assertEqual(code, 200, body)
         self.assertEqual(self.lease()["watcher"], "B")
@@ -1924,6 +1957,64 @@ class TestLease(WaitCase):
         code, body = self.wait_as("B")
         self.assertEqual(code, 200, body)
         self.assertEqual(self.lease()["watcher"], "B")
+
+    def test_7_release_during_a_wait_delivers_the_next_event_once(self):
+        old, new = {}, {}
+        t_old = threading.Thread(target=lambda: old.update(r=self.wait_as("B", 20)))
+        t_old.start()
+        self.until_waiting()
+        rc, out = self.rp("lease", "--release")
+        self.assertEqual(rc, 0, out)
+        t_new = threading.Thread(target=lambda: new.update(r=self.wait_as("C", 20)))
+        t_new.start()
+        end = time.monotonic() + 10
+        while time.monotonic() < end and (self.lease() or {}).get("watcher") != "C":
+            time.sleep(0.05)
+        _, posted = self.post({"kind": "note", "text": "after the release"})
+        t_old.join(30)
+        t_new.join(30)
+        code, body = old["r"]
+        self.assertEqual(code, 409, body)
+        self.assertEqual(body["error"], "lease released")
+        self.assertNotIn("events", body)
+        code, body = new["r"]
+        self.assertEqual(code, 200, body)
+        self.assertEqual(seqs(body["events"]), [posted["seq"]])
+        self.assertEqual(self.lease()["watcher"], "C")
+
+
+class TestSettleBurstCap(unittest.TestCase):
+    """Hub.settle holds found events QUIET_SECONDS past the last new one, never BURST_SECONDS in all."""
+
+    def setUp(self):
+        import server
+
+        self.server = server
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-settle-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.hub = server.Hub(0, self.tmp)
+
+    def settle_with(self, seqs_seen):
+        feed = iter(seqs_seen)
+        with unittest.mock.patch.object(
+            self.server, "load_json", side_effect=lambda *_: {"seq": next(feed)}
+        ):
+            with self.hub.cond:
+                start = time.monotonic()
+                r = self.hub.settle({"seq": 0})
+                return r, time.monotonic() - start
+
+    def test_a_quiet_log_returns_after_one_quiet_window(self):
+        r, took = self.settle_with([0] * 5)
+        self.assertEqual(r["seq"], 0)
+        self.assertGreaterEqual(took, self.server.QUIET_SECONDS * 0.9)
+        self.assertLess(took, self.server.QUIET_SECONDS + 0.5)
+
+    def test_a_log_that_never_goes_quiet_is_cut_off_at_the_burst_cap(self):
+        r, took = self.settle_with(range(1, 1000))
+        self.assertGreater(r["seq"], 1)
+        self.assertGreaterEqual(took, self.server.BURST_SECONDS * 0.95)
+        self.assertLess(took, self.server.BURST_SECONDS + 0.5)
 
 
 if __name__ == "__main__":

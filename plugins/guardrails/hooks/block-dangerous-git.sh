@@ -1409,10 +1409,10 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     # the allow-list question and without spending an attempt, because no allow
     # token for it can be safe. Every token-granted round below spends the SHARED
     # _ps_sink_attempts budget, so a sixth grantable trigger pushes a command that
-    # settles in four rounds past the cap at the bottom of this loop, which exits 0
-    # with a plainly visible `git reset --hard` never checked. Measured on the
-    # payload `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a
-    # commented opener and a closer-carried second opener.
+    # settles in four rounds past the cap. Measured on the payload
+    # `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a
+    # commented opener and a closer-carried second opener. The cap refuses too
+    # (below), and this check stays ahead of it so the refusal names the shape.
     #
     # On the FLAG, not on PS_SINK_TRIGGER, and inside the loop rather than before
     # it. The reduction this loop applies is not idempotent: a closer line carrying
@@ -1427,6 +1427,19 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       PS_SINK_TRIGGER="herestring-comment-char"
       ps::print_unparsable_git_block_message
       emit_tel "blocked" "powershell-unparsable-herestring-comment-char"
+      exit 2
+    fi
+    # The attempt budget is spent and the remainder, re-classified once more on
+    # the round that spent it, still cannot be read: refuse. Allowing here let a
+    # command with five granted sink shapes through with `git reset --hard`
+    # plainly visible and never checked (#4682), which breaks the classifier's
+    # over-block, never under-block rule. A granted shape whose blanking changes
+    # nothing spends all five rounds on itself and lands here too. No allow
+    # token clears this.
+    if ((_ps_sink_attempts > 4)); then
+      echo "BLOCKED: this PowerShell command still cannot be parsed with confidence after five rounds of setting aside allowed sink shapes, and it could reach git — blocked (fail-closed)." >&2
+      echo "The sink-attempt budget is exhausted: each round blanks one allowed ps-unparsable-* shape and re-reads the rest, at most five rounds, and what is still unreadable after that is refused. No allow token clears this. Split the command into smaller ones, or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+      emit_tel "blocked" "powershell-unparsable-budget-exhausted"
       exit 2
     fi
     # The allow token is namespaced separately from the telemetry form token
@@ -1449,11 +1462,6 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       exit 0
     fi
     _ps_sink_attempts=$((_ps_sink_attempts + 1))
-    if ((_ps_sink_attempts > 4)); then
-      # Only opaque residue left after bounded blanks — treat as allowed.
-      emit_tel "ok" ""
-      exit 0
-    fi
     ps::classify_git_command "$TOOL_NAME" "$COMMAND"
     _ps_rc=$?
   done

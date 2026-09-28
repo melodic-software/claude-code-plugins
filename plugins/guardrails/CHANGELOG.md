@@ -3,13 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.4] - 2026-09-27
+## [0.38.5] - 2026-09-27
 
 ### Fixed
 
 - **`block-hook-bypass` exempts an 8.3 short-name spelling of a temp path on Windows.** On a volume that generates short names, `TEMP`, and so the harness scratchpad, is spelled `C:/Users/<user>~1/...`, and the guard refused every `~` before the temp compare ran, so the temp default never fired for the path agents receive. A `~` is now accepted in a component of the 8.3 shape (`NAME~N`, `NAME~N.EXT`) on msys, cygwin and win32 hosts, at the temp default only. The target must match a temp candidate's raw spelling, normalized the same way and case-folded, so a miss spends no resolver process. It must then resolve to a path that passes the strict normalizer and sits under a resolved temp root. Still blocked: a short component nothing backs (a nonexistent `name~9` keeps its `~` after resolution), an 8.3 alias of a junction out of temp, a temp-rooted project, no project root, a leading `~`, `~user` and `~+`, `x~` and `a~b` components, an 8.3 path outside temp, and a `~` target that only a configured scratch root would match. Quoted, escaped and opaque operands stay refused, and on POSIX nothing changes. Resolves [#4678](https://github.com/melodic-software/claude-code-plugins/issues/4678).
 - **The staged-move detector treats a short and a long spelling of one file as one path.** Once an 8.3 redirect is exempt, `jq . a > <8.3 temp>/x && mv <long temp>/x src/a.py` names one file two ways. The reverse spelling was already open. On Windows, when the lexical compare misses and either side carries a `~`, both are compared on their resolved forms. Both directions block.
 - **`secret-pattern-detection`'s temp decline widens on the same spelling.** A `Write` to an 8.3 temp path is declined when the Bash redirect is exempt: the target must match a temp candidate's own spelling, and its resolved form must be fully expanded and under temp. Everything else about the decline is unchanged.
+
+## [0.38.4] - 2026-09-27
+
+### Fixed
+
+- **`block-dangerous-git` refuses a PowerShell command it still cannot read once the sink-attempt budget is spent** ([#4682](https://github.com/melodic-software/claude-code-plugins/issues/4682)). With `ps-unparsable-*` allow tokens set, each round blanks one granted sink shape and re-reads the rest. After five rounds the guard used to exit 0 with the remainder unread, so a command carrying five sink triggers and `git reset --hard` passed under all five tokens. So did a granted shape whose blanking changes nothing, which spends every round on itself: `$a=& 'git reset --hard'` under `ps-unparsable-dynamic-invocation` alone. It now exits 2 (form `powershell-unparsable-budget-exhausted`), and no allow token clears it. Without tokens nothing changes, because the first unreadable shape is refused before any round runs.
+- **`block-convention-violation` and `block-noncanonical-commit` refuse a commented here-string opener whatever trigger fired first.** Both refused only when the recorded trigger was `herestring-comment-char`, a name the classifier sets only when no other trigger fired. A commit whose opener line carried a `#` behind a `{` or an `iex` was reported under that other trigger, and both guards deferred. They now test the opener flag itself. A git-free command with a commented opener and a `{` is refused too, the same accepted over-block as the plain commented opener.
 
 ## [0.38.3] - 2026-09-27
 

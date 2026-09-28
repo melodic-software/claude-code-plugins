@@ -3,6 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.30] - 2026-09-27
+
+### Fixed
+
+- **Statusline shim: a cache miss runs the installed tee, not the first equal-mtime copy.** On a
+  miss the shim used to pick the newest tee by mtime, and plugin cache copies can carry equal
+  mtimes, so `-nt` never fired and the first glob match won: a verifier traced 0.8.1 running while
+  0.8.9 was installed. A miss now ranks the version directory `installed_plugins.json` names as an
+  `installPath` first (a `/` or JSON-escaped `\\` path), then compares dotted-number version names
+  by value, so 0.10.0 beats 0.9.0, and keeps the mtime order for any other pair, including a
+  symlinked development checkout. The record is read with one builtin `read`, on a miss that finds
+  a second live candidate only; a cache hit is unchanged (four stat tests, no fork), and a record the match cannot read ranks every
+  candidate the same. With two marketplaces shipping this plugin, the one the record names now wins
+  a miss. Shim revision 5; re-run `/rate-limit-guard:setup apply` to refresh the installed copy
+  (#4676).
+
 ## [0.8.29] - 2026-09-27
 
 ### Changed
