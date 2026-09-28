@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.12] - 2026-09-28
+
+### Changed
+
+- **`extract-ssot` orchestrated mode records caller-owned commit granularity as tracked**
+  ([#4504](https://github.com/melodic-software/claude-code-plugins/issues/4504)).
+  Wave commits stay the default. Callers that need one commit per step, or uncommitted
+  staging, stage or commit outside the skill after `--dry-run` until an explicit
+  commit mode lands.
+
 ## [0.23.11] - 2026-09-28
 
 ### Changed
