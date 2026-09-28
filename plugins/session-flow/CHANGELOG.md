@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.38.7] - 2026-09-28
+
+### Changed
+
+- **clean-stop**, **handoff**, **retro:** rephrase `/export` offers to the suggest grammar; declare `unattended` ([#4056](https://github.com/melodic-software/claude-code-plugins/issues/4056)). Contract-slice prune and full store `integration` wait on #4049 / merged predecessors.
+
 ## [0.38.6] - 2026-09-28
 
 ### Fixed
