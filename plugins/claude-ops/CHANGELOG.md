@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.16] - 2026-09-28
+
+### Changed
+
+- **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
+  Python unit tests pass, the contract that a two-scope install collapses to one plugin
+  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
+  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+
 ## [0.62.15] - 2026-09-28
 
 ### Changed
