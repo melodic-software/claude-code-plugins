@@ -97,7 +97,8 @@ Converge, in order:
 
 ## Next
 
-`/architecture:map-landscape`. Both `architecture_dir` and `landscape_dialect` are declared by now.
+- A landscape of repositories: `/architecture:map-landscape`.
+- A state diagram from an explicit transition table: `/architecture:map-states`.
 
 ## Gotchas
 

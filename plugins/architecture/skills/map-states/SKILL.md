@@ -103,8 +103,8 @@ End every run with this block, in this order:
 
 ## Next
 
-- A transition leaves the process: `/architecture:map-events`.
 - The diagram settles a decision worth keeping: `/architecture:record-decision`.
+- The question is which systems the repository sits among: `/architecture:map-landscape`.
 
 ## Gotchas
 
