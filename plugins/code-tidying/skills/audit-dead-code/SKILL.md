@@ -131,6 +131,22 @@ Bounded by design. Full evidence catalogue in
 - **`**/evals/fixtures/**` is never scanning input**, matching the policy `ruff.toml` already sets.
   A detector's planted-defect corpus is not the consumer's dead code.
 
+## When coverage is incomplete
+
+A `skipped` lane, a `scanned-zero-files` lane, or source files with no lane at all are gaps, not a
+clean bill. After presenting the lane roster:
+
+1. **Name each gap**: which paths, which language, and why (no lane, no local binary, no
+   `package.json` root, or policy exclusion such as Rust/.NET).
+2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
+   the operator to edit and submit. Do nothing unless they agree.
+3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for the
+   language, show the choice and its install command, and install or invoke it only after an
+   explicit yes. Record its precision as **unmeasured** until trap fixtures cover it.
+
+The default stays read-only: no package runner, no network fetch, and no build without consent
+(#4524). Consent-gated lanes that may compile or execute project code remain out of scope here.
+
 ## Output schema
 
 The script emits flat records; the adjudicated report is what the human reads.
