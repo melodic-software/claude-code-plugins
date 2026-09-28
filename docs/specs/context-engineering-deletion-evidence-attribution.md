@@ -91,7 +91,7 @@ re-add gate stays the only grammar: a ledger row, same-cause aggregation, and a 
 the rows. `claude-config:audit-instructions` treats an editorial cut as applicable on its normal
 criteria, holds a protected class, and treats a consequential deletion as applicable only when the
 removing commit cites a closed watch whose qualifying-session count is met and whose attributed
-row count is zero. That citation is what clears the consequential tier. Silence does not.
+row count is zero. That citation is what clears the consequential tier. An empty watch is not a warrant.
 
 The signed-off contract lived at `docs/topics/context-engineering-integration/PLAN.md` and was
 pruned before merge. This file is the durable record. The grammar is not re-filed under
