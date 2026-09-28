@@ -455,6 +455,7 @@ ls-remote)
   # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
   # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
   [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
+  [[ "${FAKE_LS_REMOTE_ALWAYS_FAIL:-}" != 1 ]] || exit 7
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -916,6 +917,24 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable"
+# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+all_fail_out="$TMP/ls-remote-all-fail.txt"
+FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
+assert_contains_file "all-fail ls-remote emits fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
+if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
+  grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
+else
+  printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+  "Finding: merged-remote-branch" "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
 # at another repository cannot stand in for the pinned remote and demotes to MEDIUM.

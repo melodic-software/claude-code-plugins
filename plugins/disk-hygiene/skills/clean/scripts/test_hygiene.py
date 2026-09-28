@@ -1334,14 +1334,16 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(["Cache"], folded)
 
-    def test_root_children_flag_requires_os_managed_volume_root(self) -> None:
+    def test_root_children_on_non_volume_target_lists_immediate_children(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            target = base / "ordinary"
+            target = base / "home"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            (target / "builds").mkdir()
+            (target / "AppData").mkdir()
+            (target / ".cache").mkdir()
+            (target / "Documents").mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1356,8 +1358,22 @@ class HygieneTests(unittest.TestCase):
                 ],
                 extra_args=["--root-children"],
             )
-            self.assertEqual(2, code)
-            self.assertIn("volume-root target", payload["error"])
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({".cache", "AppData"}, admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+
+    def test_root_children_on_non_os_volume_root_still_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1365,7 +1381,45 @@ class HygieneTests(unittest.TestCase):
                 extra_args=["--root-children"],
             )
             self.assertEqual(2, code)
-            self.assertIn("only valid for an OS-managed volume root", payload["error"])
+            self.assertIn("OS-managed", payload["error"])
+
+    def test_home_root_children_inventories_selected_subtree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            deep = target / "AppData" / "Local" / "pkg"
+            deep.mkdir(parents=True)
+            (deep / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / "Documents").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "AppData",
+                ],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            paths = {entry["path"] for entry in snapshot["entries"]}
+            self.assertIn("AppData/Local/pkg/orphan.tmp", paths)
+            self.assertNotIn("Documents", paths)
 
     def test_root_child_requires_root_children_flag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

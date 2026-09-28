@@ -1,6 +1,6 @@
 ---
 description: "Run a structured session retrospective: extract transcript metrics, assess quality across five dimensions, check feedback-memory regressions, and codify learnings durably. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
+argument-hint: "[unattended] [mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -123,10 +123,7 @@ is verified 2026-09-06 against Claude Code 2.1.263 and
 store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
 `cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
 release note names `cleanupPeriodDays`. When the
-built-in `export` command resolves in your session, close by offering the one-line export
-`/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after verifying the memory root's
-self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Offer only,
-never run: built-ins are user-invoked, and nothing records or verifies that the export happened.
+If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). **`unattended`:** record the suggestion in output; do not ask.
 
 ## What this skill does NOT do
 
