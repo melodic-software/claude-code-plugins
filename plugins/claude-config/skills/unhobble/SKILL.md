@@ -81,13 +81,15 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
   the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
   No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
-  did, what was expected, suspected missing instruction, severity).
+  did, what was expected, suspected missing instruction, severity), with any deletion watch
+  recorded above the table (see Deletion watch).
 - `backups/`, under `${CLAUDE_PLUGIN_DATA}` only: pre-strip copies of any non-git-tracked file
   modified or removed (settings hook entries, and an untracked instruction file the plan classified
   behavioral, which git cannot restore and so is never stripped through the git helper). Never
   commit `backups/`.
 
-`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
+`status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates,
+open and closed deletion watches.
 
 ## Phase 1: snapshot
 

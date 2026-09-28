@@ -237,7 +237,8 @@ surfaces its row names.
 
 ### Deletion tiers
 
-Two tiers, one grammar. The grammar is `unhobble`'s re-add gate: a ledger row, same-cause
+Two deletion tiers, editorial and consequential, and one hold outside them, protected. One
+grammar. The grammar is `unhobble`'s re-add gate: a ledger row, same-cause
 aggregation, and a commit that cites the rows. This catalog does not define a second grammar.
 The operational form is `/claude-config:unhobble watch`.
 
