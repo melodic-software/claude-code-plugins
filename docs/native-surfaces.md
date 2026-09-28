@@ -201,7 +201,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `doctor` → `claude-ops:audit-performance`
 
-- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Registry-row only: the routing line for this pair lives on audit-install-state, which owns the shared surface description for the plugin.
+- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing line for the shared surface description still lives on audit-install-state.
 - **Native surface:** `doctor` (bundled skill; markers: gated)
 - **Our component:** `claude-ops:audit-performance` (skill)
 - **Evidence:**
@@ -210,7 +210,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-09-11)
+- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule starts covering transcripts (verified 2026-09-28)
 - **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

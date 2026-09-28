@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.13] - 2026-09-28
+
+### Changed
+
+- **`audit-performance` composes `/doctor` after the capture, not before**
+  ([#3533](https://github.com/melodic-software/claude-code-plugins/issues/3533)). The overlap
+  verdict stays `complementary`. A Scope-boundary row and a Reading-the-report line name the
+  transcript half this engine never reads. No description change.
+
 ## [0.62.12] - 2026-09-28
 
 ### Changed
