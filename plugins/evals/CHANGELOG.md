@@ -7,7 +7,7 @@
 - **Fleet pipeline gap analysis** ([#3614](https://github.com/melodic-software/claude-code-plugins/issues/3614)).
   `docs/specs/evaluation-methodology-gap-analysis.md` records adopt / already-covered / rejected
   verdicts for each Agent Skills evaluation pipeline element against this fleet's `evals.json`
-  corpus and `/evals:*` skills.
+  corpus and `/evals:*` skills. Each adopt verdict is a proposal re-gated to the operator.
 
 ## [0.3.1] - 2026-09-25
 

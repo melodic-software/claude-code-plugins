@@ -7,9 +7,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **No behavior change.** The description trim this branch carried already shipped as 0.44.10
-  (part of #4657) and was superseded by 0.45.1 (#4661). Skill text matches 0.45.3. This version
-  serializes the branch above main.
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 

@@ -3,13 +3,6 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.0] - 2026-09-28
-
-### Changed
-
-- **No behavior change.** The CI-lane description routes this branch added already shipped in
-  0.32.0 (part of #4053). Skill text matches 0.33.0. This version serializes the branch above main.
-
 ## [0.33.0] - 2026-09-28
 
 ### Security

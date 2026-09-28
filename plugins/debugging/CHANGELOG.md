@@ -3,6 +3,13 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.8] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
+
 ## [0.7.7] - 2026-09-28
 
 ### Changed

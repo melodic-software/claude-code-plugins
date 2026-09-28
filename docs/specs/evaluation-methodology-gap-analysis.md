@@ -1,13 +1,18 @@
 # Fleet eval corpus vs Agent Skills evaluation pipeline
 
-This document records a gap analysis of the marketplace fleet's `evals/evals.json` corpus (279 skill-level files as of
+This document records a gap analysis of the marketplace fleet's `evals/evals.json` corpus (280 skill-level files as of
 2026-09-28) against the pipeline described in Anthropic's [evaluating
 skills](https://agentskills.io/skill-creation/evaluating-skills) guidance and the `skill-creator`
 reference on `claude-plugins-official`.
 
 **Method:** read the official pipeline elements, map each to an existing fleet surface (`evals.json`,
 `/evals:plugin-eval`, `/evals:design`, `/skill-quality:check validate-evals`, subagent dispatch
-patterns), and record one verdict per row.
+patterns), and record one verdict per row. Where two levels differ (for example plugin versus
+skill `evals.json`), the row carries one scoped verdict per level.
+
+**Status of the verdicts:** this is a read-only analysis. Every **adopt** verdict is a proposal,
+re-gated to the operator one element at a time (operator decision on #3614, 2026-09-27); none is
+decided here.
 
 | Pipeline element | Fleet today | Verdict | Notes |
 |---|---|---|---|
@@ -21,7 +26,7 @@ patterns), and record one verdict per row.
 | Task-completion notification as token/duration metrics source | `/claude-ops:observability` and session tooling expose usage; not wired into eval aggregate JSON for skill `evals.json` runs. | **rejected** (for skill evals.json runner) | Official guidance targets Claude Code task notifications; this repo's skill eval format is static prompt grading, not live harness telemetry. Revisit only if the fleet adopts a single runner that executes cases inside Claude Code and records completion metrics. |
 | Compare against `skill-creator` on `claude-plugins-official` before building parallel infra | `/evals:design` and playbooks cite skill-creator and `plugin eval` separation; no automated diff vs upstream skill-creator. | **adopt** | Before expanding fleet runner scope, run a periodic manual or scripted checklist against upstream skill-creator capabilities and record deltas in this file. |
 
-## Recommended next adoptions (priority)
+## Proposed adoptions for the operator gate (priority)
 
 1. Skill-level **no-skill arm** documentation and routing (`evals.json` → when to use `plugin eval`).
 2. **Script graders** for mechanical expectations in high-traffic skills.
@@ -30,11 +35,13 @@ patterns), and record one verdict per row.
 
 ## Recorded verdict summary
 
-| Verdict | Count |
+| Row verdict | Rows |
 |---|---|
-| already-covered | 3 |
-| adopt | 5 |
+| already-covered only | 1 |
+| adopt only | 4 |
+| already-covered at one level, adopt at another | 3 |
 | rejected | 1 |
+| **Total** | **9** |
 
 Acceptance for #3614: each pipeline element above carries **adopt**, **already-covered**, or
 **rejected** with reason.
