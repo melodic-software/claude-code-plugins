@@ -3208,51 +3208,56 @@ def preview(
             if not same_identity(path, entries[relative]):
                 blockers.append("changed-since-scan")
             state, detail = "clear", None
-        elif "truncated-not-inventoried" in blockers:
-            # A truncated candidate is already hard-blocked from planning above;
-            # walking its live subtree here would be the same unbounded
-            # traversal --max-depth exists to avoid, for a candidate that can
-            # never become approvable anyway.
-            current_paths = expected_paths
         else:
-            try:
-                current_paths = current_descendants(target, path)
-            except PermissionError:
-                current_paths = set()
-                blockers.append("needs-elevation")
-            except (OSError, HygieneError):
-                current_paths = set()
-                blockers.append("filesystem-state-unverified")
-        if current_paths != expected_paths:
-            blockers.append("changed-since-scan")
-        for name in expected_paths:
-            entry = entries[name]
-            current = target.joinpath(*PurePosixPath(name).parts)
-            if not same_identity(current, entry):
+            if "truncated-not-inventoried" in blockers:
+                # A truncated candidate is already hard-blocked from planning
+                # above; walking its live subtree here would be the same
+                # unbounded traversal --max-depth exists to avoid, for a
+                # candidate that can never become approvable anyway.
+                current_paths = expected_paths
+            else:
+                try:
+                    current_paths = current_descendants(target, path)
+                except PermissionError:
+                    current_paths = set()
+                    blockers.append("needs-elevation")
+                except (OSError, HygieneError):
+                    current_paths = set()
+                    blockers.append("filesystem-state-unverified")
+            if current_paths != expected_paths:
                 blockers.append("changed-since-scan")
-            blockers.extend(hard_protection(current, target, exact_names, known_mounts))
-            relative_current = current.relative_to(target).as_posix()
-            if any(glob_matches(relative_current, pattern) for pattern in globs):
-                blockers.append("consumer-protected-path")
-        if "truncated-not-inventoried" in blockers:
-            # Same rationale as the current_descendants short-circuit above: a
-            # truncated candidate can never leave "blocked" state, so skip the
-            # live VCS-repository walk (discover_current_repositories, an
-            # unbounded recursive scandir) and the live handle-state probe
-            # (POSIX's `lsof +D`, also unbounded) instead of running them
-            # against a subtree --max-depth was never asked to inventory.
-            state, detail = "unverified", "truncated-not-inventoried"
-        else:
-            vcs = tracked_blocker(path, target)
-            if vcs:
-                blockers.append(vcs)
-            state, detail = candidate_handle_state(target, path, expected_paths)
-            if state != "clear":
-                blockers.append(
-                    {"open": "live-handle", "needs_elevation": "needs-elevation"}.get(
-                        state, "handle-state-unverified"
-                    )
+            for name in expected_paths:
+                entry = entries[name]
+                current = target.joinpath(*PurePosixPath(name).parts)
+                if not same_identity(current, entry):
+                    blockers.append("changed-since-scan")
+                blockers.extend(
+                    hard_protection(current, target, exact_names, known_mounts)
                 )
+                relative_current = current.relative_to(target).as_posix()
+                if any(glob_matches(relative_current, pattern) for pattern in globs):
+                    blockers.append("consumer-protected-path")
+            if "truncated-not-inventoried" in blockers:
+                # Same rationale as the current_descendants short-circuit
+                # above: a truncated candidate can never leave "blocked"
+                # state, so skip the live VCS-repository walk
+                # (discover_current_repositories, an unbounded recursive
+                # scandir) and the live handle-state probe (POSIX's `lsof +D`,
+                # also unbounded) instead of running them against a subtree
+                # --max-depth was never asked to inventory.
+                state, detail = "unverified", "truncated-not-inventoried"
+            else:
+                vcs = tracked_blocker(path, target)
+                if vcs:
+                    blockers.append(vcs)
+                state, detail = candidate_handle_state(target, path, expected_paths)
+                if state != "clear":
+                    blockers.append(
+                        {
+                            "open": "live-handle",
+                            "needs_elevation": "needs-elevation",
+                        }.get(state, "handle-state-unverified")
+                    )
         blockers = sorted(set(blockers))
         candidate_entry = entries[relative]
         logical_bytes = sum(

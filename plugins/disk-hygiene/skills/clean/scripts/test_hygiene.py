@@ -11621,6 +11621,52 @@ class ManagedStateLaneTests(unittest.TestCase):
             )
             self.assertIsNone(blocked["approval_token"])
 
+    def test_live_owner_churn_blocks_the_engine_lane_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            cache = root / "AppData" / "Local" / "Docker" / "cache.bin"
+            cache.parent.mkdir(parents=True)
+            cache.write_text("state", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (cache.parent / "new-layer").write_text("churn", encoding="utf-8")
+            rendered = hygiene.owner_registry.render_argvs(
+                [
+                    ["docker", "image", "prune", "-f"],
+                    ["docker", "builder", "prune", "-f"],
+                ]
+            )
+            managed = candidate("AppData/Local/Docker")
+            managed["owner"] = "Docker Desktop"
+            managed["native_gc_evidence"] = {"command": rendered, "result": "eligible"}
+            plan = {"version": 1, "tier": "high", "candidates": [managed]}
+            with (
+                mock.patch.object(hygiene, "hard_protection", side_effect=lambda *_a, **_k: []),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(
+                    hygiene.owner_registry, "tool_present", return_value=True
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "execution_blockers",
+                    side_effect=lambda: [hygiene.PLATFORM_BLOCKER],
+                ),
+            ):
+                engine = hygiene.preview(snapshot, plan)
+                managed_preview = hygiene.preview(snapshot, plan, lane="managed")
+            engine_blockers = engine["candidates"][0]["blockers"]
+            managed_blockers = managed_preview["candidates"][0]["blockers"]
+            self.assertIn("changed-since-scan", engine_blockers)
+            self.assertIn(hygiene.PLATFORM_BLOCKER, engine_blockers)
+            self.assertIn("native-managed-report-only", engine_blockers)
+            self.assertNotIn("changed-since-scan", managed_blockers)
+            self.assertNotIn(hygiene.PLATFORM_BLOCKER, managed_blockers)
+            self.assertEqual("ready-for-explicit-approval", managed_preview["status"])
+            self.assertEqual(
+                hygiene.approval_token(snapshot, plan),
+                managed_preview["approval_token"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

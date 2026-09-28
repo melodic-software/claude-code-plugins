@@ -363,9 +363,12 @@ registry row is `coverage-gap`: not clean, not removable, and not a guess.
 
 The destructive command runs only through `managed-apply`, with the same
 `--execute`, `--confirm-tier`, and `--approval-token` flags as `apply`. Both
-commands call `gate_exact_tier_approval`. The lane executes the registry argv
-and does not delete the path. `apply` still refuses a managed candidate with
-`native-managed-report-only`.
+commands call `gate_exact_tier_approval`. The managed preview re-stats the
+approved path and checks the registry. It does not apply the deletion lane's
+unlink prerequisites, descendant-set equality, or live-handle probe: those
+exist so `apply` can delete, and a live owner's directory would otherwise
+never clear. The lane executes the registry argv and does not delete the
+path. `apply` still refuses a managed candidate with `native-managed-report-only`.
 
 ## 5. Preview, then ask
 
