@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.18] - 2026-09-28
+## [0.63.2] - 2026-09-28
 
 ### Changed
 
@@ -17,6 +17,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   replay cap from the earlier slice are unchanged. `apply` still runs the existing
   phases; handing them to stage skills is a later slice. Decision record:
   `skills/changelog/context/classification-rubric.md`.
+
+## [0.63.0] - 2026-09-28
+
+### Added
+
+- **`audit-native-overlap`: every store row carries `integration`**
+  ([#4049](https://github.com/melodic-software/claude-code-plugins/issues/4049)).
+  The field is `route`, `wrap`, or `suggest`, required beside `verdict`. Class rules:
+  a built-in command takes `route` or `suggest`; a bundled skill, plugin-backed built-in,
+  or marketplace plugin takes `route` or `wrap`; a bundled skill marked
+  `model-invocation-disabled` takes `suggest`; a session skill takes `route`; a `defer`
+  verdict takes `route` and overrides the marker rule. `wrap` and `suggest` rows name the
+  observed invocation mode in evidence. `baked` gains `native_step` and `suggest_sentence`.
+  The generated view renders an Integration column. native-references moves to 2.0.0 for
+  the Native step grammar, the suggest sentence, and the built gate-token check.
 
 ## [0.62.17] - 2026-09-28
 
