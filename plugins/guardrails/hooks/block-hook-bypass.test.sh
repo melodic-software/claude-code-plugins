@@ -1117,6 +1117,20 @@ run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+run_pwsh "PS: Set-Content recovered from behind a quote-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a backslash-prefixed opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: Set-Content recovered from behind a <# then opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "Set-Content f.txt x" "\"@")" 2
+run_pwsh "PS: shape 9 — a commented opener behind {} with no write (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
+run_pwsh "PS: a bare CR hiding Set-Content (blocked)" \
+  $'Write-Output hi\rSet-Content f.txt x' 2
+run_pwsh "PS: CRLF canonical verbatim here-string with no write (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @'" "hello" "'@")" 0
+
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
 run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
