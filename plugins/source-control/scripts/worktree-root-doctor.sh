@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # worktree-root-doctor.sh — conformance check for the worktreeroot.path
+# Worktree enumeration and lock reasons are scripts/lib/worktree-facts.sh.
+# This doctor reports path resolution and does not parse porcelain.
 # convention (#2612). The
 # includeIf machinery the convention leans on for
 # per-identity/per-repository roots fails UNIFORMLY QUIETLY: an unknown
