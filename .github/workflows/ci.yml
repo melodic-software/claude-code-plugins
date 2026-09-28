@@ -798,6 +798,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-docs-naming.sh --check
 
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run adr-number tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-adr-numbers.test.sh
+      - name: Check ADR numbers are unique
+        id: adr_numbers
+        continue-on-error: true
+        run: scripts/check-adr-numbers.sh --check
+
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
@@ -1468,6 +1477,7 @@ jobs:
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
+            adr-numbers=${{ steps.adr_numbers.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}

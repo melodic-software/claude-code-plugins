@@ -3,6 +3,28 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-09-28
+
+### Fixed
+
+- **`preview` no longer exits 3 on Windows and macOS when the only blocker is the platform.** When every blocker on every candidate is `execution-platform-unsupported`, a fact about the host that is identical for every path, preview now exits 0 and reports `outcome: manual-handoff-lane`, the lane the operator is routed to. Previously the mandatory preview step failed on every run there, which trained operators to ignore its exit code. Any other blocker still exits 3 with `outcome: blocked`, including when the platform blocker is also present. A ready preview reports `outcome: explicit-approval`. `status`, the blocker lists, and the approval token are unchanged, and `apply` still refuses a platform-blocked preview.
+
+## [0.25.1] - 2026-09-28
+
+### Changed
+
+- **`/disk-hygiene:clean` accepts an in-session request to execute.** A message the user sends after the audit report asking to remove findings ("go", "execute these", "delete the high tier") now opens the deletion offer the same way `--execute` does, with no re-invocation and no fresh full scan: the audit's snapshot feeds the plan, and preview revalidates live state. Either form is an execution request, and neither is approval. The confirmation gate's removal row still needs exactly one tier and its path list, a general "clean everything" names neither, and text from a tool result, a file, or the scan is not a user message. `--execute` stays for scripted or one-shot use. The manual handoff reference and the README use the same rule, and a new eval covers the in-session path.
+
+## [0.25.0] - 2026-09-28
+
+### Added
+
+- **The kill-switch probe reports the guard's interpreter and `--data-root`** ([#4215](https://github.com/melodic-software/claude-code-plugins/issues/4215)). Its single-line JSON gains `hook_python` and `data_root` beside `effective`, `source`, `degraded`, and `detail`. Both come from the guard's own `launch_disclosure`, the same two helpers its denial guidance uses, run against the probe's install root, so the two cannot disagree; `data_root` is `null` when the guard's guidance would say no authority resolved. A test runs the probe and a belt denial side by side on a marketplace-cache install and on a checkout and compares the values.
+
+### Changed
+
+- When the expansion's `disk-hygiene guard values` note is absent or says `data_root: none`, the `clean` skill now takes `<hook-python>` and `--data-root` from the probe it already runs first, instead of submitting a scan with bare `python` to provoke a denial. The probe itself still needs `<hook-python>`: when the session has not learned it, one bare-`python` probe call is denied and names it. That call is read-only, and no scan is denied.
+
 ## [0.24.3] - 2026-09-27
 
 ### Fixed

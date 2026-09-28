@@ -22,7 +22,7 @@
     {"id": "Q2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Visuals", "title": "Which diagram shows the flow?", "recommendation": "The first one.", "commits": [], "alternatives": [{"key": "a", "text": "The second one"}, {"key": "b", "text": "Neither"}], "visuals": [
       {"id": "vk", "title": "Kind svg", "kind": "svg", "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 40\"><rect width=\"120\" height=\"40\" fill=\"#2f5d8a\"/><text x=\"10\" y=\"25\" fill=\"#fff\">svgmark</text></svg>"},
       {"id": "vf", "title": "Format svg", "format": "svg", "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 40\"><rect width=\"120\" height=\"40\" fill=\"#2f5d8a\"/><text x=\"10\" y=\"25\" fill=\"#fff\">svgmark</text></svg>"},
-      {"id": "vh", "title": "Html", "format": "html", "content": "<p id=\"htmlmark\">htmlmark paragraph</p>"},
+      {"id": "vh", "title": "Html", "format": "html", "content": "<p id=\"htmlmark\">htmlmark paragraph</p><script>var p = document.createElement(\"p\"); p.id = \"scriptmark\"; p.textContent = \"built by script\"; document.body.appendChild(p);</script>"},
       {"id": "vm", "title": "Mermaid", "format": "mermaid", "content": "graph TD\n  A-->B"},
       {"id": "vi", "title": "Image", "format": "image", "file": "images/flow.png"},
       {"id": "vs", "title": "File svg", "format": "svg", "file": "diagrams/flow.svg"},

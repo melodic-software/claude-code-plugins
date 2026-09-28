@@ -171,16 +171,27 @@ harness_ledger_reset() {
 
 # harness_require_python
 #
-# Sets HARNESS_PYTHON. Fails rather than skipping: the summarizers are where the
-# refusal rules live, so a run without them is not a weaker run, it is no run.
+# Sets HARNESS_PYTHON to an ABSOLUTE interpreter path that was proven to run.
+# Fails rather than skipping: the summarizers are where the refusal rules live,
+# so a run without them is not a weaker run, it is no run.
+#
+# A bare name resolves by PATH order, and on a mixed host that order can reach a
+# stub: a WindowsApps alias with no Python behind it, or a different install than
+# the one the caller meant. harness-integrity.md rule 6 covers resolution as well
+# as spelling for exactly this reason, so each candidate is pinned to the path
+# `type -P` finds and is run once before it is trusted. A candidate that does not
+# run is named and skipped, never silently used.
 harness_require_python() {
-  local candidate
+  local candidate resolved
   for candidate in python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1; then
+    resolved="$(type -P "$candidate" 2>/dev/null)" || continue
+    [[ -n "$resolved" ]] || continue
+    if "$resolved" -c 'import sys' </dev/null >/dev/null 2>&1; then
       # shellcheck disable=SC2034  # this is the function's OUTPUT, read by every sourcing script
-      HARNESS_PYTHON="$candidate"
+      HARNESS_PYTHON="$resolved"
       return 0
     fi
+    harness_warn "$candidate resolves to $resolved, which did not run 'import sys'; skipping it."
   done
-  harness_die "neither python3 nor python is on PATH. The percentile and ratio refusals live in the Python summarizers, so a run without them would report numbers no gate had checked."
+  harness_die "no python3 or python on PATH runs. The percentile and ratio refusals live in the Python summarizers, so a run without them would report numbers no gate had checked."
 }

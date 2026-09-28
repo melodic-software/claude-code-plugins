@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.50.1] - 2026-09-28
+## [0.50.2] - 2026-09-28
 
 ### Fixed
 
@@ -16,6 +16,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `c2-mechanical` baseline), the push ask rows are now `info` and name the signal. Every push ask
   row states that the rule blocks unattended lanes. Deny families, force-push included, are
   unaffected. `required-permissions.md` narrowing 1 names the exemption and the signals that count.
+
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **`audit-instructions`: Phase D names the disposition for a lane whose residency is
+  unresolved.** The Phase B hand-off told such a lane to report "as conditional rather than as
+  findings", but Phase D defined only the findings table with a diff per row, so the result
+  landed as an ordinary actionable finding. The Proposed change column now takes a closed set, a
+  proposal, `no change proposed`, or `RESIDENCY-UNRESOLVED: <condition>`, and the last carries no
+  fenced diff and is not re-judged in Phase C. The Phase B hand-off and the Phase A inventory
+  note use the same name. Under `--persist-findings` such candidates are held out of `--from`
+  and counted by a new `emit-findings.sh --declined-residency <n>` line, separate from the I28
+  carve-out count. New eval and fixture (#4314).
 
 ## [0.50.0] - 2026-09-27
 

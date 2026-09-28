@@ -64,6 +64,7 @@ f=""
 # that reads its mode first needs that mode here or it would exit 2 for usage
 # and the run would prove the wrong thing.
 REGISTRY=(
+  "check-adr-numbers.sh|-|-|adr_numbers"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-contract-slice-prune.sh|-|-|-"
@@ -309,6 +310,15 @@ recipe::docs_naming() { # <clean|violation>
   capture run_in "$f" bash scripts/check-docs-naming.sh --check
 }
 
+recipe::adr_numbers() { # <clean|violation>
+  fixture_tree::build f --sut "$SELF_DIR/check-adr-numbers.sh" --label adr-numbers || return 2
+  mkdir -p "$f/docs/adr"
+  printf 'seed\n' >"$f/docs/adr/0001-first.md"
+  [[ "$1" == violation ]] && printf 'seed\n' >"$f/docs/adr/0001-second.md"
+  printf '# none\n' >"$f/scripts/adr-numbers-baseline.txt"
+  capture run_in "$f" bash scripts/check-adr-numbers.sh --check
+}
+
 recipe::queue_front_matter() { # <clean|violation>
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
@@ -377,6 +387,7 @@ declare -A VIOLATION_NEEDLE=(
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
   [docs_naming]='is not lower-kebab-case'
+  [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
 )
 
