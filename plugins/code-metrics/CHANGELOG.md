@@ -3,6 +3,17 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.20] - 2026-09-28
+
+### Changed
+
+- **Convention adopter rows land for the surfaces this plugin already implements**
+  ([#3847](https://github.com/melodic-software/claude-code-plugins/issues/3847)).
+  `docs/conventions/config-cascade` gains the `.claude/code-metrics.yaml` Implementers row (all
+  three layers, per-key override). `docs/conventions/ecosystem-commands` gains a Consumers row:
+  this plugin reads `globs` and `enabled` only, never a verb. The README known-gap that deferred
+  those rows is gone. No resolver, key, or collector change.
+
 ## [0.3.19] - 2026-09-28
 
 ### Fixed

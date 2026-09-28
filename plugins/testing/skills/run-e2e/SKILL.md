@@ -1,12 +1,25 @@
 ---
-description: "End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
+description: "When the bundled run skill resolves in your session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
+argument-hint: "[unattended] [scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Start the app, drive real flows, capture evidence
 ---
+## Native step: run (bundled skill)
+
+When the bundled `run` skill resolves in your session, invoke it to launch the app, then layer
+screenshots, responses, and logs on top of its result.
+
+**Mutation.** `run` starts processes rather than editing files; fingerprint the tracked tree before
+the step and confirm it is unchanged after.
+
+**Skip report.** When the step does not run, open with `did not resolve in this session` and name
+the axis line: settings or environment, plan, platform or provider, host surface; fall back to this
+skill's own launch playbook.
+
+**`unattended`:** record the Native step result block without asking.
 
 ## Repository context. Gather first
 

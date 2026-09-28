@@ -100,6 +100,31 @@ Each row was re-derived this session by resolving the tag to its commit and read
   parses the run id out of this record, prints it as the evidence behind condition 2, and exits 2
   if the record is not there to read.
 
+## Canary host decision (#4282)
+
+**Decision.** Do not unarchive `melodic-software/claude-lane-sandbox`. Do not add
+the canary workflow to this marketplace repository. Do not create a throwaway
+host from this checkout.
+
+- **Option A (taken):** cutover condition 2's CI-canary component continues to
+  rest on the knowledge-corpus record in [The CI canary](#the-ci-canary). The
+  two-pin three-case matrix named in #4282 (repo pin `v1.0.222` vs latest pin
+  `v1.0.231`, cases A/B/C) is not built here.
+- **Option B (declined here):** unarchive the sandbox, or stand up a new private
+  throwaway with an org-visible Anthropic secret, and run that matrix. That
+  remains a maintainer action in a repository they choose.
+
+- **Claim:** this marketplace does not host the #4282 canary infrastructure;
+  condition 2 stays on the existing knowledge-corpus run id until a maintainer
+  records a replacement run in [The CI canary](#the-ci-canary).
+- **Basis:** #4282 (sandbox archived, `git push` refused). [The CI canary](#the-ci-canary)
+  already records run `35475056935` on `melodic-software/knowledge-corpus` as of
+  2026-09-19. Building the matrix in this repo would add a live
+  `claude-code-action` workflow and a secret this checkout does not own.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** a maintainer names a live host and records a new run id
+  in [The CI canary](#the-ci-canary), or `claude-lane-sandbox` is unarchived.
+
 ## The canary recipe
 
 Not restated here. The prompt shape, where the token goes, why the token is never committed, the
