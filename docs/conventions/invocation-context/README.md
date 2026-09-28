@@ -42,7 +42,7 @@ A fork is worth the isolation when all of these hold:
 - The skill does **not measure the current session**. A fork would measure the subagent instead.
 
 Pilot (2026-09-27 operator decision, #3545): `claude-config:audit-permission-state` and
-`mcp-tools:audit`, both with `background: false`. Next-tier candidates, still unflipped: 
+`mcp-tools:audit`, both with `background: false`. Next-tier candidates, still unflipped:
 `claude-ops:inventory`, `claude-ops:audit-install-state`, `skill-quality:check`,
 `code-tidying:audit-dead-code`, `docs-hygiene:audit-progressive-disclosure`, `testing:audit`.
 `claude-config:audit-permission-grants` is next-tier on paper but `audit-pass` dispatches its
