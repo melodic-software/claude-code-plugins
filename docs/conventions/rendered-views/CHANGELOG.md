@@ -4,6 +4,12 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Reports and research genre lanes, 2026-09-28
+
+- **Parked genre expansion (#3606).** No new reports or research/learning
+  HTML-view lanes. The candidate list stays a candidate list. Offer-not-emit
+  still applies. No boundary-rule, genre, or cascade-key change.
+
 ## Wave-2 escape helper, 2026-09-28
 
 - **Parked until the helper and review-plugin PR explainer are funded

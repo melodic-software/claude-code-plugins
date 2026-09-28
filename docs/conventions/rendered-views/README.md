@@ -81,6 +81,26 @@ The instruction-size budget: an HTML-view lane (ladder, chrome citation, escapin
 adds at most 40 lines to a SKILL.md; the cascade wiring adds at most 30. A lane that
 cannot fit the budget is a design smell, not a reason to raise the budget silently.
 
+## Reports and research genre lanes (parked)
+
+**Decision.** Park HTML-view expansion into the reports and research/learning
+genres. The rubric and stopping rule stay; the candidate list is not an
+adoption list.
+
+- **Claim:** no new reports or research genre lanes. Offer-not-emit still
+  applies to every named candidate. Do not widen the grandfathered set while
+  the fleet ladder is parked (#3603).
+- **Basis:** #3606 candidate owners (`education:explain`, knowledge digest
+  surfaces, `claude-ops:morning-brief`, codebase-health/testing audit
+  reports) still have no HTML-view lane under this convention.
+  `education:explain` is prose altitude. `claude-ops:morning-brief` prints
+  script stdout. The stopping rule requires a per-skill change that names
+  the genre; a candidate list is not that change.
+- **As of:** 2026-09-28.
+- **Recheck:** a maintainer names specific lanes (possibly fewer than the
+  candidate list, including none) and either sequences them after #3603 or
+  explicitly accepts the extra migration surface.
+
 ## Corpus distillate
 
 Retained here because the working session's corpus artifacts are ephemeral; this is the
@@ -341,4 +361,6 @@ which is another cost of copying.
   userConfig smoke test (parked).
 - It does not ship the wave-2 escape helper or the review-plugin HTML PR
   explainer: see Wave-2 escape helper and review-plugin PR explainer (parked).
+- It does not add reports or research genre lanes: see Reports and research
+  genre lanes (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.
