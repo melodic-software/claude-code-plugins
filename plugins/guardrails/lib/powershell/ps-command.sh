@@ -159,6 +159,11 @@ PS_SINK_TRIGGER=""
 # the sourcing guard, not within this library.
 # shellcheck disable=SC2034
 PS_SAFE_COMMAND=""
+# Set by ps::write_bypass — the arm that returned 0 when the caller words its
+# refusal differently: `computed-positional` for the two-positional probe on a
+# `& $var` call, empty for every other arm. Read by block-hook-bypass.
+# shellcheck disable=SC2034
+PS_WRITE_BYPASS_ARM=""
 
 # --- fork-free primitives -----------------------------------------------------
 #
@@ -2296,6 +2301,133 @@ ps::print_unparsable_git_block_message() {
   echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
+# Rewrite `& $v` call sites to `& '<literal>'` when the command itself binds $v
+# to a single-quoted literal, so `$sh='C:/Git/bin/bash.exe'; & $sh x.sh record d`
+# is judged exactly as `& 'C:/Git/bin/bash.exe' x.sh record d` (#4234). <out>
+# receives <text> unchanged unless every condition below holds for some $v.
+#
+# <text> is the lowercased command; one carrying a backtick is returned as is,
+# because the quote walk below needs its escapes intact. The binding must be provably
+# the value at each rewritten call site, so the rewrite applies only when:
+#   - the command has no construct that could rebind $v or run the assignment
+#     conditionally out of sight: a comment, `$(`, a splat, `--%`, a dot-source,
+#     a scope or `variable:` qualifier, `[ref]`, `${`, any `*-Variable` cmdlet or
+#     its alias (set, sv, nv, gv, clv, rv), a `-*Variable` common parameter, a
+#     `function`/`filter`/`param`/`class`/`trap` keyword, or a non-ASCII byte
+#     (PowerShell also reads typographic quotes as quotes);
+#   - the assignment `$v = '<literal>'` is a whole statement at bracket depth
+#     zero, outside every quoted span, and is the only assignment to $v anywhere
+#     in the text (compound, increment, typed, and multiple-target forms count),
+#     and no `foreach ($v in …)` binds it;
+#   - the literal is not empty, and neither it nor its basename (extension
+#     stripped) names a writer the quoted-writer check refuses, or `sc`;
+#   - the call site follows the assignment, and `$v` is the whole target token.
+# A writer literal is left alone, so `$w='Set-Content'; & $w f x` still meets
+# the computed-target gate. The residual is the quoted-literal one: an alias or
+# function named like the program, or a script that rebinds $v in its caller's
+# scope, is as invisible here as it is for `& 'bash.exe' …`.
+ps::resolve_literal_call_targets_to() {
+  local __rl_s="$2" __rl_n __rl_i __rl_ch __rl_inq="" __rl_depth=0 __rl_stmt=1
+  local __rl_re_assign __rl_name __rl_lit __rl_base __rl_end __rl_re __rl_head __rl_tail
+  local __rl_out __rl_pre __rl_prev __rl_count __rl_probe
+  local -a __rl_names=() __rl_lits=() __rl_ends=()
+  local LC_ALL=C
+  ps::_chomp_to "$1" "$__rl_s"
+  [[ "$__rl_s" == *'$'* && "$__rl_s" == *'&'* ]] || return 0
+  [[ "$__rl_s" =~ [^[:print:][:space:]] ]] && return 0
+  # The single-quoted needles are literal glob patterns, not expansions.
+  # shellcheck disable=SC2016
+  case "$__rl_s" in
+  *'`'* | *'#'* | *'$('* | *'--%'* | *'${'* | *'[ref]'* | *'variable'*) return 0 ;;
+  *) ;;
+  esac
+  [[ "$__rl_s" =~ (^|[^a-z0-9_$])@[a-z_] ]] && return 0
+  [[ "$__rl_s" =~ \$(global|script|local|private|using|env|variable|function|alias): ]] && return 0
+  [[ "$__rl_s" =~ (^|[[:space:]\;\{\}\(\|\&=])\.[[:space:]]+[^[:space:]] ]] && return 0
+  [[ "$__rl_s" =~ (^|[^a-z0-9_-])(set|sv|nv|gv|clv|rv|function|filter|param|class|trap|workflow|configuration)([^a-z0-9_-]|$) ]] && return 0
+  [[ "$__rl_s" =~ (^|[^a-z0-9_])-(ov|ev|wv|iv|pv|pi[a-z]*|outv[a-z]*|errorv[a-z]*|warningv[a-z]*|informationv[a-z]*)([^a-z0-9_]|$) ]] && return 0
+
+  __rl_re_assign="^\\\$([a-z_][a-z0-9_]*)[[:space:]]*=[[:space:]]*'([^']*)'[[:space:]]*(;|"$'\n'"|\$)"
+  __rl_n=${#__rl_s}
+  for ((__rl_i = 0; __rl_i < __rl_n; __rl_i++)); do
+    __rl_ch="${__rl_s:__rl_i:1}"
+    if [[ -n "$__rl_inq" ]]; then
+      if [[ "$__rl_ch" == "$__rl_inq" ]]; then
+        if [[ "${__rl_s:__rl_i+1:1}" == "$__rl_inq" ]]; then
+          __rl_i=$((__rl_i + 1))
+        else
+          __rl_inq=""
+        fi
+      fi
+      continue
+    fi
+    case "$__rl_ch" in
+    "'" | '"') __rl_inq="$__rl_ch" __rl_stmt=0 ;;
+    '(' | '{' | '[') __rl_depth=$((__rl_depth + 1)) __rl_stmt=0 ;;
+    ')' | '}' | ']') __rl_depth=$((__rl_depth - 1)) __rl_stmt=0 ;;
+    ';' | $'\n') ((__rl_depth == 0)) && __rl_stmt=1 ;;
+    ' ' | $'\t' | $'\r') ;;
+    '$')
+      if ((__rl_depth == 0 && __rl_stmt)) && [[ "${__rl_s:__rl_i}" =~ $__rl_re_assign ]]; then
+        __rl_names+=("${BASH_REMATCH[1]}")
+        __rl_lits+=("${BASH_REMATCH[2]}")
+        __rl_ends+=($((__rl_i + ${#BASH_REMATCH[0]})))
+      fi
+      __rl_stmt=0
+      ;;
+    *) __rl_stmt=0 ;;
+    esac
+  done
+  [[ -n "$__rl_inq" ]] && return 0
+  ((__rl_depth == 0)) || return 0
+
+  __rl_out="$__rl_s"
+  for __rl_i in "${!__rl_names[@]}"; do
+    __rl_name="${__rl_names[__rl_i]}"
+    __rl_lit="${__rl_lits[__rl_i]}"
+    __rl_end="${__rl_ends[__rl_i]}"
+    [[ -n "$__rl_lit" ]] || continue
+    case "$__rl_name" in
+    _ | args | input | this | psitem | matches | foreach | switch | error | event | eventargs | sender | lastexitcode | myinvocation | pscmdlet | psboundparameters | executioncontext | profile | home | pwd | host | true | false | null) continue ;;
+    *) ;;
+    esac
+    __rl_base="${__rl_lit##*[/\\]}"
+    [[ "$__rl_base" =~ ^(.*)\.(exe|cmd|bat|com|ps1)$ ]] && __rl_base="${BASH_REMATCH[1]}"
+    [[ "$__rl_lit" =~ ^([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|sc|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]] && continue
+    [[ "$__rl_base" =~ ^(set-content|add-content|out-file|tee-object|ac|tee|sc|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+)$ ]] && continue
+    __rl_re='\$'"$__rl_name"'[[:space:]]*([-+*/%]|\?\?)?=([^=]|$)'
+    __rl_count=0
+    __rl_probe="$__rl_out"
+    while [[ "$__rl_probe" =~ $__rl_re ]]; do
+      __rl_count=$((__rl_count + 1))
+      __rl_probe="${__rl_probe#*"${BASH_REMATCH[0]}"}"
+    done
+    ((__rl_count == 1)) || continue
+    __rl_re='\$'"$__rl_name"'[[:space:]]*(\+\+|--)|(\+\+|--)[[:space:]]*\$'"$__rl_name"'([^a-z0-9_]|$)'
+    [[ "$__rl_out" =~ $__rl_re ]] && continue
+    __rl_re='foreach[[:space:]]*\([[:space:]]*\$'"$__rl_name"'([^a-z0-9_]|$)'
+    [[ "$__rl_out" =~ $__rl_re ]] && continue
+
+    __rl_head="${__rl_out:0:__rl_end}"
+    __rl_tail="${__rl_out:__rl_end}"
+    __rl_re='^[[:space:]]*\$'"$__rl_name"'([[:space:]\;\|\)\}]|$)'
+    __rl_s="$__rl_head"
+    while [[ "$__rl_tail" == *'&'* ]]; do
+      __rl_pre="${__rl_tail%%&*}"
+      __rl_tail="${__rl_tail#*&}"
+      __rl_s+="$__rl_pre"
+      __rl_prev="${__rl_s: -1}"
+      __rl_s+='&'
+      if [[ ( -z "$__rl_prev" || "$__rl_prev" =~ [[:space:]\;\{\}\(\|\&=] ) && "$__rl_tail" =~ $__rl_re ]]; then
+        __rl_s+=" '$__rl_lit'${BASH_REMATCH[1]}"
+        __rl_tail="${__rl_tail:${#BASH_REMATCH[0]}}"
+      fi
+    done
+    __rl_out="$__rl_s$__rl_tail"
+  done
+  ps::_chomp_to "$1" "$__rl_out"
+}
+
 # True (0) when a PowerShell command authors file content in a way that bypasses
 # the Write/Edit hook gate. Covered surface:
 #   - content-authoring cmdlets: Set-Content, Add-Content, Out-File, Tee-Object
@@ -2324,6 +2456,7 @@ ps::print_unparsable_git_block_message() {
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
   local cmd="$1" scan lcs seg head lcq lcq_bt q="\"'" blanked_gate opaque_gate
+  PS_WRITE_BYPASS_ARM=""
   ps::blank_herestrings "$cmd"
   # The write twin of the git refusal: the reduction just dropped lines that
   # PowerShell may run as commands, so a NO from the scans below would be a
@@ -2354,8 +2487,8 @@ ps::write_bypass() {
   # backtick still exists, so it must see this copy; the result is stripped
   # afterwards, which still recovers an obfuscated `Set``-Content` name.
   lcq_bt="${lcq,,}"
-  lcq="${lcq//\`/}"
-  lcq="${lcq,,}"
+  ps::resolve_literal_call_targets_to lcq_bt "$lcq_bt"
+  lcq="${lcq_bt//\`/}"
   if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
     return 0
   fi
@@ -2441,8 +2574,12 @@ ps::write_bypass() {
       [[ "$blanked_gate" == *'--%'* ]] ||
       ps::computed_call_has_splat_operand "$blanked_gate" ||
       [[ "$blanked_gate" == *'>'* ]] ||
-      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
-      ps::computed_call_has_positional_write_signal "$opaque_gate"; then
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+      return 0
+    fi
+    if ps::computed_call_has_positional_write_signal "$opaque_gate"; then
+      # shellcheck disable=SC2034 # read by block-hook-bypass
+      PS_WRITE_BYPASS_ARM=computed-positional
       return 0
     fi
   fi

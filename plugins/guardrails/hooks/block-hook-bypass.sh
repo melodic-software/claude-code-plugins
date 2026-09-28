@@ -1397,6 +1397,9 @@ block_bypass() {
     fi
     echo "If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots." >&2
     ;;
+  powershell-computed-positional)
+    echo "If this call writes no file, rewrite it: call the program by a literal quoted path (& 'C:/path/tool.exe' script.sh arg), bind that path as a single-quoted literal earlier in the same command (\$t='C:/path/tool.exe'; & \$t script.sh arg), or put a flag before the positionals." >&2
+    ;;
   *)
     echo "If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only." >&2
     ;;
@@ -1429,6 +1432,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   if ps::write_bypass "$COMMAND"; then
+    if [[ "$PS_WRITE_BYPASS_ARM" == computed-positional ]]; then
+      block_bypass "powershell-computed-positional" "PowerShell call through a variable (& \$var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>"
+    fi
     block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
   fi
   # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route

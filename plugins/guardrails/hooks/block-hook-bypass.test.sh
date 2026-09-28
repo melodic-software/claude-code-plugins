@@ -644,6 +644,19 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written on block"
 fi
+# The `& $var` two-positional arm reports its own form, distinct from
+# powershell-write (#4234).
+TEL_PSPOS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_PSPOS="$(make_sink "cat >\"$TEL_PSPOS\"")"
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $sh x.sh record dir' \
+  -- "HOOK_TELEMETRY_SINK=$SINK_PSPOS" "CLAUDE_PROJECT_DIR=$TEST_TMPDIR"
+if wait_for_sink "$TEL_PSPOS"; then
+  assert_eq "telemetry: form powershell-computed-positional" \
+    "powershell-computed-positional" "$(jq -r '.data.form' "$TEL_PSPOS" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a computed-positional block"
+fi
 
 # --- Telemetry subject never carries an assignment VALUE (#3372) -------------
 # The local `bash_subject` copy this hook carried stripped `sudo` / `NAME=*`
@@ -1076,6 +1089,41 @@ run_pwsh "PS: all-variable staged positional call (allowed — outside scope, #2
 run_pwsh "PS: pipeline into & \$w computed operand (still blocked — #2848)" \
   "\$data | & \$w \$out" 2
 
+# #4234: a call variable bound to a single-quoted literal earlier in the same
+# command is judged as that literal (`& 'C:/…/bash.exe' …`), so a subcommand word
+# beside other positionals is no longer read as Set-Content <path> <value>. Every
+# way the binding could differ at the call site keeps the computed-target gate.
+Q="'"
+run_pwsh "PS: & \$sh bound to a program literal, record beside positionals (allowed — #4234)" \
+  "\$sh=${Q}C:/Program Files/Git/bin/bash.exe${Q}; & \$sh x.sh record dir" 0
+run_pwsh "PS: the observed packet-seal loop through a literal-bound \$sh (allowed — #4234)" \
+  "\$b=${Q}C:/e${Q}; \$s=\"\$b/sess\"; \$sh=${Q}C:/Program Files/Git/bin/bash.exe${Q}; \$r=${Q}C:/p/scripts${Q}; foreach (\$t in ${Q}disk-hygiene${Q},${Q}guardrails${Q}) { & \$sh \"\$r/packet-seal.sh\" record \"\$s/\$t/20260919T170952Z\"; \"seal \$t=\$LASTEXITCODE\" }; & \$sh \"\$r/packet-prune.sh\" --root \$b --apply" 0
+run_pwsh "PS: & \$w bound to a writer name literal (blocked — #4234)" \
+  "\$w=${Q}Set-Content${Q}; & \$w f.txt x" 2
+run_pwsh "PS: & \$w bound to a writer program path (blocked — #4234)" \
+  "\$w=${Q}C:/Git/usr/bin/tee.exe${Q}; & \$w f.txt x" 2
+run_pwsh "PS: & \$sh with no binding in the command (blocked — #4234)" \
+  "& \$sh x.sh record dir" 2
+run_pwsh "PS: & \$sh bound twice (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; \$sh=\$w; & \$sh f x" 2
+run_pwsh "PS: & \$sh bound only inside a script block (blocked — #4234)" \
+  "if (\$x) { \$sh=${Q}bash.exe${Q} }; & \$sh f x" 2
+run_pwsh "PS: & \$sh called before its binding (blocked — #4234)" \
+  "& \$sh f x; \$sh=${Q}bash.exe${Q}" 2
+run_pwsh "PS: & \$sh rebound by foreach (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; foreach (\$sh in \$ws) { & \$sh f x }" 2
+run_pwsh "PS: & \$sh rebound by sv (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; sv sh Set-Content; & \$sh f x" 2
+run_pwsh "PS: & \$sh rebound by -OutVariable (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; gci -ov sh; & \$sh f x" 2
+run_pwsh "PS: & \$sh after a dot-sourced script (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; . ./x.ps1; & \$sh f x" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: & \$sh with a comment in the command (blocked — #4234)" \
+  "$(printf '$sh=%sbash.exe%s # c\n& $sh f x' "$Q" "$Q")" 2
+run_pwsh "PS: & \$sh bound by a function parameter (blocked — #4234)" \
+  "\$sh=${Q}bash.exe${Q}; function g(\$sh) { & \$sh f x }; g Set-Content" 2
+
 # Quoted `>` / `-value` text must not trip the write-signal probes.
 run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
   "& \$tool -Message \"CPU > 90%\"" 0
@@ -1406,6 +1454,17 @@ assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
 $MSG_USE
 $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
+# #4234: the two-positional arm on a `& $var` call names its own rule and the
+# rewrites, not the cmdlet/redirect reason, and reports its own form token.
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $sh "$r/packet-seal.sh" record "$s/t"' -- "${MSG_ENV[@]}"
+assert_exit "message: PowerShell computed positional blocks" 2 "$GUARD_RC"
+# shellcheck disable=SC2016
+assert_eq "message: PowerShell computed positional names the & \$var rule and the rewrite" \
+  'BLOCKED: PowerShell call through a variable (& $var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>
+'"$MSG_USE"'
+If this call writes no file, rewrite it: call the program by a literal quoted path (& '\''C:/path/tool.exe'\'' script.sh arg), bind that path as a single-quoted literal earlier in the same command ($t='\''C:/path/tool.exe'\''; & $t script.sh arg), or put a flag before the positionals.
+'"$MSG_POINTER" "$GUARD_ERR"
 guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \
