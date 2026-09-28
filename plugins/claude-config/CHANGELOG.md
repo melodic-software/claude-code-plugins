@@ -3,6 +3,27 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-permission-state` treats project `defaultMode: "bypassPermissions"` as dead**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), Claude Code
+  2.1.257). `C2-defaultMode` already flagged `auto` in project and local settings. From 2.1.257
+  the same files also ignore `bypassPermissions` (the session starts in Manual). `acceptEdits`,
+  `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page. The
+  permission-rule-hygiene convention states the same pair.
+
+## [0.51.6] - 2026-09-28
+
+### Changed
+
+- **`audit-instructions` catalog 1.23.0 closes surface-class gaps and keeps one lane-sizing rule** ([#4656](https://github.com/melodic-software/claude-code-plugins/issues/4656)). I31 covers `SKILL.md` and every file a skill loads (directory names are examples). I32 adds a user/project arm at `warning`. I30 and I12 gain Must NOT flag lines that route stretched cases to a new Out-of-catalog section, which Phase C refutes and Phase D reports and which never reaches `emit-findings.sh`. The surface partition accounts for I6–I35. Dispatch stays #4114's token-budget partition: no 9-lane cap and no 2,500-line constant. The central pre-scan runs once before dispatch; Phase C batches one verifier per lane that produced proposals.
+
+### Fixed
+
+- **`instruction-scan.sh` greps each family once over all files** (GNU and BSD `--null`), so process count no longer grows with file or hit count.
+
 ## [0.51.5] - 2026-09-28
 
 ### Added

@@ -11,7 +11,7 @@ Basis labels: `OBSERVED` / `SOURCE` / `BINARY` / `STAFF` / `COMMUNITY` /
 > `($, e, next)`. These four ship inside Claude Code; this folder is their
 > source, published as it is built into the binary.
 
-`SOURCE` · HIGH · `mods/README.md:L3-6` — see `repo-primary/RESEARCH-mod-definition.md`.
+`SOURCE` · HIGH · `mods/README.md:L3-6`; see `repo-primary/RESEARCH-mod-definition.md`.
 
 A mod is **not a new artifact kind**. It is an ordinary plugin
 (`.claude-plugin/plugin.json` + `hooks/hooks.json`) whose only distinguishing
@@ -20,7 +20,7 @@ applies. `SOURCE` · HIGH · `repo-primary/RESEARCH-mod-definition.md`
 
 Staff say the same in one sentence: *"A mod is just a plugin that uses function
 hooks, nothing is changing there."* `STAFF` · HIGH · issue #91870 body, dated
-Sep 9, 2026 — `x-threads/RESEARCH-staff-statements.md`.
+Sep 9, 2026; see `x-threads/RESEARCH-staff-statements.md`.
 
 Product naming: "Claude Mods" is the product name; "function hook" remains the
 documented implementation primitive. `STAFF` · HIGH ·
@@ -43,7 +43,7 @@ rewrites by passing a copy to `next`, never by mutating `e`.
 `SOURCE` · HIGH · `repo-primary/RESEARCH-mod-definition.md`
 
 `register` is typed `=> unknown` and may return early, so **which hooks exist at
-all can depend on an option** — `agents-md` does exactly this.
+all can depend on an option**, and `agents-md` does exactly this.
 `SOURCE` · HIGH · `mods/agents-md/hooks/register.ts:L40-90`.
 
 ## The fold / chain model
@@ -57,14 +57,14 @@ all can depend on an option** — `agents-md` does exactly this.
   `SOURCE` · HIGH · `On` JSDoc `:L5390`
 - `next` carries read-only metadata: `next.event`, `next.origin` (`.tier`,
   `.kind`), `next.trace`, `next.budget` (a live `HookBudget`, read fresh on each
-  access). `next.origin` is also the recursion guard — a plugin's own `$` call
+  access). `next.origin` is also the recursion guard: a plugin's own `$` call
   does not re-enter its own hook for that event. `SOURCE` · HIGH ·
   `repo-primary/RESEARCH-chain-and-tiers.md`
 - `engine.create` is the noun fold: `{ ...await next(e), myNoun }` adds a noun to
   `$` without replacing anything beneath. `SOURCE` · HIGH ·
   `mods/telemetry/README.md`
 - `tool.list` may call `next` twice (once via `next.to`, once normally) and merge
-  the results — the pattern for "what would this look like without the tier above
+  the results, the pattern for "what would this look like without the tier above
   me". `SOURCE` · HIGH · `mods/sec-default/hooks/register.ts`
 
 Staff's own framing: *"the plugin registered first 'owns' all subsequent hooks on
@@ -77,9 +77,9 @@ issue #91870 comment 5530555431, 2026-09-03T18:50:55Z.
 > A hooks module runs in an environment of its own: no DOM, no Node. … is an ES
 > module whatever its suffix: there is no `require`.
 
-`SOURCE` · HIGH · `.d.ts:L14-23`. Also: **no timers** — time goes through
-`$.clock`; no global `fetch` — HTTP is `$.http.fetch`; no `fs`/`process` — those
-are `$.fs` and `$.process`. Globals are `h`, `Fragment`, the JSX namespace, and
+`SOURCE` · HIGH · `.d.ts:L14-23`. Also: **no timers** (time goes through
+`$.clock`); no global `fetch` (HTTP is `$.http.fetch`); no `fs`/`process` (those
+are `$.fs` and `$.process`). Globals are `h`, `Fragment`, the JSX namespace, and
 the environment's web APIs (`URL`, `TextEncoder`, `AbortController`,
 `crypto.subtle`, `console`). `SOURCE` · HIGH ·
 `repo-primary/RESEARCH-mod-definition.md`
@@ -112,7 +112,7 @@ Two properties a plugin author must carry:
 1. **`user` sits above `builtin`.** A plugin you install wraps `diff` and
    `agents-md`, not the other way round. `SOURCE` · HIGH
 2. **`builtin` is not privileged for outbound calls.** *"a built-in's `$` calls
-   still raise everywhere"* — a built-in calling `$.fs.read` still passes through
+   still raise everywhere"*: a built-in calling `$.fs.read` still passes through
    every user-tier `fs.read` hook above it. `SOURCE` · HIGH
 
 `repo-primary/RESEARCH-chain-and-tiers.md` carries both quotes in full.
@@ -157,13 +157,13 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 
 - Use `next.to`. It is typed to `append | builtin | core` only
   (`TargetTier = Exclude<Tier, 'prepend' | 'user'>`, `.d.ts:L9446`) **and is
-  refused outside a managed tier** — *"loading it with `--plugin-dir` seats a
+  refused outside a managed tier**: *"loading it with `--plugin-dir` seats a
   plugin that can only pass."* `SOURCE` · HIGH ·
   `mods/sec-default/README.md:L52-55`. The binary's own string agrees:
   *"next.to is available to managed plugins (prependPlugins / appendPlugins)
   only"*. `BINARY` · HIGH
 - Choose its own tier or registration order. `STAFF` · HIGH
-- Reach anything `sec-default` guards on a managed machine — an org's classic
+- Reach anything `sec-default` guards on a managed machine: an org's classic
   hooks, prompt content, managed settings and tool policy. `SOURCE` · HIGH
 - Hook `$.ui.ask`: it is the one `$` method with **no** corresponding event
   (`grep -c "'ui.ask'"` → 0 over the whole 12,990-line file). The consequence
@@ -172,7 +172,7 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
 - Hook a component the surface does not declare hookable. Staff: *"our internal
   'permission request component' is simply not something you can hook into,
   because the surface does not declare it as being hookable."* `STAFF` · HIGH
-- Spell `on`, `$` or `$.env` other than literally — the host statically scans the
+- Spell `on`, `$` or `$.env` other than literally: the host statically scans the
   source and **a module that does not spell them literally does not load**.
   `SOURCE` `BINARY` · HIGH · see `research-api-surface.md`.
 

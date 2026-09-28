@@ -26,6 +26,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Question | Owner |
 |---|---|
 | Why is Claude Code slow right now? | **this skill** |
+| The historical cost of these hooks over past sessions | `/doctor` if it resolves in your session (compose: run AFTER this capture. It reads transcripts, which this engine never does, and is not time-sensitive) |
 | What exactly is in the install tree, and is anything stale? | `/claude-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/claude-ops:plugins audit` |
 | Is this a known upstream bug? | `/claude-ops:known-issues` (compose: search the symptoms this report surfaces) |
@@ -45,11 +46,15 @@ conflated whenever a session feels slow:
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
-**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
-anything the user wants fixed in place, and prefer `claude doctor` when a session will not start.
-Prefer this skill when the question is why it is slow right now: the timings, the fan-out layer,
-and the retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns
-the deep inventory of the tree against the same surface.
+**Routing.** Capture first, `/doctor` second. This skill is capture-at-moment tooling: a report
+taken after the stall ends supports no conclusion about the incident, and prepending a
+prerequisite adds latency on a host that is already slow. `/doctor` reads transcripts, which
+this engine never does, and that half is not time-sensitive. When `doctor` resolves in your
+session, run it after this capture for the transcript-derived half and for anything the user
+wants fixed in place, and prefer `claude doctor` when a session will not start. Prefer this
+skill when the question is why it is slow right now: the timings, the fan-out layer, and the
+retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns the
+deep inventory of the tree against the same surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
 it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
@@ -127,6 +132,10 @@ passed, because the engine cannot see intent and a silent gap reads like a clean
 Lead with `sweep_health.findings`, then work the suspects in order. For each, state what the
 evidence supports and what it cannot distinguish. This report is one sample, not a longitudinal
 study.
+
+When `doctor` resolves in your session, run it after this capture for the transcript-derived
+half of a slowness diagnosis. This engine never reads `history.jsonl` or transcript files; `/doctor`
+does. That pass is not time-sensitive. Do not prepend it.
 
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of

@@ -129,25 +129,29 @@ baseline by the tracked retrofit issue, not silently): `adhd:clarify`,
 `architecture:improve`. Both were retrofitted by #3609: each HTML lane repeats the
 baseline's rules in its own instruction text (a skill runs where this file is not on
 disk) and keeps only additions specific to that surface. `architecture:improve` also
-carries the third bullet's exception: another repository's files are not rendered to HTML
-until the escape helper ships, the same carve-out `visualization:visualize` has. The first
-two bullets are registered as the `rendered-views-security-baseline` clause in
+carries the third bullet's exception: the escape helper has shipped
+(`lib/html-escape.mjs`), and wiring that lane through it remains the retrofit, so
+another repository's files are still not rendered to HTML. `visualization:visualize`
+keeps the same carve-out. The first two bullets are registered as the `rendered-views-security-baseline` clause in
 `scripts/contract-clause-registry.json`, so `scripts/check-contract-clause-coverage.py`
 holds each inline copy to every one of them.
 
 ## Security baseline (wave-1 skeleton)
 
-Instruction-level discipline, stated honestly: markup linting validates syntax, not
-escaping, so this baseline is authoring discipline until the deterministic helper ships.
+Instruction-level discipline for a lane that is not on the helper: markup linting
+validates syntax, not escaping. A lane that renders attacker-controlled input uses
+the checked-in helper in the third bullet instead of this skeleton alone.
 
 - Everything interpolated into a rendered view is untrusted DATA: escape `&`, `<`, `>`, <!-- contract-restatement-begin: rendered-views-security-baseline -->
   `"`, and `'` in text and attribute positions; never interpolate unescaped content into
   `<script>` or `<style>`; never build event-handler attributes from input.
 - Views are self-contained: no external requests, no remote scripts, assets inline. <!-- contract-restatement-end: rendered-views-security-baseline -->
 - A lane that renders attacker-controlled input (a PR diff, fetched web content, another
-  repo's files) MUST NOT ship on this skeleton alone: it is gated on the checked-in
-  deterministic escape helper with a generator-marker a validator can check (tracked as
-  the wave-2 issue; the review-plugin PR explainer is the first gated lane).
+  repo's files) MUST NOT ship on this skeleton alone. It routes every interpolated
+  string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
+  drift-gated by `scripts/sync-html-escape.sh`). The page carries the generator marker
+  `validateRenderedPage` checks, so a page assembled without the helper is detectable.
+  `/review:pr-explainer` is the first lane on that gate.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
   checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
@@ -249,6 +253,28 @@ owner declaration.
   that exists, report which layer supplied each value, degrade soft and visibly on a
   malformed or absent layer).
 
+## Interactive userConfig smoke test (parked)
+
+**Decision.** Park the interactive set-value, persist, and clear smoke of
+`visualization`'s `medium` `userConfig` dial until a host with the interactive
+`/plugin` dialog funds the run. The unset path is already the documented
+behavior the resolution ladders detect. This park keeps gating the
+grandfathered-surface fleet sweep (#3603).
+
+- **Claim:** the interactive `userConfig` smoke stays unrun; #3603 stays gated
+  on it. Do not multiply dial reliance across the fleet from a headless host.
+- **Basis:** `plugins/visualization/.claude-plugin/plugin.json` ships
+  `userConfig.medium` (default `auto`).
+  `plugins/visualization/skills/visualize/SKILL.md` rung 2 is
+  `${user_config.medium}` and treats the literal token as unset. Wave-1
+  probed CLI 2.1.251 on the unset path only. This checkout's CLI is 2.1.280
+  and has no interactive `/plugin` dialog. GitHub records #3603 blocked by
+  #3604. The dial has a bug history roughly v2.1.86 through v2.1.210.
+- **As of:** 2026-09-28.
+- **Recheck:** a machine with the interactive `/plugin` dialog records CLI
+  version and set / persist-across-restart / clear-to-literal-token outcome
+  on #3604.
+
 ## Template vendoring posture
 
 **Decision.** Do not vendor the 31 html-effectiveness corpus templates (20 gallery +
@@ -290,4 +316,6 @@ which is another cost of copying.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces: that sweep is priced and tracked
   separately, gated on the userConfig smoke test.
+- It does not run the interactive userConfig smoke test: see Interactive
+  userConfig smoke test (parked).
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

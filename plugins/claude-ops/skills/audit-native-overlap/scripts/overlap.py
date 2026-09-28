@@ -77,7 +77,40 @@ NATIVE_CLASSES = (
 )
 OBSERVATION_CLASSES = ("extraction", "live-roster", "upstream-source")
 COMPONENT_KINDS = ("skill", "agent")
-NATIVE_MARKERS = ("hidden", "gated")
+NATIVE_MARKERS = ("hidden", "gated", "model-invocation-disabled")
+INTEGRATIONS = ("route", "wrap", "suggest")
+# Classes that may take route or wrap when the row is not defer and, for a
+# bundled skill, not model-invocation-disabled. The marker and defer rules
+# below replace this set rather than adding to it.
+ROUTE_OR_WRAP_CLASSES = (
+    "bundled-skill",
+    "plugin-backed-builtin",
+    "marketplace-plugin",
+)
+# A wrap or suggest row names how the surface is actually invoked. The class
+# rules are a floor; Skill-tool reach is per surface, so the evidence line is
+# what a later reader re-derives from.
+INVOCATION_MODE_RE = re.compile(
+    r"model[- ]invoc|disableModelInvocation|Skill[- ]tool|local-jsx|"
+    r"invocation mode|non-prompt|command type",
+    re.IGNORECASE,
+)
+# Suggest parity keys on this sentence shape, never the bare phrase
+# "available in your session": that phrase already occurs in unrelated prose
+# (claude-ops:changelog) and must not count as a baked suggestion.
+SUGGEST_SHAPE_RE = re.compile(
+    r"If /([A-Za-z0-9][A-Za-z0-9-]*) is available in your session \("
+)
+NATIVE_STEP_HEADING_RE = re.compile(
+    r"^## Native step: (.+?) \(([^)\n]+)\)\s*$",
+    re.MULTILINE,
+)
+BAKED_FLAGS = (
+    "description_phrase",
+    "boundary_section",
+    "native_step",
+    "suggest_sentence",
+)
 
 # Extraction lanes the sibling extractor reports integrity for, and the
 # native class each one carries. Session-provided and marketplace classes have
@@ -488,14 +521,16 @@ def validate_row(row: Any, index: int) -> list[str]:
 
     baked = row.get("baked")
     if not isinstance(baked, dict) or not all(
-        isinstance(baked.get(key), bool)
-        for key in ("description_phrase", "boundary_section")
+        isinstance(baked.get(key), bool) for key in BAKED_FLAGS
     ):
         problems.append(
-            f"{label}: `baked` must carry boolean `description_phrase` and `boundary_section`"
+            f"{label}: `baked` must carry boolean "
+            f"{', '.join(BAKED_FLAGS)}"
         )
     if not isinstance(row.get("budget_caveat"), bool):
         problems.append(f"{label}: `budget_caveat` must be a boolean")
+
+    problems.extend(_integration_problems(row, label))
 
     if (
         isinstance(observation, dict)
@@ -506,6 +541,79 @@ def validate_row(row: Any, index: int) -> list[str]:
         problems.append(
             f"{label}: a live-roster observation is never baked - one environment's "
             "roster on one day is not a basis for a shipped routing line"
+        )
+    return problems
+
+
+def _integration_problems(row: dict[str, Any], label: str) -> list[str]:
+    """The runtime-relationship axis. Separate from `verdict`.
+
+    `defer` forces `route` and wins over the model-disabled `suggest`-only
+    rule: nothing is baked from a defer row, and a suggest sentence would be
+    baked. `design-sync` is the row that carries both (model-disabled and
+    defer); the confirmed verdict table records `route`.
+    """
+    integration = row.get("integration")
+    if integration not in INTEGRATIONS:
+        return [
+            f"{label}: `integration` must be one of {', '.join(INTEGRATIONS)}"
+        ]
+    problems: list[str] = []
+    native = row.get("native") if isinstance(row.get("native"), dict) else {}
+    klass = native.get("class")
+    markers = native.get("markers") if isinstance(native.get("markers"), list) else []
+    verdict = row.get("verdict")
+    if verdict == "defer":
+        if integration != "route":
+            problems.append(
+                f"{label}: a `defer` verdict takes `integration` `route` "
+                "(nothing is baked from a defer row)"
+            )
+        return problems
+    if klass == "session-skill":
+        if integration != "route":
+            problems.append(
+                f"{label}: a `session-skill` row takes `integration` `route`"
+            )
+    elif klass == "builtin-command":
+        if integration not in ("route", "suggest"):
+            problems.append(
+                f"{label}: a `builtin-command` row takes `route` or `suggest`, "
+                "never `wrap`"
+            )
+    elif (
+        klass == "bundled-skill" and "model-invocation-disabled" in markers
+    ):
+        if integration != "suggest":
+            problems.append(
+                f"{label}: a bundled skill marked `model-invocation-disabled` "
+                "takes `integration` `suggest` (a route phrase on a surface the "
+                "model never lists is dead text)"
+            )
+    elif klass in ROUTE_OR_WRAP_CLASSES:
+        if integration not in ("route", "wrap"):
+            problems.append(
+                f"{label}: a `{klass}` row takes `route` or `wrap`"
+            )
+    if integration in ("wrap", "suggest"):
+        evidence = row.get("evidence") if isinstance(row.get("evidence"), list) else []
+        if not any(
+            isinstance(item, str) and INVOCATION_MODE_RE.search(item)
+            for item in evidence
+        ):
+            problems.append(
+                f"{label}: a `{integration}` row carries an evidence line naming "
+                "the observed invocation mode"
+            )
+    baked = row.get("baked") if isinstance(row.get("baked"), dict) else {}
+    if baked.get("native_step") is True and integration != "wrap":
+        problems.append(
+            f"{label}: `baked.native_step` is true only when `integration` is `wrap`"
+        )
+    if baked.get("suggest_sentence") is True and integration != "suggest":
+        problems.append(
+            f"{label}: `baked.suggest_sentence` is true only when `integration` "
+            "is `suggest`"
         )
     return problems
 
@@ -590,21 +698,32 @@ def render_block(rows: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     lines.append("## Summary")
     lines.append("")
-    lines.append("| Lane | Rows | Baked | Verdicts |")
-    lines.append("|---|---|---|---|")
+    lines.append("| Lane | Rows | Baked | Integration | Verdicts |")
+    lines.append("|---|---|---|---|---|")
     for lane, heading, _noun in LANES:
         lane_rows = [r for r in rows if r["native"]["class"] == lane]
         baked = sum(
             1
             for r in lane_rows
-            if r["baked"]["description_phrase"] or r["baked"]["boundary_section"]
+            if r["baked"]["description_phrase"]
+            or r["baked"]["boundary_section"]
+            or r["baked"]["native_step"]
+            or r["baked"]["suggest_sentence"]
         )
         tally: dict[str, int] = {}
+        integrations: dict[str, int] = {}
         for row in lane_rows:
             tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
+            integrations[row["integration"]] = (
+                integrations.get(row["integration"], 0) + 1
+            )
         verdicts = ", ".join(f"{k} {v}" for k, v in sorted(tally.items())) or "none"
+        integration = (
+            ", ".join(f"{k} {v}" for k, v in sorted(integrations.items())) or "none"
+        )
         lines.append(
-            f"| {_escape_cell(heading)} | {len(lane_rows)} | {baked} | {_escape_cell(verdicts)} |"
+            f"| {_escape_cell(heading)} | {len(lane_rows)} | {baked} | "
+            f"{_escape_cell(integration)} | {_escape_cell(verdicts)} |"
         )
     lines.append("")
 
@@ -634,6 +753,7 @@ def render_block(rows: list[dict[str, Any]]) -> str:
             lines.append("")
             markers = ", ".join(native.get("markers") or []) or "none"
             lines.append(f"- **Verdict:** `{row['verdict']}`: {row['reason']}")
+            lines.append(f"- **Integration:** `{row['integration']}`")
             lines.append(
                 f"- **Native surface:** `{native['name']}` ({noun}; markers: {markers})"
             )
@@ -655,7 +775,9 @@ def render_block(rows: list[dict[str, Any]]) -> str:
             lines.append(
                 "- **Baked:** description phrase "
                 f"{'yes' if baked['description_phrase'] else 'no'} · Boundary section "
-                f"{'yes' if baked['boundary_section'] else 'no'}"
+                f"{'yes' if baked['boundary_section'] else 'no'} · Native step "
+                f"{'yes' if baked['native_step'] else 'no'} · suggest sentence "
+                f"{'yes' if baked['suggest_sentence'] else 'no'}"
             )
             if row["budget_caveat"]:
                 lines.append(
@@ -735,7 +857,9 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
         )
         wants_desc = row["baked"]["description_phrase"]
         wants_boundary = row["baked"]["boundary_section"]
-        if not (wants_desc or wants_boundary):
+        wants_step = row["baked"]["native_step"]
+        wants_suggest = row["baked"]["suggest_sentence"]
+        if not (wants_desc or wants_boundary or wants_step or wants_suggest):
             continue
         if component["kind"] == "agent":
             problems.append(
@@ -754,6 +878,7 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             problems.append(f"{label}: cannot read {path}: {exc}")
             continue
         frontmatter, body = split_frontmatter(text)
+        native_name = row["native"]["name"]
         if wants_desc:
             # Scoped to the description field, never the whole frontmatter: the
             # description is the routing-effective surface, so the same token in
@@ -766,7 +891,6 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             else:
                 baked_desc[row_token].add((component["plugin"], component["skill"]))
         if wants_boundary:
-            native_name = row["native"]["name"]
             sections = boundary_sections(body)
             if not sections:
                 problems.append(
@@ -779,12 +903,37 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                     f"section in {path} names `{native_name}` - a section written for "
                     "another surface does not carry this row's verdict"
                 )
+        if wants_step and not _body_has_native_step(body, native_name):
+            problems.append(
+                f"{label}: `baked.native_step` is true but {path} has no "
+                f"`## Native step: {native_name} (<class>)` heading"
+            )
+        if wants_suggest and not _body_has_suggest_sentence(body, native_name):
+            problems.append(
+                f"{label}: `baked.suggest_sentence` is true but {path} has no "
+                f"suggest sentence for `/{native_name}`"
+            )
+
+    claimed_suggest = {
+        (
+            row["component"]["plugin"],
+            row["component"]["skill"],
+            row["native"]["name"],
+        )
+        for row in rows
+        if isinstance(row, dict)
+        and isinstance(row.get("baked"), dict)
+        and row["baked"].get("suggest_sentence")
+        and isinstance(row.get("component"), dict)
+        and isinstance(row.get("native"), dict)
+    }
 
     plugins_dir = repo / "plugins"
     if plugins_dir.is_dir():
         for skill_md in sorted(plugins_dir.glob("*/skills/*/SKILL.md")):
             try:
-                frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
+                text = skill_md.read_text(encoding="utf-8")
+                frontmatter, body = split_frontmatter(text)
             except OSError:
                 continue
             description = frontmatter_description(frontmatter)
@@ -800,7 +949,32 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                         "line traces to a row (a row without a baked line is legal "
                         "pending-sweep state; the reverse is not)"
                     )
+            for match in SUGGEST_SHAPE_RE.finditer(body):
+                name = match.group(1)
+                if (plugin, skill, name) not in claimed_suggest:
+                    problems.append(
+                        f"{plugin}:{skill} carries a suggest sentence for `/{name}` "
+                        "with no store row claiming it - parity keys on the sentence "
+                        "shape `If /<name> is available in your session (`, never the "
+                        "bare phrase"
+                    )
     return problems
+
+
+def _body_has_native_step(body: str, name: str) -> bool:
+    """True when the body has `## Native step: <name> (<class>)` for this surface."""
+    for match in NATIVE_STEP_HEADING_RE.finditer(body):
+        if match.group(1).strip() == name:
+            return True
+    return False
+
+
+def _body_has_suggest_sentence(body: str, name: str) -> bool:
+    """True when the body has the suggest sentence shape for this surface."""
+    for match in SUGGEST_SHAPE_RE.finditer(body):
+        if match.group(1) == name:
+            return True
+    return False
 
 
 def check_presence_mentions(repo: Path) -> list[str]:

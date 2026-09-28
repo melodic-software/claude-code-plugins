@@ -1445,13 +1445,105 @@ guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
 assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 
-# --- 4. Tool gating: the declared PowerShell gap ------------------------------
-# Remove-Item -Recurse -Force and `rd /s` are the same hazard through the
-# PowerShell tool, and this guard does not cover them: it exits on a non-Bash
-# tool_name, which also keeps it out of the PowerShell classifier path entirely.
-# Pinned so widening it later is a deliberate change to this line.
-expect "PowerShell payload is a declared gap, not a block" 0 \
+# --- 4. PowerShell Remove-Item / rd /s (#4516) --------------------------------
+# Same target classes as Bash: root, empty, bare variable, outside-tree.
+# JSON on stdin only. The guard must not load the PowerShell classifier.
+if grep -nE '^[[:space:]]*source .+ps-command' "$HOOK" || grep -nE '^[^#]*ps::' "$HOOK"; then
+  bad "the PowerShell lane sources or calls the classifier"
+else
+  ok "the PowerShell lane does not source the classifier"
+fi
+
+# Root, every spelling the issue names plus the aliases and prefixes.
+expect_both 'PS Remove-Item -Recurse -Force C:\ blocks' 2 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
+expect_both 'PS Remove-Item -r C:/ blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -r C:/'
+expect_both 'PS Remove-Item -rec C: blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -rec C:'
+expect_both 'PS ri -r C:\ blocks' 2 \
+  --tool PowerShell --command 'ri -r C:\'
+expect_both 'PS rm -rf / blocks (bash-in-PS cluster)' 2 \
+  --tool PowerShell --command 'rm -rf /'
+expect_both 'PS Remove-Item -LiteralPath C:\ -Recurse blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -LiteralPath C:\ -Recurse'
+expect_both 'PS Remove-Item -Path C:\ -Recurse blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Path C:\ -Recurse'
+expect_both 'PS Remove-Item -Recurse / blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse /'
+expect_both 'PS Remove-Item -Recurse ~ blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ~'
+expect_both 'PS Remove-Item -Recurse $HOME blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse $HOME'
+expect_both 'PS Remove-Item -Recurse /c blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse /c'
+expect_both 'PS & Remove-Item -Recurse C:\ blocks' 2 \
+  --tool PowerShell --command '& Remove-Item -Recurse C:\'
+
+# Empty operand.
+expect_both "PS Remove-Item -Recurse '' blocks" 2 \
+  --tool PowerShell --command "Remove-Item -Recurse ''"
+expect_both 'PS Remove-Item -Recurse "" blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ""'
+expect_both 'PS Remove-Item -Recurse with no path blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse'
+
+# Bare variable.
+expect_both 'PS ri -r $X blocks' 2 \
+  --tool PowerShell --command 'ri -r $X'
+expect_both 'PS Remove-Item -Recurse $env:X blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse $env:X'
+expect_both 'PS Remove-Item -Recurse ${X} blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ${X}'
+
+# cmd /c rd /s and rmdir /s.
+expect_both 'PS cmd /c rd /s /q C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd /c rd /s /q C:\'
+expect_both 'PS cmd /c rmdir /s C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd /c rmdir /s C:\'
+expect_both "PS cmd /c 'rd /s /q C:\' blocks" 2 \
+  --tool PowerShell --command "cmd /c 'rd /s /q C:\'"
+expect_both 'PS cmd.exe /c rd /s C:\ blocks' 2 \
+  --tool PowerShell --command 'cmd.exe /c rd /s C:\'
+expect_both 'PS rd /s C:\ blocks (cmd grammar on the alias)' 2 \
+  --tool PowerShell --command 'rd /s C:\'
+
+# Pipeline target cannot be named.
+expect_both 'PS pipeline Remove-Item -Recurse blocks' 2 \
+  --tool PowerShell --command 'Get-ChildItem x | Remove-Item -Recurse'
+
+# Allowed: non-recursive, prose, other verbs.
+expect_both 'PS Get-ChildItem C:\ allowed' 0 \
+  --tool PowerShell --command 'Get-ChildItem C:\'
+expect_both 'PS Remove-Item file (no recurse) allowed' 0 \
+  --tool PowerShell --command 'Remove-Item C:\file.txt'
+expect_both 'PS Write-Output naming the delete allowed' 0 \
+  --tool PowerShell --command "Write-Output 'Remove-Item -Recurse C:\'"
+expect_both 'PS cmd /c dir allowed' 0 \
+  --tool PowerShell --command 'cmd /c dir C:\'
+expect_both 'PS cmd /c rd without /s allowed' 0 \
+  --tool PowerShell --command 'cmd /c rd C:\empty'
+expect_both 'PS ri file (no -r) allowed' 0 \
+  --tool PowerShell --command 'ri C:\file.txt'
+expect_both 'PS Get-Process allowed' 0 \
+  --tool PowerShell --command 'Get-Process'
+
+# Outside-tree, with a payload cwd, same classes as Bash.
+# portability-ok: Windows path string in a test fixture, not a regex/sed construct
+expect_both 'PS Remove-Item -Recurse C:\Windows blocks with cwd' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse C:\Windows'
+expect_both 'PS Remove-Item -Recurse ./build allowed with cwd' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse ./build'
+expect_both 'PS ri -r $X blocks with cwd' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'ri -r $X'
+
+# A non-Bash, non-PowerShell tool is still a skip.
+expect "Write tool is not this guard's lane" 0 --tool Write --command 'Remove-Item -Recurse C:\'
+
+# Kill switch covers the PowerShell lane too.
+expect "PS kill switch disables the guard" 0 \
+  --tool PowerShell --command 'Remove-Item -Recurse C:\' \
+  -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 
 # --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
 # sg re-parses its one command word; setpriv, prlimit and systemd-run step
