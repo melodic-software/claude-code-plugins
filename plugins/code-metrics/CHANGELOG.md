@@ -8,10 +8,10 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 ### Added
 
 - **`summary.files_excluded_only` counts files that survive only as sanctioned
-  exclusions (#3768).** `summary.files` still counts surviving clone rows. After
+  exclusions.** `summary.files` still counts surviving clone rows. After
   a total exclusion those files are no longer invisible next to the scope's
   file count: resummarize and the markdown name them.
-- **Skill-body default sentences are pinned to `config-defaults.json` (#3768).**
+- **Skill-body default sentences are pinned to `config-defaults.json`.**
   `scripts/check-code-metrics-skill-prose.py` checks the duplication defaults,
   `coverage.reference`, `type_debt.reference`, the cyclomatic reference, and the
   file-length reference. The README known-gap that left those sentences unbound
