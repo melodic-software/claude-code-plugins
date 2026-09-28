@@ -1,6 +1,6 @@
 ---
-description: "Read-only slowness-diagnostic capture for a Claude Code installation. Run it AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything. One timed engine pass captures the four suspects: CLI version (regression), retention-sweep health including the silent unparsable-settings pause (accumulated state), a timed stat-walk of the install tree plus session and plugin-fleet counts (component bloat), and the fan-out layer (per spawn): a load-labeled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn, the statusline, subagent concurrency ceilings, sessions that predate the settings file, and orphan attribution by parent liveness not age. On Windows, a kernel-object census (Token objects against uptime, paged pool) names the host-level leak beneath all four suspects. Plus a process census, Defender guidance, and a bundled known-performance-issues reference. Reports and routes; never mutates, never deletes, never 'fixes', never executes a discovered hook. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Not for: install-tree inventory (/claude-ops:audit-install-state), deleting anything (/disk-hygiene:clean), plugin enablement verdicts (/claude-ops:plugins audit), or upstream bug lookup alone (/claude-ops:known-issues, which this composes with)."
-argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
+description: "Slowness diagnostic that never 'fixes', run while Claude Code is slow, before restarting or deleting: version, retention sweep, install bloat, hook and subagent fan-out, and a Windows kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues."
+argument-hint: "[unattended] [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -26,6 +26,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Question | Owner |
 |---|---|
 | Why is Claude Code slow right now? | **this skill** |
+| The historical cost of these hooks over past sessions | `/doctor` if it resolves in your session (compose: run AFTER this capture. It reads transcripts, which this engine never does, and is not time-sensitive) |
 | What exactly is in the install tree, and is anything stale? | `/claude-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/claude-ops:plugins audit` |
 | Is this a known upstream bug? | `/claude-ops:known-issues` (compose: search the symptoms this report surfaces) |
@@ -45,11 +46,15 @@ conflated whenever a session feels slow:
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
-**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
-anything the user wants fixed in place, and prefer `claude doctor` when a session will not start.
-Prefer this skill when the question is why it is slow right now: the timings, the fan-out layer,
-and the retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns
-the deep inventory of the tree against the same surface.
+**Routing.** Capture first, `/doctor` second. This skill is capture-at-moment tooling: a report
+taken after the stall ends supports no conclusion about the incident, and prepending a
+prerequisite adds latency on a host that is already slow. `/doctor` reads transcripts, which
+this engine never does, and that half is not time-sensitive. When `doctor` resolves in your
+session, run it after this capture for the transcript-derived half and for anything the user
+wants fixed in place, and prefer `claude doctor` when a session will not start. Prefer this
+skill when the question is why it is slow right now: the timings, the fan-out layer, and the
+retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns the
+deep inventory of the tree against the same surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
 it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
@@ -128,6 +133,10 @@ Lead with `sweep_health.findings`, then work the suspects in order. For each, st
 evidence supports and what it cannot distinguish. This report is one sample, not a longitudinal
 study.
 
+When `doctor` resolves in your session, run it after this capture for the transcript-derived
+half of a slowness diagnosis. This engine never reads `history.jsonl` or transcript files; `/doctor`
+does. That pass is not time-sensitive. Do not prepend it.
+
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of
 those measure what a spawn costs. Suspect 4 is where that lives, and it is the suspect a report
@@ -151,7 +160,7 @@ run; it is never silently absent.
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
 `total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
 I/O after the first launch of the day), `settings-unparsable-pauses-sweep` (the sweep has been
-silently OFF. Nothing was cleaned for as long as that error existed), `history.mb` and
+OFF, and `/status` warns. Nothing was cleaned for as long as that error existed), `history.mb` and
 `home_root_state` sizes (unmanaged, grow forever). `last-cleanup-stale` is weaker evidence than it
 looks: the sweep defers while sessions are active, so a stale sentinel on a busy machine has a
 benign explanation. Report both readings.
@@ -262,6 +271,12 @@ Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the
 per-keystroke render cost), and every entry in `timings_seconds` (a slow phase names a slow
 subsystem).
+
+## Run-end suggestion
+
+Shared `/doctor` surface facts live in [audit-install-state's Boundary section](../audit-install-state/SKILL.md#boundary-the-bundled-doctor-skill). If /doctor is available in your session (gate basis in that section), run it for the quick health-and-fix pass this timed capture does not perform.
+
+**`unattended`:** record the suggestion in the report's final section; do not ask.
 
 ## Gotchas
 

@@ -39,14 +39,14 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# --- The hooks.json row reads eol_normalizer_enabled in its own shell --------
-# A disabled hook must cost the one shell Claude Code runs the row in, so the
-# row checks the option and execs the script only when it is on. The row's
-# command text is run the way Claude Code runs it: ${CLAUDE_PLUGIN_ROOT}
-# substituted into the text, then `bash -c` (the row's pinned shell). A
-# sentinel stands in for eol-normalizer.sh and records whether it started. The
-# expected verdict for each value comes from the script's own kill-switch line,
-# run under the same environment, so the row and the script cannot disagree.
+# --- The hooks.json row gates eol_normalizer_enabled in exec form ------------
+# Exec form spawns `command` with `args` and no shell. The gate is
+# `--run-if-unset-or-true` in exec-bash.mjs, which exits 0 before bash when
+# the option is set to something other than true. ${CLAUDE_PLUGIN_ROOT} in
+# args is substituted, then `node` is spawned with that argv. A sentinel
+# stands in for eol-normalizer.sh and records whether it started. The expected
+# verdict for each value comes from the script's own kill-switch line, run
+# under the same environment, so the row and the script cannot disagree.
 # This section does not need git, so it runs before the no-git exit below.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
@@ -56,11 +56,15 @@ else
 fi
 ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
 ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")
-ROW_SHELL=$(jq -r '.shell // empty' <<<"$ROW_JSON")
-if [[ "$ROW_SHELL" == "bash" ]]; then
-  ok "row-gate: the hooks.json row pins shell to bash"
+if [[ "$ROW_CMD" == "node" ]] && jq -e '(.args[0] | endswith("exec-bash.mjs")) and ((.args | index("--run-if-unset-or-true")) != null)' <<<"$ROW_JSON" >/dev/null; then
+  ok "row-gate: the hooks.json row is exec form (node, exec-bash.mjs, option gate)"
 else
-  fail "row-gate: the hooks.json row shell is '$ROW_SHELL', want 'bash'"
+  fail "row-gate: the hooks.json row is not the exec form: $ROW_JSON"
+fi
+if jq -e 'has("shell")' <<<"$ROW_JSON" >/dev/null; then
+  fail "row-gate: exec form sets shell, which is ignored when args is set: $ROW_JSON"
+else
+  ok "row-gate: the hooks.json row sets no shell"
 fi
 # `if` would narrow the .gitattributes-driven file set (#3411); `async` could race the next Edit of the file.
 if jq -e 'has("if") or has("async")' <<<"$ROW_JSON" >/dev/null; then
@@ -83,9 +87,13 @@ mkdir -p "$ROWGATE/root/hooks"
 printf '%s\n' '#!/usr/bin/env bash' ': >"$ROWGATE_OUT/started"' 'cat >"$ROWGATE_OUT/stdin"' 'exit 7' \
   >"$ROWGATE/root/hooks/eol-normalizer.sh"
 chmod +x "$ROWGATE/root/hooks/eol-normalizer.sh"
+cp "$HOOK_DIR/exec-bash.mjs" "$ROWGATE/root/hooks/exec-bash.mjs"
 printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Write"}\n' >"$ROWGATE/payload"
 # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
+ROW_ARGS_RUN=()
+while IFS= read -r row_arg; do
+  ROW_ARGS_RUN+=("${row_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$ROWGATE/root}")
+done < <(jq -r '.args[]' <<<"$ROW_JSON")
 
 # run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
 # option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
@@ -113,7 +121,7 @@ for v in "${ROW_VALUES[@]}"; do
   mkdir -p "$case_dir"
   run_opt "$case_dir" "$v" bash -c "$PRED_LINE"$'\nexit 3' </dev/null
   if [[ $? -eq 3 ]]; then pred=started; else pred=skipped; fi
-  row_out=$(run_opt "$case_dir" "$v" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload")
+  row_out=$(run_opt "$case_dir" "$v" node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload")
   row_rc=$?
   if [[ -e "$case_dir/started" ]]; then got=started; else got=skipped; fi
 
@@ -144,9 +152,9 @@ for how in SHELLOPTS BASH_ENV; do
   case_dir="$ROWGATE/nounset-$how"
   mkdir -p "$case_dir"
   if [[ "$how" == SHELLOPTS ]]; then
-    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload"
   else
-    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" node "${ROW_ARGS_RUN[@]}" <"$ROWGATE/payload"
   fi
   row_rc=$?
   if [[ -e "$case_dir/started" && $row_rc -eq 7 ]]; then
@@ -390,7 +398,7 @@ rm -f "$TELS"
 # Without jq the hook cannot parse its input at all; the skip must surface on
 # both channels once per session instead of silently disabling normalization.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
-for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do # portability-ok: names in a PATH shim, not an mktemp -p call
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
@@ -528,7 +536,7 @@ if [[ "$(cr_count "$TRACE_REPO/benign.md")" == "0" ]]; then
 else
   fail "traced benign: fixture is not LF, the trace assertions below are meaningless"
 fi
-for banned in dirname basename mktemp cp cmp perl head wc; do
+for banned in dirname basename mktemp cp cmp perl head wc; do # portability-ok: names in a spawn ban list, not an mktemp -p call
   N="$(trace_execs "$banned" "$TRACE")"
   if [[ "$N" == "0" ]]; then
     ok "traced benign: no $banned spawned"
@@ -588,6 +596,42 @@ else
       fail "root-level: FILE_DIR of $IN is '$GOT', want '$WANT'"
     fi
   done
+fi
+
+# --- Gitignored path (#4671): left alone by default ---------------------------
+# A CRLF file under `eol=lf` would be normalized; under an ignored directory it
+# is not, unless eol_normalizer_lint_gitignored is set. A TRACKED file matching
+# an ignore pattern stays in scope: it is part of the reviewable artifact.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '*.sh eol=lf\n' >"$REPO_IGN/.gitattributes"
+printf '.work/\n*.gen.sh\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'echo a\r\necho b\r\n' >"$REPO_IGN/.work/scratch.sh"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.sh")
+if [[ "$(cr_count "$REPO_IGN/.work/scratch.sh")" == "2" ]]; then
+  ok "gitignored: CRLF file left untouched"
+else
+  fail "gitignored: file was normalized ($(cr_count "$REPO_IGN/.work/scratch.sh") CRs left)"
+fi
+if [[ -z "$OUT" ]]; then ok "gitignored: no disclosure"; else fail "gitignored: disclosed: $OUT"; fi
+run_hook_env "$REPO_IGN/.work/scratch.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED=true >/dev/null
+if [[ "$(cr_count "$REPO_IGN/.work/scratch.sh")" == "0" ]]; then
+  ok "gitignored + eol_normalizer_lint_gitignored=true: file normalized"
+else
+  fail "gitignored + opt-in: file not normalized"
+fi
+printf 'echo a\r\n' >"$REPO_IGN/tracked.gen.sh"
+git -C "$REPO_IGN" add -f tracked.gen.sh .gitattributes .gitignore
+git -C "$REPO_IGN" commit -q -m init
+printf 'echo a\r\necho b\r\n' >"$REPO_IGN/tracked.gen.sh"
+run_hook "$REPO_IGN/tracked.gen.sh" >/dev/null
+if [[ "$(cr_count "$REPO_IGN/tracked.gen.sh")" == "0" ]]; then
+  ok "tracked file matching an ignore pattern: still normalized"
+else
+  fail "tracked file matching an ignore pattern: left unnormalized"
 fi
 
 echo

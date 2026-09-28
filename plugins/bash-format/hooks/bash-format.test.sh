@@ -763,7 +763,10 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^(exec )?bash (\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/bash-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/bash-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  CMD_OFF="$(jq -r --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh' '
+    [.[] | select(
+      ((.command == "node") and ((.args // []) | index($script)))
+      | not) | (.command // "(none)")] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
     ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else
@@ -771,6 +774,38 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+
+# --- Gitignored path (#4671): neither rewritten nor reported by default ------
+# The fixture would be reformatted (unindented if-block) AND reported
+# (SC2154), so an empty stdout and unchanged bytes prove the skip. The opt-in
+# run is the non-vacuity half: the same file IS rewritten once the gate opens.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\n' >"$REPO_IGN/.editorconfig"
+mkdir -p "$REPO_IGN/.work"
+# shellcheck disable=SC2016  # $undefined_variable must stay literal in the emitted fixture
+IGN_BODY='#!/usr/bin/env bash\nif true; then\necho "$undefined_variable"\nfi\n'
+# shellcheck disable=SC2059  # the body is the format string on purpose: it carries the \n escapes
+printf "$IGN_BODY" >"$REPO_IGN/.work/scratch.sh"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.sh")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.sh")
+if [[ -z "$OUT" ]]; then ok "gitignored: no findings reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.sh")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.sh")"
+fi
+if [[ $HAVE_SHFMT -eq 1 ]]; then
+  OUT=$(run_hook_env "$REPO_IGN/.work/scratch.sh" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED=true)
+  if grep -q '^  echo' "$REPO_IGN/.work/scratch.sh"; then
+    ok "gitignored + bash_format_lint_gitignored=true: file formatted"
+  else
+    fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.sh")"
+  fi
 fi
 
 echo

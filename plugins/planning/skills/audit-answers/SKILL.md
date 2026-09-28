@@ -1,5 +1,5 @@
 ---
-description: "Adversarially validate the answers in a completed '/planning:interview' ledger: fresh-context agents re-examine each answer with its rationale withheld, so only doubtful ones return as questions. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Plans are '/planning:devils-advocate'."
+description: "Validate a filled /planning:interview ledger with fresh-context agents that re-check each answer blind to its rationale; only doubtful ones come back. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Plans: '/planning:devils-advocate'; first-time questions: '/planning:interview'."
 argument-hint: "[topic] (no args reads the current topic's interview ledger)"
 user-invocable: true
 disable-model-invocation: false

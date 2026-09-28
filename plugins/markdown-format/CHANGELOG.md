@@ -3,6 +3,34 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.74] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.11.73] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.11.72] - 2026-09-28
+
+### Changed
+
+- **The gitignore gate uses the shared `hook::gitignored_out_of_scope` helper** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). Behavior is unchanged: a gitignored Markdown file is still skipped unless `markdown_format_lint_gitignored` is `true`. The local `file_is_gitignored` copy is gone.
+
+## [0.11.71] - 2026-09-28
+
+### Changed
+
+- **`markdown-format.test.sh` host-skips four PATH-shape cases on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The suite
+  probes whether `cygpath -m` rewrites a POSIX mktemp path and prints a counted
+  `SKIP (host: ...)` line for the PATH-probed trim, empty-component, out-of-repo bun, and
+  `~/.local/bin` preference assertions. Linux CI is unchanged.
+
 ## [0.11.70] - 2026-09-28
 
 ### Changed

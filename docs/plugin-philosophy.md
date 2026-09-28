@@ -288,11 +288,11 @@ re-deriving a row.
 
 | Component | Stance | Rationale and constraints | Verified |
 |---|---|---|---|
-| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`. | 2026-07-17 |
+| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model` (the override lasts for the current turn and is not saved; in auto mode a model auto mode does not support is not used and the session keeps its model; with `context: fork` the value sets the forked subagent's model). `model` verified 2026-09-28 against the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck when that row changes what `model` accepts or when auto mode stops keeping the session model. | 2026-07-17 |
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns real executables only (no `.cmd`/`.bat` shims): use `"command": "node", "args": [...]`, a `${CLAUDE_PLUGIN_ROOT}`-rooted path, or shell form with `"shell": "bash"`, never a bare `bash`/`sh` (WSL relay) or `python`/`python3` (WindowsApps alias stub), whose launch fails non-blockingly and leaves a guard hook silently enforcing nothing. Prose cannot self-verify, so `scripts/check-hook-exec-form.sh` turns that rule into a mechanical check across hook configs and skill/agent frontmatter alike. Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-07-17 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Use `"command": "node"` with the script path in `args`, or shell form with `"shell": "bash"`. `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-28 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | No additional constraints. | 2026-07-17 |
@@ -302,6 +302,17 @@ re-deriving a row.
 | [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins-reference) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
 | [Dependencies](https://code.claude.com/docs/en/plugin-dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
+
+### Windows exec-form probe
+
+`scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument. No shell-form hook row remains.
+
+- **Claim:** On Windows, exec form (`args` present) resolves `command` as an executable and spawns it directly with `args` as the argument vector. There is no shell, so a shebang is not honored, and `command` must be a real executable such as a `.exe`. `.cmd` and `.bat` shims cannot be spawned. If a Windows spawn of that shape drops `args` or the process image is `bash.exe`, the fleet sweep stops.
+- **Basis:** [Hooks reference](https://code.claude.com/docs/en/hooks), section "Exec form and shell form". Verbatim, from a full raw-markdown read of `https://code.claude.com/docs/en/hooks.md` (330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`; the slug is listed in `https://code.claude.com/docs/llms.txt`): "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." The same section states that exec form has no shell and that `shell` is "Ignored when `args` is set". Args-drop is [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495), open as of this date.
+- **As of:** 2026-09-28.
+- **Recheck:** the hooks page changes that Windows sentence, stops ignoring `shell` when `args` is set, or #90495 closes.
+
+On a non-Windows host the spawn half prints a `SKIP` line and exits 0 when the row spellings are clean. That skip is fail-soft: it does not show that #90495 is absent, and it does not authorize converting `.sh` rows. On Windows the script spawns `node.exe` (a PE image, not a `.cmd`) with an args array and a stdin payload. A missing sentinel or a `bash.exe` image exits 1 with `ARGS-DROP` and the sweep stays stopped. `EXEC_FORM_WINDOWS_PROBE_LIVE=1` adds an opt-in `claude` hook run; without `claude` on `PATH` that half also skips fail-soft.
 
 ## Two-lane convention posture
 
@@ -655,6 +666,45 @@ custom channel. Where both exist they converge to one idempotent state. The `set
 the `setup`-skill requirement above; these native idioms may complement the headless dimension, and
 never replace it.
 
+### Install subactions and refusal
+
+The `apply` verb stays closed. A write that installs something is an optional subaction of `apply`,
+never a new verb and never implied by bare `apply`. Subaction **names** stay locally informative;
+the fleet does not converge onto one spelling (#3574).
+
+Three sanctioned name shapes, picked by what the write actually installs:
+
+| Shape | When | Live examples |
+|---|---|---|
+| Tool-named | the write installs one named tool through the consumer's existing package manager | `install-ruff`, `install-biome` |
+| Class-named | the write provisions a dependency class or a CLI, not one tool name | `install-deps`, `install-build-deps`, `install-cli`, `install-lint` |
+| Object-named | the write installs a named hook or file | `install-commit-msg`, `install-pre-commit-content` |
+
+A new install subaction picks one of those three. It does not invent a fourth grammar, and it does
+not rename a sibling to match.
+
+**Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
+rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
+gap; name the reason from this list. Two reasons may appear together.
+
+1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
+2. The only install command is unpinned (`@latest`), so it is not idempotent.
+3. The tool has no per-repo dependency-manager path (cargo/Homebrew/a pre-built binary, not a
+   lockfile).
+
+`go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
+refusals. They stay; they are not defects against a missing subaction.
+
+- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal uses
+  the three-reason template; the fleet is not renamed onto one spelling.
+- **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
+  `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
+  `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
+  `install-hint` and `install-browser` are not setup subactions.
+- **As of:** 2026-09-28.
+- **Recheck:** a setup skill grows a fourth name shape, or a maintainer converges the fleet onto
+  one spelling.
+
 ## Prerequisites and failure behavior
 
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
@@ -732,6 +782,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
 | Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
+| Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/conventions/recommendation-basis/`](conventions/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/conventions/authoring-formats/`](conventions/authoring-formats/README.md) |
 
 ## Cross-platform contract
@@ -986,7 +1037,19 @@ unbound subagents rather than an override
 ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
 verified 2026-09-11, recheck when a release note touches subagent model selection;
 `env` applies to every session and spawned subprocess,
-[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10). There is no per-plugin
+[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10).
+
+**Decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** Claim: do not set
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. It forces one model onto every subagent, teammate, and
+workflow agent and ignores per-spawn and definition `model` values, which erases the tier ladder
+above. Basis:
+<https://code.claude.com/docs/en/env-vars> (`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, Claude Code
+v2.1.257 or later) and
+<https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>. As of: 2026-09-28.
+Recheck: that env-vars row stops ignoring definition and per-spawn `model` values, or the
+subagents page stops describing the force switch.
+
+There is no per-plugin
 model surface, because plugin `userConfig` declares only generic typed options with no model semantics
 ([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
 verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
@@ -1008,7 +1071,11 @@ default (`opus[1m]`, an alias): `opus` resolves to Opus 5.5 on the Anthropic API
 ([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
 models overview says to "start with … for most workloads", while Fable 5.1 is among "the most
 capable models in Claude Code", suited to tasks larger than a single sitting rather than to harder
-verdicts at ordinary length. Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
+verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in a Claude apps
+gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
+id
+([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
+verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
 unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
@@ -1190,8 +1257,42 @@ name is not the same underlying value across models):
   consumer must clear rather than a silent cost. The same section independently corroborates the
   no-op corollary above: a change resolving to the level already in effect "skips the dialog and
   keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-10; recheck trigger: a Claude Code release changes the effort-change
-  confirmation flow, or that section is reworded).
+  verified 2026-08-10). Re-read 2026-09-28: on most models that dialog sentence still
+  holds, and each effort level has its own cache. On Opus 5.5 and Fable 5.1, with an API key or a
+  Claude subscription, changing effort keeps the cache and Claude Code applies the new level
+  without asking. The exception does not apply on Amazon Bedrock, Google Cloud's Agent Platform,
+  or a Claude apps gateway, when `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` is set, or when the
+  organization has a HIPAA configuration. Before v2.1.260, Fable 5.1 invalidated the cache too
+  ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
+  fetched 2026-09-28, 45,082 bytes; recheck trigger: that section drops the Opus 5.5 / Fable 5.1
+  exception or changes which providers it excludes).
+
+**Pinned `effort: high` agents (recorded decision, #4253).** Option A: keep the pins. Document
+the operator cost. Do not unpark a funded sweep that drops or lowers them.
+
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers. There is no per-invocation `effort` on Agent-tool
+  dispatch, so a frontmatter pin is the only supported way to hold the lane, and the only
+  supported way to lower it is to edit the definition. That is the operator cost: the cheapest
+  lever (lower effort) is unavailable on those workers without a source change. Keep the pins.
+  A funded sweep that drops or lowers some of them, or exposes a `userConfig` effort key, stays
+  parked.
+- **Basis:** The eleven defs on origin/main (2026-09-28): `implementation` `implementer` and
+  `phase-verifier`; `discovery` `explorer`, `researcher`, and `intent-tracer`; `review`
+  `code-reviewer`, `architecture-guardian`, `ci-log-auditor`, `doc-drift-detector`,
+  `ecosystem-specialist`, and `security-reviewer`. The Agent-tool gap in this section
+  ("a generic Agent-tool dispatch carries no effort control"). Upstream: lowering effort beat
+  an architecture change, and `low` is named for simpler subagent tasks
+  ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Issue
+  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253). Also pinned
+  `high`, outside the filed eleven: `plugin-quality` `auditor`, `songwriting` `object-writer`.
+  Not in the eleven: `discovery` `research-verifier` and `planning` `plan-reviewer` pin
+  `medium`.
+- **As of:** 2026-09-28.
+- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer funds a
+  sweep that drops or lowers a named pin, or a plugin ships a `userConfig` effort key that
+  actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,

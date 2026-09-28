@@ -56,6 +56,15 @@ assert_eq "bare-name command rule carries over" "no" "$(matches 'Bash(node-gyp:*
 tokens=$(printf '%s\n' 'Bash(echo Agent)' | grep -oE "$CCPERM_TOOL_TOKEN_ERE")
 assert_eq "payload text is not a separate top-level token" "Bash(echo Agent)" "$tokens"
 
+paren_path=$(printf '%s\n' 'Edit(./Finance (2024)/**)' | grep -oE "$CCPERM_TOOL_TOKEN_ERE")
+assert_eq "a path parenthesis stays inside one token" "Edit(./Finance (2024)/**)" "$paren_path"
+
+trailing=$(printf '%s\n' 'Bash(ls) x' | grep -oE "$CCPERM_TOOL_TOKEN_ERE" | head -n 1)
+assert_eq "the specifier token stops before trailing text" "Bash(ls)" "$trailing"
+
+assert_eq "an interpreter wildcard with a parenthesized argument still drops" "yes" \
+  "$(matches 'Bash(python (x) *)')"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -34,8 +34,11 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 - target containment; an OS-managed root (per `system_roots()`: the OS drive holding an existing
   Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
   a recursive walk target, while `--root-children` may address that same root only as a listing of
-  immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
-  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  immediate non-OS child entries (regular files and directories) with explicit `--root-child`
+  selection (never a whole-root
+  walk); `--root-children` is also valid on a non-OS directory (a user home), where only
+  directories are admitted, so approved immediate children can be re-inventoried into one snapshot
+  without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
@@ -115,6 +118,16 @@ Windows and macOS execution stays declined by design. A descriptor-anchored Wind
 be a large new trust surface, while the manual lane's per-item revalidation rules and the
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
+
+**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
+execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
+question, not this trigger firing. **Basis:** the trigger quoted from the
+[#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
+affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
+near-miss recurrence), reopen as a design issue with full security review." No post-#1109
+near-miss recurrence is on the record in this checkout; #3855 remains the open related
+design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
+manual lane, or #3855 closing with a per-primitive design.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
@@ -339,9 +352,10 @@ volume. The engine's own containment, revalidation, and platform gates remain th
 authority.
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
-registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
-`hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher),
+registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
+`node`, then `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh`, `--mode engine-gate`; see
+"Hook launch form" below) and the
+**skill-frontmatter belt** (the clean skill's frontmatter hook, the same entry),
 and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -425,33 +439,19 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
-**Hook launch form, and what it does and does not bound.** All three registrations use **shell form**:
+**Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
-skill's frontmatter. In each, the `command` string
-names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was not viable: it is
-a bare `PATH` lookup, and on Windows `"command": "bash"` resolves to the WSL relay
-`System32\bash.exe` before Git Bash while `"command": "python3"` resolves to the zero-length
-`WindowsApps` App Execution Alias stub, so the launch died and, a failed hook launch being
-non-blocking, the guard silently enforced nothing. Shell form is resolved by Claude Code itself,
-which routes it through its own Git Bash. The security consequence is stated plainly rather than
-glossed: a shell now parses the launch string, so "no shell is involved" is no longer the bound. What
-bounds it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` or
-SKILL.md frontmatter, with no model-, repo-, or session-supplied text interpolated into it; the only
-substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`
-placeholders, each double-quoted, so the shell's re-tokenization reproduces the exec-form argument
-vector byte-for-byte, verified for all three against roots containing spaces and backslashes.
-The belt's bound is the **tighter** of the two: a skill-frontmatter hook receives only
-`${CLAUDE_PLUGIN_ROOT}`, so that is the sole placeholder its command string carries and the
-`--authorized-data-root` channel stays out of it by construction, not by convention. The limit of
-that quoting is part of the model too: the runtime substitutes those placeholders *textually* before
-bash parses the result, so the double quotes bound whitespace and backslashes but would not
-neutralize a `$` or a backtick inside a substituted value (both resolve under Claude Code's own
-install and data roots). The invariant is therefore **maintained by test**, not structural:
-`hooks/run-python-hook.test.sh` asserts for `hooks.json` that the launcher is named in `command`,
-`args` is absent, `shell: bash` is declared, and every placeholder is quoted; `test_hygiene.py`
-asserts the same four properties for the frontmatter belt (that suite is jq-based and cannot read
-YAML) and reads either launch form throughout, so a shell-form entry cannot make an assertion
-vacuously green.
+skill's frontmatter. In each, `command` is `node` and `args` names `hooks/exec-bash.mjs`, then
+`hooks/run-python-hook.sh` and that script's arguments. Bare `"command": "bash"` resolves to the WSL
+relay `System32\bash.exe` and `"command": "python3"` resolves to the zero-length `WindowsApps` stub,
+so those spellings are not used: the launch would die and, a failed hook launch being non-blocking,
+the guard would silently enforce nothing. There is no shell in exec form. The bound is that `args`
+are fixed literals in the plugin's own `hooks.json` or SKILL.md frontmatter, with no model-, repo-,
+or session-supplied text interpolated into them. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and,
+on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The belt's bound is the
+tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}`, so that is the
+sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
+`hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
@@ -477,9 +477,9 @@ skill-frontmatter belt alike, launches through the shared `hooks/run-python-hook
 tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsApps` alias stub, and,
 in monitor mode, emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
-and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
-Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
+host where `node` is missing, or where that launcher cannot resolve Git Bash, takes the guard and
+its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
@@ -561,13 +561,13 @@ subtree.
 The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
-the three coverage terms, `empty_directory_count`, both byte totals, `errors`, `policy_sources`
+the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`
 and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
 of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
 flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
 suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
-`empty_directory_count` on stdout for the same reason an ordinary scan does. The default stays the
+`empty_directory_count` and `empty_file_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.
 
@@ -575,7 +575,8 @@ Root-children mode's quiet note is its own. That mode's default note carries a c
 qualification the ordinary one has no reason to: the volume root itself and every skipped
 OS-owned, hidden, system or reparse entry were never walked, so the inventory is partial by
 construction. Nothing else on stdout encodes that. The skipped entries are recorded as
-`root_children_skipped` in the snapshot alone, and `truncated_paths` does not stand in for them,
+`root_children_skipped` in the snapshot as the full list (stdout carries the same field grouped by
+reason with counts), and `truncated_paths` does not stand in for them,
 so a quiet note that dropped the qualification would be dropping a fact rather than a duplicate.
 The quiet root-children note therefore keeps the coverage sentence and drops only the rollup
 prose.
@@ -596,6 +597,13 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+The baseline policy therefore ships no discovery hint for another product's managed state. A hint
+for a class the engine will never act on tells the operator to look for residue the plugin has
+already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
+rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
+without that lane.
 
 ## Outcome vocabulary
 

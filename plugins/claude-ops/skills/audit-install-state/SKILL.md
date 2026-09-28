@@ -1,6 +1,6 @@
 ---
-description: "Read-only audit of a Claude Code INSTALLATION directory, the machine-scope `~/.claude` tree plus `~/.claude.json`. Inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. When the bundled doctor skill resolves in your session, prefer it for the quick native health-and-fix pass; this skill for the deep read-only inventory. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
-argument-hint: "[root]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
+description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in your session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
+argument-hint: "[root] [unattended]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -59,11 +59,7 @@ routinely conflated:
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
   before anything is called stale.
 
-**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
-anything you want fixed in place. Prefer this skill when the question is *what is actually in this
-tree, and what does nothing manage*, the classification, the evidence tags, and the per-file CSV
-have no native counterpart. Its sibling `/claude-ops:audit-performance` owns the timed
-slowness-capture lane against the same native surface; that description is not repeated here.
+**Routing.** Person-invoked `/doctor` is offered at session end (Phase 6); this section records surface facts only. Its sibling `/claude-ops:audit-performance` owns the timed slowness-capture lane against the same native surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only, so
 never chain into a `doctor` fix on this skill's behalf. Surface the finding, and let the user
@@ -122,9 +118,11 @@ possible **sole copy** of somebody's revert path: propose nothing for it, check 
 
 Read `retention`. Report `effective_days` with its `effective_evidence`: `measured` when a file
 supplied it, `documented-default` when upstream's 30-day default applies. The highest-severity
-finding lives here: **an unparsable `settings.json` pauses the retention sweep**. If
-`settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it and treat every
-staleness reading below as suspect.
+finding lives here: **an unparsable user `settings.json` pauses the retention sweep and warns in
+`/status`**. If `settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it
+and treat every staleness reading below as suspect. If
+`managed-settings-unparsable-refuses-start` appears, Claude Code refuses to start (exit 1) and
+names the managed source; that is not a paused sweep.
 
 `.last-cleanup` is read by the engine and its timestamp is observed to advance when the sweep runs,
 but no upstream page names the file, so `sentinels` carries it as `observed-undocumented` with an
@@ -179,6 +177,12 @@ flag into the report. Check `csv.rows` against `totals.files` before claiming co
 CSV path and row count, and state that the tree was live (`quiesced: false`). Fan-out cross-review
 and the upstream-claim rule (raw markdown only; absence from a summary is not evidence of absence):
 [reference/evidence-discipline.md](reference/evidence-discipline.md).
+
+### Person-invoked `/doctor` suggestion
+
+If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this read-only inventory does not perform.
+
+**`unattended`:** record this suggestion in the report's final section; do not ask.
 
 ## Next
 

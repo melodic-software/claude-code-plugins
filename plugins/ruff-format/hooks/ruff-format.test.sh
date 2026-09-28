@@ -606,7 +606,10 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^bash (\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/ruff-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/ruff-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  CMD_OFF="$(jq -r --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/ruff-format.sh' '
+    [.[] | select(
+      ((.command == "node") and ((.args // []) | index($script)))
+      | not) | (.command // "(none)")] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
     ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else
@@ -614,6 +617,32 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+
+# --- Gitignored path (#4671): neither rewritten nor reported by default ------
+# `x=1` would be reformatted and `undefined_name` reported (F821); under an
+# ignored directory neither happens, unless ruff_format_lint_gitignored is set.
+# Ruff's own respect-gitignore does not reach an explicitly passed path.
+REPO_IGN="$WORK/gitignored"
+new_ruff_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n.venv/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'x=1\nprint(undefined_name)\n' >"$REPO_IGN/.work/scratch.py"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.py")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.py")
+if [[ -z "$OUT" ]]; then ok "gitignored: no findings reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.py")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.py")"
+fi
+run_hook_env "$REPO_IGN/.work/scratch.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q '^x = 1$' "$REPO_IGN/.work/scratch.py"; then
+  ok "gitignored + ruff_format_lint_gitignored=true: file formatted"
+else
+  fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.py")"
 fi
 
 echo

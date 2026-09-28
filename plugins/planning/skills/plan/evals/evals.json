@@ -23,7 +23,8 @@
       "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Before presenting the plan, the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
       "files": [],
       "expectations": [
-        "Output dispatches a separate fresh-context reviewer / sub-agent to stress-test the plan rather than the authoring thread reviewing its own plan inline",
+        "Output dispatches the plan-reviewer agent (or an equivalent fresh-context reviewer) rather than the authoring thread reviewing its own plan inline",
+        "Output surfaces the cost of the fresh-context review to the user before dispatching",
         "Output treats sub-agent findings as claims to verify against the code, not as ground truth to apply blindly",
         "Output does not present the plan as final while known gaps from the stress-test remain unresolved"
       ]

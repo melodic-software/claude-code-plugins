@@ -35,16 +35,22 @@ tree.
 
 These entries are a guardrail against routine access, not a containment boundary. Category B checks
 that the rules are present; presence is not evidence the file is unreachable. Say so whenever the
-category is reported, in either direction. Verified 2026-07-26 against
-[permissions](https://code.claude.com/docs/en/permissions#read-and-edit),
+category is reported, in either direction. Verified 2026-09-28 against
+[permissions](https://code.claude.com/docs/en/permissions),
 [sandboxing](https://code.claude.com/docs/en/sandboxing), and
-[tools reference](https://code.claude.com/docs/en/tools-reference#powershell-tool).
+[settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories).
+Recheck when a release note changes Read/Edit deny coverage, Bash redirect checks, sandbox
+shell-mode, or `permissions.blockReadsOutsideWorkingDirectories`.
 
 **Covered.** A `Read(...)` deny applies to the built-in file tools (Read, Grep, Glob, LSP), to
 `@file` mentions in a prompt, to the selection and open-file context a connected IDE shares, to the
-Edit tool on the same path (CC v2.1.208+), and, per the permissions page, to *file commands Claude
-Code recognizes inside a Bash command, such as `cat`, `head`, `tail`, and `sed`*. The obvious
-"`cat` it instead" fallback is therefore blocked.
+Edit tool on the same path (CC v2.1.208+), and to file commands Claude Code recognizes inside a Bash
+command, such as `cat`, `head`, `tail`, `sed`, and `tee`. It also applies to Bash redirect targets.
+An input redirect (`< file`) is checked against Read allow and deny rules; Claude Code checks input
+targets in v2.1.257 and later. An output redirect (`> file`, `>> file`, `2> file`) is checked
+against Edit allow and deny rules. The 2.1.259 widening that applied `Read()` deny rules to Bash
+arguments generally was reverted in 2.1.260 and is not the rule: a command that reads files without
+naming them, such as `grep -r pattern .` from the directory that holds the file, is not covered.
 
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
 files indirectly, like a Python or Node script that opens files itself." A `python -c`, a `node -e`,
@@ -67,7 +73,16 @@ and `~/.ssh/` unless they are listed.
 
 **`sandbox.enabled: true` alone is not a boundary. Check the escape surfaces before calling it one.**
 Upstream documents four, all open at their defaults, and each puts a subprocess back outside the OS
-boundary where it can read the denied path:
+boundary where it can read the denied path. A fifth path is not a setting: commands typed at the
+`!` shell-mode prompt run outside the sandbox even when strict mode
+(`allowUnsandboxedCommands: false`) is on, in an interactive session, from Claude Code 2.1.260.
+Two sessions are the exception: a background session, where strict mode covers shell-mode commands
+too, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, where every command runs
+sandboxed. Before v2.1.260, strict mode sandboxed shell-mode commands in every session.
+**Claim, basis, as of, recheck:** that sentence,
+[sandboxing: the unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch),
+2026-09-28, and a re-fetch of that section that no longer says shell-mode commands run outside the
+sandbox.
 
 | Setting | Why it matters | What a boundary requires |
 | --- | --- | --- |
@@ -75,9 +90,12 @@ boundary where it can read the denied path:
 | `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
 | `excludedCommands` | Anything listed runs outside the sandbox, and upstream notes a developer can always append entries | kept narrow, and reviewed |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
+| `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |
 
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
-the same defect as recommending the deny globs without their scope.
+the same defect as recommending the deny globs without their scope. Strict mode
+(`allowUnsandboxedCommands: false`) closes the unsandboxed retry for commands Claude runs. It does
+not close `!` shell mode in an interactive session.
 
 **Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
@@ -99,22 +117,45 @@ vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for
 carry "rank it below the sandbox" into a destructive-git finding. See that section's own note.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
-secret from a session that has shell execution. **Directory location is not a boundary**: a
-subprocess opens absolute paths, so moving the file outside the working directory and
-`additionalDirectories` changes nothing about who can read it. Never present relocation as
-protection. The boundary that holds is the OS principal. A file readable by the account the session
-runs as is reachable, wherever it sits. So the durable control is that the secret is not sitting in a
-file that account can read at all: keep it in an OS credential store or a secrets manager and inject
-it at use time, scope it to a short-lived credential whose theft expires, or run the session as a
-different principal or inside a container that never receives it. Keep the deny rules above; do not
-report them as proof the file is protected.
+secret from a session that has shell execution. **Directory location is a fence for the file tools,
+not for an arbitrary subprocess.** From Claude Code 2.1.257,
+`permissions.blockReadsOutsideWorkingDirectories` stops Read, Grep, Glob, and LSP from reading
+paths outside the working directories, in every permission mode including `bypassPermissions`. Auto
+mode offers to turn that block on before the first such read. A Bash command that reads a matching
+path through a recognized file command, such as `cat`, prompts even in auto mode and
+`bypassPermissions`. A command the shell parser cannot trace prompts even when it names no outside
+path. A Python or Node script that opens the path itself is still not fenced by the setting.
+**Claim, basis, as of, recheck:** that paragraph,
+[settings-reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories),
+2026-09-28, and a re-fetch of that section that changes which tools the block covers. Moving a
+secret outside the working directory is still not protection against a subprocess the fence does
+not cover. The boundary that holds for that case is the OS principal. A file readable by the
+account the session runs as is reachable by that subprocess, wherever it sits. So the durable
+control is that the secret is not sitting in a file that account can read at all: keep it in an OS
+credential store or a secrets manager and inject it at use time, scope it to a short-lived
+credential whose theft expires, or run the session as a different principal or inside a container
+that never receives it. Keep the deny rules above; do not report them as proof the file is
+protected.
+
+**Redirect targets are covered. The 2.1.259 argument widening is not.** Read and Edit deny rules
+apply to recognized Bash file commands, such as `cat`, `head`, `tail`, `sed`, and `tee`, and to
+the targets of Bash redirections such as `> file` and `< file`. Input redirect targets are checked
+in v2.1.257 and later. They do not apply to a command that reads files without naming them, such
+as `grep -r pattern .` from the directory that holds the file, or to an arbitrary subprocess.
+Claude Code 2.1.259 briefly applied `Read()` deny rules to Bash arguments (option values, `git`
+file operands, `cd && cat`). 2.1.260 reverted that widening. Do not write the widening back in.
+**Claim, basis, as of, recheck:** the page sentence plus the revert,
+[permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) and
+[changelog](https://code.claude.com/docs/en/changelog) 2.1.260 ("Reverted the 2.1.259 change
+applying `Read()` deny rules to Bash arguments"), 2026-09-28, and either page stating the widening
+again.
 
 **Unverified. Flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
-recognized-command coverage to commands "in Bash", and the tools reference lists `Read(...)` as
+recognized-command coverage to commands in Bash, and the tools reference lists `Read(...)` as
 applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
 otherwise. The recognized-command list is also introduced with "such as" and is not exhaustive, so
-`grep`, `jq`, `strings`, and shell redirects are unconfirmed in both directions.
+`grep`, `jq`, and `strings` remain unconfirmed as recognized file commands.
 
 ## destructive-bash-deny (Bash deny)
 
@@ -177,6 +218,18 @@ the `git push` ask-gates protect nothing, documents the exemption in its own rul
 checks for such a documented exemption before flagging an absent pattern. Undocumented absence is
 still a finding.
 
+A declared unattended-push lane is a documented exemption for the `ask-rules` family **only**, never
+for `destructive-bash-deny` or `sensitive-file-deny`. An ask rule prompts even in auto mode, and
+`dontAsk` auto-denies every call that would otherwise prompt
+([permissions](https://code.claude.com/docs/en/permissions)), so the `git push` ask-gates stall or
+break a lane that pushes on its own. The signal the engine recognizes is `babysit_loop_merge`
+resolving above `human-only` in the team-tracked `.claude/source-control.md`: an explicit
+`c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane (`babysit_loop_*`) keys with no
+merge key, which resolves to the `c2-mechanical` baseline. Only the team-tracked layer counts,
+because merge-rung raises bind from that layer alone (source-control's `config-resolution.md`).
+With the signal present, the push ask rows are `info` and name the signal. Every push ask row, with
+or without it, states that the rule blocks unattended lanes.
+
 **2. A documented project hook convention.** See "Interaction with hook-based gates" below: where the
 project's own documented conventions say a safety hook escalates the operation, audit the pattern
 against those conventions rather than flagging its absence.
@@ -190,8 +243,12 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
 **Three preconditions, all of which must hold before you take it.**
 
 - **The hook is live, not merely present.** Installed and enabled is not sufficient: `disableAllHooks`
-  turns every hook off, and a managed `allowManagedHooksOnly` or `strictPluginOnlyCustomization`
-  suppresses non-exempt hooks outright. A hook a setting has already switched off blocks nothing, so
+  turns every hook off, and a managed `allowManagedHooksOnly` or a
+  `strictPluginOnlyCustomization` value of `true` or an array that includes `"hooks"` suppresses
+  non-exempt hooks outright. The key is per-surface: `true` locks skills, agents, hooks, and mcp;
+  an array locks only the named surfaces. `"mcp"` blocks MCP servers from `~/.claude.json` and
+  `.mcp.json` and does not switch hooks off. v2.1.257 closed the `/mcp` reconnect bypass for a lock
+  loaded after startup. A hook a setting has already switched off blocks nothing, so
   under any of those the narrowing does not apply at all and the finding stands at its unnarrowed
   severity. **Phase 1.0's `check-hook-coverage.sh` reports all three**, in every scope it could read,
   so the reading is available before Category B runs and on a scope-filtered `/audit permissions` run
@@ -219,7 +276,8 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
 is not, and an `info` that hides this is worse than the `error` it replaced. State that the coverage
 ends if the providing plugin is disabled or uninstalled, that it is narrowable by any per-guard opt-out
 the hook exposes, and that it is suppressible later by `disableAllHooks`, `allowManagedHooksOnly`, or
-`strictPluginOnlyCustomization` even where none of them is set today.
+`strictPluginOnlyCustomization` set to `true` or to an array that includes `"hooks"`, even where
+none of them is set today. An array that names only `"mcp"` does not suppress hooks.
 
 **Take the inventory; fail open only where it is incomplete.** Phase 1.0 runs
 `scripts/check-hook-coverage.sh`, which enumerates settings-declared hooks **and** every enabled

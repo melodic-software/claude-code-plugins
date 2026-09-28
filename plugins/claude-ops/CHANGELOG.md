@@ -3,6 +3,148 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.24] - 2026-09-28
+
+### Changed
+
+- **audit-install-state**, **audit-skill-visibility**, **audit-performance:** bake person-invoked `/doctor` and `/skill-doctor` suggest sentences with the `unattended` argument; store rows record `baked.suggest_sentence` ([#4050](https://github.com/melodic-software/claude-code-plugins/issues/4050)). Full `integration` axis parity waits on #4049.
+
+## [0.63.22] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.63.17] - 2026-09-28
+
+### Fixed
+
+- **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
+- **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+
+## [0.63.16] - 2026-09-28
+
+### Changed
+
+- **Unattended lanes and three changelog decisions**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `lane-launcher.sh` adds `--permission-prompts none` beside `--permission-mode auto` when
+  `claude --version` is at least 2.1.259, so the classifier stays and only a prompting call is
+  denied. The lanes skill records three declines against the pages read on 2026-09-28:
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (it ignores definition `model` pins), `/advisor` (documented
+  for `-p`, not a lane default), and `claude --resume <id> --bg` (the combination is not on the
+  cli-reference). `/reload-plugins` is recorded as running in `-p` and SDK sessions from 2.1.260;
+  reaching a loop whose skill body is already in context stays unprobed.
+  Observability routes a session's likely prompt-cache miss cause to `/usage` and
+  `prompt_cache.last_miss_cause` (2.1.260). `audit-install-state` separates a managed settings
+  file that refuses startup from a user settings file that pauses the retention sweep, and
+  nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
+  a store row.
+
+## [0.63.15] - 2026-09-28
+
+### Fixed
+
+- **An unparsable user `settings.json` pauses the retention sweep and warns in `/status`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The pause is not silent. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup and names the source, from Claude Code v2.1.259 ([settings](https://code.claude.com/docs/en/settings), [managed settings](https://code.claude.com/docs/en/managed-settings)). `audit-install-state` reports that as `managed-settings-unparsable-refuses-start`.
+- **`lib/managed-scope.sh` matches the claude-config canonical copy.** Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)).
+
+## [0.63.13] - 2026-09-28
+
+### Changed
+
+- **Unattended lanes and three changelog decisions**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `lane-launcher.sh` adds `--permission-prompts none` beside `--permission-mode auto` when
+  `claude --version` is at least 2.1.259, so the classifier stays and only a prompting call is
+  denied. The lanes skill records three declines against the pages read on 2026-09-28:
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (it ignores definition `model` pins), `/advisor` (documented
+  for `-p`, not a lane default), and `claude --resume <id> --bg` (the combination is not on the
+  cli-reference). `/reload-plugins` is recorded as running in `-p` and SDK sessions from 2.1.260;
+  reaching a loop whose skill body is already in context stays unprobed.
+  Observability routes a session's likely prompt-cache miss cause to `/usage` and
+  `prompt_cache.last_miss_cause` (2.1.260). `audit-install-state` separates a managed settings
+  file that refuses startup from a user settings file that pauses the retention sweep, and
+  nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
+  a store row.
+
+## [0.63.10] - 2026-09-28
+
+### Added
+
+- **Unattended lanes deny leftover permission prompts** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `lane-launcher.sh` launches with `--permission-mode auto --permission-prompts none`. Auto mode still decides. A prompt that would have asked a person is denied. Probed on Claude Code 2.1.282: the flag is accepted together with `--bg`.
+- **`/reload-plugins` in headless sessions.** `plugins` `context/scope-semantics.md` records that the command runs in `-p`, the Agent SDK, and the desktop app from Claude Code 2.1.260, only on input typed into the session, and that it does not apply plugin MCP server changes there.
+
+### Changed
+
+- **Lane restart does not use `claude --resume <id> --bg`.** The decline is recorded on `lanes` with the four-part record. Restart stays stop plus a fresh seeded launch.
+- **`audit-native-overlap` nominates the stale sandbox-mask warning.** The seeded `doctor` / `audit-install-state` pair names the `claude doctor` warning for 0-byte placeholders a killed session leaves. That note is a candidate, not a verdict.
+
+## [0.63.0] - 2026-09-28
+
+### Added
+
+- **`audit-native-overlap`: every store row carries `integration`**
+  ([#4049](https://github.com/melodic-software/claude-code-plugins/issues/4049)).
+  The field is `route`, `wrap`, or `suggest`, required beside `verdict`. Class rules:
+  a built-in command takes `route` or `suggest`; a bundled skill, plugin-backed built-in,
+  or marketplace plugin takes `route` or `wrap`; a bundled skill marked
+  `model-invocation-disabled` takes `suggest`; a session skill takes `route`; a `defer`
+  verdict takes `route` and overrides the marker rule. `wrap` and `suggest` rows name the
+  observed invocation mode in evidence. `baked` gains `native_step` and `suggest_sentence`.
+  The generated view renders an Integration column. native-references moves to 2.0.0 for
+  the Native step grammar, the suggest sentence, and the built gate-token check.
+
+## [0.62.17] - 2026-09-28
+
+### Changed
+
+- **Machine-profile orchestrator stays parked
+  ([#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666)).**
+  Do not build a host-fact store that drives the 58 setup skills. Options 2 and
+  3 need an invocation-mode class (ii) amendment (#4240). Option 1 is unpaid
+  operator typing. Recorded in `docs/out-of-scope/machine-profile.md`.
+
+## [0.62.16] - 2026-09-28
+
+### Changed
+
+- **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
+  Python unit tests pass, the contract that a two-scope install collapses to one plugin
+  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
+  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **`audit-performance` composes `/doctor` after the capture, not before**
+  ([#3533](https://github.com/melodic-software/claude-code-plugins/issues/3533)). The overlap
+  verdict stays `complementary`. A Scope-boundary row and a Reading-the-report line name the
+  transcript half this engine never reads. No description change.
+
+## [0.62.14] - 2026-09-28
+
+### Fixed
+
+- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
+## [0.62.12] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Six of the nine listed skills
+  ran over 500, and two of them over the 1,024-codepoint spec maximum. Each now leads with its use
+  case, keeps its quoted trigger phrases, and names its nearest sibling. What the bodies already
+  carry is cut: the suspect list, the component enumeration, and the "not for" lists.
+  `check-listing-budget.sh plugins/claude-ops/skills` goes from 7,839 to 4,204 characters.
+  `audit-install-state` and `audit-skill-visibility` keep their baked native references in the
+  convention's gate-and-split form, and `audit-skill-visibility`'s now leads the description.
+  `audit-performance` and `audit-skill-visibility` leave
+  `scripts/skill-description-cap-baseline.txt`. No skill is renamed or merged.
+- The native-surfaces store's `/skill-doctor` evidence line names the front-loaded routing clause
+  where it named a Not-for clause, and `docs/native-surfaces.md` is regenerated.
+
 ## [0.62.11] - 2026-09-28
 
 ### Changed
