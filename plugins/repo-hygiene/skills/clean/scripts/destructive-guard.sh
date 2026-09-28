@@ -25,9 +25,14 @@
 # settings.json permissions.deny plus their git hooks, which apply independent
 # of clean-session state. Known coverage gaps are accepted, not patched reactively.
 #
-# Branch and remote-branch deletion stay out of this net (#3852). Local
-# deletion goes through git-branch-delete.sh after the confirmation gate;
-# remote deletion is not a sanctioned skill path.
+# Branch and remote-branch deletion are an accepted coverage gap, not a defect
+# (#3852, 2026-09-28). Claim: this net does not match `git branch -D`/`-d` or
+# `git push --delete`. Local deletion goes through git-branch-delete.sh after
+# the confirmation gate; remote deletion is not a sanctioned skill path. Basis:
+# is_destructive() below, SKILL.md section 4.2, and git-branch-delete.sh.
+# Recheck: git-branch-delete.sh stops being the only sanctioned local-delete
+# path, or a paid slice adds those patterns with an ack path that does not
+# duplicate the confirmation gate.
 #
 # The skill's own mutating scripts are in the net only in their --apply
 # spelling (clean-caches, clean-build, git-prune, git-tree-reset,
