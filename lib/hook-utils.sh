@@ -3344,23 +3344,35 @@ hook::shell_c_operand() {
 }
 
 # The command line a `wsl` / `wsl.exe` invocation runs, as one shell string in
-# HOOK_SHELL_C_OPERAND, from the words after the wsl word. Grammar from the
-# `wsl.exe --help` text (MessageWslUsage in microsoft/WSL
-# localization/strings/en-US/Resources.resw): `wsl.exe [Argument] [Options...]
-# [CommandLine]`. Without `-e`/`--exec`, the command line goes to the distro's
-# default shell, so the remaining words joined by spaces are what that shell
-# parses. `-e`/`--exec` and `--shell-type none` run the words as argv with no
-# shell; a word that carries a shell metacharacter is single-quoted so the
-# re-parse keeps it one literal word. `--` passes the rest as-is. `--cd`,
-# `-d`/`--distribution`, `--distribution-id`, `-u`/`--user` and `--shell-type`
-# take an operand. Any other option (the `--list`/`--install`/`--shutdown`
-# management verbs, `--system`) is stepped over alone: a word left behind a
-# management verb is re-parsed as a command line, which can only over-read.
-# Returns 1 when no command line remains.
+# HOOK_SHELL_C_OPERAND, from the words after the wsl word; returns 1 when wsl
+# runs no command line. Read the way microsoft/WSL src/windows/common/
+# WslClient.cpp reads its own Windows command line (option names from
+# src/windows/inc/wsl.h, usage text MessageWslUsage):
+#   - A leading distribution GUID, then a leading `~`, are stripped first.
+#   - `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`,
+#     `--shell-type` and `--parent-console` take an operand; `--system` takes
+#     none. `--` ends the options. `-e`/`--exec` ends them too and runs the
+#     rest as argv, as does `--shell-type none`.
+#   - Any other word starting with `-` is a management verb (`--list`,
+#     `--install`, `--shutdown`, ...) or an option this build does not know.
+#     It is stepped over, not trusted to end the command, so a run option a
+#     later wsl adds cannot hide one; the words a management verb leaves are
+#     re-parsed as a command line, which can only over-read.
+#   - Otherwise the rest of the raw Windows command line goes to the distro
+#     shell as `$SHELL -c <line>`. Git Bash builds that line from argv with the
+#     MSVCRT quoting rules, so a word carrying whitespace or `"` (or an empty
+#     word) is rebuilt in double quotes and every other word is passed bare:
+#     `wsl echo x '>' f` redirects, `wsl 'git status && x'` is one command word.
+# In exec mode each word stays one argv word, so a word carrying a shell
+# metacharacter is single-quoted for the re-parse.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
 hook::wsl_operand() {
   local -a w=("$@")
-  local n=${#w[@]} i=0 exec_mode=0 out="" wd
+  local n=${#w[@]} i=0 exec_mode=0 out="" wd enc bs nb k ch
+  local guid='^\{?[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\}?$'
+  ((i < n)) && [[ "${w[i]}" =~ $guid ]] && ((i++))
+  ((i < n)) && [[ "${w[i]}" == "~" ]] && ((i++))
   while ((i < n)); do
     case "${w[i]}" in
     --)
@@ -3376,7 +3388,7 @@ hook::wsl_operand() {
       [[ "${w[i + 1]-}" == none ]] && exec_mode=1
       ((i += 2))
       ;;
-    --cd | -d | --distribution | --distribution-id | -u | --user) ((i += 2)) ;;
+    -d | --distribution | --distribution-id | -u | --user | --cd | --parent-console) ((i += 2)) ;;
     -*) ((i++)) ;;
     *) break ;;
     esac
@@ -3391,11 +3403,36 @@ hook::wsl_operand() {
         out+="'${wd//\'/\'\\\'\'}' "
       fi
     done
-    HOOK_SHELL_C_OPERAND="${out% }"
   else
-    local IFS=' '
-    HOOK_SHELL_C_OPERAND="${w[*]:i}"
+    for wd in "${w[@]:i}"; do
+      if [[ -n "$wd" && "$wd" != *[[:space:]\"]* ]]; then
+        out+="$wd "
+        continue
+      fi
+      # MSVCRT: backslashes are literal unless they precede a `"`, where they
+      # are doubled and the quote escaped; a run before the closing quote is
+      # doubled too.
+      enc='"'
+      nb=0
+      for ((k = 0; k < ${#wd}; k++)); do
+        ch="${wd:k:1}"
+        if [[ "$ch" == '\' ]]; then
+          ((nb++))
+          continue
+        fi
+        if [[ "$ch" == '"' ]]; then
+          printf -v bs '%*s' "$((2 * nb + 1))" ''
+        else
+          printf -v bs '%*s' "$nb" ''
+        fi
+        enc+="${bs// /\\}$ch"
+        nb=0
+      done
+      printf -v bs '%*s' "$((2 * nb))" ''
+      out+="$enc${bs// /\\}\" "
+    done
   fi
+  HOOK_SHELL_C_OPERAND="${out% }"
   return 0
 }
 

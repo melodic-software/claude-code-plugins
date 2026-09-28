@@ -123,10 +123,13 @@ out of scope until such a signal exists.
   `block-noncanonical-commit`, `block-convention-violation`,
   `block-root-delete-target`) re-parses that command line too: `wsl git reset
   --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
-  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) are stepped
-  over. Without `-e` / `--exec` the remaining words are joined into one line for
-  the distro's default shell, which over-reads a quoted `;` or `>` that the
-  shell would keep literal. With `-e` each word stays one argv word. On the
+  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) and a leading
+  `~` are stepped over, as is an option it does not know. Without `-e` /
+  `--exec` wsl hands its raw Windows command line to `$SHELL -c`, so the words
+  are rebuilt the way Git Bash builds that line: a word with whitespace is
+  double-quoted, so `wsl bash -c 'git reset --hard'` blocks while
+  `wsl 'git status && git clean -fd'` is one command word to the distro shell.
+  With `-e` each word stays one argv word. On the
   PowerShell tool `wsl` is a launcher, so it reaches the fail-closed sink with
   `Start-Process`, `pwsh` and `cmd`. Not covered: `block-windows-drive-tmp` and
   `block-exported-msys-pathconv` do not re-parse a `-c` operand at all, and

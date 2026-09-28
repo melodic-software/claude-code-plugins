@@ -485,8 +485,16 @@ run "WSL.EXE -d Ubuntu -u root --cd / git reset --hard (run options, blocked)" \
   "WSL.EXE -d Ubuntu -u root --cd / git reset --hard" 2
 run "wsl --shell-type none git reset --hard (blocked)" "wsl --shell-type none git reset --hard" 2
 run "wsl -e sh -c 'git reset --hard' (nested shell, blocked)" "wsl -e sh -c 'git reset --hard'" 2
-run "wsl 'git status && git clean -fd' (default shell parses the line, blocked)" \
-  "wsl 'git status && git clean -fd'" 2
+run "wsl bash -c 'git reset --hard' (default shell keeps the nested operand, blocked)" \
+  "wsl bash -c 'git reset --hard'" 2
+run "wsl ~ git reset --hard (legacy home argument, blocked)" "wsl ~ git reset --hard" 2
+run "wsl git status '&&' git clean -fd (bare operator reaches the distro shell, blocked)" \
+  "wsl git status '&&' git clean -fd" 2
+# Git Bash double-quotes a word carrying whitespace when it builds wsl's Windows
+# command line, so the distro shell reads this as one command word.
+run "wsl 'git status && git clean -fd' (one quoted command word, allowed)" \
+  "wsl 'git status && git clean -fd'" 0
+run "wsl --bogus git reset --hard (unknown option stepped over, blocked)" "wsl --bogus git reset --hard" 2
 run "wsl -e git commit -m 'a; git reset --hard' (exec argv keeps the message, allowed)" \
   "wsl -e git commit -m 'a; git reset --hard'" 0
 run "wsl echo hi (allowed)" "wsl echo hi" 0
