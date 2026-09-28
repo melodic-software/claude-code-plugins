@@ -58,10 +58,15 @@ can supply music or effects without either plugin depending on the other.
 
 ## Example
 
-`examples/campfire/` holds the generator for an RPG Maker MZ walking character and a cutscene that
-reuses it. Copy the folder somewhere writable, then:
+`scripts/kit.py` is the procedural character kit: proportion presets (`chibi`, `standard`, `tall`),
+head and hair shapes, clothing layers, material ramps, top-left shading, a selective outline, and
+4-direction handling. Adapt it; do not treat it as a fixed generator. `examples/walker/blacksmith.py`
+is a 4-direction walker built on it. `examples/campfire/` holds an earlier hand-written RPG Maker MZ
+walker and a cutscene that reuses it. Copy a folder somewhere writable, then:
 
 ```shell
+python3 blacksmith.py
+python3 <plugin>/scripts/render.py blacksmith.json --out out --scale 4
 python3 hero_mz.py
 python3 <plugin>/scripts/render.py hero_mz.json --out out --scale 4
 python3 <plugin>/scripts/embed.py scene.html out/campfire.html
