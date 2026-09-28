@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.1] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.0] - 2026-09-28
+
+### Changed
+
+- **`parse-branch-issue.sh` stops on an unusable `branch_issue_pattern` layer instead of skipping it** ([#4673](https://github.com/melodic-software/claude-code-plugins/issues/4673)). A layer whose `## branch_issue_pattern` section exists but yields no usable pattern now prints a note containing `resolution stopped`, emits no issue number, and exits 1. Before, it was reported and skipped, and a lower layer, the userConfig, or the built-in default could then supply a different number to the `Closes #N` line: with a broken trailing-number team pattern, `feat/12-widget-34` closed #12. The stop covers a heading or HTML comment as the first value line, an empty or unterminated fence, a pattern that breaks a limit, holds a backreference, or does not compile, and a section with no value (previously skipped without a note). The near-miss-heading stop is unchanged. A higher layer that already supplied a valid pattern still wins, and a userConfig value that fails validation is still ignored, with a note, so the default applies. `create.md`, `config-resolution.md`, setup's `SKILL.md`, and `apply-convention.md` describe the stop, and setup's check reports a stopped layer as a FAIL. The repo's config-cascade convention records the stop as a declared deviation from its degrade-soft rule.
+
+## [0.61.5] - 2026-09-28
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` refreshes the default branch before basing** ([#4249](https://github.com/melodic-software/claude-code-plugins/issues/4249)). It read the cached `<remote>/HEAD` and never fetched, so `fresh` meant "as of the last fetch" and a stale base was silent. It now works like Claude Code's native `fresh` (v2.1.208+): when `FETCH_HEAD` is missing or older than 24 hours, it fetches the resolved remote's default branch, capped at five seconds with credential prompts off. A failed or timed-out fetch keeps the cached ref and prints a warning that the base may be behind. `context/create.md` drops the "stale base" caveat and names the one remaining gap: an uncached `<remote>/HEAD` still warns rather than fetching.
+
 ## [0.61.4] - 2026-09-27
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Classify tracked markdown for nine noise shapes: historical citations, ghost refs, \"Why this file exists\" preambles, hard-coupled consumer lists, scope/loading meta-commentary, plan/changeset references, conversational antecedents, tracker/PR back-references, and prohibitions with no alternative. Emits Tier 1 (remove/relocate), Tier 2 (review), Tier 3 (legitimate) findings with treatment guidance; read-only. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'strip conversational residue from a doc', 'find negations without a positive', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md. Not for prose flavor (/compress), structural markdown lint, or the same shapes in code comments (/code-tidying:audit-comment-residue, which owns non-markdown files)."
+description: "Read-only audit of tracked markdown for nine noise shapes, like historical citations, ghost refs, why-this-file-exists preambles, tracker back-references, and conversational residue, tiered by treatment. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'strip conversational residue from a doc', 'find negations without a positive', 'sweep a rule/skill/convention doc for noise'. Code comments: /code-tidying:audit-comment-residue."
 argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
@@ -31,7 +31,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 ## Pre-computed context
 
-Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
+Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(status:|Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
 
@@ -113,9 +113,12 @@ sibling divergences it owns.
    real drift this report called clean). Never report a fully-clean result from
    scanner-flagged files alone: the scanner is a structural matcher, not a complete
    reading of the shape table, and judgment is required for paraphrases it still
-   misses. Fan out a small number of concurrent
-   subagents with one fresh-context verification pass over the merged verdicts; report first.
-   this skill stays read-only either way, and the author applies any treatment edits only after
+   misses. Size the judgment pass to the corpus. When every file fits one inline reading (tens
+   of files, not the hundreds that make a fan-out pay for itself), read every file in the main
+   session and skip both the fan-out and the verification pass: a full reading already covers
+   the scanner-negative sample, and a subagent's verdicts would need re-reading anyway. Above
+   that, fan out a small number of concurrent subagents with one fresh-context verification pass
+   over the merged verdicts. Report first. This skill stays read-only either way, and the author applies any treatment edits only after
    reviewing the report (report-vs-fix-as-you-go is the author's call; report-first is the
    accuracy-preferred default because repeating shapes get one corpus-wide treatment decision).
    Unattended (no human to confirm), surface the offer as

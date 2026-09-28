@@ -3,6 +3,51 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0] - 2026-09-28
+
+### Added
+
+- **`audit-instructions`: token-budgeted lanes, `--unattended`, and `--resume`.** Phase B no longer
+  fans out one lane per skill. A lane's budget is 0.25 of the lane model's own context window at
+  3.5 bytes per token (Anthropic glossary, verified 2026-09-28), and the line figure is derived per
+  run from measured bytes per line. Plugins pack whole into lanes; only a plugin larger than the
+  budget splits by skill, and the Phase D cost line names each split. `--unattended`, declared by
+  the caller and never inferred, turns the ~20-dispatch confirmation into a cost-line disclosure.
+  Each lane report lands at
+  `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/lanes/<lane-id>.md`, ending
+  in a completion marker that carries the lane's input digest (file list and content hashes,
+  partition digest, catalog and conflict-criteria versions, prompt digest, harness version,
+  resolved target model, scope, `--opinion`, `--no-stopping-condition`). `--resume` picks the
+  latest run under the state key, refuses to attach while its lease is live (naming `heartbeat_at`
+  and `stale_after_s`), and re-runs only lanes that are incomplete or whose digest changed. The
+  lease is `audit-pass`'s `run-state.sh`, invoked with
+  `--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions`. New `scripts/lane-runs.sh`
+  (`partition`, `digest`, `marker`, `plan`, `latest`, `attach`) with a test suite, and three
+  evals (#4114).
+
+### Changed
+
+- **`audit-instructions`: in a marketplace repository, `plugins/**` is the editable set.**
+  `conflict-criteria.md` 1.6.0 rewrites the "Known limit" section: when
+  `.claude-plugin/marketplace.json` is present, Phase A inventories the plugin source as locally
+  owned, the installed cache is read for residency only, and the report names drift between the
+  install record's commit (or version) and HEAD. The Phase A inventory note points at the rule
+  (#4114).
+
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **`audit-instructions`: Phase D names the disposition for a lane whose residency is
+  unresolved.** The Phase B hand-off told such a lane to report "as conditional rather than as
+  findings", but Phase D defined only the findings table with a diff per row, so the result
+  landed as an ordinary actionable finding. The Proposed change column now takes a closed set, a
+  proposal, `no change proposed`, or `RESIDENCY-UNRESOLVED: <condition>`, and the last carries no
+  fenced diff and is not re-judged in Phase C. The Phase B hand-off and the Phase A inventory
+  note use the same name. Under `--persist-findings` such candidates are held out of `--from`
+  and counted by a new `emit-findings.sh --declined-residency <n>` line, separate from the I28
+  carve-out count. New eval and fixture (#4314).
+
 ## [0.50.0] - 2026-09-27
 
 ### Added

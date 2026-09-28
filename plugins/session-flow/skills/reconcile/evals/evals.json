@@ -64,6 +64,19 @@
         "Does not manufacture retirements or ledger edits to appear thorough",
         "Does not resume or continue the underlying work (that is keep-going)"
       ]
+    },
+    {
+      "id": 6,
+      "name": "finished-worker-hung-background-shell",
+      "prompt": "The research worker I dispatched came back with its report an hour ago, but the agent panel still shows it as running. Reconcile the session and retire whatever is done.",
+      "expected_output": "The skill reads the worker's returned report and treats the worker's own work as finished, then checks for background shells or tasks that worker launched. It finds one still running (for example a long awk scan), surfaces it by name with the worker that launched it as still-running work, and asks whether to stop it rather than stopping it. It does not report the worker as retired while that task is pending confirmation.",
+      "files": [],
+      "expectations": [
+        "Checks for background shells or tasks the finished worker launched before retiring the worker",
+        "Surfaces the still-running background task as still-running work, naming the worker that launched it",
+        "Does NOT stop the background task without confirmation; the stop is asked as a question",
+        "Does not report the worker as retired while its background task is pending that confirmation"
+      ]
     }
   ]
 }

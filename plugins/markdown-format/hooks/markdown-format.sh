@@ -96,8 +96,7 @@ markdownlint_config_here() {
 }
 
 markdownlint_config_discoverable() {
-  local root start
-  # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+  local root start home
   local hit=""
   hook::dirname_to start "$1"
   start="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
@@ -107,7 +106,27 @@ markdownlint_config_discoverable() {
   # that the lint run's own discovery never reads, and adopt their config as
   # this repository's opt-in.
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
-  hook::walk_up_to hit "$start" "$root" markdownlint_config_here
+  hook::walk_up_to hit "$start" "$root" markdownlint_config_here || return 1
+  # A root from the CLAUDE_PROJECT_DIR last resort (see resolve_repo_root_to)
+  # is often the user's home directory: a session started there has no working
+  # tree to stop at, so a personal ~/.markdownlint-cli2.jsonc would opt in every
+  # .md under the home tree, evidence packets and ~/.claude notes included
+  # (#4246). A config at the home directory or above it is personal editor
+  # configuration, not a project's opt-in, so on that root it does not open the
+  # gate. A config below home still does: that is the unpacked archive or
+  # vendored copy the last resort exists for. A working-tree root found by git
+  # or the `.git` walk is never subject to this, so a dotfiles repository rooted
+  # at home keeps its config. An unresolvable HOME applies no ceiling. The walk
+  # stops at the nearest config, so a hit at or above home means none sits
+  # below it.
+  ((${ROOT_FROM_PROJECT_DIR_FALLBACK:-0})) || return 0
+  [[ -n "${HOME:-}" ]] || return 0
+  home="$(cd "$HOME" 2>/dev/null && pwd -P)" || return 0
+  [[ "$hit" == / ]] && return 1
+  case "$home" in
+  "$hit" | "$hit"/*) return 1 ;;
+  *) return 0 ;;
+  esac
 }
 
 # A `.git` entry, accepted as a directory (ordinary clone) or as a FILE, which
@@ -185,10 +204,12 @@ resolve_repo_root_to() {
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     printf -v "$__md_dest" '%s' "$CLAUDE_PROJECT_DIR"
+    ROOT_FROM_PROJECT_DIR_FALLBACK=1
     return 0
   fi
   printf -v "$__md_dest" '%s' "$root"
 }
+ROOT_FROM_PROJECT_DIR_FALLBACK=0
 
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both

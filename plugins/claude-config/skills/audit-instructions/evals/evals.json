@@ -244,6 +244,61 @@
         "Does not flag the Cross-references section that is the source",
         "Does not flag the partial-overlap Purpose that adds load-bearing content after the echo"
       ]
+    },
+    {
+      "id": 21,
+      "name": "residency-unresolved-lane-is-not-a-finding",
+      "prompt": "/claude-config:audit-instructions evals/fixtures/agents-md-residency-unresolved.md relative to the skill directory, treated as this repository's root AGENTS.md. Phase A could not read the managed settings scope, so whether the effective instruction-files mode loads AGENTS.md at all is unresolved; no CLAUDE.md sits on its path.",
+      "expected_output": "Inventories the file, since every residency condition is satisfied or unresolved, and runs its lane, but reports none of its results as an actionable finding. Every row the lane produces (the I28-a coercive emphasis, the I6 bare prohibition, the I28-b blanket tool default) carries RESIDENCY-UNRESOLVED in the Proposed change column with the named unresolved condition (the effective instruction-files mode, unreadable at managed scope), and no fenced diff follows it. The candidate rewrite may be described as what the lane would propose once the file is known to load, never as a proposed change. Under --persist-findings those candidates are held out of the emitted file and counted with --declined-residency, not --declined-carveout.",
+      "files": [
+        "evals/fixtures/agents-md-residency-unresolved.md"
+      ],
+      "expectations": [
+        "Marks every result of the lane RESIDENCY-UNRESOLVED in the Proposed change column, naming the unresolved condition",
+        "Gives no fenced diff for any RESIDENCY-UNRESOLVED row and does not present its rewrite as an actionable proposal",
+        "Does not exclude the file from the inventory, since its residency is unresolved rather than known to be ruled out"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "unattended-flag-discloses-instead-of-asking",
+      "prompt": "/claude-config:audit-instructions all --unattended over a marketplace repository whose partition plans 14 lanes, so lanes plus Phase C verifiers would reach about 28 dispatches.",
+      "expected_output": "Because the caller passed --unattended, the run does not ask before crossing ~20 dispatches. It proceeds, and the Phase D cost line discloses the planned and actual dispatch counts and states the confirmation was disclosed there because of --unattended. Without the flag the same run asks before dispatching; the run never infers unattended from its own session.",
+      "files": [],
+      "expectations": [
+        "Does not ask for confirmation before dispatching, because --unattended is present",
+        "The Phase D cost line discloses the planned and actual dispatch counts",
+        "States that without --unattended the run would ask before exceeding ~20 dispatches",
+        "Does not infer unattended mode from the session shape"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "oversized-plugin-splits-by-skill-and-cost-line-names-it",
+      "prompt": "/claude-config:audit-instructions skills in a marketplace repository. One plugin's skill text is about three times the lane budget; every other plugin fits well inside it.",
+      "expected_output": "Sizes lanes with lane-runs.sh partition from the lane model's own context window at a 0.25 fraction and 3.5 bytes per token, never from a shipped line count. Small plugins pack whole into lanes; the oversized plugin is split by skill into lanes of its own, and the Phase D cost line names the split plugin and its lane count along with the token budget and the line figure derived from measured bytes per line. Concurrency stays at 3 to 5 lanes.",
+      "files": [],
+      "expectations": [
+        "Derives the lane budget from the lane model's context window, not a fixed line count",
+        "Keeps every plugin that fits atomic, never splitting it across lanes",
+        "Splits only the oversized plugin, by skill",
+        "The cost line names the split plugin and how many lanes it became",
+        "Runs 3 to 5 lanes concurrently"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "resume-refuses-live-lease-and-reruns-only-changed-lanes",
+      "prompt": "/claude-config:audit-instructions --resume, first while the previous run's lease is still live, then again after that run was killed by a usage limit with four of seven lane reports complete.",
+      "expected_output": "On the first invocation lane-runs.sh attach exits 4 and the run refuses to attach, naming the lease's heartbeat_at and stale_after_s. On the second it selects the latest run id under the state key, adopts the stale lease with lease acquire --epoch at the next epoch, recomputes each lane's input digest, and dispatches only the three lanes lane-runs.sh plan marks rerun (no completion marker or a changed digest), reading the four complete reports from disk. The cost line states how many lanes were reused and how many re-ran.",
+      "files": [],
+      "expectations": [
+        "Refuses to attach while the lease is live and names heartbeat_at and stale_after_s",
+        "Selects the latest run id under the project's state key by default",
+        "Reuses audit-pass's run-state.sh lease rather than a hand-rolled one",
+        "Re-runs only lanes without a completion marker or with a changed digest",
+        "Reports reused and re-run lane counts on the cost line"
+      ]
     }
   ]
 }
