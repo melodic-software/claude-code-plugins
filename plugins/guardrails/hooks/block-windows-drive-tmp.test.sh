@@ -127,8 +127,10 @@ run_win_payload "Write D:\\tmp\\x other drive (blocked)" "$(write_json 'D:\tmp\x
 run_win_payload "Edit /tmp/x (blocked)" "$(edit_json '/tmp/x' 'x')" 2
 run_win_payload "Edit C:\\tmp\\x (blocked)" "$(edit_json 'C:\tmp\x' 'x')" 2
 run_win_payload "MultiEdit /tmp/x (blocked)" "$(other_tool_json 'MultiEdit' '/tmp/x')" 2
-run_win_payload "NotebookEdit file_path /tmp/n.ipynb (blocked)" \
+run_win_payload "NotebookEdit notebook_path /tmp/n.ipynb (blocked)" \
   "$(notebook_json '/tmp/n.ipynb' 'x')" 2
+run_win_payload "NotebookEdit file_path fallback /tmp/n.ipynb (blocked)" \
+  "$(other_tool_json 'NotebookEdit' '/tmp/n.ipynb')" 2
 run_win_payload "NotebookEdit notebook_path C:\\tmp\\n.ipynb (blocked)" \
   "$(notebook_path_json 'C:\tmp\n.ipynb')" 2
 
