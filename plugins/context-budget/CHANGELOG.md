@@ -5,6 +5,16 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.36] - 2026-09-28
+
+### Added
+
+- **Lever rows for command-output caps** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `bashOutputMaxChars` is disclose-only: it changes how much of a later command stays inline, and a startup snapshot of it measures zero. `taskOutputMaxChars` is recorded as removed in Claude Code 2.1.277, so the catalogue does not emit it.
+
+### Changed
+
+- **`/context` measurement basis.** `reference/engine.md` records that when the token-counting API is unavailable, `/context` uses a local estimate (Claude Code 2.1.261) instead of extra small-model requests. The commands page `/context` row fetched 2026-09-28 does not say that yet; the changelog is the behavior source until it does.
+
 ## [0.6.35] - 2026-09-28
 
 ### Changed
