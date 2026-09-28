@@ -3,11 +3,22 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.7] - 2026-09-28
+## [0.51.11] - 2026-09-28
 
 ### Changed
 
 - **`audit` Category D records the Windows exec-form rule as a four-part verification.** The checklist row quotes the hooks page ("`command` must resolve to a real executable such as a `.exe`"), dated 2026-09-28, and points at `scripts/check-exec-form-windows-probe.sh`. A `.sh` path or bare `bash` is not an exec-form fix. Phase 2 names that checklist row as the record. No scanner change.
+
+## [0.51.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-permission-state` treats project `defaultMode: "bypassPermissions"` as dead**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), Claude Code
+  2.1.257). `C2-defaultMode` already flagged `auto` in project and local settings. From 2.1.257
+  the same files also ignore `bypassPermissions` (the session starts in Manual). `acceptEdits`,
+  `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page. The
+  permission-rule-hygiene convention states the same pair.
 
 ## [0.51.6] - 2026-09-28
 

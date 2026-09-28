@@ -250,6 +250,18 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 > read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
 > page finds it no longer matching this record.
 
+> **Amended (verified 2026-09-28 against
+> [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+> 115,913 bytes):** the hold sentence above is no longer on the page. What the page says now:
+> Opus 5.5 starts at `medium` unless an explicit choice sets a level, and a top-level
+> `effortLevel` in the user settings file does not count for Opus 5.5. That key still applies on
+> Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it start at their own
+> default until `/effort` or the `/model` picker saves a level for them. A top-level
+> `effortLevel` in project, local, or managed settings, or one passed with `--settings`, applies
+> to every model. `max` applies to the current session only unless it is set through
+> `CLAUDE_CODE_EFFORT_LEVEL`. `/effort` in a `-p` run applies to that session only.
+> **Recheck trigger:** a re-fetch of that section no longer matching this record.
+
 To steer thinking without changing effort level:
 
 - Harder problems: "Think carefully and step-by-step before responding; this problem is harder than it looks."
