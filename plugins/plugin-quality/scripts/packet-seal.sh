@@ -34,6 +34,7 @@
 #
 # Usage:
 #   bash packet-seal.sh record <packet-dir>
+#   bash packet-seal.sh record --acknowledge-divergence <packet-dir>
 #   bash packet-seal.sh verify <packet-dir>
 #   bash packet-seal.sh --help
 #
@@ -115,6 +116,7 @@ digest_of() {
 }
 
 action="${1:-}"
+acknowledge=0
 case "$action" in
 --help | -h | "")
   usage
@@ -127,17 +129,30 @@ record | verify) ;;
   ;;
 esac
 
-packet="${2:-}"
+if [[ "${2:-}" == "--acknowledge-divergence" ]]; then
+  if [[ "$action" != record ]]; then
+    echo "error: --acknowledge-divergence is only valid with record" >&2
+    exit 2
+  fi
+  acknowledge=1
+  packet="${3:-}"
+  [[ $# -le 3 ]] || {
+    echo "error: unexpected extra argument: $4" >&2
+    exit 2
+  }
+else
+  packet="${2:-}"
+  [[ $# -le 2 ]] || {
+    echo "error: unexpected extra argument: $3" >&2
+    exit 2
+  }
+fi
 [[ -n "$packet" ]] || {
   echo "error: $action needs a packet directory" >&2
   exit 2
 }
 [[ -d "$packet" ]] || {
   echo "error: not a directory: $packet" >&2
-  exit 2
-}
-[[ $# -le 2 ]] || {
-  echo "error: unexpected extra argument: $3" >&2
   exit 2
 }
 
@@ -174,11 +189,62 @@ if [[ "$action" == record ]]; then
       fi
     done <"$manifest"
     if [[ "$relaundered" -gt 0 ]]; then
-      echo "error: $relaundered already-sealed file(s) differ from the existing manifest — refusing to reseal" >&2
-      echo "       resealing would overwrite the evidence of that divergence with a digest of the altered bytes." >&2
-      echo "       Treat the named files as altered evidence; record the divergence in a NEW packet file." >&2
-      exit 1
+      if [[ "$acknowledge" -eq 0 ]]; then
+        echo "error: $relaundered already-sealed file(s) differ from the existing manifest — refusing to reseal" >&2
+        echo "       resealing would overwrite the evidence of that divergence with a digest of the altered bytes." >&2
+        echo "       The original manifest is left in place. This packet stays permanently unsealable against it:" >&2
+        echo "       a later note cannot be sealed into packet.sha256, so it remains UNSEALED." >&2
+        echo "       Treat the named files as altered evidence; record the divergence in a NEW packet file." >&2
+        echo "       record --acknowledge-divergence writes packet.sha256.N and does not overwrite packet.sha256." >&2
+        exit 1
+      fi
+      # A generation manifest seals the bytes as they are now. packet.sha256
+      # stays the record of the divergence. Generation files are not themselves
+      # packet content: verify of the original still reports CHANGED, and a
+      # generation is not a clean bill of health for the first seal.
+      generation=2
+      while [[ -e "$packet/packet.sha256.$generation" ]]; do
+        generation=$((generation + 1))
+      done
+      gen_manifest="$packet/packet.sha256.$generation"
+      gen_tmp="$gen_manifest.tmp.$$"
+      : >"$gen_tmp" || {
+        echo "error: cannot write the generation manifest in: $packet" >&2
+        exit 2
+      }
+      for name in ${files[@]+"${files[@]}"}; do
+        case "$name" in
+        packet.sha256 | packet.sha256.*) continue ;;
+        esac
+        file="$packet/$name"
+        if [[ -L "$file" ]]; then
+          rm -f -- "$gen_tmp"
+          echo "error: packet entry is a symlink: $name" >&2
+          exit 2
+        fi
+        d="$(digest_of "$file")" || {
+          rm -f -- "$gen_tmp"
+          echo "error: cannot digest: $file" >&2
+          exit 2
+        }
+        printf '%s  %s\n' "$d" "$name" >>"$gen_tmp"
+      done
+      mv -f -- "$gen_tmp" "$gen_manifest" || {
+        rm -f -- "$gen_tmp"
+        echo "error: cannot install the generation manifest: $gen_manifest" >&2
+        exit 2
+      }
+      echo "acknowledged=$relaundered generation=$generation manifest=$gen_manifest original-preserved=$manifest"
+      exit 0
     fi
+  fi
+  if [[ "$acknowledge" -eq 1 ]]; then
+    if [[ ! -f "$manifest" ]]; then
+      echo "error: --acknowledge-divergence needs an existing packet.sha256" >&2
+    else
+      echo "error: no divergence to acknowledge; packet.sha256 already matches the packet" >&2
+    fi
+    exit 2
   fi
 
   tmp="$manifest.tmp.$$"
