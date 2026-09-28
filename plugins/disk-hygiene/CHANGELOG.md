@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-09-28
+## [0.28.8] - 2026-09-28
 
 ### Added
 
 - **`scan` flags home-root `*.py` files that shadow a standard-library module** ([#4217](https://github.com/melodic-software/claude-code-plugins/issues/4217)). A loose `~/gettext.py` shadowed stdlib `gettext` for Python started from the home directory, and the engine hinted only the `__pycache__` it kept rebuilding. The snapshot and stdout, including `--quiet`, now carry `stdlib_shadowing`, one row per home-root file whose stem is in the interpreter's `sys.stdlib_module_names`, with the sibling `bytecode_cache` when that cache holds its `.pyc`. The file's entry gains a `stdlib-module-shadow` advisory, and the home-root `__pycache__` entry gains `bytecode_sources` naming the module each `.pyc` was compiled from, read with one directory listing even when a depth cut left the cache unwalked. The advisory is not a hint: it adds no tier and no eligibility.
+
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
 
 ## [0.28.6] - 2026-09-28
 
