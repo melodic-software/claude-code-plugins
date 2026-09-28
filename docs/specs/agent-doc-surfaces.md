@@ -10,7 +10,7 @@ per session). Feeds the scope statement and reference table of `docs-hygiene:wri
 official docs fetched during the run; re-verify against current docs when adapting into the
 skill's reference file.
 
-## Part 1. Claude Code surfaces (25, official-docs-verified)
+## Part 1. Claude Code surfaces (28, official-docs-verified)
 
 | # | Surface | Path pattern | When it loads |
 |---|---------|-------------|---------------|
@@ -39,9 +39,9 @@ skill's reference file.
 | 23 | Skills-directory plugins | `.claude-plugin/plugin.json` inside a skill folder | Loads as plugin `<name>@skills-dir` |
 | 24 | Hook-carried instruction text | settings/plugin/frontmatter hooks; `prompt`/`agent` types; `additionalContext` returns | On lifecycle events; `additionalContext` capped 10,000 chars |
 | 25 | `--append-system-prompt` | CLI flag | Per invocation, appended to system prompt |
-| 26 | `--append-system-prompt-file` | CLI flag | Per invocation; file contents appended to system prompt (cli-reference, verified 2026-09-28) |
-| 27 | `--append-subagent-system-prompt` | CLI flag | `-p` only; appends to every subagent system prompt except forked; v2.1.205+ (cli-reference, verified 2026-09-28) |
-| 28 | `--append-subagent-system-prompt-file` | CLI flag | `-p` only; file form of row 27; cannot combine with the text form; v2.1.261+ (cli-reference, verified 2026-09-28; #4027) |
+| 26 | `--append-system-prompt-file` | CLI flag | Per invocation. Loads a file and appends it to the default system prompt. The cli-reference cell does not restrict this flag to `-p` (cli-reference, verified 2026-09-28; recheck: that cell gains a mode restriction or the flag leaves the table) |
+| 27 | `--append-subagent-system-prompt` | CLI flag | Non-interactive `-p` only. Appends to every subagent system prompt except a forked subagent. Requires Claude Code v2.1.205 or later (cli-reference, verified 2026-09-28; recheck: that cell drops the `-p` restriction or the version floor) |
+| 28 | `--append-subagent-system-prompt-file` | CLI flag | Non-interactive `-p` only. File form of row 27. The two subagent flags cannot be combined. Requires Claude Code v2.1.261 or later (cli-reference, verified 2026-09-28; #4027; recheck: that cell allows combining the two flags, or the version floor moves) |
 
 Cross-cutting semantics the skill should teach: scope load order managed → user → project →
 local; nested CLAUDE.md and path-scoped rules do NOT survive `/compact` re-injection; block HTML
