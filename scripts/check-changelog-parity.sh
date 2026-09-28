@@ -154,11 +154,16 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # every field numeric. Stripping build metadata is SemVer-exact (it carries no
 # precedence); pre-release ORDERING is deliberately not modeled — no manifest in
 # this repo uses it — so an equal-core pre-release keys equal to its release.
+#
+# Writes the key into the variable NAMED by $1 (`printf -v`) rather than to
+# stdout: --check-order keys every heading of every changelog (thousands), and a
+# `$(...)` per heading is one fork each, which costs minutes on Windows Git Bash
+# (#4608). Usage: version_sort_key <out-var> <version>.
 version_sort_key() {
-  local IFS='.'
+  local _vsk_out="$1" IFS='.'
   # shellcheck disable=SC2086  # deliberate word-split of the dotted version on IFS
-  set -- ${1%%[+-]*}
-  printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
+  set -- ${2%%[+-]*}
+  printf -v "$_vsk_out" '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
 }
 
 # The lines of a markdown file that RENDER as markdown — everything outside
@@ -280,6 +285,7 @@ missing_preserved_headings() {
 
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
+  declare -A seen_version
   misordered=0
   duplicated=0
   checked=0
@@ -289,7 +295,17 @@ if [[ "$mode" == "--check-order" ]]; then
     mapfile -t versions < <(changelog_versions "$changelog")
     ((${#versions[@]} > 1)) || continue
 
-    dupes="$(printf '%s\n' ${versions[@]+"${versions[@]}"} | sort | uniq -d)"
+    # Probed in-shell so a clean changelog spawns nothing here; the sort
+    # pipeline runs only on a hit, where it fixes the order the message lists.
+    dupes=""
+    seen_version=()
+    for v in "${versions[@]}"; do
+      if [[ -n "${seen_version[$v]:-}" ]]; then
+        dupes="$(printf '%s\n' ${versions[@]+"${versions[@]}"} | sort | uniq -d)"
+        break
+      fi
+      seen_version["$v"]=1
+    done
     if [[ -n "$dupes" ]]; then
       echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ') more than once. Two branches almost certainly staged the same version; renumber one." >&2
       duplicated=$((duplicated + 1))
@@ -301,8 +317,9 @@ if [[ "$mode" == "--check-order" ]]; then
     # still outranks 9.0.0.
     prev=""
     prev_key=""
+    key=""
     for v in ${versions[@]+"${versions[@]}"}; do
-      key="$(version_sort_key "$v")"
+      version_sort_key key "$v"
       if [[ -n "$prev_key" && "$key" > "$prev_key" ]]; then
         echo "MISORDERED CHANGELOG: $changelog is not newest-first — $v (below $prev). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
         misordered=$((misordered + 1))
@@ -352,7 +369,13 @@ if [[ "$mode" == "--check" ]]; then
       # being the newest, which this catches in the change set that writes it.
       mapfile -t headings < <(changelog_versions "$plugin_dir/CHANGELOG.md")
       newest="${headings[0]:-}"
-      if [[ -n "$newest" && "$(version_sort_key "$newest")" > "$(version_sort_key "$version")" ]]; then
+      newest_key=""
+      version_key=""
+      if [[ -n "$newest" ]]; then
+        version_sort_key newest_key "$newest"
+        version_sort_key version_key "$version"
+      fi
+      if [[ -n "$newest" && "$newest_key" > "$version_key" ]]; then
         echo "CHANGELOG AHEAD OF MANIFEST: $plugin_dir/CHANGELOG.md documents $newest but $manifest carries $version." >&2
         echo "  Bump the manifest to $newest, or fold that entry into the version that actually ships." >&2
         ahead=$((ahead + 1))
@@ -609,6 +632,11 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"
 
+  # Both checks below need this change set to have touched the plugin (a shipped
+  # file, or its manifest), so an untouched plugin is skipped before its two
+  # `git show | jq` reads: the mode's cost follows the diff, not the fleet.
+  [[ -n "${shipped_changed[$name]:-}" || -n "${bumped_candidate[$name]:-}" ]] || continue
+
   base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
   # Absent at base => new plugin in this change set; the static --check owns
   # whether its initial CHANGELOG.md exists, not the bump gate.
@@ -655,8 +683,10 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
       exit 2
     fi
   done
-  head_key="$(version_sort_key "$head_version")"
-  base_key="$(version_sort_key "$base_version")"
+  head_key=""
+  base_key=""
+  version_sort_key head_key "$head_version"
+  version_sort_key base_key "$base_version"
   if [[ ! "$head_key" > "$base_key" ]]; then
     if [[ "$head_key" == "$base_key" ]]; then
       echo "VERSION COLLISION: $name is bumped to $head_version but $base already carries $base_version — another change set claimed that number first; renumber above it." >&2

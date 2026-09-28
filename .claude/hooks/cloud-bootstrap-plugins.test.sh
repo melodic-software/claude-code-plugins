@@ -74,6 +74,35 @@ if [[ ! -f "$BOOTSTRAP" ]]; then
   exit 1
 fi
 
+# The extracted block invokes `$repo_root/node_modules/.bin/claude`, an
+# extensionless bash stub. On Windows Git Bash a native `claude.exe` wins, so
+# every case shells out to the real `claude plugin list --json`. Probe whether
+# an extensionless stub in that layout actually runs.
+# silent-skip-ok: routed to a visible SKIP line counted apart from PASS
+host_executes_extensionless_claude_stub() {
+  local d stub out
+  d="$(mktemp -d)"
+  mkdir -p "$d/node_modules/.bin"
+  stub="$d/node_modules/.bin/claude"
+  printf '#!/usr/bin/env bash\nprintf stub-ok\n' >"$stub"
+  chmod +x "$stub"
+  out="$("$stub" 2>/dev/null || true)"
+  rm -rf "$d"
+  [[ "$out" == "stub-ok" ]]
+}
+# Status captured outside `if`/`!` so SC2310 stays quiet. Errexit would exit
+# on a non-zero predicate before the skip, so it is off for this call only —
+# the same suppression an `if` test applies inside the function.
+set +e
+host_executes_extensionless_claude_stub
+stub_rc=$?
+set -e
+if [[ "$stub_rc" -ne 0 ]]; then
+  echo "SKIP (host: extensionless node_modules/.bin/claude stub does not run): cloud-bootstrap plugin accounting"
+  echo "PASS=0 FAIL=0 SKIPPED=1"
+  exit 0
+fi
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 

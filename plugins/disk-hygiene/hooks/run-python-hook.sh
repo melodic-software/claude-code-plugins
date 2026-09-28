@@ -29,10 +29,32 @@
 # Every path placeholder in the command string must stay double-quoted; the
 # shell re-tokenizes the string, and plugin roots contain spaces.
 #
-# When no interpreter resolves:
+# When no interpreter resolves (#3861), a guard that could not run must never
+# look like a guard that ran and allowed. It answers the way its watchdog
+# answers "could not decide" (`_watchdog_fire` in destructive_guard.py), with
+# one deliberate difference, marked below:
+#   * destructive_guard.py, belt mode (no `--mode`, or any value but
+#     `engine-gate`, the default `resolve_mode` also falls back to) — deny
+#     with exit 2 and the reason on stderr. The belt is deny-by-default, and
+#     the only engine shapes it passes name the hook runtime's own absolute
+#     interpreter, so with none resolved it would have passed nothing useful.
+#   * destructive_guard.py, `--mode engine-gate`, payload names `hygiene.py`
+#     (a plain case-insensitive substring over the whole payload, broader than
+#     the guard's basename test, so it can only over-deny) or is empty — deny
+#     with exit 2, as the watchdog does for a marker-bearing command.
+#   * destructive_guard.py, `--mode engine-gate`, marker-free payload — let the
+#     call proceed, with a `systemMessage` plus `additionalContext` notice once
+#     per session. THE DIFFERENCE: the watchdog asks here, because a missed
+#     deadline is transient. A missing interpreter is not, and an `ask` on every
+#     `PowerShell(*& $*)` call of every session is a work stoppage (and a deny
+#     under `-p`) on a host whose only fault is having no Python. The guard
+#     would have deferred on these, so the notice is the only change it makes.
+#   * engine_context.py (`/disk-hygiene:clean` expanding) — block the expansion
+#     with the reason, so the skill and its session-wide belt never load on a
+#     host where neither the engine nor the guard can run.
 #   * guard_launch_monitor.py — emit a once-per-run systemMessage on stdout
-#     (the detector's only output channel) so the operator sees the blind spot.
-#   * destructive_guard.py — exit 0 silently (existing PreToolUse fail-open).
+#     (the detector's only output channel): the end-of-turn backstop for the
+#     per-call reports above.
 set -uo pipefail
 # `_lookup` reads bash's command hash table. A BASH_ENV (or inherited option
 # state) that turned hashing off would leave every lookup empty, so resolution
@@ -190,6 +212,8 @@ shift || true
 MODE=unknown
 case "$SCRIPT" in
 *guard_launch_monitor.py*) MODE=monitor ;;
+*destructive_guard.py*) MODE=guard ;;
+*engine_context.py*) MODE=context ;;
 *) ;;
 esac
 
@@ -227,14 +251,14 @@ _read_payload() {
 # directory need not be the one Python's `tempfile.gettempdir()` picks; what
 # matters is that both flags resolve it identically, which they do.
 _marker_candidates() {
-  local subdir="$1" session="$2"
+  local subdir="$1" session="$2" suffix="${3:-launched}"
   local safe="${session//[^a-zA-Z0-9_-]/_}"
   _MARKER_PATHS=()
   [[ -n "$safe" ]] || return 1
   if [[ -n "$MARKER_ROOT" && "$MARKER_ROOT" != "$_DATA_ROOT_PLACEHOLDER" ]]; then
-    _MARKER_PATHS+=("$MARKER_ROOT/$subdir/$safe.launched")
+    _MARKER_PATHS+=("$MARKER_ROOT/$subdir/$safe.$suffix")
   fi
-  _MARKER_PATHS+=("${TMPDIR:-/tmp}/disk-hygiene-$subdir/$safe.launched")
+  _MARKER_PATHS+=("${TMPDIR:-/tmp}/disk-hygiene-$subdir/$safe.$suffix")
 }
 
 if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
@@ -389,7 +413,7 @@ resolve_python3() {
 #      TTL buys; every other shape is caught structurally above.
 # Any miss, unreadable record, or malformed field falls through to full
 # resolution. A cache failure must never be able to produce "no interpreter" —
-# that is the guard's silent fail-open (exit 0, nothing enforced).
+# that takes the no-interpreter posture below, which denies or runs unchecked.
 _CACHE_SCHEMA=2
 # COMPILED IN, deliberately not an environment override. A widened TTL makes
 # this launcher accept a record it would otherwise have rejected as stale, so
@@ -535,11 +559,75 @@ if [[ -z "$PYTHON" ]]; then
   fi
 fi
 
-if [[ -z "$PYTHON" ]]; then
-  if [[ "$MODE" == "monitor" ]]; then
-    printf '%s\n' \
-      '{"systemMessage":"disk-hygiene: destructive guard could not launch — no Python 3 interpreter resolved on this host (python3 missing or is a Windows App Execution Alias stub). Destructive Bash/PowerShell commands may have proceeded unguarded."}'
+_NO_PYTHON='no Python 3 interpreter resolved on this host (python3, python and py -3 are missing, below the engine floor, or the Windows App Execution Alias stub)'
+_NO_PYTHON_FIX='Install Python 3 ahead of WindowsApps on PATH, then run /disk-hygiene:setup check.'
+
+# Set `_MODE_VALUE` to the guard's `--mode`, read the way the guard's own
+# `_argv_flag_value` reads it: the first `--mode <value>` or `--mode=<value>`.
+_guard_mode_value() {
+  local -a argv=("$@")
+  local i
+  _MODE_VALUE=""
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    if [[ "${argv[i]}" == "--mode" ]] && ((i + 1 < ${#argv[@]})); then
+      _MODE_VALUE="${argv[i + 1]}"
+      return 0
+    fi
+    if [[ "${argv[i]}" == --mode=* ]]; then
+      _MODE_VALUE="${argv[i]#--mode=}"
+      return 0
+    fi
+  done
+}
+
+# True when this session already carries the no-interpreter notice. A session
+# with no id, or no marker that could be written, re-notices: over-reporting is
+# the safe direction for a notice that exists to end a silence.
+_no_python_noticed() {
+  local path
+  [[ -n "$_SESSION_ID" ]] || return 1
+  _marker_candidates guard-no-interpreter "$_SESSION_ID" noticed || return 1
+  for path in "${_MARKER_PATHS[@]}"; do
+    [[ -f "$path" ]] && return 0
+  done
+  for path in "${_MARKER_PATHS[@]}"; do
+    [[ -d "${path%/*}" ]] || mkdir -p "${path%/*}" 2>/dev/null || continue
+    : >"$path" 2>/dev/null && break
+  done
+  return 1
+}
+
+_guard_without_python() {
+  _guard_mode_value "$@"
+  if [[ "$_MODE_VALUE" != "engine-gate" ]]; then
+    printf '%s\n' "disk-hygiene: destructive guard could not run: $_NO_PYTHON, so this call was not checked. The /disk-hygiene:clean belt denies every Bash and PowerShell call it cannot check. $_NO_PYTHON_FIX" >&2
+    exit 2
   fi
+  ((_BUFFERED_STDIN)) || _read_payload
+  if [[ -z "${_PAYLOAD//[[:space:]]/}" || "${_PAYLOAD,,}" == *hygiene.py* ]]; then
+    printf '%s\n' "disk-hygiene: destructive guard could not run: $_NO_PYTHON, so this command, which names the disk-hygiene engine (hygiene.py), was not checked against its kill switch and authorized roots, and is denied. $_NO_PYTHON_FIX" >&2
+    exit 2
+  fi
+  _no_python_noticed && exit 0
+  local notice="disk-hygiene: destructive guard could not run: $_NO_PYTHON. Commands that name no disk-hygiene engine script proceed unchecked this session; any command naming hygiene.py is denied. Shown once per session. $_NO_PYTHON_FIX"
+  printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' \
+    "$notice" "$notice"
+  exit 0
+}
+
+if [[ -z "$PYTHON" ]]; then
+  case "$MODE" in
+  guard) _guard_without_python "$@" ;;
+  context)
+    printf '{"decision":"block","reason":"%s"}\n' \
+      "disk-hygiene: /disk-hygiene:clean cannot run here: $_NO_PYTHON. The engine needs one, and without it the skill's guard denies every Bash and PowerShell call. $_NO_PYTHON_FIX"
+    ;;
+  monitor)
+    printf '{"systemMessage":"%s"}\n' \
+      "disk-hygiene: destructive guard could not run this session: $_NO_PYTHON. It reported each call as it happened: calls under the /disk-hygiene:clean belt and commands naming hygiene.py were denied, and other guarded Bash/PowerShell commands proceeded unchecked. $_NO_PYTHON_FIX"
+    ;;
+  *) ;;
+  esac
   exit 0
 fi
 

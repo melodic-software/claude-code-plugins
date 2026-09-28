@@ -1334,14 +1334,16 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(["Cache"], folded)
 
-    def test_root_children_flag_requires_os_managed_volume_root(self) -> None:
+    def test_root_children_on_non_volume_target_lists_immediate_children(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            target = base / "ordinary"
+            target = base / "home"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            (target / "builds").mkdir()
+            (target / "AppData").mkdir()
+            (target / ".cache").mkdir()
+            (target / "Documents").mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1356,8 +1358,22 @@ class HygieneTests(unittest.TestCase):
                 ],
                 extra_args=["--root-children"],
             )
-            self.assertEqual(2, code)
-            self.assertIn("volume-root target", payload["error"])
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({".cache", "AppData"}, admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+
+    def test_root_children_on_non_os_volume_root_still_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1365,7 +1381,45 @@ class HygieneTests(unittest.TestCase):
                 extra_args=["--root-children"],
             )
             self.assertEqual(2, code)
-            self.assertIn("only valid for an OS-managed volume root", payload["error"])
+            self.assertIn("OS-managed", payload["error"])
+
+    def test_home_root_children_inventories_selected_subtree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            deep = target / "AppData" / "Local" / "pkg"
+            deep.mkdir(parents=True)
+            (deep / "orphan.tmp").write_text("x", encoding="utf-8")
+            (target / "Documents").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "AppData",
+                ],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            paths = {entry["path"] for entry in snapshot["entries"]}
+            self.assertIn("AppData/Local/pkg/orphan.tmp", paths)
+            self.assertNotIn("Documents", paths)
 
     def test_root_child_requires_root_children_flag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4744,6 +4798,70 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertEqual(
                 ["gone", "contested"], [item["verdict"] for item in payload["verdicts"]]
             )
+
+    @staticmethod
+    def empty_directory_with_ntfs_size(temporary: str) -> tuple[Path, dict[str, Any]]:
+        """An unchanged empty directory whose snapshot recorded a non-zero size.
+
+        NTFS reports a directory's st_size as its index allocation on one lstat
+        and 0 on the next (#4005); the snapshot here holds the 4096 reading
+        while the live directory reports whatever this filesystem reports.
+        """
+        root = Path(temporary) / "target"
+        (root / ".playwright-cli").mkdir(parents=True)
+        snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+        entry["stat_size"] = int(entry["stat_size"]) + 4096
+        (Path(temporary) / "snapshot.json").write_text(
+            json.dumps(snapshot), encoding="utf-8"
+        )
+        return root, snapshot
+
+    def test_directory_stat_identity_ignores_size_but_not_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+            live = os.lstat(root / ".playwright-cli")
+            self.assertNotEqual(live.st_size, entry["stat_size"])
+            self.assertTrue(hygiene.same_stat_identity(live, entry))
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "inode": entry["inode"] + 1})
+            )
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "kind": "file"})
+            )
+
+    def test_unchanged_empty_directory_verifies_clear_on_every_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.empty_directory_with_ntfs_size(temporary)
+            for attempt in range(5):
+                with self.subTest(attempt=attempt + 1):
+                    status, payload = self.handoff_verify_cli(
+                        temporary, [".playwright-cli"]
+                    )
+                    self.assertEqual(0, status)
+                    self.assertEqual(
+                        ["clear"], [item["verdict"] for item in payload["verdicts"]]
+                    )
+
+    def test_preview_routes_directories_through_the_shared_comparator(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate(".playwright-cli")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
 
     @staticmethod
     def nested_residue(root: Path) -> Path:

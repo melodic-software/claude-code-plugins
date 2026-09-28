@@ -73,6 +73,18 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # below a source.
 [[ "${CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
 
+# Advisory abort boundary (#3713): any status other than 0 writes one stderr
+# line and exits 0, so Claude Code never records hook_non_blocking_error with
+# empty stderr. Chosen status is 0 only.
+_hfa_on_exit() {
+  local rc=$?
+  trap - EXIT
+  ((rc == 0)) && return 0
+  echo "claude-ops hook-failure-audit: did not run (status ${rc}); fail-open" >&2
+  builtin exit 0
+}
+trap _hfa_on_exit EXIT
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
