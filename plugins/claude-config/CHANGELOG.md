@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.10] - 2026-09-28
+
+### Changed
+
+- **Bundled `claude-api` currency, and the `/doctor` handoff for managed-policy diagnosis** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The audit-instructions source line now records a 2026-09-28 read of the skill inside Claude Code 2.1.282: the Fable migration sections remain, the model-migration guide adds an eval-grounding section from the 2.1.260 refresh, and the `prompt-audit` guide still runs Steps 0–7. Changelog 2.1.283 is the next release that names `prompt-audit`. `audit-pass` `doctor-handoff.md` sends policy-load, helper-refresh, and credential-in-use questions to `/status` and `claude doctor` (v2.1.260 and v2.1.261) instead of inventing a local read.
+
 ## [0.51.9] - 2026-09-28
 
 ### Fixed
