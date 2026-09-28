@@ -91,4 +91,17 @@ Describe 'Invoke-HealthCheckEnvelope' -Tag 'lib' {
         $result.summary | Should -Be 'passthru'
         $result.duration_ms | Should -BeOfType [int]
     }
+
+    It 'is the only envelope in the check family' {
+        $checksDir = Join-Path $script:LibRoot '..\checks'
+        $checks = @(Get-ChildItem -LiteralPath $checksDir -Filter '*.ps1' -File)
+        $checks.Count | Should -BeGreaterThan 15
+        foreach ($check in $checks) {
+            $text = Get-Content -LiteralPath $check.FullName -Raw
+            $text | Should -Not -Match 'Stopwatch\]::StartNew' -Because $check.Name
+            $text | Should -Not -Match 'New-HealthFailureResult' -Because $check.Name
+            $text | Should -Not -Match 'Complete-HealthCheck' -Because $check.Name
+            $text | Should -Not -Match 'Write-HealthResult -Human' -Because $check.Name
+        }
+    }
 }

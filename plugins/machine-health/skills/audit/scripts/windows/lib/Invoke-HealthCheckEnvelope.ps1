@@ -21,8 +21,8 @@ $sw is the running clock. A body that budgets its own walk reads that same
 stopwatch.
 
 $PassThru stamps the duration and leaves $result for the caller to return.
-Test-Drivers uses it so a dot-sourced test can read the object; the script
-entry point still pipes that object to Write-HealthResult.
+Test-Drivers tests pass it so they can read the object. The script entry
+point does not, so this file still writes the result.
 #>
 
 if (-not (Test-Path variable:FailureNeedsAdmin)) { $FailureNeedsAdmin = $false }
