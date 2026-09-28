@@ -117,7 +117,7 @@ expect "library allows: fails despite an inherited plugin root" 1 "base exits 2,
 
 # --- the Bash row's argv only --------------------------------------------
 new_fixture f || exit 1
-jq '(.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].command) |= sub(" block-dangerous-git.sh"; "")' \
+jq '(.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].args) |= map(select(. != "block-dangerous-git.sh"))' \
   "$f/plugins/guardrails/hooks/hooks.json" >"$f/hooks.json.new" && mv "$f/hooks.json.new" "$f/plugins/guardrails/hooks/hooks.json"
 run_check "$f" -- --corpus corpus.jsonl --jobs 4 HEAD
 expect "row drops a guard: fails on the row" 1 "$P: row: base exits 2, branch exits 0: git\\ reset\\ --hard"
