@@ -14,7 +14,7 @@ Turn a short description or a pasted score into one looping WAV.
 
 ## 1. Write the score
 
-Use the MML subset in [`scripts/mml.py`](${CLAUDE_PLUGIN_ROOT}/scripts/mml.py): `t` tempo, `o`
+Use the MML subset in [`${CLAUDE_PLUGIN_ROOT}/scripts/mml.py`](${CLAUDE_PLUGIN_ROOT}/scripts/mml.py): `t` tempo, `o`
 octave, `l` length, `v` volume 1-15, `@0` bass, `@1` to `@4` pulse duties 12.5, 25, 50, 75
 (claim = those four duties; basis = [`chips.md`](${CLAUDE_PLUGIN_ROOT}/reference/chips.md); as of
 2026-09-28; recheck when that file's Pan Docs or NESDev basis changes), `<` and

@@ -16,8 +16,8 @@ Write one WAV the user can drop into a game or hand to a scene.
 
 A preset (`coin`, `jump`, `laser`, `explosion`) is enough when the request names that kind of
 effect. Otherwise write a JSON object. Parameter names and the envelope shape are in
-[`scripts/presets.py`](${CLAUDE_PLUGIN_ROOT}/scripts/presets.py) and
-[`scripts/sfx.py`](${CLAUDE_PLUGIN_ROOT}/scripts/sfx.py). State any field you default in one line.
+[`${CLAUDE_PLUGIN_ROOT}/scripts/presets.py`](${CLAUDE_PLUGIN_ROOT}/scripts/presets.py) and
+[`${CLAUDE_PLUGIN_ROOT}/scripts/sfx.py`](${CLAUDE_PLUGIN_ROOT}/scripts/sfx.py). State any field you default in one line.
 Do not ask a list of questions for a one-shot effect.
 
 ## 2. Render
