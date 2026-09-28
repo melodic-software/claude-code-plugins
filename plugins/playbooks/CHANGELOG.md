@@ -1,0 +1,1827 @@
+# Changelog
+
+All notable changes to the `playbooks` plugin are recorded here. The `version` in
+`.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
+only after that version increases.
+
+## [0.13.23] - 2026-09-28
+
+### Changed
+
+- **Fable 5.1 recheck, not a doctrine rewrite ([#4346](https://github.com/melodic-software/claude-code-plugins/issues/4346)).** The adaptation chapter keeps the guide's "without changes" claim, drops the unconfirmed "keep instructed checks" section, confirms forced `tool_choice` and thinking-block readability against the thinking page, and names the guide sections it still does not restate. The calibration pointer, the context-economy `keep:all` record, and the prompt-caching header are restated with a 2026-09-28 status instead of being left past their recheck triggers, and the prompt-caching chapter records that cache diagnostics is generally available.
+
+## [0.13.22] - 2026-09-28
+
+### Added
+
+- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
+
+### Changed
+
+- **The `$`-free pre-compute rule applies to blocks that run git**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
+  in a block that never runs git is not that check. The compose gate was already git-only.
+
+## [0.13.21] - 2026-09-28
+
+### Changed
+
+- **The `$`-free pre-compute rule applies to blocks that run git**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
+  in a block that never runs git is not that check. The compose gate was already git-only.
+
+## [0.13.19] - 2026-09-28
+
+### Added
+
+- **Skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). `skill-authoring` records that the field lasts for the current turn, that auto mode keeps the session model when the named model is unsupported, and that `context: fork` uses the value for the forked subagent. The pre-compute chapter now cites the worktree-isolation command-shape rule, including the 2.1.257 and 2.1.259 fixes that stopped refusing Bash which never touches the main checkout.
+
+## [0.13.17] - 2026-09-28
+
+### Changed
+
+- **`boris` effort hold matches the current model-config page**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The 2026-08-02 amendment said first-running Fable 5, Opus 4.8, or Opus 4.7 holds that model's
+  default, and that Opus 5 has no such hold. Re-read 2026-09-28: that hold sentence is gone.
+  Opus 5.5 starts at `medium` and ignores a top-level user `effortLevel`; that key still applies
+  on Opus 5, Fable 5.1, and earlier models. `reference/autonomy.md` records the page.
+
+## [0.13.16] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `boris` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.13.15] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** skips `/session-flow:orchestrate` and `/discipline:use-your-skills` when a
+  catalog entry sets `- prime: false` (`catalog.sh` eighth column; `testing-audit` in `hygiene`).
+
+## [0.13.14] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep`**: record partial skill coverage with `tick.sh partial` and recommend `rerun` in
+  `history.sh` instead of treating the step as a clean `no findings` run (`reference/next.md`).
+
+## [0.13.13] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` hygiene** `residue-dissolve`: tighter `applies-when` and Notes for CI-only or
+  sync-managed commented files so the step is not checked when dissolve would apply nothing.
+
+## [0.13.12] - 2026-09-28
+
+### Added
+
+- **`skill-authoring` Arguments.** Named `arguments` are positional aliases. The section records
+  the 0-based `$N` rule, the empty-name expansion, and the single-backslash escape from the
+  official substitutions section, and points the unescaped-`$N` gate at that section.
+  A remainder, a phrase, a variadic tail, or a position-independent flag stays in `$ARGUMENTS`.
+  `planning:prd` and `session-flow:workflow` name their ordered slots;
+  `knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` do not
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+
+## [0.13.11] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** re-checks each entry's `applies-when` before running the step; when it
+  fails, ticks `not applicable: <evidence>` instead of running the skill (`tick.sh`, `history.sh`
+  ignores those lines for version history).
+
+## [0.13.10] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` review**: dispatch an independent reviewer agent with procedure files and step
+  artifacts only; merge its classified findings with the user's report before filing issues
+  (`reference/review.md`, `SKILL.md`).
+
+## [0.13.9] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next**: do not tick before the user reviews findings; when a step leaves only
+  report-only tiers, tick `no fix-eligible findings (N report-only)` instead of `no findings`
+  (`tick.sh report-only`, `reference/next.md`).
+
+## [0.13.8] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` records the skill version the session ran, not the one installed since.** A
+  session keeps the plugin versions it loaded, so after a mid-session update
+  `skill-version.sh` named a version that never ran, in the checklist line and the
+  `Playbook-Step` trailer. `skill-version.sh` takes `--dir <loaded-dir>` before a
+  `plugin:skill`: it reads the nearest `plugin.json` at or above the Skill tool's base
+  directory, falls back to the `cache/<marketplace>/<plugin>/<version>/` path segment, and says
+  on stderr when that differs from the `installed_plugins.json` record. `next` passes each
+  skill's loaded directory and stops after a `Plugin updated` notice until the user reloads.
+  `REPO_SWEEP_PLUGIN_DIRS` is now documented in `SKILL.md`, not only in the script header.
+
+## [0.13.7] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: the `hygiene` catalog's `overengineering` entry passes
+  `agent-instructions repo-hooks vcs-hooks ci-lanes gate-scripts satellite-workflows` to the audit
+  and to realign, so a single-repo sweep no longer walks all ten layers. A new note sends
+  `agent-hooks`, `branch-protection`, `forge-apps`, and `external-integrations` to a separate org- or
+  machine-level pass (#4597).
+
+## [0.13.6] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: three hygiene-catalog entries now let the user review findings before anything
+  is fixed, as `next` step 3.3 requires.
+  - `provenance` runs `attribution:audit` with `audit`, the read-only action, instead of `sweep`,
+    which is the fix pipeline and applied fixes during the run. Its notes name
+    `attribution:audit fix <file>` for the approved findings (#4576).
+  - `codebase-health` drops `--fix`. In `codebase-health:audit`, `--fix` applies nothing: it
+    suggests the remediation lanes and says not to invoke them, which contradicted step 3.5. The
+    new notes say the step applies the agreed fixes itself. The `claude-config` and `lint` entries
+    keep `--fix`, because there it applies fixes: after per-fix confirmation in
+    `claude-config:audit`, and format-only in `toolchain:lint` (#4587).
+  - `claude-memory` treats C9 additions as in scope: one line per missing build or test command,
+    verified against the repo's manifest or task runner. Before, every repo whose CLAUDE.md lacked
+    one raised the same exception question (#4614).
+
+## [0.13.5] - 2026-09-27
+
+### Changed
+
+- `repo-sweep`'s hygiene catalog runs `attribution:audit` in its `provenance` entry, since the
+  provenance plugin is now `attribution`. The entry id stays `provenance` so existing sweep
+  checklists still match it.
+
+## [0.13.4] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `review` routes a defect in repo-sweep itself (its SKILL.md, reference files,
+  or scripts) through `/plugin-quality:audit` on `playbooks:repo-sweep` to a `playbooks` issue,
+  and a defect in a skill bundled with Claude Code to Anthropic through `/bug`, not to this
+  repository (#4604).
+
+## [0.13.3] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: `next` shows the deliverables each invoked skill's procedure names, produced by
+  running that procedure in full; a summary or a skipped procedure step does not complete the
+  step (#4602). Before fixing, it lists findings on files synced from another repository (the
+  README or file inventory says so, or `git blame` names a `-sync[bot]` author) separately, never
+  edits them, and asks whether to draft an issue in the source repository (#4603).
+
+## [0.13.2] - 2026-09-27
+
+### Fixed
+
+- **`repo-sweep`**: a bare skill name is no longer stamped `@builtin` unchecked. A same-named
+  personal or project skill, which replaces the bundled one, is stamped `@personal` or
+  `@project`; otherwise the stamp carries the Claude Code version (`@builtin-2.1.283`), or
+  `@unknown` when `claude --version` prints none. `history.sh` compares bundled-skill stamps like
+  any other version, so an entry last recorded as `@builtin` recommends `rerun` once. The skill doc
+  now allows bare names for bundled skills in catalog `- skill:` lines and says that
+  `catalog.sh` exit 1 means an entry with no `- skill:` line (#4601).
+
+## [0.13.1] - 2026-09-27
+
+### Changed
+
+- **`skill-authoring`**: the authoring guidance gains an "Agent model" section: a plugin agent
+  definition names its `model`, and `inherit` carries a trailing `# reason:` comment on that line.
+
+## [0.13.0] - 2026-09-26
+
+### Added
+
+- **`repo-sweep`**: `/playbooks:repo-sweep` runs a catalog of hygiene skills through one
+  repository per sweep: one branch, one draft PR whose body holds the step checklist, one commit
+  per step with `Playbook-Step` trailers, resumable after `/clear` on any machine. `plan`
+  recommends run, rerun, or not-applicable per catalog entry and opens a bundled selection page;
+  `next` runs the first unticked step; `review` files skill and catalog defects after approval.
+  The `hygiene` catalog ships 31 entries in six phases, 22 checked by default.
+
+## [0.12.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.12.2] - 2026-09-24
+
+### Fixed
+
+- **`skill-authoring`**: the authoring guidance points the hook budget at
+  `docs/conventions/hook-budget/README.md`, which owns it; the rule file it named no longer exists.
+
+## [0.12.1] - 2026-09-23
+
+### Changed
+
+- **`fable-5`**: the orchestration chapter gains "Narrow threads per benchmark or journey", marked
+  as inference: one thread per benchmark or journey, scaling a loop horizontally only after it
+  works on one thread, merging threads that collide, judgment criteria for closing a thread at
+  diminishing returns, room for agent-proposed work with no share stated, one named human owner
+  who steers each thread, a standing brief per thread, a signal the thread can re-run alone, one
+  shared visible place for threads, and a reporting cadence planned ahead of throughput.
+- **`fable-5`**: the execution chapter's feature-flag rule names a kill switch as its rollback
+  case and a ramp or staged exposure as the same case at partial scale, each removed as soon as
+  it is safe. The rule is not loosened.
+- The Opus 5.5 chapter gains "Scope: bolder when the guardrails are named": a careful-on-scope
+  default observed on a comparable unreleased model and unverified on Opus 5.5, with its
+  verification record, and the correction to name the guardrails when asking for a bolder step.
+
+## [0.12.0] - 2026-09-23
+
+### Added
+
+- **`fable-5`**: `reference/model-adaptation/opus-5-5.md`, the Claude Opus 5.5 adaptation
+  chapter: always-on thinking with effort as the depth control, the lower default effort, stopping
+  to report on long runs, delegation and review strengths, the reversed Opus 5 findings, image
+  reading, settled answers in long chats, the new safeguard categories and fallback, fast mode,
+  and what carries over from the Opus 5 chapter.
+
+### Changed
+
+- **`fable-5`**: meta-rule 3 routes Claude Opus 5.5 to its chapter, states that a later version's
+  chapter never substitutes for a missing one, and extends the safeguard-fallback re-resolve to
+  Opus 5.5 sessions. It names the Claude Code fallback targets by category (biology to Opus 5,
+  cybersecurity to Opus 4.8), which is why the Opus 5 and Opus 4.8 chapters stay. The description
+  and the chapter-trigger eval name Opus 5.5.
+- **`fable-5`**: the communication chapter's "No progress theater" now states that a turn does not
+  end on a summary naming the next step, an offer to continue, or a non-blocking choice list; the
+  consent gates are unchanged.
+- **`boris`**: the effort tip's thinking-prompt steers carry an amendment for models that always
+  think: remove "think carefully" lines and change effort instead. The effort-levels tip notes
+  the per-model defaults (`medium` on Opus 5.5).
+- The Opus 5 and Opus 4.8 chapters open with a note that they are kept only as fallback targets
+  for flagged requests. The Opus 5 chapter's thinking-controls bullet now matches the model-config
+  page: `MAX_THINKING_TOKENS=0` has no effect on Opus 5.5 or the Fable models.
+- `reference/prompt-caching.md` lists Opus 5.5 for mid-conversation system messages and
+  per-message effort changes.
+
+## [0.11.6] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.11.5]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.11.4]
+
+### Changed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` restates `claude plugin eval` from its
+  own documentation page, which the previous record named as the event to recheck on. The command
+  is documented, requires a stated minimum Claude Code version, and reads a case format its page
+  says is separate from the `evals/evals.json` the eval loop in that section uses, so the loop is
+  unchanged and a plugin measured as a plugin routes to the command. The record carries the new
+  basis, an as-of of 2026-09-12, and a trigger keyed on the format separation.
+
+## [0.11.3]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.11.2]
+
+### Changed
+
+- **`skill-authoring`: the description voice rule is stated as the page defines it.**
+  `reference/authoring-guidance.md` now says to keep first and second person out of description
+  prose, names the page's two Avoid examples and its system-prompt reason, and records that
+  imperative verb phrases and third-person singular both conform: the page's own effective
+  examples, the Claude Code skills page's examples, and the bundled skill-creator's frontmatter all
+  use the imperative, so the marketplace's imperative descriptions stand rather than being treated
+  as a deviation. Quoted trigger phrases keep the user's voice. The Record cites the three example
+  surfaces and gains a recheck trigger for the page rewriting its examples.
+  `reference/authoring-checklist.md` gains the matching judgment row.
+
+## [0.11.1]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
+  own prose (the README, this changelog, the four model-adaptation chapters, the Boris
+  reference chapters, the Fable 5 doctrine chapters, and the skill-authoring references) are
+  rewritten as a comma, a period, a colon, or a restructured sentence; headings that carried
+  one take the colon form and every link to a renamed anchor follows. Quoted upstream text in
+  the model-adaptation chapters and the Boris and Cat Wu quotations stay byte-identical, the
+  latter inside ignore markers naming the source. Reflexive `load-bearing` becomes the concrete
+  word it stood for; the `fable-5` skill's description loses two em dashes with every trigger
+  phrase byte-identical. No rule, step, or claim changed. The purge gate now defends the whole
+  plugin tree.
+- **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
+  rewrite was applied inside `[0.9.1]`, `[0.8.9]`, `[0.8.8]`, `[0.8.7]`, `[0.8.6]`, `[0.8.3]`,
+  `[0.8.2]`, `[0.8.1]`, `[0.8.0]`, `[0.7.2]`, `[0.7.1]`, `[0.7.0]`, `[0.6.22]`, `[0.6.20]`,
+  `[0.6.19]`, `[0.6.18]`, `[0.6.17]`, `[0.6.16]`, `[0.6.15]`, `[0.6.14]`, `[0.6.13]`,
+  `[0.6.12]`, `[0.6.11]`, `[0.6.10]`, `[0.6.9]`, `[0.6.8]`, `[0.6.7]`, `[0.6.6]`, `[0.6.5]`,
+  `[0.6.4]`, `[0.6.3]`, `[0.6.2]`, `[0.6.1]`, `[0.6.0]`, `[0.5.2]`, `[0.5.1]`, `[0.5.0]`,
+  `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
+  entry's facts are unchanged.
+
+## [0.11.0]
+
+### Added
+
+- **`reference/prompt-caching.md`**: a new API-side prompt-caching and cost chapter (prefix
+  stability, deferred tools, mid-conversation system messages, effort-and-cache with beta
+  boundaries, breakpoints and pre-warming, TTL, cache diagnostics, batching, Admin API spend
+  profiling, output bounding as a request-level lever), with every row verified against the
+  named live doc page and routed from the fable-5 chapter table. Adopted from the vetted
+  ClaudeDevs cost-performance article (`docs/upstream/claudedevs-cost-performance.md`).
+- **`reference/model-adaptation/fable-5-1.md`**: a "Cross-model effort economics" section
+  (test the newer model at lower effort before working the older one harder; flat-curve
+  reading), pricing-free per the chapter's standing rule, with sources.
+- **`fable-5`**: a `## Boundary, the bundled claude-api skill` section stating the composite
+  posture with the bundled skill (prefer it for every current fact a chapter points at and for
+  the cost audit itself; this playbook for the judgment around those facts and the mechanisms
+  that outlive any one price), with a mutation gate and an availability rule that never
+  assumes the bundled skill resolves. The automation pointer in `reference/prompt-caching.md`
+  is now gated on the bundled skill resolving in the session.
+
+## [0.10.1]
+
+### Fixed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` corrections after an independent audit
+  of its claims against the official pages. The 1,024-character description cap is stated as the
+  Agent Skills specification's, enforced by its `skills-ref` validator and stated as a Skills API
+  upload requirement (the earlier "enforced on upload paths (claude.ai, the Skills API)" named a
+  surface no source documents); the dependency paragraph carries the platform overview's second
+  Claude Code bullet (installs stay local to the project, never global) and scopes its example
+  accordingly; the network sentence separates the Claude API sandbox (no network, no runtime
+  installs, pre-installed list only) from claude.ai (varies with admin settings) instead of one
+  "platform sandbox"; the `/skill-doctor` mention is presence-gated with its version floor stated
+  as "v2.1.252 or later" and its feature-flag and terminal conditions, per the native-references
+  convention; the 500-line rule's "advisory on every surface" now rests on a recorded
+  `--plugin-dir` load probe (Claude Code 2.1.263, 2026-09-11, a 608-line SKILL.md loaded and
+  invoked) as well as the docs; and every Record line cites its basis by anchored URL rather than a
+  quoted section name, with the spoke's intro tightened to match the upstream-drift record form.
+  `evals/evals.json` case 3 follows the cap wording.
+- **`skill-authoring`**: `reference/authoring-checklist.md` gains the presence-gated skill-creator
+  row in its Testing group (attestation), which the guidance spoke carried but the checklist did not.
+
+## [0.10.0]
+
+### Added
+
+- **`skill-authoring`**: `reference/authoring-guidance.md`, a cross-reading of Anthropic's
+  skill-authoring best-practices page against what Claude Code enforces: the description contract
+  with both caps (1,024 spec validation; 1,536 listing truncation) and the listing budget, the three
+  degrees of freedom mapped onto the enforcement ladder, the progressive-disclosure numbers with the
+  compaction placement rule, the inject-once runtime model with `${CLAUDE_SKILL_DIR}` pointers and
+  dependency statements, Claude Code's MCP tool-name forms, output-template and escape-hatch shapes,
+  the no-old-patterns deviation, the eval loop in the runner's file shape, and a model-coverage
+  attestation. Every restated number carries the four-part record.
+- **`skill-authoring`**: `reference/authoring-checklist.md`, the pre-share checklist in three groups
+  with each row tagged mechanical (naming its `skill-quality:check` number), judgment, or
+  attestation.
+- **`skill-authoring`**: `reference/verification-loops-in-skills.md` gains the validator preference
+  order (a script with pass/fail output first, a reference-document read-and-compare second) and the
+  plan-validate-execute pattern; it and `reference/precompute-context.md` gain a `## Contents`
+  block.
+- **`skill-authoring`**: pointer paragraphs in SKILL.md for the two new spokes, and eval cases 3
+  (description caps and their sources) and 4 (the pre-share checklist).
+
+## [0.9.10]
+
+### Fixed
+
+- `reference/model-adaptation/CLAUDE.md` shim added beside the chapter conventions `AGENTS.md`, so the conventions load when Claude reads a chapter (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
+## [0.9.9]
+
+### Added
+
+- **`skill-authoring`**: a `## Next` section (that exact heading) naming the skill that normally
+  runs after this one, in the mention-only shape the skill-body rule describes.
+
+## [0.9.8]
+
+### Changed
+
+- **boris:** the Model row is qualified as of the 2026-07-24 sync, with a re-sync trigger for Fable 5.1 tips (prompt-audit follow-up F13).
+- **model-adaptation/opus-5:** drop the citation to a probe record that exists nowhere in the repository, keeping the thinking-disable claim on the chapter's own dated session observation (prompt-audit follow-up F8).
+- Opus 5 chapter: dropped the parked exploration item and the deferred routing-lane decision, both maintainer work with no behavior for the reading model, and dropped the Sources bookkeeping sentence the live-fetch heading already carries (prompt-audit follow-up F2)
+- Model-adaptation chapters: the public-repo quotation rule now lives once in a nested AGENTS.md for the whole directory instead of a per-chapter note in the Opus 5 and Sonnet 5 files (prompt-audit follow-up F2)
+- Opus 5 and Opus 4.8 chapters: the residual-tension paragraph and the Opus 4.8 Sources stamp state the current rule and the last-confirmed date instead of narrating the authoring pipeline and its reading sessions (prompt-audit follow-up F2)
+- Opus 5 chapter: six ordinary words no longer set in full caps, so emphasis is not the register a reading model carries into its own output (prompt-audit follow-up F2)
+- fable-5: the cache-pricing stamp in context/orchestration.md is re-verified and gains a recheck trigger (prompt-audit follow-up F6)
+
+## [0.9.7]
+
+### Changed
+
+- `fable-5`: added a Fable 5.1 model-adaptation chapter, routed to it from meta-rule 3 and the
+  description, replaced the arrow-chain format for the unbriefed-decision block with three plain
+  clauses, dropped the numeric floor from the delegation trigger, and kept search narration that
+  explains the answer.
+- `skill-authoring`: replaced the "injection failure semantics are undocumented" claim with the
+  documented failure, timeout, stderr, and output-size behavior, dropped the changelog-version
+  archaeology behind the `$`-free brace-group rule and the pre-v2.1.216 `name` history, and removed
+  the version pin from the re-render claim.
+- `boris`: removed the maintainer comment about the refactored form and the `when_to_use`
+  frontmatter key, whose phrases the description already carries.
+- `update`: removed the "do NOT auto-fire this skill" sentence, which `disable-model-invocation`
+  already enforces.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
+## [0.9.6]
+
+### Fixed
+
+- **`skill-authoring`: re-anchored the pre-v2.1.216 `name`-history claim to the changelog.** The
+  verification-loops reference stated "before v2.1.216 a frontmatter `name` replaced the whole
+  command name" on the skills page's authority, and the current skills page no longer carries that
+  history (it now records only the later v2.1.216 through v2.1.245 prefix-doubling quirk, fixed in
+  v2.1.246). The claim itself still holds; its basis moved. The sentence now cites the official
+  changelog's v2.1.216 entry verbatim with an as-of date and a recheck trigger, per the
+  marketplace's upstream-drift stamp discipline. Found by a live re-fetch of the skills page
+  (2026-08-31) during the frontmatter-alignment sweep.
+
+## [0.9.5]
+
+### Added
+
+- **`skill-authoring`: the precompute convention now records the `pipefail` question.** The file
+  said nothing about shell options, and the word appeared nowhere in `docs/`, so every author who
+  reached this convention had to rediscover the same thing: whether Claude Code runs `!` injections
+  under `set -o pipefail` decides whether a `guard && probe | filter | head -N || echo` shape is
+  correct or inverted, and the skills docs do not say. They specify the working directory, stderr
+  merging, timeout, output size and the exit-code semantics of an injected command, and name no
+  shell options. The new subsection states the question as open, states that the brace-group form
+  already prescribed above is correct under both settings, and names the two states that make the
+  `guard && pipeline || token` shape correct under only one: without `pipefail` a failed filter
+  stage renders empty because the pipeline's status is `head`'s, and with `pipefail` a healthy
+  at-cap render gains a spurious failure token because `head` closing the pipe SIGPIPEs the stage
+  upstream. It closes on the brace group's own price, that its final `:` makes the outer `||`
+  unreachable so a failure inside the group renders empty too, which is why the label must never
+  assert a bare `empty = none`. The section's recheck trigger now also fires when the docs begin
+  naming shell options. Documentation only; this is the fix that stops the next author
+  reintroducing the shape.
+
+## [0.9.4]
+
+### Changed
+
+- **`skill-authoring`: the precompute convention now states how the cap binds.** A new section
+  records that `||` applies to the whole pipeline, so a cap applied before it makes the fallback
+  unreachable, plus the two rules that follow and the no-`$` constraint that keeps a composed block
+  loadable from an isolated agent. Whole-repo extract-ssot sweep.
+
+## [0.9.3]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.9.2]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 3 reference files in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.9.1]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** `ai-slop-ignore` markers only, no
+  prose rewrites survived the semantic-diff guard: the boris orchestration spec
+  listings and a changelog entry mention "knowledge cutoff" as a factual model-spec <!-- ai-slop-ignore: names the spec field it documents -->
+  field, and the fable-5 debugging rules keep their quoted "what could possibly <!-- ai-slop-ignore: quotes the tell it documents -->
+  happen" discriminator and the "values and shapes, not just checkpoints" contrast,
+  both of which the guard ruled necessary to the meaning.
+
+## [0.9.0]
+
+### Added
+
+- **`fable-5`: named the worker-continuation mechanism (topic
+  `list-agents-send-message-plugin-fit`).** `context/orchestration.md`'s "worker already oriented
+  is cheaper than a fresh one" guidance now says how to continue one where a `SendMessage` tool
+  resolves: address the worker's agent ID, a completed worker auto-resumes without a new `Agent`
+  invocation, a user-stopped worker returns a refusal, and a "continue"-shaped parameter on the
+  dispatch tool spawns a second worker rather than resuming the first. Quotes verified 2026-08-24
+  against the sub-agents page (raw `.md` channel, latest release 2.1.241 at read time); recheck
+  trigger: a changelog entry touching subagent resume.
+
+## [0.8.10]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, playbooks cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The `fable-5` description keeps its em dashes so
+  skill-quality trigger preservation (check 3) does not treat apostrophe-bounded
+  spans as dropped triggers. Added `fable-5/evals/evals.json` so the rewritten
+  skill still satisfies `--require-evals`, and dropped that skill from
+  `scripts/evals-warrant-exemptions.txt`.
+
+## [0.8.9]
+
+### Changed
+
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.8.8]
+
+### Added
+
+- **`skill-authoring`: an authoring-time pointer to the cross-skill phrasing rule (#3002).** The
+  "Skill-tool composition" section now points at the invocation-mode rubric's
+  "Cross-skill invocation phrasing" section for how an operative hand-off is worded, and says the
+  rule is author-enforced rather than lint-enforced. Points, does not restate. The rubric stays
+  the single home.
+
+## [0.8.7]
+
+### Added
+
+- **`skill-authoring`: authoring-time pointer to the invocation-mode rubric (#2968).** The
+  Skill-tool composition section now routes the mode decision to
+  `docs/conventions/invocation-mode/README.md`, which owns the model-invoked default, the three
+  exception classes a `true` may claim, and the split-by-invocation question. It also notes that
+  `skill-quality:check` enforces the explicit key. Points, never restates.
+
+## [0.8.6]
+
+### Added
+
+- **`skill-authoring`: Skill-tool composition doctrine (#2940).** Melodic Software addition:
+  the Skill tool takes one skill per call (two skills → two calls); never Skill-tool-invoke a
+  `disable-model-invocation: true` target. Tell the user to run `/plugin:skill` instead.
+  Eval coverage extended.
+
+## [0.8.5]
+
+### Changed
+
+- Behavior-preserving simplifications from the repository-wide batch-simplify pass:
+  duplicated helpers folded, dead code and redundant constructs removed, no functional
+  change. Every group was verified by a fresh-context verifier agent against the
+  plugin's own test suite.
+
+## [0.8.4]
+
+### Fixed
+
+- **Repaired GitHub Actions skills anchor in Fable 5 verification context (#2137).** The
+  `#using-skills` fragment no longer exists on the target page; updated to `#run-a-skill`.
+
+## [0.8.3]
+
+### Changed
+
+- **`reference/model-adaptation/sonnet-5.md`: the `env-vars` provenance entry is re-verified against
+  a verbatim read, and one qualifier inside it is now flagged as uncorroborated.** The harness-side
+  thinking facts were sourced from a 2026-08-04 live fetch, back when `env-vars` could only be read
+  through a channel that truncates it. Read end to end on 2026-08-10 via the
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
+  both cited rows hold: `MAX_THINKING_TOKENS` still carries the Anthropic-API-versus-third-party
+  split, the Fable 5 exception, and the nonzero-ignored rule, and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` now states this file's central claim outright: "Has no
+  effect on Fable 5, Sonnet 5, or Opus 4.7 and later". The one part that did **not** re-verify is the
+  "from Claude Code v2.1.111" attribution: the page states no release for that variable at all. It
+  is flagged in place rather than deleted or quietly kept, because it is uncontradicted and
+  immaterial, since the exclusion holds on every version the page describes, and because a reader
+  owes the distinction between a claim re-read today and a claim carried forward. A recheck trigger is stated
+  where none was.
+
+## [0.8.2]
+
+### Changed
+
+- **`/playbooks:boris` gained typed trigger phrases.** Its `Use when` clause named topics
+  ("optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions") rather
+  than anything a user types, so the skill-quality gate found no trackable trigger.
+  `'how does Boris use Claude Code'`, `'Claude Code workflow tips'`, `'optimize my CLAUDE.md'`,
+  `'improve my Claude Code setup'`, `'parallel Claude sessions'` and `'hook ideas'` now front the
+  clause; the topic list is retained behind them. The vendored upstream baseline under
+  `skills/boris/vendor/` is untouched. This is the refactored hub's own frontmatter.
+
+## [0.8.1]
+
+### Changed
+
+- **`fable-5`'s "provided never means automatic" note: invocability scoped as a default, stamp
+  refreshed to 2026-08-10.** The note read "Since v2.1.215 `/verify` and `/code-review` run only when
+  you invoke them", stamped 2026-08-03. A recheck against the bundled-skills reference and the
+  shipped 2.1.223–2.1.226 clients found that exact for 2.1.215–2.1.224 but superseded from
+  **2.1.225**, where a runtime gate can re-enable model invocation, which makes the restriction the
+  default rather than a fixed version cutoff, so two clients on one version can differ. The note's
+  point is unchanged (provided is not automatic; check plan, version, and invocation expectations
+  before depending on these surfaces) and the correction sharpens it: version alone is no longer
+  sufficient to predict invocability. The stamp now names the client versions checked alongside the
+  pages, and the claim gains the observable recheck trigger the record was missing: a Claude Code
+  release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code
+  Review release note changing its plan or preview status. Touching a restatement of an
+  upstream-owned specific binds those parts (`docs/conventions/upstream-drift/README.md` §Adopters).
+- **A self-contradiction removed from the same sentence.** The line had read "run **only** when you
+  invoke them **by default**". `only` asserts an absolute and `by default` an overridable one,
+  which is precisely the distinction this entry exists to draw. It now reads "are user-invoked by
+  default", matching the two sibling sites.
+
+## [0.8.0]
+
+### Fixed
+
+- **`update`'s references to a pack's vendored baseline are pack-rooted** (`skills/<pack>/vendor/SKILL.md`).
+  Written bare, they read as paths under the `update` skill's own directory, which has no `vendor/`.
+
+### Removed
+
+- **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
+  declare a frontmatter `name`. The field is optional and defaults to the directory name, so
+  declaring it only restated the path while registering a second, unnamespaced command, which
+  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  namespaced command; the command itself is unchanged.
+
+## [0.7.2]
+
+### Fixed
+
+- **`boris`: the Quick Reference and both effort tips now match current model and effort facts.** The
+  Model row points at Fable 5 for the hardest and longest tasks, with Opus kept as the historical
+  Section 2 pick; the Planning row reflects Section 87 (auto mode plans implicitly on 4.6+) instead
+  of prescribing plan mode; and effort is set with `/effort`, not `/model`, over the current ladder
+  low/medium/high/xhigh/max with `high` the default (`xhigh` on Opus 4.7). The effort claim is
+  corrected in the Quick Reference and in Sections 17 and 34. Section 2 gains the pack's own supersession-note pattern
+  pointing at Section 94, leaving Boris's historical text intact.
+- **`boris`: the orchestration snapshot disclaimer now covers Section 94's specs sentence.** Model
+  id, context window, max output, and knowledge cutoff sat outside the framing that already covered <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
+  benchmark and pricing figures; they are verified still current 2026-08-08 against the models
+  overview, which owns them.
+- **`boris`: Section 113 no longer reads as retiring rule-writing.** What auto-memory replaces is
+  ad-hoc `#`-hotkey capture; encoding a correction as a durable CLAUDE.md or skill rule (Section 89)
+  is a different mechanism and still applies.
+- **`fable-5` and model-adaptation: one label convention, and `opus-4-8.md` catches up with its
+  siblings.** The chapters carried four different TRIGGER/RULE label forms and now carry one (bare
+  `LABEL:`, the form already used by two thirds of them); the check/skip decision states its
+  already-settled early exit outside a numbered four-rule precedence list, which its prose already
+  described but its bullets contradicted; and `opus-4-8.md` gains the `[CC: ...]` applicability
+  legend and per-claim tags both sibling files carry, a Thinking controls section (thinking is off
+  on Opus 4.8 unless the request sets `thinking: {type: "adaptive"}`), and the guide's
+  max-output-token budget guidance for `max`/`xhigh` runs.
+
+## [0.7.1]
+
+### Added
+
+- **`fable-5`: model-adaptation chapters made discoverable from the skill listing** (issue #1996
+  decision d). The skill description now names the per-model adaptation chapters (Opus 5,
+  Opus 4.8, Sonnet 5) with Opus 5 trigger phrases. Previously the chapters were reachable only
+  through a skill whose listing entry never mentioned them, so an Opus 5 consumer who had not
+  read the plugin docs could not find them. Description stays well under the documented
+  1,536-character listing truncation (verified against the Skills doc this session); aggregate
+  listing budget re-checked (1,801/8,000 chars).
+
+## [0.7.0]
+
+### Changed
+
+- **The worker-spec contract in `skills/fable-5/context/orchestration.md` is now five parts, not
+  four.** A new second part, *Why it is being asked*, carries the larger task the work feeds, who
+  the output is for, and what it enables. The chapter already opened by naming the exact blindness
+  this closes ("A worker sees none of your conversation, your accumulated findings, or your standing
+  instructions") and then specified only Objective, Output contract, Sources and context, and
+  Boundaries. Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", singles
+  out long-running agents drawing on multiple workstreams as where intent matters most.
+  - The failure mode is silent, which is why it earns a field rather than a sentence elsewhere. A
+    worker holding only an objective resolves each in-bounds ambiguity toward the sentence that was
+    written rather than the outcome that was wanted, and returns something well-formed and wrong.
+    That is the shape `skills/orchestrate` in the `session-flow` plugin already records from this
+    marketplace's own fan-out, where one of eleven audit workers silently audited a different
+    artifact and returned a confident, correct-looking result.
+  - The chapter's worked example now carries the reason too, so the Weak/Strong pair demonstrates
+    the new part instead of only the old ones.
+  - `skills/fable-5/SKILL.md`, the core-doctrine distillation of that contract, gains the same part,
+    keeping the one-home rule intact: the chapter owns the doctrine, the core line distills it.
+
+## [0.6.22]
+
+### Fixed
+
+- **`opus-5` model-adaptation chapter: four paraphrases restored to the guide's own strength**
+  (playbooks 0.6.21 → 0.6.22), found by a per-section adversarial conformance audit against the
+  byte-pinned guide. The review-findings section stated categorically what the guide hedges
+  ("makes you report less, withholding real findings" → the guide's "may follow that instruction
+  literally and report less", with the withholding mechanism attributed to the Sonnet 5 guide
+  that actually states it); the deliverable-length bullet dropped "often" (tendency became
+  constant); the effort paraphrase added an "only" the guide does not carry; and the scope
+  section reproduced only part of the guide's scope fence. The routine-judgment-calls sentence,
+  the "request seems mistaken" disjunct, and the finish-the-whole-task / stop-short clauses now
+  travel with it. The chapter's own quotation note names exactly this failure ("a behavioral
+  finding paraphrased loosely becomes a stronger claim than the card makes"); these were the
+  guide-sourced instances.
+- **`boris`: Tip 64's context-rot figure amended against the Opus 5 guide** (autonomy.md §64 +
+  the SKILL.md Quick Reference row). The tip's premise, that rot "kicks in around 300–400k tokens on
+  the 1M context model", is an Opus 4.7-era calibration; the Opus 5 guide states instruction
+  following, tool calling, and reasoning "stay consistent throughout the window". A dated
+  amendment blockquote (the same shape as §72's) records the correction and keeps the lowered
+  auto-compact window as a cost/compaction-timing choice; the routing row now carries the era
+  scoping. Vendored baseline untouched (drift-detection copy).
+
+### Added
+
+- **`opus-5` chapter: Vision section.** The guide's one correction-shaped Vision directive
+  ("Re-validate any prompt-side vision workarounds you tuned for prior models; they may no
+  longer be needed") plus its tools-before-thinking cost lever, previously the only
+  correction-shaped guide content the chapter did not carry; the thinking-disabled section also
+  gains the guide's tool-heavy-workload locality clause for the tool-call-leak artifact.
+
+## [0.6.21]
+
+### Changed
+
+- **`opus-5` model-adaptation chapter: the guide re-verification stamp advances to 2026-08-08**
+  (playbooks 0.6.20 → 0.6.21). A full-guide conformance audit of this repository re-fetched the
+  Opus 5 prompting guide through the same raw-`.md` channel and found it byte-identical to the
+  2026-07-25 capture (11,225 bytes, MD5 matching the corpus graduation pin), so every claim the
+  chapter sources from the guide stands unchanged; the Sources block's re-verification line now
+  records the later reading. No doctrine changes.
+
+## [0.6.20]
+
+### Fixed
+
+- **`fable-5`: the channel-authority worked instance assigned two terms three owning pages**
+  (playbooks 0.6.17 → 0.6.20). The section "The reference page defines; a vendor post corroborates"
+  says "the reference page that owns the term" and "the owning page" four times, all
+  singular-definite, and then its worked instance listed one plural set of three pages for two
+  terms, which no reading of the surrounding rule supports. Verified against the live pages
+  2026-08-05: the glossary carries the only heading-plus-definition of "verification loop"
+  (`### Verification loop`), which "How Claude Code works" does not mention at all; "How Claude Code
+  works" carries `## The agentic loop` and its three-phase definition, and the glossary's own
+  `Agentic loop` entry defers to it rather than restating it in full. "Best practices" owns neither
+  term: it has no loop heading, uses "verification loop" once descriptively, and points at "How
+  Claude Code works" twice. So it is dropped from the instance rather than rewritten. The worked
+  instance now assigns each term to the page that actually defines it.
+
+## [0.6.19]
+
+### Fixed
+
+- **`boris`: the Remote Control tip's plan list is amended against the live page** (playbooks
+  0.6.16 → 0.6.19), at `skills/boris/reference/advanced.md` section 35. The tip, sourced from a
+  March 2026 tweet, said Remote Control is "Available on Max, Team, and Enterprise (v2.1.74+)".
+  The live page now says the feature "is in research preview and available on all plans", and its
+  Requirements section reads "available on Pro, Max, Team, and Enterprise plans. API keys are not
+  supported. On Team and Enterprise, an Owner must first enable the Remote Control toggle".
+
+  The tweet's wording is preserved and a dated amendment blockquote carries the correction,
+  following the precedent already set at `reference/autonomy.md` section 72 for a tweet-sourced
+  claim that upstream has moved past. The tip stays a faithful record of what was said, and the
+  amendment owns what is true now. The blockquote points at the Requirements section rather than
+  restating it, naming the condition families it carries (authentication, API endpoint,
+  feature-flag evaluation, workspace trust) so a reader knows what they are being sent to read,
+  and carries a recheck trigger. `reference/*.md` files are hand-integrated distillations, not
+  generated output, and `scripts/update.sh` states that integration is manual, so the amendment
+  survives the next upstream sync.
+
+- **`fable-5`: the verification chapter's link text matches the page it points at** (playbooks
+  0.6.16 → 0.6.19), at `skills/fable-5/context/verification.md`. The bundled-skill roster citation
+  read "[Slash commands]"; that page's H1 is now "Commands". The URL was already correct, so only
+  the link text changed.
+
+### Changed
+
+- **`fable-5` model adaptation: the Opus 4.8 guide's dating record now reflects a re-read**
+  (playbooks 0.6.16 → 0.6.19), at `reference/model-adaptation/opus-4-8.md`. The Sources note said
+  the Opus 4.8 prompting guide "has not been re-read at all" since the 2026-07-06 fetch. It was
+  re-read 2026-08-04 and every assertion the file draws from it still holds: literal instruction
+  following at lower effort, strict effort adherence with `xhigh` for coding and `high` as the
+  intelligence-sensitive floor, reasoning favored over tool calls, fewer subagents by default,
+  regular native progress updates, response-length calibration, and the code-review-harness recall
+  effect with coverage-before-filtering as the remedy. The note now records the re-read date and
+  the no-material-drift finding instead of an absence.
+
+## [0.6.18]
+
+### Changed
+
+- **`boris`: the orchestration reference's snapshot note now covers its pricing figures** (playbooks
+  0.6.17 → 0.6.18). The
+  header note classified only benchmark figures (Sections 78 and 94) as launch-day snapshots,
+  leaving Section 94's Fable 5 price literals and Sections 78/95's relative price claims readable
+  as current rates. The note now classifies pricing figures (Sections 78, 94–95) the same way, as
+  launch-day rates verified still current against the live pricing page 2026-08-04, and routes
+  current-rate resolution to the upstream
+  [pricing](https://platform.claude.com/docs/en/about-claude/pricing) page. No figures added or
+  removed; the vendored upstream mirror is untouched.
+
+## [0.6.17]
+
+### Changed
+
+- **`fable-5`: meta-rule 3 no longer treats the arm-time model resolution as permanent** (playbooks
+  0.6.16 → 0.6.17). The rule resolved the running model once, at arm time, and routed it to its
+  `reference/model-adaptation/` file. The Claude Fable 5 & Claude Mythos 5 system card documents a
+  case that assumption misses: Fable 5's safeguard classifiers, which cover cybersecurity, biology
+  and chemistry, distillation, and frontier LLM development, do not merely refuse. They re-serve the
+  request with the latest Claude Opus model, and the card states the behavior is "not configurable"
+  on some Claude interfaces (§1.5). Nor is it reliably per-request: 20.9% of Fable 5 Terminal-Bench
+  trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3). Fallback is common
+  across the capability suite, and §8.1 attributes Fable's lower scores to it generally, but §8.3 is
+  the card's only statement about how long a fallback lasts, and it does not say whether the
+  persistence comes from the fallback mechanism or from how that harness continues after a refusal.
+  So the rule claims only that a fallback can outlive the request that tripped it, which is enough
+  to make a one-time model resolution unsafe.
+
+  So a session that armed as Fable 5 can be answered by Opus 4.8 from a classifier hit onward while
+  still running Fable-calibrated deltas. The plugin already ships the right chapter for that
+  model, `opus-4-8.md`, with nothing routing anyone to it. Meta-rule 3's own warning that deltas are
+  calibrated per model version is what makes the gap bite.
+
+  **The line is phrased on the signal reaching the session, not on the model noticing.** The card
+  describes three fallback signals and names a recipient for only two: the client-app user
+  notification and the Messages API response-object field. The third is "A session event is emitted
+  whenever fallback occurs," recipient unstated. Nothing in the card says the re-served model can
+  observe the switch, so the rule says the signals are addressed to the surface rather than to the
+  model, triggers on any in-context evidence of fallback (a relayed notice, the user saying so, a
+  surfaced session event), and names the residual case, a fallback no signal ever surfaces into
+  context, as undetectable from inside the session and the surface's to close.
+
+  **Scope held to what the card states.** The card does not name which interfaces have
+  non-configurable fallback, so the rule names none. In particular it does not claim Claude Code is
+  one of them. The classifier list, the non-configurability, and the trajectory-scoped behavior are
+  the card's own statements about Fable 5's deployment, not Mythos 5 measurements restated as Fable
+  5 properties.
+
+  No other chapter changed. The card's per-model behavioral results are model-version facts: MASK,
+  missing-context hallucination, GUI overeagerness, overconfidence. `SKILL.md` already
+  confines those to `reference/model-adaptation/`, which carries no `fable-5.md` by design because
+  Fable 5 is the model the playbook was authored by and for.
+
+## [0.6.16]
+
+### Added
+
+- **`skill-authoring`: a spoke on verification loops in skills** (playbooks 0.6.15 → 0.6.16), at
+  `reference/verification-loops-in-skills.md`, reached from one new SKILL.md section. It answers
+  three questions the upstream playbook leaves open once a skill's job is checking work rather than
+  producing it.
+
+  **Three creation routes, not two.** Anthropic's verification-loops blog post offers hand-writing
+  and the `skill-creator` plugin. The platform's skill-authoring best-practices page documents a
+  third, asking Claude directly, and explicitly disclaims needing a dedicated skill-writing skill.
+  The spoke ranks it ahead of the plugin the post reaches for first, on the narrow ground that it
+  needs no install, not on any claim that the plugin is undocumented. Creation via `skill-creator`,
+  including the interview flow, is documented first-party by that plugin's own README and
+  `SKILL.md`, which carries an "Interview and Research" step; the harness *skills page* is what
+  covers only the eval loop.
+
+  **The plugin invocation is written namespaced, for a narrower reason than it appears.** The post
+  shows a bare `/skill-creator`. Both the plugin-namespaced and directory-scoped forms bare-resolve;
+  the difference is that the plugin one is **conditional**: the bare name also invokes the skill
+  unless another command already uses that name, and a plugin copy and a same-named original both
+  stay reachable rather than one overriding the other. So the qualified form is preferred because it
+  is unconditional, not because the bare one fails. Recorded as current behavior: before v2.1.216 a
+  frontmatter `name` replaced the whole command name.
+
+  **Shadowing is a documented third route the post omits.** The post rules bundled and
+  plugin-managed skills off-limits for embedding a check, leaving chaining as the only alternative.
+  A same-name skill at project or personal level *replaces* a bundled one. The spoke presents it
+  with its actual semantics: replace, not extend, so you inherit the whole behavior and stop
+  receiving upstream improvements. That is the trade against chaining.
+
+  **Embed-failure diagnosis leads with the documented cause.** When an appended check silently does
+  not run, the platform's answer is insufficient prominence or wording, and a linked step may need a
+  more explicit reference. The post instead attributes it to the skill's description or earlier
+  instructions; no reference page states that, so it is carried as a second hypothesis. Leading with
+  it sends readers to the frontmatter when the documented cause is usually the body. The spoke also
+  separates this failure from a skill that never surfaced at all, which is a different failure with
+  a different remedy (`/discipline:use-your-skills`).
+
+## [0.6.15]
+
+### Fixed
+
+- **`fable-5` orchestration: continuing an oriented worker is no longer sold as a cache read**
+  (playbooks 0.6.14 → 0.6.15). The "keep working while workers run" chapter told readers to
+  continue a worker that already holds a subject rather than spawn a replacement, and grounded it
+  in cost: "accumulated context is a cache read rather than a re-derivation". The mechanism fails
+  in the chapter's own modal case. Claude Code's prompt-caching page states that a subagent
+  "builds its own cache" and that "Subagents use the five-minute TTL even on a subscription, since
+  the automatic one-hour TTL applies to the main conversation". So a worker resumed after a wave
+  that ran longer than five minutes re-writes its whole accumulated context at the five-minute
+  cache-write rate ("1.25 times the base input tokens price"), not the cache-read rate, and
+  fan-out waves routinely run longer than five minutes.
+
+  The recommendation survives unchanged; its reason is corrected. The saving is the re-derivation,
+  not the tokens: a continued worker re-sends its accumulated context either way, and it still
+  beats a replacement, which pays those same tokens *plus* the tool turns to rediscover the
+  material. The bullet now says that, names the five-minute subagent TTL as the reason a resumed
+  worker often pays the higher rate, and cites
+  <https://code.claude.com/docs/en/prompt-caching#subagents-and-the-cache> (verified 2026-08-04).
+
+## [0.6.14]
+
+### Changed
+
+- **`fable-5` calibration: the per-model matrix rule's authority now carries a custody record**
+  (playbooks 0.6.13 → 0.6.14). The "Point at a per-model matrix; never copy one" rule names
+  [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting)
+  as the authority on what each model accepts, defaults to, and rejects, and the rule directly below
+  it mandates a re-check trigger for any matrix a reader acts on. The worked instance carried such a
+  trigger with nothing to re-check *against*: the citation was dated but never captured, so a later
+  reader could re-read the page and still not know whether it had moved.
+
+  The rule's citation now carries the capture: 12,544 B, MD5 `dc994aa9…`, fetched 2026-08-04. It
+  says plainly that it dates continuity **forward and claims none backward**, because this is the
+  first byte-level capture of the page here and no earlier hash exists to compare with. The Mythos 5
+  worked instance keeps its 2026-08-03 verification; what changed is that its re-check trigger now
+  states which half is current as of when. The matrix page was re-read 2026-08-04 and the Mythos 5
+  row still reads as described; the introducing-page quote and the local registry reading are still
+  2026-08-03 snapshots, and the trigger says so rather than dating the whole instance to one day.
+
+- **The instance's verified negative names its own scope.** It rested on the matrix page carrying
+  "no access-availability signal", parenthetically supported by "its only availability language, a
+  zero-data-retention note". The page does carry a second availability sentence, a pointer to the
+  Claude 4 model deprecations, which does not weaken the negative (it concerns different models)
+  but did leave an absolute claim standing next to a literal counterexample. The parenthetical now
+  scopes itself to the two models under discussion and names the other pointer, so the negative is
+  falsifiable on its own terms.
+
+## [0.6.13]
+
+### Added
+
+- **`sonnet-5.md`: a model-adaptation chapter for the tier this repo delegates to most.**
+  `reference/model-adaptation/` carried `opus-5.md` and `opus-4-8.md`, and meta-rule 3's fallback for
+  a family with no chapter is to read none at all, a fallback that named Sonnet by name. That left the
+  model this repository routes mechanical fan-out and wide reads to running the playbook with no
+  counter-steers, and the routing that sends work there commonly pairs `model: sonnet` with a low
+  `effort` value, which is precisely where the Sonnet 5 guide says the risk sits: at `low` and
+  `medium` the model scopes work to what was asked, and "on moderately complex tasks running at
+  `low` effort there is some risk of under-thinking". A worker in that configuration was the one
+  reader guaranteed to get no adaptation chapter.
+
+  The chapter follows the sibling pattern: conditional preamble, `[CC: …]` applicability tags,
+  your-default/correction sections, a Sources block with capture provenance. Its deltas: effort
+  strictness and the raise-effort-don't-prompt-harder correction; literal scope interpretation, in
+  both the reading and the authoring direction; adaptive thinking with no budget dial, plus the
+  harness-side thinking facts and the `max_tokens`/new-tokenizer interaction; tool reach and its
+  coupling to thinking being disabled; native progress updates; coverage-before-filtering on review
+  work; response-length calibration; the design-brief default and the propose-options break for it;
+  and front-loading the specification on interactive coding work.
+
+  **Why a chapter rather than the deferral previously recorded.** The earlier recommendation was not
+  to mint a standalone Sonnet-5 *skill*, and it deferred to a then-open question about where
+  per-model doctrine should live. ADR-0007 has since settled that: chapters live at plugin level
+  under `reference/model-adaptation/<model-version>.md`, and two ship there. A chapter is the
+  settled home, not a new surface, so the deferral's blocking premise is closed and the decision is
+  re-derived rather than inherited.
+
+### Changed
+
+- **Meta-rule 3 routes Sonnet 5 to its chapter.** `skills/fable-5/SKILL.md` gains `sonnet-5.md` in
+  the version enumeration, and its no-chapter-family example narrows from "Sonnet or Haiku" to Haiku
+  alone. Both halves of that sentence had to move together. Leaving the parenthetical would have
+  told a Sonnet 5 session to read no adaptation chapter while the enumeration two clauses earlier
+  named its file.
+- **`opus-4-8.md`'s preamble now routes generically instead of naming siblings by filename**,
+  matching `opus-5.md`, which already did and needed no change. Naming them was the coupling that
+  made each new chapter edit its predecessors; the note now says to route to your own file under
+  `model-adaptation/` without enumerating which files exist.
+
+## [0.6.12]
+
+### Added
+
+- **`opus-5.md` §"Stated facts: more accurate and more confidently wrong at once".** The system
+  card's headline honesty finding is a two-way move: Opus 5 is more accurate than Opus 4.8 *and*
+  hallucinates factual claims slightly more, with "a surprising number of cases" of confidently
+  stating an answer it was unsure about (card p. 3; closed-book breakdown p. 107: accuracy 11%
+  higher, hallucination rate 6% higher). A higher hallucination rate is more confident wrong answers
+  per question asked whichever way the aggregate nets out, and a user sampling individual claims
+  meets that rate rather than the aggregate. Counter-steer: a factual specific stated with no tool
+  call behind it in-session is a recall claim, not a finding. Verify it or label it. The direction
+  of the net score is deliberately NOT asserted: the card says only that 0.49 "places it in between
+  Opus 4.8 and the two Mythos models", which does not say which way that is.
+
+  The section exists largely to FENCE the neighboring §"Verification" delta. That section removes
+  instructed self-re-checks; read broadly it would strip exactly the lookups this finding says are
+  needed more. They divide by subject, re-checking work you did versus the provenance of a fact
+  you assert, and the section says so explicitly. It also refuses the tempting inference that
+  Opus 5 abstains less: the card says only that abstention is "closer to Mythos 5 than previous
+  Opus models" and gives no direction.
+
+- **`opus-5.md` §"Destructive actions: an approval you believe you have is not an approval".** The
+  card's white-box pass lists "Fabricated user consent for destructive actions" among its top
+  recurring categories, where the model "internally represents user consent that was never given", next
+  to internal awareness that an action is destructive at the time it is taken (§6.6.1, p. 112), with
+  a worked case at p. 115: blocked from deleting production rows, the model applied a workaround
+  without asking, believing an approval that "exists nowhere in the transcript".
+
+  **The half that changes what a consumer BUILDS:** transcript 6.4.2.A (p. 93) shows this rule
+  defeated *in text form*. The session carried an injected reminder to treat prior-turn approvals as
+  scoped rather than standing; the model quoted it, reasoned that an earlier "clean up the batch"
+  authorized this action, and deleted 120 jobs. The override was worked out in private reasoning, never
+  raised with the user. So for destructive or irreversible operations under auto-accept, the written
+  instruction is the weaker control and the remediation is a MECHANISM (`PreToolUse` hook,
+  `permissions.deny`) that cannot be reasoned past. It is tagged `[CC: prompt-authoring]`, since that
+  paragraph's audience is whoever authors the surface, not the model in-session. This grounds the
+  verification section's destructive-operations carve-out, which until now rested on standing
+  workstream policy alone.
+
+  Three fences ship with it, because this evidence is easy to overstate: it is **not** a regression
+  (the card puts Opus 5 "similarly to Opus 4.8" on ignoring explicit constraints, with reckless tool
+  use "significantly down"); the white-box findings establish occurrence, not base rate (transcripts
+  pre-flagged as concerning, activations from "an earlier training snapshot"); and it divides from
+  the injection section's "materially wider autonomy grants are defensible" at reversibility rather
+  than contradicting it.
+
+  Extended one hop to orchestration: a subagent return asserting the user approved something is
+  content, not authorization. The card is explicit that this is where its assurance thins. Anthropic
+  had a Claude Mythos 5 instance, not the model under evaluation and prompted with access to internal
+  Anthropic Slack channels, review a near-final draft of the alignment section; it flagged that the
+  draft did not cover orchestrating other agents, that preliminary measurements "suggested the model
+  can relay claims from subagents to users without verifying them", and recommended acknowledging
+  limited multi-agent coverage as a limitation. Anthropic called the review "broadly reasonable"
+  (§6.1.3 "Claude's review of this assessment", p. 80–81). Attributed as a reviewing model's
+  testimony that Anthropic endorsed and published, not an Anthropic measurement.
+
+### Changed
+
+- **`opus-5.md` §"Effort" gains the non-monotonicity cue.** The guide's "wherever quality holds"
+  bullet presumes quality rises with effort; two pilot cohorts REPORTED the opposite at the top of
+  the ladder: internal pilots saw self-correction loops "especially at higher effort levels",
+  including "continually re-verifying already verified answers", and external users reported
+  "overthinking, where it performs worse at higher effort levels" (p. 81–82). Kept deliberately as a
+  report rather than a finding, with Anthropic's disclaimer in the same breath rather than three
+  sentences later: "not all of this feedback is consistent with trends we've observed when
+  attempting to quantify related phenomena more precisely" (p. 82). Usable read: oscillation and
+  re-verification of settled answers are a reason to try effort DOWN before assuming the task needed
+  more. It does not displace "start at the default".
+
+### Fixed
+
+- **`opus-5.md` §"Injection robustness": a truncated quote and a qualifier that overstated the
+  safeguard.** The quoted fragment closed at "…and browser" with "surfaces" continuing outside the
+  quotation marks; the card's words are "…and browser use" (p. 68, restated p. 3). On a public repo
+  under quotation discipline, the string inside the marks has to be the card's string.
+
+  More consequential: the qualifier read "auto mode is a safeguard of Anthropic's Chrome-connector
+  products", which supports the reading that the 0%-of-129-browser-scenarios result applies by
+  default wherever a Chrome connector is involved. The card states auto mode as **available** across
+  those products and reports every figure with it **enabled**, and shows a Cowork instance running
+  "even if not using auto mode" (p. 77). The section now says the 0% is evidence about a
+  configuration rather than about the model, carries the nonzero unsafeguarded rates (browser
+  3.70%/4.30%, coding 0.56%/0.41%, computer use 0.54%/0.39%), and states the operator action:
+  confirm auto mode is on before widening a browser session's autonomy on the strength of it.
+
+- **`opus-5.md` Sources: the system card re-read is now recorded.** The block previously stated the
+  card "has not been re-read". It was re-fetched 2026-08-04 by following
+  `https://www.anthropic.com/claude-opus-5-system-card` to the `www-cdn.anthropic.com` PDF it
+  redirects to (the card is in neither docs `llms.txt`, so that redirect is its only discovery
+  path), and is byte-identical to the captured snapshot: 15,994,568 bytes, SHA-256
+  `897768f0…f91ca472`. On the deferred routing-lane trigger, byte-identity proves only that the
+  card itself still records neither the bug-bounty update nor a Haiku measurement. Both could
+  publish in a separate channel, so a trigger check reads those channels, not the hash. The
+  quotation note now covers the card fragments too, with the reason they stay verbatim:
+  "slightly more" and "similarly to Opus 4.8" are exactly the qualifiers a loose paraphrase drops.
+
+## [0.6.11]
+
+### Added
+
+- **`opus-5.md`: the half of the guide's "Self-correction" section the chapter never carried.**
+  `reference/model-adaptation/opus-5.md` took that section's first paragraph, that you already
+  self-correct so instructed re-checks are cost with no gain, into §"Verification", and stopped
+  there. The section's second half describes a distinct behavior: Opus 5 *narrates* corrections to
+  its earlier statements more than prior models do. That is the same shape as the chapter's other
+  deltas (a behavior that runs hotter than prior models and needs a counter-steer), so its absence
+  was a gap by the chapter's own inclusion standard, not payload discipline. New §"Correction
+  narration: fix the slip, announce only what changes a decision" states the counter-steer: correct
+  an earlier statement when the error would change the user's code, conclusions, or decisions; for a
+  slip that changes nothing, make the fix and move on.
+
+  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighboring
+  narration-*cadence* bullet is `[CC: harness-covered]`, so the same check ran here against a live
+  session system prompt: Claude Code states update cadence, outcome-first ordering, and faithful
+  outcome reporting, but carries no rule about narrating corrections, so this one is not covered
+  and does not restate the harness.
+
+  **The section is fenced against the reading that would make it harmful.** Suppressing a
+  correction is licensed only where the correction changes nothing for the user; faithful reporting
+  explicitly outranks it, and a failed test, a skipped step, a wrong result already acted on, or a
+  false claim all still get said. The authoring half is split out as `[CC: prompt-authoring]` and
+  scoped to user-facing products, keeping the guide's suppression instruction off surfaces where
+  the user is the operator of the work.
+
+- **A re-verification line on `opus-5.md`'s Sources block**, scoped to the Opus 5 prompting guide
+  only: re-fetched 2026-08-03 through the raw-`.md` channel, byte-identical to the 2026-07-25
+  capture (11,225 bytes, identical MD5). It states its own limits rather than letting one date
+  cover five sources. The system card and the three live-fetched harness/model pages have not been
+  re-read and still stand at 2026-07-26.
+
+## [0.6.10]
+
+### Changed
+
+- **`fable-5`'s Mythos 5 worked instance gains its custody record.**
+  `skills/fable-5/context/calibration.md` §"Point at a per-model matrix; never copy one" carried the
+  instance as two observations: Claude Mythos 5 has a row in the thinking per-model table, and in
+  Claude Code it is a known registry entry that is nonetheless unselectable. Both are true and
+  neither says *why*, so the instance read as a local curiosity, and a reader with no way to
+  account for the gap has no reason to trust it next time. The vendor states the reason, one page
+  away from the matrix and never on it: "Claude Mythos 5 is not generally available: it is offered
+  in limited availability to approved customers in Project Glasswing" ([Introducing Claude Fable 5
+  and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03, HTTP 200).
+
+  That sentence is added as the instance's third leg, which is what turns it from one session's
+  registry reading into three sources agreeing: the matrix shows the row, the availability page
+  states the gate, the local registry shows the gate closed here. Both halves of the gap were
+  verified the same day rather than assumed: the matrix page carries the Mythos 5 row and no
+  access-availability signal (its only availability language, a zero-data-retention note, covers
+  both models identically), which is the negative the instance's whole point rests on. The section's own rules are
+  honored in the edit: one pointer, one quoted sentence, one date, and none of the page's models
+  table, specs, or pricing copied across, because a chapter that forbids pasting a per-model matrix
+  cannot paste one to prove the point.
+
+## [0.6.9]
+
+### Fixed
+
+- **`fable-5`'s late-session decay response could be triggered by a number, which is the
+  behavior the guide it is built from tells you to suppress.**
+  `skills/fable-5/context/context-economy.md` §"Detecting late-session quality decay" lists three
+  behavioral tripwires and then escalates to "hand off: write the resume note and tell the user a
+  fresh session will outperform continuing". Nothing said a remaining-context count is not one of
+  those tripwires, so the cheapest signal to notice, a countdown or a percentage, could enter the
+  ladder in place of the three that actually measure decay. The section now carries a fourth
+  bullet naming the number as a **non**-signal and bounding what it governs: only the ladder that
+  follows it, never the success-path reset earlier in the chapter, a stop the user asked for, or
+  an operator mechanism that gates on the window. Each of those keeps its own trigger untouched.
+
+  Sourced from the guide's "Rare cases of context-budget concern", re-fetched and byte-identical
+  on 2026-08-03: the failure it describes is a session wound down early because a count looked
+  low, and the remedy it offers is a reassurance, not a new stopping rule. The chapter's
+  thinking-cost material is deliberately untouched. It concerns what a long session *costs*, not
+  when to end one, and the two were never in tension.
+
+  **The bullet governs your own initiative and nothing else**, and that scope is required rather
+  than decorative. Sibling plugins in this marketplace deliberately gate on the window: a
+  context-zone hook, a retro that shortens past a threshold, a workflow step that hands off when
+  context grows heavy. An absolute rule here would contradict every one of them for any
+  consumer who installs both, which is exactly the cross-surface conflict `audit-instructions` I15
+  reports. So the bullet defers to an instructed stop under meta-rule 1: the user, operator
+  configuration, and the project's own conventions already outrank this playbook, and a mechanism
+  built to gate on the window is doing what it was built to do. What remains is the failure the
+  guide actually describes: winding down unprompted because a number looked low.
+
+### Added
+
+- **`fable-5`: the assessment-versus-change gate the model-adaptation chapter already pointed at
+  but no chapter held.** `reference/model-adaptation/opus-4-8.md` names "Assessment vs change" as
+  a Fable behavior to emulate and routes the reader to "(Communication chapter.)", which had no
+  such section. `skills/fable-5/context/communication.md` now opens with
+  §"Assessment is a deliverable; a fix is a different one", stating what the pointer promised: when
+  the user describes a problem, asks a question, or thinks out loud, the deliverable is the
+  assessment; offer the fix rather than apply it. It covers the artifacts left behind unasked
+  (branches, backups, drafts) and the evidence bar before a state-changing command, and states its
+  own precedence: it runs *before* §"Decide, or ask", which allocates a choice once a change is
+  already in scope rather than deciding whether one was requested.
+
+- **`fable-5`: non-blocking orchestration.** `skills/fable-5/context/orchestration.md` gains
+  §"Keep working while workers run". The chapter specced workers well and adjudicated their
+  returns, but every path through it read dispatch-then-wait: the closest existing line
+  ("a wave of four costs roughly one worker's wall-clock") is about workers running concurrently
+  with *each other*, never about the orchestrator continuing. The new section takes the guide's
+  "Parallel subagents" posture directly: dispatch is not a blocking call, check a running wave
+  against the drift signals rather than waiting it out, and continue an already-oriented worker on
+  a shared subject instead of respawning one to re-read the same material, with the fresh-context
+  verifier carved out because holding no context is its entire value.
+
+- **`fable-5`: a bound on defensive over-building.**
+  `skills/fable-5/context/execution.md` gains §"Build for what can happen, not what cannot".
+  §"Smallest correct change vs. right design" governs escalating *to* a redesign and
+  §"Scope fencing" governs absorbing adjacent problems, but neither reaches the guard, layer, or
+  option added inside the requested change: validation on internal callers and framework
+  guarantees, cleanup around a bug fix, an abstraction ahead of its second caller, a flag or
+  compatibility shim where changing the code is available. The guide files this under higher
+  effort specifically, so the section says so. The more room there is to deliberate, the more
+  defensible each unrequested addition looks from inside. The cleanup clause defers explicitly to
+  §"Scope fencing"'s absorb bar, in the section and in its core-doctrine line, so the two never
+  issue contradictory instructions for a qualifying in-file, under-two-minute, behavior-preserving
+  cleanup.
+
+- **Core-doctrine lines for all four**, in `skills/fable-5/SKILL.md`. Chapters load at their
+  triggers; the core doctrine is what a bare-armed session carries. Three of these four fire
+  before their chapter's trigger plausibly would: an unrequested fix lands before any
+  turn-ending message is composed, and a context count is noticed before a long-session read. So
+  chapter-only placement would have shipped them where they cannot act.
+
+- **A re-verification line on `reference/model-adaptation/opus-4-8.md`'s Sources block**, scoped to
+  the Fable 5 guide only: re-fetched 2026-08-03, byte-identical to a 2026-07-29 capture. It states
+  its own limits rather than letting one date cover both guides. No comparison against the
+  2026-07-06 reading exists, and the Opus 4.8 guide has not been re-read at all.
+
+## [0.6.8]
+
+### Fixed
+
+- **`fable-5`'s fresh-context verification trigger had no scope, so it fired on the
+  bookkeeping about the work as readily as on the work.**
+  `skills/fable-5/context/orchestration.md` §"Fresh-context verification" triggers on "any
+  multi-file edit batch" and "before declaring any multi-part task complete", conditions a
+  batch of ledger, checklist, and status-row edits satisfies as fully as a batch of source
+  files. Observed in a real campaign: verifiers were spawned to verify process records, and
+  then to verify the records those verifications produced, so the process fed itself and the
+  ceremony outgrew the work. The section now carries a scope qualifier on the trigger, where
+  the misfire happens: the trigger ranges over what a consumer receives, meaning code, docs someone
+  reads, and config, while memory-tier bookkeeping and process records take the in-context floor
+  and stop there, however many files a batch of them touched, because a record's blast radius
+  is the session that reads it. The recursion stop is stated explicitly rather than left to
+  follow: **never spawn a verifier to verify a record OF a verification**. The record is
+  downstream of an already-verified artifact, so verifying it re-verifies nothing and each
+  pass produces another record to verify.
+
+  `context/verification.md` is deliberately untouched: its "Adversarial self-review" section
+  already scales depth with blast radius and already points at this section as the owner of
+  the gate and its exception, so the pointer is the wiring and prose there would be a second
+  copy of one rule.
+
+## [0.6.7]
+
+### Added
+
+- **`fable-5` calibration gains the per-model-matrix rule.**
+  `skills/fable-5/context/calibration.md` adds "Point at a per-model matrix; never copy one",
+  triggered when a per-model table of supported values, defaults, capabilities, or limits is about to
+  be written into a chapter, rule, brief, or answer. It is a **volatility** axis, distinct from the
+  surface axis and the channel axis the neighboring sections own: a table reads as a fact and is
+  actually a snapshot, so a copy is a fact about the day it was copied with nothing in it saying
+  which day that was. The rule is point-at-the-owning-table, and for thinking configuration that
+  table is the per-model table on [Troubleshooting
+  thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting), the
+  authority on what each model accepts, defaults to, and rejects (re-fetched 2026-08-03, HTTP 200).
+  A matrix stated anyway, because the reader cannot act without the values in front of them,
+  carries a **re-check trigger naming the next model release**, so a stale row is found by a
+  scheduled read rather than by a reader acting on it. The fourth rule connects the section to its
+  neighbor: a vendor matrix is an API-surface fact, so presence in the table is not reachability
+  where the reader is running.
+
+  The worked instance ships with it, verified 2026-08-03 on both sides. **Claude Mythos 5 has its
+  own row in that per-model table**, and in Claude Code it is a known model in the registry with
+  full gating machinery and still not selectable: no alias resolves to it, it is absent from
+  `latest_per_family`, it declares no capabilities, and it exposes no picker row; its registry entry
+  carries **exactly one non-null provider id (`first_party`) beside seven null siblings**. Reading
+  that row as an available option would be the copy error and the surface error at once, and the
+  table gives no signal that the two answers differ. The seven-null figure is stated at the
+  corrected count: an earlier reading of the same registry entry put every provider id null and
+  counted eight, which the schema disproves: `first_party` is non-nullable and exactly seven
+  siblings are nullish. `skills/fable-5/SKILL.md` carries the distilled line under core doctrine,
+  "Ground truth and checking. Calibration".
+
+## [0.6.6]
+
+### Added
+
+- **`fable-5` verification gains the provided verification surfaces table.**
+  `skills/fable-5/context/verification.md` adds "Know what already verifies before you build a
+  check", triggered when a project is about to get a custom check rather than a one-off probe. Six
+  surfaces are mapped to their own reference pages, pointer-not-copy, and presented as **spanning
+  three products** rather than one feature list: the harness (`/verify`, toolchain signals,
+  project build and test commands in CLAUDE.md), a managed review service (Code Review), CI
+  (a GitHub Actions job invoking Claude with a verification skill), and a separate platform API
+  product (rubrics in Claude Managed Agents, whose grader runs in its own context window and hands
+  failures back for rework). The two items with no harness artifact stay **rows** rather than being
+  dropped to prose, because an item the source lists and nothing implements is the most useful
+  thing the table records: spec validation, verifying each change against a markdown spec, is **a
+  pattern, not a shipped artifact**, its Canonical-page cell says so and routes to the repo-local
+  skill mechanism, and its absence ships as an as-of claim (checked 2026-08-03 against the
+  bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Slash
+  commands](https://code.claude.com/docs/en/commands)) with a recheck trigger on a release note
+  adding one; and Managed Agents rubrics belong to **a different product**, so the in-session
+  equivalent is a construction you assemble (a fresh-context subagent as grader) reached through
+  the bundled `/claude-api managed-agents-onboard` skill. The section closes on **provided never
+  means automatic** (the surfaces span bundled prompt-based skills and a hosted service, and the
+  official docs reserve "built-in" for CLI-coded commands): since v2.1.215 `/verify` and `/code-review` run only when invoked, and Code
+  Review is research preview, limited to Team and Enterprise, unavailable under Zero Data
+  Retention, and enabled per repository by an Owner
+  ([Skills](https://code.claude.com/docs/en/skills#bundled-skills), [Code
+  Review](https://code.claude.com/docs/en/code-review)). Every page in the table was re-fetched
+  2026-08-03, HTTP 200.
+
+- **`fable-5` calibration gains the channel-authority rule.**
+  `skills/fable-5/context/calibration.md` adds "The reference page defines; a vendor post
+  corroborates", a **channel** axis distinct from the surface axis the neighboring section owns:
+  a vendor's own blog or launch post is first-party and still not the authority on what a term
+  means, because it is written once and never revised while the page owning the term is maintained
+  against the behavior it describes. The rule is cite-the-owning-page, pointer-never-copy, and
+  read the page even when the post's definition looks complete, since omission is invisible from
+  inside a summary. The worked instance ships with it: "verification loop" and "agentic loop" are
+  owned by the [glossary](https://code.claude.com/docs/en/glossary), [How Claude Code
+  works](https://code.claude.com/docs/en/how-claude-code-works), and [Best
+  practices](https://code.claude.com/docs/en/best-practices), and the glossary entry carries what a
+  post-length definition drops: a verification loop is the **prerequisite** for `/goal`,
+  unattended runs, and dynamic workflows, so the short definition leaves a reader right about the
+  concept and unaware that three capabilities depend on it (verified 2026-08-03).
+  `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Ground truth and
+  checking. Calibration".
+
+### Changed
+
+- **`fable-5` orchestration records the second rationale for decomposing.**
+  `skills/fable-5/context/orchestration.md`, section "Decompose by context, not by headcount",
+  previously justified decomposition on context economy alone. It now records **output
+  consistency** beside it: a worker holding one focused subtask makes fewer inconsistency errors
+  across scaled workflows than one holding the whole job ([Increase output
+  consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency),
+  verified 2026-08-03). The operational consequence is stated as a tiebreak: a piece too small
+  for context economy to justify the spawn can still be worth spawning for consistency across a
+  large set. The rationale is deliberately **mechanism-agnostic**: subagent delegation, a dynamic
+  workflow, and a `claude -p` fan-out all realize the same partition, and the choice belongs to the
+  delegation decision, not to the reason for decomposing. Recorded in exactly one place: the
+  planning and context-economy chapters already route delegation to that chapter rather than
+  restating it, and no distilled line is added, so the rationale has one home rather than two.
+
+## [0.6.5]
+
+### Changed
+
+- **`fable-5`'s per-model adaptation chapters move out of the skill to plugin level.**
+  `skills/fable-5/context/model-adaptation/{opus-4-8,opus-5}.md` become
+  `reference/model-adaptation/{opus-4-8,opus-5}.md`; chapter contents are unchanged. Two forces
+  drove it. The old host was named after a model with **zero** chapters in it: the directory's
+  entire contents are deltas for *other* models, because Fable-5 doctrine is the skill's twelve
+  `context/` chapters and the adaptation directory exists for models that are not Fable 5. And the
+  old address sat inside a skill's private surface as `docs-hygiene:audit-encapsulation` defines it
+  (any path into a subdirectory under a skill other than `scripts/`), so every consumer citing a
+  chapter committed a **fresh** violation, one per consumer, with duplication, which this
+  repository's documentation doctrine forbids, as the only alternative. A plugin-root directory is not
+  inside any skill, so the private-surface rule does not engage at the new address; the derivation
+  is that the rule does not reach plugin-level directories, **not** that the contract declares them
+  public. The shape is precedented in-repo by `plugins/autonomy/reference/` and
+  `plugins/architecture/reference/`, and mints no new skill, so the shared skill-listing budget is
+  unaffected. Recorded as
+  [ADR-0007](../../docs/adr/0007-host-per-model-doctrine-outside-skill-private-surfaces.md),
+  superseding ADR-0006 **on the per-version doctrine's address and nothing else**. ADR-0006's decision (model-scoped
+  by default, fleet-wide only through the promotion gate, routing by version and never by family) is
+  preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two
+  reaching `audit-instructions` and `docpage-digest` survive untouched and belong to other skills.
+- **`fable-5`'s `SKILL.md` re-points five references at the new host.** Four carry the new
+  address (one of those, the `full` argument's clause, is also rewritten semantically) and one, the
+  routing table's preamble, carries no address at all. Meta-rule 3 (the arm-time mandatory read), the chapter-routing table's last
+  row, and the "not model-version documentation" scope fence now name
+  `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/`. The `full` argument's clause is **rewritten
+  rather than re-addressed**: it previously read every file under `context/` *except*
+  `context/model-adaptation/`, an exclusion with nothing left to exclude once the chapters leave
+  `context/`. It now reads all of `context/` and takes from the new directory only the chapter
+  meta-rule 3 selects, **never the directory as a whole**, preserving the fence that matters, since
+  the sibling versions' chapters carry deliberately reversed counter-steers and loading two at once
+  puts conflicting doctrine in one session. The routing table's preamble no longer claims all
+  chapters live under `context/`.
+- **`${CLAUDE_PLUGIN_ROOT}` interpolation inside a skill body is verified rather than assumed.**
+  Upstream documents the substitution for hook commands, MCP and LSP server configuration, monitor
+  commands, and `allowed-tools` frontmatter, **not** for prose body text, and meta-rule 3 is the one
+  instruction firing unconditionally for every non-Fable model, so a silent non-resolution would be a
+  no-read for the entire population the chapters serve. The claim therefore carries the four-part
+  record. **Claim:** the harness substitutes `${CLAUDE_PLUGIN_ROOT}` in a `SKILL.md` body before the
+  model receives it. **Basis:** two headless `claude -p` probes on Claude Code 2.1.220: a disposable
+  plugin loaded via `--plugin-dir` returned the token expanded to its plugin root and read the file at
+  the expanded path successfully, and an already-installed user-scope plugin (`discipline` 0.10.1)
+  returned a body line carrying both forms, with the token expanded and a relative path on the same
+  line left literal, which distinguishes harness substitution from a model normalizing paths on its
+  own. **As of:** 2026-08-03. **Recheck trigger:** any Claude Code upgrade, since body-text
+  substitution is not a documented contract. The relative-path form used at
+  `plugins/autonomy/skills/setup/templates/isolation-probe.md:6` remains the attested fallback.
+
+Earlier entries in this file name the chapters at their former `context/model-adaptation/` address.
+They record what shipped at the time and are correct as written.
+
+## [0.6.4]
+
+### Added
+
+- **`fable-5` context economy gains the thinking-cost section.**
+  `skills/fable-5/context/context-economy.md` adds "Your own thinking is context you pay for
+  twice": thinking is billed as output when generated and again as input on every later request,
+  and neither half is visible in what the session displays. Billing is invariant across the
+  `display` setting, since summarized and omitted bill identically and summary generation is free, so
+  hiding thinking is never a cost lever ([Steering thinking:
+  Pricing](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#pricing),
+  verified 2026-08-03). The retention half is stated as a **harness override with its boundary
+  conditions**, not as a flat truth: the per-model preservation split upstream documents (all turns
+  on keep-all models, only the last turn elsewhere) is what a raw API caller gets, while Claude
+  Code overrides it in the keep-all direction on every thinking-enabled request, so retained blocks
+  accumulate and bill as input on every model. The section carries the four-part verification
+  record that override requires: claim, basis (request bodies emitted by `claude.exe`,
+  265,720,480 bytes, read for both a documented keep-all and a documented last-turn-only model,
+  with `context-management-2025-06-27` present in each request's `betas`), as-of date, and a
+  recheck trigger on any Claude Code upgrade, since `keep:"all"` is a build-time constant rather
+  than a documented contract. The three gating conditions and the two escapes that resume the
+  per-model default (`CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`, or a gateway dropping the field)
+  are stated with it. The input-billing half is explicitly upstream's own rule for retained blocks
+  ([Thinking and the context
+  window](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-the-context-window))
+  applied to that forced retention, not a second observation. The wire evidence proves retention,
+  not billing. `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Managing
+  your window. Context-economy". Both surfaces **bound the accumulation to the current uncompacted
+  window**: `keep:"all"` preserves only blocks a request still carries, and compaction "replaces
+  your message history with a summary" ([Compacting the
+  conversation](https://code.claude.com/docs/en/prompt-caching#compacting-the-conversation),
+  verified 2026-08-03), so thinking summarized away, or dropped by `/clear` or a rewind, is
+  neither re-sent nor re-billed, and the count restarts at the last history reset rather than at the
+  first turn. The four-part record is unaffected: `keep:"all"` is still what the harness sends, and
+  only the billing scope downstream of it narrows.
+
+### Changed
+
+- **`fable-5` Opus 5 adaptation no longer defers effort claims to an unreachable target.**
+  `skills/fable-5/context/model-adaptation/opus-5.md` routed every effort claim beyond its three
+  quoted bullets to "the verified effort-doc slice (see this workstream's Phase 6 cross-check)".
+  Both referents are campaign-internal and resolvable by no consumer of this plugin, the same defect
+  class refused in 0.6.3 for a routing note between `.work/` slice directories. The deferral now
+  points at the live [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and
+  [model config: adjust effort
+  level](https://code.claude.com/docs/en/model-config#adjust-effort-level) pages (both fetched raw
+  2026-08-03, HTTP 200), and names per-model starting level alongside the ladder items already
+  listed as upstream-owned. The file's TRUNCATED finding about the guide's own ladder statement is
+  preserved as the reason those three bullets are its whole effort content.
+
+## [0.6.3]
+
+### Added
+
+- **`fable-5` calibration gains the product-surface scope rule.**
+  `skills/fable-5/context/calibration.md` adds "A claim's product surface travels with it": a
+  behavioral claim about Claude is a fact about the surface documenting it, and it transfers to the
+  surface the session runs on only after a per-claim check, never on vendor authority alone. The
+  rule is scoped to CROSS-surface transfer, which is the row's actual thesis: docs for the running
+  surface clear the check where they stand, so Claude Code's own docs read inside Claude Code are
+  not downgraded. A dated archive entry is scoped to its date on top of that. Two worked
+  divergences carry it, both genuine published text from Anthropic's claude.ai system prompts and
+  both false read as facts about this harness: "Claude does not retain information across chats"
+  (Claude Opus 4.1 entry, dated August 5 2025) against Claude Code's two documented cross-session
+  mechanisms, CLAUDE.md files and auto memory; and "Claude cannot open URLs, links, or videos"
+  (Claude Sonnet 3.5 entry, dated November 22 2024) against the documented `WebFetch` tool. Both are
+  stamped to their entry rather than stated in the present tense, because **neither sentence
+  survives in a current entry**. Wrong-surface and stale-entry are independent errors, and the
+  staleness is the rule's second half rather than a defect in the example. Verified 2026-08-03
+  against [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts),
+  [memory](https://code.claude.com/docs/en/memory), and
+  [tools reference](https://code.claude.com/docs/en/tools-reference); recheck trigger: a new dated
+  entry restores or reverses either sentence, or Claude Code's memory or tool surface changes.
+  `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Ground truth and
+  checking. Calibration", per the chapter/core-doctrine pairing the rest of that file follows.
+
+## [0.6.2]
+
+### Fixed
+
+- **`boris` no longer contradicts this repo on `max` effort durability.**
+  `skills/boris/SKILL.md`'s Quick Reference row read "max is session-only" flat, and
+  `skills/boris/reference/autonomy.md` §72 read "Max applies only to current session. All other
+  effort levels (including xhigh) are sticky", while `docs/PLUGIN-PHILOSOPHY.md` carried the
+  exception. Two statements of one actionable fact, disagreeing. `PLUGIN-PHILOSOPHY.md` is right,
+  verified 2026-08-02 against
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level):
+  "`max` provides the deepest reasoning and applies to the current session only, except when set
+  through the `CLAUDE_CODE_EFFORT_LEVEL` environment variable", and for the persisted `effortLevel`
+  setting, `max` and `ultracode` "are not accepted here". Both files now carry the exception. §72
+  additionally records, as a conforming `docs/conventions/upstream-drift` record (claim, cited page,
+  as-of date, and a divergence-at-fetch recheck trigger), the two further limits on "sticky" that
+  the same page states: a level set with `/effort` in non-interactive `-p` mode is session-only, and
+  first-running Fable 5, Opus 4.8, or Opus 4.7 holds that model's default across sessions until an
+  explicit choice (Opus 5 has no such hold). `skills/boris/vendor/SKILL.md` carries the same
+  claim and is deliberately **not** changed. It is the verbatim upstream baseline used for drift
+  detection, so editing it would manufacture false drift.
+
+- **`boris` benchmark figures now declare themselves launch-day snapshots and carry a recheck
+  trigger.** `skills/boris/reference/orchestration.md` restated the volatile SWE-Bench Pro,
+  Terminal-Bench 2.1, GDPval-AA, FrontierCode/Diamond, and OSWorld-Verified scores at §78 and §94 with no
+  as-of date and no stated re-derivation event, so nothing told a reader they had aged past the
+  releases they announced. Benchmark names, suite versions, and scores churn independently of the
+  models they rank. A file-level four-part record now classifies the figures as historical and
+  fires on a decision that would turn on any of them, a new frontier-model release, or a suite
+  version bump. Both carrier lines are prefixed "Launch-day benchmarks" and now cite the basis the
+  record claims for them: the vendor's own launch announcement, [Opus 4.8, May 28
+  2026](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities) and [Fable 5 /
+  Mythos 5, Jun 9
+  2026](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5).
+  Both pages publish their figures in a capabilities-table **image**, never in page text, so the
+  record says so: a re-checker who greps the fetched HTML finds nothing and would read a correct
+  citation as broken. The figures themselves are
+  unchanged. They are accurate for their releases, and refreshing them here would restate a fresh
+  snapshot the record exists to avoid. `skills/boris/vendor/SKILL.md` carries the same figures and
+  is deliberately not changed, for the drift-detection reason above.
+
+### Changed
+
+- **`fable-5` states the thinking-off × effort hazard as one checkable rule instead of two loose
+  halves.** `context/model-adaptation/opus-5.md`'s thinking-controls section documented the
+  effort-conditional 400 in one bullet and the harness thinking-disable surfaces, including the
+  `MAX_THINKING_TOKENS=0` Fable 5 exception, in another, and never joined them. A third bullet now
+  states the rule they imply: a configuration pairing a thinking-disable surface with `xhigh` or
+  `max` effort on Opus 5 and later is a per-request 400 assembled from configuration alone, with
+  both operands configuration literals, so it is findable by reading them. Stated at the
+  strength the evidence supports: it records the *config-time* question as untested rather than
+  claiming Claude Code guards the combination (the section's existing probe covers only an
+  already-sent request), leaves upstream's "Claude Opus 5 onward" scope unexpanded, and repeats
+  that `MAX_THINKING_TOKENS=0` is not a universal kill switch. Each enumerated surface is stated
+  at the value it can actually carry: the persisted `effortLevel` setting takes `xhigh` but not
+  `max` ([model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level):
+  `max` and `ultracode` "are not accepted here"), matching what §72 of `boris` records above, and
+  the API disable literal is written the way upstream writes it, `thinking: {"type": "disabled"}`
+  ([what's new in Opus 5: disabling thinking requires effort `high` or
+  below](https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
+  since a rule whose whole claim is that the hazard is readable off configuration literals cannot
+  ship an invalid one as its example. Both re-verified 2026-08-02.
+
+## [0.6.1]
+
+### Fixed
+
+- **`boris` no longer states subagent nesting depth as a fixed number.** The ceiling is a
+  configurable platform setting that moved three times in seven weeks, from a fixed, unchangeable
+  five layers (CC 2.1.172–2.1.216) to a default of one (2.1.217) to a configurable default of
+  three (2.1.219), so any bare number is stale by construction
+  ([sub-agents](https://code.claude.com/docs/en/sub-agents), which now carries both the current
+  default and that full version history). `skills/boris/SKILL.md`'s Quick Reference row carried a
+  bare present-tense "depth=5 cap" and now leads with the authoring imperative, which is to never
+  author a tree needing a specific depth, and names `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`.
+  `skills/boris/reference/orchestration.md` §91 keeps its dated "shipped Jun 9, 2026 … capped at
+  depth=5 to start" claim, which is historically true, but now marks the cap as historical and
+  adds the current-state guidance. Matches the numberless shape already used by
+  `session-flow:orchestrate` and `discovery`'s agent briefs.
+  `skills/boris/vendor/SKILL.md` carries the same claim in six places and is deliberately **not**
+  changed. It is the verbatim upstream baseline used for drift detection, so editing it would
+  manufacture false drift.
+
+## [0.6.0]
+
+Lands the Opus 5 model-adaptation refresh from the `opus-5-prompting-interview` workstream
+(dual-verified corpus: Opus 5 prompting guide + system card).
+
+### Added
+
+- **`fable-5`: `context/model-adaptation/opus-5.md`.** The Claude Opus 5 delta chapter: verified
+  behavioral deltas (self-verification, scope, report-everything review, delegation floor, output
+  length, effort posture), the architected-vs-instructed verification doctrine with its recorded
+  residual tension, live-verified thinking controls including the session-observed
+  thinking-off-above-`high` 400 (Claude Code does not clamp), an injection-robustness routing note
+  with deferred-trigger, and pointer-only hard facts. Every claim carries a source citation and a
+  Claude-Code-applicability tag.
+
+### Changed
+
+- **`fable-5`: model adaptation generalized to one file per model version.** `context/opus-adaptation.md`
+  moved to `context/model-adaptation/opus-4-8.md` (deltas unchanged; still calibrated for, and
+  scoped to, Opus 4.8). `SKILL.md` meta-rule 3 now routes by model VERSION to
+  `context/model-adaptation/<model>.md` and no longer tells any Opus model to apply the 4.8
+  counter-steers verbatim, since several are reversed by the Opus 5 guide (effort floor, per-edit-batch
+  verifier dispatch, delegation bias, scope literalism). Routing-table row and "What this skill is
+  NOT" pointer updated; `context/orchestration.md`'s chapter reference reworded to the
+  model-neutral form.
+
+## [0.5.2]
+
+### Fixed
+
+- **`boris` settings reference now points at the migrated documentation domain.** Anthropic moved
+  the Claude Code docs from `docs.claude.com/en/docs/claude-code/<slug>` to
+  `code.claude.com/docs/en/<slug>`; the settings link in `skills/boris/reference/autonomy.md`
+  still used the old host and survived only on a 301. Verified by fetching the old URL, observing
+  the 301, and confirming the target is the "Claude Code settings" page.
+  `skills/boris/vendor/SKILL.md` carries the same stale URL and is deliberately **not** changed.
+  It is the verbatim upstream baseline used for drift detection, so editing it would manufacture
+  false drift.
+
+## [0.5.1]
+
+Runs the context-engineering rightsizing effort's criteria catalog
+(`docs/topics/context-engineering-rightsizing/design/` on `feat/context-engineering-rightsizing`,
+not yet merged to `main`) over `fable-5`, the one subtree decision D-6 excluded from the original
+pass because #1261 was rewriting it concurrently. #1261 merged first; this closes the follow-up
+(#1324).
+
+### Changed
+
+- **`fable-5`: narrow the fresh-context-verifier trigger to exclude mechanical,
+  behavior-preserving batches.** The owning site, with full reasoning, is `context/orchestration.md`,
+  section "Fresh-context verification"; `SKILL.md`'s core-doctrine distillation,
+  `context/verification.md`'s floor statement, the owning section's own floor sentence, and
+  `context/opus-adaptation.md`'s delegation correction all restate the trigger operatively and are
+  narrowed to match, each pointing back to the owning section for the exception's detail.
+  Previously the trigger fired unconditionally after any multi-file edit batch or before any
+  multi-part completion claim; the catalog's S3 digest names this exact blanket dispatch as the
+  D-5 target ("drop blanket dispatch on mechanical behavior-preserving work; keep it where the
+  verdict is subjective or blast radius is wide") and lists `playbooks/fable-5` among the affected
+  files. The carve-out reuses the planning chapter's existing behavior-preserving/behavior-changing
+  distinction rather than inventing a second one, and a subjective verdict or a wide blast radius
+  keeps the original trigger unchanged at all three sites.
+
+## [0.5.0]
+
+Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
+first and took that number. The tier is unchanged: still **minor**, now measured
+from `0.4.0` instead of `0.3.2`.
+
+### Added
+
+- **`boris`: four reference buckets for the twenty sections upstream added since
+  the last sync.** The buckets are [`unknowns.md`](skills/boris/reference/unknowns.md)
+  (96–99, finding your unknowns), [`loops.md`](skills/boris/reference/loops.md)
+  (100–103, the four loop types),
+  [`automation.md`](skills/boris/reference/automation.md) (104–109, `/checkup`
+  and automation as infrastructure), and
+  [`context-engineering.md`](skills/boris/reference/context-engineering.md)
+  (110–115, the Claude 5 context-engineering rules and Opus 5). Buckets follow
+  upstream's own thread grouping: Parts 18, 19, 20–21, and 22.
+
+### Changed
+
+- **`boris`: vendored baseline synced 8.8.1 → 8.13.0** through
+  `/playbooks:update --apply`, never a hand-copy. The delta is additive:
+  sections 1–95 are unchanged, and the counts move 107 → 127 tips across
+  95 → 115 sections. The hub's hardcoded counts (frontmatter description and
+  body), the Topic Index, the Quick Reference, the source-date footer, and the
+  plugin README's pack row all move with them.
+
+## [0.4.0]
+
+### Added
+
+- `fable-5`: a show-moves section in the problem-framing chapter, split out of the
+  unknown-knowns cell so the two signals that gate it, a criterion judgable only on
+  sight and a description costlier than an example, trigger those moves without firing
+  the whole four-cell pass. It owns the evaluation-capacity precondition (candidates
+  settle nothing when neither party can name what a strong one looks like), the exemplar
+  hunt with its fidelity/cross-language/ask-ordering rules, the read-only reference-tree
+  radius, and the elicitation artifact's distinct completeness bar.
+- `fable-5`: a post-delivery attribution section in the problem-framing chapter. A
+  deliverable returned as *not what was meant* re-runs the quadrant pass before it
+  re-executes. Scoped away from observed defects, which keep routing to the debugging
+  chapter's reproduction-first rule.
+- `fable-5`: a durable-plan presentation rule in the planning chapter. Decisions the
+  reader would plausibly veto lead, ranked by the rework a late veto costs, as a second
+  view that never re-sorts the risk-ordered steps.
+- `fable-5`: the context-economy chapter gains a phase-boundary reset (every other reset
+  trigger keys on loss or degradation, none on success), the note's decision content, and
+  the note's disposition at task end so the debris sweep has an answer.
+- `fable-5`: the communication chapter gains the offer-the-round rule for a large question
+  residue, a volunteer question closing that round, a second trigger site for the
+  evaluation-capacity gate, and a closing message that must name behavior which changed in
+  code the diff does not show.
+- `fable-5`: the show-moves section licenses a deliberately divergent spread, several
+  directions differing along the dimension the user cannot put words to, as the
+  extraction instrument when the criterion is recognition-only, handed over for them to
+  react to rather than as an option survey owing a pick.
+
+### Changed
+
+- `fable-5`: the recommend-an-option rule and the attach-a-recommended-answer rule are both
+  narrowed at their own sites: neither fires when the options exist to elicit the ranking
+  criterion itself, because naming a favorite front-loads the judgment being asked for.
+  The carve-out is defined by the missing criterion, not by a missing preference, and
+  resolves without loading another chapter, because trigger-gated loading means the communication
+  chapter is often the only one held.
+
+- `fable-5`: `SKILL.md` stated three of the problem-framing chapter trigger's four arms,
+  in both the core-doctrine line and the routing table, so the because-clause arm never
+  fired from the always-loaded surface. Both now carry all four.
+- `fable-5`: the problem-framing preamble owns the two priors the chapter's moves rest on:
+  discovery priced against the rework it prevents, rising with what is already built on
+  the unknown; and requests carrying unknowns they do not name. The clauses that
+  previously re-derived the economics now cite it.
+- `fable-5`: ambiguity residue is ordered by downstream work invalidated rather than by
+  how widely its readings diverge; feasibility-shaped unknowns route to the planning
+  chapter instead of a sort that has no branch for them; the blind-spot checklist reads as
+  the software instance of a general move; an undisclosed starting point is asked for when
+  it would change the pass width; and the scope bound is tested in both directions.
+- `fable-5`: the long-horizon-memory bullet in the model-adaptation chapter now points at
+  the context-economy chapter like its five siblings, instead of carrying general doctrine
+  that had no owner elsewhere. The note-granularity and delete-when-disproved rules it used
+  to carry land in the context-economy chapter, which now owns them.
+- `fable-5`: the execution chapter's debris sweep carries one exemption: an artifact built
+  to elicit a preference is not debris while the question it exists to surface is open. It
+  is stated at the sweep itself, so an agent holding only that chapter honors it; the
+  problem-framing chapter cites rather than restates it.
+
+## [0.3.2]
+
+### Changed
+
+- `fable-5`: the fresh-context verification chapter now names the presence-gated
+  cross-vendor advisor (e.g. the OpenAI Codex plugin, invoked per its own docs) with the
+  fresh-context same-vendor subagent as the stated fallback. This aligns the chapter's
+  existing independence-gradient sentence to the seam-phrasing gate-plus-fallback shape
+  rather than adding a duplicate site. The gate lives at the orchestration chapter's
+  "Fresh-context verification" SSOT; SKILL.md and the verification chapter keep their
+  pointers.
+
+## [0.3.1]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.3.0]
+
+### Added
+
+- **`skill-authoring`: precomputed-context authoring guidance.** New locally-owned spoke
+  `reference/precompute-context.md` (not upstream) plus a hub pointer: when to inline deterministic,
+  read-only context at load time via `!`command`` / ```! dynamic-context injection instead of a
+  per-invocation tool call, and the two conventions we pin: a mandatory `|| echo "<fallback>"`
+  defensive form (because the skills docs do not yet document `!` failure/timeout/stderr semantics)
+  and `shell:`/Windows-host awareness. Both carry the recheck trigger: revisit if upstream documents
+  `!` failure semantics. Points at the official `#inject-dynamic-context` docs for syntax rather than
+  restating it. The vendored `vendor/SKILL.md` baseline is untouched.
+
+## [0.2.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.2.0]
+
+### Changed
+
+- **BREAKING: skill renamed.** `thariq` → `skill-authoring` (`/playbooks:thariq` →
+  `/playbooks:skill-authoring`). The pack's content is topic-shaped (skill authoring),
+  so the skill is now named for what it teaches; the attribution to Thariq's post is
+  unchanged in the skill body. No renames-map entry, since consumers pick up the new name
+  with this version. The upstream lane is unchanged: same upstream source URL, the
+  vendored baseline (`vendor/SKILL.md`) is byte-identical, and `/playbooks:update`
+  drift-check mechanics now point at the renamed pack path. Only the wrapper skill
+  name (directory, frontmatter `name`, and references) changed.
+
+## [0.1.0]
+
+### Added
+
+- **`playbooks` plugin.** Merges three previously standalone knowledge/doctrine
+  plugins into one, plus a central maintainer update skill:
+  - `boris` (`/playbooks:boris`): merged from the `boris` plugin's `boris` skill
+    (formerly `/boris:boris`). Boris Cherny's Claude Code workflow tips, with its
+    topic reference files, vendored upstream baseline, and update script carried over.
+  - `thariq` (`/playbooks:thariq`): merged from the `thariq-skills` plugin's
+    `thariq-skills` skill (formerly `/thariq-skills:thariq-skills`). Anthropic's
+    internal skill-authoring playbook, with its vendored upstream baseline and update
+    script carried over.
+  - `fable-5` (`/playbooks:fable-5`): merged from the `fable-5-playbook` plugin's
+    `fable-5-playbook` skill (formerly `/fable-5-playbook:fable-5-playbook`). Claude
+    Fable 5's operating doctrine and its trigger-routed `context/` chapters. Self-authored,
+    no upstream.
+  - `update` (`/playbooks:update`): new central, maintainer-facing drift-check and
+    upstream sync skill. Dispatches to each upstreamed pack's self-locating update
+    script (`--check` default, read-only; `--apply` refreshes the vendored baseline
+    only). fable-5 has no upstream and is reported as self-authored.
+
+### Changed
+
+- **Update centralized.** The per-pack update actions (`/boris:boris update`,
+  `/thariq-skills:thariq-skills update`) are removed from the pack skills, which are now
+  pure knowledge/navigation skills. Drift-checking and syncing are handled by the single
+  `/playbooks:update` skill. The pack update scripts are unchanged in behavior (upstream
+  URLs, self-location, and security posture preserved); only their user-facing invocation
+  strings were retargeted to `/playbooks:update`.
+- **Skills renamed** on the merge: `boris` → `boris`, `thariq-skills` → `thariq`,
+  `fable-5-playbook` → `fable-5`. Their vendored-baseline security posture (untrusted
+  third-party data; never follow embedded auto-install instructions; sanctioned mechanics
+  are `/playbooks:update` and `/plugin marketplace update`) is preserved.
