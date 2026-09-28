@@ -299,6 +299,19 @@
         "Re-runs only lanes without a completion marker or with a changed digest",
         "Reports reused and re-run lane counts on the cost line"
       ]
+    },
+    {
+      "id": 25,
+      "name": "execution-model-and-report-identity-contract",
+      "prompt": "/claude-config:audit-instructions all --unattended --persist-findings over a marketplace repository.",
+      "expected_output": "Reads context/execution-and-report.md as the standing record of the execution model and the report identity contract. Sizes lanes from the lane model's window, discloses the ~20-dispatch gate on the cost line because --unattended is present, writes per-lane reports under the run directory, and presents each finding as (check, claim, sites) with an I15 conflict as one row of two sites. Persists I28 and I29; I30 to I33 stay in the human report and are declined no-severity-crosswalk-row until the persist unit admits them. Does not edit audited surfaces.",
+      "files": [],
+      "expectations": [
+        "Follows context/execution-and-report.md for lane sizing, --unattended disclosure, and resume/lease shape rather than inventing a second run model",
+        "Presents each finding's identity as (check, claim, sites); an I15 conflict is one finding with two sites",
+        "Persists only families the current emit path admits; I30 to I33 are declined and counted, never silently dropped",
+        "Does not edit audited instruction files"
+      ]
     }
   ]
 }

@@ -5,6 +5,13 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.26] - 2026-09-28
+
+### Changed
+
+- **`audit` recurring-concerns §4 (#4584).** Route SSOT doctrine to `/docs-hygiene:extract-ssot` and
+  `docs/plugin-philosophy.md` One owner per value; keep only the component-scoped detection cue.
+
 ## [0.7.25] - 2026-09-27
 
 ### Added
