@@ -35,6 +35,19 @@ them turns every next over-fire into a committed regression test. A hook is prec
    matches the project dir as a literal substring flags every absolute path under it when the project dir is
    (or is under) the user's home. Resolve the enclosing git toplevel and compare *that* against home;
    suppress the branch when the checkout root is home or an ancestor of it.
+
+   **Membership when the project dir is home is a different question**, recorded here so it is not
+   re-litigated as a silent gap (#4672). `hook::read_file_path` already: (1) requires prefix
+   membership under `CLAUDE_PROJECT_DIR` when that variable is set, (2) excludes a temp-tree file
+   unless the project itself lives under temp, and (3) falls back to git-working-tree membership
+   only when `CLAUDE_PROJECT_DIR` is unset. **Decision: do not add a git-work-tree requirement
+   when `CLAUDE_PROJECT_DIR` is set, including when it is `$HOME` or not a repository.** A
+   home-rooted session's files under home remain members of that session's project dir; config-
+   cascade's home-root rule is about layer identity (never read `~/.claude/<surface>` as the
+   team layer), not about which files a hook may inspect. Tightening membership for format/lint
+   rewrites on a home-rooted session is `#4671`, which would be a `hook-utils.sh` change synced
+   across every carrying plugin. Rule 5's path-detection suppress stays; this membership
+   decision does not extend it.
 6. **Leave a gitignored path alone.** A format or lint hook neither rewrites nor reports on a file the
    repository gitignores, unless the plugin's `<plugin>_lint_gitignored` option is `true` (the spelling
    `markdown_format_lint_gitignored` set). A rewrite of an ignored file has no `git checkout` to undo it,

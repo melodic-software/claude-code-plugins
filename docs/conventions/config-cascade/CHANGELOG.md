@@ -7,14 +7,21 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
-## Deviations and Implementers table, 2026-09-28 (gitignore)
+## [1.3] - 2026-09-28
 
-- **gitignore postures declared, not converged (#3573).** Recommend stays the
-  default. Two consumer-root appends are sanctioned exceptions (`source-control`
-  recursive overlay line; `work-items` ADR 0015 overlay line). Own-ignore-file
-  inside a plugin-owned directory is a different file. No `contract_version`
-  bump: the layering rules are unchanged; the no-plugin-writes sentence now
-  names the exceptions it already described in Overlay spelling drift.
+Additive classification (minor bump): a new resolution step that does not change precedence
+among layers that apply, and does not change what a layer means. It classifies the resolved
+root before any team or overlay read so a home-rooted session cannot treat the operator's
+personal `~/.claude/<surface>` as the team layer.
+
+- **Special-root classification (#4672).** When the resolved root is `$HOME` or an ancestor of
+  `$HOME`, team and overlay are not applicable: report both with that reason and resolve
+  user-global only. Layer paths that physically name one file are reported as equal rather
+  than read twice. A non-home directory that is not a git working tree keeps the three-layer
+  read. A shared root resolver, and a ruling that would skip filesystem/drive/temp/cloud-sync
+  roots, stay follow-up. `source-control`'s `parse-branch-issue.sh` and setup `check`/`apply`
+  implement the home-root rule; other surfaces adopt it or record why not. The degrade-soft
+  step is now numbered 5.
 
 ## Consumer gotchas tier, 2026-09-28
 
@@ -24,21 +31,8 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 ## Deviations and Implementers table, 2026-09-28
 
-- **Semantics-at-a-glance index (#3575).** A who-wins / merge-form table sits above
-  Implementers so an operator can see later-wins, policy-floor inversion,
-  `code-tidying`'s no-overlay residual, and `repo-fleet-hygiene`'s reversed
-  ladder without reading every conformance cell. Engines stay per-surface.
-  No `contract_version` bump: no layering rule changed.
-- **Location outliers ruled (#3577).** `standards` layer location outside `.claude/`
-  (default `docs/standards/`) is ratified, the axis #649 left open. `work-items`
-  recurring schedule stays at `.github/recurring-schedule.json` (team-only, no
-  overlay). `songwriting` prompt-template overrides stay at
-  `songwriting/templates/pat-pattison/` (team-only, not a cascade). Relocating any
-  of the three under `.claude/` was rejected. The `work-items` binding at repo
-  root was already ADR 0015. No contract rule change, so no version bump.
-- **`code-metrics` `.claude/code-metrics.yaml` (#3847).** The table gains the surface the plugin already ships: all three layers, per-key override, keys owned by `plugins/code-metrics/reference/config.md`. No contract rule change, so no version bump.
 - **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
-  gains the surface's divergence from rule 4 (degrade soft on a malformed layer): a layer whose
+  gains the surface's divergence from the degrade-soft rule (resolution step 5 after #4672): a layer whose
   `## branch_issue_pattern` section exists but yields no usable pattern stops resolution with no
   issue number, because the value feeds a `Closes #N` line and a lower source's number could close
   the wrong issue. The row's conformance cell names the exception. The near-miss-heading stop that

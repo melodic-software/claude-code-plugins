@@ -386,6 +386,30 @@ new_case
 layer "${CASE_REPO}/.claude/source-control.md" '^[a-z]+/([{]x{2}|[0-9]{1,16})-'
 run_cfg "bounds up to 16 and a literal brace in brackets allowed" "feat/42-x" "" - "42" 0 empty
 
+# Home-rooted session: team and overlay collapse onto ~/.claude and must not
+# be read as team. Overlay at home is skipped; user-global is the only layer.
+HOME_NOTE='team and overlay not applicable: project root is the home directory'
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
+layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+CASE_REPO="$CASE_HOME"
+run_cfg "home project root reads user-global once, never overlay as team" \
+  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/[^/]+/([0-9]+)-'
+layer "${CASE_HOME}/.claude/source-control.local.md" '^[a-z]+/([0-9]+)/'
+CASE_REPO="$(dirname "$CASE_HOME")"
+run_cfg "an ancestor of home also skips team and overlay" \
+  "a/5/77-x-9" "" - "77" 0 "$HOME_NOTE"
+
+new_case
+layer "${CASE_HOME}/.claude/source-control.md" '^[^/]+/([0-9]+)-'
+layer "${CASE_REPO}/.claude/source-control.md" '-([0-9]+)$'
+run_cfg "a repo root that is not home still lets team beat user-global" \
+  "a/5/77-x-9" "" - "9" 0 empty
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]
