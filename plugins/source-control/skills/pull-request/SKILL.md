@@ -75,7 +75,7 @@ in fleet orchestration and never merges.
 ## Action defaults
 
 - **Merge mode:** `merge` squash-merges (one squashed commit per PR onto the default branch), see [reference/merge.md](reference/merge.md) §4.2. Follow the consuming project's convention when it differs.
-- **Monitor cadence:** `monitor` polls `gh pr checks` and comment fetches every 30 seconds, see [reference/monitor.md](reference/monitor.md) §3.1.
+- **Monitor cadence:** `monitor` polls `gh pr checks` and comment fetches every 30 seconds, see [reference/monitor.md](reference/monitor.md) §3.1. A wait is a REST poll, never `gh pr checks --watch`, and it first reports each pending job as queued or running ("Waiting on a pending check").
 - **Required reviewers:** `create` requests no reviewers (runs `gh pr create` without `--reviewer`). See [reference/create.md](reference/create.md) §2.4.3.
 
 ## PR identity resolution
