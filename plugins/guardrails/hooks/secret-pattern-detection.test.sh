@@ -998,8 +998,12 @@ if ((D1_WIN)); then
     "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
   if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
-    assert_exit "D1 windows: 8.3 short spelling → exit 2" 2 \
+    # block-hook-bypass exempts a redirect to this spelling (#4678), so the
+    # Write declines too; a short component nothing backs still scans.
+    assert_exit "D1 windows: 8.3 short spelling → exit 0" 0 \
       "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+    assert_exit "D1 windows: 8.3 spelling with a nonexistent name~9 component → exit 2" 2 \
+      "$(d1_rc "$D1_HOME" "$(cygpath -s -m "$D1_TEMP")/spd-nope~9/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   else
     echo "SKIP: D1 windows 8.3 case (the temp path has no short spelling on this volume)"
   fi
@@ -1037,6 +1041,43 @@ if [[ "${OSTYPE:-}" == linux* ]]; then
   "$D1_SHIM/realpath" / >/dev/null
   if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
 elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+
+# 8.3 short-name spellings on any host (#4678). The Windows lane does not run
+# this suite on an 8.3 volume, so the seam runs with OSTYPE forced to cygwin, in
+# a lowercase fixture holding a `c:` directory, so a `c:/...` drive spelling
+# names a real relative path. A symlink named in the 8.3 shape stands in for the
+# short alias, which the resolver expands to its long target as cygpath -l
+# expands a real one. Each answer must match block-hook-bypass's for the same
+# spelling.
+D1_83="/tmp/spd-d1-83-$$"
+d1_83_rc() { # <target> [PATH] -> spd_temp_declines' status with temp candidate c:/longna~1
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  (cd "$D1_83" && PATH="${2:-$PATH}" CLAUDE_PROJECT_DIR=C:/spd-d1-root bash -c 'OSTYPE=cygwin; source "$1/hook-utils.sh"; eval "$2"
+    hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("c:/longna~1"); }
+    spd_temp_declines "$3"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1")
+}
+rm -rf "$D1_83"
+if [[ -d /usr ]] && mkdir -p "$D1_83/c:/longname/claude" &&
+  ln -s "$D1_83/c:/longname" "$D1_83/c:/longna~1" 2>/dev/null && test -L "$D1_83/c:/longna~1" &&
+  ln -s /usr "$D1_83/c:/longna~1/tousr~1" 2>/dev/null; then
+  assert_eq "D1 8.3 sim: short spelling under temp declines" 0 "$(d1_83_rc "c:/longna~1/claude/x/f.txt")"
+  assert_eq "D1 8.3 sim: nonexistent name~9 component scans" 1 "$(d1_83_rc "c:/longna~1/nope~9/f.txt")"
+  assert_eq "D1 8.3 sim: a~b component scans" 1 "$(d1_83_rc "c:/longna~1/a~b/f.txt")"
+  assert_eq "D1 8.3 sim: x~ component scans" 1 "$(d1_83_rc "c:/longna~1/x~/f.txt")"
+  assert_eq "D1 8.3 sim: short alias linking out of temp scans" 1 "$(d1_83_rc "c:/longna~1/tousr~1/f.txt")"
+  : >"$D1_LOG"
+  assert_eq "D1 8.3 sim: short spelling outside every temp candidate scans" 1 \
+    "$(d1_83_rc "c:/progra~1/f.txt" "$D1_SHIM:$PATH")"
+  assert_eq "D1 8.3 sim: that miss spawned no resolver" "" "$(cat "$D1_LOG")"
+else
+  echo "SKIP: D1 8.3 simulation (no symlink could be made on this host; no coverage here, not a pass)"
+fi
+rm -f "$D1_83/c:/longname/tousr~1" "$D1_83/c:/longna~1"
+rm -rf "$D1_83"
+if ((!D1_WIN)); then
+  assert_exit "D1 posix: short-name spelling under temp still scans" 2 \
+    "$(d1_rc "$D1_ROOT" "/tmp/spd~1/spd-d1-$$/f.txt")"
+fi
 
 # The dispatcher runs this guard beside the other Write|Edit guards.
 D1_DISPATCH_RC=0

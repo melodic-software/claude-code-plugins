@@ -2013,6 +2013,10 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
       "echo secret > $WIN_JDIR/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
     run_cwd "windows temp: a sibling of the junction stays allowed" \
       "echo probe > $WIN_JDIR/scratch.txt" "$WIN_JPROJ" 0 "$PROJ_ENV=$WIN_JPROJ"
+    if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
+      run_cwd "windows temp: an 8.3 spelling through the junction into the project blocks" \
+        "echo secret > $WIN_SHORT/bhb-junction-$$/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
+    fi
   else
     printf 'SKIP: Windows junction escape not asserted (mklink //J failed or the link is not seen as a link; no coverage here, not a pass)\n'
   fi
@@ -2021,17 +2025,138 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
     cmd //c rmdir "$(cygpath -w "$WIN_JDIR/to-proj")" >/dev/null 2>&1
   rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
-    # Documented residual: an 8.3-spelled target is refused by _norm_path's
-    # fail-closed rule for any operand carrying `~`, before the temp compare
-    # runs, so the harness's own 8.3 scratchpad spelling stays blocked.
-    run_cwd "windows temp: an 8.3 short-name target is still refused" \
-      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    # The harness hands out its scratchpad in TEMP's own spelling, which on a
+    # volume that generates short names is the 8.3 one (#4678).
+    run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
+      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \
+      "echo hello > $WIN_SHORT/bhb-nope~9/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: an 8.3 target with a temp-rooted project blocks" \
+      "echo hello > $WIN_SHORT/bhb-proj-$$/src/main.py" "$WIN_LONG/bhb-proj-$$" 2 "$PROJ_ENV=$WIN_LONG/bhb-proj-$$"
+    run_cwd "windows temp: an 8.3 staging redirect moved by its long spelling blocks" \
+      "jq . a.json > $WIN_SHORT/bhb-stage-$$.txt && mv $WIN_LONG/bhb-stage-$$.txt src/a.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+    run_cwd "windows temp: a long staging redirect moved by its 8.3 spelling blocks" \
+      "jq . a.json > $WIN_LONG/bhb-stage-$$.txt && mv $WIN_SHORT/bhb-stage-$$.txt src/a.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
   else
     printf 'SKIP: 8.3 temp target not asserted (TEMP has no short-name spelling on this volume; no coverage here, not a pass)\n'
+  fi
+  if [[ -d C:/PROGRA~1 ]]; then
+    run_cwd "windows temp: an existing 8.3 path outside temp blocks" \
+      "echo hello > C:/progra~1/bhb-probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  else
+    printf 'SKIP: existing 8.3 path outside temp not asserted (C:/PROGRA~1 has no short name on this volume; no coverage here, not a pass)\n'
   fi
 else
   printf 'SKIP: Windows drive-path temp default not asserted (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)\n'
 fi
+
+# --- 8.3 short-name temp spellings, simulated (#4678) ------------------------
+# The branch is Windows-only, and the Windows CI lane does not run this suite
+# (#4527), so it is also driven here with OSTYPE forced to cygwin. A symlink
+# named in the 8.3 shape stands in for the short alias: the resolver expands it
+# to the long directory as cygpath -l expands a real short name, which is the
+# only property the branch relies on. The fixture is spelled all lowercase for
+# the segment scan's case fold. `/usr` is the outside-temp directory a link
+# escapes to: it exists on every host this suite runs on, and nothing is
+# written there, since the hook only judges the command.
+S83="/tmp/bhb-4678-$$"
+S83_WIN=(OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ")
+rm -rf "$S83"
+mkdir -p "$S83/longname/claude"
+if [[ ! -d /usr ]] || ! ln -s "$S83/longname" "$S83/longna~1" 2>/dev/null ||
+  ! test -L "$S83/longna~1" || ! ln -s /usr "$S83/tousr~1" 2>/dev/null; then
+  printf 'SKIP: 8.3 simulation not asserted (no symlink could be made on this host; no coverage here, not a pass)\n'
+else
+  run_cwd "8.3 sim: short-name temp target allowed with a non-temp project root" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: no project root keeps the block" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 2 OSTYPE=cygwin "TEMP=$S83/longna~1"
+  run_cwd "8.3 sim: a temp-rooted project keeps the block" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$S83/longname" 2 \
+    OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$S83/longname"
+  run_cwd "8.3 sim: a nonexistent name~9 component under temp blocks" \
+    "echo hello > $S83/longna~1/nope~9/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: an x~ component under temp blocks" \
+    "echo hello > $S83/longna~1/x~/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: an a~b component under temp blocks" \
+    "echo hello > $S83/longna~1/a~b/probe.txt" "$PROJ" 2 "${S83_WIN[@]}"
+  # shellcheck disable=SC2088 # the literal tilde spellings are the operands under test
+  for S83_T in "~/x" "~root/x" "~+/x"; do
+    run_cwd "8.3 sim: '$S83_T' blocks" "echo hello > $S83_T" "$S83/longna~1" 2 "${S83_WIN[@]}"
+  done
+  run_cwd "8.3 sim: a short alias under temp that links out of temp blocks" \
+    "echo secret > $S83/tousr~1/bhb-4678/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
+  # An existing short path outside temp needs a writable directory outside
+  # temp: the repo's gitignored memory tier, unless the checkout itself sits
+  # under temp, where that directory is not outside it.
+  S83_PROJ="$(cd "$HOOK_DIR/../../.." && pwd -P)/.work/bhb-4678-proj-$$"
+  case "$S83_PROJ" in
+  /tmp/* | /var/tmp/* | /private/*)
+    printf 'SKIP: existing short path outside temp not asserted (the checkout sits under temp at %s; no coverage here, not a pass)\n' "$S83_PROJ"
+    ;;
+  *)
+    if [[ "$S83_PROJ" == "${S83_PROJ,,}" ]] && mkdir -p "$S83_PROJ/src" &&
+      ln -s "$S83_PROJ/src" "$S83_PROJ/srcali~1" 2>/dev/null; then
+      run_cwd "8.3 sim: an existing short path outside temp blocks" \
+        "echo secret > $S83_PROJ/srcali~1/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
+    else
+      printf 'SKIP: existing short path outside temp not asserted (no lowercase writable link under %s; no coverage here, not a pass)\n' "$S83_PROJ"
+    fi
+    rm -f "$S83_PROJ/srcali~1"
+    rm -rf "$S83_PROJ"
+    ;;
+  esac
+  run_cwd "8.3 sim: a ~ target matched only by a configured root blocks" \
+    "echo hello > /var/jobtmp/progra~1/f" "$PROJ" 2 "${S83_WIN[@]}" "$SCRATCH_ENV=/var/jobtmp"
+  run_cwd "8.3 sim: a short-name mv destination outside temp blocks" \
+    "echo hi > $S83/longna~1/x && mv $S83/longna~1/x $S83/tousr~1/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  # One file under two spellings is one path to the staged-move detector, in
+  # both directions. `jq` is an unmodeled producer, so its redirect is allowed
+  # and only the move can block.
+  run_cwd "8.3 sim: short staging redirect moved by its long spelling blocks" \
+    "jq . a.json > $S83/longna~1/x && mv $S83/longname/x src/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: long staging redirect moved by its short spelling blocks" \
+    "jq . a.json > $S83/longname/x && mv $S83/longna~1/x src/a.py" "$PROJ" 2 "${S83_WIN[@]}"
+  run_cwd "8.3 sim: a different file under the other spelling stays allowed" \
+    "jq . a.json > $S83/longna~1/x && mv $S83/longname/y src/a.py" "$PROJ" 0 "${S83_WIN[@]}"
+  # A miss spends no resolver: a shim logs every resolver the hook spawns. The
+  # hit beside it shows the shim is on the path the hook takes.
+  S83_SHIM="$TEST_TMPDIR/s83-shim"
+  S83_LOG="$TEST_TMPDIR/s83-shim.log"
+  mkdir -p "$S83_SHIM"
+  for S83_BIN in realpath readlink cygpath; do
+    S83_REAL=$(command -v "$S83_BIN") || continue
+    printf '#!/usr/bin/env bash\nprintf "%%s\\n" %s >>"%s"\nexec "%s" "$@"\n' \
+      "$S83_BIN" "$S83_LOG" "$S83_REAL" >"$S83_SHIM/$S83_BIN"
+    chmod +x "$S83_SHIM/$S83_BIN"
+  done
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: a plain target outside temp blocks" \
+    "echo hello > /srv/plain/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  S83_BASE=$(<"$S83_LOG")
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: a ~ target outside every temp spelling blocks" \
+    "echo hello > /srv/progra~1/x" "$PROJ" 2 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  # The block message names the temp tree, which resolves the temp candidates
+  # once. The short-name miss must not add a resolver of its own.
+  assert_eq "8.3 sim: that miss spawned no resolver" "$S83_BASE" "$(<"$S83_LOG")"
+  : >"$S83_LOG"
+  run_cwd "8.3 sim: shim run of the allowed short-name target" \
+    "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}" "PATH=$S83_SHIM:$PATH"
+  if [[ -s "$S83_LOG" ]]; then ok "8.3 sim: the hit spawned a resolver"; else bad "8.3 sim: the hit spawned no resolver"; fi
+  # POSIX is untouched: `~` is a filename byte there and still fails closed.
+  # shellcheck disable=SC2031 # reads the host's real OSTYPE
+  if [[ "${OSTYPE:-}" != msys* && "${OSTYPE:-}" != cygwin* && "${OSTYPE:-}" != win32 ]]; then
+    run_cwd "8.3 sim: posix host, short-name temp target still blocks" \
+      "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 2 "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ"
+    run_cwd "8.3 sim: posix host, /tmp/a~1/f still blocks" \
+      "echo hello > /tmp/a~1/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+    run_cwd "8.3 sim: posix host, a mixed-spelling staged move keeps the lexical answer" \
+      "jq . a.json > $S83/longna~1/x && mv $S83/longname/x src/a.py" "$PROJ" 0 "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ"
+  fi
+fi
+rm -f "$S83/longna~1" "$S83/tousr~1"
+rm -rf "$S83"
 
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
