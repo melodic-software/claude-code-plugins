@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-09-28
+
+### Changed
+
+- **Native-command invocation stays inline (#3423).** `nvidia-smi` and `pnputil`
+  keep being spawned in the three lib modules that call them.
+  `Invoke-AllowlistedWeb` remains the web adapter only. A native-invoker is
+  unpaid. Recorded in `skills/audit/reference/windows/native-command.md`.
+
 ## [0.14.0] - 2026-09-28
 
 ### Added
