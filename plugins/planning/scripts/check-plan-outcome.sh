@@ -37,7 +37,7 @@
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Mechanical/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '/^# Mechanical/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
