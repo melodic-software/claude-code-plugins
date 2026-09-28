@@ -3,11 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.6] - 2026-09-28
+## [0.45.7] - 2026-09-28
 
 ### Fixed
 
 - **The surface suite's wrap-up freeze case no longer races its background handler.** The handler waits 2 s after it sees the new event, so the page's check at 600 ms still sees the freeze where `playwright-cli` is installed. Test-only.
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 
