@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.12] - 2026-09-28
+
+### Changed
+
+- **Worktree facts have one producer (#3422).** `scripts/lib/worktree-facts.sh` parses
+  `git worktree list --porcelain -z`, encodes and decodes the lock reason, and
+  prints TSV rows whose empty columns are `-`. `landed-work.sh`,
+  `worktree-claim.sh`, and `worktree-create.sh` call it. The worktree skill
+  runs `worktree-facts.sh list <repo>`, which prints the record as TSV
+  (`path head branch bare linked locked lock_reason prunable`), instead of
+  describing a hand parse. `locked` is `yes` for a reasonless lock too, so
+  cleanup never reads such a tree as unlocked. `worktree-claim.sh` still keys a claim on the
+  lock reason, so a reasonless lock stays UNCLAIMED there, as before.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- **The three guarded-mutation CLIs share one preamble (#3449).**
+  `guarded_mutation.py` owns the worker-lease check, the snapshot load, and the
+  head pin that `refresh_pr_branch.py`, `manage_feedback_ledger.py`, and
+  `request_review.py` each opened with. The helper documents what it checks,
+  what it permits, what it refuses, and that a refusal is still the exception
+  the caller already saw. Dry runs still skip the lease. What the guard permits
+  is unchanged.
+
 ## [0.62.10] - 2026-09-28
 
 ### Changed
