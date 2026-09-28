@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Added
+
+- **Scan reports free space, a low-stakes ceremony posture, and provenance
+  clusters (#3347).** `free_bytes` is read on every platform, not only during
+  Linux `apply`. `ceremony_posture` is `low-stakes-batch` when free space is at
+  least 100 GiB and inventoried reclaimable bytes are under 1 GiB, which lets
+  the operator confirm the exact approved path list once. It does not skip a
+  finding or rank by size. `provenance_signals` lists sibling-mtime clusters and
+  identical-size collisions from the snapshot; stdout carries the counts.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

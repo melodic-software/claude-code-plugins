@@ -310,6 +310,8 @@ partial walked sum alongside a `not-walked` qualifier, so read that number as a 
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
 low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
 
+`scan-complete` carries `free_bytes` (the volume's free space, read on every platform, or `null` when the read fails) and `ceremony_posture`. `low-stakes-batch` is set only when free space is at least 100 GiB and inventoried reclaimable bytes are under 1 GiB. That posture lets you confirm the exact approved path list **once**. It does not skip a finding, reorder tiers, or relax a check: preview, handoff-verify, and the per-path evidence bar stay as they are. `per-finding` is every other run, including a missing free-space reading. The snapshot's `provenance_signals` lists sibling-mtime clusters (files in one directory sharing a write-second) and size collisions (files of the same `stat_size`, at least 64 bytes). They are advisory evidence for the provenance questions above, not a disposition. Stdout carries only the two counts.
+
 ## 4. Build one exact-tier plan
 
 Only after an execution request (`--execute`, or the in-session request in

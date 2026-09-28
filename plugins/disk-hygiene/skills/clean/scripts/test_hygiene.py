@@ -3419,6 +3419,10 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "empty_file_count",
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
+                "free_bytes",
+                "ceremony_posture",
+                "provenance_sibling_mtime_clusters",
+                "provenance_size_collisions",
                 "truncated_paths",
                 "children_rollup",
                 "errors",
@@ -11304,6 +11308,79 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+
+class CeremonyAndProvenanceTests(unittest.TestCase):
+    def test_low_stakes_batch_needs_free_space_and_a_small_reclaim(self) -> None:
+        self.assertEqual(
+            "low-stakes-batch",
+            hygiene.ceremony_posture(100 * 1024**3, 1024**3 - 1),
+        )
+        self.assertEqual(
+            "per-finding",
+            hygiene.ceremony_posture(100 * 1024**3 - 1, 0),
+        )
+        self.assertEqual(
+            "per-finding",
+            hygiene.ceremony_posture(200 * 1024**3, 1024**3),
+        )
+        self.assertEqual("per-finding", hygiene.ceremony_posture(None, 0))
+
+    def test_provenance_signals_cluster_siblings_and_cap_groups(self) -> None:
+        second = 1_700_000_000
+        entries = [
+            {
+                "path": "cache/a.bin",
+                "kind": "file",
+                "mtime_ns": second * 1_000_000_000,
+                "stat_size": 128,
+            },
+            {
+                "path": "cache/b.bin",
+                "kind": "file",
+                "mtime_ns": second * 1_000_000_000 + 5,
+                "stat_size": 128,
+            },
+            {
+                "path": "cache/other.bin",
+                "kind": "file",
+                "mtime_ns": (second + 5) * 1_000_000_000,
+                "stat_size": 64,
+            },
+            {"path": "cache", "kind": "directory", "mtime_ns": 0, "stat_size": 0},
+        ]
+        signals = hygiene.provenance_signals(entries)
+        clusters = signals["sibling_mtime_clusters"]
+        self.assertEqual(1, len(clusters))
+        self.assertEqual("cache", clusters[0]["parent"])
+        self.assertEqual(["cache/a.bin", "cache/b.bin"], clusters[0]["paths"])
+        self.assertEqual([128], [row["stat_size"] for row in signals["size_collisions"]])
+
+    def test_scan_records_free_bytes_and_posture_without_ranking(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            body = b"x" * 64
+            (root / "a.tmp").write_bytes(body)
+            (root / "b.tmp").write_bytes(body)
+            stamp = 1_700_000_000
+            os.utime(root / "a.tmp", (stamp, stamp))
+            os.utime(root / "b.tmp", (stamp, stamp))
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertIn(snapshot["ceremony_posture"], ("low-stakes-batch", "per-finding"))
+            if snapshot["free_bytes"] is not None:
+                self.assertIsInstance(snapshot["free_bytes"], int)
+                self.assertGreaterEqual(snapshot["free_bytes"], 0)
+            self.assertEqual(
+                snapshot["ceremony_posture"],
+                hygiene.ceremony_posture(
+                    snapshot["free_bytes"], snapshot["target_reclaimable_local_bytes"]
+                ),
+            )
+            self.assertIn("sibling_mtime_clusters", snapshot["provenance_signals"])
+            self.assertGreaterEqual(
+                len(snapshot["provenance_signals"]["size_collisions"]), 1
+            )
 
 
 if __name__ == "__main__":

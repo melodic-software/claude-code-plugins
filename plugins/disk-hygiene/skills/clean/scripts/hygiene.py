@@ -219,6 +219,15 @@ def scan_complete_payload(
         "empty_file_count": snapshot["empty_file_count"],
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
+        "free_bytes": snapshot.get("free_bytes"),
+        "ceremony_posture": snapshot.get("ceremony_posture", "per-finding"),
+        "provenance_sibling_mtime_clusters": len(
+            (snapshot.get("provenance_signals") or {}).get("sibling_mtime_clusters")
+            or []
+        ),
+        "provenance_size_collisions": len(
+            (snapshot.get("provenance_signals") or {}).get("size_collisions") or []
+        ),
         "truncated_paths": snapshot["truncated_paths"],
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
@@ -920,6 +929,117 @@ def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
         for entry in entries
         if (value := entry_reclaimable_local_bytes(entry)) is not None
     )
+
+
+# A tidiness pass on a volume with this much free space, whose inventoried
+# reclaimable bytes sit under the ceiling, is not a disk-full emergency. The
+# posture changes confirmation shape only: one exact-list confirmation instead
+# of one round trip per path. It never skips a finding and never ranks by size.
+LOW_STAKES_FREE_FLOOR_BYTES = 100 * 1024**3
+LOW_STAKES_RECLAIM_CEILING_BYTES = 1024**3
+PROVENANCE_GROUP_CAP = 20
+PROVENANCE_PATH_CAP = 8
+PROVENANCE_SIZE_FLOOR_BYTES = 64
+
+
+def read_free_bytes(target: Path) -> int | None:
+    """Free bytes on the target's volume, on every platform.
+
+    ``shutil.disk_usage`` is not Linux-only. A failure (a path that disappears
+    between the walk and this call) is ``None``, and the ceremony posture stays
+    per-finding.
+    """
+    try:
+        return int(shutil.disk_usage(target).free)
+    except OSError:
+        return None
+
+
+def ceremony_posture(free_bytes: int | None, reclaimable_bytes: int) -> str:
+    """``low-stakes-batch`` or ``per-finding``.
+
+    ``low-stakes-batch`` means the operator may confirm the exact approved path
+    list once. Every safety check still runs per path. A missing free-space
+    reading never selects the batch posture.
+    """
+    if (
+        isinstance(free_bytes, int)
+        and free_bytes >= LOW_STAKES_FREE_FLOOR_BYTES
+        and reclaimable_bytes < LOW_STAKES_RECLAIM_CEILING_BYTES
+    ):
+        return "low-stakes-batch"
+    return "per-finding"
+
+
+def _relative_parent(relative: str) -> str:
+    normalized = relative.replace("\\", "/")
+    parent, separator, _name = normalized.rpartition("/")
+    if not separator:
+        return "."
+    return parent or "."
+
+
+def provenance_signals(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """Sibling-mtime clusters and identical-size collisions from snapshot rows.
+
+    Both are computable from facts the walk already stored. Neither is a
+    disposition, a tier, or a ranking key. Groups are capped so a huge temp
+    directory cannot dominate the snapshot.
+    """
+    by_mtime: dict[tuple[str, int], list[str]] = {}
+    by_size: dict[int, list[str]] = {}
+    for entry in entries:
+        if entry.get("kind") != "file":
+            continue
+        path = entry.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        mtime = entry.get("mtime_ns")
+        if isinstance(mtime, int):
+            by_mtime.setdefault(
+                (_relative_parent(path), mtime // 1_000_000_000), []
+            ).append(path)
+        size = entry.get("stat_size")
+        if isinstance(size, int) and size >= PROVENANCE_SIZE_FLOOR_BYTES:
+            by_size.setdefault(size, []).append(path)
+
+    def capped(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        groups.sort(key=lambda item: (-int(item["count"]), str(item["paths"][0])))
+        trimmed: list[dict[str, Any]] = []
+        for group in groups[:PROVENANCE_GROUP_CAP]:
+            paths = list(group["paths"])
+            trimmed.append(
+                {
+                    **group,
+                    "paths": paths[:PROVENANCE_PATH_CAP],
+                    "paths_omitted": max(0, len(paths) - PROVENANCE_PATH_CAP),
+                }
+            )
+        return trimmed
+
+    mtime_groups: list[dict[str, Any]] = []
+    for (parent, second), paths in by_mtime.items():
+        if len(paths) < 2:
+            continue
+        mtime_groups.append(
+            {
+                "parent": parent,
+                "mtime_s": second,
+                "count": len(paths),
+                "paths": sorted(paths),
+            }
+        )
+    size_groups: list[dict[str, Any]] = []
+    for size, paths in by_size.items():
+        if len(paths) < 2:
+            continue
+        size_groups.append(
+            {"stat_size": size, "count": len(paths), "paths": sorted(paths)}
+        )
+    return {
+        "sibling_mtime_clusters": capped(mtime_groups),
+        "size_collisions": capped(size_groups),
+    }
 
 
 def entry_is_empty_directory(
@@ -1892,6 +2012,11 @@ def scan_tree(
         if sizes_only
         else sorted(entries, key=lambda entry: entry["path"]),
     }
+    payload["free_bytes"] = read_free_bytes(target)
+    payload["ceremony_posture"] = ceremony_posture(
+        payload["free_bytes"], int(reclaimable)
+    )
+    payload["provenance_signals"] = provenance_signals(entries)
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = "exact" if not truncated else "partial"
