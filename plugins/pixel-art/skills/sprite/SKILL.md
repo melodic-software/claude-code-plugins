@@ -44,7 +44,7 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
   shadow, line), which keeps the palette locked and makes recolors one-line edits. For a
   character, start from [`character_kit.py`](${CLAUDE_PLUGIN_ROOT}/scripts/character_kit.py)
   (proportion presets `chibi`, `standard`, `tall`; head and hair shapes; clothing layers; the
-  shading and selective-outline passes; direction mirroring that shades again). Adapt those
+  shading and selective-outline passes; `for_direction` shades again after a mirror). Adapt those
   pieces. A worked 4-direction walker is
   [`examples/kit-walker/walker.py`](${CLAUDE_PLUGIN_ROOT}/examples/kit-walker/walker.py).
 

@@ -44,7 +44,7 @@ function whose parameters (limb angles, step phase, body bob, arm swing, squash)
 frame, so every frame stays on-model and a fix lands in every frame at once. For a person,
 adapt [`character_kit.py`](${CLAUDE_PLUGIN_ROOT}/scripts/character_kit.py) instead of starting
 from an empty grid: proportion presets, head and hair, clothing, ramps, shading, selective
-outline, and `facing_grid` (right is the left material grid mirrored, then shaded again so the
+outline, and `for_direction` (right is the left material grid mirrored, then shaded again so the
 light stays top-left). A worked walker on that kit is
 `${CLAUDE_PLUGIN_ROOT}/examples/kit-walker/walker.py`. An RPG Maker MZ walker that does not use
 the kit is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py`; copy either file into the
