@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.0] - 2026-09-28
+## [0.26.1] - 2026-09-28
 
 ### Added
 
@@ -12,6 +12,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   depth-1 home audit, re-run against the home path with `--root-children` and explicit
   `--root-child` names to fully inventory approved top-level directories into one snapshot without
   walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
+## [0.26.0] - 2026-09-28
 
 ### Changed
 
