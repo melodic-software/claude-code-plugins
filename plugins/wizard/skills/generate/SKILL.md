@@ -33,6 +33,11 @@ WSL. `gh` (authenticated) is needed only by stages that write CI secrets or
 variables. When it's absent those stages warn and land in the closing summary
 instead of failing the run.
 
+When the human is only the privilege boundary (UAC, or a policy that reserves
+the applying run for the operator) and every step is scriptable, author
+`/wizard:unattended` instead. This skill stays the interactive path for
+dashboard clicks, 2FA, and other steps an agent cannot perform.
+
 ## Process
 
 ### 1. Scope the procedure

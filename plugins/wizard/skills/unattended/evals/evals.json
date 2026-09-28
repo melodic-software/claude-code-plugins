@@ -1,0 +1,26 @@
+{
+  "skill_name": "unattended",
+  "evals": [
+    {
+      "id": 1,
+      "name": "privilege-boundary-not-interactive-wizard",
+      "prompt": "The operator has to run Set-MachineConfiguration.ps1 elevated. Every step is scriptable. Write the script I will launch. Do not walk me through clicks.",
+      "expected_output": "The skill uses /wizard:unattended, not /wizard:generate. It emits PowerShell or bash from the fixed template, with elevation checked, a JSON result path, and no per-step confirmation. It does not run the script.",
+      "expectations": [
+        "Chooses unattended rather than the interactive generate wizard",
+        "Names the JSON result the agent will read back",
+        "Does not execute the script"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "dashboard-stays-on-generate",
+      "prompt": "I have to click through the Stripe dashboard and paste an API key. Build me the unattended script.",
+      "expected_output": "The skill refuses the unattended shape for a dashboard click and routes to /wizard:generate, because a human is the actor, not only the privilege boundary.",
+      "expectations": [
+        "Does not emit an unattended script for a dashboard click",
+        "Routes that procedure to /wizard:generate"
+      ]
+    }
+  ]
+}

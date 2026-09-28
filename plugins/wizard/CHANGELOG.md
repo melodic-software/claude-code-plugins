@@ -3,6 +3,20 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-28
+
+### Added
+
+- **`/wizard:unattended` authors a script the human launches once (#4199).** The
+  human is the privilege boundary (UAC, or a policy that reserves the applying
+  run), not the actor. The skill emits bash (`template.sh`) or PowerShell
+  (`template.ps1`) with idempotent steps, both-direction elevation checks, a
+  not-inside guard, preflight remedies, a secret ladder (environment, file,
+  one hidden prompt), shared-resource hold/release, and a `wizard-unattended/1`
+  JSON result. `/wizard:generate` stays the interactive wizard for dashboard
+  clicks and other steps an agent cannot perform. Decision record: the skill
+  body (Claim, Basis, As of, Recheck).
+
 ## [0.2.10] - 2026-09-21
 
 ### Changed

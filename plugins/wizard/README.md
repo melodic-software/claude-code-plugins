@@ -11,6 +11,7 @@ and confirms at every stage.
 | Skill | What it does |
 |---|---|
 | `/wizard:generate` | Scope the manual procedure from the repo, author its stages onto the fixed hardened template, verify statically, and hand off to the human after explicit approval |
+| `/wizard:unattended` | Author a bash or PowerShell script the human launches once when they are only the privilege boundary. The script writes JSON the agent reads back |
 
 The skill is model-invoked: when the agent hits a step only a human can take,
 a key it can't mint, a dashboard it can't click, it can reach for this instead
