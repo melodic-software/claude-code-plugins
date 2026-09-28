@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.16] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `boris` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.13.15] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** skips `/session-flow:orchestrate` and `/discipline:use-your-skills` when a
+  catalog entry sets `- prime: false` (`catalog.sh` eighth column; `testing-audit` in `hygiene`).
+
 ## [0.13.14] - 2026-09-28
 
 ### Fixed
