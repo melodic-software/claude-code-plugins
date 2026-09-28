@@ -2381,7 +2381,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    if command_kind in {"scan", "preview", "handoff-verify", "catalog-sync"}:
         return _settle(
             command,
             tool_name,

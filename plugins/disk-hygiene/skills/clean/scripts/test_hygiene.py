@@ -10476,6 +10476,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "catalog-sync": "catalog-sync --snapshot s --run-id run-1",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -10900,6 +10901,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "catalog-sync": "allow",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
@@ -11339,6 +11341,38 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+
+class InvestigatedCatalogTests(unittest.TestCase):
+    """Scan annotation and the approval path. Covers investigated_catalog.py."""
+
+    def test_prior_disposition_does_not_change_preview_or_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("orphan.tmp")]}
+            marked = json.loads(json.dumps(snapshot))
+            target = next(item for item in marked["entries"] if item["path"] == "orphan.tmp")
+            target["prior_disposition"] = "remove"
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", side_effect=lambda *_a, **_k: []),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "anchored_remove") as remove,
+            ):
+                plain = hygiene.preview(snapshot, plan)
+                hinted = hygiene.preview(marked, plan)
+                hygiene.apply_plan(snapshot, plan)
+                hygiene.apply_plan(marked, plan)
+            self.assertEqual(
+                plain["candidates"][0]["blockers"], hinted["candidates"][0]["blockers"]
+            )
+            self.assertEqual(plain["status"], hinted["status"])
+            self.assertEqual("ready-for-explicit-approval", plain["status"])
+            self.assertEqual(2, remove.call_count)
 
 
 if __name__ == "__main__":

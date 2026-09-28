@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import investigated_catalog  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -1687,6 +1688,24 @@ def normalize_root_child_selection(
         seen.add(seen_key)
         resolved.append(canonical)
     return resolved
+
+
+def attach_catalog_priors(snapshot: dict[str, Any]) -> None:
+    """Annotate entries from catalog.json when identity still holds.
+
+    A missing or unreadable catalog leaves the snapshot unchanged. The
+    annotation is not an input to preview or apply.
+    """
+    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not data_value:
+        return
+    try:
+        book = investigated_catalog.read_catalog(Path(data_value))
+    except (OSError, json.JSONDecodeError, investigated_catalog.CatalogError):
+        return
+    if book is None:
+        return
+    investigated_catalog.annotate_snapshot(snapshot, book)
 
 
 def scan_tree(
@@ -4065,6 +4084,7 @@ def main(argv: list[str] | None = None) -> int:
                         2,
                     )
                 snapshot["root_children_skipped"] = skipped
+                attach_catalog_priors(snapshot)
                 write_json(output_path, snapshot)
                 skipped_counts = root_children_skipped_reason_counts(skipped)
                 home_note = withheld_home_container_note(skipped)
@@ -4137,6 +4157,7 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     2,
                 )
+            attach_catalog_priors(snapshot)
             write_json(output_path, snapshot)
             return emit(
                 scan_stdout_payload(
@@ -4196,6 +4217,30 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if handoff_verify_blocks(result) else 0)
+        if args.command == "catalog-sync":
+            if not DATA_ROOT_OVERRIDE:
+                raise HygieneError("catalog-sync requires --data-root")
+            data_root = Path(DATA_ROOT_OVERRIDE).expanduser()
+            state_output_path(data_root / investigated_catalog.CATALOG_JSON_NAME)
+            state_output_path(data_root / investigated_catalog.CATALOG_MD_NAME)
+            answers = (
+                investigated_catalog.load_answers(load_json(Path(args.answers)))
+                if args.answers
+                else None
+            )
+            try:
+                updated, report = investigated_catalog.sync_catalog(
+                    snapshot,
+                    investigated_catalog.read_catalog(data_root),
+                    args.run_id,
+                    answers,
+                )
+            except investigated_catalog.CatalogError as exc:
+                raise HygieneError(str(exc)) from exc
+            json_path, md_path = investigated_catalog.write_catalog(data_root, updated)
+            report["catalog"] = str(json_path)
+            report["rendered"] = str(md_path)
+            return emit(report, 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":

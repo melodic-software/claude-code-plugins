@@ -247,6 +247,50 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
    questions has an evidence-backed answer or is recorded as unknown. An unknown answer to question
    2 or 4 rules out High in step 3; an unknown on question 4 keeps the entry at Low.
 
+## Investigated catalog
+
+After the snapshot, sync the catalog under the plugin data root. It remembers what an
+investigation concluded. It does not approve anything.
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" catalog-sync \
+  --snapshot "<run-dir>/snapshot.json" --run-id "<run-id>" \
+  [--answers "<run-dir>/catalog-answers.json"] \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+That writes `${CLAUDE_PLUGIN_DATA}/catalog.json` and `${CLAUDE_PLUGIN_DATA}/CATALOG.md`.
+The next scan annotates a matching entry with `prior_disposition` only while device, inode,
+kind, and the descendant set still match. Present the sync report's `lead` (new, invalidated,
+or newly answered) first, and give each `unchanged` row one line. A catalogued disposition
+does not shorten approval, preview, or revalidation.
+
+Catalogue every immediate child of the target, every hinted or empty entry at any depth, and
+every out-of-place entry (no protected reason, no hint, and not a recognizable app or config
+name). Deeper files are recorded on their owning directory, not one row per file. Do not
+catalogue inside a protected shell root; those roots are not walked.
+
+For each catalogued entry, run this local procedure and record the sources you actually used:
+
+- manifests and READMEs
+- config file contents
+- `Get-Command`, or `command -v` on Unix
+- running processes
+- scheduled tasks
+- PATH, both user and machine
+- installed programs
+- git remotes and status
+- dotfile and settings references
+
+Invoke `/discovery:research` only when that procedure found no owner, and only when that skill
+is available in this session. Do not invoke it for an entry that already has an owner.
+`/discovery:explore` stays for repository strays.
+
+End the report with one question per entry whose owner is still unknown. Until the operator
+answers, disposition stays `keep`. Write the answer to `catalog-answers.json` and sync again.
+The record is stored with `source: human` and is not asked again while identity holds. An
+identity or descendant-set change drops the old conclusion and asks again.
+
 ## 3. Classify and report
 
 Safe tidiness leads; reclaimed space follows. Confidence is report priority, not permission, and

@@ -253,6 +253,21 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         one_of=(("--paths", "--path"),),
     ),
     Subcommand(
+        "catalog-sync",
+        (
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag(
+                "--run-id",
+                required=True,
+                pattern=r"[A-Za-z0-9._-]{1,64}",
+                example="run-1",
+            ),
+            Flag("--answers", example="answers.json"),
+            _data_root_flag(),
+        ),
+        help="write catalog.json and CATALOG.md under the data root (no deletion)",
+    ),
+    Subcommand(
         "apply",
         (
             Flag("--execute", takes_value=False, required=True),
