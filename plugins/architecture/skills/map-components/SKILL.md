@@ -52,7 +52,7 @@ not a task list:
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal overlay.
 5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
-   is unset, emit no C4 view. This skill has no record of its own, so it writes nothing.
+   is unset, write `components.md` with the prose and tables and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
    the cause on stderr. Do not hard-fail and do not ask the operator to create the surface
@@ -70,7 +70,7 @@ Omit `--formats` when no convention home resolved. Stdout is `likec4`,
 `c4-plantuml`, or `none`. `c4-plantuml` writes `components.md` with one fenced
 `plantuml` block (`C4_Component`); `likec4` writes it with one fenced `likec4`
 block and a component view of the container. Both carry the tables. `none`
-writes nothing and still prints the summary line.
+writes `components.md` with the prose and tables and no diagram block.
 
 This skill never writes the consumer's root instruction file or its topic doc.
 
@@ -214,8 +214,8 @@ End every run with this block, in this order:
   operator's decision on #4639 puts every C4 view of the code on the key the
   authoring-formats convention assigns to C4 system views, which refuses
   mermaid because mermaid C4 is experimental. That decision lives in
-  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Unset, the run writes nothing,
-  and the report says no view was emitted.
+  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Unset, `components.md` carries the
+  tables and no diagram, and the report says no view was emitted.
 - **A component diagram is one container.** Claim: the C4 component diagram
   scopes to a single container, and its primary elements are the components
   inside that container. The model is notation-independent. Basis:

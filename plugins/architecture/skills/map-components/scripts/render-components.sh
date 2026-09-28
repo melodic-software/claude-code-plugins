@@ -27,8 +27,8 @@
 #                          authoring-formats diagram_dialect.system, which has
 #                          no default and refuses mermaid. likec4 and
 #                          c4-plantuml write components.md with one fenced
-#                          likec4 or plantuml block plus the tables. none writes
-#                          nothing and still prints the summary.
+#                          likec4 or plantuml block plus the tables. none
+#                          writes the prose and tables with no diagram.
 #   --source <text>        Provenance line. Default: dependency-graph.json.
 #   --node-threshold <N>   Component count above which the view aggregates to
 #                          coarser groups and says so. Default: the record's
@@ -254,7 +254,6 @@ generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
 
 md_out="$outdir/components.md"
-[[ "$dialect" != "none" ]] || md_out="/dev/null"
 
 write_summary() {
   printf 'components: container="%s" components=%s edges=%s drawn_edges=%s violations=%s aggregated=%s thin=%s external_collapsed=%s unresolved=%s dialect=%s\n' \
@@ -1004,7 +1003,7 @@ layers_declared="$(meta_get layers_declared)"
   if [[ "$thin" == "yes" ]]; then
     printf 'Dialect: diagram_dialect.system=%s. No diagram is drawn for a thin result.\n\n' "$dialect"
   else
-    printf 'Dialect: diagram_dialect.system=%s, a C4 component view of this one container.\n\n' "$dialect"
+    printf 'Dialect: diagram_dialect.system=%s. The view covers this one container.\n\n' "$dialect"
   fi
   if [[ "$thin" == "yes" ]]; then
     printf 'Thin result: yes. Container `%s` is a single module with no internal component edges. A one-box diagram is not the answer.\n\n' "$cname"
@@ -1013,6 +1012,8 @@ layers_declared="$(meta_get layers_declared)"
     printf '%s\n' '- `/architecture:map-containers` charts the deployables. This view is one of them.'
     printf '%s\n' '- `/architecture:improve` looks for module-design friction inside the single module.'
     printf '\n'
+  elif [[ "$dialect" == "none" ]]; then
+    printf 'No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the graph.\n\n'
   elif [[ "$dialect" == "c4-plantuml" ]]; then
     printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
     cat "$puml"

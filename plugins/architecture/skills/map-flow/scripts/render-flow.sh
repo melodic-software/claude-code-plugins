@@ -188,54 +188,50 @@ END {
     c_count[m] = j - i + 1
     i = j + 1
   }
-    emit("# Flow")
-    emit("")
-    emit("A mermaid sequence diagram of architectural roles. No dialect key applies.")
-    emit("")
-    emit("Entry: `" entry "` at " entry_file ":" entry_line ".")
-    emit("")
-    if (truncated == "yes")
-      emit("Depth truncated at " depth ". The trace stopped before entering further callees. This sequence is not the whole path.")
-    else
-      emit("Depth " depth " covered every followed callee. truncated=no.")
-    emit("")
-    emit("```mermaid")
-    emit("sequenceDiagram")
-    for (i = 1; i <= m; i++) {
-      role_seen[c_from[i]] = 1
-      role_seen[c_to[i]] = 1
-    }
-    # Stable participant order: first appearance.
-    pcount = 0
-    for (i = 1; i <= m; i++) {
-      if (!(c_from[i] in printed)) { printed[c_from[i]] = 1; pcount++; order[pcount] = c_from[i] }
-      if (!(c_to[i] in printed)) { printed[c_to[i]] = 1; pcount++; order[pcount] = c_to[i] }
-    }
-    for (i = 1; i <= pcount; i++)
-      emit("  participant " order[i] " as " order[i])
-    for (i = 1; i <= m; i++) {
-      arrow = (c_sync[i] == "asynchronous" ? "-->>" : "->>")
-      label = c_call[i] " " c_file[i] ":" c_line[i] " " c_res[i]
-      if (c_mech[i] != "") label = label " " c_mech[i]
-      if (c_hand[i] == "yes") label = label " handoff /architecture:map-events"
-      if (c_count[i] > 1) label = label " (" c_count[i] " hops collapsed)"
-      emit("  " c_from[i] arrow c_to[i] ": " q(label))
-    }
-    emit("```")
-    emit("")
-    emit("## Hops")
-    emit("")
-    emit("| from | to | call | cite | sync | resolution | mechanism | handoff |")
-    emit("| --- | --- | --- | --- | --- | --- | --- | --- |")
-    for (i = 1; i <= n; i++)
-      emit("| " from[i] " | " to[i] " | " call[i] " | " file[i] ":" line[i] " | " sync[i] " | " res[i] " | " mech[i] " | " hand[i] " |")
-    emit("")
-    collapsed = 0
-    for (i = 1; i <= m; i++) if (c_count[i] > 1) collapsed += c_count[i]
-    if (collapsed > 0)
-      emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, and handoff. The table above keeps every cited call.")
-    else
-      emit("No consecutive hops were collapsed.")
+  emit("# Flow")
+  emit("")
+  emit("A mermaid sequence diagram of architectural roles. No dialect key applies.")
+  emit("")
+  emit("Entry: `" entry "` at " entry_file ":" entry_line ".")
+  emit("")
+  if (truncated == "yes")
+    emit("Depth truncated at " depth ". The trace stopped before entering further callees. This sequence is not the whole path.")
+  else
+    emit("Depth " depth " covered every followed callee. truncated=no.")
+  emit("")
+  emit("```mermaid")
+  emit("sequenceDiagram")
+  # Stable participant order: first appearance.
+  pcount = 0
+  for (i = 1; i <= m; i++) {
+    if (!(c_from[i] in printed)) { printed[c_from[i]] = 1; pcount++; order[pcount] = c_from[i] }
+    if (!(c_to[i] in printed)) { printed[c_to[i]] = 1; pcount++; order[pcount] = c_to[i] }
+  }
+  for (i = 1; i <= pcount; i++)
+    emit("  participant " order[i] " as " order[i])
+  for (i = 1; i <= m; i++) {
+    arrow = (c_sync[i] == "asynchronous" ? "-->>" : "->>")
+    label = c_call[i] " " c_file[i] ":" c_line[i] " " c_res[i]
+    if (c_mech[i] != "") label = label " " c_mech[i]
+    if (c_hand[i] == "yes") label = label " handoff /architecture:map-events"
+    if (c_count[i] > 1) label = label " (" c_count[i] " hops collapsed)"
+    emit("  " c_from[i] arrow c_to[i] ": " q(label))
+  }
+  emit("```")
+  emit("")
+  emit("## Hops")
+  emit("")
+  emit("| from | to | call | cite | sync | resolution | mechanism | handoff |")
+  emit("| --- | --- | --- | --- | --- | --- | --- | --- |")
+  for (i = 1; i <= n; i++)
+    emit("| " from[i] " | " to[i] " | " call[i] " | " file[i] ":" line[i] " | " sync[i] " | " res[i] " | " mech[i] " | " hand[i] " |")
+  emit("")
+  collapsed = 0
+  for (i = 1; i <= m; i++) if (c_count[i] > 1) collapsed += c_count[i]
+  if (collapsed > 0)
+    emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, and handoff. The table above keeps every cited call.")
+  else
+    emit("No consecutive hops were collapsed.")
   printf "flow: entry=%s hops=%d truncated=%s unresolved=%d handoffs=%d\n", entry, n + 0, (truncated == "" ? "no" : truncated), unresolved + 0, handoffs + 0
 }
 AWK

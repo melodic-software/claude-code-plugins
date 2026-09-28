@@ -54,7 +54,8 @@ non-interactive run, STOPS and points at `/architecture:setup`.
 
 The record is schema_version 1. Message lines start with `{"id":`. Edge lines start with
 `{"from":`. Finding lines start with `{"kind":`. A message line cites the file and line that
-declare the type. Findings include orphan publishers, orphan consumers, fan-out past
+declare the type. An edge's `from` is the file of the publishing, sending, or consuming call site,
+`to` is the resolved message (`-` when unresolved), and `kind` is `publish`, `send`, or `consume`. Findings include orphan publishers, orphan consumers, fan-out past
 `fanout_threshold` (3), competing consumers on one queue, and unresolved edges.
 `fanout_threshold` is this plugin's limit, not the broker's.
 

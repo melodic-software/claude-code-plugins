@@ -53,7 +53,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal overlay.
 5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
-   is unset, write `context.json` and emit no C4 view.
+   is unset, write `context.json` and `context.md` with the tables, and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
    the cause on stderr. Do not hard-fail and do not ask the operator to create the surface
@@ -124,8 +124,8 @@ Write `context.json` first, then render from it. `c4-plantuml` writes `context.m
 `plantuml` block: a focal `System`, a `Person` for each operator-stated actor, and a `System_Ext`
 for each derived external system. `likec4` writes `context.md` with one fenced `likec4` block: the
 same elements as `softwareSystem`, `person`, and `externalSystem`, and a `context` view. `none`
-writes no picture; `context.json` is still the record. Both files carry the node and evidence
-tables.
+writes `context.md` with the node and evidence tables and no diagram block. Every dialect carries
+those tables.
 
 The script prints one summary line on stdout:
 `context: focal=<name> externals=<n> actors=<n> thin=<yes|no> dialect=<likec4|c4-plantuml|none>`.
@@ -157,8 +157,8 @@ End every run with this block, in this order, filled from the record and the scr
 - Break the system into deployables, draw a per-environment deployment, or chart many repositories.
   Those are other rungs.
 - Add a dialect key, read `landscape_dialect`, or draw mermaid C4.
-- Fetch anything, or edit a config file. The only writes are `context.json` and, when a dialect
-  resolved, `context.md` under the resolved output directory.
+- Fetch anything, or edit a config file. The only writes are `context.json` and `context.md` under
+  the resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
 
@@ -185,7 +185,8 @@ End every run with this block, in this order, filled from the record and the scr
 - **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
   on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
   C4 system views, which refuses mermaid because mermaid C4 is experimental. An unset key is the
-  common case: the run still writes `context.json`, and the report says no view was emitted. The
+  common case: the run still writes `context.json` and a `context.md` with no diagram, and the report says no
+  view was emitted. The
   decision is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
   key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)

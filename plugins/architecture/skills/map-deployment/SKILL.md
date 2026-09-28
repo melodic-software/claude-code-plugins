@@ -119,8 +119,8 @@ listed. When it does not exist, the artifact says container names came from the 
   --dialect "<likec4|c4-plantuml|none>" --env "<environment>" --diff "<env-a>" "<env-b>"
 ```
 
-Pass the resolved dialect. With `none` the script writes no file: `deployment.json` is the whole
-output, the summary line still prints, and the diff lives in the record's `diffs` array. Omit
+Pass the resolved dialect. With `none` the script still writes `deployment.md` with the tools,
+environments, diff, and container tables, and draws no diagram block. Omit
 `--env` to draw every collected environment, one deployment environment each inside the one
 fenced block. Omit `--diff` when the
 invocation did not ask for a comparison. The diff table is the first section after the tools. An

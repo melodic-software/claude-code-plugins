@@ -100,8 +100,9 @@ The four C4 views resolve `diagram_dialect.system` through
 `${CLAUDE_PLUGIN_ROOT}/lib/resolve-diagram-dialect.sh --kind system`. `likec4` writes the view's
 `.md` file with one fenced `likec4` block; `c4-plantuml` writes it with one fenced `plantuml`
 block, the fence tags `/planning:design` uses. With the key unset, absent, or set to a value
-outside the allowed set (mermaid included), the skill still writes its JSON record, emits no
-picture, and reports `unset (no C4 view emitted)`.
+outside the allowed set (mermaid included), the skill still writes its JSON record and its `.md`
+file with the prose and tables, draws no diagram block, and reports `unset (no C4 view emitted)`,
+as `/planning:design` still writes `component-map.md` as prose when the key is unset.
 
 The convention keys two diagram kinds: data diagrams and C4 system views. A traced call sequence
 and a message topology are neither, so `map-flow` and `map-events` follow the repository's

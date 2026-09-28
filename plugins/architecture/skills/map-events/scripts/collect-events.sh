@@ -248,7 +248,7 @@ awk -F'\t' '
 done >"$msg_body"
 
 while IFS=$'\t' read -r kind contract file line queue resolution rawarg; do
-  json_escape "$kind"
+  json_escape "$file"
   obj="{\"from\":\"$JSON_ESC\""
   json_escape "$contract"
   obj="$obj,\"to\":\"$JSON_ESC\""

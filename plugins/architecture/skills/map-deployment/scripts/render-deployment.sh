@@ -8,7 +8,7 @@
 #
 # --dialect is diagram_dialect.system, resolved by lib/resolve-diagram-dialect.sh.
 # likec4 and c4-plantuml write deployment.md with one fenced likec4 or plantuml
-# block. none (the default) writes no file and prints only the summary line.
+# block. none (the default) writes the same file with the tables and no diagram.
 # Every printed value passes through lib/redact-connection.awk.
 #
 # Exit: 0 rendered; 1 unreadable record; 2 usage; 3 unknown environment,
@@ -80,11 +80,7 @@ esac
 
 md="$out/deployment.md"
 target="$md"
-if [[ "$dialect" == "none" ]]; then
-  target="/dev/null"
-else
-  mkdir -p "$out"
-fi
+mkdir -p "$out"
 
 set +e
 summary="$(
@@ -178,7 +174,7 @@ summary="$(
         print reason_prose(reason) > md
         print "" > md
       } else {
-        print "Dialect: " dialect ", from diagram_dialect.system. This is the C4 deployment view." > md
+        print "Dialect: " dialect ", from diagram_dialect.system." > md
         print "" > md
         if (env_filter != "") { print "Environment: " safe(env_filter) "." > md; print "" > md }
       }
@@ -309,6 +305,8 @@ summary="$(
           print "```" > md
           print "" > md
         } else {
+          print "No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables here come from the record." > md
+          print "" > md
           for (p = 1; p <= np; p++) {
             e = jget(held["placements", p], "env")
             if (env_filter == "" || e == env_filter) drawn_p++

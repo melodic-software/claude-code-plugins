@@ -120,7 +120,9 @@ mkdir -p "$TEST_TMPDIR/none"
 none_out="$(bash "$SCRIPT" --out "$TEST_TMPDIR/none" --graph "$TEST_TMPDIR/layers.json")"
 assert_equals "none: exits 0" "$?" "0"
 assert_contains "none: summary names the dialect" "$none_out" 'dialect=none'
-assert_equals "none: nothing is written" "$(find "$TEST_TMPDIR/none" -type f | wc -l | tr -d ' ')" "0"
+assert_contains "none: the prose says no view was emitted" "$(cat "$TEST_TMPDIR/none/components.md")" 'unset (no C4 view emitted)'
+assert_contains "none: the edge table is still written" "$(cat "$TEST_TMPDIR/none/components.md")" '| Domain | Application |'
+assert_equals "none: no diagram fence" "$(grep -c '^```' "$TEST_TMPDIR/none/components.md")" "0"
 for refused in mermaid structurizr; do
   bash "$SCRIPT" --out "$TEST_TMPDIR/none" --graph "$TEST_TMPDIR/layers.json" --dialect "$refused" >/dev/null 2>&1
   assert_equals "$refused is a usage error" "$?" "2"

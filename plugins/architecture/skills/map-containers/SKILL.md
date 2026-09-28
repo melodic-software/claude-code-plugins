@@ -60,7 +60,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
 4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
    There is no personal overlay.
 5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
-   is unset, write `containers.json` and emit no C4 view.
+   is unset, write `containers.json` and `containers.md` with the tables, and draw no diagram block.
 6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
    included, which the convention refuses) each resolve to emitting no view. The resolver names
    the cause on stderr. Do not hard-fail and do not ask the operator to create the surface
@@ -119,8 +119,8 @@ module, not a container, even when its directory name sounds like a service.
 Write `containers.json` first, then render from it. `c4-plantuml` writes `containers.md` with one
 fenced `plantuml` block (`C4_Container`: a `System_Boundary` holding `Container`, `ContainerDb`, and
 `ContainerQueue` elements). `likec4` writes `containers.md` with one fenced `likec4` block (the same
-elements nested in the software system, and a container view). `none` writes no picture;
-`containers.json` is still the record. Contained modules are named on their deployable. They are
+elements nested in the software system, and a container view). `none` writes `containers.md`
+with the tables and no diagram block. Contained modules are named on their deployable. They are
 not drawn as containers.
 
 The script prints one summary line on stdout:
@@ -157,8 +157,7 @@ End every run with this block, in this order, filled from the record and the scr
 - Trace a request. That is `/architecture:map-flow`.
 - Add a dialect key, read `landscape_dialect`, or draw mermaid C4.
 - Execute configuration, fetch anything, or edit a project file. The only writes are
-  `containers.json` and, when a dialect resolved, `containers.md` under the resolved output
-  directory.
+  `containers.json` and `containers.md` under the resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
 - Treat two projects in one repository as an edge. An edge needs a cited config key or a configured
@@ -195,8 +194,8 @@ End every run with this block, in this order, filled from the record and the scr
 - **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
   on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
   C4 system views, the same key `/planning:design` reads for its design container view. It refuses
-  mermaid because mermaid C4 is experimental. Unset, the run still writes `containers.json` and the
-  report says no view was emitted. The decision is recorded in
+  mermaid because mermaid C4 is experimental. Unset, `containers.md` carries the tables and no diagram,
+  and the report says no view was emitted. The decision is recorded in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **A reformatted record reads as empty unless the reader refuses it.** `render-containers.sh`
   exits 1 on any other shape and writes nothing.

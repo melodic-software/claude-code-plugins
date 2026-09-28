@@ -79,7 +79,10 @@ mkdir -p "$TEST_TMPDIR/none"
 out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/none")"
 assert_equals "none: exits 0" "$?" "0"
 assert_contains "none: summary names the dialect" "$out" "dialect=none"
-assert_equals "none: no picture is written" "$(find "$TEST_TMPDIR/none" -type f | wc -l | tr -d ' ')" "0"
+nmd="$(cat "$TEST_TMPDIR/none/context.md")"
+assert_contains "none: the prose says no view was emitted" "$nmd" "unset (no C4 view emitted)"
+assert_contains "none: the evidence table is still written" "$nmd" "Partner.BaseUrl"
+assert_equals "none: no diagram fence" "$(grep -c '^```' "$TEST_TMPDIR/none/context.md")" "0"
 
 for refused in mermaid structurizr; do
   bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/none" --dialect "$refused" >/dev/null 2>&1

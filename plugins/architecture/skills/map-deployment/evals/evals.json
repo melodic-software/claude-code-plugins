@@ -74,12 +74,12 @@
       "id": 6,
       "name": "system-dialect-unset-emits-no-view",
       "prompt": "/architecture:map-deployment\n\nThe convention home resolves and architecture_dir is docs/architecture. deploy/compose.yaml is tracked. The authoring-formats doc sets diagram_dialect.system to mermaid.",
-      "expected_output": "The resolver prints none. deployment.json is written. No deployment.md is written. The summary says dialect=none and the report gives unset (no C4 view emitted).",
+      "expected_output": "The resolver prints none. deployment.json is written. deployment.md carries the tables and no diagram block. The summary says dialect=none and the report gives unset (no C4 view emitted).",
       "narration": true,
       "expectations": [
         "Runs resolve-diagram-dialect.sh --kind system",
         "Does not emit a mermaid diagram",
-        "deployment.json is written and deployment.md is not",
+        "deployment.json is written and deployment.md has no fenced diagram block",
         "Reports diagram_dialect.system as unset (no C4 view emitted) and names the unrecognized value"
       ]
     }

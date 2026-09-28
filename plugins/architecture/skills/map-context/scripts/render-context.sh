@@ -11,14 +11,14 @@
 #   render-context.sh --help
 #
 # --dialect is the resolved authoring-formats diagram_dialect.system. It has no
-# default: none, the value when the key is unset, writes no picture. Mermaid is
+# default: none, the value when the key is unset, draws no diagram. Mermaid is
 # refused, as the convention refuses it for that key.
 #
-# Writes, into <dir>, unless the dialect is none:
+# Writes, into <dir>:
 #   context.md    prose, one fenced likec4 or plantuml block with a focal
 #                 system, a person for each operator-stated actor, and an
-#                 external system for each derived host, then the node and
-#                 evidence tables
+#                 external system for each derived host (no block when the
+#                 dialect is none), then the node and evidence tables
 #
 # Prints one summary line on stdout:
 #   context: focal=<name> externals=<n> actors=<n> thin=<yes|no> dialect=<d>
@@ -129,7 +129,6 @@ layout_problem="$(awk "$LAYOUT_AWK" "$record")"
   die "record is not in the one-object-per-line layout collect-context.sh writes ($layout_problem); regenerate it: $record" 1
 
 target="$outdir/context.md"
-[[ "$dialect" != "none" ]] || target="/dev/null"
 
 OUT_FILE="$target" DIALECT="$dialect" awk -f - "$record" <<'AWK'
 function jstr(line, key,    pat, i, rest, out, c, n) {
@@ -264,7 +263,7 @@ END {
   for (i = 1; i <= an; i++) aalias[i] = uniq(alias(aname[i]))
   for (i = 1; i <= nh; i++) halias[hosts[i]] = uniq(alias(hosts[i]))
 
-  if (dialect != "none") {
+  {
     emit("# System Context")
     emit("")
     emit("Generated on " safe(generated) ". Dialect: diagram_dialect.system=" dialect ".")
@@ -276,7 +275,9 @@ END {
       emit("Neighboring rungs: system landscape (/architecture:map-landscape), containers (the deployables inside this system).")
       emit("")
     }
-    if (dialect == "c4-plantuml") {
+    if (dialect == "none") {
+      emit("No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the record.")
+    } else if (dialect == "c4-plantuml") {
       emit("```plantuml")
       emit("@startuml")
       emit("!include <C4/C4_Context>")
@@ -338,7 +339,7 @@ END {
       emit("  }")
       emit("}")
     }
-    emit("```")
+    if (dialect != "none") emit("```")
     emit("")
     emit("## Nodes")
     emit("")

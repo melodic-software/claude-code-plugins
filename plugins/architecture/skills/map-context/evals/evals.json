@@ -5,15 +5,15 @@
       "id": 1,
       "name": "tracked-config-cites-key-and-file",
       "prompt": "/architecture:map-context\n\nThe convention home resolves and architecture_dir is docs/architecture. No authoring-formats doc declares diagram_dialect.system. The subject is a git checkout whose tracked src/appsettings.json has ConnectionStrings.Orders set to a SQL connection string with an embedded password, Partner.BaseUrl set to an https URL with userinfo and a sig query, and Auth.ClientSecret set to a secret. No context.json exists yet. This is a non-interactive run.",
-      "expected_output": "Runs collect-context.sh and render-context.sh with --dialect none. Writes docs/architecture/context.json and no context.md; the report says diagram_dialect.system is unset (no C4 view emitted). The SQL external cites src/appsettings.json and ConnectionStrings.Orders. The partner host cites Partner.BaseUrl. The password, userinfo, query signature, and client secret appear nowhere in the record or the report. Actors is empty.",
+      "expected_output": "Runs collect-context.sh and render-context.sh with --dialect none. Writes docs/architecture/context.json and a context.md with the node and evidence tables and no diagram block; the report says diagram_dialect.system is unset (no C4 view emitted). The SQL external cites src/appsettings.json and ConnectionStrings.Orders. The partner host cites Partner.BaseUrl. The password, userinfo, query signature, and client secret appear nowhere in the record, context.md, or the report. Actors is empty.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-context.sh against the subject repository rather than grepping config and composing JSON by hand",
-        "Writes context.json, resolves diagram_dialect.system to none, and writes no context.md",
+        "Writes context.json, resolves diagram_dialect.system to none, and writes context.md with no fenced diagram block",
         "The SQL row is origin derived and its file and key are src/appsettings.json and ConnectionStrings.Orders",
         "The partner row cites Partner.BaseUrl and keeps only the host",
-        "No password, userinfo, query signature, or ClientSecret value is present in context.json or the closing report",
+        "No password, userinfo, query signature, or ClientSecret value is present in context.json, context.md, or the closing report",
         "Does not pass --actors, and the closing report says actors=0"
       ]
     },

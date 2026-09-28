@@ -10,11 +10,11 @@
 #   render-containers.sh --help
 #
 # --dialect is the resolved authoring-formats diagram_dialect.system. It has no
-# default: none, the value when the key is unset, writes no picture. Mermaid is
+# default: none, the value when the key is unset, draws no diagram. Mermaid is
 # refused, as the convention refuses it for that key.
 #
-# likec4 and c4-plantuml write containers.md with one fenced likec4 or plantuml
-# block, then the shared-infrastructure and evidence tables.
+# containers.md carries one fenced likec4 or plantuml block (none when the
+# dialect is none), then the shared-infrastructure and evidence tables.
 # Contained modules are named on their deployable. They are not containers.
 #
 # Prints:
@@ -194,12 +194,14 @@ END {
   dialect = ENVIRON["DIALECT"]
   for (i = 1; i <= cn; i++) calias[i] = uniq(alias(cname[i]))
   for (i = 1; i <= cn; i++) idalias[cid[i]] = calias[i]
-  if (dialect != "none") {
+  {
     print "# Containers" > out
     print "" > out
     print "C4 container diagram for " safe(focal) ". Dialect: diagram_dialect.system=" dialect ". Modules named on a deployable are contained in it. They are not separate containers. A shared-infrastructure row cites every config key for that store. `unknown` is the technology when the manifest named no runtime." > out
     print "" > out
-    if (dialect == "c4-plantuml") {
+    if (dialect == "none") {
+      print "No C4 view is drawn: diagram_dialect.system is unset (no C4 view emitted). The tables below come from the record." > out
+    } else if (dialect == "c4-plantuml") {
       print "```plantuml" > out
       print "@startuml" > out
       print "!include <C4/C4_Container>" > out
@@ -264,7 +266,7 @@ END {
       print "  }" > out
       print "}" > out
     }
-    print "```" > out
+    if (dialect != "none") print "```" > out
     print "" > out
     print "## Shared infrastructure" > out
     print "" > out

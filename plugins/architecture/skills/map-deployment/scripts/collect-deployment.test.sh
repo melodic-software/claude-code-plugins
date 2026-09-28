@@ -145,7 +145,10 @@ nsum="$(bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-
 assert_equals "dialect none exits 0" "$?" "0"
 assert_contains "dialect none is the default" "$nsum" "dialect=none"
 assert_contains "dialect none still counts placements" "$nsum" "placements=5"
-assert_equals "dialect none writes no file" "$(ls -A "$TEST_TMPDIR/dep-n" 2>/dev/null)" ""
+nmd="$(cat "$TEST_TMPDIR/dep-n/deployment.md")"
+assert_contains "dialect none says no view was emitted" "$nmd" "unset (no C4 view emitted)"
+assert_contains "dialect none still shows the diff table" "$nmd" "| Change | Environments | Tool | Container | Detail |"
+assert_equals "dialect none draws no fence" "$(grep -c '^```' "$TEST_TMPDIR/dep-n/deployment.md")" "0"
 
 for bad_dialect in mermaid structurizr; do
   bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-bad" --dialect "$bad_dialect" >/dev/null 2>&1
