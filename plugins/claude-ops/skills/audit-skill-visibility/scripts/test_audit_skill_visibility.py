@@ -658,11 +658,7 @@ class EnabledPluginsMergeTest(unittest.TestCase):
         """Claude Code 2.1.280 rejects the file: `claude plugin list --json`
         read a `true` sibling of a `"yes"` value disabled."""
         merged = engine.merge_enabled_plugins(
-            [
-                self._layer(
-                    "user", "/u", {"enabledPlugins": {"a@m": "yes", "b@m": True}}
-                )
-            ]
+            [self._layer("user", "/u", {"enabledPlugins": {"a@m": "yes", "b@m": True}})]
         )
         self.assertEqual(merged["plugins"], {})
         self.assertEqual(len(merged["ignored"]), 1)
