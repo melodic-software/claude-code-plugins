@@ -17,7 +17,7 @@ assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$out")"
 for v in get-item list-items capabilities; do
   assert_eq "read verb $v supported" "true" "$(jq -r --arg v "$v" '.verbs[$v]' <<<"$out")"
 done
-for v in create-item claim renew-lease reclaim link-blocks add-sub-item list-sub-items; do
+for v in create-item claim renew-lease release reclaim link-blocks add-sub-item list-sub-items; do
   assert_eq "write/unsupported verb $v is false" "false" "$(jq -r --arg v "$v" '.verbs[$v]' <<<"$out")"
 done
 assert_eq "leases feature off" "false" "$(jq -r '.features.leases' <<<"$out")"

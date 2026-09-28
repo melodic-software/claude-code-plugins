@@ -918,7 +918,20 @@ changed_from_diff() {
   # Compare the WORKING TREE against the merge base: a local developer wants the
   # suites covering the work in front of them, including uncommitted edits, and
   # not the suites for whatever else landed on the base branch meanwhile.
-  mb="$(git merge-base "$base" HEAD 2>/dev/null)" || mb="$base"
+  #
+  # Mid-merge, HEAD is still the pre-merge commit while the working tree already
+  # holds the incoming side, so merge-base(base, HEAD) would charge this change
+  # with every file the incoming side brought. Passing the MERGE_HEAD commits as
+  # further arguments makes git compute the base against a hypothetical merge of
+  # HEAD and them: the same base the selector reports once the merge commit
+  # lands. --git-path resolves the file in a linked worktree too.
+  local merge_head_file=""
+  local -a merge_heads=()
+  merge_head_file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || merge_head_file=""
+  if [[ -n "$merge_head_file" && -f "$merge_head_file" ]]; then
+    mapfile -t merge_heads <"$merge_head_file"
+  fi
+  mb="$(git merge-base "$base" HEAD "${merge_heads[@]}" 2>/dev/null)" || mb="$base"
   # Every failure here is fatal, never an empty list. An empty change set is
   # indistinguishable from "the diff blew up" downstream, and downstream reports
   # it as "nothing to select, exit 0" — the fail-open this whole tool exists to

@@ -481,6 +481,18 @@
         "The named skill being installed and available does not change the answer — availability is not authentication",
         "A pass that cannot reach the contract at all reaches the same result: no declaration is readable, so the rows take their ordinary class rather than falling back to the Action cell"
       ]
+    },
+    {
+      "id": 39,
+      "name": "low-confidence-ranks-above-unscored",
+      "prompt": "[Scenario: two findings reach Stage 4 with the same tier (IMPORTANT) and the same agreement count (1). One comes from code-reviewer labeled `Confidence: low`; the other comes from a surface that reported no confidence at all.] /review:fanout",
+      "expected_output": "Ranks the low-labeled finding above the unscored one, reading the rank order high > medium > low > unscored from context/severity.md \"Confidence axis\". An absent score is not low confidence, it is no claim, so it ranks last; the honest low label is never penalized for being reported.",
+      "files": [],
+      "expectations": [
+        "Places the unscored finding last, below the finding labeled low",
+        "Cites context/severity.md \"Confidence axis\" as the owner of the rank order rather than restating a different order",
+        "Does not reinterpret the missing confidence as low, and does not drop either finding"
+      ]
     }
   ]
 }

@@ -1333,73 +1333,214 @@ run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
 run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
   "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 
-# The block message is shell-agnostic (no 'Bash' assumption).
-psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
-assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
-assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
-assert_contains "PS write block names kill switch" "$psout" "block_hook_bypass_enabled"
-assert_contains "PS write block names isolated Write/Edit refusal" "$psout" "main checkout"
-assert_contains "PS write block names scratch_roots remedy" "$psout" "block_hook_bypass_scratch_roots"
-assert_contains "PS write block names session --settings" "$psout" "--settings"
-assert_contains "PS write block marks kill switch operator-only" "$psout" "not actionable by the blocked agent"
-assert_contains "PS write block warns kill switch is user-scoped" "$psout" "user-scoped"
-assert_contains "PS write block warns kill switch persists across repositories" "$psout" "every repository"
-assert_contains "PS write block tells operator to re-enable kill switch" "$psout" "Re-enable it"
+# --- The block message (#4679) ----------------------------------------------
+# stderr is the model channel on exit 2, so it carries what the blocked agent can
+# act on and nothing else. Every assertion here reads stderr ALONE (GUARD_ERR):
+# a 2>&1 capture also catches the stdout systemMessage and would pass on text
+# the agent never receives.
+MSG_USE="Use the Write or Edit tool instead of a shell file-write workaround."
+MSG_REMEDY_SCRATCH="If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots."
+MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only."
+MSG_POINTER="Operator levers for this guard: the guardrails README, block-hook-bypass."
+MSG_PROJ=/srv/repo
+MSG_CFG=/srv/cfg
+# Pinned so the plugin data default has one spelling, and no data dir, so the
+# once-per-session latch fails open and every block here emits its notice.
+MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
+  CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 
-# --- Enforcement-scope disclosure -------------------------------------------
-# The message asserted "use Write or Edit instead" with no scope, so it read as
-# "shell file writes are blocked" when the guard is deliberately producer-scoped
-# over one command string. Both lanes must carry the scope, and the behavior
-# the scope describes is pinned below it so message and reality move together.
-scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
-assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
-assert_contains "bash block names isolated Write/Edit refusal" "$scopeout" "main checkout"
-assert_contains "bash block names scratch_roots remedy" "$scopeout" "block_hook_bypass_scratch_roots"
-assert_contains "bash block names session --settings" "$scopeout" "--settings"
-assert_contains "bash block marks kill switch operator-only" "$scopeout" \
-  "not actionable by the blocked agent"
-assert_contains "bash block warns kill switch is user-scoped" "$scopeout" "user-scoped"
-assert_contains "bash block warns kill switch persists across repositories" "$scopeout" \
-  "every repository"
-assert_contains "bash block tells operator to re-enable kill switch" "$scopeout" "Re-enable it"
-# Exit-2 hosts discard systemMessage; the operator levers must survive on stderr.
-scope_err="$TEST_TMPDIR/block-stderr.txt"
-bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" >/dev/null 2>"$scope_err" || true
-scope_err_txt=$(cat "$scope_err")
-assert_contains "stderr carries isolated Write/Edit refusal" "$scope_err_txt" "main checkout"
-assert_contains "stderr carries scratch_roots remedy" "$scope_err_txt" "block_hook_bypass_scratch_roots"
-assert_contains "stderr carries session --settings" "$scope_err_txt" "--settings"
-assert_contains "stderr marks kill switch operator-only" "$scope_err_txt" \
-  "not actionable by the blocked agent"
-assert_contains "stderr warns kill switch is user-scoped" "$scope_err_txt" "user-scoped"
-assert_contains "stderr tells operator to re-enable kill switch" "$scope_err_txt" "Re-enable it"
-assert_contains "bash block states its scope" "$scopeout" \
-  "only this command string is inspected"
-assert_contains "bash block names the invoked-script gap" "$scopeout" \
-  "inside an invoked script file"
-# The note states the ENFORCED surface, so it is pinned at the shipped width, not
-# at a remembered one. #2217 widened the python lane past the literal `python3 -c`
-# and this assertion went on pinning the obsolete claim — the assertion is what
-# should have caught the drift, so it now names both the family and the stdin form.
-assert_contains "bash block names the interpreter family it covers" "$scopeout" \
-  "python/python3/py/pypy with -c"
-assert_contains "bash block names the stdin form it covers" "$scopeout" \
-  "python3 - <<PY"
-assert_contains "bash block names the no-dash stdin residual" "$scopeout" \
-  "python3 <<PY"
-assert_contains "bash block still limits interpreter coverage" "$scopeout" "only"
-assert_contains "bash block names the tee gap" "$scopeout" "POSIX tee"
-assert_contains "bash block names other-interpreter gap" "$scopeout" "node -e"
-psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
-assert_contains "powershell block states its scope" "$psscope" \
-  "only this command string is inspected"
-assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Object"
-assert_contains "powershell block names the interpreter family it covers" "$psscope" \
-  "python/python3/py/pypy with -c"
+# PowerShell and python lanes: never a scratch root, so no reason line, no root
+# list, and a remedy that does not name block_hook_bypass_scratch_roots.
+guard_invoke --tool PowerShell --command "Set-Content f.txt 'x'" -- "${MSG_ENV[@]}"
+assert_exit "message: PowerShell write blocks" 2 "$GUARD_RC"
+assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
+  "BLOCKED: PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
+  -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \
+  "BLOCKED: python inline-code file write bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+# The live report: a stdin heredoc on the Bash tool printed the scratch-root
+# advice and the whole Bash scope note.
+MSG_PY_HEREDOC=$(printf 'python3 - <<\x27EOF\x27\nopen("/tmp/claude-0/x/scratchpad/f","w").write("a")\nEOF')
+guard_invoke --command "$MSG_PY_HEREDOC" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_exit "message: Bash python heredoc write blocks" 2 "$GUARD_RC"
+assert_eq "message: Bash python heredoc stderr is verdict, remedy, pointer" \
+  "BLOCKED: python inline-code file write bypasses Write/Edit hooks
+$MSG_USE
+$MSG_REMEDY_SWITCHES
+$MSG_POINTER" "$GUARD_ERR"
+assert_absent "message: python lane never names the scratch-roots option" \
+  "$GUARD_ERR" "block_hook_bypass_scratch_roots"
 
-# The behavior the scope note describes. A write inside an invoked script is
-# not inspected, and a redirect whose producer is another program is allowed by
-# the producer-scoped design — so the note must not promise either is blocked.
+# Bash echo lane, quoted scratchpad target, project outside the temp tree: the
+# quoted reason, then the roots that WOULD have exempted a bare target.
+guard_invoke --command "echo x > \"/tmp/claude-0/-srv-repo/abc/scratchpad/probe.txt\"" \
+  -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+assert_exit "message: quoted scratchpad target blocks" 2 "$GUARD_RC"
+assert_eq "message: quoted scratchpad stderr is exactly lines 1 to 5 and the pointer" \
+  "BLOCKED: echo/printf > file write bypasses Write/Edit hooks
+$MSG_USE
+A quoted or escaped target is never scratch-exempt.
+A bare target under these roots is exempt: $MSG_CFG/plugins/data, the OS temp directory.
+$MSG_REMEDY_SCRATCH
+$MSG_POINTER" "$GUARD_ERR"
+assert_contains "message: the latch-less block still emits the operator notice" \
+  "$GUARD_OUT" '"systemMessage"'
+
+# One reason line per refusal code. <label> <expected reason line> <command>
+# [env word ...]; the line sits third on stderr, right after the remedy.
+reason_is() {
+  local label="$1" want="$2" command="$3"
+  shift 3
+  guard_invoke --command "$command" -- "${MSG_ENV[@]}" "$@"
+  assert_exit "reason: $label blocks" 2 "$GUARD_RC"
+  assert_eq "reason: $label" "$want" "$(sed -n 3p <<<"$GUARD_ERR")"
+}
+reason_is "no root and no project" \
+  "No scratch root is configured and the project root is unknown." "printf 'x' > out.log"
+reason_is "relative target with no cwd" \
+  "A relative target is not exempt after a directory change or without a known cwd; use an absolute path." \
+  "echo x > out.log" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "variable-carried target" \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
+  "echo x > \$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "variable under an absolute prefix" \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
+  "echo x > /tmp/\$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+reason_is "absolute target outside every root" \
+  "The target is not under an exempt root." \
+  "echo x > /srv/repo/notes.md" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
+# A temp-rooted project turns the temp default off; that is the reason, not "not
+# under an exempt root", and the root list no longer offers the temp tree.
+reason_is "temp-rooted project" \
+  "The project root is itself under the temp directory, so the temp directory is not exempt." \
+  "echo x > /tmp/bhb-msg/out.txt" "CLAUDE_PROJECT_DIR=/tmp/bhb-msg-proj"
+assert_absent "reason: temp-rooted project does not offer the temp tree" \
+  "$GUARD_ERR" "the OS temp directory"
+# The staged lane names its operand as the move destination, on the reason and
+# on the root list.
+reason_is "staged move destination outside every root" \
+  "The move destination is not under an exempt root." \
+  "jq . f > /tmp/scratch/x && mv /tmp/scratch/x /srv/out.json" \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
+assert_contains "reason: staged lane's root list names the move destination" \
+  "$GUARD_ERR" "A bare move destination under these roots is exempt: /tmp/scratch."
+# An earlier refusal that did not block (a quoted destination with no staged
+# source) must not become the blocking segment's reason.
+reason_is "the blocking destination's reason wins over an earlier refusal" \
+  "The move destination is not under an exempt root." \
+  "jq . f > /tmp/scratch/x && mv a \"/tmp/q\" && mv /tmp/scratch/x /srv/out.json" \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS=/tmp/scratch"
+
+# The enforced scope and the operator levers are neither channel's per-block
+# content: the scope lives in the README, the levers on the latched notice.
+for scope_cmd in "printf 'x' > out.log" "Set-Content f.txt 'x'"; do
+  scope_tool=Bash
+  [[ "$scope_cmd" == Set-Content* ]] && scope_tool=PowerShell
+  guard_invoke --tool "$scope_tool" --command "$scope_cmd" -- "${MSG_ENV[@]}"
+  for gone in "POSIX tee" "node -e" "only this command string is inspected" \
+    "block_hook_bypass_enabled" "--settings"; do
+    assert_absent "message ($scope_tool): stderr carries no '$gone'" "$GUARD_ERR" "$gone"
+  done
+  scope_sys=$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")
+  for gone in "POSIX tee" "node -e" "only this command string is inspected"; do
+    assert_absent "message ($scope_tool): systemMessage carries no '$gone'" "$scope_sys" "$gone"
+  done
+  assert_contains "message ($scope_tool): systemMessage lists the levers narrowest first" \
+    "$scope_sys" "(1) block_hook_bypass_scratch_roots"
+  assert_contains "message ($scope_tool): systemMessage names the session-scoped lever" \
+    "$scope_sys" "(2) a session-scoped disable via claude --settings"
+  assert_contains "message ($scope_tool): systemMessage names the user-global switch last" \
+    "$scope_sys" "(3) the user-global block_hook_bypass_enabled switch"
+  assert_contains "message ($scope_tool): systemMessage says deterrent, not sandbox" \
+    "$scope_sys" "not a sandbox"
+done
+README_TXT=$(<"$HOOK_DIR/../README.md")
+for residual in "\`tee\` / \`tee -a\`" "\`node -e\`" "cross-tool-call staging" \
+  "(\`install\`, \`rsync\`, \`dd\`)"; do
+  assert_contains "README keeps the scope the block no longer prints: $residual" \
+    "$README_TXT" "$residual"
+done
+
+# --- The operator notice latches once per (session, agent) ------------------
+# hook::notice_once keys the marker on session and agent; this guard declines
+# its every-8 renewal, so the eighth block stays silent too. Other guards'
+# renewal is untouched: lib/hook-utils.sh is not changed, only this caller.
+LATCH_DIR="$TEST_TMPDIR/latch-data"
+LATCH_PAYLOAD='{"session_id":"latch-s1","tool_name":"Bash","tool_input":{"command":"echo x > notes.md"}}'
+latch_docs=0
+for _ in 1 2 3 4 5 6 7 8 9; do
+  guard_invoke --payload "$LATCH_PAYLOAD" -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR"
+  [[ "$GUARD_OUT" == *'"systemMessage"'* ]] && latch_docs=$((latch_docs + 1))
+done
+assert_exit "latch: the ninth block still blocks" 2 "$GUARD_RC"
+assert_eq "latch: nine blocks in one session emit one notice, no renewal on the eighth" \
+  1 "$latch_docs"
+assert_contains "latch: stderr keeps the README pointer after the notice latched" \
+  "$GUARD_ERR" "$MSG_POINTER"
+if [[ -f "$LATCH_DIR/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent" ]]; then
+  ok "latch: the marker is keyed on session and agent"
+else
+  bad "latch: no marker at $LATCH_DIR/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent"
+fi
+guard_invoke --payload "${LATCH_PAYLOAD/latch-s1/latch-s2}" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR"
+assert_contains "latch: a new session gets its own notice" "$GUARD_OUT" '"systemMessage"'
+# Under the dispatcher the notice reaches the merged document once, then latches.
+LATCH_DIR2="$TEST_TMPDIR/latch-data-dispatched"
+guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR2"
+assert_exit "latch (dispatched): first block blocks" 2 "$GUARD_RC"
+assert_contains "latch (dispatched): first block carries the notice" "$GUARD_OUT" '"systemMessage"'
+guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR2"
+assert_absent "latch (dispatched): second block emits no notice" "$GUARD_OUT" "levers, narrowest first"
+# Without jq the guard cannot read the payload and allows (hook::require_jq), so
+# the latch must not be spent on a run that never blocked: the next block with jq
+# back still carries the notice. run_guards::emit_one keeps one document there.
+LATCH_NOJQ_PATH=""
+IFS=: read -r -a latch_path_dirs <<<"$PATH"
+for d in "${latch_path_dirs[@]}"; do
+  [[ -n "$d" ]] || continue
+  if [[ -x "$d/jq" || -x "$d/jq.exe" ]]; then
+    shim="$TEST_TMPDIR/latch-nojq-$(printf '%s' "$d" | tr -c 'A-Za-z0-9' _)"
+    mkdir -p "$shim"
+    for f in "$d"/*; do
+      base="${f##*/}"
+      [[ "$base" == jq || "$base" == jq.exe ]] && continue
+      [[ -x "$f" ]] || continue
+      ln -s "$f" "$shim/$base" 2>/dev/null || true
+    done
+    LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$shim"
+  else
+    LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
+  fi
+done
+if PATH="$LATCH_NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+  bad "latch: could not build a PATH without jq"
+else
+  LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"
+  guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+    -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR3" "PATH=$LATCH_NOJQ_PATH"
+  assert_exit "latch (dispatched, no jq): the guard skips" 0 "$GUARD_RC"
+  assert_eq "latch (dispatched, no jq): one document on stdout" 1 "$(grep -c '^{' <<<"$GUARD_OUT")"
+  assert_file_absent "latch (dispatched, no jq): the notice marker is not spent" \
+    "$LATCH_DIR3/skip-notices/guardrails-block-hook-bypass-levers.latch-s1.no-agent"
+  guard_invoke --via dispatched --payload "$LATCH_PAYLOAD" \
+    -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$LATCH_DIR3"
+  assert_contains "latch (dispatched): jq back, the first block carries the notice" \
+    "$GUARD_OUT" "levers, narrowest first"
+fi
+
+# The behavior the README scope entry describes. A write inside an invoked script
+# is not inspected, and a redirect whose producer is another program is allowed
+# by the producer-scoped design, so neither may be promised as blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
 run "invoked script with its own redirect (allowed)" "bash execute.sh >> run.log" 0
 run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0
@@ -1798,6 +1939,14 @@ else
   run_cwd "symlink: escape out of the temp default still blocks" \
     "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
     "$PROJ_ENV=$SYMLINK_PROJ"
+  # The block says why a temp-looking target was not exempt. A checkout under the
+  # temp tree turns the default off, which is a different reason.
+  if [[ "$SYMLINK_PROJ" == /tmp/* ]]; then
+    printf 'SKIP: resolves-outside reason not asserted (checkout under /tmp: %s)\n' "$SYMLINK_PROJ"
+  else
+    assert_contains "symlink: the reason is that the target resolves outside the root" \
+      "$GUARD_ERR" "The target resolves outside the exempt root."
+  fi
   # The same root, not traversing the symlink, stays exempt: the fix must not
   # turn the exemption off wholesale.
   run_cwd "symlink: a genuine temp write in the same root stays allowed" \
@@ -2243,12 +2392,9 @@ run "#2731: install mover residual (allowed — not mv|cp)" \
   "jq . f > /tmp/x && install /tmp/x dest.txt" 0
 run "#2731: multi-source cp keeps sources distinct (blocked)" \
   "jq . f > /tmp/x && cp /tmp/x /tmp/other destdir/" 2
-# Scope note names the new lane and the residuals it still cannot see.
+# The verdict names the lane; the residuals it cannot see are in the README.
 scopeout=$(bash "$HOOK" <<<"$(command_json 'jq . f > /tmp/x && mv /tmp/x dest')" 2>&1 >/dev/null) || true
 assert_contains "#2731: block names staged-write-move form" "$scopeout" "staged write"
-assert_contains "#2731: scope names same-command staged move" "$scopeout" "same-command staged"
-assert_contains "#2731: scope names cross-tool-call residual" "$scopeout" "cross-tool-call"
-assert_contains "#2731: scope names other movers residual" "$scopeout" "install, rsync, dd"
 
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 nul_rc=0

@@ -284,10 +284,10 @@ plugins/github/skills/*/SKILL.md
 plugins/go-format/README.md
 plugins/go-format/CHANGELOG.md
 plugins/go-format/skills/*/SKILL.md
-# The guardrails plugin was purged whole. Two marked spans keep their em dashes, both because live
-# code emits or cites the exact text: the changelog's verbatim reproduction of
-# _BYPASS_SCOPE_NOTE_BASH, which block-hook-bypass.sh still emits and its own suite pins, and a
-# quoted retired advisory notice. The README's generated options block keeps its existing marker.
+# The guardrails plugin was purged whole. Two marked spans keep their em dashes, both because they
+# quote shipped text verbatim: the changelog's reproduction of _BYPASS_SCOPE_NOTE_BASH, the scope
+# note block-hook-bypass.sh emitted until 0.38.0 (#4679), and a quoted retired advisory notice.
+# The README's generated options block keeps its existing marker.
 plugins/guardrails/*.md
 plugins/guardrails/skills/*/SKILL.md
 plugins/guardrails/skills/*/context/*.md

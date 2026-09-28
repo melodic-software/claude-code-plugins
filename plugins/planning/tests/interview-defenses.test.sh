@@ -508,11 +508,13 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
   "2a0a3a73f9f2deeb28d899fb737db3dab6de106c0895db3fb1110d1fe5d8f881"
+# Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
+# outlives the branch goes and touches no assumption or Brief rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "853b3aca0949a146a6c49f7763473e339f4e444507f232ea58c2e6e3611fb8d1"
+  "97bdc458c1c9b01ae0a5731df5f7b569e3ac723b0794c7582c14a1ecfb113bee"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -596,9 +598,10 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned after merge: main case 19 (page-surface) plus cases 20 to 23 (mechanism
 # tripwire, assumption sweep, evidence currency, inherited constraint). Each grades a
 # question, row, or label before the contract locks; none licenses a silent capture or a
-# fudged gap, so none contradicts case 15 or 16.
+# fudged gap, so none contradicts case 15 or 16. Case 24 (contract slice not offered as a
+# durable home) grades where content persists after merge and touches neither defense.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "a0224159531a7aa6a547f990a9f4ecbb91373c2b6e0d4c2b40073f2f329e4981"
+  "b5ded5eda7e663ececdb4f669098b413a6acb7018689af5b7a8538eea449dab7"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

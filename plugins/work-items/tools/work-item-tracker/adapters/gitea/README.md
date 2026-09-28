@@ -66,6 +66,7 @@ adapter's guards:
 | `get-item` | `true` | implemented, tested |
 | `claim` | `false` | exit `6` at the capability gate |
 | `renew-lease` | `false` | exit `6` at the capability gate |
+| `release` | `false` | exit `6` at the capability gate (not yet mapped) |
 | `reclaim` | `false` | exit `6` at the capability gate |
 | `link-blocks` | `true` | implemented, tested |
 | `add-sub-item` | `false` | exit `6` at the capability gate |
