@@ -96,7 +96,7 @@ function Invoke-DriversCheck {
         # The kernel logs CodeIntegrity 3001/3004 when it refuses an image for signature or
         # catalog violations. Events under the active Defender platform folder follow a
         # platform rollover and are excluded; a survivor is WARN here, and the trend
-        # engine raises it to CRIT only when it recurs across runs (check-catalog.md §8).
+        # engine raises it to CRIT only when it recurs across runs (check-catalog.md section 8).
         $ciCutoff = (Get-Date).AddDays(-7)
         $ciEvents = @()
         try {

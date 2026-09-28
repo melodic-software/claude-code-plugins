@@ -166,7 +166,7 @@ function Get-CodeIntegrityRepeat {
     recent prior run where it ran, with a newer event now; $null otherwise.
 
     .DESCRIPTION
-    The check caps a single reading at WARN (check-catalog.md §8). A repeat is a
+    The check caps a single reading at WARN (check-catalog.md section 8). A repeat is a
     newer event than the prior run's newest, so the same event re-read inside
     the 7-day window never counts twice. A prior run recorded before the check
     emitted code_integrity_newest_event_unix carries no marker and never upgrades.
