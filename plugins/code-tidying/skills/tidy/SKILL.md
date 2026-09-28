@@ -1,6 +1,6 @@
 ---
 description: "Proactively hunt a rotated lane for safe structural improvements (Beck tidyings) and ship one tight structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window; issue-tracker work drains already-filed items."
-argument-hint: "[<lane> | dry-run [<lane>] | self-update | help] [override]"
+argument-hint: "[<lane> | <glob>... | dry-run [<lane> | <glob>...] | self-update | help] [override]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
@@ -68,6 +68,7 @@ Parse `$ARGUMENTS` to determine the action:
 |----------|--------|----------|
 | *(empty)* | **Smart default** | Infer the most appropriate lane from current branch / recent commits / git status. If the inference is ambiguous, pause and ask the user. Otherwise proceed as if `<lane>` was passed. |
 | `<lane>` (from the catalog below) | **Targeted lane run** | Load the lane file, run the full Workflow on that lane's scope. |
+| `<glob>...` | **Ad hoc scope** | No lane covers the files. Run the full Workflow on those globs per **Ad hoc scope when no lane fits** below. Combines with `dry-run`. |
 | `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. Do NOT make edits. Do NOT branch. Do NOT push. Do NOT file tracker items. The user reviews and decides whether to proceed. |
 | `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
@@ -110,16 +111,19 @@ Bundled templates (copy + adapt into `.claude/tidy-lanes/`):
 
 Read the resolved lane file in full at Phase A entry; do not infer scope from this table.
 
-### Ad hoc scope when no lane fits (#4536)
+### Ad hoc scope when no lane fits
 
-When the repository has no bundled or project lane whose globs cover the files (for example a lone
-`.github/scripts/*.mjs` tree with `node --test`), **`dry-run` with an explicit glob argument** is
-the supported path: pass the glob list as the lane name is not used; instead treat the argument as
-the hunt scope, use the watch-for list from the closest template (`templates/polyglot-services-lane.template.md`
-or `docs-prose` for markdown-only), and take verification from the repo's documented test command.
-No `.claude/tidy-lanes/<lane>.md` file is written. Phase H still ships one structure-only commit when
-the user proceeds past `dry-run`. Document the scope in the PR body because it is not recorded in a
-lane file.
+When no bundled or project lane covers the target files (for example a lone `.github/scripts/*.mjs`
+tree tested with `node --test`), pass globs in place of a lane name: `dry-run <glob>...` to plan,
+`<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is
+ad hoc scope. The run then:
+
+- takes its scope from those globs, still filtered by the global exclusions below;
+- borrows the watch-for list and Conventional Commits type from the closest template
+  (`templates/polyglot-services-lane.template.md` for source code, the `docs-prose` lane for markdown);
+- takes verification from the repository's documented test command;
+- uses `adhoc` as the lane slug in the branch name and the anchor-commit lookup;
+- writes no `.claude/tidy-lanes/` file, so Phase H states the globs in the PR body.
 
 ## Workflow (8 phases)
 
@@ -148,7 +152,7 @@ Understand before changing.
 
 1. Read `reference/tidyings.md` for the full taxonomy (Beck 15 + Fowler 5 + prose tidyings P-1..P-6 = 26 entries).
 2. Hunt: walk the lane's scope globs, looking for instances of the lane's watch-for tidyings. For each candidate, classify: tidying type, file, line range, estimated LOC delta, confidence.
-3. Build a prioritized findings table.
+3. Build a prioritized findings table. Each row carries a `Basis:`, `verified` with the `file:line`, tool output, or Phase C source URL it rests on, or `judgment` (never for a consequential change: cross-repo, shared infrastructure, irreversible, or security; one that cannot be verified is withheld and routed to the overflow list as an open question naming the evidence that would settle it). Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 4. Apply the scope budget (`reference/scope-budget.md`): target ≤200 LOC + ≤8 files; hard cap ≤400 LOC + ≤15 files. Take the highest-priority subset that fits.
 5. **Override enumeration gate**, only for paths lifted by the `override` argument. List those specific HARD paths the surviving candidates would touch, each with its tidying, and take a go-ahead on that list before Phase E. Interactive: the user answers. Non-interactive: report the list and continue with those argument-lifted candidates dropped, since a blanket token is not a decision about the paths nobody has seen yet. Paths lifted by `hard_exclusions=advisory` or by `.claude/code-tidying/exclusion-overrides.md` skip this gate: those channels already are a standing decision, and a non-interactive run must honor them. A `dry-run` presents the argument-lifted enumeration and stops there. An argument-lifted path that no candidate touches never reaches this gate.
 6. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead. Dry-run never files tracker items or causes any other external side effect.**

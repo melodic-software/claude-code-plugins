@@ -3,12 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.11] - 2026-09-28
+## [0.23.12] - 2026-09-28
 
 ### Added
 
-- `tidy` documents the supported **ad hoc scope** path when no lane fits (`dry-run` + explicit globs,
-  no lane file written) (#4536).
+- **`tidy` accepts an ad hoc glob scope.** When no lane covers the target files,
+  `tidy [dry-run] <glob>...` runs on those globs with a borrowed template's watch-for list and the
+  repository's own test command, and writes no lane file.
+
+## [0.23.11] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`.** `tidy`'s findings-table rows and `batch-simplify`'s
+  reported deferrals state what each rests on, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential finding or disposition is withheld as an open question.
 
 ## [0.23.10] - 2026-09-28
 

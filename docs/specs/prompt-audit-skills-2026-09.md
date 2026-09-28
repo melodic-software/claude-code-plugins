@@ -609,7 +609,7 @@ Every skill body, its context and reference files, and every agent definition ha
 
 ### Captured assumptions
 
-- The bundled `claude-api` skill at Claude Code 2.1.258 is the current authority for prompt-audit; its guide and the Fable 5.1 migration sections are read from the session's bundled-skills directory.
+- The bundled `claude-api` skill at Claude Code 2.1.258 was the authority for the prompt-audit run this record describes; its guide and the Fable 5.1 migration sections were read from the session's bundled-skills directory. A 2026-09-28 read of the skill inside Claude Code 2.1.282 still has that prompt-audit step list (Steps 0–7, Groups 1–4) and adds `## Ground the migration with an eval` to the model-migration guide, matching the 2.1.260 sample refresh. Changelog 2.1.283 is the next release that names `prompt-audit`.
 - Local `skillUsage` counts from one machine are the usage signal; they rank session-flow, planning, and source-control first.
 - Behavioral A/B across all 241 skills is not affordable; the record says so and routes behavior measurement to `claude-config:unhobble`.
 
