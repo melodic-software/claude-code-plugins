@@ -122,7 +122,9 @@ install_gitleaks() {
   archive="$dest/gitleaks.tar.gz"
   url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
   curl -fsSL "$url" -o "$archive"
-  echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c -
+  # sha256sum -c prints "<file>: OK" on stdout. This function's stdout is only
+  # the binary path, which the caller captures, so the check result goes to stderr.
+  echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c - >&2
   tar -xzf "$archive" -C "$dest" gitleaks
   printf '%s\n' "$dest/gitleaks"
 }
