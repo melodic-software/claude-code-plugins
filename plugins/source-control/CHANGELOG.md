@@ -14,6 +14,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
   mode and its classifier.
 
+## [0.62.5] - 2026-09-28
+
+### Changed
+
+- **Worktree isolation is four checks, and unattended prompts have a flag**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `gather-block.md` cites the worktrees page read on 2026-09-28: file edits, working directory,
+  git redirects, and a command-shape check scoped to git. `babysit-prs` `safety.md` records
+  `--permission-prompts none` (Claude Code 2.1.259) as the unattended form that keeps the active
+  mode and its classifier.
+
 ## [0.62.4] - 2026-09-28
 
 ### Changed

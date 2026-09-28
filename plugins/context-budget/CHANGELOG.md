@@ -21,6 +21,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
   after the first turn. Pages read 2026-09-28.
 
+## [0.6.41] - 2026-09-28
+
+### Changed
+
+- **Connector allowlists and `/context` counting**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The connectors lever no longer says `allowedMcpServers` removes managed connectors. From
+  Claude Code 2.1.259 only `deniedMcpServers` does; `allowedMcpServers` governs servers users
+  add. The measurement contract no longer says `/context` makes no API call. It uses the
+  token-counting API or, from 2.1.261, a local estimate, and connectors can arrive
+  after the first turn. Pages read 2026-09-28.
+
 ## [0.6.39] - 2026-09-28
 
 ### Added

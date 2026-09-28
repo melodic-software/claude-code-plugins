@@ -29,6 +29,25 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
   a store row.
 
+## [0.63.13] - 2026-09-28
+
+### Changed
+
+- **Unattended lanes and three changelog decisions**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  `lane-launcher.sh` adds `--permission-prompts none` beside `--permission-mode auto` when
+  `claude --version` is at least 2.1.259, so the classifier stays and only a prompting call is
+  denied. The lanes skill records three declines against the pages read on 2026-09-28:
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (it ignores definition `model` pins), `/advisor` (documented
+  for `-p`, not a lane default), and `claude --resume <id> --bg` (the combination is not on the
+  cli-reference). `/reload-plugins` is recorded as running in `-p` and SDK sessions from 2.1.260;
+  reaching a loop whose skill body is already in context stays unprobed.
+  Observability routes a session's likely prompt-cache miss cause to `/usage` and
+  `prompt_cache.last_miss_cause` (2.1.260). `audit-install-state` separates a managed settings
+  file that refuses startup from a user settings file that pauses the retention sweep, and
+  nominates stale sandbox mask files to the existing `doctor` overlap candidate without writing
+  a store row.
+
 ## [0.63.10] - 2026-09-28
 
 ### Added

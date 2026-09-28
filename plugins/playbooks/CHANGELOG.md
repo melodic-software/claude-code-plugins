@@ -17,6 +17,15 @@ only after that version increases.
   The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
   in a block that never runs git is not that check. The compose gate was already git-only.
 
+## [0.13.21] - 2026-09-28
+
+### Changed
+
+- **The `$`-free pre-compute rule applies to blocks that run git**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
+  in a block that never runs git is not that check. The compose gate was already git-only.
+
 ## [0.13.19] - 2026-09-28
 
 ### Added

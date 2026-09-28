@@ -16,13 +16,24 @@ under the swept paths below are deleted at startup once older than that window.
 
 Three facts about it that change how a finding should be read:
 
-- **An unparsable user settings file pauses the sweep and warns in `/status`.** Upstream: Claude
-  Code pauses retention cleanup until the user file is fixed, unless managed settings supply
-  `cleanupPeriodDays`, in which case the sweep runs at the managed value. A JSON syntax error in
-  the user file is a retention outage, not only a config error. The engine reports it as `error`.
-  A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup
-  (exit 1, source named, from v2.1.259) and is
+- **A managed source that cannot be parsed refuses startup.** When a managed settings file,
+  drop-in, MDM plist, or HKLM value is present but cannot be parsed as a JSON object, Claude Code
+  refuses to start (exit 1, source named, from v2.1.259) and prints an error naming the source,
+  even when another admin source has a valid policy. `audit-install-state` reports that as
   `managed-settings-unparsable-refuses-start`, not a silent lack of enforcement.
+  **Claim, basis, as of, recheck:** that sentence,
+  [managed settings](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped),
+  2026-09-28, and a re-fetch of that section that stops naming those four sources.
+- **A user settings file that cannot be parsed pauses the retention sweep.** If Claude Code cannot
+  safely determine the retention period, it pauses the age-based sweep. When the cause is a
+  settings file that cannot be read or parsed, it also warns in `/status` until the file is fixed.
+  When managed settings provide `cleanupPeriodDays`, the sweep runs at the managed value.
+  **Claim, basis, as of, recheck:** that sentence,
+  [claude-directory](https://code.claude.com/docs/en/claude-directory) ("Paused sweep"),
+  2026-09-28, and a re-fetch of that bullet that stops warning in `/status` or stops naming a
+  parsed settings file as a pause cause. A JSON syntax error in user settings is a retention
+  outage, not only a config error. The engine reports it as `error`. It is not the managed-source
+  refusal above.
 - **Managed settings can supply the value**, at a machine-scope path that varies by OS
   (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `%ProgramFiles%\ClaudeCode\`).
 - **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp

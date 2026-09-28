@@ -840,8 +840,8 @@ launch_lane() {
   # (AskUserQuestion, an elicitation nobody answered) while auto mode keeps
   # deciding. Older CLIs reject the flag, so omit it. Probed 2026-09-28 on
   # Claude Code 2.1.282: the flag together with --bg and --permission-mode auto
-  # backgrounded and was stopped. The flag is documented for print mode; this
-  # --bg form accepted it.
+  # backgrounded a session, which was then stopped. The flag is documented for
+  # print mode; this --bg form accepted it.
   local -a cmd=(claude --bg -n "$name" --permission-mode auto)
   cli_version
   if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then

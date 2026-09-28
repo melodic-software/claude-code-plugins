@@ -252,7 +252,8 @@ an unattended lane run past its first permission prompt instead of stalling
 under a machine's Manual default; `--permission-prompts none` is added when
 `claude --version` is at least 2.1.259 and denies whatever would still fall
 through to a prompt, including `AskUserQuestion`, while auto mode keeps
-deciding; older CLIs reject the flag, so it is omitted there; `--settings`
+deciding; older CLIs reject the flag, so it is omitted there; a probe on
+Claude Code 2.1.282 accepted that flag together with `--bg`; `--settings`
 accepts inline JSON and applies session-only, per the CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
@@ -261,9 +262,10 @@ sessionId, name, status),
 `claude agents stop` verb. Stop resolves the sessionId from `agents --json` and
 only for a configured lane name.
 
-**Record.** Claim: an unattended lane launches with `--permission-mode auto` and
-`--permission-prompts none` when the CLI is new enough, so auto mode still decides and a prompt that would
-have asked a person is denied. Basis:
+**Record.** Claim: an unattended lane launches with `--permission-mode auto`, and
+with `--permission-prompts none` when `claude --version` is at least 2.1.259, so
+auto mode still decides and a prompt that would have asked a person is denied.
+Basis:
 <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs>
 and the `--permission-prompts` row of
 <https://code.claude.com/docs/en/cli-reference> (the row says print mode). A
