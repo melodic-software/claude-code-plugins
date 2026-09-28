@@ -3,6 +3,20 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.1] - 2026-09-28
+
+### Fixed
+
+- **The `git push` ask-rule finding no longer tells an autonomous lane to stall itself (#4600).**
+  `audit` recommended adding `Bash(git push *)` and `Bash(git push)` to `permissions.ask` at
+  `warning` even in a repository whose team-tracked `.claude/source-control.md` declares an
+  unattended merge lane, although an ask rule prompts in auto mode and is auto-denied under
+  `dontAsk`. When `babysit_loop_merge` resolves above `human-only` in that file (an explicit
+  `c2-mechanical`, `c3-autonomous`, or `full-autonomy`, or loop-lane keys that default to the
+  `c2-mechanical` baseline), the push ask rows are now `info` and name the signal. Every push ask
+  row states that the rule blocks unattended lanes. Deny families, force-push included, are
+  unaffected. `required-permissions.md` narrowing 1 names the exemption and the signals that count.
+
 ## [0.50.0] - 2026-09-27
 
 ### Added
