@@ -27,8 +27,9 @@ Since **0.31.0** the always-on guards are registered through one dispatcher per 
 process, and sources each guard in turn inside that one bash process. Since **0.41.0**
 those rows are exec form: `"command": "node"` with `hooks/exec-bash.mjs` and the
 dispatcher script in `args`. Node finds Git Bash (never the WSL relay) and spawns it;
-bash still sources every guard in one process. `workflow-resilience-check.sh` stays
-shell form. The table below
+bash still sources every guard in one process. `workflow-resilience-check.sh` is
+the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the
+default-off checker exits in node before bash starts. The table below
 still names every guard, and every guard still ships as its own script with its own
 contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
 standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the

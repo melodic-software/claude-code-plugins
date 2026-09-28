@@ -23,7 +23,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **The dispatcher rows are exec form on `node`** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Each `run-guards.sh` registration is `"command": "node"` with `hooks/exec-bash.mjs`, the dispatcher script, and that script's arguments in `args`. `exec-bash.mjs` spawns a real bash and forwards stdin and the exit code. On Windows it uses `CLAUDE_CODE_GIT_BASH_PATH` when that file is named `bash.exe`, `sh.exe`, `bash`, or `sh`, otherwise `Git\bin\bash.exe` or `Git\usr\bin\bash.exe`. It does not use `System32\bash.exe`. Bare `bash` with the script in `args` stays illegal. `workflow-resilience-check.sh` stays shell form with `"shell": "bash"`. Node is the hook parent; bash still sources every guard in one process.
+- **The dispatcher rows are exec form on `node`** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Each `run-guards.sh` registration is `"command": "node"` with `hooks/exec-bash.mjs`, the dispatcher script, and that script's arguments in `args`. `exec-bash.mjs` spawns a real bash and forwards stdin and the exit code. On Windows it uses `CLAUDE_CODE_GIT_BASH_PATH` when that file is named `bash.exe`, `sh.exe`, `bash`, or `sh`, otherwise `Git\bin\bash.exe` or `Git\usr\bin\bash.exe`. It does not use `System32\bash.exe`. Bare `bash` with the script in `args` stays illegal. `workflow-resilience-check.sh` is the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the default-off checker exits in node before bash starts. Node is the hook parent; bash still sources every guard in one process.
 
 ## [0.40.2] - 2026-09-28
 

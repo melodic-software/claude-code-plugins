@@ -55,26 +55,30 @@ grep -q 'usage:' <<<"$err" || fail "missing script should name usage: $err"
 # --- Windows resolver: Git Bash, never the WSL relay -------------------------
 node "$HOOK_DIR/exec-bash.resolver.test.mjs" || fail "Windows resolver rejected Git Bash or accepted the relay"
 
-# --- hooks.json: dispatcher rows are node; workflow stays shell form ---------
+# --- hooks.json: every row is node exec form --------------------------------
 rows=$(jq -c '.hooks[][] | .hooks[]' "$HOOKS_JSON")
 dispatcher=0
+workflow=0
 while IFS= read -r row; do
   cmd=$(jq -r '.command' <<<"$row")
-  if jq -e '.args' <<<"$row" >/dev/null; then
-    [[ "$cmd" == "node" ]] || fail "exec-form command is $cmd, not node"
-    first=$(jq -r '.args[0]' <<<"$row")
+  [[ "$cmd" == "node" ]] || fail "exec-form command is $cmd, not node"
+  jq -e '.args' <<<"$row" >/dev/null || fail "row has no args: $cmd"
+  first=$(jq -r '.args[0]' <<<"$row")
+  [[ "$first" == *"/hooks/exec-bash.mjs" ]] || fail "args[0] is not exec-bash.mjs: $first"
+  jq -e 'has("shell") | not' <<<"$row" >/dev/null || fail "row still sets shell"
+  if jq -e '(.args | index("--require-true")) != null' <<<"$row" >/dev/null; then
     second=$(jq -r '.args[1]' <<<"$row")
-    [[ "$first" == *"/hooks/exec-bash.mjs" ]] || fail "args[0] is not exec-bash.mjs: $first"
-    [[ "$second" == *"/hooks/run-guards.sh" ]] || fail "args[1] is not run-guards.sh: $second"
-    jq -e 'has("shell") | not' <<<"$row" >/dev/null || fail "dispatcher row still sets shell"
-    dispatcher=$((dispatcher + 1))
+    script=$(jq -r '.args[3]' <<<"$row")
+    [[ "$second" == "--require-true" ]] || fail "workflow gate flag is $second"
+    [[ "$script" == *"workflow-resilience-check.sh" ]] || fail "gated row is not the workflow checker: $script"
+    workflow=$((workflow + 1))
   else
-    [[ "$cmd" == *"workflow-resilience-check.sh"* ]] || fail "shell-form row is not the workflow checker: $cmd"
-    [[ "$cmd" != bash && "$cmd" != *"\"bash\""* ]] || fail "shell-form row uses bare bash: $cmd"
-    shell=$(jq -r '.shell' <<<"$row")
-    [[ "$shell" == "bash" ]] || fail "workflow row shell is $shell"
+    second=$(jq -r '.args[1]' <<<"$row")
+    [[ "$second" == *"/hooks/run-guards.sh" ]] || fail "args[1] is not run-guards.sh: $second"
+    dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
 [[ "$dispatcher" -ge 8 ]] || fail "expected the dispatcher rows, found $dispatcher"
+[[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 
 echo "exec-bash: stdin, exit 2, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."
