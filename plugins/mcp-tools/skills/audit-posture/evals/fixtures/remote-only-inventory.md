@@ -5,11 +5,11 @@ remote, rendered as a table (the script emits the same columns tab-separated, af
 `# mcp-posture inventory 2026-09-26` header line). Treat this table as the Phase 1 output; do not
 run the script.
 
-| scope | name | effective | transport | launcher | package | pin | publisher | sandboxed |
-|---|---|---|---|---|---|---|---|---|
-| managed-settings | docs | yes | http | remote | `https://docs.example.com` | n/a | docs.example.com | n/a |
-| project | tracker | approval-unknown | http | remote | `https://mcp.tracker.example.com` | n/a | mcp.tracker.example.com | n/a |
-| user | events | yes | sse | remote | `https://events.example.com:8443` | n/a | events.example.com | n/a |
+| scope | name | effective | transport | launcher | package | pin | publisher | sandboxed | provided_by |
+|---|---|---|---|---|---|---|---|---|---|
+| managed-settings | docs | yes | http | remote | `https://docs.example.com` | n/a | docs.example.com | n/a | organization |
+| project | tracker | approval-unknown | http | remote | `https://mcp.tracker.example.com` | n/a | mcp.tracker.example.com | n/a | - |
+| user | events | yes | sse | remote | `https://events.example.com:8443` | n/a | events.example.com | n/a | - |
 
 Footer lines:
 

@@ -71,6 +71,21 @@
         "Does not invoke the sprite skill for an ink or brush illustration",
         "Does not convert the request into a pixel-art sprite"
       ]
+    },
+    {
+      "id": 7,
+      "name": "records-brief-and-grades-done-criteria",
+      "prompt": "pixel art of a tall lantern-bearing watchman, 32x32, side view. Done when the lantern is the brightest cluster and the silhouette reads at 1x.",
+      "expected_output": "Fires /pixel-art:sprite. Writes brief.md beside the spec before the first render, with proportions, style references, and the two done criteria. Unspecified fields (style references, palette, mood, target) are one defaults line, not questions. Each review round marks every done criterion pass or fail with a one-line reason, and stops when both pass or the round budget is spent with the failures named. A later run that finds that brief.md reads it instead of asking again. Does not call /planning:interview: the subject and done criteria are already stated, and the interview offer is only for a vague or high-stakes request when the planning plugin is installed.",
+      "files": [],
+      "expectations": [
+        "Writes brief.md beside the spec before the first render",
+        "Records proportions and style references, defaulting the ones the request omits in one line",
+        "Every review round marks each done criterion pass or fail with a one-line reason",
+        "Stops when all criteria pass or the round budget is spent with failures named",
+        "Reads an existing brief.md on a re-run instead of re-asking",
+        "Does not require /planning:interview; that offer is presence-gated and optional"
+      ]
     }
   ]
 }
