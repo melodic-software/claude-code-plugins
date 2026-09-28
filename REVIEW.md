@@ -36,10 +36,8 @@ to the three-tier vocabulary above and not something a criterion assigns.
 
 A finding tagged `blocking` is always 🔴 Important here, regardless of what
 severity its underlying criterion would otherwise carry in context.
-Recognizing that a specific diff hunk matches a `blocking`-tagged criterion
-is reviewer judgment, piloted rather than asserted reliable. `blocking` is
-this file's own tag, not a severity a `conventions/review/` criterion
-assigns. No criterion file currently carries one.
+`blocking` is this file's own tag, not a severity a `conventions/review/`
+criterion assigns.
 
 ## Depth
 
@@ -51,25 +49,18 @@ form `conventions/review/<file>.md#<heading>`, resolved relative to wherever
 the `standards` checkout root is available: this repository's own root when
 `standards` reviews itself, or the `--add-dir` mount root everywhere else.
 
-Each line below is written to survive losing that depth: either it is
-already a complete, actionable check on its own and the citation is a bonus
-a capable surface gets, or, where the check would be too easily
-misapplied without the reasoning behind it, the reasoning is stated inline
-rather than left solely behind the cite. Every line still cites its SSOT
-criterion; a citation here never substitutes prose that isn't needed, per
-`conventions/engineering/reference-dont-duplicate.md`.
-
 ## Code-review lane scope
 
 This lane owns every review dimension except security: correctness,
 design, conventions, error handling, observability, tests, and
 documentation. On a repository whose CI runs the security lane (a
-`.github/workflows/claude-security-review.yml` workflow exists), it does
+`.github/workflows/claude-security-review.yml` or
+`.github/workflows/claude-security-review-hosted.yml` workflow exists), it does
 **not** report security findings, such as vulnerabilities, authorization
 or tenancy gaps, credential exposure, or injection: every security
 finding belongs exclusively to that lane and is omitted here even when a
 hunk plainly contains one.
-On a repository without that workflow no security lane exists yet, and
+On a repository without either workflow no security lane exists yet, and
 suppressed findings would have no other reader: report security findings
 under this lane too, applying the security-scope checks below.
 
