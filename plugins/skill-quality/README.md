@@ -1,9 +1,10 @@
 # skill-quality
 
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
-skill directory, reports the shared listing-budget estimate across a set of skills, and validates a
-skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint. No model
-invocation anywhere. The same checks run identically in a session, a pre-commit hook, or CI.
+skill directory, reports the shared listing-budget estimate across a set of skills, validates a
+skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint, and grades
+labeled auto-invocation probes against listing text. No model invocation anywhere. The same checks
+run identically in a session, a pre-commit hook, or CI.
 
 The drift static analysis catches best is a rewrite silently dropping a `description` trigger
 phrase, which can degrade a skill's auto-invocation. Check 3 compares the trigger phrases against
@@ -13,7 +14,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 | Skill | What it does |
 |---|---|
-| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) for one skill, a set of roots, or every skill. |
+| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), schema-validates and quality-lints evals (`validate-evals`), or grades description-driven auto-invocation probes (`probe-invocation`) for one skill, a set of roots, or every skill. |
 | `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
 ## Checks
@@ -110,6 +111,14 @@ description out of the model-visible listing entirely, so it spends none of the 
 consumer's `skillOverrides` can free further descriptions with `"name-only"`, which repository
 content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
 
+`probe-invocation` runs `probe-invocation.py`. A labeled-query grade of description-driven
+auto-invocation: train and validation trigger rate (positives the listing wins), hold rate
+(negatives it does not win), and false-trigger rate. Default grade is listing-coverage (token
+overlap of the request against `description` plus `when_to_use`, ranked against competitor
+listings in the probe file). No model is called. It is a repeatable on-demand measurement, not a
+live-session auto-invocation trace. A rewrite of a probed description still has to pass `check`'s
+trigger-phrase preservation check.
+
 `check` also takes one or more skills roots as positionals, so several trees are gated in one run.
 Each root is walked on its own under its own header and the run ends with a single
 `N passed, M failed` rollup. Nothing is pooled across roots: the cross-skill scans (trigger-move,
@@ -123,6 +132,7 @@ because the budget it reports is the shared one.
 /skill-quality:check validate-evals my-skill   # schema-check + quality-lint evals.json
 /skill-quality:check listing-budget            # report the shared budget over the resolved root
 /skill-quality:check listing-budget plugins/*/skills  # pool every plugin's root into one aggregate
+/skill-quality:check probe-invocation          # grade bundled auto-invocation probes (listing-coverage)
 ```
 
 ## Skills directory is never baked in

@@ -109,6 +109,18 @@
         "Output explains the mismatch is between the description/verb contract (read-only vs mutate) and is a factual-consistency defect in the listing surface",
         "Output does NOT treat the WARN as a mandate to add a --fix path or rename the skill"
       ]
+    },
+    {
+      "id": 10,
+      "name": "probe-invocation-routes-to-listing-coverage",
+      "prompt": "probe-invocation",
+      "expected_output": "Routes to the probe-invocation action: runs the bundled probe-invocation.py over labeled queries (or given probe JSON files), reports train and validation trigger rate, hold rate, and false-trigger rate, and uses the listing-coverage grade (token overlap against description plus when_to_use, ranked against competitor listings). It does not call a model and does not treat the report as a live-session auto-invocation trace. Missing probe files or usage errors exit 2.",
+      "files": [],
+      "expectations": [
+        "Output runs probe-invocation.py (listing-coverage), not the static contract gate and not a model-graded eval",
+        "Output reports trigger, hold, and false-trigger rates for both train and val",
+        "Output does not claim the grade is a live-session auto-invocation trace"
+      ]
     }
   ]
 }

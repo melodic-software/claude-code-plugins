@@ -1362,6 +1362,8 @@ jobs:
         run: scripts/check-skill-precompute-compose.sh --all
       - name: Test the shared listing-budget reporter
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
+      - name: Test the description-driven auto-invocation probes
+        run: bash plugins/skill-quality/scripts/probe-invocation.test.sh
       # Report-only (always exit 0 — see the script's own header): pools every
       # plugin's skills root into ONE shared aggregate, the shape a consumer who
       # installs the whole marketplace actually experiences.

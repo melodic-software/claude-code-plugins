@@ -3,6 +3,17 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.11] - 2026-09-28
+
+### Added
+
+- **`check probe-invocation` grades labeled queries for description-driven auto-invocation.** The
+  bundled `probe-invocation.py` reports train and validation trigger, hold, and false-trigger
+  rates. Default grade is listing-coverage (token overlap of the request against `description` plus
+  `when_to_use`, ranked against competitor listings); no model is called, so CI and on-demand runs
+  stay deterministic. Bundled probes live under `skills/check/probes/`. A description rewrite still
+  has to pass check 3 trigger-phrase preservation (#3526). Serialized above in-flight 0.24.6.
+
 ## [0.24.10] - 2026-09-28
 
 ### Added

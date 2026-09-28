@@ -58,6 +58,7 @@ plugins/typos-format/hooks/typos-format.test.sh
 
 # The listing-budget reporter times its own whole-marketplace pass.
 plugins/skill-quality/scripts/check-listing-budget.test.sh
+plugins/skill-quality/scripts/probe-invocation.test.sh
 
 # Deadline-based cases: a suite that fails when a bounded operation overruns is
 # measuring the box once other suites are competing for it.

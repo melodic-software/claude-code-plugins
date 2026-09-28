@@ -1,12 +1,12 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
-argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root; give check one or more roots to gate several trees in one run"
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', 'probe invocation', 'trigger rate', 'auto-invocation', or before shipping a skill or plugin. Actions: `check` runs a twenty-six-check static contract gate; `validate-evals` schema-lints evals.json; `listing-budget` reports the SHARED listing-budget estimate; `probe-invocation` grades labeled queries for description-driven auto-invocation (train/validation trigger and false-trigger rates; listing-coverage default). Advisory listing-budget never blocks. Not for: writing new skills, or running model-graded evals."
+argument-hint: "[check|validate-evals|listing-budget|probe-invocation] [<skill-name-or-root-or-probes> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: review
-  summary: Static QA gate for skill frontmatter, caps, and evals
+  summary: Static QA gate for skill frontmatter, caps, evals, and invocation probes
 ---
 
 ## Purpose
@@ -18,7 +18,9 @@ JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eva
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
-limit from `check`'s per-skill entry cap).
+limit from `check`'s per-skill entry cap). The `probe-invocation` action grades labeled queries for
+whether a skill's description would win auto-invocation, with a train/validation split; the default
+grade is listing-coverage and spends no model tokens.
 
 ## Skills-directory resolution
 
@@ -80,6 +82,8 @@ Parse `$ARGUMENTS`:
 - **`listing-budget <root> [<root> ...]`**. Pool every listing-eligible skill under each given root
   into ONE shared aggregate (e.g. every plugin's skills dir in a marketplace repo). Every root given
   must exist.
+- **`probe-invocation [<probes-file> ...]`**. Grade labeled auto-invocation queries. Omit the file
+  to run the bundled probes under `skills/check/probes/`.
 
 ## Action: check
 
@@ -187,6 +191,30 @@ Both claims are verified 2026-09-06 against Claude Code 2.1.263 and the skills p
 `disable-model-invocation: true`, "Description not in context", and "Skill descriptions are cut
 short", which names `"name-only"` as the way to free budget). Recheck when either section stops
 carrying its statement, or when a release note names skill listing budget or `skillOverrides`.
+
+## Action: probe-invocation
+
+1. Run the bundled scorer over labeled queries (positive and negative, train and validation):
+
+   ```shell
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/probe-invocation.py"
+   ```
+
+   Pass one or more probe JSON files to grade a different skill. `--json <file>` writes the
+   machine-readable report; `--compare <baseline.json>` prints the rate delta against a prior run.
+2. Report per split: trigger rate (positives the listing wins), hold rate (negatives it does not
+   win), and false-trigger rate. The action is complete when those three rates are printed for both
+   train and val.
+3. The default grade is listing-coverage: token overlap of the request against `description` plus
+   `when_to_use`, ranked against competitor listings in the probe file. It is a repeatable on-demand
+   measurement, not a live-session auto-invocation trace. Model-graded evals remain out of this
+   skill's default path.
+
+A rewrite of a probed description still has to pass `check`'s trigger-phrase preservation check.
+Each drop is a changelog item, not a silent win on these probes.
+
+The script exits 0 on a successful report and 2 on usage or a missing probe file. python3 is
+required.
 
 ## Cross-skill invocation (doctrine)
 

@@ -1,0 +1,29 @@
+{
+  "skill": "skill-quality:check",
+  "skill_md": "../SKILL.md",
+  "competitors": [
+    "../../setup/SKILL.md"
+  ],
+  "queries": [
+    {"id": "train-pos-01", "split": "train", "expect": "trigger", "request": "check this skill"},
+    {"id": "train-pos-02", "split": "train", "expect": "trigger", "request": "lint my skill"},
+    {"id": "train-pos-03", "split": "train", "expect": "trigger", "request": "is this SKILL.md valid"},
+    {"id": "train-pos-04", "split": "train", "expect": "trigger", "request": "validate skill frontmatter"},
+    {"id": "train-pos-05", "split": "train", "expect": "trigger", "request": "check skill before publishing"},
+    {"id": "train-neg-01", "split": "train", "expect": "hold", "request": "set up skill-quality and configure skills_root"},
+    {"id": "train-neg-02", "split": "train", "expect": "hold", "request": "write me a brand-new skill for parsing CSV files"},
+    {"id": "train-neg-03", "split": "train", "expect": "hold", "request": "run my plugin evals with claude plugin eval"},
+    {"id": "train-neg-04", "split": "train", "expect": "hold", "request": "what permissions are actually in effect"},
+    {"id": "train-neg-05", "split": "train", "expect": "hold", "request": "merge this pull request"},
+    {"id": "val-pos-01", "split": "val", "expect": "trigger", "request": "skill quality"},
+    {"id": "val-pos-02", "split": "val", "expect": "trigger", "request": "validate evals.json"},
+    {"id": "val-pos-03", "split": "val", "expect": "trigger", "request": "shared listing budget"},
+    {"id": "val-pos-04", "split": "val", "expect": "trigger", "request": "is the skill listing overflowing"},
+    {"id": "val-pos-05", "split": "val", "expect": "trigger", "request": "probe invocation trigger rate"},
+    {"id": "val-neg-01", "split": "val", "expect": "hold", "request": "configure skill-quality"},
+    {"id": "val-neg-02", "split": "val", "expect": "hold", "request": "design a new skill from scratch"},
+    {"id": "val-neg-03", "split": "val", "expect": "hold", "request": "inventory installed plugins"},
+    {"id": "val-neg-04", "split": "val", "expect": "hold", "request": "audit my CLAUDE.md instructions"},
+    {"id": "val-neg-05", "split": "val", "expect": "hold", "request": "open a draft pull request"}
+  ]
+}
