@@ -1773,6 +1773,68 @@ assert_contains "PS hs: the shared allow-token line still prints for a tokened t
   "$(pwsh_stderr "$ps_hs_body" || true)" \
   "allow it via the block_dangerous_git_allow option"
 
+# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
+# Same no-token flag as herestring-comment-char. Prefix test is a plain substring
+# on the RAW opener line (`'`, `"`, `\`, backtick); `<#` anywhere earlier refuses
+# the next confirmed opener; a CR not followed by LF is read on the raw command
+# and, because hook::jq_fields strips CR from COMMAND, on INPUT.
+ps_hs_quote_prefix="$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git push --force" "\"@")"
+ps_hs_backslash_prefix="$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git push --force" "\"@")"
+ps_hs_comment_span="$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git push --force" "\"@")"
+ps_hs_shape9="$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")"
+ps_hs_bare_cr=$'Write-Output hi\rgit push --force'
+run_pwsh "PS hs: a quote on a confirmed opener prefix is refused (blocked)" \
+  "$ps_hs_quote_prefix" 2
+run_pwsh "PS hs: a backslash on a confirmed opener prefix is refused (blocked)" \
+  "$ps_hs_backslash_prefix" 2
+run_pwsh "PS hs: a <# earlier than a confirmed opener is refused (blocked)" \
+  "$ps_hs_comment_span" 2
+run_pwsh "PS hs: shape 9 — a commented opener behind {} with no git is refused (blocked)" \
+  "$ps_hs_shape9" 2
+run_pwsh "PS hs: a bare CR hiding git push --force is refused (blocked)" \
+  "$ps_hs_bare_cr" 2
+run_pwsh "PS hs: CRLF canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS hs: the removed opener-untrusted token string does not open the shape" \
+  "$ps_hs_backslash_prefix" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-untrusted
+run_pwsh "PS hs: the removed comment-span token string does not open the shape" \
+  "$ps_hs_comment_span" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-span
+run_pwsh "PS hs: the removed bare-cr token string does not open the shape" \
+  "$ps_hs_bare_cr" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-bare-cr
+pin_sink_trigger "classify: a quote on a confirmed opener prefix is herestring-opener-untrusted" \
+  "$ps_hs_quote_prefix" "herestring-opener-untrusted"
+pin_sink_trigger "classify: a backslash on a confirmed opener prefix is herestring-opener-untrusted" \
+  "$ps_hs_backslash_prefix" "herestring-opener-untrusted"
+pin_sink_trigger "classify: a <# earlier than a confirmed opener is herestring-comment-span" \
+  "$ps_hs_comment_span" "herestring-comment-span"
+pin_sink_trigger "classify: a bare CR is the bare-cr sink" \
+  "$ps_hs_bare_cr" "bare-cr"
+pin_sink_trigger "classify: shape 9 keeps special-construct as the first trigger" \
+  "$ps_hs_shape9" "special-construct"
+pin_predicate "ps::has_bare_cr: lone CR is bare" \
+  ps::has_bare_cr $'hi\rlo' 0
+pin_predicate "ps::has_bare_cr: CR then LF is CRLF" \
+  ps::has_bare_cr $'hi\r\nlo' 1
+pin_predicate "ps::payload_has_bare_cr: JSON \\r is a bare CR" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\rgit push"}}' 0
+pin_predicate "ps::payload_has_bare_cr: JSON \\r\\n is CRLF" \
+  ps::payload_has_bare_cr '{"tool_input":{"command":"hi\r\nlo"}}' 1
+assert_contains "PS hs: the hook names opener-untrusted when a quote holds the command" \
+  "$(pwsh_stderr "$ps_hs_quote_prefix" || true)" \
+  "quote, backslash, or backtick"
+assert_contains "PS hs: the hook names comment-span when a <# holds the command" \
+  "$(pwsh_stderr "$ps_hs_comment_span" || true)" \
+  "'<#' block-comment opener"
+assert_contains "PS hs: the hook names bare-cr when a CR holds the command" \
+  "$(pwsh_stderr "$ps_hs_bare_cr" || true)" \
+  "carriage return that is not part of a CRLF pair"
+assert_contains "PS hs: opener-untrusted says the shape has no allow token" \
+  "$(pwsh_stderr "$ps_hs_backslash_prefix" || true)" \
+  "This sink shape has NO allow token"
+
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
 # so the read-only allowlist admits it and these stay allowed. Pinned so a later

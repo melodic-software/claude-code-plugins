@@ -178,6 +178,18 @@ run "PS: a here-string body containing a # (allowed)" "$r" \
 run "PS: conforming here-string subject with a trailing comment (allowed)" "$r" \
   "$PS_GOOD # ok" 0 PowerShell
 
+# --- #4683: opener-untrusted / comment-span / bare-cr (FLAG-keyed, not deferred)
+run "PS: a quote on a confirmed opener prefix is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output "x" @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a backslash on a confirmed opener prefix is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output C:\\x @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a <# earlier than a confirmed opener is refused here, not deferred (blocked)" "$r" \
+  $'<# hi\nWrite-Output @"\ngit commit -m x\n"@' 2 PowerShell
+run "PS: a bare CR is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output hi\rgit commit -m x' 2 PowerShell
+run "PS: CRLF canonical conforming here-string (allowed)" "$r" \
+  "$(printf '%s\r\n%s\r\n%s' "@'" "ABC-123: subject" "'@ | git commit -F -")" 0 PowerShell
+
 # --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
 r="$(newrepo "$TICKET")"
 run "leading-space subject validates RAW (blocked)" "$r" \

@@ -33,8 +33,9 @@
 # Allowing a sink shape blanks that opaque region and continues checking any
 # remaining visible commands — it does not fail-open the whole compound line.
 #
-# The sixth sink trigger, `herestring-comment-char`, is deliberately absent from
-# that list and has no token at all; see the sink loop below.
+# The no-token family (`herestring-comment-char`, `herestring-opener-untrusted`,
+# `herestring-comment-span`, `bare-cr`) is deliberately absent from that list and
+# has no token at all; see the sink loop below.
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
 # object id of the repository's own hash width (a literal one: a substitution is
@@ -1424,9 +1425,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     # PS_SINK_TRIGGER is set here so the trigger line and the telemetry form name
     # the shape actually being refused.
     if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
-      PS_SINK_TRIGGER="herestring-comment-char"
+      PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
       ps::print_unparsable_git_block_message
-      emit_tel "blocked" "powershell-unparsable-herestring-comment-char"
+      emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
       exit 2
     fi
     # The attempt budget is spent and the remainder, re-classified once more on
