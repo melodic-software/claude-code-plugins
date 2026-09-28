@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.11] - 2026-09-28
+## [0.23.12] - 2026-09-28
 
 ### Fixed
 
@@ -14,6 +14,17 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   reason: no lane for the language, no manifest root, tool not installed, or lane not selected. The
   clean-result note is printed only when nothing is uncovered. `Summary total:` reports
   `files-with-findings=` so that key is not the scan count.
+
+## [0.23.11] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`.** `tidy`'s findings-table rows and `batch-simplify`'s
+  reported deferrals state what each rests on, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential finding or disposition is withheld as an open question.
 
 ## [0.23.10] - 2026-09-28
 
