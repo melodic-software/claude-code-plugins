@@ -158,20 +158,14 @@ jobs:
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
   #
-  # GUARDRAILS SUITES ARE NOT IN THIS LANE (#4527). Six of 22
-  # `plugins/guardrails/hooks/*.test.sh` and `lib/git-hooks/*.test.sh` suites
-  # fail on a Windows 11 Git Bash host and none of them run here, so a Windows
-  # regression in those six currently ships green:
-  #   block-hook-bypass, block-windows-drive-tmp, coverage-manifest,
-  #   hardcoded-path-check, run-guards, secret-pattern-detection.
-  # `hardcoded-path-check` and `block-windows-drive-tmp` overlap #3683 (host-skip
-  # the path-form cases; drive-tmp is a real MSYS writer-path gap, not a skip).
-  # `block-hook-bypass` carries host-gated `windows temp:` cases that have never
-  # run in CI. `coverage-manifest` and `run-guards` may not be Windows-specific.
-  # Do not add these suites here without a per-suite triage against this job's
-  # 20-minute timeout and the ~140 ms spawn cost; a host-skip or a Linux-side
-  # fix is the default until that triage lands. Each host-gated case that still
-  # cannot run must print a counted SKIP line rather than pass silently.
+  # GUARDRAILS SUITES IN THIS LANE (#4527). These six are the ones a Windows
+  # 11 Git Bash host failed while Linux stayed green, and each guard they
+  # exercise has an OSTYPE, cygpath, or MSYS branch a Linux runner does not
+  # take. `hook::repo_relative_path_to` falls back from `cygpath -lm` (which
+  # fails when the leaf does not exist) to `cygpath -m`, and strips a trailing
+  # separator, so hardcoded-path-check telemetry keeps `src/run.sh`. The other
+  # five run here so a Windows regression cannot ship on Linux green alone.
+  # Host-gated cases that still cannot run must print a counted SKIP line.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
@@ -204,6 +198,16 @@ jobs:
           python-version-file: .python-version
       - name: Run shared lib tests on Windows
         run: bash lib/hook-utils.test.sh
+      # #4527: guardrails suites a Linux runner does not exercise. Named, like
+      # the suites above, rather than discovered.
+      - name: Run guardrails Windows-relevant hook suites
+        run: |
+          bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+          bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
+          bash plugins/guardrails/hooks/coverage-manifest.test.sh
+          bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
+          bash plugins/guardrails/hooks/run-guards.test.sh
+          bash plugins/guardrails/hooks/block-hook-bypass.test.sh
       # GuardTests only, not the full hygiene module: two of its tests fail on
       # windows-2025 and are already green on Linux — the preview case expects
       # ready-for-explicit-approval where Windows returns blocked, and the

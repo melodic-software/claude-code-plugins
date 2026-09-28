@@ -114,12 +114,14 @@ esac
 # patterns are separate. A trailing ["']? on the bare-word branch also
 # matched `echo 'run mkdir' /tmp/x`.
 # shellcheck disable=SC2089,SC2090  # quotes in the character class are literal
-_DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)[\"']([[:space:]]|\$)"
-_DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
-_DRIVE_TMP_CREATOR_BARE="[[:space:]](tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
-_DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)[\"']([[:space:]]|\$)"
-_DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
-_DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+# `.exe` is the spelling Git Bash resolves `/usr/bin/mkdir` to. Without it the
+# creator match fails and `mkdir.exe -p /tmp/x` exits 0 (#4527).
+_DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd)(\.exe)?[\"']([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd)(\.exe)?([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_BARE="[[:space:]](tee|mktemp|mkdir|touch|dd)(\.exe)?([[:space:]]|\$)"
+_DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?((cp|mv|install)(\.exe)?|copy-item|move-item|copy|move|cpi|mi)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?((cp|mv|install)(\.exe)?|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_BARE="[[:space:]]((cp|mv|install)(\.exe)?|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
@@ -465,7 +467,8 @@ segment_destination_operand() {
     -*)
       continue
       ;;
-    tee | mktemp | mkdir | touch | install | cp | mv | dd | install.exe | tee.exe | \
+    tee | mktemp | mkdir | touch | install | cp | mv | dd | \
+    tee.exe | mktemp.exe | mkdir.exe | touch.exe | install.exe | cp.exe | mv.exe | dd.exe | \
     set-content | add-content | out-file | tee-object | new-item | export-clixml | \
     export-csv | copy-item | move-item | copy | move | cpi | mi | ac | ni)
       # command word — skip

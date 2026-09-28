@@ -1791,15 +1791,52 @@ hook::repo_relative_path_to() {
     msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && __hu_rp_cyg=1 ;;
     *) ;;
     esac
+    # A trailing separator makes the prefix "/repo//", which matches nothing
+    # and collapses an in-repo file to its basename (#4527). Do not trim a
+    # filesystem root: "/" would become empty and skip the strip.
+    if [[ "$__hu_rp_root" != "/" ]]; then
+      __hu_rp_root="${__hu_rp_root%/}"
+      __hu_rp_root="${__hu_rp_root%\\}"
+    fi
     if ((__hu_rp_cyg)); then
-      local __hu_rp_file_lm __hu_rp_root_lm
-      __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
-      __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
+      local __hu_rp_file_lm __hu_rp_root_lm __hu_rp_file_fold __hu_rp_root_fold
+      # -l calls GetLongPathName, which fails when the leaf does not exist yet
+      # (telemetry for a write that has not landed). -m still converts the
+      # spelling. A failed -lm used to skip the strip, and the absolute path
+      # then collapsed to its basename.
+      __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null) || __hu_rp_file_lm=""
+      if [[ -z "$__hu_rp_file_lm" ]]; then
+        __hu_rp_file_lm=$(cygpath -m "$__hu_rp_file" 2>/dev/null) || __hu_rp_file_lm=""
+      fi
+      __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null) || __hu_rp_root_lm=""
+      if [[ -z "$__hu_rp_root_lm" ]]; then
+        __hu_rp_root_lm=$(cygpath -m "$__hu_rp_root" 2>/dev/null) || __hu_rp_root_lm=""
+      fi
+      __hu_rp_file_lm="${__hu_rp_file_lm//\\//}"
+      __hu_rp_root_lm="${__hu_rp_root_lm//\\//}"
+      __hu_rp_file_lm="${__hu_rp_file_lm%/}"
+      __hu_rp_root_lm="${__hu_rp_root_lm%/}"
       if [[ -n "$__hu_rp_file_lm" && -n "$__hu_rp_root_lm" ]]; then
-        __hu_rp_rel="${__hu_rp_file_lm#"$__hu_rp_root_lm"/}"
+        __hu_rp_file_fold="${__hu_rp_file_lm,,}"
+        __hu_rp_root_fold="${__hu_rp_root_lm,,}"
+        if [[ "$__hu_rp_file_fold" == "$__hu_rp_root_fold/"* || "$__hu_rp_file_fold" == "$__hu_rp_root_fold\\"* ]]; then
+          __hu_rp_rel="${__hu_rp_file_lm:${#__hu_rp_root_lm}}"
+          __hu_rp_rel="${__hu_rp_rel#/}"
+          __hu_rp_rel="${__hu_rp_rel#\\}"
+        else
+          __hu_rp_rel="$__hu_rp_file_lm"
+        fi
+      else
+        __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
       fi
     else
-      __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
+      local __hu_rp_fs="${__hu_rp_file//\\//}" __hu_rp_rs="${__hu_rp_root//\\//}"
+      if [[ "$__hu_rp_fs" == "$__hu_rp_rs"/* ]]; then
+        __hu_rp_rel="${__hu_rp_fs:${#__hu_rp_rs}}"
+        __hu_rp_rel="${__hu_rp_rel#/}"
+      else
+        __hu_rp_rel="${__hu_rp_file#"$__hu_rp_root"/}"
+      fi
     fi
   fi
   # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped

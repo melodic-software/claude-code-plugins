@@ -285,6 +285,8 @@ run_win "tee /tmp/x (blocked)" 'echo x | tee /tmp/x' 2
 run_win "cp to /tmp/x (blocked)" 'cp ./a /tmp/x' 2
 run_win "mv to /tmp/x (blocked)" 'mv ./a /tmp/x' 2
 run_win_usr_bin "/usr/bin/mkdir /tmp/x (blocked)" '/usr/bin/mkdir -p /tmp/x' 2
+run_win "/usr/bin/mkdir.exe /tmp/x (blocked)" '/usr/bin/mkdir.exe -p /tmp/x' 2
+run_win "quoted /usr/bin/mkdir.exe /tmp/x (blocked)" '"/usr/bin/mkdir.exe" -p /tmp/x' 2
 run_win_usr_bin "sudo /usr/bin/mkdir /tmp/x (blocked)" 'sudo /usr/bin/mkdir -p /tmp/x' 2
 run_win_usr_bin "quoted /usr/bin/mkdir /tmp/x (blocked)" '"/usr/bin/mkdir" -p /tmp/x' 2
 run_win_usr_bin "single-quoted /usr/bin/mkdir /tmp/x (blocked)" "'/usr/bin/mkdir' -p /tmp/x" 2

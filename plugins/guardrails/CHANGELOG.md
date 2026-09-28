@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-09-28
+
+### Fixed
+
+- **Repo-relative telemetry keeps the directory on Windows Git Bash
+  ([#4527](https://github.com/melodic-software/claude-code-plugins/issues/4527)).**
+  `hook::repo_relative_path_to` asked `cygpath -lm` only. That flag calls
+  GetLongPathName, which fails when the file does not exist yet, and the helper
+  then collapsed the absolute path to its basename (`run.sh` instead of
+  `src/run.sh`). A failed `-lm` now falls back to `cygpath -m`. A trailing
+  separator on the root is trimmed, and the prefix compare is case-insensitive,
+  so a drive-letter case difference still strips. The Windows lane runs the six
+  guardrails hook suites that exercise OSTYPE, cygpath, and MSYS branches.
+  `block-windows-drive-tmp` treats `mkdir.exe`, the spelling Git Bash gives
+  `/usr/bin/mkdir`, as a creator.
+
 ## [0.41.0] - 2026-09-28
 
 ### Added

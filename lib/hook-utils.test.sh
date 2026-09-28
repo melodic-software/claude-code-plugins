@@ -3320,7 +3320,18 @@ mkdir -p "$RRP_DIR/nocyg" "$RRP_DIR/cyg"
   printf '#!%s\n' "$BASH"
   cat <<'CYGEOF'
 p=""
-for a in "$@"; do p="$a"; done
+long=0
+for a in "$@"; do
+  case "$a" in
+  -l | -lm | --long-name) long=1 ;;
+  -m | --mixed | -w | --windows) ;;
+  *) p="$a" ;;
+  esac
+done
+# GetLongPathName fails when the leaf does not exist. /miss/ is that leaf.
+if ((long)) && [[ "$p" == */miss/* || "$p" == */miss ]]; then
+  exit 1
+fi
 _lower="abcdefghijklmnopqrstuvwxyz"
 _upper="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 case "$p" in
@@ -3408,6 +3419,8 @@ rrp_case nocyg "the root as the file redacts" /repo /repo repo 1
 # shave the leading slash and hand back srv/proj/repo/a.txt with status 0: still
 # the caller's absolute path, no longer matching the redaction's /* arm.
 rrp_case nocyg "an empty root redacts instead of shaving the slash" /srv/proj/repo/a.txt "" a.txt 1
+rrp_case nocyg "a trailing slash on the root still strips" /repo/src/run.sh /repo/ src/run.sh 0
+rrp_case nocyg "a trailing backslash on a drive root still strips" 'C:\repo\src\run.sh' 'C:\repo\' src/run.sh 0
 
 # The cygpath arm. The first case is the one the arm exists for: file in POSIX
 # mount form, root in drive-letter form. The nocyg control directly below shows
@@ -3416,12 +3429,20 @@ rrp_case nocyg "an empty root redacts instead of shaving the slash" /srv/proj/re
 rrp_case cyg "mount-form file under a drive-letter root strips" /c/repo/a/b.md 'C:/repo' a/b.md 0
 rrp_case nocyg "...and the same inputs degrade without cygpath (control)" /c/repo/a/b.md 'C:/repo' b.md 1
 rrp_case cyg "both sides already mixed form" 'C:/repo/a/b.md' 'C:/repo' a/b.md 0
+rrp_case cyg "case differs between file and root" /c/Repo/src/run.sh /c/repo src/run.sh 0
+rrp_case cyg "a trailing slash survives cygpath" /c/repo/src/run.sh /c/repo/ src/run.sh 0
 rrp_case cyg "a root mismatch still redacts through the cygpath arm" /c/elsewhere/b.md 'C:/repo' b.md 1
 rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b.md 1
 # The OSTYPE gate: the same stub on PATH is not consulted off Windows, so the
 # drive-letter case degrades exactly as the nocyg control does.
 rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
 rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
+# A trailing separator and a drive-letter case difference must still strip.
+# -lm fails for a nonexistent /miss/ leaf; -m converts the spelling.
+rrp_case nocyg "a trailing slash on the root still strips" /repo/src/run.sh /repo/ src/run.sh 0
+rrp_case cyg "a trailing slash on a drive root still strips" 'C:/repo/src/run.sh' 'C:/repo/' src/run.sh 0
+rrp_case cyg "drive-letter case still strips" 'c:/repo/src/run.sh' 'C:/repo' src/run.sh 0
+rrp_case cyg "a failed -lm falls back to -m" /c/miss/src/run.sh /c/miss src/run.sh 0
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------

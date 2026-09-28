@@ -1991,7 +1991,12 @@ rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 # memory tier is the one writable non-temp location this suite can rely on.
 SYMLINK_TEMP="/tmp/bhb-3719-symlink-$$"
 SYMLINK_PROJ="$(cd "$HOOK_DIR/../../.." && pwd)/.work/bhb-3719-proj-$$"
-if [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
+if [[ "$SYMLINK_PROJ" == /tmp/* || "$SYMLINK_PROJ" == "${TMPDIR:-/tmp}"/* ]]; then
+  # The temp default stands down when the project itself sits in the temp tree,
+  # so a write under /tmp is not an exemption to escape from. Counted SKIP, not
+  # a pass: this host cannot exercise the symlink cases.
+  printf 'SKIP: symlink confirmation not asserted — project sits inside the temp tree (%s)\n' "$SYMLINK_PROJ"
+elif [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
   # Not a silent skip: the case-folding residual is documented in the hook, and a
   # mixed-case checkout path cannot exercise this assertion at all.
   printf 'SKIP: symlink confirmation not asserted — checkout path carries capitals (%s), which the folded segment scan cannot resolve\n' "$SYMLINK_PROJ"
