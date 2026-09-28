@@ -112,6 +112,32 @@
         "Output distinguishes 'suppressed by --min-instances' from 'no candidates found' for the omitted buckets",
         "Output applies no edits (bare identify with only --min-instances stays read-only)"
       ]
+    },
+    {
+      "id": 10,
+      "name": "small-corpus-surveys-inline",
+      "prompt": "Run /docs-hygiene:extract-ssot identify over this whole repository. It has 11 tracked markdown files, about 430 lines in total.",
+      "expected_output": "Surveys inline in the main session instead of dispatching the survey subagent: an 11-file corpus is far below the scale the subagent route is sized for, and the brief plus a Tier 0 re-grep of every returned lead would cost more than reading the corpus. Reads the corpus, applies the duplication heuristics, and greps each candidate this turn so every rostered lead carries Tier 0 evidence. The roster keeps the usual bucket and instance-count shape. Read-only.",
+      "files": [],
+      "expectations": [
+        "Output does NOT dispatch a survey subagent for the 11-file corpus",
+        "Output reads the corpus in the main session and captures a grep per rostered candidate",
+        "Every rostered candidate carries a bucket and an instance count",
+        "Output applies no edits"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "all-refused-roster-is-not-resumable",
+      "prompt": "Run /docs-hygiene:extract-ssot identify --inline over docs/. Every candidate you find turns out to be a refusal (header-only matches and concept mentions). Afterwards, a later bare /docs-hygiene:extract-ssot runs in a fresh session.",
+      "expected_output": "The identify run persists no roster, because no candidate is actionable. It records the refusals as one line marked status: closed in the working notes, keeping refusals there as the decision framework asks, and routes any new refusal pattern to context/lessons.md. The later bare invocation finds no active candidate roster (a closed record is not one), so it does not resume; it confirms scope with the user as a bare invocation does.",
+      "files": [],
+      "expectations": [
+        "The identify run does NOT persist a candidate roster when every candidate is refused",
+        "The refusals are recorded as a closed record (status: closed), not dropped",
+        "The later bare invocation does NOT resume from the closed record",
+        "The later bare invocation asks the user to confirm scope"
+      ]
     }
   ]
 }

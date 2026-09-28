@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.61.5] - 2026-09-28
+## [0.61.6] - 2026-09-28
 
 ### Changed
 
 - hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.61.5] - 2026-09-28
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` refreshes the default branch before basing** ([#4249](https://github.com/melodic-software/claude-code-plugins/issues/4249)). It read the cached `<remote>/HEAD` and never fetched, so `fresh` meant "as of the last fetch" and a stale base was silent. It now works like Claude Code's native `fresh` (v2.1.208+): when `FETCH_HEAD` is missing or older than 24 hours, it fetches the resolved remote's default branch, capped at five seconds with credential prompts off. A failed or timed-out fetch keeps the cached ref and prints a warning that the base may be behind. `context/create.md` drops the "stale base" caveat and names the one remaining gap: an uncached `<remote>/HEAD` still warns rather than fetching.
 
 ## [0.61.4] - 2026-09-27
 

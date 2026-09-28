@@ -226,7 +226,14 @@ async page => {
     const vk = await frame("vk"), vf = await frame("vf"), vh = await frame("vh");
     ok("AC32: kind svg and format svg give the same iframe srcdoc", !!vk.srcdoc && vk.srcdoc === vf.srcdoc && /svgmark/.test(vk.srcdoc));
     ok("AC32: svg only inside a sandboxed iframe", vk.sandbox === "" && vf.sandbox === "" && vk.svgs === 0 && vf.svgs === 0 && !/<svg/.test(vk.text + vf.text));
-    ok("AC32: html only inside a sandboxed iframe", vh.sandbox === "" && /htmlmark/.test(vh.srcdoc) && !vh.mark && !/htmlmark/.test(vh.text));
+    ok("AC32: html only inside a sandboxed iframe", vh.sandbox === "allow-scripts" && /htmlmark/.test(vh.srcdoc) && !vh.mark && !/htmlmark/.test(vh.text));
+    const hf = await (await page.$("#fbody iframe")).contentFrame();
+    await hf.waitForSelector("#scriptmark", {state: "attached", timeout: 3000}).catch(() => {});
+    const hs = await hf.evaluate(() => {
+      const probe = f => { try { f(); return "reached"; } catch (e) { return "blocked"; } };
+      return {built: !!document.getElementById("scriptmark"), parentDom: probe(() => parent.document.title), storage: probe(() => localStorage.length), cookie: probe(() => document.cookie)};
+    });
+    ok("an html visual's script runs, in an opaque origin that cannot reach the page", hs.built && hs.parentDom === "blocked" && hs.storage === "blocked" && hs.cookie === "blocked", JSON.stringify(hs));
     await page.click('[data-vtab="v:vm"]'); await page.waitForTimeout(150);
     const mm = await page.evaluate(() => ({code: (document.querySelector("#fbody pre code") || {}).textContent, text: document.getElementById("fbody").innerText, frame: !!document.querySelector("#fbody iframe")}));
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));

@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.37] - 2026-09-28
+
+### Fixed
+
+- **`audit` can confirm `merged-remote-branch` at `HIGH` again on hosts whose Git transport lives in global or system config.** The live `ls-remote` probe went through the same wrapper as every local probe, which pins `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` to `/dev/null`. That also dropped a global `core.sshCommand` (Git for Windows' bundled ssh cannot reach the Windows OpenSSH agent) and a system `credential.helper`, so every probe failed. Heads already deleted upstream were then reported at `MEDIUM`, and live ones never reached `HIGH`. The probe now keeps global and system config, with the same argv allowlist and `GIT_TERMINAL_PROMPT=0`. It runs only when `remote get-url` names the same github.com repository with and without that config, so a global `url.*.insteadOf` can rewrite the transport but cannot redirect the probe to another repository. A mismatch counts as a probe failure (`MEDIUM`). Every other probe still pins global and system config.
+
 ## [0.23.36] - 2026-09-27
 
 ### Fixed

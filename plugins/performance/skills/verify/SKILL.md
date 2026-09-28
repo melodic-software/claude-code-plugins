@@ -36,7 +36,12 @@ target.
 behavior is unchanged, because it only checks what someone thought to assert.
 
 Run a differential: the pre-change and post-change subject over a harvested corpus of real inputs,
-requiring **byte-identical output**.
+requiring **byte-identical output**. Use the bundled one rather than writing one:
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/differential.py" --baseline <path> --candidate <path>
+--config <json>`. Its config takes a `matrix` of modes, and it refuses a run where neither arm ever
+produced output. Run it from the Bash tool, whose shell resolves `python3` (`type -P python3` names
+the one it found); a bare name inside another process's `subprocess` call searches a different
+`PATH` (harness-integrity rule 6). The module docstring documents the config.
 
 **Cover every MODE the subject runs in.** A differential that covers one of two modes misses a real
 deny -> ask downgrade in the other and still reports byte-identical output. Enumerate the modes first
@@ -48,7 +53,9 @@ it is reported as such rather than assumed fine.
 Every gate in the harness-integrity checklist. In particular, for any discrimination
 check involved, confirm it asserts that its **two arms differ**, not merely that each produced its
 expected string. A harness that exits identically in both arms and still reports a confident verdict
-never exercised the subject.
+never exercised the subject. `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/discriminate.py" --config <json>`
+runs such a check with all three assertions, restores from a sidecar copy, and exits 2 rather than 1
+when the harness never ran; prefer it to a hand-built pair of arms.
 
 ## 4. Report
 

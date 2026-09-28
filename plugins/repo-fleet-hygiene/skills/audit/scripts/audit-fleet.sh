@@ -329,6 +329,44 @@ run_git_probe() {
   )
 }
 
+# ls-remote reaches the network, so it needs the operator's transport config: a global
+# core.sshCommand (Git for Windows' bundled ssh cannot reach the Windows OpenSSH agent), a system
+# credential.helper, http.* proxies. run_git_probe discards all of it with global/system config,
+# which failed every probe (#4211). run_transport_git keeps global/system config for the same
+# allowlisted argv; run_ls_remote_probe then binds the result back to the pinned view by requiring
+# the remote URL to name the same github.com repository with and without that config, so a global
+# url.*.insteadOf can rewrite the transport but never redirect the probe to another repository.
+run_transport_git() {
+  if ! git_probe_allowed "$@"; then
+    printf 'Rejected non-allowlisted Git probe\n' >&2
+    return 126
+  fi
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
+    # Subshell-local env only; SC2030/SC2031 are false cross-function hits vs run_git_probe.
+    # shellcheck disable=SC2030,SC2031
+    export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat \
+      GIT_TERMINAL_PROMPT=0
+    command git "$@"
+  )
+}
+
+run_ls_remote_probe() {
+  local repo="$1" remote="$2" ref="$3" pinned_url transport_url pinned_key
+  local PARSED_KEY="" PARSED_SLUG=""
+  git_probe_allowed -C "$repo" ls-remote --heads "$remote" "$ref" || {
+    printf 'Rejected non-allowlisted Git probe\n' >&2
+    return 126
+  }
+  pinned_url="$(run_git_probe -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
+    transport_url="$(run_transport_git -C "$repo" remote get-url "$remote" 2>/dev/null | tr -d '\r')" &&
+    parse_github_url "$pinned_url" || return 1
+  pinned_key="$PARSED_KEY"
+  parse_github_url "$transport_url" && [[ "$PARSED_KEY" == "$pinned_key" ]] || return 1
+  run_transport_git -C "$repo" ls-remote --heads "$remote" "$ref"
+}
+
 # Convention-root reads (worktreeroot.path, plus a retired alias the
 # resolver still dual-reads) must see global/includeIf config, so they are
 # a separate allowlist from run_git_probe. Fixed keys and flag orders only.
@@ -2735,7 +2773,7 @@ analyze_repo() {
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
         live_status=0
-        live_out="$(run_git_probe -C "$canonical" ls-remote --heads "$canonical_remote" \
+        live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
         live_oid=""
         if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
