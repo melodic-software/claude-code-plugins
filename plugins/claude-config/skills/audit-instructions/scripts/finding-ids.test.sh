@@ -99,10 +99,10 @@ assert_eq "the group survives the edit" \
 cp "$TEST_TMPDIR/spoke.orig" "$REPO/skills/demo/reference/spoke.md"
 
 # --- Case 4: an I15 conflict is one finding with two sites -------------------
-AB="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15' | ids)"
-BA="$(printf '%s\n' 'skills/demo/SKILL.md:14|skills/demo/SKILL.md:10|I15' | ids)"
-assert_eq "an I15 conflict met as (A, B) and (B, A) has one id" "$(field "$AB" 2)" "$(field "$BA" 2)"
-assert_eq "an I15 conflict carries two sites" "5" "$(printf '%s\n' "$AB" | awk -F'\t' '{print NF}')"
+FWD="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15' | ids)"
+REV="$(printf '%s\n' 'skills/demo/SKILL.md:14|skills/demo/SKILL.md:10|I15' | ids)"
+assert_eq "an I15 conflict met as (A, B) and (B, A) has one id" "$(field "$FWD" 2)" "$(field "$REV" 2)"
+assert_eq "an I15 conflict carries two sites" "5" "$(printf '%s\n' "$FWD" | awk -F'\t' '{print NF}')"
 REC="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15' | ids --records)"
 assert_contains "the I15 record declares its claim pairwise" "$REC" '"pairwise":true'
 if command -v python3 >/dev/null 2>&1; then

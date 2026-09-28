@@ -163,10 +163,16 @@ if [[ -n "${HOME:-}" ]]; then
 fi
 
 surface_of() {
-  local p="$1" dir base dir_abs abs
-  if [[ -L "$p" ]] && command -v readlink >/dev/null 2>&1; then
-    p="$(readlink -f -- "$p" 2>/dev/null || printf '%s' "$p")"
-  fi
+  local p="$1" dir base dir_abs abs target hops=0
+  # Follow a symlink chain by hand (plain readlink is portable; -f is GNU-only),
+  # bounded so a cycle cannot spin forever.
+  while [[ -L "$p" ]] && ((hops < 32)); do
+    target="$(readlink "$p" 2>/dev/null)" || break
+    [[ -n "$target" ]] || break
+    [[ "$target" == /* ]] || target="$(dirname -- "$p")/$target"
+    p="$target"
+    hops=$((hops + 1))
+  done
   dir="$(dirname -- "$p")"
   base="$(basename -- "$p")"
   dir_abs="$(cd -- "$dir" 2>/dev/null && pwd -P)" || return 1
