@@ -73,14 +73,20 @@ Whether a catalogued frontmatter fact carries a pointer or a four-part record is
 4. **Detect restated frontmatter facts.**
    `${CLAUDE_SKILL_DIR}/scripts/detect-restated-facts.sh --paths-file <list>` flags a catalog
    match from the [#3524](https://github.com/melodic-software/claude-code-plugins/issues/3524)
-   census (the 1,536-character listing cap, `skillListingMaxDescChars`,
-   `skillListingBudgetFraction`) whose nearby lines hold neither a pointer to the
+   census whose nearby lines hold neither a pointer to the
    [skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
    nor a four-part upstream-drift record. The script measures those two shapes. Merge each
    finding into the report sidecar as `attribution/audit/rule-restated-upstream-fact`, class
-   `restated-upstream-fact`. SKILL rule: a paraphrase can never be `fingerprint-confirmed`, so
-   this class is report-only and `fix` does not apply it. Dispositions are convert-to-pointer,
-   add-four-part-stamp, or keep-with-reason.
+   `restated-upstream-fact`. When the sidecar names a tier, use `restated-upstream-fact`, never
+   `fingerprint-confirmed`. This class is report-only and `fix` does not apply it. Dispositions
+   are convert-to-pointer, add-four-part-stamp, or keep-with-reason.
+
+   The catalog restates an upstream specific. **Claim:** combined `description` and `when_to_use`
+   text is truncated at 1,536 characters, and the listing-budget settings are
+   `skillListingBudgetFraction` and `skillListingMaxDescChars`. **Basis:**
+   <https://code.claude.com/docs/en/skills#frontmatter-reference>. **As of:** 2026-09-28.
+   **Recheck trigger:** that page moves either default. `detect-restated-facts.sh --show-config`
+   prints the same record.
 
 5. **Nominate.** Dispatch fresh-context subagents per
    [`reference/nomination.md`](reference/nomination.md), handing each a chunk of corpus files

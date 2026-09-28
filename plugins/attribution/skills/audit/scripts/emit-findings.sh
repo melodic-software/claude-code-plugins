@@ -260,8 +260,12 @@ def is_verdict_name:
   or . == "not-found" or . == "source-not-identified";
 def is_neutral_name:
   . == "not-found" or . == "source-not-identified";
+# `restated-upstream-fact` is the report-only tier the rubric names for the
+# catalog class. It is not a judgment verdict and not fingerprint-confirmed.
+# Knowing the name lets that row relay. The rule branch below still refuses a
+# paraphrase declared fingerprint-confirmed.
 def is_tier_name:
-  is_verdict_name or . == "fingerprint-confirmed";
+  is_verdict_name or . == "fingerprint-confirmed" or . == "restated-upstream-fact";
 # Prefer the narrower reading of a container ONLY when it names a tier; otherwise the
 # whole container is the declaration. This is the single rule both steps apply.
 def narrow($inner; $whole):

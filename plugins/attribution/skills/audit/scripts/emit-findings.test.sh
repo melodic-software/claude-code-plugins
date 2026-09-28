@@ -1627,6 +1627,27 @@ assert_not_contains "a paraphrase declared fingerprint-confirmed is not a row" \
 assert_contains "that declaration is counted as not relay-eligible" \
   "$CONFIRMED_BODY" "Not relay-eligible: 1"
 
+write_report restated-tier.json '{
+  "counts": {"files": 1},
+  "findings": [
+    {
+      "rule": "attribution/audit/rule-restated-upstream-fact",
+      "file": "docs/page.md",
+      "line": 9,
+      "tier": "restated-upstream-fact",
+      "fact_id": "listing-entry-cap-1536",
+      "excerpt": "truncated at 1,536 characters"
+    }
+  ]
+}'
+TIER_OUT="$OUTDIR/restated-tier.md"
+run --report "$REPORTS/restated-tier.json" --out "$TIER_OUT" >/dev/null 2>&1
+TIER_BODY="$(cat "$TIER_OUT")"
+assert_contains "the rubric tier name still relays the report row" \
+  "$TIER_BODY" "rule-restated-upstream-fact"
+assert_contains "the rubric tier row still names the catalog fact" \
+  "$TIER_BODY" "listing-entry-cap-1536"
+
 # --- Determinism -----------------------------------------------------------------
 
 D1="$OUTDIR/det1.md"

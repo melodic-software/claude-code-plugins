@@ -9,7 +9,8 @@
   `skillListingBudgetFraction`, measured against the skills frontmatter reference. A nearby pointer
   to that page, or a four-part upstream-drift record, clears the line. Findings relay as
   `attribution/audit/rule-restated-upstream-fact` and stay report-only: a paraphrase can never be
-  `fingerprint-confirmed`, so `fix` does not apply the class (#3525).
+  `fingerprint-confirmed`, so `fix` does not apply the class. A sidecar whose tier is the rubric
+  name `restated-upstream-fact` still relays; `fingerprint-confirmed` on this rule does not (#3525).
 
 ## [0.6.1] - 2026-09-28
 
