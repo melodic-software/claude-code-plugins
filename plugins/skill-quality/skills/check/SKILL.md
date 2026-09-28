@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', 'does this description actually trigger', 'invocation probe', 'trigger rate', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s); `measure-invocation` scores description auto-invocation probes. Advisory only, never blocks. Not for: writing new skills."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-name-or-root> ...]. Omit the action for check; measure-invocation takes validate|score|compare|emit-plugin-eval"
 user-invocable: true
 disable-model-invocation: false
@@ -195,8 +195,9 @@ carrying its statement, or when a release note names skill listing budget or `sk
 ## Action: measure-invocation
 
 Repeatable probe harness for whether a skill's listing text would win the auto-invocation match.
-Default method is a deterministic lexical floor (`listing-overlap`) that CI re-runs without a
-model. Model-graded `claude plugin eval` cases are emitted on demand. Contract:
+Default method is a deterministic lexical floor (`listing-overlap`) that runs without a model. CI
+validates the probe schema and runs the harness tests; `score` and `compare` are run by hand.
+Model-graded `claude plugin eval` cases are emitted on demand. Contract:
 [reference/invocation-probes.md](../../reference/invocation-probes.md).
 
 1. Resolve the probes directory: `${CLAUDE_PLUGIN_ROOT}/probes` when present, else the

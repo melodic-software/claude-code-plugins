@@ -1,12 +1,12 @@
 {
   "method": "listing-overlap",
-  "generated_at": "2026-09-28T04:09:46Z",
+  "generated_at": "2026-09-28T18:27:15Z",
   "skills": [
     {
       "skill": "mcp-tools:audit",
       "plugin": "mcp-tools",
       "method": "listing-overlap",
-      "listing_file": "/tmp/wt-3526/plugins/mcp-tools/skills/audit/SKILL.md",
+      "listing_file": "plugins/mcp-tools/skills/audit/SKILL.md",
       "splits": {
         "train": {
           "n": 12,
@@ -234,16 +234,16 @@
       "skill": "skill-quality:check",
       "plugin": "skill-quality",
       "method": "listing-overlap",
-      "listing_file": "/tmp/wt-3526/plugins/skill-quality/skills/check/SKILL.md",
+      "listing_file": "plugins/skill-quality/skills/check/SKILL.md",
       "splits": {
         "train": {
           "n": 12,
           "n_positive": 6,
           "n_negative": 6,
           "trigger_hits": 6,
-          "false_triggers": 4,
+          "false_triggers": 2,
           "trigger_rate": 1,
-          "false_trigger_rate": 0.6666666666666666
+          "false_trigger_rate": 0.3333333333333333
         },
         "validation": {
           "n": 8,
@@ -312,7 +312,7 @@
           "expect_trigger": true,
           "predicted": true,
           "correct": true,
-          "target_score": 38,
+          "target_score": 39,
           "winner": "skill-quality:check",
           "request": "validate evals.json for my new skill"
         },
@@ -390,20 +390,20 @@
           "id": "neg-train-04",
           "split": "train",
           "expect_trigger": false,
-          "predicted": true,
-          "correct": false,
-          "target_score": 1,
-          "winner": "skill-quality:check",
+          "predicted": false,
+          "correct": true,
+          "target_score": 0,
+          "winner": "none",
           "request": "what permissions are actually in effect on this machine"
         },
         {
           "id": "neg-train-05",
           "split": "train",
           "expect_trigger": false,
-          "predicted": true,
-          "correct": false,
-          "target_score": 3,
-          "winner": "skill-quality:check",
+          "predicted": false,
+          "correct": true,
+          "target_score": 2,
+          "winner": "skill-quality:check+playbooks:skill-authoring",
           "request": "audit MCP tool descriptions against the spec"
         },
         {
@@ -422,7 +422,7 @@
           "expect_trigger": false,
           "predicted": false,
           "correct": true,
-          "target_score": 18,
+          "target_score": 17,
           "winner": "playbooks:skill-authoring",
           "request": "skill best practices for writing a description"
         },

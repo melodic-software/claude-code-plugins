@@ -10,7 +10,8 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 - **`measure-invocation`: a repeatable description-invocation probe harness (#3526).** Scores
   whether a skill's listing text would win the requests it should, with a train/validation split
   and a false-trigger rate. Default method is a deterministic lexical listing-overlap floor that
-  CI re-runs without a model. `emit-plugin-eval` writes `claude plugin eval` cases for an
+  runs without a model. CI validates the probe schema and runs the harness tests; `score` and
+  `compare` are run by hand. `emit-plugin-eval` writes `claude plugin eval` cases for an
   on-demand live run; `compare` prints the delta versus a baseline so a rewrite cannot hide a
   validation drop behind a train gain. Seed probes (20 queries each) cover `skill-quality:check`
   and `mcp-tools:audit`. Fleet-wide description rewrites stay attended. Command:

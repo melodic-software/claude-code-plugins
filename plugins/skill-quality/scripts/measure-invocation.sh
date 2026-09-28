@@ -3,8 +3,8 @@
 #
 # Measures whether a skill's listing text would win the requests it should
 # (and stay quiet on the ones it should not). Default method is a
-# deterministic lexical listing-overlap floor that CI can re-run without a
-# model. Model-graded `claude plugin eval` cases are emitted on demand; a
+# deterministic lexical listing-overlap floor that runs without a model.
+# Model-graded `claude plugin eval` cases are emitted on demand; a
 # replayed model run uses the same report shape so `compare` can show a
 # rewrite delta.
 #
@@ -93,7 +93,7 @@ listing_tokens() {
   local text="$1"
   printf '%s\n' "$text" | skill_frontmatter::extract_triggers | sed "s/^'//;s/'$//" | tr '[:upper:]' '[:lower:]'
   printf '%s\n' "$text" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '\n' |
-    awk 'length($0) >= 3 && $0 !~ /^(the|and|for|with|when|use|this|that|from|into|not|your|our|are|was|were|has|have|had|its|but|or|nor|any|all|can|may|per|via|vs|than|then|also|just|only|each|both|same|such|into|over|under|after|before|about|into)$/'
+    awk 'length($0) >= 3 && $0 !~ /^(the|and|for|with|when|use|this|that|from|into|not|your|our|are|was|were|has|have|had|its|but|nor|any|all|can|may|per|via|than|then|also|just|only|each|both|same|such|over|under|after|before|about)$/'
 }
 
 score_request() {
@@ -196,6 +196,11 @@ cmd_validate() {
     if [[ -n "$dup" ]]; then
       err "$f ($skill): duplicate query id(s): $(printf '%s' "$dup" | tr '\n' ' ')"
     fi
+    local bad_expect
+    bad_expect="$(jq -r '.queries[] | select(.expect_trigger | type != "boolean") | .id' "$f")"
+    if [[ -n "$bad_expect" ]]; then
+      err "$f ($skill): expect_trigger must be a boolean; bad id(s): $(printf '%s' "$bad_expect" | tr '\n' ' ')"
+    fi
     local bad_split
     bad_split="$(jq -r '.queries[] | select(.split != "train" and .split != "validation") | .id' "$f")"
     if [[ -n "$bad_split" ]]; then
@@ -229,7 +234,7 @@ cmd_score() {
     shift 2
   fi
   if [[ "$method" != "listing-overlap" ]]; then
-    printf 'Error: unknown method %s (listing-overlap is the CI floor; emit-plugin-eval for the live path)\n' "$method" >&2
+    printf 'Error: unknown method %s (listing-overlap is the default floor; emit-plugin-eval for the live path)\n' "$method" >&2
     exit 2
   fi
   local dir="${1:-}"
@@ -304,7 +309,7 @@ cmd_score() {
         best=0
       fi
       local cname
-      for cname in "${!comp_listing[@]}"; do
+      for cname in $(printf '%s\n' "${!comp_listing[@]}" | sort); do
         local cscore
         cscore="$(score_request "$request" "${comp_listing[$cname]}")"
         if ((cscore > best)); then
@@ -317,11 +322,6 @@ cmd_score() {
           winner="$skill+$cname"
         fi
       done
-      if [[ "$expect" == "true" && "$predicted" == "true" ]]; then
-        :
-      elif [[ "$expect" == "false" && "$predicted" == "false" ]]; then
-        :
-      fi
       local correct=false
       if [[ "$expect" == "true" && "$predicted" == "true" ]]; then
         correct=true
@@ -362,7 +362,7 @@ cmd_score() {
     ' <<<"$cases_json")"
 
     jq -n --arg skill "$skill" --arg plugin "$plugin" --arg method "$method" \
-      --arg listing_file "$md" --argjson splits "$split_json" --argjson cases "$cases_json" \
+      --arg listing_file "${md#"$root"/}" --argjson splits "$split_json" --argjson cases "$cases_json" \
       '{skill:$skill, plugin:$plugin, method:$method, listing_file:$listing_file, splits:$splits, cases:$cases}' \
       >"$tmp/skill-$skill_idx.json"
     skill_idx=$((skill_idx + 1))
@@ -392,6 +392,7 @@ cmd_compare() {
     exit 2
   fi
   jq -n --slurpfile b "$base" --slurpfile t "$treat" '
+    def delta($t; $b): if $t == null or $b == null then null else $t - $b end;
     ($b[0].skills) as $bs | ($t[0].skills) as $ts |
     {
       method_baseline: $b[0].method,
@@ -404,18 +405,18 @@ cmd_compare() {
           train: {
             trigger_rate_baseline: $bb.splits.train.trigger_rate,
             trigger_rate_treatment: $t.splits.train.trigger_rate,
-            trigger_rate_delta: (($t.splits.train.trigger_rate // 0) - ($bb.splits.train.trigger_rate // 0)),
+            trigger_rate_delta: delta($t.splits.train.trigger_rate; $bb.splits.train.trigger_rate),
             false_trigger_rate_baseline: $bb.splits.train.false_trigger_rate,
             false_trigger_rate_treatment: $t.splits.train.false_trigger_rate,
-            false_trigger_rate_delta: (($t.splits.train.false_trigger_rate // 0) - ($bb.splits.train.false_trigger_rate // 0))
+            false_trigger_rate_delta: delta($t.splits.train.false_trigger_rate; $bb.splits.train.false_trigger_rate)
           },
           validation: {
             trigger_rate_baseline: $bb.splits.validation.trigger_rate,
             trigger_rate_treatment: $t.splits.validation.trigger_rate,
-            trigger_rate_delta: (($t.splits.validation.trigger_rate // 0) - ($bb.splits.validation.trigger_rate // 0)),
+            trigger_rate_delta: delta($t.splits.validation.trigger_rate; $bb.splits.validation.trigger_rate),
             false_trigger_rate_baseline: $bb.splits.validation.false_trigger_rate,
             false_trigger_rate_treatment: $t.splits.validation.false_trigger_rate,
-            false_trigger_rate_delta: (($t.splits.validation.false_trigger_rate // 0) - ($bb.splits.validation.false_trigger_rate // 0))
+            false_trigger_rate_delta: delta($t.splits.validation.false_trigger_rate; $bb.splits.validation.false_trigger_rate)
           }
         }
       ]
@@ -429,7 +430,7 @@ cmd_emit() {
     printf 'Error: emit-plugin-eval needs <probes-dir> <out-dir>\n' >&2
     exit 2
   fi
-  mkdir -p "$out"
+  mkdir -p "$out" || return 1
   local f
   local -a files
   mapfile -t files < <(probe_files "$dir")
@@ -447,7 +448,7 @@ cmd_emit() {
       expect="$(jq -r ".queries[$i].expect_trigger" "$f")"
       request="$(jq -r ".queries[$i].request" "$f")"
       local case_dir="$out/${plugin}-${leaf}-${id}"
-      mkdir -p "$case_dir/graders"
+      mkdir -p "$case_dir/graders" || return 1
       printf '%s\n' "---
 description: invocation probe ${skill} ${id} (${split}, expect_trigger=${expect})
 tags: [invocation-probe, ${split}]
@@ -458,7 +459,7 @@ expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires
 ---
 
 ${request}
-" >"$case_dir/prompt.md"
+" >"$case_dir/prompt.md" || return 1
       # portability-ok: \s is read by the eval grader's own regex engine, never
       # shell grep/sed; kept out of the emitted YAML so the grader files stay clean.
       local match_re="\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\""
@@ -469,7 +470,7 @@ tool: Skill
 input_match: '${match_re}'
 min: 1
 ---
-" >"$case_dir/graders/skill-fired.md"
+" >"$case_dir/graders/skill-fired.md" || return 1
       else
         printf '%s\n' "---
 type: tool_used
@@ -479,12 +480,12 @@ min: 0
 max: 0
 arm: both
 ---
-" >"$case_dir/graders/skill-quiet.md"
+" >"$case_dir/graders/skill-quiet.md" || return 1
       fi
     done
     note "emitted $nq plugin-eval cases for $skill under $out"
   done
-  cat >"$out/README.md" <<'EOF'
+  cat >"$out/README.md" <<'EOF' || return 1
 Plugin-eval cases generated by `measure-invocation.sh emit-plugin-eval`.
 
 Run within one plugin at a time (the CLI loads a single plugin):
@@ -522,11 +523,11 @@ case "$ACTION" in
     ;;
   compare)
     cmd_compare "$@"
-    exit 0
+    exit $?
     ;;
   emit-plugin-eval)
     cmd_emit "$@"
-    exit 0
+    exit $?
     ;;
   *)
     printf 'Error: unknown action %s (validate|score|compare|emit-plugin-eval)\n' "$ACTION" >&2

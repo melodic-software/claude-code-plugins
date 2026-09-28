@@ -105,7 +105,6 @@ fi
 
 mkdir -p "$TMP/thin/probes"
 jq '.queries = .queries[0:3]' "$TMP/probes/target.json" >"$TMP/thin/probes/target.json"
-# Fix skill_dir in the thin copy to still resolve.
 out="$(run validate "$TMP/thin/probes" 2>&1)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'FAIL:' <<<"$out"; then
@@ -122,6 +121,16 @@ if [[ $rc -eq 1 ]] && grep -q 'split must be train or validation' <<<"$out"; the
   pass "validate FAILs an unknown split"
 else
   fail "unknown split should FAIL (rc=$rc): $out"
+fi
+
+mkdir -p "$TMP/strexpect/probes"
+jq '.queries[0].expect_trigger = "true"' "$TMP/probes/target.json" >"$TMP/strexpect/probes/target.json"
+out="$(run validate "$TMP/strexpect/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'expect_trigger must be a boolean' <<<"$out"; then
+  pass "validate FAILs a string expect_trigger"
+else
+  fail "string expect_trigger should FAIL (rc=$rc): $out"
 fi
 
 score_json="$(run score "$TMP/probes" 2>"$TMP/score.err")"
@@ -179,6 +188,13 @@ if awk -v d="$tdelta" 'BEGIN { exit !(d+0 > 0) }'; then
   pass "compare reports a positive validation trigger_rate delta after a rewrite-shaped bump"
 else
   fail "expected positive delta, got $tdelta ($cmp_json)"
+fi
+
+printf 'not json\n' >"$TMP/malformed.json"
+if run compare "$TMP/score.json" "$TMP/malformed.json" >/dev/null 2>&1; then
+  fail "compare on a malformed report should exit non-zero"
+else
+  pass "compare on a malformed report exits non-zero"
 fi
 
 emit_dir="$TMP/eval-out"

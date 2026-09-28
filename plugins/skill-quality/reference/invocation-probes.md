@@ -11,7 +11,7 @@ that match. This harness does, in two layers:
 
 | Method | What it is | When to run |
 |---|---|---|
-| `listing-overlap` | Deterministic floor: quoted-trigger hits plus content-token overlap against the target listing and named competitors | CI and every rewrite. The committed baseline uses this method. |
+| `listing-overlap` | Deterministic floor: quoted-trigger hits plus content-token overlap against the target listing and named competitors | By hand, before and after a rewrite (`score` then `compare`). CI validates the probe schema and runs the harness tests only. The committed baseline uses this method. |
 | `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. The CLI loads a single plugin, so cross-plugin competitors are out of scope for this method. |
 | Headless `claude -p` | Live cross-plugin selection | On demand, documented, not wrapped here. Replay its fire/quiet bits through `compare`. |
 
@@ -76,7 +76,7 @@ nouns the seed positives use. False-trigger rates are the gap the floor can see:
 | Skill | Train false-trigger | Validation false-trigger |
 |---|---|---|
 | `mcp-tools:audit` | 0.00 | 0.25 |
-| `skill-quality:check` | 0.67 | 0.50 |
+| `skill-quality:check` | 0.33 | 0.50 |
 
 False positives on this floor are token-greedy: `check this SKILL.md before publishing`
 scores as `mcp-tools:audit` because that listing contains `check`; `write me a brand-new
