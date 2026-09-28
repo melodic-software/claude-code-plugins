@@ -185,7 +185,12 @@ row is tagged mechanical (with its `skill-quality:check` number), judgment, or a
 `arguments: [issue, branch]`, `\$issue` is the first argument and `\$branch` is the second. A
 space-separated string and a YAML list are both accepted. Keep bare `\$ARGUMENTS` for free text
 and for a single mode word. Use names when the body parses two or more ordered slots, and write
-the body so it still reads correctly when a missing name expands to nothing.
+the body so it still reads correctly when a missing name expands to nothing. A remainder after the
+named slots, a multi-word phrase, a variadic tail, and a flag that is not tied to one position stay
+in `\$ARGUMENTS`. That is why `planning:prd` names only the tier word, and why
+`knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` keep parsing
+`\$ARGUMENTS`: a phrase topic, a purpose tail, or a flag that can sit in any position is not a
+positional alias.
 
 Verification record. Claim: `\$0` is the first argument and `\$1` the second; `\$ARGUMENTS[N]` is
 the same 0-based index; an indexed placeholder with no argument stays unchanged; a named
