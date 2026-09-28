@@ -4,6 +4,7 @@
 
 - [The config surface](#the-config-surface)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
+- [Deferred: babysit-prs repository-policy keys (#4572)](#deferred-babysit-prs-repository-policy-keys-4572)
 - [The three layers](#the-three-layers)
 - [Merge semantics: per-key override](#merge-semantics-per-key-override)
 - [Drafting vs enforcement](#drafting-vs-enforcement)
@@ -299,6 +300,63 @@ reconciles the two, and every rule below is fail-closed:
   a trust match never establishes C2. It only removes the categorical C5 bar. The PR still needs a
   close-linked item with a recorded classification, and still faces the C4 diff veto, the rung
   comparison, and every other withholding in the partition.
+
+## Deferred: babysit-prs repository-policy keys (#4572)
+
+Ten `/source-control:babysit-prs` `userConfig` keys describe **repository tooling** (merge method,
+hold lists, review triggers, CI/review gate contexts). They still resolve from `pluginConfigs`
+(one value per machine) until a dedicated resolver ships. Identity and trust keys stay in
+`userConfig` permanently; `branch_issue_pattern` already moved to this surface. The split and
+rationale are in
+[ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
+
+### Decision record
+
+- **Claim:** These ten keys cannot move to the cascade until `/source-control:babysit-prs` resolves
+  each **target repository** independently, on every fleet cycle, from that repository's tracked
+  `.claude/source-control.md` on its **default branch** (`gh api` contents), never from the
+  launching checkout's working tree or from a single machine-wide substitute. Each key needs an
+  explicit merge mode (plain override, add-only union, or bound pair) before any script change.
+- **Basis:** ADR 0039 decision 3; the `babysit_loop_trusted_internal_bot_logins` precedent in this
+  document ("team-tracked layer only, target repository, default branch, always"); issue
+  [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).
+- **As of:** 2026-09-28.
+
+### Keys in scope (#4572)
+
+| Key | Intended merge mode (settled in ADR 0039) |
+| --- | --- |
+| `babysit_merge_method` | per-key override |
+| `babysit_merge_block_labels` | add-only union across layers + deprecated `userConfig` |
+| `babysit_extra_dependency_manager_logins` | add-only union |
+| `babysit_approval_downgrade_logins` | add-only union |
+| `babysit_skip_downgrade_logins` | **unclassified** (floor vs preference — decide before implementation) |
+| `babysit_review_trigger_phrase` | per-key override |
+| `babysit_review_bot_logins` | bound with `babysit_review_settle_minutes` from one layer; lower layer may lengthen settle, never shorten |
+| `babysit_review_settle_minutes` | bound pair (see previous row) |
+| `babysit_review_gate_context` | per-key override; **default branch only**, never user-global or local overlay |
+| `babysit_ci_gateway_context` | per-key override; **default branch only**, never user-global or local overlay |
+
+Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit_self_logins`,
+`babysit_intended_write_identity`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
+`babysit_extra_bot_logins`.
+
+### Required resolver behaviour (implementation checklist)
+
+1. **Per-target-repo resolution.** Substitute `${user_config.*}` once at skill load today; the
+   resolver must read each PR's repository default-branch cascade per key, per cycle, following the
+   trusted-internal-bot login read above.
+2. **Deprecation window.** Keep each `userConfig` value as a fallback (union member for hold
+   lists) with one stderr deprecation note when used; remove in a later minor release with a
+   CHANGELOG `Removed` entry, no earlier than 90 days after the resolver ships.
+3. **Tests.** Resolver cases for each merge mode, default-branch-only reads, precedence against the
+   deprecated fallback, and a fleet run over two repositories with different values.
+4. **Security review.** Mandatory on the implementing pull request; any design that lets a
+   repo-writable layer shorten a hold, drop a veto label, or replace a hold list under plain
+   per-key override loosens merge safety and needs explicit operator approval.
+
+Until that resolver lands, operators with several identity domains on one machine leave these keys
+unset or launch the lane with a per-domain `--settings` file, as for the identity keys in ADR 0039.
 
 ## The three layers
 
