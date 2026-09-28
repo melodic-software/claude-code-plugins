@@ -44,7 +44,7 @@ def png_rgba(path):
     index = 0
     prev = bytearray(stride)
 
-    def paeth(left, up, up_left):
+    def paeth(left, up, up_left):  # identifier, not prose # spellchecker:disable-line
         estimate = left + up - up_left
         if abs(estimate - left) <= abs(estimate - up) and abs(estimate - left) <= abs(estimate - up_left):
             return left
@@ -68,7 +68,7 @@ def png_rgba(path):
             elif filt == 3:
                 row[x] = (row[x] + ((left + up) // 2)) & 255
             elif filt == 4:
-                row[x] = (row[x] + paeth(left, up, up_left)) & 255
+                row[x] = (row[x] + paeth(left, up, up_left)) & 255  # identifier, not prose # spellchecker:disable-line
         prev = row
         if channels == 3:
             expanded = bytearray()
