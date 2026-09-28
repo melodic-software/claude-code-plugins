@@ -131,6 +131,19 @@
         "Measures disjointness on the file path written, not on which worktree the row writes from",
         "Lists paths in each brief without naming which row or worker owns them"
       ]
+    },
+    {
+      "id": 11,
+      "name": "operator-wave-cap-applies-when-no-argument",
+      "prompt": "/implementation:implement-dispatch phase-3 — autonomous run, no human in the turn cycle. Phase 3 has six worker rows with disjoint fences, commit authority orchestrator. No --wave-cap was passed; the operator configured implement_dispatch_wave_cap = 2.",
+      "expected_output": "Reads the operator's implement_dispatch_wave_cap because no --wave-cap argument was passed, and runs phase 3's six rows as three sequential waves of two rather than applying the internal 3-5 default.",
+      "files": [],
+      "expectations": [
+        "Uses the operator's implement_dispatch_wave_cap value (2) as the wave cap because no --wave-cap argument was passed",
+        "Runs no more than two worker rows at once, so the six rows run as sequential waves",
+        "Does NOT apply the internal 3-5 default while the operator option is configured",
+        "States that a --wave-cap argument, had one been passed, would take precedence over the operator option"
+      ]
     }
   ]
 }
