@@ -60,7 +60,7 @@ permissions:
 # queue group: a full queue CANCELS new arrivals, which is the same wedge; a
 # queue is added only if overflow smoke-testing proves otherwise. These are
 # per-LANE values, deliberately different from the code-review caller's (which
-# cancels superseded runs and queues repo-wide). Do not normalize the two.
+# cancels superseded runs). Do not normalize the two.
 
 jobs:
   security-review:
