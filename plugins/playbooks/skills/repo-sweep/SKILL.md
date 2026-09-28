@@ -41,7 +41,7 @@ carry the meanings below; any other non-zero code is a failed `gh`, `git`, or `j
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
 | `state.sh` | `key value` lines: `pr`, `branch`, `pr-state`, `playbook`, `dirty`, `untick-committed <id> <sha> <skill@version>...`, `done-unverified <id>`, `next <id> in-progress\|pending`, `sweep <n> <branch>` | 0 next step found; 1 no markers; 10 no sweep PR; 11 PR merged or closed; 12 dirty tree, step pending; 13 all done; 14 one open sweep on another branch; 15 several open sweeps |
-| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
+| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `report-only <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
 | `guard.sh <base-sha> <pr-snapshot-file>` | Checks a step stayed on the branch and opened no PR | 10 stop (prints `branch-changed`, `base-not-ancestor`, `new-pr` lines); 11 prints `squash git reset --soft <base-sha>` |
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
@@ -66,7 +66,9 @@ Arguments in angle brackets are resolved per repo before the step runs.
 ```
 
 `[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done with
-`committed <short-sha>` or `no findings`. The next step is the first `[~]`, else the first `[ ]`.
+`committed <short-sha>`, `no findings`, or `no fix-eligible findings (N report-only)` when the
+skill produced report-only tiers and the user reviewed them but nothing was edited. The next step
+is the first `[~]`, else the first `[ ]`.
 A `Not run:` list outside the markers records entries left unchecked at plan time.
 
 **Step commit** ends with a `Scope decisions:` section, then one final trailer paragraph:

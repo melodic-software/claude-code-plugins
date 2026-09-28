@@ -12,6 +12,14 @@ only after that version increases.
   artifacts only; merge its classified findings with the user's report before filing issues
   (`reference/review.md`, `SKILL.md`).
 
+## [0.13.9] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next**: do not tick before the user reviews findings; when a step leaves only
+  report-only tiers, tick `no fix-eligible findings (N report-only)` instead of `no findings`
+  (`tick.sh report-only`, `reference/next.md`).
+
 ## [0.13.8] - 2026-09-28
 
 ### Fixed
