@@ -245,18 +245,51 @@ listed `--permission-mode` choice, and against the official
 `dontAsk`, `bypassPermissions`, or `manual`. Recheck when the CLI's major or
 minor version moves, or a release note names background sessions, the
 `agents` command, `plugin marketplace`, or `--permission-mode`. The primitives:
-`claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
-[--settings JSON] "<prompt>"` (launch a named background session, return
-immediately; `--permission-mode auto` is what makes an unattended lane run
-past its first permission prompt instead of stalling under a machine's Manual
-default; `--settings` accepts inline JSON and applies session-only, per the
-CLI reference),
+`claude --bg -n <name> --permission-mode auto [--permission-prompts none]
+[--model M] [--effort E] [--settings JSON] "<prompt>"` (launch a named
+background session, return immediately; `--permission-mode auto` is what makes
+an unattended lane run past its first permission prompt instead of stalling
+under a machine's Manual default; `--permission-prompts none` is added when
+`claude --version` is at least 2.1.259, so the classifier still decides and
+only a call that would have prompted is denied; `--settings` accepts inline
+JSON and applies session-only, per the CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with
 `claude attach`), and `claude plugin marketplace update`. There is no
 `claude agents stop` verb. Stop resolves the sessionId from `agents --json` and
 only for a configured lane name.
+
+### Not wired, recorded 2026-09-28
+
+Three Claude Code 2.1.257 to 2.1.263 capabilities stay out of the launcher.
+
+- **`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** **Claim:** lanes do not set it. It
+  ignores the `model` field of every subagent definition, which is what the
+  fleet's tier bindings are. A skill that runs in a subagent with
+  `model: inherit` still uses the main conversation's model, and setting only
+  the force variable runs subagents on the main conversation's model.
+  **Basis:** [env-vars](https://code.claude.com/docs/en/env-vars) and
+  [sub-agents: run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
+  **As of:** 2026-09-28. **Recheck trigger:** that sub-agents section stops
+  saying the force variable ignores definition `model` fields.
+- **`/advisor` in the launch prompt.** **Claim:** lanes do not invoke it. The
+  text form works in `-p`, the Agent SDK, the desktop app, and Remote Control
+  from v2.1.260, and the page calls the tool experimental and says it may use
+  more tokens. **Basis:**
+  [advisor](https://code.claude.com/docs/en/advisor#use-the-advisor-command).
+  **As of:** 2026-09-28. **Recheck trigger:** a lane prompt or this skill's
+  launch contract starts requiring an advisor.
+- **`claude --resume <id> --bg` for `lanes restart`.** **Claim:** restart
+  stops the running session and launches a new one. It does not resume the
+  old id in the background. The cli-reference documents `--resume` and `--bg`
+  as separate flags and does not document the combination, including prompt
+  and `--name` handling. **Basis:**
+  [cli-reference](https://code.claude.com/docs/en/cli-reference), the
+  `--resume` and `--bg` rows, fetched 2026-09-28 (the `--resume` cell does not
+  mention `--bg`). **As of:** 2026-09-28. **Recheck trigger:** the
+  `--resume` row documents combining it with `--bg`, including what happens
+  to the prompt and the session name.
 
 ## Gotchas
 

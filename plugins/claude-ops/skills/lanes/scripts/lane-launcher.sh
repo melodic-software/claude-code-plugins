@@ -11,7 +11,8 @@
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
 # --settings re-verified against the CLI reference, 2026-07-25):
-#   claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
+#   claude --bg -n <name> --permission-mode auto [--permission-prompts none]
+#     [--model M] [--effort E]
 #     [--settings JSON] "<prompt>"                              launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
@@ -140,6 +141,11 @@ VALID_EFFORTS="low medium high xhigh max ultracode"
 # unintended effort — restart preflights this BEFORE stopping, keeping a healthy lane
 # up. https://code.claude.com/docs/en/model-config#adjust-effort-level
 ULTRACODE_MIN_VERSION="2.1.203"
+
+# Unattended lanes keep auto mode (the classifier still decides) and deny only
+# the calls that would have prompted. Below this floor the flag is an unknown
+# option, so the launcher omits it. https://code.claude.com/docs/en/headless
+PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 # Compared component by component in awk — deliberately NOT `sort -V`, which is a
 # GNU-only construct this repo's portability lane rejects. Missing components
@@ -829,8 +835,14 @@ launch_lane() {
   fi
 
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
-  # first prompt. Never bypassPermissions.
+  # first prompt. Never bypassPermissions. From Claude Code 2.1.259,
+  # --permission-prompts none denies only what would have prompted and leaves
+  # the auto-mode classifier in place. Older CLIs reject the flag, so omit it.
   local -a cmd=(claude --bg -n "$name" --permission-mode auto)
+  cli_version
+  if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then
+    cmd+=(--permission-prompts none)
+  fi
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")
