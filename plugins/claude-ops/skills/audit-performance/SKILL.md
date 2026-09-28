@@ -26,7 +26,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Question | Owner |
 |---|---|
 | Why is Claude Code slow right now? | **this skill** |
-| The historical cost of these hooks over past sessions | `/doctor` if it resolves in your session (compose: run AFTER this capture — it reads transcripts, which this engine never does, and is not time-sensitive) |
+| The historical cost of these hooks over past sessions | `/doctor` if it resolves in your session (compose: run AFTER this capture. It reads transcripts, which this engine never does, and is not time-sensitive) |
 | What exactly is in the install tree, and is anything stale? | `/claude-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/claude-ops:plugins audit` |
 | Is this a known upstream bug? | `/claude-ops:known-issues` (compose: search the symptoms this report surfaces) |
