@@ -190,8 +190,6 @@ run 0 "record a clean packet" record "$clean"
 run 2 "acknowledge refuses a packet that still matches" record --acknowledge-divergence "$clean"
 has "no divergence to acknowledge" "a matching manifest is not an incident"
 
-# The line above used `|| true` on a missing dir before fresh_packet. Drop that
-# accidental case by asserting the missing-manifest error on a real directory.
 empty="$WORK/empty-packet"
 mkdir -p "$empty"
 run 2 "acknowledge without a manifest is a usage error" record --acknowledge-divergence "$empty"

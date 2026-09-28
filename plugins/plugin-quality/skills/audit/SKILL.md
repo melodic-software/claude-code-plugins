@@ -300,15 +300,14 @@ runs is used when installed, with a one-line fallback when absent:
   claim, reproduction evidence present, severity justified, remediation actionable).
 - `skill-quality:check`, required when the audited component is a skill. *Absent:* walk the
   skill lens reference file as a manual checklist.
-
-Before any seam runs, report seam resolution in one line per seam: used, or fell back, and why
-(not installed, disabled, or not applicable). A required seam that fell back, including
-`skill-quality:check` on a skill target, is a visible degradation.
-
 - `verification:confirm` fires only when the audit session itself wrote files (e.g. a setup
   `apply` ran during evidence capture). The producer/consumer split means the audit never changes
   the audited plugin's code, so this seam is usually idle. *Absent:* re-state what was written
   and show the diff to the user.
+
+Before any seam runs, report seam resolution in one line per seam: used, or fell back, and why
+(not installed, disabled, or not applicable). A required seam that fell back, including
+`skill-quality:check` on a skill target, is a visible degradation.
 
 ### Step 6. Emit (sink resolution + egress gate)
 
