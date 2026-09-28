@@ -403,7 +403,19 @@ def main(argv: list[str] | None = None) -> int:
             if marker_paths is not None:
                 _write_marker(marker_paths)
         return 0
+    except SystemExit as exc:
+        code = exc.code
+        if code in (0, None):
+            raise
+        sys.stderr.write(
+            "disk-hygiene guard-launch-monitor: did not run (status %s); fail-open\n"
+            % (code,)
+        )
+        return 0
     except BaseException:  # noqa: BLE001 - detector must never fail loudly
+        sys.stderr.write(
+            "disk-hygiene guard-launch-monitor: did not run; fail-open\n"
+        )
         return 0
 
 
