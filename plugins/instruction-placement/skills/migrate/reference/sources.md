@@ -197,7 +197,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
 
 | Repository | Commit graded |
 |---|---|
-| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) |
+| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) | <!-- portability-ok: graded commit table records origin/main SHA at cutover-check run time -->
 | standards | `849678b5e59d20b50ec39b4dd587d70756417727` |
 | ci-runner | `ac7ac20af851ca93f7d636cee5425bde032e04eb` |
 | ci-workflows | `b570d97203c7973b25c14e3de91c5ff3a4aa0e82` |
@@ -214,7 +214,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
   `claude-security-review.yml:160`), both `756cc22e19660d20e8cc9496b4f242475a7f7790`, which
   the release map installs as CLI 2.1.283, at or above 2.1.277. CI canary run `35475056935`
   stays the recorded run. Condition 3 is `[UNREACH]`. The home scratch root was
-  `/home/ubuntu/.cache` and the second path was `/tmp`. Each `claude -p` exited 1. A separate
+  `<user>/.cache` and the second path was `/tmp`. Each `claude -p` exited 1. A separate
   probe, `claude -p "say hi" --model haiku --tools ""`, printed `Not logged in · Please run
   /login` and exited 1. `claude auth status` reported `loggedIn` false and `authMethod` none.
   Condition 4 is `[MET]`: 68 acknowledged rows, all in this marketplace; the other eight
