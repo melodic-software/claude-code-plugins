@@ -3440,8 +3440,27 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
         # Every field the caller decides on survives, with the same value the
         # default run reported: quiet is a projection, never a recomputation.
-        for field in set(quiet) - {"note", "target", "snapshot", "truncated_paths"}:
+        # free_bytes and scale.free_bytes are a live volume reading, so two
+        # scans of the same fixture are not the same integer.
+        for field in set(quiet) - {
+            "note",
+            "target",
+            "snapshot",
+            "truncated_paths",
+            "free_bytes",
+            "scale",
+        }:
             self.assertEqual(default[field], quiet[field], field)
+        if "free_bytes" in quiet:
+            self.assertIsInstance(quiet["free_bytes"], int)
+        if "scale" in quiet:
+            for key in (
+                "reading",
+                "unwalked_immediate_children",
+                "inventoried_logical_bytes",
+                "inventoried_reclaimable_local_bytes",
+            ):
+                self.assertEqual(default["scale"][key], quiet["scale"][key], key)
         self.assertEqual(
             len(cast("list[object]", default["truncated_paths"])),
             quiet["truncated_paths"],
