@@ -352,9 +352,10 @@ volume. The engine's own containment, revalidation, and platform gates remain th
 authority.
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
-registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
-`hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher),
+registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
+`node`, then `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh`, `--mode engine-gate`; see
+"Hook launch form" below) and the
+**skill-frontmatter belt** (the clean skill's frontmatter hook, the same entry),
 and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -438,33 +439,19 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
-**Hook launch form, and what it does and does not bound.** All three registrations use **shell form**:
+**Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
-skill's frontmatter. In each, the `command` string
-names `hooks/run-python-hook.sh` with `"shell": "bash"` and no `args`. Exec form was not viable: it is
-a bare `PATH` lookup, and on Windows `"command": "bash"` resolves to the WSL relay
-`System32\bash.exe` before Git Bash while `"command": "python3"` resolves to the zero-length
-`WindowsApps` App Execution Alias stub, so the launch died and, a failed hook launch being
-non-blocking, the guard silently enforced nothing. Shell form is resolved by Claude Code itself,
-which routes it through its own Git Bash. The security consequence is stated plainly rather than
-glossed: a shell now parses the launch string, so "no shell is involved" is no longer the bound. What
-bounds it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` or
-SKILL.md frontmatter, with no model-, repo-, or session-supplied text interpolated into it; the only
-substituted values are Claude Code's own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`
-placeholders, each double-quoted, so the shell's re-tokenization reproduces the exec-form argument
-vector byte-for-byte, verified for all three against roots containing spaces and backslashes.
-The belt's bound is the **tighter** of the two: a skill-frontmatter hook receives only
-`${CLAUDE_PLUGIN_ROOT}`, so that is the sole placeholder its command string carries and the
-`--authorized-data-root` channel stays out of it by construction, not by convention. The limit of
-that quoting is part of the model too: the runtime substitutes those placeholders *textually* before
-bash parses the result, so the double quotes bound whitespace and backslashes but would not
-neutralize a `$` or a backtick inside a substituted value (both resolve under Claude Code's own
-install and data roots). The invariant is therefore **maintained by test**, not structural:
-`hooks/run-python-hook.test.sh` asserts for `hooks.json` that the launcher is named in `command`,
-`args` is absent, `shell: bash` is declared, and every placeholder is quoted; `test_hygiene.py`
-asserts the same four properties for the frontmatter belt (that suite is jq-based and cannot read
-YAML) and reads either launch form throughout, so a shell-form entry cannot make an assertion
-vacuously green.
+skill's frontmatter. In each, `command` is `node` and `args` names `hooks/exec-bash.mjs`, then
+`hooks/run-python-hook.sh` and that script's arguments. Bare `"command": "bash"` resolves to the WSL
+relay `System32\bash.exe` and `"command": "python3"` resolves to the zero-length `WindowsApps` stub,
+so those spellings are not used: the launch would die and, a failed hook launch being non-blocking,
+the guard would silently enforce nothing. There is no shell in exec form. The bound is that `args`
+are fixed literals in the plugin's own `hooks.json` or SKILL.md frontmatter, with no model-, repo-,
+or session-supplied text interpolated into them. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and,
+on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The belt's bound is the
+tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}`, so that is the
+sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
+`hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
@@ -490,9 +477,9 @@ skill-frontmatter belt alike, launches through the shared `hooks/run-python-hook
 tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsApps` alias stub, and,
 in monitor mode, emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
-and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
-Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
+host where `node` is missing, or where that launcher cannot resolve Git Bash, takes the guard and
+its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
@@ -610,6 +597,13 @@ invalid target.
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
 or cleanup contract.
+
+The baseline policy therefore ships no discovery hint for another product's managed state. A hint
+for a class the engine will never act on tells the operator to look for residue the plugin has
+already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
+rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
+without that lane.
 
 ## Outcome vocabulary
 
