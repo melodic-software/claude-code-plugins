@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.3] - 2026-09-27
+## [0.38.4] - 2026-09-27
 
 ### Fixed
 
@@ -12,6 +12,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   enables the plugin at that scope, while the value itself always lands in user settings. It no
   longer says the write lands at a scope that does not load. The advice is unchanged.
   It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
+
+## [0.38.3] - 2026-09-27
+
+### Fixed
+
+- **A Bash or PowerShell command with thousands of substitutions no longer runs the guard row past its 60-second `timeout`** ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)). A `PreToolUse` command hook that times out does not block the tool call ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). `echo` followed by 2,339 `$(: rm)` stays under every per-command cap, and it took 65 s through the row on Windows (30 s on Linux). Now `run-guards.sh` counts the command's substitutions before it sources the first guard and refuses (exit 2) past 256, which the row passes as `--max-substitutions 256`. The count is text-only and costs about 1 ms on a 16 KB command: each `$(` (including `$((`), `<(` and `>(` counts as one, backticks count in pairs, and quoting is ignored. A payload the dispatcher could not prime (one with a NUL in it) is counted whole. Both measured payloads are now refused in 39 ms. A command at the cap takes 1.2 s through the row, or 3.1 s with eight busy loops on four cores. The guard suites' largest command holds 40 substitutions. A command at or under the cap runs through the guards exactly as before.
 
 ## [0.38.2] - 2026-09-27
 
