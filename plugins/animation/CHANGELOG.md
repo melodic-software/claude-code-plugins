@@ -3,6 +3,18 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-09-28
+
+### Fixed
+
+- **Woodcut-ink residuals** ([#4507](https://github.com/melodic-software/claude-code-plugins/issues/4507)).
+  `straight_border` leaves out a ring side whose inner edge touches interior ink,
+  so a straight subject running into the frame no longer pulls the frame score up.
+  `styles/woodcut-ink/marks.py` draws the caption rule that lands `sliver_caption`
+  in band (a few short enclosed slits; a thin strip sits above the band) and the
+  boil rule (recut 2 px on about a third of the frame, 1 px on the rest; a full
+  2 px recut sits above the band and a 1 px recut sits below).
+
 ## [0.1.1]
 
 ### Fixed

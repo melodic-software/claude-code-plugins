@@ -89,6 +89,10 @@ and for any film; nothing is declared by the scene:
 | `caption` | a paper rectangle in the top quarter, sealed by a 5 px closing of the ink, not touching the frame edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box, holding ink; its box grown by 1.3% of the short side (`inkstats.CAPTION`, 13 px here) for every caption row: measured on the source (231 box sides with an outer edge), the outline starts at the paper edge and is 13 px wide (median) | detected in 7 of 9 shots, not on every drawing of them (a boiling outline can break the seal) |
 | interior | everything else: the subject | never gated |
 
+`straight_border` leaves out a ring side whose inner edge touches interior ink. Those are the
+sides the source note above calls running into a dark field: a straight subject edge in the ring
+was being counted as the frame.
+
 A class row joins `check` only when the source defines it in at least two of its parts
 (`learn.py`), so a class seen in one shot cannot give a band. The caption rows are wide. The
 interior is never gated: by definition it is the subject, and a validation scene draws a different

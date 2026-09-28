@@ -33,7 +33,8 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
             plus the share of small marks (nicks, dashes, specks), each rough by construction under a 4 px fit
   straight  share of contour length in straight runs of 30 px or more (approxPolyDP 1.5 px): ruled lines
   straight_border straight_caption   the same over the contour segments whose midpoint lies in that content class,
-            leaving out segments that run along the frame edge; None under 200 px of such contour
+            leaving out segments that run along the frame edge. straight_border also leaves out a ring
+            side whose inner edge touches interior ink (subject running into the frame). None under 200 px
   specks    ink islands of 2-200 px per megapixel      gaps  paper islands of 2-200 px per megapixel
   holes     paper share of the ink after a 7 px closing: streaks and gouges inside masses
   ink_sd paper_sd   gray standard deviation inside eroded ink and paper: dry brush and paper grain
@@ -191,10 +192,36 @@ def at(lab, xy):
     return lab[xy[:, 1], xy[:, 0]]
 
 
+def closed_border_sides(ink):
+    """Sides of the border ring whose inner edge touches interior ink.
+
+    A side is closed when any ink pixel on the ring's inner row or column also
+    has ink one pixel further in. Subject ink that runs into the frame sits on
+    that side; the hand-drawn frame alone ends before the inner edge (the ring
+    is the stroke plus the paper margin). straight_border ignores a closed side
+    so a straight subject edge in the ring cannot pull the frame's score up.
+    """
+    H, W = ink.shape
+    e = max(1, round(BORDER * min(H, W)))
+    closed = set()
+    if e < H:
+        if np.any(ink[e - 1] & ink[e]):
+            closed.add(0)
+        if np.any(ink[H - e] & ink[max(0, H - e - 1)]):
+            closed.add(1)
+    if e < W:
+        if np.any(ink[:, e - 1] & ink[:, min(W - 1, e)]):
+            closed.add(2)
+        if np.any(ink[:, max(0, W - e)] & ink[:, max(0, W - e - 1)]):
+            closed.add(3)
+    return e, closed
+
+
 def contour_stats(ink, lab):
     """(rough, straight, {class: straight share}) over contours of 50 px or more."""
     cs, _ = cv2.findContours(ink.astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     H, W = ink.shape
+    e, closed = closed_border_sides(ink)
     raw = smooth = total = straight = 0.0
     segs = [np.zeros((0, 2))]
     for c in cs:
@@ -208,9 +235,22 @@ def contour_stats(ink, lab):
         seg = np.hypot(*(q - p).T)
         total += seg.sum()
         straight += seg[seg >= 30].sum()
+        mid = (p + q) / 2
         frame = ((p <= 0) & (q <= 0)).any(1) | ((p[:, 0] >= W - 1) & (q[:, 0] >= W - 1)) \
             | ((p[:, 1] >= H - 1) & (q[:, 1] >= H - 1))   # a run along the frame edge is the frame, not a stroke
-        segs.append(np.c_[at(lab, (p + q) / 2), seg][~frame])
+        cls = at(lab, mid)
+        on_closed = np.zeros(len(seg), dtype=bool)
+        if closed:
+            x, y = mid[:, 0], mid[:, 1]
+            if 0 in closed:
+                on_closed |= y < e
+            if 1 in closed:
+                on_closed |= y >= H - e
+            if 2 in closed:
+                on_closed |= x < e
+            if 3 in closed:
+                on_closed |= x >= W - e
+        segs.append(np.c_[cls, seg][~frame & ~((cls == 0) & on_closed)])
     segs = np.vstack(segs)
     per = {}
     for k, n in enumerate(CLASSES):
