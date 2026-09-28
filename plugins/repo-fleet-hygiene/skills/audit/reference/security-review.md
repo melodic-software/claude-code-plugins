@@ -73,12 +73,20 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
 - The GraphQL allowlist admits only `query` documents in the collector's exact
   `headRefName` / `first:1` / `states:[MERGED]` shape with the fixed `MERGED_PR_GRAPHQL_JQ` flatten,
   and `git ls-remote --heads <remote> refs/heads/<branch>` as the only remote probe.
+- That remote probe is the one Git call that keeps global and system config, because the transport
+  (`core.sshCommand`, `credential.helper`, proxies) lives there. It keeps the same argv allowlist
+  and `GIT_TERMINAL_PROMPT=0`, and runs only when `remote get-url` names the same github.com
+  repository with global and system config as it does with both pinned to `/dev/null`. A global
+  `url.*.insteadOf` may rewrite the transport but cannot redirect the probe to another repository;
+  a mismatch is a probe failure (`MEDIUM`), never `HIGH`.
 - A canonical override cannot contribute local evidence until its GitHub remote is present and proven
   identical to the discovered repository (direct normalized identity or matching canonical API result).
 - A failed worktree porcelain query cannot be mistaken for an empty attachment set; the repository's
   branch/worktree classification stops at `UNKNOWN`.
 - Repository/config/worktree-derived report values containing newlines or control/ANSI bytes are
   rendered as a single `%q`-encoded field, so they cannot forge report labels or terminal controls.
+  The same holds for C1 controls, U+2028/U+2029, bidi override and isolate controls, and malformed
+  UTF-8. Other printable UTF-8, such as an accented path or branch name, renders as itself.
 - A worktree-looking directory cannot become a finding without Git porcelain membership.
 - `git status --porcelain` at a registered work-tree root is read-only local metadata; it never
   transmits content and cannot mutate. A failed status probe cannot be mistaken for a clean tree.

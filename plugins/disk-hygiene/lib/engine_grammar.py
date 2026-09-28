@@ -31,6 +31,10 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   admitted, because the engine would then read the data root from the
   environment instead of the value the guard authorized.
 * ``requires`` names another flag that must also be present.
+* A subcommand's ``one_of`` groups name optional flags of which exactly one
+  must be present. The parser declares each group as a required mutually
+  exclusive group; the guard admits the members in the optional tail and
+  refuses an invocation carrying none or more than one.
 * ``example`` is one literal the flag admits, carried beside the ``pattern``
   that enforces it so an invocation of any subcommand can be built from this
   declaration alone. That is what lets the agreement suite exercise a newly
@@ -112,15 +116,33 @@ class Flag:
 class Subcommand:
     """One engine subcommand: its parser help and its flags in declaration order."""
 
-    __slots__ = ("name", "help", "flags", "required", "optional", "_by_name")
+    __slots__ = ("name", "help", "flags", "required", "optional", "one_of", "_by_name")
 
-    def __init__(self, name: str, flags: tuple[Flag, ...], *, help: str | None = None):
+    def __init__(
+        self,
+        name: str,
+        flags: tuple[Flag, ...],
+        *,
+        help: str | None = None,
+        one_of: tuple[tuple[str, ...], ...] = (),
+    ):
         self.name = name
         self.help = help
         self.flags = flags
         self.required = tuple(flag for flag in flags if flag.required)
         self.optional = tuple(flag for flag in flags if not flag.required)
         self._by_name = {flag.name: flag for flag in flags}
+        optional_names = {flag.name for flag in self.optional}
+        grouped = [member for group in one_of for member in group]
+        if (
+            any(len(group) < 2 for group in one_of)
+            or len(grouped) != len(set(grouped))
+            or not set(grouped) <= optional_names
+        ):
+            raise ValueError(
+                f"{name}: one_of groups must be disjoint optional flags, two or more each"
+            )
+        self.one_of = one_of
 
     def flag(self, name: str) -> Flag | None:
         return self._by_name.get(name)
@@ -163,12 +185,23 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 ),
             ),
             Flag(
+                "--sizes-only",
+                takes_value=False,
+                help=(
+                    "walk the target for exact per-child byte totals only; "
+                    "writes no per-entry inventory and is not subject to the "
+                    "inventory entry cap"
+                ),
+            ),
+            Flag(
                 "--root-children",
                 takes_value=False,
                 help=(
-                    "admit an OS-managed volume root only as a listing of "
-                    "immediate non-OS child directories; requires explicit "
-                    "--root-child selection before any subtree is audited"
+                    "inventory only explicitly selected immediate children "
+                    "of the target; on an OS-managed volume root those "
+                    "children are non-OS directories and regular files, and "
+                    "on any other directory they are directories, so approved "
+                    "children can be re-inventoried without a whole-tree walk"
                 ),
             ),
             Flag(
@@ -179,7 +212,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 metavar="NAME",
                 example="Projects",
                 help=(
-                    "immediate child directory basename to audit under "
+                    "immediate child basename to audit under "
                     "--root-children; repeatable; never inferred"
                 ),
             ),
@@ -198,11 +231,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "handoff-verify",
         (
             Flag("--snapshot", required=True, example="snapshot.json"),
-            Flag("--paths", required=True, example="paths.json"),
+            Flag(
+                "--paths",
+                example="paths.json",
+                help="approved-path list file; the multi-path reporting form",
+            ),
+            # Single-use on purpose: one inline path per call is the
+            # verify-one-delete-one form, with no file write in between.
+            Flag(
+                "--path",
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help=(
+                    "one snapshot-relative approved path, inline; the per-deletion form"
+                ),
+            ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
             _data_root_flag(),
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
+        one_of=(("--paths", "--path"),),
     ),
     Subcommand(
         "apply",
@@ -297,4 +345,4 @@ def match_invocation(
         flag.requires in seen
         for flag in spec.optional
         if flag.requires is not None and flag.name in seen
-    )
+    ) and all(len(seen.intersection(group)) == 1 for group in spec.one_of)

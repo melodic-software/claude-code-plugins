@@ -6,8 +6,8 @@
 # (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
-# (WAIT_FAILS=1), and the one-watcher lease (a second watcher exits 3 naming the holder; a stale
-# lease is reclaimed after leaseTimeout).
+# (WAIT_FAILS=1), the one-watcher lease (a second watcher exits 3 naming the holder; a stale
+# lease is reclaimed after leaseTimeout), and the fallback watcher id and a release mid-wait.
 set -u
 # Every watcher in the suite is one session unless a case names another.
 export WATCH_ID=suite
@@ -351,6 +351,63 @@ if bash "$here/round.sh" --dir "$ld" ensure-running --port 0 >/dev/null 2>"$tmp/
 else
   bad "lease dir: ensure-running failed: $(cat "$tmp/l.start")"
   bad "stale lease: not run"
+fi
+
+# (m) the fallback watcher id, and a release during a wait. With no WATCH_ID or session id, a
+# parent pid of 1 forms no id (exit 2, no poll); any other parent pid forms <hostname>-<pid>. A
+# release while that watcher waits ends it with exit 3, and the next event reaches only the
+# watcher that claims next.
+if [[ -n "${lport:-}" ]]; then
+  [[ -s "$ld/.watch-seq" ]] && bash "$here/round.sh" --dir "$ld" handle --seq "$(cat "$ld/.watch-seq")" >/dev/null
+  bash "$here/round.sh" --dir "$ld" lease --release >/dev/null
+  WATCH_ID='' CLAUDE_CODE_SESSION_ID='' WATCH_PPID=1 bounded 10 "$tmp/ma.out" "$tmp/ma.err" bash "$here/watch.sh" "$ld"
+  rc=$?
+  if [[ "$rc" -eq 2 && ! -s "$tmp/ma.out" ]] && grep -q "no watcher id" "$tmp/ma.err" &&
+    [[ "$(bash "$here/round.sh" --dir "$ld" lease)" == "no lease" ]]; then
+    ok "a parent pid of 1 forms no watcher id: exit 2 before any poll"
+  else
+    bad "parent pid 1: rc=$rc out=$(cat "$tmp/ma.out") err=$(cat "$tmp/ma.err")"
+  fi
+  WATCH_ID='' CLAUDE_CODE_SESSION_ID='' WATCH_PPID=4242 bash "$here/watch.sh" "$ld" >"$tmp/mb.out" 2>"$tmp/mb.err" &
+  mpid=$!
+  until_waiting "$lport"
+  holder=$(bash "$here/round.sh" --dir "$ld" lease)
+  if [[ "$holder" == "lease held by $(hostname)-4242 since "* ]]; then
+    ok "another parent pid forms <hostname>-<pid>"
+  else
+    bad "fallback id: lease=[$holder]"
+  fi
+  bash "$here/round.sh" --dir "$ld" lease --release >/dev/null
+  end=$((SECONDS + 10))
+  while kill -0 "$mpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+  if kill -0 "$mpid" 2>/dev/null; then
+    kill "$mpid" 2>/dev/null
+    rc=124
+  else
+    wait "$mpid"
+    rc=$?
+  fi
+  if [[ "$rc" -eq 3 && ! -s "$tmp/mb.out" ]] && grep -q "released while it waited" "$tmp/mb.err"; then
+    ok "a release during a wait ends that watcher with exit 3 and no delivery"
+  else
+    bad "released watcher: rc=$rc out=$(cat "$tmp/mb.out") err=$(cat "$tmp/mb.err")"
+  fi
+  WATCH_ID=c bash "$here/watch.sh" "$ld" >"$tmp/mc.out" 2>"$tmp/mc.err" &
+  cpid=$!
+  until_waiting "$lport"
+  curl -s -o /dev/null --max-time 10 -H "X-Interview-Token: $ltoken" -H 'Content-Type: application/json' \
+    --data '{"kind": "note", "text": "after release"}' "http://127.0.0.1:$lport/api/answer"
+  end=$((SECONDS + 15))
+  while kill -0 "$cpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+  kill "$cpid" 2>/dev/null
+  wait "$cpid" 2>/dev/null
+  if grep -q '"after release"' "$tmp/mc.out" && ! grep -q 'after release' "$tmp/mb.out"; then
+    ok "the next event after a release reaches the new holder only"
+  else
+    bad "after release: new=$(cat "$tmp/mc.out") old=$(cat "$tmp/mb.out") err=$(cat "$tmp/mc.err")"
+  fi
+else
+  bad "watcher id and release: not run (no lease server)"
 fi
 
 # (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll

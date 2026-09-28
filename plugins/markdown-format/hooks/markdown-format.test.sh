@@ -24,6 +24,7 @@ HOOK="$HOOK_DIR/markdown-format.sh"
 
 PASS=0
 FAIL=0
+SKIPPED=0
 fail() {
   echo "FAIL: $*" >&2
   FAIL=$((FAIL + 1))
@@ -31,6 +32,23 @@ fail() {
 ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
+}
+# A case whose PATH-shape this host cannot pin is neither a pass nor a failure.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+# Git Bash / MSYS cygpath rewrites a POSIX mktemp path to a mixed Windows
+# spelling. PATH-probed cases pin the POSIX fixture spelling in the hook
+# output; when the host rewrites, those pins have no subject.
+host_cygpath_rewrites_posix_path() {
+  command -v cygpath >/dev/null 2>&1 || return 1
+  local p mixed
+  p="$(mktemp -d)"
+  mixed="$(cygpath -m "$p" 2>/dev/null || true)"
+  rm -rf "$p"
+  [[ -n "$mixed" && "$mixed" != "$p" ]]
 }
 
 WORK="$(mktemp -d)"
@@ -623,6 +641,52 @@ else
   fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
 fi
 
+# The same last resort when the project dir is the user's HOME (#4246): a
+# session started in home has no working tree, and a personal home-level
+# markdownlint config must not opt in every .md below it. The reproduction ran
+# with git present, so git stays on PATH here. A config below home is still a
+# project's opt-in, so the control lints.
+FAKE_HOME="$WORK/fake-home"
+mkdir -p "$FAKE_HOME/.audit-scratch/deep/dir" "$FAKE_HOME/notes/sub"
+cat >"$FAKE_HOME/.markdownlint-cli2.jsonc" <<'JSON'
+{ "config": { "MD004": { "style": "dash" } } }
+JSON
+HOME_FIXTURE="$FAKE_HOME/.audit-scratch/deep/dir/note.md"
+printf '# Note\n\n* star item\n' >"$HOME_FIXTURE"
+OUT_HOMECFG="$(run_hook_env "$HOME_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMECFG=$?
+if [[ $RC_HOMECFG -eq 0 && -z "$OUT_HOMECFG" ]] && grep -q '^\* star item$' "$HOME_FIXTURE"; then
+  ok "project dir is HOME, no working tree: a home-level config does not open the gate"
+else
+  fail "home-level config opened the gate for a file in no repository (rc=$RC_HOMECFG out=$OUT_HOMECFG): $(cat "$HOME_FIXTURE")"
+fi
+
+HOME_ROOT_FIXTURE="$FAKE_HOME/top.md"
+printf '# Top\n\n* star item\n' >"$HOME_ROOT_FIXTURE"
+OUT_HOMETOP="$(run_hook_env "$HOME_ROOT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMETOP=$?
+if [[ $RC_HOMETOP -eq 0 ]] && grep -q '^\* star item$' "$HOME_ROOT_FIXTURE"; then
+  ok "project dir is HOME: a .md beside the home-level config is not opted in either"
+else
+  fail "home-level config opened the gate for a .md directly in home (rc=$RC_HOMETOP out=$OUT_HOMETOP)"
+fi
+
+cat >"$FAKE_HOME/notes/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+HOME_PROJECT_FIXTURE="$FAKE_HOME/notes/sub/kept.md"
+printf '# Kept\n\n* star item\n' >"$HOME_PROJECT_FIXTURE"
+OUT_HOMEPROJ="$(run_hook_env "$HOME_PROJECT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMEPROJ=$?
+if [[ $RC_HOMEPROJ -eq 0 ]] && grep -q '^- star item$' "$HOME_PROJECT_FIXTURE"; then
+  ok "control: under a HOME project dir, a config below home still opts its subtree in"
+else
+  fail "control: a config below home no longer opens the gate (rc=$RC_HOMEPROJ out=$OUT_HOMEPROJ)"
+fi
+
 # make_symlink <target> <link> → 0 only if a REAL symlink now exists at <link>.
 # Plain `ln -s` under Git Bash's default MSYS settings COPIES the file, which is
 # why the escape cases earlier in this file skip on Windows. nativestrict asks
@@ -993,31 +1057,43 @@ PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_TRIM="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
   PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin")"
-if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
-  (.hookSpecificOutput.additionalContext | contains($local)) and
-  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
-  ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
-' >/dev/null 2>&1; then
-  ok "PATH probed trims plugin-bin directories to a count"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "PATH probed trims plugin-bin directories to a count" \
+    "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  fail "PATH probed trim wrong: $OUT_TRIM"
+  if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+    (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
+    (.hookSpecificOutput.additionalContext | contains($local)) and
+    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
+    ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
+  ' >/dev/null 2>&1; then
+    ok "PATH probed trims plugin-bin directories to a count"
+  else
+    fail "PATH probed trim wrong: $OUT_TRIM"
+  fi
 fi
 # Empty PATH components are cwd. Word-split with IFS=: would drop them.
 PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_EMPTY="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
   PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin:")"
-if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
-  (.hookSpecificOutput.additionalContext | contains($local)) and
-  (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
-  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
-' >/dev/null 2>&1; then
-  ok "PATH probed preserves empty components as cwd"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "PATH probed preserves empty components as cwd" \
+    "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+  if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+    (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
+    (.hookSpecificOutput.additionalContext | contains($local)) and
+    (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
+    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
+  ' >/dev/null 2>&1; then
+    ok "PATH probed preserves empty components as cwd"
+  else
+    fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+  fi
 fi
 # In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
@@ -1054,18 +1130,24 @@ if [[ $RC_OUTREPO -eq 0 ]]; then
 else
   fail "out-of-repo missing markdownlint exit $RC_OUTREPO"
 fi
-if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
-  (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm" \
+    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
-  fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
+  if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
+    (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
+    (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
+    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+  ' >/dev/null 2>&1; then
+    ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
+  else
+    fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
+  fi
 fi
 
 # Preference: with no ~/.bun/bin on PATH, name ~/.local/bin over ~/bin.
@@ -1074,15 +1156,21 @@ OUT_LOCALBIN="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE
   CLAUDE_PLUGIN_DATA="$PD_LOCALBIN" HOME="$FAKE_HOME" \
   PATH="$FAKE_HOME/bin:$FAKE_HOME/.local/bin:$PATH" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
-  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "out-of-repo notice prefers ~/.local/bin over ~/bin" \
+    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
-  fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
+  if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
+    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
+    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+  ' >/dev/null 2>&1; then
+    ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
+  else
+    fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
+  fi
 fi
 
 # A generic writable $HOME/… PATH entry (mise install tree, nested .bun/bin)
@@ -2900,5 +2988,5 @@ else
 fi
 
 echo
-echo "PASS=$PASS FAIL=$FAIL"
+echo "PASS=$PASS FAIL=$FAIL SKIPPED=$SKIPPED"
 [[ $FAIL -eq 0 ]]

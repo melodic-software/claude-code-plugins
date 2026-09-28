@@ -3,6 +3,70 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.4] - 2026-09-28
+
+### Changed
+
+- **babysit-loop: settle the promotion-evidence implementation plan for [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).** New `promotion-evidence-implementation-plan.md` records Claim/Basis, exit criteria, and phased work before code wires `check-security-binding.mjs --evidence` through the trusted bootstrap. `promotion-evidence-resolution.md` links the plan; fail-closed behavior is unchanged until Phase 2 ships.
+
+## [0.62.3] - 2026-09-28
+
+### Changed
+
+- **`config-resolution.md` settles the ten deferred babysit repository-policy keys under [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).** A decision record (Claim/Basis/As of) lists each key, its required merge mode, per-target default-branch resolution, the deprecation window, test obligations, and the mandatory security review. No resolver ships in this release; behavior stays on `userConfig` until a follow-up implements the checklist.
+
+## [0.62.2] - 2026-09-28
+
+### Changed
+
+- **CI waits poll REST and name a queued job as queued** ([#3955](https://github.com/melodic-software/claude-code-plugins/issues/3955)). `pull-request`'s `monitor.md` gains "Waiting on a pending check". Any wait longer than one read is a fixed-schedule REST poll at the monitor cadence, never `gh pr checks --watch`, whatever the worker count, because `--watch` re-runs its GraphQL query every 10 seconds for as long as the wait lasts. Before the first wait, each pending Actions job is read from the jobs API and reported as queued (with its `runs-on` labels and age) or running, since `gh pr checks` puts both in `pending`. Pool occupancy (`N/M busy`) is added when the token can list runners (admin only), and otherwise reported as not readable. The section says which action each state calls for: a running job is the change's own time, a queued one behind a busy pool is fleet capacity, and a queued job with no runner routes to `stuck_queued`. The §3.1 poll step, the `pull-request` cadence line, and `babysit-prs`'s `loop.md` CI check and Monitor fallback point at it. `stuck-checks.md` reports a `stuck_queued` check as queued on its runner label, not as a slow job.
+
+## [0.62.1] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.0] - 2026-09-28
+
+### Changed
+
+- **`parse-branch-issue.sh` stops on an unusable `branch_issue_pattern` layer instead of skipping it** ([#4673](https://github.com/melodic-software/claude-code-plugins/issues/4673)). A layer whose `## branch_issue_pattern` section exists but yields no usable pattern now prints a note containing `resolution stopped`, emits no issue number, and exits 1. Before, it was reported and skipped, and a lower layer, the userConfig, or the built-in default could then supply a different number to the `Closes #N` line: with a broken trailing-number team pattern, `feat/12-widget-34` closed #12. The stop covers a heading or HTML comment as the first value line, an empty or unterminated fence, a pattern that breaks a limit, holds a backreference, or does not compile, and a section with no value (previously skipped without a note). The near-miss-heading stop is unchanged. A higher layer that already supplied a valid pattern still wins, and a userConfig value that fails validation is still ignored, with a note, so the default applies. `create.md`, `config-resolution.md`, setup's `SKILL.md`, and `apply-convention.md` describe the stop, and setup's check reports a stopped layer as a FAIL. The repo's config-cascade convention records the stop as a declared deviation from its degrade-soft rule.
+
+## [0.61.5] - 2026-09-28
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` refreshes the default branch before basing** ([#4249](https://github.com/melodic-software/claude-code-plugins/issues/4249)). It read the cached `<remote>/HEAD` and never fetched, so `fresh` meant "as of the last fetch" and a stale base was silent. It now works like Claude Code's native `fresh` (v2.1.208+): when `FETCH_HEAD` is missing or older than 24 hours, it fetches the resolved remote's default branch, capped at five seconds with credential prompts off. A failed or timed-out fetch keeps the cached ref and prints a warning that the base may be behind. `context/create.md` drops the "stale base" caveat and names the one remaining gap: an uncached `<remote>/HEAD` still warns rather than fetching.
+
+## [0.61.4] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.61.3] - 2026-09-27
+
+### Fixed
+
+- The PR-body linkage gates (`pr-body-linkage-gate.sh`, `pr-linkage-mcp-gate.sh`) agree with the `pr-contract` step again (melodic-software/ci-workflows#544). A `Refs: #N` or `Relates to: #N` line of its own (optional `owner/repo`, up to three spaces of indent) counts as linkage, so a PR that references an issue it must not close is no longer told to add a closing keyword. A closing keyword with a disclaimer among the five words before it (`not`, `never`, `no`, `without`, `deliberately`, `intentionally`, or an `n't` contraction, after the last `.!?;,`) is blocked as a negated closing reference, even beside valid linkage, because GitHub's parser still closes the issue on merge. The closing keyword is matched one line at a time, as CI does. The block messages use CI's wording and the remedy names the `Refs:` marker.
+- A body line starting with a lowercase `t` is no longer masked as indented code, and a tab-indented line now is. The validator's regex spelled the tab as `\t`, which a bash regex reads as a literal `t`, so a line such as "this PR closes #5", or a `## Fix` section whose text began with "t", was dropped from the scan.
+
+## [0.61.2] - 2026-09-27
+
+### Changed
+
+- `pull-request` says the Monitor checks the push channel first, then falls back, and `monitor.md` says every monitor invocation ensures a session-persistent event watch, both without "MUST"/"FIRST" caps. The order and the idempotent watch step are unchanged (#4120).
+- `babysit-prs`'s loop reference points at the subagent dispatch for ≥3-finding comments without the "MANDATORY" marker; the rule in `review-discipline.md` §2 is unchanged (#4120).
+
+## [0.61.1] - 2026-09-27
+
+### Fixed
+
+- `worktree`: the nesting-invariant stamp is marked **expired, pending re-probe**. Its 2.1.244 version arm has passed (2.1.278 and 2.1.280 seen), and the 2026-09-27 re-probe could not run because that CLI was unauthenticated. `nesting-invariant-ssot.test.sh` now compares the installed `claude --version` (or `NESTING_INVARIANT_INSTALLED_VERSION`) against the version arm and fails when the arm has passed and the owner is not marked expired; the date arm is held to the same rule.
+- `worktree`: the isolation paragraph quotes the worktrees page's current four checks, including the command-shape check that refuses a compound git command, re-fetched 2026-09-27.
+- `worktree` create: the "raw text, not shell-escaped" reading of `${user_config.worktree_root}` is labeled as this plugin's reading and cited to the two plugins-reference spans it rests on, instead of being attributed to the page.
+
 ## [0.61.0] - 2026-09-27
 
 ### Added

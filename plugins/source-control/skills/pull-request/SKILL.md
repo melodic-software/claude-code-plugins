@@ -75,7 +75,7 @@ in fleet orchestration and never merges.
 ## Action defaults
 
 - **Merge mode:** `merge` squash-merges (one squashed commit per PR onto the default branch), see [reference/merge.md](reference/merge.md) §4.2. Follow the consuming project's convention when it differs.
-- **Monitor cadence:** `monitor` polls `gh pr checks` and comment fetches every 30 seconds, see [reference/monitor.md](reference/monitor.md) §3.1.
+- **Monitor cadence:** `monitor` polls `gh pr checks` and comment fetches every 30 seconds, see [reference/monitor.md](reference/monitor.md) §3.1. A wait is a REST poll, never `gh pr checks --watch`, and it first reports each pending job as queued or running ("Waiting on a pending check").
 - **Required reviewers:** `create` requests no reviewers (runs `gh pr create` without `--reviewer`). See [reference/create.md](reference/create.md) §2.4.3.
 
 ## PR identity resolution
@@ -254,4 +254,4 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 - **Discover actors, don't hardcode them.** Security tools and AI reviewers change over time. Monitor discovers actors from `gh pr checks` and PR comments, classifies them by category (CI, security, review), and evaluates accordingly
 - **Uncommitted changes are silently lost on branch deletion.** `git reflog` cannot recover uncommitted edits. Only commits. Before staging (Phase 2.3.1) and before post-merge cleanup (Phase 4.3), check `git status --porcelain` for unrelated uncommitted changes. Stash them (`git stash push -m "desc" -- <files>`). Stashes survive branch deletion. Never silently ignore uncommitted changes
 - **Cloud sessions use `gh` polling, not event subscription.** Autonomous cloud sessions (`CLAUDE_CODE_REMOTE=true`) poll `gh pr checks` + `gh api` on a fixed 60-90s cadence (§3.0.0 of monitor.md)
-- **Monitor MUST check the push channel FIRST, then fall back.** Three-tier hierarchy on local CLI sessions: (1) **push channel** (when your environment ships a GitHub-events MCP channel. ~0 Idle requests), (2) **Monitor tool** (session-persistent `Monitor(persistent: true, ...)` watch; 30s `gh` poll fires on real CI/comment events; cancel via `TaskStop`), (3) fixed-interval cron polling (deprecated, wasteful). Do NOT skip straight to the Monitor tool without checking for a channel, polling wastes ~1 request per 30s interval vs ~0 idle with push delivery
+- **Monitor checks the push channel first, then falls back.** Three-tier hierarchy on local CLI sessions: (1) **push channel** (when your environment ships a GitHub-events MCP channel. ~0 Idle requests), (2) **Monitor tool** (session-persistent `Monitor(persistent: true, ...)` watch; 30s `gh` poll fires on real CI/comment events; cancel via `TaskStop`), (3) fixed-interval cron polling (deprecated, wasteful). Do not skip straight to the Monitor tool without checking for a channel, polling wastes ~1 request per 30s interval vs ~0 idle with push delivery

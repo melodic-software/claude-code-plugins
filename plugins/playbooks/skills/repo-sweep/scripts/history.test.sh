@@ -26,6 +26,8 @@ case "$*" in
 esac
 EOF
 chmod +x "$TMP/bin/gh"
+printf '#!/usr/bin/env bash\necho "2.1.283 (Claude Code)"\n' >"$TMP/bin/claude"
+chmod +x "$TMP/bin/claude"
 
 gitf() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
 repo="$TMP/repo"
@@ -34,11 +36,12 @@ gitf -C "$repo" init --quiet
 commit() { gitf -C "$repo" commit --quiet --no-verify --allow-empty -m "$1"; }
 trailers() { printf 'step\n\nScope decisions:\n- q: a\n\nPlaybook: fixture\n%s\nCo-Authored-By: F <f@example.invalid>\n' "$1"; }
 commit "$(trailers $'Playbook-Step: a:x@1.9\nPlaybook-Step: b:x@1.0')"
-commit "$(trailers 'Playbook-Step: claude-api@builtin')"
+commit "$(trailers $'Playbook-Step: claude-api@builtin\nPlaybook-Step: loop@builtin-2.1.283')"
 gitf -C "$repo" update-ref refs/remotes/origin/main HEAD
 gitf -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 commit "$(trailers 'Playbook-Step: new:x@1.0')" # local only: not on the default branch
-assert_eq "fixture trailers parse" "claude-api@builtin" \
+assert_eq "fixture trailers parse" "claude-api@builtin
+loop@builtin-2.1.283" \
   "$(git -C "$repo" log -1 --format='%(trailers:key=Playbook-Step,valueonly)' origin/HEAD | awk NF)"
 
 jq -n '{version: 2, plugins: {
@@ -54,7 +57,8 @@ body() { # <done lines...>
 # shellcheck disable=SC2016 # literal payload, never expanded
 jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run: new:x')" \
   --arg new "$(body '- [x] e-rerun: a:x@1.0, committed 2222222' '- [x] e-unknown: gone:x@3.0, no findings' \
-    '- [x] e-multi: c:x@2.0, d:x, no findings' '- [x] e-bare: d:x')" \
+    '- [x] e-multi: c:x@2.0, d:x, no findings' '- [x] e-bare: d:x' \
+    '- [x] e-same: b:x@1.0, no findings, partial coverage: docs only')" \
   --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" \
   --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings')" '[
   {headRefName: "chore/repo-sweep-fixture-20260101", mergedAt: "2026-01-01T00:00:00Z", body: $old},
@@ -65,11 +69,11 @@ jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run
 
 printf '%s\n' '# Playbook: fixture' '## Phase 1: x' \
   '### e-run' '- skill: new:x' '### e-rerun' '- skill: a:x' '### e-same' '- skill: b:x' \
-  '### e-builtin' '- skill: claude-api' '### e-unknown' '- skill: gone:x' \
+  '### e-builtin' '- skill: claude-api' '### e-builtin-same' '- skill: loop' '### e-unknown' '- skill: gone:x' \
   '### e-multi' '- skill: c:x, d:x' >"$TMP/cat.md"
 
 run() {
-  (cd "$repo" && PATH="$TMP/bin:$PATH" GH_DIR="$TMP/gh" GH_LOG="$TMP/gh.log" \
+  (cd "$repo" && PATH="$TMP/bin:$PATH" GH_DIR="$TMP/gh" GH_LOG="$TMP/gh.log" CLAUDE_CONFIG_DIR="$TMP/cfg" \
     REPO_SWEEP_INSTALLED_PLUGINS="$TMP/installed.json" REPO_SWEEP_PLUGIN_DIRS="" \
     GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" "$@")
 }
@@ -80,8 +84,9 @@ assert_eq "exit 0" "0" "$?"
 assert_eq "recommendations: PR markers beat trailers, newest merge wins, decoy branch, fork PR, unsafe version, and HEAD-only trailer ignored" \
   "e-run${T}run${T}never ran: new:x
 e-rerun${T}rerun${T}version changed: a:x 1.0 -> 2.0
-e-same${T}rerun-optional${T}same version ran: b:x@1.0
-e-builtin${T}rerun-optional${T}same version ran: claude-api@builtin
+e-same${T}rerun${T}partial coverage on a prior sweep
+e-builtin${T}rerun${T}version changed: claude-api builtin -> builtin-2.1.283
+e-builtin-same${T}rerun-optional${T}same version ran: loop@builtin-2.1.283
 e-unknown${T}rerun-optional${T}same version ran: gone:x@3.0 (current version unknown)
 e-multi${T}run${T}never ran: d:x" "$out"
 assert_eq "no warning when gh works" "" "$(cat "$TMP/err")"

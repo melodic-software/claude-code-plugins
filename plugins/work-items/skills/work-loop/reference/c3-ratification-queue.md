@@ -5,6 +5,11 @@ The write mechanics behind the first-drain C3 ratification rung of the admission
 stay there; this file owns what the lane writes once that gate says queue rather than dispatch.
 Every paragraph below is indented in the hub as part of that rung and reads the same way here.
 
+**The queue never receives an in-flight candidate.** The gate's in-flight precondition runs before
+classification, so an item with an open closing PR (drafts included), or one whose in-flight check
+failed this cycle, never reaches this rung. Write no `kind=ratify-c3` comment and change no label
+on it; the cycle report lists it as in flight instead.
+
 **The label is state; the comment is an event.** Treat the two queue actions differently, and do
 the **comment first**. An item left human-gated with no `kind=ratify-c3` marker falls out of
 `list-frontier --autonomous` while still failing `attend-queue`'s `[ratify]` row condition, so no

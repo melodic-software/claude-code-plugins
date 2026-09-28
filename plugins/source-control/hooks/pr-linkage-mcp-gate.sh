@@ -20,7 +20,10 @@
 # stripping HTML comments (terminated spans, then an unterminated `<!--`
 # swallowing the rest), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
-#       `owner/repo#N`) OR the literal `No linked issue` / `No related issue:`;
+#       `owner/repo#N`), a non-closing `Refs: #N` / `Relates to: #N` marker on
+#       its own line, OR the literal `No linked issue` / `No related issue:`;
+#       and no negated closing reference (`does not close #N`) anywhere, which
+#       GitHub's negation-blind parser would still close on merge;
 #   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
 #       `## Verification`, `## Related` — where a DEEPER heading (`### ...`)
 #       is that section's content, not its terminator.
@@ -293,7 +296,7 @@ echo "BLOCKED: PR body fails this repo's PR-contract check." >&2
 for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
 echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
 echo "Add to the body:" >&2
-echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
+echo "  Closes #<issue>      (or on its own line: Refs: #<issue> to link without closing, or No linked issue)" >&2
 echo "  ## Summary" >&2
 echo "  <what and why>" >&2
 echo "  ## Fix" >&2

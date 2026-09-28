@@ -1,9 +1,23 @@
 ---
-description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
+description: "Verify or configure where discovery artifacts land in this repository: report the effective topic-docs concern, or persist it to the tracked .claude/topic-docs.yaml, and offer allow rules so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Actions: check (read-only, default) | apply (persist the concern file). Re-runnable. Safe to invoke again."
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
+
+## Pre-computed context
+
+`check`'s read of the concern file ran at load time, from the session's working directory (the
+repository root unless the session has changed directory). Read it here instead of re-reading the
+file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
+file exists but is empty:
+
+!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
+
+When the session's working directory is not the repository root, or the value reads
+`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
+root directly instead.
 
 ## Purpose
 
@@ -30,7 +44,8 @@ at a time, recommendation first.
 
 Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do not write anything.
 
-1. **Current state.** If `.claude/topic-docs.yaml` exists, report its effective values (absent keys =
+1. **Current state.** From the pre-computed concern file: if `.claude/topic-docs.yaml` exists,
+   report its effective values (absent keys =
    defaults). If it does not exist, INFO: the plugin runs on the documented defaults; `apply` persists
    an explicit concern only if the consumer wants different values.
 2. **Inferred convention.** Look for a working-docs convention declared in the repo's own `CLAUDE.md`,
@@ -83,6 +98,12 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      `/subtask` as of **2.1.212**. Verified 2026-09-06 against Claude Code 2.1.263, the subagents
      documentation page and the environment-variables page as fetched that day; recheck when either
      page states a different default or a release note names fork mode.
+6. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
+   `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
+   as no rules) and compare it with the six rules in `apply` step 4. Report one row, **never FAIL**:
+   PASS when all six are present for this install root; INFO "stale" when gate rules name a different
+   `…/scripts/check-*` root (an earlier version's cache directory, which stops matching after an
+   update), naming that root; INFO "absent" otherwise, pointing at `apply`.
 
 ## `apply` (idempotent)
 
@@ -112,6 +133,27 @@ reports "already configured".
    reports no match (a match is FAIL with the pattern) AND `git ls-files --error-unmatch` exits 0
    (non-zero right after a fresh write means "written but untracked: commit it to share with the
    team", never success).
+4. **Offer the gate allow rules (interactive only).** When `check` step 6 reported "stale" or
+   "absent", ask once, recommendation first (RECOMMENDED: add them), whether to add these rules to
+   the operator's `~/.claude/settings.json`. A non-interactive `apply` never writes them; it reports
+   the step 6 row and this list for the operator to paste:
+
+   ```text
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" *)
+   Bash("${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh *)
+   Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py *)
+   ```
+
+   On yes: add each missing rule to `permissions.allow` as a JSON string (the quoted forms escape
+   their inner `"`), remove only the stale rules step 6 named, and keep every other key and rule in
+   the file. The write to user settings prompts for approval; that prompt is the operator's
+   consent, so never route around it. Re-read the file and report the six rules present. The rules
+   pin this version's cache directory on purpose, and why a version wildcard is unsafe, is in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+   ("Operator setup"). After a plugin update, re-run `apply` to refresh them.
 
 ## Output
 
@@ -134,6 +176,8 @@ dispatch land handoff artifacts.
 - **Env vars are read at session start.** A capability the check reports as missing stays missing for
   the rest of this session even after it is set, the recommendation takes effect next session.
 - **Never edit the consumer's root `.gitignore`.** The memory root gets its own self-ignoring guard.
+- **The gate allow rules stop matching after a plugin update.** They name this version's cache
+  directory, so the gates prompt again until `apply` refreshes them; `check` reports them "stale".
 
 ## What this skill does NOT do
 
@@ -142,4 +186,5 @@ dispatch land handoff artifacts.
 - Write machine-local state. Configuration lives in the consumer's tracked concern file, never in the
   plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
   state only).
-- Write Claude Code user settings or `pluginConfigs`.
+- Write Claude Code user settings, beyond the gate allow rules `apply` step 4 offers and the
+  operator accepts, or `pluginConfigs`.

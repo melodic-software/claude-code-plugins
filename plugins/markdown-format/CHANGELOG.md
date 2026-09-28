@@ -3,6 +3,61 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.72] - 2026-09-28
+
+### Changed
+
+- **The gitignore gate uses the shared `hook::gitignored_out_of_scope` helper** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). Behavior is unchanged: a gitignored Markdown file is still skipped unless `markdown_format_lint_gitignored` is `true`. The local `file_is_gitignored` copy is gone.
+
+## [0.11.71] - 2026-09-28
+
+### Changed
+
+- **`markdown-format.test.sh` host-skips four PATH-shape cases on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The suite
+  probes whether `cygpath -m` rewrites a POSIX mktemp path and prints a counted
+  `SKIP (host: ...)` line for the PATH-probed trim, empty-component, out-of-repo bun, and
+  `~/.local/bin` preference assertions. Linux CI is unchanged.
+
+## [0.11.70] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.11.69] - 2026-09-28
+
+### Security
+
+- **A home-level markdownlint config no longer opts in every `.md` under home.** For a file under
+  no git working tree, the hook falls back to `CLAUDE_PROJECT_DIR` as the ceiling of its config
+  walk. A session started in the home directory made that ceiling `~`, so a personal
+  `~/.markdownlint-cli2.jsonc` opened the gate for scratch notes, evidence packets and `~/.claude`
+  files, and `--fix` would rewrite them. On that fallback root only, a config at the home directory
+  or above it no longer counts as an opt-in. A config below home still does, which keeps the
+  unpacked-archive and vendored-copy case the fallback exists for, and a root found by git or the
+  `.git` walk is unchanged ([#4246](https://github.com/melodic-software/claude-code-plugins/issues/4246)).
+
+## [0.11.68] - 2026-09-27
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.11.67] - 2026-09-27
+
+- **`setup` probes `jq` at load time.** The `command -v jq` check runs as pre-computed context, so
+  `check` reads the result instead of making a Bash call. The FAIL rules are unchanged, a
+  policy-disabled injection falls back to the Bash probe, and any post-remediation re-check
+  still probes live.
+
+## [0.11.66] - 2026-09-27
+
+- README: documents that a clean run and every policy skip (no markdownlint config, a gitignored path, a file outside every working tree) print nothing, and that a `HOOK_TELEMETRY_SINK` envelope's `status` (`ok` or `skipped`) is how to tell them apart.
+- README: documents the write paths the `Write|Edit` matcher never sees (Bash heredoc, redirect and `sed -i`, PowerShell, MCP filesystem tools), what `guardrails`' `block-hook-bypass` covers of them, and why `MultiEdit` is not in the matcher.
+- README and markdown-format.sh: document the timeout tail. `--fix` rewrites in place before the hook reports, so a cancel at the 15-second `timeout` between the two leaves a rewrite undisclosed.
+- markdown-format.sh and README: the reason for the in-script extension check no longer claims the `if` filter fails open on an unparsable payload. The hooks reference documents that fail-open for Bash input only; the check stays because the filter is best-effort. The permissions link points at code.claude.com.
+
 ## [0.11.65] - 2026-09-27
 
 ### Fixed

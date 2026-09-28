@@ -368,8 +368,10 @@ def read_visual_file(data_dir, file):
     """Bytes of the regular file `file` names inside data_dir (at most MAX_VISUAL_FILE + 1 of them).
 
     None when file is not a string, or resolves outside data_dir (absolute, `..`, a symlink out),
-    or is missing, not a regular file, or a runtime path (see runtime_path). A drive, anchor, UNC
-    prefix, colon (an NTFS stream) or `..` part is refused before any filesystem call.
+    or is missing, not a regular file, a runtime path (see runtime_path), or has more than one
+    hard link: a link's name says nothing about the file it shares, which can be a session file.
+    A drive, anchor, UNC prefix, colon (an NTFS stream) or `..` part is refused before any
+    filesystem call.
     """
     if (
         not isinstance(file, str)
@@ -386,6 +388,8 @@ def read_visual_file(data_dir, file):
         if not path.is_file() or runtime_path(path.relative_to(root)):
             return None
         with open(path, "rb") as f:
+            if os.fstat(f.fileno()).st_nlink > 1:
+                return None
             return f.read(MAX_VISUAL_FILE + 1)
     except (OSError, ValueError, RuntimeError):
         return None
@@ -606,9 +610,22 @@ class Hub:
         # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
         self.lease = None
 
+    def lease_timeout(self):
+        return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
+            "value"
+        ]
+
+    @staticmethod
+    def lease_live(lease, now, timeout):
+        """A lease holds while its watcher has a wait in flight or its last wait ended within timeout."""
+        return bool(lease["inflight"]) or now - lease["last"] <= timeout
+
     def lease_view(self):
+        """The lease as /api/state shows it, or None when none is held or it has expired."""
         lease = self.lease
-        if lease is None:
+        if lease is None or not self.lease_live(
+            lease, time.time(), self.lease_timeout()
+        ):
             return None
         return {
             "watcher": lease["watcher"],
@@ -625,12 +642,10 @@ class Hub:
         Conflict naming the holder.
         """
         now = time.time()
-        timeout = self.layers.resolve(self.dir, self.user_settings())[0][
-            "leaseTimeout"
-        ]["value"]
+        timeout = self.lease_timeout()
         lease = self.lease
         if lease and lease["watcher"] != watcher:
-            if lease["inflight"] or now - lease["last"] <= timeout:
+            if self.lease_live(lease, now, timeout):
                 raise Conflict(
                     {
                         "error": "lease held",
@@ -912,6 +927,12 @@ class Hub:
                 return self.unhandled(r)
             return [e for e in r.get("events", []) if e.get("seq", 0) > after]
 
+        def check_revoked():
+            # A release, or a new lease claimed after one, ends this wait before it delivers, so
+            # the next event reaches the new holder only.
+            if lease is not None and lease is not self.lease:
+                raise Conflict({"error": "lease released", "watcher": watcher})
+
         with self.cond:
             if watcher is not None:
                 lease = self.claim(watcher)
@@ -922,6 +943,7 @@ class Hub:
                 if gone is not None and gone():
                     return None
                 with self.cond:
+                    check_revoked()
                     r = load_json(self.responses, EMPTY_RESPONSES)
                     top, replay = r.get("seq", 0), None
                     if after != "handled":
@@ -945,6 +967,7 @@ class Hub:
                     left = deadline - time.time()
                     if events:
                         r = self.settle(r)
+                        check_revoked()
                         top = r.get("seq", 0)
                         events = select_events(r)
                         if replay is not None and events:
@@ -1200,6 +1223,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(400, {"error": 'action must be "release"'})
             with self.hub.cond:
                 self.hub.lease = None
+                self.hub.cond.notify_all()
             return self.send(200, {"ok": True, "lease": None})
         self.send(404, {"error": "not found"})
 

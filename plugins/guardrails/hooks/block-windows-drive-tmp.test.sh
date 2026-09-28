@@ -17,17 +17,24 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 # Force the Windows host gate even on Linux CI.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+SKIPPED=0
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+
 run_win() {
   local label="$1" command="$2"
   shift 2
-  run_win_payload "$label" "$(command_json "$command")" "$@"
+  run_win_payload "$label" "$(msys_command_json "$command")" "$@"
 }
 
 run_win_pwsh() {
   local label="$1" command="$2" expected="$3"
   shift 3
   local rc out
-  out=$(env OSTYPE=msys "$@" bash "$HOOK" <<<"$(pwsh_command_json "$command")" 2>&1)
+  out=$(env OSTYPE=msys "$@" bash "$HOOK" <<<"$(msys_pwsh_command_json "$command")" 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
   if ((expected == 2)); then
@@ -73,17 +80,32 @@ notebook_path_json() {
 # Command payload builders that PRESERVE an MSYS `/<drive>/tmp` spelling.
 # MSYS argv rewriting converts an argument only when the argument is ENTIRELY a
 # POSIX-absolute path: `/c/tmp/x` becomes `C:/tmp/x`, while `mkdir -p /c/tmp/x`
-# passes through untouched. Every command fixture below is multi-token, so the
-# shared command_json / pwsh_command_json are already safe for them and omit
-# MSYS_NO_PATHCONV correctly (the shared PATH-payload builders — write_json and
-# siblings — do set it, because a file_path IS a lone path). These local
-# builders set it explicitly so a future lone-path command fixture cannot
-# silently become a drive-letter payload and stop exercising the MSYS arm.
+# passes through untouched. run_win / run_win_pwsh use these builders so a
+# path-qualified `/usr/bin/mkdir` fixture cannot become a native Windows path
+# before the hook sees it.
 msys_command_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg cmd "$1" '{tool_name:"Bash",tool_input:{command:$cmd}}'
 }
 msys_pwsh_command_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg cmd "$1" '{tool_name:"PowerShell",tool_input:{command:$cmd}}'
+}
+
+# Git Bash still rewrites some `/usr/bin/...` command words even under
+# MSYS_NO_PATHCONV when jq is a native Windows binary. Probe the JSON payload.
+host_msys_json_rewrites_usr_bin() {
+  local raw json cmd
+  raw='/usr/bin/mkdir -p /tmp/x'
+  json="$(msys_command_json "$raw")"
+  cmd="$(jq -r '.tool_input.command // empty' <<<"$json")"
+  [[ "$cmd" != "$raw" ]]
+}
+
+run_win_usr_bin() {
+  if host_msys_json_rewrites_usr_bin; then
+    skip "$1" "msys_command_json rewrites a /usr/bin writer path"
+    return
+  fi
+  run_win "$@"
 }
 
 # --- Host gate ---------------------------------------------------------------
@@ -127,8 +149,10 @@ run_win_payload "Write D:\\tmp\\x other drive (blocked)" "$(write_json 'D:\tmp\x
 run_win_payload "Edit /tmp/x (blocked)" "$(edit_json '/tmp/x' 'x')" 2
 run_win_payload "Edit C:\\tmp\\x (blocked)" "$(edit_json 'C:\tmp\x' 'x')" 2
 run_win_payload "MultiEdit /tmp/x (blocked)" "$(other_tool_json 'MultiEdit' '/tmp/x')" 2
-run_win_payload "NotebookEdit file_path /tmp/n.ipynb (blocked)" \
+run_win_payload "NotebookEdit notebook_path /tmp/n.ipynb (blocked)" \
   "$(notebook_json '/tmp/n.ipynb' 'x')" 2
+run_win_payload "NotebookEdit file_path fallback /tmp/n.ipynb (blocked)" \
+  "$(other_tool_json 'NotebookEdit' '/tmp/n.ipynb')" 2
 run_win_payload "NotebookEdit notebook_path C:\\tmp\\n.ipynb (blocked)" \
   "$(notebook_path_json 'C:\tmp\n.ipynb')" 2
 
@@ -260,18 +284,18 @@ run_win "touch /tmp/x (blocked)" 'touch /tmp/x' 2
 run_win "tee /tmp/x (blocked)" 'echo x | tee /tmp/x' 2
 run_win "cp to /tmp/x (blocked)" 'cp ./a /tmp/x' 2
 run_win "mv to /tmp/x (blocked)" 'mv ./a /tmp/x' 2
-run_win "/usr/bin/mkdir /tmp/x (blocked)" '/usr/bin/mkdir -p /tmp/x' 2
-run_win "sudo /usr/bin/mkdir /tmp/x (blocked)" 'sudo /usr/bin/mkdir -p /tmp/x' 2
-run_win "quoted /usr/bin/mkdir /tmp/x (blocked)" '"/usr/bin/mkdir" -p /tmp/x' 2
-run_win "single-quoted /usr/bin/mkdir /tmp/x (blocked)" "'/usr/bin/mkdir' -p /tmp/x" 2
+run_win_usr_bin "/usr/bin/mkdir /tmp/x (blocked)" '/usr/bin/mkdir -p /tmp/x' 2
+run_win_usr_bin "sudo /usr/bin/mkdir /tmp/x (blocked)" 'sudo /usr/bin/mkdir -p /tmp/x' 2
+run_win_usr_bin "quoted /usr/bin/mkdir /tmp/x (blocked)" '"/usr/bin/mkdir" -p /tmp/x' 2
+run_win_usr_bin "single-quoted /usr/bin/mkdir /tmp/x (blocked)" "'/usr/bin/mkdir' -p /tmp/x" 2
 run_win "echo /usr/bin/mkdir /tmp/x (allowed — mention, not command)" 'echo /usr/bin/mkdir /tmp/x' 0
 run_win "echo 'run mkdir' /tmp/x (allowed — closing quote is not the command)" "echo 'run mkdir' /tmp/x" 0
 run_win "cat /path/mkdir /tmp/x (allowed — path argument, not command)" 'cat /some/path/mkdir /tmp/x' 0
-run_win "/usr/bin/touch /tmp/x (blocked)" '/usr/bin/touch /tmp/x' 2
-run_win "/usr/bin/tee /tmp/x (blocked)" 'echo x | /usr/bin/tee /tmp/x' 2
-run_win "/usr/bin/cp to /tmp/x (blocked)" '/usr/bin/cp ./a /tmp/x' 2
-run_win "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp/x' 2
-run_win "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
+run_win_usr_bin "/usr/bin/touch /tmp/x (blocked)" '/usr/bin/touch /tmp/x' 2
+run_win_usr_bin "/usr/bin/tee /tmp/x (blocked)" 'echo x | /usr/bin/tee /tmp/x' 2
+run_win_usr_bin "/usr/bin/cp to /tmp/x (blocked)" '/usr/bin/cp ./a /tmp/x' 2
+run_win_usr_bin "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp/x' 2
+run_win_usr_bin "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
 
@@ -313,6 +337,53 @@ run_win "single-quoted prose redirect (allowed)" "printf '%s' 'echo > /tmp/x'" 0
 # Source-only /tmp with a writer elsewhere must stay allowed.
 run_win "cp from /tmp (allowed)" 'cp /tmp/source ./dest' 0
 run_win "compound mkdir then cat /tmp (allowed)" 'mkdir ./out && cat /tmp/source' 0
+
+# --- Downloaders: curl -o / wget -O destinations (#4251) ---------------------
+# These were allowed while mkdir/cp/redirect of the same path blocked.
+run_win "curl -o /tmp/x (blocked)" 'curl -sS -o /tmp/x https://example.com' 2
+run_win "curl --output /tmp/x (blocked)" 'curl --output /tmp/x https://example.com' 2
+run_win "curl --output=/tmp/x (blocked)" 'curl --output=/tmp/x https://example.com' 2
+run_win "curl glued -o/tmp/x (blocked)" 'curl -o/tmp/x https://example.com' 2
+run_win "wget -O /tmp/a.html (blocked)" 'wget -O /tmp/a.html https://example.com' 2
+run_win "wget --output-document /tmp/a.html (blocked)" \
+  'wget --output-document /tmp/a.html https://example.com' 2
+run_win "curl -o /c/tmp/x (blocked)" 'curl -o /c/tmp/x https://example.com' 2
+run_win "curl https://example.com (allowed — no dest flag)" 'curl -sS https://example.com' 0
+run_win "curl -o ./out.html (allowed)" 'curl -o ./out.html https://example.com' 0
+run_win "curl URL containing /tmp (allowed — URL is not dest)" \
+  'curl -sS https://example.com/tmp/hooks.md' 0
+
+# --- Git for Windows usertemp /tmp is the platform temp (#4251) --------------
+# Stub cygpath so POSIX /tmp compares equal to %TEMP%, the stock Git for
+# Windows mount. Linux CI's real /tmp is tmpfs without usertemp, so without
+# the stub the existing rows above still block.
+USERTEMP_STUB="$TEST_TMPDIR/cygpath-stub"
+mkdir -p "$USERTEMP_STUB"
+cat >"$USERTEMP_STUB/cygpath" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "-w" ]]; then
+  shift
+  if [[ "$1" == "/tmp" ]]; then
+    # portability-ok: placeholder Windows profile in the cygpath stub, not a redirection
+    printf '%s\n' "${TEMP:-C:\\Users\\<user>\\AppData\\Local\\Temp}"
+  else
+    printf '%s\n' "$1"
+  fi
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$USERTEMP_STUB/cygpath"
+USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\<user>\AppData\Local\Temp') # portability-ok: placeholder Windows profile, not a redirection
+run_win "usertemp: mkdir /tmp/x (allowed)" 'mkdir -p /tmp/x' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: redirect >/tmp/x (allowed)" 'echo x > /tmp/x' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: curl -o /tmp/x (allowed)" \
+  'curl -sS -o /tmp/x https://example.com' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: mkdir /c/tmp/x still blocked" 'mkdir -p /c/tmp/x' 2 "${USERTEMP_ENV[@]}"
+run_win "usertemp: mkdir C:\\tmp\\x still blocked" 'mkdir -p C:\tmp\x' 2 "${USERTEMP_ENV[@]}"
+run_win_pwsh "usertemp: PS /tmp still blocked" "'hi' > /tmp/x" 2 "${USERTEMP_ENV[@]}"
+run_win_payload "usertemp: Write /tmp/x still blocked" "$(write_json '/tmp/x' 'x')" 2 \
+  "${USERTEMP_ENV[@]}"
 
 # --- PowerShell copy/move destinations (blocked) -----------------------------
 run_win_pwsh "PS: Copy-Item to C:\\tmp (blocked)" 'Copy-Item .\a C:\tmp\a' 2
@@ -367,4 +438,5 @@ else
 fi
 assert_contains "file-path blocked stderr present with sink" "$out" "drive-root temp"
 
+echo "SKIPPED=$SKIPPED"
 report

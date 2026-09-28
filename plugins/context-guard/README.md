@@ -61,6 +61,10 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 - **Per-session, atomic snapshots.** One file per session id (no cross-session last-writer-wins);
   readers never see torn JSON (temp file + rename, with a brief retry for the Windows
   rename-over-open-target case). Stale sibling files are pruned on write with a 14-day cutoff, far above the staleness window, so live-but-idle sessions always survive.
+- **Cheap on every render.** A render whose context-window fields match the last write, made less
+  than 60 seconds earlier (`CG_TEE_NOCHANGE_FLOOR`), writes nothing and starts no process; a render
+  that writes starts one, the `mv`. The prune runs at most once an hour. A payload the built-in
+  reader cannot prove byte-for-byte goes to `jq`, as before.
 - **Path containment.** `session_id` becomes a filename, so the tee accepts only `[A-Za-z0-9_-]`
   and skips the snapshot for anything else, the wrapped statusline is unaffected.
 - **Fail-open zone resolution.** Absent, stale, or unparsable snapshots, null or out-of-range
@@ -197,6 +201,10 @@ completes, so that write counts as seen and its crossing waits for the next stat
 window is the resolve, not an mtime tick. A missed crossing is therefore late, never lost, and the
 converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
 manufacture an injection the full path would not have made.
+
+#### Oversize envelope, unchanged inputs
+
+The 150 KB repeat row above paid a here-string `jq` before the unchanged-input skip could run, because the skip needs `session_id`. On a `PostToolBatch` envelope those ids are top-level strings and `tool_calls` is the nested value that makes the payload large (hooks reference: common fields include `session_id` and `hook_event_name`; `PostToolBatch` adds `tool_calls`). The hook now closes a leading scalar object at the comma before that first nested value and parses the two ids with the builtin parser. The skip then exits with no external command, the same budget as a small envelope. Ids that follow the nested value, or a header the scan cannot prove, still use the here-string `jq`. A rewritten snapshot still resolves, so a crossing is not dropped on this path. `zone-crossing-inject.test.sh` pins both arms by xtrace.
 
 #### The cost this pass added: a temp file on payloads over 64KiB
 

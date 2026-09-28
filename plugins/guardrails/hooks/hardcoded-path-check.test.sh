@@ -19,6 +19,25 @@ git -C "$TEST_TMPDIR" init -q
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+SKIPPED=0
+# A case whose git path form this host cannot pin is neither a pass nor a failure.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+# Git Bash canonicalizes an MSYS /tmp worktree to a native Windows path.
+# Cases that pass the bash spelling to the hook and to git check-ignore then
+# disagree. Probe the round trip, not the OS name.
+host_git_rewrites_worktree_path() {
+  local d tl
+  d="$(mktemp -d)"
+  git -C "$d" init -q
+  tl="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null || true)"
+  rm -rf "$d"
+  [[ -n "$tl" && "$tl" != "$d" ]]
+}
+
 # Neutralize ambient CLAUDE_PROJECT_DIR. Cases that expect scanning set it
 # explicitly — with no active project the hook skips entirely (README
 # "Project scoping": only files under $CLAUDE_PROJECT_DIR are policed).
@@ -86,6 +105,35 @@ assert_exit "Edit new_string → exit 2" 2 "$RC"
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "cd ${MAC_HOME}")" 2>&1)
 RC=$?
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
+
+# NotebookEdit's target is notebook_path; the same scope rules as Write apply to
+# it, alone and in the dispatcher row the Write|Edit|NotebookEdit matcher runs.
+NB_PROBE="$TEST_TMPDIR/plugins/guardrails/probe-notebook.ipynb"
+for NB_VIA in direct dispatched; do
+  expect "NotebookEdit real shape in project ($NB_VIA) → exit 2" 2 --via "$NB_VIA" --hook "$HOOK" \
+    --merge-stderr --payload "$(notebook_json "$NB_PROBE" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → message" "$GUARD_OUT" "Linux user path"
+done
+# A payload with file_path and no notebook_path still scans through the fallback.
+NB_FAKE=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$NB_PROBE" --arg s "cd ${LINUX_HOME}" \
+  '{tool_name:"NotebookEdit",tool_input:{file_path:$fp,new_source:$s}}')
+expect_both "NotebookEdit file_path fallback → exit 2" 2 --hook "$HOOK" --merge-stderr \
+  --payload "$NB_FAKE" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+# notebook_path decides scope when both ride along.
+NB_BOTH=$(MSYS_NO_PATHCONV=1 jq -n --arg np "/tmp/other/n.ipynb" --arg fp "$NB_PROBE" --arg s "cd ${LINUX_HOME}" \
+  '{tool_name:"NotebookEdit",tool_input:{notebook_path:$np,file_path:$fp,new_source:$s}}')
+expect_both "NotebookEdit out-of-project notebook_path, in-project file_path → exit 0" 0 \
+  --hook "$HOOK" --merge-stderr --payload "$NB_BOTH" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+expect_both "NotebookEdit real shape outside the project → exit 0" 0 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "/tmp/other/n.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+NB_REPO="$TEST_TMPDIR/nbrepo"
+mkdir -p "$NB_REPO"
+git -C "$NB_REPO" init -q
+printf 'ignored.ipynb\n' >"$NB_REPO/.gitignore"
+expect_both "NotebookEdit real shape to a gitignored notebook → exit 0" 0 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "$NB_REPO/ignored.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$NB_REPO"
+expect_both "NotebookEdit real shape to a tracked-path notebook → exit 2" 2 --hook "$HOOK" --merge-stderr \
+  --payload "$(notebook_json "$NB_REPO/kept.ipynb" "cd ${LINUX_HOME}")" -- CLAUDE_PROJECT_DIR="$NB_REPO"
 
 # Repo-path branch: a genuine (non-home) git checkout root hardcoded in content
 # is a machine-specific marker and MUST still fire — guards against the home-gate
@@ -476,9 +524,15 @@ GITREPO="$TEST_TMPDIR/gitrepo"
 mkdir -p "$GITREPO"
 git -C "$GITREPO" init -q
 printf 'ignored.txt\n' >"$GITREPO/.gitignore"
-OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
-RC=$?
-assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_git_rewrites_worktree_path; then
+  skip "gitignored file → exit 0 (consumer seam)" \
+    "git --show-toplevel spelling diverges from the bash fixture path"
+else
+  OUT=$(CLAUDE_PROJECT_DIR="$GITREPO" bash "$HOOK" <<<"$(write_json "$GITREPO/ignored.txt" "$LINUX_HOME")" 2>&1)
+  RC=$?
+  assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
+fi
 
 # Kill switch — disabled path is a clean no-op even on a real machine path.
 OUT=$(CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "$LINUX_HOME")" 2>&1)
@@ -528,11 +582,17 @@ HOMEREPO="$TEST_TMPDIR/homerepo"
 mkdir -p "$HOMEREPO/Desktop"
 git -C "$HOMEREPO" init -q
 HOMEREPO_TL="$(git -C "$HOMEREPO" rev-parse --show-toplevel)"
-OUT=$(HOME="$HOMEREPO_TL" CLAUDE_PROJECT_DIR="$HOMEREPO/Desktop" \
-  bash "$HOOK" <<<"$(write_json "$HOMEREPO/Desktop/run.txt" "path $HOMEREPO/Desktop/data.bin")" 2>&1)
-RC=$?
-assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
-assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_git_rewrites_worktree_path; then
+  skip "F1: home-is-checkout, project = subdir of home → exit 0" \
+    "git --show-toplevel spelling diverges from the bash fixture path"
+else
+  OUT=$(HOME="$HOMEREPO_TL" CLAUDE_PROJECT_DIR="$HOMEREPO/Desktop" \
+    bash "$HOOK" <<<"$(write_json "$HOMEREPO/Desktop/run.txt" "path $HOMEREPO/Desktop/data.bin")" 2>&1)
+  RC=$?
+  assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
+  assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
+fi
 
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
@@ -768,6 +828,18 @@ RC=0
 bash "$HOOK" <<<'{"tool_name":"mcp__github__delete_file","tool_input":{"owner":"o","repo":"r","branch":"main","message":"m","path":"src/app.py"}}' >/dev/null 2>&1 || RC=$?
 assert_exit "MCP delete_file: no content to scan → exit 0" 0 "$RC"
 
+# --- a plugin-bundled GitHub server names its tools with a scoped segment
+# (mcp__plugin_<plugin>_github__<tool>); the lane must treat them the same.
+scoped() { jq --arg t "mcp__plugin_github_github__$1" '.tool_name = $t'; }
+OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME} && ls" | scoped create_or_update_file)" 2>&1)
+RC=$?
+assert_exit "MCP scoped create_or_update_file: Linux user path → exit 2" 2 "$RC"
+assert_contains "MCP scoped create_or_update_file: names the repo path" "$OUT" "src/app.py"
+OUT=$(bash "$HOOK" <<<"$(mcp_push_json "a.py" "x = 1" "b.py" "cd ${LINUX_HOME}" | scoped push_files)" 2>&1)
+RC=$?
+assert_exit "MCP scoped push_files: bad path in the LAST file → exit 2" 2 "$RC"
+assert_contains "MCP scoped push_files: names the last file" "$OUT" "b.py"
+
 # --- the allowlist is the SAME list, asked of a repo-relative path
 RC=0
 bash "$HOOK" <<<"$(mcp_single_json ".claude/hooks/guard.sh" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
@@ -791,4 +863,5 @@ CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" \
   <<<"$(mcp_single_json "src/app.py" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || RC=$?
 assert_exit "MCP: disabled guard allows the write" 0 "$RC"
 
+echo "SKIPPED=$SKIPPED"
 report

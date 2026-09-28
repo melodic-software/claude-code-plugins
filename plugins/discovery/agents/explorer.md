@@ -4,6 +4,7 @@ description: "Runs the full /discovery:explore workflow in a fresh context and p
 tools: "Read, Grep, Glob, Bash, Write, Skill, Agent"
 skills:
   - discovery:explore
+  - discovery:report
 model: sonnet
 effort: high
 maxTurns: 40
@@ -208,6 +209,14 @@ turns as you go: one assistant turn may hold several parallel tool calls, and it
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
 
+**Read each file once.** A file you have already read in this run is still in your context; read it
+again only to see a change you made to it. A scan followed by a full read of the same file on a
+later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you need
+the whole file, read it whole then. Read file contents with `Read` and search with `Grep` rather
+than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for you and for
+anyone auditing the run. Every turn spent re-reading is a turn taken from gathering before
+your stop turn.
+
 Write the artifact in stages:
 
 1. As soon as the scope is resolved and preload is confirmed, write the `EXPLORE.md` skeleton into
@@ -286,9 +295,12 @@ slice from what the resume returns**, so a payload you can still produce is wort
 more read. The disk carries the same signal without any payload: an index still marked
 `Run status: in progress` tells the parent's gate the run stopped short.
 
-**Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
-is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
-comes first. As soon as the scope is resolved, write the block with `status: truncated`,
+**Emit the payload block early and keep it current, as a second channel.** The harness marks
+turn-limit output as partial and lets the parent resume you, but it does not document which text
+that output carries, and a harness older than v2.1.246 may return none, which is why the disk
+marker comes first. The re-emission is kept because it costs no turn of its own: emit it as text
+on a turn you are already taking for a write, never on a turn by itself.
+As soon as the scope is resolved, write the block with `status: truncated`,
 `preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the fields you do not have
 yet left as placeholders; then re-emit it, updated, whenever a section lands.
 A stop at any point after that leaves the parent a well-formed payload instead of silence. Setting

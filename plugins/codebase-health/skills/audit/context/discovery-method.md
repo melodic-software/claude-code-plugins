@@ -19,7 +19,7 @@ Not a checklist to browse. Read every line. The audit config's per-dimension `ex
 actually see in THIS repo. Apply the same pattern to every claim encountered: extract the claim,
 identify the verification path, run it.
 
-**Critical: verify ALL claims, not just some.** A single line or bullet list often contains multiple
+**Verify all claims, not just some.** A single line or bullet list often contains multiple
 factual claims. Finding one issue on a line does NOT mean other claims on that line are correct.
 Verify each one independently. For example:
 

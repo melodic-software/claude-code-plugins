@@ -1,5 +1,5 @@
 ---
-description: "Watches a single public video from YouTube or X (Twitter). Extracts the transcript, harvests links, researches claims, and synthesizes prioritized repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or the user shares a youtube.com, youtu.be, x.com, or twitter.com URL for a single public video or video post. Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <slice-slug>. Do NOT use for auth-walled course platforms. Dometrain, Pluralsight, and Udemy courses go to /knowledge:course-digest."
+description: "Watch a single public video from YouTube or X (Twitter): transcript, links, and repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or a youtube.com, youtu.be, x.com, or twitter.com URL for one public video. Auth-walled courses go to /knowledge:course-digest."
 argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>"
 user-invocable: true
 disable-model-invocation: false
@@ -8,10 +8,12 @@ shell: bash
 
 ## Pre-computed context
 
-video-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
-yt-dlp: !`command -v yt-dlp >/dev/null 2>&1 && { yt-dlp --version 2>/dev/null | head -1; :; } || echo "MISSING — install yt-dlp (see Prerequisites)"`
-ffmpeg: !`command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (watch action only)"`
-ImageMagick: !`command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (watch action only)"`
+```!
+{ printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && { yt-dlp --version 2>/dev/null | head -1; :; } || echo "MISSING — install yt-dlp (see Prerequisites)"; }
+{ printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (watch action only)"; }
+{ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (watch action only)"; }
+```
 
 # Video digest. YouTube and X
 

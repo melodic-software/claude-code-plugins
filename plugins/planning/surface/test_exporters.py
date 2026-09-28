@@ -570,6 +570,20 @@ class TestReportFileVisuals(SessionCase):
         self.assertEqual(frames[0].get("srcdoc"), self.SVG)
         self.assertIn("diagrams/flow.svg", text)
 
+    def test_scripted_html_names_the_missing_javascript(self):
+        scripted = "<div id=m></div><SCRIPT>m.textContent = 'x'</SCRIPT>"
+        text = self.report(
+            {"id": "v1", "format": "html", "content": scripted},
+            {"id": "v2", "format": "html", "content": "<p>static</p>"},
+        )
+        frames = self.iframes(text)
+        self.assertEqual([f.get("sandbox") for f in frames], ["", ""])
+        self.assertEqual(frames[0].get("srcdoc"), scripted)
+        self.assertEqual(text.count("This visual needs JavaScript"), 1)
+        self.assertLess(
+            text.index("This visual needs JavaScript"), text.index("<iframe")
+        )
+
     def test_file_image_becomes_a_data_url(self):
         (self.dir / "flow.png").write_bytes(self.PNG)
         text = self.report({"id": "v1", "format": "image", "file": "flow.png"})

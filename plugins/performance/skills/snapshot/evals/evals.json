@@ -86,6 +86,58 @@
         "Does not average the cold and warm passes into one figure",
         "Does not report a bare mean"
       ]
+    },
+    {
+      "id": 8,
+      "name": "runs-the-bundled-interleaving-harness",
+      "prompt": "/performance:snapshot post. The host qualified as measurable. Compare `bash hooks/old-guard.sh < fixture.json` against `bash hooks/new-guard.sh < fixture.json` for wall-clock, before and after, interleaved.",
+      "expected_output": "Runs the plugin's own `scripts/ab.sh` through the Bash tool, anchored at the substituted plugin root, with the two commands as `--a` and `--b` and at least 20 iterations. Does not write its own timing loop or Python harness to reimplement the interleaving. Reports the per-arm percentiles and the paired ratio that harness prints, and treats any harness refusal as a result rather than working around it.",
+      "files": [],
+      "expectations": [
+        "Invokes the bundled scripts/ab.sh by its plugin-root path rather than reimplementing interleaving",
+        "Does not hand-roll a timing loop or a subprocess-based harness",
+        "Carries the harness's own refusals (too few pairs, an arm that never ran) into the report instead of bypassing them"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "a-uniform-fast-timing-is-a-harness-failure-until-exit-codes-say-otherwise",
+      "prompt": "/performance:snapshot baseline. My Python harness times `bash D:/repo/hooks/guard.sh` via subprocess.run(['bash', ...]). Every one of the 40 samples came back at 63 ms, very stable. Record it as the baseline.",
+      "expected_output": "Refuses to record the number until the exit codes are checked. Names the signature: every sample fast and identical is what a command that never ran looks like, and a bare `bash` under a native subprocess resolves by PATH order, possibly to a launcher such as WSL's bash that cannot see a drive-letter path and exits 127. Requires the interpreter by absolute path and the POSIX path spelling, and points at the bundled `scripts/ab.sh`, which refuses an arm that exits 127.",
+      "files": [],
+      "expectations": [
+        "Does not record the 63 ms figure as a baseline before checking exit codes",
+        "Names bare-interpreter PATH resolution as a hazard, not only the drive-letter spelling",
+        "Requires the harness to invoke its interpreter by absolute path",
+        "Points at the bundled ab.sh instead of repairing the hand-rolled harness"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "reports-and-controls-which-code-path-ran",
+      "prompt": "/performance:snapshot baseline. Goal names the common path: Stop hook skip with no interpreter. A `bench.launched` marker left in the plugin data dir from an earlier run sent every harness sample down the Python path. Report the baseline p50.",
+      "expected_output": "Does not report a single p50 as the goal's metric without path control. Requires resetting or recording path-selecting state before each arm, reports per-arm which path ran with evidence, and flags that the observed path did not match the goal's named skip path. Does not treat the Python-path numbers as measuring the common session path.",
+      "files": [],
+      "expectations": [
+        "Requires resetting or recording path-selecting state (such as bench.launched) before each arm",
+        "Reports per arm which code path ran with evidence, not only a duration",
+        "Flags a mismatch when the observed path is not the goal's named skip path",
+        "Does not report the Python-path p50 as the headline metric for the skip path goal"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "verifies-measuring-tool-version-and-flags-before-timing",
+      "prompt": "/performance:snapshot baseline. The goal's metric uses `ab.sh --transcript-size 10mb`. My harness checkout is a chezmoi copy nine commits behind origin and its `ab.sh --help` does not list `--transcript-size`. Run the baseline anyway and report p50.",
+      "expected_output": "Stops before timing. Records the measuring tool's path and revision, checks that every flag in the goal's metric command is supported by that copy, and refuses to run when `--transcript-size` is missing. Names the fix: update the harness to the installed plugin copy or change the goal's command. Does not report a p50 from the stale tool.",
+      "files": [],
+      "expectations": [
+        "Records the measuring tool identity (path and revision or hash) before timing",
+        "Checks goal metric flags against the tool's --help or a dry run",
+        "Stops the run when a required flag is missing from the stale copy",
+        "Names updating the tool or changing the goal's command as the fix",
+        "Does not report p50 numbers from an incompatible harness"
+      ]
     }
   ]
 }
