@@ -590,6 +590,33 @@ else
   fail 'the source-applicability checker ships'
 fi
 
+# ---------------------------------------------------------------------------
+# The credential read boundary is stated once and pointed at (#4244)
+#
+# A researcher's capability probe ran `git credential fill` and captured a live
+# token. No frontmatter key can block one shell command, so the rule is
+# instruction held in one place, with every agent pointing at it.
+# ---------------------------------------------------------------------------
+cred_heading='^## Credentials stay unread, stated once$'
+assert_present 'the parent contract owns the credential read boundary' \
+  'reference/parent-contract.md' "$cred_heading"
+cred_owners="$(surface | xargs grep -lE -- "$cred_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$cred_owners" -eq 1 ]]; then
+  pass 'the credential read boundary has exactly one owner'
+else
+  fail "the credential read boundary has exactly one owner — $cred_owners files carry the heading"
+fi
+assert_present 'the credential boundary names git credential fill' \
+  'reference/parent-contract.md' '`git credential fill`'
+assert_present 'the credential boundary names the operator deny rules' \
+  'reference/parent-contract.md' '`Bash\(git credential \*\)`'
+for agent in explorer researcher intent-tracer; do
+  assert_present "agents/$agent.md points at the credential read boundary" \
+    "agents/$agent.md" '"Credentials stay unread, stated once"'
+  assert_absent_in "agents/$agent.md does not restate the credential command list" \
+    "agents/$agent.md" 'gh auth token'
+done
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
