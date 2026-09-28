@@ -25,6 +25,21 @@ Describe 'Invoke-HealthCheckEnvelope' -Tag 'lib' {
         $parsed.ran_successfully | Should -BeTrue
     }
 
+    It 'keeps the body result when the suite mocks Test-Path' {
+        Mock Test-Path { $false }
+        $id = 'envelope-probe'
+        $category = 'network'
+        $commands = @('noop')
+        $FailureSummary = 'probe failed.'
+        $PassThru = $false
+        $CheckBody = {
+            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
+                -Severity 'OK' -Summary 'ok' -Commands $commands
+        }
+        $parsed = (. $script:Envelope) | ConvertFrom-Json
+        $parsed.severity | Should -Be 'OK'
+    }
+
     It 'turns a thrown body into the UNKNOWN fallback' {
         $id = 'envelope-probe'
         $category = 'network'

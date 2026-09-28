@@ -25,15 +25,19 @@ Test-Drivers tests pass it so they can read the object. The script entry
 point does not, so this file still writes the result.
 #>
 
-if (-not (Test-Path variable:FailureNeedsAdmin)) { $FailureNeedsAdmin = $false }
-if (-not (Test-Path variable:PassThru)) { $PassThru = $false }
-if (-not (Test-Path variable:Human)) { $Human = $false }
+# Variable lookups go through the session state, not Test-Path: check suites
+# mock Test-Path, and a mocked Test-Path would read every optional variable as
+# unset and every result as missing.
+$envelopeVars = $ExecutionContext.SessionState.PSVariable
+$FailureNeedsAdmin = [bool]$envelopeVars.GetValue('FailureNeedsAdmin')
+$PassThru = [bool]$envelopeVars.GetValue('PassThru')
+$Human = [bool]$envelopeVars.GetValue('Human')
 
 # $sw is the name check bodies already use for the running clock.
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 try {
     . $CheckBody
-    if (-not (Test-Path variable:result) -or $null -eq $result) {
+    if ($null -eq $envelopeVars.GetValue('result')) {
         throw "Check $id produced no health result."
     }
 } catch {
@@ -45,8 +49,9 @@ try {
         ErrorRecord = $_
         NeedsAdmin  = [bool]$FailureNeedsAdmin
     }
-    if (Test-Path variable:FailureAdminFields) {
-        $failure.AdminFields = $FailureAdminFields
+    $adminFields = $envelopeVars.GetValue('FailureAdminFields')
+    if ($null -ne $adminFields) {
+        $failure.AdminFields = $adminFields
     }
     $result = New-HealthFailureResult @failure
 }
