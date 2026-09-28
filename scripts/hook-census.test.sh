@@ -34,7 +34,9 @@ cat >"$TMP/plugins/fx/hooks/hooks.json" <<'JSON'
     {"type": "command", "command": "exit 1 # fails"},
     {"type": "command", "command": "echo marker # speaks"},
     {"type": "command", "command": "test \"$CENSUS_FX\" = on # envrow"},
-    {"type": "command", "command": "s=\"$CLAUDE_PLUGIN_DATA/seen\"; [ -e \"$s\" ] && exit 0; : >\"$s\"; x=$(date) # warms"}
+    {"type": "command", "command": "s=\"$CLAUDE_PLUGIN_DATA/seen\"; [ -e \"$s\" ] && exit 0; : >\"$s\"; x=$(date) # warms"},
+    {"type": "command", "command": "true", "args": ["# execform"]},
+    {"type": "command", "command": "sh", "args": ["-c", "test -f \"${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json\" # expanded"]}
   ]}]
 }}
 JSON
@@ -97,5 +99,9 @@ census '# absent'
 expect "a row no handler carries exits 2" 2 "no Stop handler"
 census '# noop' --measure duration
 expect "an unknown measure exits 2" 2 "hook-census.sh"
+census '# execform'
+expect "an exec-form row is the executable, not a shell" 0 "spawns=1 creations=0 execs=1"
+census '# expanded'
+expect "exec-form placeholders expand before the spawn" 0 "spawns=1 creations=0 execs=1"
 
 test_harness::report

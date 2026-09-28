@@ -7,16 +7,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-body-linkage-gate.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/pr-body-linkage-gate.sh"
+            ],
             "if": "Bash(*gh *)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-containment-gate.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-containment-gate.sh"
+            ],
             "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Checking git worktree add target against the nesting invariant..."
@@ -28,8 +34,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-linkage-mcp-gate.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/pr-linkage-mcp-gate.sh"
+            ],
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           }
@@ -42,8 +51,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-claim-gate.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-claim-gate.sh"
+            ],
             "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Claiming a newly added worktree..."
@@ -56,8 +68,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-create-gate.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-create-gate.sh"
+            ],
             "timeout": 60,
             "statusMessage": "Placing the worktree at the external root..."
           }

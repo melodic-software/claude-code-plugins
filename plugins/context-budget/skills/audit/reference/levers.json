@@ -303,7 +303,7 @@
     {
       "id": "connectors-disable",
       "title": "claude.ai connectors: disableClaudeAiConnectors and companions",
-      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from 2.1.259 the way to keep a managed-mcp.json / managedMcpServers entry off — allowedMcpServers governs only servers users add), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
+      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from Claude Code 2.1.259 this is the key that keeps a managed connector or a literal managed-mcp.json / managedMcpServers entry off), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation). allowedMcpServers governs servers users add. It does not remove a managed connector.",
       "category": "removes-weight",
       "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
       "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
@@ -319,10 +319,12 @@
       "citations": [
         "https://code.claude.com/docs/en/mcp",
         "https://code.claude.com/docs/en/settings",
-        "https://code.claude.com/docs/en/managed-mcp"
+        "https://code.claude.com/docs/en/managed-mcp",
+        "https://code.claude.com/docs/en/managed-settings",
+        "https://code.claude.com/docs/en/changelog"
       ],
       "verified": "2026-09-28",
-      "recheckTrigger": "The managed-mcp page drops the claim that allowedMcpServers filters managed servers, or a Claude Code release changes how allowedMcpServers and deniedMcpServers treat managed-mcp.json."
+      "recheckTrigger": "The managed-settings page again says allowedMcpServers filters managed-mcp.json or managed connectors, the managed-mcp page drops the claim that allowedMcpServers filters managed servers, or a release note reverses the 2.1.259 change that limited allowedMcpServers to user-added servers."
     },
     {
       "id": "mcp-project-servers",

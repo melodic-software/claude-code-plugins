@@ -801,6 +801,19 @@ def read_retention(root: Path) -> dict:
                         result["effective_evidence"] = MEASURED
             except (OSError, json.JSONDecodeError):
                 result["managed_setting_days"] = "unparsable"
+                result["findings"].append(
+                    {
+                        "id": "managed-settings-unparsable-refuses-start",
+                        "severity": "error",
+                        "evidence": MEASURED,
+                        "claim": (
+                            "The managed settings file does not parse. From Claude Code v2.1.259 a "
+                            "managed settings file, drop-in, MDM plist, or HKLM Settings value that "
+                            "cannot be parsed refuses startup (exit 1) and names the source. This is "
+                            "not silent non-enforcement."
+                        ),
+                    }
+                )
             break
 
     # The finding above is raised while reading settings.json, before managed settings

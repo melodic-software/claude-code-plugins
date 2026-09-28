@@ -11,7 +11,7 @@
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
 # --settings re-verified against the CLI reference, 2026-07-25):
-#   claude --bg -n <name> --permission-mode auto --permission-prompts none
+#   claude --bg -n <name> --permission-mode auto [--permission-prompts none]
 #     [--model M] [--effort E]
 #     [--settings JSON] "<prompt>"                              launch, return now
 #   claude agents --json                                        list sessions
@@ -141,6 +141,11 @@ VALID_EFFORTS="low medium high xhigh max ultracode"
 # unintended effort — restart preflights this BEFORE stopping, keeping a healthy lane
 # up. https://code.claude.com/docs/en/model-config#adjust-effort-level
 ULTRACODE_MIN_VERSION="2.1.203"
+
+# Unattended lanes keep auto mode (the classifier still decides) and deny only
+# the calls that would have prompted. Below this floor the flag is an unknown
+# option, so the launcher omits it. https://code.claude.com/docs/en/headless
+PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 # Compared component by component in awk — deliberately NOT `sort -V`, which is a
 # GNU-only construct this repo's portability lane rejects. Missing components
@@ -830,13 +835,18 @@ launch_lane() {
   fi
 
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
-  # first prompt. --permission-prompts none denies whatever would still prompt
+  # first prompt. Never bypassPermissions. From Claude Code 2.1.259,
+  # --permission-prompts none denies whatever would still prompt
   # (AskUserQuestion, an elicitation nobody answered) while auto mode keeps
-  # deciding. Never bypassPermissions. Probed 2026-09-28 on Claude Code 2.1.282:
-  # `claude --bg --permission-mode auto --permission-prompts none` backgrounded
-  # and was stopped. The flag is documented for print mode; this --bg form
-  # accepted it.
-  local -a cmd=(claude --bg -n "$name" --permission-mode auto --permission-prompts none)
+  # deciding. Older CLIs reject the flag, so omit it. Probed 2026-09-28 on
+  # Claude Code 2.1.282: the flag together with --bg and --permission-mode auto
+  # backgrounded a session, which was then stopped. The flag is documented for
+  # print mode; this --bg form accepted it.
+  local -a cmd=(claude --bg -n "$name" --permission-mode auto)
+  cli_version
+  if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then
+    cmd+=(--permission-prompts none)
+  fi
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")

@@ -231,6 +231,16 @@ assert_exit "case 8: exit 0" 0 "$rc"
 assert_contains "case 8: lever reported" "$out" "disableAllHooks"
 assert_contains "case 8: lever value reported" "$out" "true"
 
+# strictPluginOnlyCustomization is true or a per-surface array. "mcp" alone is
+# not a hook lock, and the JSON value stays an array.
+m="$(make_machine surfaces)"
+printf '%s\n' '{"strictPluginOnlyCustomization":["mcp"]}' >"$m/project/.claude/settings.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 8b: exit 0" 0 "$rc"
+assert_eq "case 8b: mcp is an array value" '["mcp"]' \
+  "$(json_field "$out" '.levers[0].value | tojson')"
+
 # --- Case 9: --json emits parseable JSON with the inventory verdict ----------
 # A downstream engine reads this document, so every hook entry field the hook
 # schema allows (timeout, type, if, shell, args) rides along, each plugin row
