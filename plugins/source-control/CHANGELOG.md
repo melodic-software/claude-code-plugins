@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.3] - 2026-09-28
+
+### Changed
+
+- **Guarded-mutation preamble stays triplicated (#3449).** `refresh_pr_branch.py`,
+  `request_review.py`, and `manage_feedback_ledger.py` keep their own
+  `require_worker_lease` and `run_locked` pin preamble. A shared helper is
+  unpaid. Recorded in `skills/babysit-prs/reference/guarded-mutation-preamble.md`.
+
 ## [0.62.2] - 2026-09-28
 
 ### Changed
