@@ -102,6 +102,18 @@ else
   pass "slug map: a truncated layer does not add a later entry"
 fi
 
+MARK="$TEST_TMPDIR/slug-ran"
+write_layer "$A" '{ "paths": { "rule-a": ["keep/**"] } }'
+write_layer "$B" "{ \"paths\": { \"\$(touch $MARK)\": [] } }"
+declare -A slugs=()
+cascade::slug_map slugs paths "$A" "$B" 2>/dev/null
+if [[ -e "$MARK" ]]; then
+  fail "slug map: a slug is data, never evaluated" "no command run" "command ran"
+else
+  pass "slug map: a slug is data, never evaluated"
+fi
+assert_eq "slug map: a hostile slug leaves other slugs alone" "${slugs[rule-a]}" "keep/**"
+
 # --- encoding, once, across every shape ------------------------------------
 # A jq that terminates lines with CR (the Windows build) must yield the same
 # effective value as LF jq. The shim is the reader's input, not the JSON file.

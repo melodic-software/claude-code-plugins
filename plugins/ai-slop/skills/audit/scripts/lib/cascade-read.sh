@@ -69,7 +69,9 @@ cascade::slug_map() {
     while IFS=$'\t' read -r slug globs; do
       [[ -z "$slug" ]] && continue
       if [[ -z "${globs//[[:space:]]/}" ]]; then
-        unset "map_ref[$slug]"
+        # Single quotes: unset expands a double-quoted subscript a second
+        # time, so a config slug spelled $(cmd) would run.
+        unset 'map_ref[$slug]'
       else
         # shellcheck disable=SC2034  # nameref: writes the caller's associative array
         map_ref["$slug"]="$globs"
