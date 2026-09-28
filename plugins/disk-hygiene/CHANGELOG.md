@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-09-28
+## [0.28.4] - 2026-09-28
 
 ### Added
 
@@ -13,18 +13,6 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   truncated, and names `unwalked_immediate_children` plus `free_bytes` (read on
   every platform). A fully walked target reads `complete`. The report does not
   authorize deletion.
-
-## [0.28.6] - 2026-09-28
-
-### Fixed
-
-- The `clean` skill's frontmatter `args` is a YAML sequence. A single-quoted JSON string is one argument, so the belt would not have received `exec-bash.mjs` and `run-python-hook.sh` as separate argv entries ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
-
-## [0.28.5] - 2026-09-28
-
-### Changed
-
-- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
 
 ## [0.28.2] - 2026-09-28
 
