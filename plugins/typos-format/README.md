@@ -108,12 +108,12 @@ the tools reference).
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible once-per-session notice.
+  present, the hook skips with a visible notice, once per session and agent.
   [Install typos](https://github.com/crate-ci/typos#install).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`

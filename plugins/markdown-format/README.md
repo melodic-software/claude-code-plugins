@@ -66,7 +66,7 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves, and only once per session. To tell the cases apart, wire a
+  themselves, and only once per session and agent. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -135,7 +135,7 @@ The hook requires the following tools:
 
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
-the hook exits `0` and reports a once-per-session notice to both Claude
+the hook exits `0` and reports a notice, once per session and agent, to both Claude
 (`additionalContext`) and you (`systemMessage`). Only the notice latches.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
@@ -164,7 +164,7 @@ load custom rules, Markdown-it plugins, and output formatters. Running it
 under such configuration executes code the repository supplies. The hook
 therefore never runs the linter under a code-loading configuration without an
 explicit approval: it skips the lint run and reports a visible trust-gate
-notice (once per session, on both the agent and user channels) naming the
+notice (once per session and agent, on both the agent and user channels) naming the
 risky files and the approval marker to create. To approve, review those files
 and their installed dependencies, then create the marker directory using the
 exact `mkdir -p` command the notice carries. The marker lives under

@@ -158,7 +158,7 @@ merge:
 
 A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
 launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
-once-per-session notice instead of disengaging silently, which is also how a stale (pre-arming)
+notice (once per session and agent) instead of disengaging silently, which is also how a stale (pre-arming)
 lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
 location, so only managed settings can enable the gate there.
 
