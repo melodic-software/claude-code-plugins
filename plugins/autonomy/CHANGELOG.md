@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- README: a missing-tool skip says it fires once per session and agent, to both Claude and the user ([#4612](https://github.com/melodic-software/claude-code-plugins/issues/4612)).
+- README: a missing-tool skip says it fires once per session and agent, to both Claude and the user (#4612).
 
 ## [0.24.11] - 2026-09-28
 
