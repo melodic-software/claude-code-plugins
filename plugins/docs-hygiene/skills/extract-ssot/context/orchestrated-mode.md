@@ -125,16 +125,17 @@ within and between waves stays owned by `actions/batch.md` (overlap
 matrix, sequential-by-default); this file only adds the concurrency
 ceiling and the guard check between dispatches.
 
-**Caller-owned commit granularity (tracked).** Today orchestrated mode always
-wave-commits; `--fix`, `--dry-run`, `--yes`, and `--parallel-waves` control scope
-and interactivity, not how many commits land. That matches the default for
-standalone runs but fights orchestrators (for example `/playbooks:repo-sweep`)
-that want one commit per step on an existing branch. A future
-`--commit-mode=per-wave|single|manual` (name illustrative) will keep
-**per-wave** as the default and let callers take a single commit or uncommitted
-staging only ([#4504](https://github.com/melodic-software/claude-code-plugins/issues/4504)).
-Until then, callers that need a different cadence must stage or commit outside
-the skill after `--dry-run`, or state an override before invoking the skill.
+**Caller-owned commit granularity.** `--commit-mode` hands the commit cadence to
+a caller such as an orchestrator that wants one commit per step on its own branch:
+
+| Value | Commits |
+|-------|---------|
+| `per-wave` (default) | One commit per wave, as above |
+| `single` | No wave commits; one conventional-format commit after the last wave |
+| `none` | No commits; migrations stay in the working tree for the caller to stage and commit |
+
+Under `single` and `none` a mid-run abort leaves every completed wave uncommitted,
+so the abort report lists which waves' edits are in the tree.
 
 ## Cross-references
 

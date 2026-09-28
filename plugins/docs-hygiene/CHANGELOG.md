@@ -2,13 +2,10 @@
 
 ## [0.23.12] - 2026-09-28
 
-### Changed
+### Added
 
-- **`extract-ssot` orchestrated mode records caller-owned commit granularity as tracked**
-  ([#4504](https://github.com/melodic-software/claude-code-plugins/issues/4504)).
-  Wave commits stay the default. Callers that need one commit per step, or uncommitted
-  staging, stage or commit outside the skill after `--dry-run` until an explicit
-  commit mode lands.
+- **`extract-ssot batch --commit-mode=<per-wave|single|none>`.** A caller chooses one commit per
+  wave (the unchanged default), one commit for the whole run, or no commits.
 
 ## [0.23.11] - 2026-09-28
 
