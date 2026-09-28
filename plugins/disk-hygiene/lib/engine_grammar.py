@@ -259,7 +259,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             Flag(
                 "--run-id",
                 required=True,
-                pattern=r"[A-Za-z0-9._-]{1,64}",
+                pattern=r"[A-Za-z][A-Za-z0-9._-]{0,63}",
                 example="run-1",
             ),
             Flag("--answers", example="answers.json"),
