@@ -3,6 +3,52 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **PostToolUse path adjudication no longer starts awk, tr, or cut** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). A non-word anchor, including a path that contains `/`, is counted in-process, overlapping starts included. The skip-worktree tag is the first character of `git ls-files -v` after carriage returns are stripped in the shell. A cold finding fire fell from 25 to 19 process creations and execs, and the same fire at that HEAD from 19 to 13. The seven successful execs on the cold finding fire are the shell, the dispatcher, and five git processes. Those five are the check: repo root, the tracked list, HEAD, the deleted-path walk, and the skip-worktree tag. Verdicts are unchanged. The k × S goal is recorded in `reference/edit-write-guards/PLAN.md`.
+
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, the same fire at that HEAD fell to 19, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as typos-format #4677). Blocking guards stay synchronous. The k × S targets are not set here.
+
+## [0.41.0] - 2026-09-28
+
+### Added
+
+- **`block-root-delete-target` refuses a PowerShell recursive delete of the same
+  target classes Bash already refuses**
+  ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)).
+  `Remove-Item -Recurse -Force C:\`, `ri -r $X`, `Remove-Item -Recurse ''`, and
+  `cmd /c rd /s /q C:\` on the PowerShell tool used to exit 0 because the guard
+  left on any tool_name other than Bash. It now refuses root, empty, bare-variable,
+  and outside-tree targets for `Remove-Item` (aliases `ri`, `rm`, `del`, `erase`,
+  `rd`, `rmdir`) with `-Recurse` on any unambiguous prefix (`-r`, `-rec`) or the
+  bash-in-PS cluster `-rf`, for `cmd /c` / `cmd /k` `rd /s` and `rmdir /s`, and
+  for a pipeline into `Remove-Item -Recurse` with no path. The PowerShell lane
+  uses its own tokenizer (backtick escape, backslash literal) and does not load
+  `lib/powershell/ps-command.sh`, so it stays off the classifier's sink-attempt
+  budget. Existing Bash decisions are unchanged.
+
+## [0.40.2] - 2026-09-28
+
+### Fixed
+
+- **PowerShell here-string reduction refuses five no-token shapes** ([#4683](https://github.com/melodic-software/claude-code-plugins/issues/4683)). A confirmed opener whose prefix carries `'`, `"`, `\`, or a backtick, a `<#` earlier in the command, a column-zero `'@` / `"@` with no confirmed opener, and a CR that is not part of a CRLF pair join `herestring-comment-char` under one reduction-untrusted flag. None of them has an allow token. `classify_git_command` returns 2 when the flag is up even if another sink trigger already fired and git-freedom said no, so a `{` plus a commented opener no longer skips the FLAG-keyed readers. `hook::jq_fields` strips every CR from COMMAND, so bare CR is read from INPUT. A CRLF here-string commit still passes. A verbatim here-string whose body merely names `git` stays data. `block-convention-violation`'s subject scan uses the library opener predicate.
+
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
 ## [0.40.0] - 2026-09-28
 
 ### Changed

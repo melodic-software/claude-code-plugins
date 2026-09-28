@@ -1,6 +1,7 @@
 ---
 description: "Navigate a staged workflow (explore, research, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
 argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue, /workflow continue auto)"
+arguments: [mode, modifier]
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -54,8 +55,7 @@ This skill adapts to the consuming repo rather than imposing structure:
 
 ## Argument parsing
 
-Parse the first argument to determine mode; when it is `continue`, parse the second token too.
-`auto` is its only modifier, and anything else (or nothing) is the plain suggest-only mode.
+The mode word is `$mode` and the continuation modifier is `$modifier`. Treat a missing mode as the default row. When `$mode` is `continue`, `$modifier` is the second token. Treat a missing modifier, or any modifier other than `auto`, as suggest-only continuation. `auto` is the only modifier.
 
 | Argument | Mode | Action |
 |----------|------|--------|

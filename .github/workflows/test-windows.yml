@@ -20,10 +20,11 @@ name: test-windows
 # permissions are ci.yml's, unchanged. The `changes` job below is the minimum
 # re-resolution the split forces: job outputs do not cross workflow files, so
 # `run_windows` has to be computed here. It is derived by the SAME expression
-# ci.yml publishes, from the same detector and the same two filter groups, so
-# the two answers cannot disagree on any diff. Keep them in step: a change to
-# ci.yml's `run_windows` row, to `scripts/check-docs-only.sh`, or to the `shell`
-# or `python` filter patterns belongs in both files in the same commit.
+# ci.yml publishes, from the same detector and the same shell, python, and
+# powershell filter groups, so the two answers cannot disagree on any diff.
+# Keep them in step: a change to ci.yml's `run_windows` row, to
+# `scripts/check-docs-only.sh`, or to those filter patterns belongs in both
+# files in the same commit.
 
 on:
   # Present for parity with ci.yml, which takes a dispatch to run its bench
@@ -80,7 +81,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,8 +98,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-docs-only.sh "origin/$BASE_REF"
-      # The `shell` and `python` groups of ci.yml's filter table, verbatim, and
-      # only those two: `run_windows` reads no others. Every group repeats the
+      # The `shell`, `python`, and `powershell` groups of ci.yml's filter table,
+      # verbatim: `run_windows` reads those three. Every group repeats the
       # toolchain and configuration paths on purpose — a pull request touching
       # only a lockfile, only a workflow file or only the ShellCheck
       # configuration changes what this lane would find, so it must run rather
@@ -136,6 +137,20 @@ jobs:
               .shellcheckrc
               ruff.toml
               **/*.py
+            powershell:
+              .github/**
+              scripts/**
+              package.json
+              package-lock.json
+              pyproject.toml
+              uv.lock
+              requirements*.txt
+              .node-version
+              .python-version
+              .shellcheckrc
+              **/*.ps1
+              **/*.psm1
+              **/*.psd1
 
   # The ONLY job on a Windows runner in this repository, and deliberately so.
   # Every other suite is platform-agnostic bash string logic that a Linux runner
@@ -157,6 +172,21 @@ jobs:
   #
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
+  #
+  # GUARDRAILS SUITES ARE NOT IN THIS LANE (#4527). Six of 22
+  # `plugins/guardrails/hooks/*.test.sh` and `lib/git-hooks/*.test.sh` suites
+  # fail on a Windows 11 Git Bash host and none of them run here, so a Windows
+  # regression in those six currently ships green:
+  #   block-hook-bypass, block-windows-drive-tmp, coverage-manifest,
+  #   hardcoded-path-check, run-guards, secret-pattern-detection.
+  # `hardcoded-path-check` and `block-windows-drive-tmp` overlap #3683 (host-skip
+  # the path-form cases; drive-tmp is a real MSYS writer-path gap, not a skip).
+  # `block-hook-bypass` carries host-gated `windows temp:` cases that have never
+  # run in CI. `coverage-manifest` and `run-guards` may not be Windows-specific.
+  # Do not add these suites here without a per-suite triage against this job's
+  # 20-minute timeout and the ~140 ms spawn cost; a host-skip or a Linux-side
+  # fix is the default until that triage lands. Each host-gated case that still
+  # cannot run must print a counted SKIP line rather than pass silently.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
   # `*-latest` labels outright, for the same reason ci.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
@@ -216,3 +246,19 @@ jobs:
       # exit code is its failure count.
       - name: Run the gaming DLSS 5 selftest on Windows
         run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      # Pester has no Linux lane. These are the suites affected-tests.sh names
+      # and declines: machine-health's own runner, and the kindle-dedrm tests.
+      # #3703.
+      - name: Install Pester 5.7
+        shell: pwsh
+        run: |
+          $found = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.7.0' } | Select-Object -First 1
+          if (-not $found) {
+            Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+      - name: Run machine-health Pester suites
+        shell: pwsh
+        run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
+      - name: Run kindle-dedrm Pester suites
+        shell: pwsh
+        run: Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests -Output Detailed

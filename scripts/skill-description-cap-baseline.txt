@@ -24,6 +24,4 @@
 # (UTF-8 -> UTF-32BE via iconv, bytes / 4).
 
 plugins/improvement/skills/find                           # 1212
-plugins/overengineering/skills/audit                      # 1202
-plugins/overengineering/skills/realign                    # 1130
 plugins/work-items/skills/setup                           # 1273
