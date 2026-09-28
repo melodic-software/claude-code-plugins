@@ -61,6 +61,22 @@ For a process-spawn count, run the bundled census rather than writing one:
 --after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
 the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
 
+### 2b. Code path under test (before each arm)
+
+The goal must name which **code path(s)** the metric is meant to exercise (for example skip with no
+interpreter versus Python run path, cold cache versus warm). Before **each** arm, either **reset**
+the state files that select the path (markers, sentinel files, cache keys) or **record** their
+values and carry them in the report. After the arm, report which path actually ran, with evidence
+(a marker file, exit code, or the set of processes spawned). Use a line per arm:
+
+```text
+Path (<arm>): <intended path from goal> -> <observed path> (evidence: <marker | exit | processes>)
+```
+
+An arm whose observed path does not match the goal's named path is **flagged**; its duration is not
+reported as the goal's headline metric. A harness that always exercised the rare path while the
+common session path stayed unmeasured is exactly the failure this step prevents.
+
 A deterministic counter needs one run and no statistics; sample counts apply to durations. Under
 fixed-tick stepping, the number of units that miss the budget is a counter too, and it beats an
 average. See [lab rigs](../../reference/techniques.md#c-lab-measurement-and-rigs).
@@ -229,3 +245,6 @@ stored one.
   harness then measures its own randomization and reports "no improvement".
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.
+- **Stale markers send every sample down the wrong path.** Reset or record path-selecting state
+  before each arm, and report observed path with evidence; a mismatch is flagged, not folded into
+  the headline metric.

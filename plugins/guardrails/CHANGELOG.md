@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.12] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` says which target spelling the scratch exemption takes** ([#4118](https://github.com/melodic-software/claude-code-plugins/issues/4118)). On the `cat`, `echo`/`printf` and staged-move lanes the roots line read "A bare target under these roots is exempt", which never said the target must be written out literally. An agent blocked on a project path was offered the temp tree without being told that `$TMPDIR/x` or a quoted path would be blocked too. The line now reads "An unquoted literal target under these roots is exempt: ..., the OS temp directory; a quoted or variable-carried one never is." When the reason line above it already says so (a quoted target, or one holding `$`, a backtick or `~`), the second half is left off. The temp tree is still listed only when the project root is outside it. The exemption itself is unchanged: following a shell variable would mean neutralizing quoting, which would re-block inert prose.
+
+## [0.38.11] - 2026-09-28
+
+### Fixed
+
+- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the five guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. `block-hook-bypass`, `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand, so `wsl.exe -e bash -c "echo secret > …"` is still allowed by this version ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)).
+
 ## [0.38.10] - 2026-09-28
 
 ### Fixed

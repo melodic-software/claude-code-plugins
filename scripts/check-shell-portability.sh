@@ -15,6 +15,19 @@
 #   scripts/check-shell-portability.sh <base-ref>   gate .sh + skill .md a PR changed
 #   scripts/check-shell-portability.sh --all         audit every tracked .sh + skill .md
 #   scripts/check-shell-portability.sh --paths F...   scan exactly these files
+#   scripts/check-shell-portability.sh --awk-probe SUITE...
+#                                                  run each suite once per awk
+#                                                  implementation; fail on a
+#                                                  suite whose exit differs
+#
+# `--awk-probe` is the runtime half of a rule no token can carry: an
+# `awk -v name="$shellvar"` assignment runs escape processing on the value, and
+# gawk and mawk disagree on an unknown escape, so a regex handed through `-v`
+# can work under one and die under the other. The value lives in a shell
+# variable, not on the scanned line, which is why it is a probe and not a token
+# (a token on `-v name="$..."` flags ~150 sites that carry plain values). Pass
+# such values through `ENVIRON["name"]`. The mode and its rationale live in
+# scripts/lib/awk-probe.sh; the token list's awk entry points there (#4143).
 #
 # The scanner engine is scripts/lib/shell-portability-scan.awk, run with
 # `awk -f` over two data operands: the active token list and the file. This
@@ -182,6 +195,20 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/awk-probe.sh
+. "$SCRIPT_DIR/lib/awk-probe.sh" || exit 2
+
+# The probe needs no token list or baseline, so it is dispatched before either
+# is loaded. Suite paths are repo-relative, as for --paths.
+if [[ "${1:-}" == "--awk-probe" ]]; then
+  shift
+  if (($# == 0)); then
+    printf 'usage: check-shell-portability.sh --awk-probe SUITE...\n' >&2
+    exit 2
+  fi
+  awk_probe::run "$@"
+  exit
+fi
 
 # The scanner engine, as its own awk source file: `awk -f` reports a syntax
 # error in it at the line it is on, `awk -f … /dev/null` is a compile check the
@@ -239,7 +266,7 @@ TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
 BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}" # env override is test injection
 
 usage() {
-  printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
+  printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE... | --awk-probe SUITE...\n' >&2
   exit 2
 }
 

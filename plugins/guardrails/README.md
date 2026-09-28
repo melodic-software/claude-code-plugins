@@ -117,6 +117,24 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.8**). It runs its
+  command line inside a Linux distribution, so every guard that re-parses a
+  `sh -c` operand (`block-no-verify`, `block-dangerous-git`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-root-delete-target`) re-parses that command line too: `wsl git reset
+  --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
+  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) and a leading
+  `~` are stepped over, as is an option it does not know. Without `-e` /
+  `--exec` wsl hands its raw Windows command line to `$SHELL -c`, so the words
+  are rebuilt the way Git Bash builds that line: a word with whitespace is
+  double-quoted, so `wsl bash -c 'git reset --hard'` blocks while
+  `wsl 'git status && git clean -fd'` is one command word to the distro shell.
+  With `-e` each word stays one argv word. On the
+  PowerShell tool `wsl` is a launcher, so it reaches the fail-closed sink with
+  `Start-Process`, `pwsh` and `cmd`. Not covered: `block-windows-drive-tmp` and
+  `block-exported-msys-pathconv` do not re-parse a `-c` operand at all, and
+  `block-root-delete-target` judges a relative target from the payload `cwd`,
+  not from `wsl --cd`.
 - **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
   often filed together; only one is a live bypass (#2151 item A, inherited
   `--git-dir`/`--work-tree` in a `!` alias body). The other two are
@@ -188,7 +206,9 @@ out of scope until such a signal exists.
   verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
   too ("stop and tell the user"). On the `cat`, `echo`/`printf` and staged-move
   lanes it also says why the target was not scratch-exempt and lists the roots
-  that exempt a bare target in this session. The PowerShell and python lanes
+  that exempt an unquoted literal target in this session, with no configuration
+  needed for the temp tree when the project root is outside it. It says a quoted
+  or variable-carried target is never exempt. The PowerShell and python lanes
   never consult a scratch root, so their message names none. The operator's
   levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
   targets only), a session-scoped disable via `claude --settings`, and the

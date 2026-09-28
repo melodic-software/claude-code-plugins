@@ -37,10 +37,14 @@
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
 # docs/adr/** (decision records are a historical account, not prose to restyle),
-# docs/upstream/** and plugins/*/skills/*/vendor/** (third-party text, which the
-# repo's own vendor-docs-are-not-style rule puts out of scope), and the eval
-# fixtures under plugins/ai-slop/skills/audit/evals/, which contain the tells
-# they exist to test.
+# plugins/*/skills/*/vendor/** (third-party text, which the repo's own
+# vendor-docs-are-not-style rule puts out of scope), the per-source ledgers
+# docs/upstream/*.md (each records one third-party source and quotes it at
+# length, so the source's own punctuation rides along), and the eval fixtures
+# under plugins/ai-slop/skills/audit/evals/, which contain the tells they exist
+# to test. docs/upstream/claude-code-mods/ is not a third-party ledger: it is
+# this repository's own evidence trail for ADR 0035, so its live documents are
+# declared below. Its dated research snapshot stays off for the ADR reason.
 
 # Root README, purged in #3265.
 README.md
@@ -94,6 +98,12 @@ docs/conventions/windows-path-emit/*.md
 # those would desync the record from what it measured.
 docs/specs/*.md
 docs/specs/*/*.md
+# The Claude Code mods evidence trail behind ADR 0035, purged in #4288: the
+# reading-order README, the cited source index, the go-no-go runbook and the
+# experiments. research-2026-09-19/ is left off on purpose: its README says
+# nothing there is updated in place and that no claim text differs from the
+# verified report, so it is a historical record like docs/adr/**.
+docs/upstream/claude-code-mods/*.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins

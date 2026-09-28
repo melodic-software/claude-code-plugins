@@ -69,7 +69,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the same table row and https://code.claude.com/docs/en/skills.md ('Find unused skills') both state that /skill-doctor requires Claude Code v2.1.252 or later and is unavailable in sessions that skip feature-flag fetching, and the skills page adds that it answers `Skill usage reports are not available on this connection.` over Remote Control; that is the gate this row records, and it is not doctor's
   - the version the surface was announced in and the version it is documented to require disagree upstream: the CHANGELOG lands it at 2.1.261 while commands.md and skills.md say v2.1.252 or later, so no shipped routing line in this repository states a version for it (read 2026-09-07)
   - our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill
-  - our description's Not-for clause, the Purpose section, and the SKILL.md Scope boundary table each name /skill-doctor behind its own `resolves in your session` gate, separate from the /doctor gate beside it
+  - our description's front-loaded routing clause, the Purpose section, and the SKILL.md Scope boundary table each name /skill-doctor behind its own `resolves in your session` gate, separate from the /doctor gate beside it
 - **Observation:** upstream-source: d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b, the anthropics/claude-code commit that added the 2.1.261 CHANGELOG entry naming /skill-doctor, plus the commands.md and skills.md pages read the same day. Not an extraction and not a live roster: this container runs 2.1.258, below the release that announced the surface, so nothing here observed the command itself. (2026-09-07)
 - **Recheck trigger:** a Claude Code release note or docs change removes /skill-doctor, folds its report back into /doctor, gives its all-commands row the bundled-skill marker (which moves this row to the bundled-skill lane and changes which switch disables it), changes its version or feature-flag gate, or gives it a multi-source reconciliation or observation-horizon discipline of its own (verified 2026-09-07)
 - **Baked:** description phrase yes · Boundary section no
@@ -136,7 +136,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `prototype:explore-directions`
@@ -291,7 +291,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description: CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record) (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Session-provided skills (observation-only)
