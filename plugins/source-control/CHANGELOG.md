@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`config-resolution.md` settles the ten deferred babysit repository-policy keys under [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).** A decision record (Claim/Basis/As of) lists each key, its required merge mode, per-target default-branch resolution, the deprecation window, test obligations, and the mandatory security review. No resolver ships in this release; behaviour stays on `userConfig` until a follow-up implements the checklist.
+- **`config-resolution.md` settles the ten deferred babysit repository-policy keys under [#4572](https://github.com/melodic-software/claude-code-plugins/issues/4572).** A decision record (Claim/Basis/As of) lists each key, its required merge mode, per-target default-branch resolution, the deprecation window, test obligations, and the mandatory security review. No resolver ships in this release; behavior stays on `userConfig` until a follow-up implements the checklist.
 
 ## [0.62.2] - 2026-09-28
 

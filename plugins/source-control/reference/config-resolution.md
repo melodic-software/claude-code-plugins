@@ -341,7 +341,7 @@ Out of scope for #4572 (remain `userConfig`): `babysit_watched_owners`, `babysit
 `babysit_intended_write_identity`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
 `babysit_extra_bot_logins`.
 
-### Required resolver behaviour (implementation checklist)
+### Required resolver behavior (implementation checklist)
 
 1. **Per-target-repo resolution.** Substitute `${user_config.*}` once at skill load today; the
    resolver must read each PR's repository default-branch cascade per key, per cycle, following the
