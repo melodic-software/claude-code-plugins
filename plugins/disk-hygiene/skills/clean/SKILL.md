@@ -20,7 +20,7 @@ hooks:
         # skill hook gains another placeholder.
         - type: command
           command: node
-          args: '["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh","${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py","--plugin-root","${CLAUDE_PLUGIN_ROOT}"]'
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
           timeout: 60
 metadata:
   workflow-stage: anytime

@@ -598,8 +598,10 @@ while IFS= read -r args_json; do
   run_registered_args "$engine_payload" "$args_json"
   assert_eq "registered engine-gate row denies an engine command without python" "2" "$NOPY_RC"
 done < <(jq -c '.hooks.PreToolUse[].hooks[] | .args' "$HOOKS_JSON")
-belt_args="$(sed -n "s/^ *args: '\\(.*\\)'$/\\1/p" \
-  "$SCRIPT_DIR/../skills/clean/SKILL.md")"
+belt_args="$(sed -n 's/^ *args: *//p' \
+  "$SCRIPT_DIR/../skills/clean/SKILL.md" | head -n 1)"
+belt_args="${belt_args#\'}"
+belt_args="${belt_args%\'}"
 [[ -n "$belt_args" ]] || fail "could not read the belt registration from SKILL.md"
 run_registered_args "$plain_payload" "$belt_args"
 assert_eq "the registered belt row denies without python" "2" "$NOPY_RC"

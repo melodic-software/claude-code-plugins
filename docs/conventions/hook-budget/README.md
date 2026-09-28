@@ -109,7 +109,7 @@ recorded in the hook-performance program's DEVIATIONS log.
 
 ## Exec-form fleet sweep
 
-Converting shell-form `.sh` rows to exec form is gated by `scripts/check-exec-form-windows-probe.sh` ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). A passing run on a host that skipped the Windows spawn does not authorize that conversion. If the spawn reports args dropped, the script exits 1 and the sweep stops. The Windows rule and its four-part record are [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`. The guardrails dispatcher rows are the legal shape: `"command": "node"` and `plugins/guardrails/hooks/exec-bash.mjs` in `args`, with `run-guards.sh` as the next argument. Other bash rows stay shell form. A `.sh` path is not `command`.
+Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)): `"command": "node"` and `hooks/exec-bash.mjs`, then the script. Option gates that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command`. A non-Windows skip of its spawn half does not show that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is absent; if that spawn reports args dropped, the script exits 1. Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`. The four-part record is [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). No shell-form hook row remains.
 
 ## Rules
 

@@ -6,9 +6,10 @@
 # Static half (every host): an exec-form hook (`args` present) whose `command`
 # is a shebang script, a .cmd/.bat shim, a bare name other than the documented
 # real executables, or a bash.exe/sh.exe path fails. Shell form (no `args`) is
-# not inspected. This script does not rewrite rows. A .sh hook stays shell form
-# with "shell": "bash"; bare bash plus the script in args is the shape
-# scripts/check-hook-exec-form.sh already rejects.
+# not inspected. This script does not rewrite rows. A .sh path is not a legal
+# `command`; the landed spelling is "node" plus hooks/exec-bash.mjs. Bare bash
+# plus the script in args is the shape scripts/check-hook-exec-form.sh already
+# rejects.
 #
 # Spawn half (Windows, or EXEC_FORM_WINDOWS_PROBE_FORCE=1): spawn node.exe with
 # an args array and a stdin payload, with no shell. If the sentinel arg is

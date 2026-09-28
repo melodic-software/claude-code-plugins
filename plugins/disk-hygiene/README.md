@@ -408,9 +408,12 @@ measurements below carry the conditions they were taken under.
   double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
   substituted value (both placeholders resolve under Claude Code's own install and data roots). The
   invariant is therefore **maintained by test**, not structural, `hooks/run-python-hook.test.sh`
-  asserts the launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every
-  placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
-  entry can never make an assertion vacuously green. Interpolating anything beyond those two
+  asserted, at 0.17.8, that the launcher was named in `command`, `args` was absent, and
+  `shell: bash` was declared. **0.28.5** moves those registrations to exec form
+  (`"command": "node"`, `args` naming `hooks/exec-bash.mjs` then `hooks/run-python-hook.sh`).
+  **0.28.6** makes the skill belt's `args` a YAML sequence. The tests assert that shape, and
+  `test_hygiene.py`'s hook helpers stay form-agnostic so a later form change cannot make an
+  assertion vacuously green. Interpolating anything beyond those two
   placeholders into the command string would open a live injection surface; a repo-wide CI gate for
   this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
   skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same

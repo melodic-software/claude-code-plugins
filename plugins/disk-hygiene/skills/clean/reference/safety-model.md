@@ -352,9 +352,10 @@ volume. The engine's own containment, revalidation, and platform gates remain th
 authority.
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
-registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, shell form through
-`hooks/run-python-hook.sh`, `--mode engine-gate`; see "Hook launch form" below) and the
-**skill-frontmatter belt** (the clean skill's frontmatter hook, shell form through the same launcher),
+registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
+`node`, then `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh`, `--mode engine-gate`; see
+"Hook launch form" below) and the
+**skill-frontmatter belt** (the clean skill's frontmatter hook, the same entry),
 and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
@@ -476,9 +477,9 @@ skill-frontmatter belt alike, launches through the shared `hooks/run-python-hook
 tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsApps` alias stub, and,
 in monitor mode, emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
-and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
-Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
+host where `node` is missing, or where that launcher cannot resolve Git Bash, takes the guard and
+its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
