@@ -50,27 +50,49 @@ out="$(bash "$SCRIPT" --repo "$ROOT/repo")"
 assert_contains "missing gh is announced" "$out" "PRDataUnavailable:"
 assert_not_contains "missing gh does not propose removal" "$out" "Proposed: review-remove"
 
+rc=0
+bash "$SCRIPT" --apply --repo "$ROOT/repo" >/dev/null 2>"$ROOT/apply.err" || rc=$?
+assert_exit "--apply is refused" 2 "$rc"
+assert_contains "--apply names the refusal" "$(cat "$ROOT/apply.err")" "refused"
+if [[ -d "$ROOT/repo/.git" ]]; then
+  pass "refused --apply left the repository"
+else
+  fail "--apply removed the repository"
+fi
+
 FAKE="$(mktemp -d)"
 cat >"$FAKE/gh" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' '[{"headRefName":"feature","state":"MERGED","headRefOid":"$FEATURE_SHA"}]'
 EOF
 chmod +x "$FAKE/gh"
-# The feature branch is checked out in the primary worktree and is clean.
-git -C "$ROOT/repo" checkout -q feature
+# The merged branch lives in a linked worktree. The primary checkout stays held.
+git -C "$ROOT/repo" checkout -q main
+git -C "$ROOT/repo" worktree add -q "$ROOT/linked" feature
 out="$(PATH="$FAKE:$PATH" bash "$SCRIPT" --repo "$ROOT/repo")"
 assert_contains "merged matching tip is review-remove" "$out" "Proposed: review-remove"
 assert_contains "report counts one review-remove" "$out" "review-remove=1"
-if [[ -d "$ROOT/repo/.git" || -f "$ROOT/repo/.git" ]]; then
-  pass "worktree still present after review-remove"
+assert_contains "primary checkout is held" "$out" "Proposed: hold-primary"
+if [[ -d "$ROOT/linked" && -d "$ROOT/repo/.git" ]]; then
+  pass "linked worktree and primary checkout still present"
 else
-  fail "worktree directory was removed"
+  fail "a worktree directory was removed"
 fi
 
 # A later unpushed commit is not review-remove.
-git -C "$ROOT/repo" commit -q --allow-empty -m later
+git -C "$ROOT/linked" commit -q --allow-empty -m later
 out="$(PATH="$FAKE:$PATH" bash "$SCRIPT" --repo "$ROOT/repo")"
 assert_contains "unpushed tip is a sha mismatch" "$out" "Proposed: hold-sha-mismatch"
+
+# Built-in carve-out, even with no --hold.
+git -C "$ROOT/repo" worktree add -q "$ROOT/spike" -b spike-lane
+out="$(PATH="$FAKE:$PATH" bash "$SCRIPT" --repo "$ROOT/repo")"
+assert_contains "spike basename is a built-in carve-out" "$out" "built-in carve-out spike"
+if [[ -d "$ROOT/spike" ]]; then
+  pass "spike worktree still present"
+else
+  fail "spike worktree was removed"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "worktree-reconcile.test.sh: all passed"

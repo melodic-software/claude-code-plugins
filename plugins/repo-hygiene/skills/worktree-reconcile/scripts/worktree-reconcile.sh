@@ -12,6 +12,7 @@
 # Usage:
 #   worktree-reconcile.sh [--repo DIR] [--hold SUBSTR]... [--limit N]
 #   worktree-reconcile.sh --help
+#   worktree-reconcile.sh --apply   # refused; exit 2
 #
 # Exit: 0 report written; 2 usage error or not a git repository.
 set -uo pipefail
@@ -53,6 +54,10 @@ while [[ $# -gt 0 ]]; do
   -h | --help)
     usage
     exit 0
+    ;;
+  --apply)
+    echo "worktree-reconcile.sh: --apply is refused. This command only prints a dry-run report." >&2
+    exit 2
     ;;
   *)
     echo "worktree-reconcile.sh: unknown arg '$1'" >&2
@@ -151,6 +156,26 @@ hold_match() {
   return 1
 }
 
+# Names from the fleet-reconcile record. A bare run protects them without
+# --hold. Matching is the path basename or the branch short name.
+builtin_hold() {
+  local path="$1" short="$2" base
+  base="$(basename "$path")"
+  case "$base" in
+  _vfy | ccp-2840-fix | ccp-2840 | silent-revert-markers | spike | ccp-2590-engine)
+    printf '%s' "$base"
+    return 0
+    ;;
+  esac
+  case "$short" in
+  fix/2648-tzdata-degradation | fix-2618-belt-run-scoped-lifetime | *-main)
+    printf '%s' "$short"
+    return 0
+    ;;
+  esac
+  return 1
+}
+
 branch_short() {
   local ref="$1"
   printf '%s' "${ref#refs/heads/}"
@@ -200,6 +225,12 @@ for ((i = 0; i < ${#WT_PATH[@]}; i++)); do
   if needle="$(hold_match "$path")"; then
     proposed="hold-carve-out"
     reason="path matches --hold $needle"
+  elif needle="$(builtin_hold "$path" "$short")"; then
+    proposed="hold-carve-out"
+    reason="built-in carve-out $needle"
+  elif [[ "$i" -eq 0 ]]; then
+    proposed="hold-primary"
+    reason="primary worktree; this report never proposes removing it"
   elif [[ "$locked" == yes ]]; then
     proposed="hold-locked"
     reason="worktree is locked"

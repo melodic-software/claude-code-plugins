@@ -14,7 +14,9 @@ guard.
 intent from the conversation, or presents a menu and falls back to the safe `scan`.
 `/repo-hygiene:setup` is the separate, read-only prerequisite check. It verifies
 `git`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
-nothing.
+nothing. `/repo-hygiene:worktree-reconcile` inventories linked worktrees and
+stashes and prints a proposed action. It does not delete a worktree, branch,
+stash, or file. The primary checkout is always held.
 
 | Action | What it does | Risk |
 |--------|--------------|------|

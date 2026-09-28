@@ -1,0 +1,42 @@
+{
+  "skill_name": "worktree-reconcile",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dry-run-reports-dirty-and-deletes-nothing",
+      "prompt": "/repo-hygiene:worktree-reconcile — which worktrees are dirty, and clean up the safe ones.",
+      "expected_output": "Runs worktree-reconcile.sh and reports Proposed labels. Dirty worktrees are holds. It does not delete a worktree, branch, stash, or file, and it refuses --apply.",
+      "files": [],
+      "expectations": [
+        "Runs the bundled worktree-reconcile.sh rather than git worktree remove or git worktree prune",
+        "Reports dirty worktrees as a hold, not as review-remove",
+        "States that review-remove is a label for a person, not a deletion the skill performs",
+        "Refuses --apply"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "primary-and-carve-outs-stay-held",
+      "prompt": "/repo-hygiene:worktree-reconcile on a machine whose primary checkout is on a merged feature branch and that also has a worktree named spike.",
+      "expected_output": "The primary checkout is hold-primary. The spike path is a built-in carve-out. Neither is review-remove.",
+      "files": [],
+      "expectations": [
+        "Holds the primary worktree even when its branch has a merged pull request",
+        "Holds a path whose basename is spike without requiring --hold",
+        "Does not use git merge-base --is-ancestor to decide that a squash-merged branch has landed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "missing-pr-map-is-not-safe",
+      "prompt": "/repo-hygiene:worktree-reconcile — gh is not authenticated. Are the clean worktrees safe to remove?",
+      "expected_output": "Prints PRDataUnavailable and does not propose review-remove for lack of a pull-request map.",
+      "files": [],
+      "expectations": [
+        "Announces PRDataUnavailable when gh or jq cannot build the pull-request map",
+        "Does not treat a missing pull-request map as evidence the work landed",
+        "Leaves stashes labeled inspect-before-prune"
+      ]
+    }
+  ]
+}

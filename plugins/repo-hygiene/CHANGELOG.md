@@ -12,7 +12,9 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   tree, a MERGED pull request, and a HEAD that matches the remote tip, because
   squash-merge makes `merge-base --is-ancestor` unusable. The script does not
   delete a worktree, branch, stash, or file. `--hold` marks a path substring
-  as a carve-out.
+  as a carve-out. The primary worktree is always `hold-primary`. Built-in
+  carve-outs cover `_vfy`, `spike`, the named salvage worktrees, and `*-main`
+  branches. `--apply` is refused.
 
 ## [0.10.54] - 2026-09-28
 

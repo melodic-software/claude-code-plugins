@@ -3,6 +3,9 @@ description: "Dry-run inventory of linked git worktrees and stashes. Prints a Pr
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--repo DIR] [--hold SUBSTR]..."
+metadata:
+  workflow-stage: anytime
+  summary: Inventory dirty worktrees and print proposed actions
 allowed-tools:
   - Bash(${CLAUDE_SKILL_DIR}/scripts/worktree-reconcile.sh:*)
 ---
@@ -24,6 +27,11 @@ substring, a SHA that does not match origin, or a missing pull-request row.
 `PRDataUnavailable:` means the pull-request map did not run. Do not treat those
 rows as safe.
 
+The primary worktree is always `hold-primary`. Built-in carve-outs (`_vfy`,
+`ccp-2840-fix`, `ccp-2840`, `silent-revert-markers`, `spike`, `ccp-2590-engine`,
+and the branches `fix/2648-tzdata-degradation`, `fix-2618-belt-run-scoped-lifetime`,
+and `*-main`) are `hold-carve-out` without `--hold`. `--apply` exits 2.
+
 Stashes print `Proposed: inspect-before-prune`. Leave them.
 
 ## Next
@@ -34,5 +42,5 @@ Stashes print `Proposed: inspect-before-prune`. Leave them.
 
 - Do not use `git merge-base --is-ancestor origin/main <branch>` on a squash-merge
   repository. The merged commits are not ancestors of `main`.
-- Pass `--hold` for paths that must survive even when they look unused. The
-  script does not know a machine's carve-outs.
+- Pass `--hold` for paths that must survive even when they look unused and are
+  not in the built-in carve-out list.
