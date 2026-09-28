@@ -1195,6 +1195,37 @@ else
   fail "cg::read_payload wrapper: expected the payload, got [$W_OUT]"
 fi
 
+# Without jq, a compacted-session fire moves no marker, so the crossing still
+# fires once jq is back. The fast path skips the eager jq check; the marker
+# writes must still wait for it.
+NJ="$WORK/nojq-bin"
+mkdir -p "$NJ"
+IFS=: read -r -a nj_dirs <<<"$PATH"
+for d in "${nj_dirs[@]}"; do
+  for f in "$d"/*; do
+    b=${f##*/}
+    [[ "$b" == jq || -e "$NJ/$b" || ! -x "$f" ]] && continue
+    ln -s "$f" "$NJ/$b" 2>/dev/null
+  done
+done
+NH="$WORK/nojq-home"
+ND="$WORK/nojq-data"
+write_snapshot "$NH" snj 10
+: >"$NH/$CTX_REL/snj.compacted"
+printf '{"session_id":"snj","hook_event_name":"PostToolBatch","cwd":"/tmp"}' |
+  PATH="$NJ" HOME="$NH" CLAUDE_PLUGIN_DATA="$ND" HOOK_TELEMETRY_SINK="" bash "$HOOK" >/dev/null 2>&1
+if [[ ! -e "$ND/state/snj.zone" && ! -e "$ND/state/snj.armed" && ! -e "$ND/state/snj.seen" ]]; then
+  ok "no jq: a compacted fire moves no marker"
+else
+  fail "no jq: markers were written: $(ls "$ND/state" 2>&1)"
+fi
+run "$NH" "$ND" snj
+if [[ "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "no jq, then jq: the compacted crossing still fires"
+else
+  fail "no jq, then jq: crossing lost: $OUT"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
