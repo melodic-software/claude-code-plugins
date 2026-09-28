@@ -69,6 +69,13 @@
       "field": "spawns",
       "ceiling": 6,
       "goal": "The same PostToolUse verify bundle spends at most this many process creations and execs on an Edit of a .sh file: cli-flag-verify scans it, and skill-reference-verify and stale-path-verify leave at their *.md check. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions."
+    },
+    {
+      "name": "guardrails-posttooluse-run-guards-warm-spawns",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --seed --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 19,
+      "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run. The cold fire of the same edit is ceiling 25. Measured on this host with bash 5.2.21, dash as sh, strace 6.8. #4390."
     }
   ]
 }
