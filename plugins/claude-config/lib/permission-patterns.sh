@@ -58,8 +58,10 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 #      build)) carries no * and is not matched.
 #   4. a leading-glob command that resolves to a script (Bash(*.py:*))
 #
-# Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
-# driver reports the full offending rule, not a substring truncated at the *.
+# Each alternative captures the whole Tool(...) spec. The specifier may contain
+# parentheses (a path such as Edit(./Finance (2024)/**) is one rule; parentheses
+# inside the specifier are literal). One nesting level is the token grammar's
+# limit, the same limit as CCPERM_TOOL_TOKEN_ERE. A `)` does not end the rule.
 #
 # The four alternatives are also exposed individually so a driver that must NAME
 # the class a rule fell into (the entry diff's drop reason) tests them one at a
@@ -68,20 +70,27 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 #
 # In the RUNNER alternative, the `([\"' :])` before the `\*` requires a
 # separator, so `Bash(npmx *)` does not match the `npm` runner.
+#
+# One nesting level of parentheses inside a specifier. A bare `[^)]*` would end
+# the rule at the first `)`, which drops a documented path such as
+# `Edit(./Finance (2024)/**)`.
+CCPERM_BALANCED_ERE='([^()]|\([^()]*\))*'
 CCPERM_P1_BLANKET_ERE="(Bash|PowerShell)\\(\\*\\)"
-CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
-CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?([\"' :])\\*[^)]*\\)"
-CCPERM_P1_SCRIPTGLOB_ERE="(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${CCPERM_SCRIPT_BODY})[^)]*\\)"
+CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^()\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :]${CCPERM_BALANCED_ERE})?\\*${CCPERM_BALANCED_ERE}\\)"
+CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :]${CCPERM_BALANCED_ERE})?([\"' :])\\*${CCPERM_BALANCED_ERE}\\)"
+CCPERM_P1_SCRIPTGLOB_ERE="(Bash|PowerShell)\\([\"' ]*\\*${CCPERM_BALANCED_ERE}\\.(${CCPERM_SCRIPT_BODY})${CCPERM_BALANCED_ERE}\\)"
 CCPERM_P1_ERE="${CCPERM_P1_BLANKET_ERE}|${CCPERM_P1_INTERP_ERE}|${CCPERM_P1_RUNNER_ERE}|${CCPERM_P1_SCRIPTGLOB_ERE}"
 
-# Splits rule text into top-level `Tool` / `Tool(...)` tokens. The greedy
-# `(\(...\))?` consumes a tool's whole parenthesized payload as one token, so a
-# tool name inside another rule's payload (e.g. Bash(echo Agent), Bash(grep
-# PowerShell *)) never surfaces as its own token. The payload accepts one level
-# of nested parentheses (Bash(echo $(date) Agent), Bash(node -e "log()"
-# PowerShell)) so an inner `)` does not end the token early; ERE cannot balance
-# arbitrary depth, and rule payloads realistically nest at most once.
+# Splits rule text into top-level `Tool` / `Tool(...)` tokens. The payload is
+# one token, so a tool name inside another rule's payload (Bash(echo Agent),
+# Bash(grep PowerShell *)) never surfaces as its own token. The payload accepts
+# one level of nested parentheses (Bash(echo $(date) Agent), Edit(./Finance
+# (2024)/**)) so an inner `)` does not end the token early. ERE cannot balance
+# arbitrary depth, so a second nesting level still splits. Trailing text after
+# the closing parenthesis (Bash(ls) x) is not part of the token: Claude Code
+# reports that shape as a malformed Tool(content) rule. A driver that keeps only
+# the token hides the malformation; compare the tokens with the original text.
 #
 # Drivers use this to tell a whole-tool grant (bare `Bash`, bare or scoped
 # `Agent`) from a scoped rule that merely mentions a tool name in its payload.
-CCPERM_TOOL_TOKEN_ERE='[A-Za-z_][A-Za-z0-9_]*(\(([^()]|\([^()]*\))*\))?'
+CCPERM_TOOL_TOKEN_ERE="[A-Za-z_][A-Za-z0-9_]*(\\(${CCPERM_BALANCED_ERE}\\))?"

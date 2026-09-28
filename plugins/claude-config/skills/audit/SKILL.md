@@ -148,7 +148,8 @@ The engine runs `scripts/check-hook-coverage.sh` itself and carries its result i
 `hook_inventory`. That script enumerates settings-declared hooks **and** the hooks shipped by every
 enabled plugin, read from the directory the session actually loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise), plus the levers (`disableAllHooks`,
-`allowManagedHooksOnly`, `strictPluginOnlyCustomization`) that switch hooks off wholesale, and any
+`allowManagedHooksOnly`, `strictPluginOnlyCustomization` when it is `true` or names `"hooks"`) that
+switch hooks off, and any
 divergence between the loaded directory and the registry's cache snapshot.
 
 **Read the inventory state, not just the rows.** `complete` means every enabled plugin resolved.
@@ -192,7 +193,7 @@ category; **full per-check criteria in
 - **A, Schema & Structure**: engine-decided
 - **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
-- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos, event validity against the live hooks page
+- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row), event validity against the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`). The engine already reports `skillOverrides` entries that cannot take effect: a key naming a known plugin (`G/skill-override-plugin`, `warning`) and entries in the user dir's `settings.local.json` (`G/skill-override-home-local`, `info`); a colon key it left as `skip` is yours to name or leave undecided. When the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
