@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.23] - 2026-09-28
+
+### Added
+
+- **`/claude-ops:plugins tail` checks the operator-gated sync tail (#4186).**
+  `sync-tail-check.sh` reports a missing `Bash(gh pr merge *)` allow rule as a seed and
+  does not write settings. It reports removed-marketplace cache trees against the 14-day
+  plugins-reference window and the 7-day claude-directory window, and a missing tree as
+  `unobserved`. Adjacent drift in standards, ci-workflows, and github-iac is classified
+  `open`, `clear`, `waiting-on-release`, or `unprobed`. Nothing is deleted and no other
+  repository is edited.
+
 ## [0.63.22] - 2026-09-28
 
 ### Changed

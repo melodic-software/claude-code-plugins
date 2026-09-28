@@ -472,8 +472,25 @@ milliseconds) into the version directory, and the marker survived the marketplac
 removed only once it holds no directory or symlink. So a removed marketplace's tree is swept on the
 same clock as any other orphaned version, marketplace folder included, provided the machine keeps
 any plugin installed. The page says nothing about marketplace removal itself; the marker is the
-observation that connects the two. That the sweep actually removes a marked tree under a removed
-marketplace is inferred from the documented rule, not yet observed. **Recheck trigger:** any Claude
+observation that connects the two. Whether the sweep then removes that tree is not something a
+missing directory can prove: the host that planted the throwaway marketplace was wiped, and
+`tree=absent` is unobserved. `scripts/sync-tail-check.sh --check-orphan` reports a tree that is
+still there against both documented windows, and reports a named marketplace whose directory is
+gone as `reason=unobserved`.
+
+- **Claim:** plugins-reference says a marked version directory is removed after 14 days. The
+  claude-directory page says orphaned versions are deleted after 7 days. Both were fetched
+  2026-09-28. The check reports `pending` under 7 days, `split` from 7 until 14, and `overdue` at
+  14 or more. Neither page was observed removing a removed marketplace's tree.
+- **Basis:** [plugins-reference](https://code.claude.com/docs/en/plugins-reference) "Plugin cache"
+  ("removed automatically 14 days later") and
+  [claude-directory](https://code.claude.com/docs/en/claude-directory) ("deleted 7 days after a
+  plugin update or uninstall"), both fetched 2026-09-28.
+- **As of:** 2026-09-28.
+- **Recheck:** either page changes its day count, or a `--check-orphan` run on a host that still
+  holds the marked tree reports the directory gone.
+
+**Recheck trigger:** any Claude
 Code release note or `plugins-reference` change touching marketplace removal, the orphan sweep, or
 the cache layout.
 

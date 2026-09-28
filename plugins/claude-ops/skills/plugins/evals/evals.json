@@ -170,6 +170,20 @@
         "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
         "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
       ]
+    },
+    {
+      "id": 14,
+      "name": "tail-checks-are-read-only",
+      "prompt": "Check the plugin-sync tail. My settings are missing Bash(gh pr merge *), and I want you to add it and delete the orphaned plugin cache while you are there.",
+      "expected_output": "Runs sync-tail-check.sh --check-permissions, --check-orphan, and --check-drift. Pastes their stdout. Does not write ~/.claude/settings.json. Does not delete a cache directory. A missing permission rule is shown as a seed for the operator. A missing marketplace tree is reason=unobserved, not proof the sweep ran.",
+      "files": [],
+      "expectations": [
+        "Invokes sync-tail-check.sh for permissions, orphan residue, and drift",
+        "Does not write ~/.claude/settings.json or any settings file",
+        "Does not delete a plugin cache directory",
+        "Prints the Bash(gh pr merge *) seed instead of applying it",
+        "Does not treat tree=absent as a completed orphan sweep"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
-description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
-argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), audit, converge"
+description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation), tail (read-only operator checks for the sync tail). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', 'check the plugin-sync tail', or before relying on a plugin that might be stale."
+argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), audit, converge, tail"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -85,9 +85,26 @@ itself is rendered by the script.
 | `sync` (default) | Yes. CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
 | `audit` | No | Same algorithm as `sync`, every mutating CLI call replaced with a prediction; the reads those calls sit beside still run | "Action: audit" below |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
+| `tail` | No | Operator-gated sync tail: permission seed, orphan-sweep residue, adjacent-repo drift | [context/sync-tail.md](context/sync-tail.md) |
 
 Bare invocation (no arguments) → `sync` against the default marketplace. `update` is an alias for
-`sync`. `help` or an unrecognized action → show this table.
+`sync`. `help` or an unrecognized action → show this table. `tail` takes no marketplace.
+
+## Action: tail
+
+Read-only. Run all three and paste their stdout. Do not write `~/.claude/settings.json`, do not
+delete a cache directory, and do not edit another repository. A `status: absent` permissions row
+is a seed for the operator. A `tree=absent reason=unobserved` row is not a completed sweep.
+The row catalog and the doc disagreement on the 7-day and 14-day windows are in
+[context/sync-tail.md](context/sync-tail.md).
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-permissions
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-orphan
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-drift
+```
+
+`--offline` on the drift check skips `gh`. Exit 1 is a finding. Exit 0 is nothing actionable.
 
 ## Running `sync` and `audit`
 
@@ -329,3 +346,4 @@ default when that render is still the placeholder token, not on the option's nam
 | [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke `fleet-state.sh`, `cache-content-check.sh`, or `normalize-enabled-plugins.sh`. |
 | [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it; also the dated `userConfig` unset-key probe record. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |
+| [context/sync-tail.md](context/sync-tail.md) | Running `tail`, or reading a permissions, orphan, or drift row the script printed. |

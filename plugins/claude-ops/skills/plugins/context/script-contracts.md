@@ -65,3 +65,18 @@ Never hand-edit `~/.claude/settings.json`:
 
 That write is user-scope only. A project-scope map is inspected with `--report-project` and never
 rewritten. See [sync.md](sync.md).
+
+## `sync-tail-check.sh`: the operator-gated tail, read-only
+
+`tail` runs three checks. None of them writes settings, deletes a cache tree, or edits another
+repository. See [sync-tail.md](sync-tail.md).
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-permissions [--settings <file>]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-orphan [--cache <dir>] [--known <file>] [--marketplace <name>]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-tail-check.sh --check-drift [--offline | --fixture <dir>]
+```
+
+Exit 0 is nothing actionable. Exit 1 is a finding (a missing permission rule, an unmarked or
+overdue cache tree, or an open drift row). Exit 2 is usage. Exit 3 is an input that cannot be
+read. Paste the stdout. Do not restate a row as done when it says `unprobed` or `unobserved`.
