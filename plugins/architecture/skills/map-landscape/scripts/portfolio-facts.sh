@@ -65,6 +65,12 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 
+# PackageReference and ProjectReference Include values come from the shared
+# reader, so this collector and map-dependencies cite the same spans.
+_ARCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
+# shellcheck source=../../../lib/dotnet-references.sh
+source "$_ARCH_LIB/dotnet-references.sh"
+
 # ---------------------------------------------------------------------------
 # JSON emission helpers
 # ---------------------------------------------------------------------------
@@ -755,8 +761,7 @@ for raw_path in "$@"; do
   if [[ "$dotnet_proj" == *.*proj ]]; then
     while IFS= read -r projfile; do
       [[ -n "$projfile" ]] || continue
-      hits="$(grep -oE '<(Package|Project)Reference[^>]*Include="[^"]*"' "$repo/$projfile" 2>/dev/null |
-        sed 's/.*Include="//; s/"$//')"
+      hits="$(dotnet_reference_includes "$repo/$projfile")"
       [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
     done < <(
       find_all '*.csproj'

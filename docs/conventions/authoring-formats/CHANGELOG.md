@@ -6,6 +6,23 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.3] - 2026-09-28
+
+Clarification. No key, allowed value, or default changes.
+
+- **`landscape_dialect` stays the system landscape.** Context, container, component, and
+  deployment are not folded onto it. `diagram_dialect.system` stays the planning opt-in
+  (`likec4` or `c4-plantuml`, no default). `structurizr` is not added to that set. No new
+  per-rung key is added: the reviews that kept those rungs off `landscape_dialect` did not agree
+  on the replacement name.
+- **`diagram_dialect.data` is the key `map-data` will reuse** when that skill ships. It is not a
+  reader yet, so the consumers table is unchanged.
+- **`map-flow` hard-codes mermaid `sequenceDiagram`.** Same fixed dialect as
+  `/planning:design`'s `sequence-flows.md`. No sequence key, because the two proposed names
+  (`diagram_dialect.dynamic` and `diagram_dialect.sequence`) are not a majority.
+- **`map-dependencies` is not a C4 view** and reads no key of this convention. Its human render
+  is a mermaid flowchart.
+
 ## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the

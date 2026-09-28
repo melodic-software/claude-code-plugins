@@ -77,6 +77,20 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Inside one repository
+
+`/architecture:map-dependencies` answers a different question: which project references which,
+and in which direction. It reads build declarations, not source imports. The first adapter is
+.NET `ProjectReference` (a directed internal edge, target the declared relative path) and
+`PackageReference` (an external package). A target that is missing or outside the repository
+root stays unresolved. An ecosystem the skill does not read yet comes back `unknown` with a
+message, not an empty graph.
+
+The canonical file is `dependency-graph.json`. The human file is a mermaid flowchart of the
+internal edges, with cycles listed at the top. External packages are collapsed unless you pass
+`--include-external`. Above 40 internal project nodes the flowchart aggregates to directories
+and says so.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -99,6 +113,10 @@ your records.
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
 
+/architecture:map-dependencies
+/architecture:map-dependencies --include-external
+/architecture:map-dependencies --cycles-only
+
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
 ```
@@ -107,14 +125,17 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map dependencies",
+"project reference graph", "which projects depend on which".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
+`map-landscape` and `map-dependencies` read `architecture_dir` (repo-relative, no
+default) from a topic doc at your repository's convention home,
+`<home>/architecture/README.md`. `map-landscape` also reads `landscape_dialect`
+(`structurizr` or `mermaid`, default `mermaid`) for the system landscape.
+`map-dependencies` does not: its human file is a mermaid flowchart. The contract
+lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
 `architecture_dir` declared and none confirmed, `map-landscape` stops and points

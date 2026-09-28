@@ -216,6 +216,7 @@ End every run with this block, in this order, filled from the record and the scr
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.
+- Which project references which inside one repository: `/architecture:map-dependencies`.
 - The landscape settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas

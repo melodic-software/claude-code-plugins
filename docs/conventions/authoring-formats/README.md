@@ -104,9 +104,9 @@ Nothing here restricts mermaid for the architecture plugin's `landscape_dialect`
 
 ## C4 dialect surfaces
 
-This convention owns one C4-shaped artifact. The architecture plugin owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This convention owns one C4-shaped artifact. The architecture plugin owns the system landscape.
+They keep separate keys, separate allowed values, and separate defaults because they are different
+artifacts, not because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
@@ -115,11 +115,23 @@ not because they disagree about mermaid.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
-names a dialect.
+names a dialect. As-designed planning container views stay on this key. `structurizr` is not added
+to the allowed set. Mermaid stays refused.
 
 `landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
 `architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+already emits; it does not add a new deliverable. It is not the key for a context, container,
+component, or deployment view. This change does not add those keys: the reviews that kept them off
+`landscape_dialect` did not agree on the replacement name.
+
+`diagram_dialect.data` stays `mermaid` or `dbml`, default `mermaid`. `/architecture:map-data` will
+reuse it when that skill ships. It is not a reader yet, so it has no row in
+[Consumers](#consumers). `/architecture:map-flow` hard-codes mermaid `sequenceDiagram`, the same
+fixed dialect `/planning:design` already uses for `sequence-flows.md`. No sequence key is added:
+the two proposals that wanted one did not share a name.
+
+`/architecture:map-dependencies` is not a C4 view and reads no key of this convention. Its model is
+`dependency-graph.json` and its human render is a mermaid flowchart.
 
 Mermaid C4 being experimental is why this convention's system key refuses mermaid as a value. It is
 not a claim that mermaid is unfit for the landscape surface, whose allowed set is

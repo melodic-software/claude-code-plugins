@@ -3,6 +3,30 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `/architecture:map-dependencies` cites a repository's build-declaration graph as
+  `dependency-graph.json` (schema_version 1, one object per line) and a mermaid flowchart of
+  the internal edges. The first adapter is .NET: `ProjectReference` is a directed internal edge
+  whose target is the declared relative path, and `PackageReference` is an external package edge.
+  A target that is missing or outside the repository root is `unresolved` and is never matched by
+  file name. An unrecognized ecosystem is `result: unknown` with a message, not an empty graph.
+  Above 40 internal project nodes the flowchart aggregates to directories and says so; the JSON
+  stays at project resolution. Cycles are listed at the top of the markdown.
+- `plugins/architecture/lib/dotnet-references.sh` is the shared PackageReference and
+  ProjectReference reader. `portfolio-facts.sh` calls it, so the portfolio names and the graph
+  edges cite the same Include spans.
+- `reference/config.md` records the dialect split. `landscape_dialect` stays the system
+  landscape (`structurizr` or `mermaid`, default `mermaid`) and is not reused for context,
+  container, component, or deployment. `diagram_dialect.system` stays the planning opt-in
+  (`likec4` or `c4-plantuml`, no default); `structurizr` is not added. `map-data` will reuse
+  `diagram_dialect.data` when it ships. `map-flow` hard-codes mermaid `sequenceDiagram` and adds
+  no key. `map-dependencies` is not a C4 view: its human render is a mermaid flowchart, and it
+  does not read `landscape_dialect`. No new dialect key is added, because the proposed names did
+  not agree.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed
