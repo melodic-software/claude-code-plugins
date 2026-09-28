@@ -34,10 +34,10 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | Output styles | `output-styles/` (user/project/managed/plugin) | Session start when selected; modifies the system prompt |
 | Workflows | `.claude/workflows/`, plugin `workflows/` | Startup; each file becomes a command |
 | Hook-carried instruction text | hooks in settings/plugins/frontmatter | On lifecycle events; `additionalContext` capped at 10,000 chars |
-| `--append-system-prompt` | CLI flag | Per invocation, appended to the system prompt |
-| `--append-system-prompt-file` | CLI flag, `-p` only | Appends the file. Claim: the flag exists and is headless-only. Basis: Claude Code changelog through 2.1.263, decision #4027. As of: 2026-09-28. Recheck: the CLI reference drops the flag or stops limiting it to `-p` |
-| `--append-subagent-system-prompt` | CLI flag, `-p` only | Appends text to a subagent system prompt. Same claim, basis, as-of, and recheck as the file flag above |
-| `--append-subagent-system-prompt-file` | CLI flag, `-p` only | Appends the file to a subagent system prompt. Same claim, basis, as-of, and recheck |
+| `--append-system-prompt` | CLI flag | Per invocation, appended to the default system prompt |
+| `--append-system-prompt-file` | CLI flag | Per invocation; file contents appended (cli-reference, verified 2026-09-28; #4027 / 261-003) |
+| `--append-subagent-system-prompt` | CLI flag | `-p` only; every subagent except forked; v2.1.205+ |
+| `--append-subagent-system-prompt-file` | CLI flag | `-p` only; file form; cannot combine with the text form; v2.1.261+ |
 
 Load-semantics facts that change how you write:
 

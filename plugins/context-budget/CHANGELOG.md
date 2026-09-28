@@ -5,11 +5,16 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.36] - 2026-09-28
+## [0.6.37] - 2026-09-28
 
 ### Changed
 
-- **Only `deniedMcpServers` removes a managed connector** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The connectors lever no longer lists `allowedMcpServers` as that removal. The managed-settings docs page still states the older allowlist rule. Decision recorded 2026-09-28 from the 2.1.257..2.1.263 changelog apply.
+- **Connectors lever: only `deniedMcpServers` keeps a managed server off**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 259-035).
+  From Claude Code 2.1.259, `allowedMcpServers` governs servers users add; a literal
+  `managed-mcp.json` / `managedMcpServers` entry that an allowlist used to filter out now
+  loads. `connectors-disable` states that and names the docs lag on the managed-mcp page.
+  Verified against the 2.1.259 changelog feed on 2026-09-28.
 
 ## [0.6.35] - 2026-09-28
 

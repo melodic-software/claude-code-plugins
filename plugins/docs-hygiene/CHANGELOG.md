@@ -4,7 +4,12 @@
 
 ### Changed
 
-- **`write-for-agents` names the headless append flags** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The surface table adds `--append-system-prompt-file` and `--append-subagent-system-prompt` / `--append-subagent-system-prompt-file`, each `-p` only. The spec `docs/specs/agent-doc-surfaces.md` carries the same rows.
+- **`write-for-agents` CLI surface table names the file and subagent append flags**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 261-003).
+  `reference/agent-doc-surfaces.md` now lists `--append-system-prompt-file`,
+  `--append-subagent-system-prompt`, and `--append-subagent-system-prompt-file` beside
+  `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
+  `docs/specs/agent-doc-surfaces.md` gains the same rows.
 
 ## [0.23.8] - 2026-09-28
 
