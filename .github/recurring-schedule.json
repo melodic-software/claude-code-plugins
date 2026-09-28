@@ -50,7 +50,7 @@
       "triggers": ["claude-code-release-agents-md"],
       "last_checked": "2026-09-20",
       "next_due": "2026-10-20",
-      "notes": "Run /instruction-placement:migrate cutover-check; the skill defines the graded conditions and prints the evidence for each. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release that touches AGENTS.md handling or instruction-file loading. Comment each run's per-condition output on the open [Maintenance] issue (#4281 is the first instance). When every condition reports met, shim removal (remove-shims, per repo, human-confirmed) is unblocked and this row can be retired.",
+      "notes": "Run /instruction-placement:migrate cutover-check; the skill defines the graded conditions and prints the evidence for each. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release that touches AGENTS.md handling or instruction-file loading. Comment each run's per-condition output on the open [Maintenance] issue (#4281 was the first instance (false-closed when #5160 merged); continue on #5163). When every condition reports met, shim removal (remove-shims, per repo, human-confirmed) is unblocked and this row can be retired.",
       "close_previous": true
     }
   ]

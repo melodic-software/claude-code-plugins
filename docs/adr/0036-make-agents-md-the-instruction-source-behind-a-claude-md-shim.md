@@ -40,8 +40,10 @@ the loading rule itself is the record under "Why the shim stays" in that skill's
 On 2026-09-28 those records were re-derived against Claude Code 2.1.282. The bundle code default
 for `tengu_agents_md_mod` reads true, the env-vars feature-flag list no longer names `AGENTS.md`,
 and from v2.1.280 `/memory` lists a directly read `AGENTS.md`. The decision stands: shims stay
-until every graded condition is `[MET]` across the fleet. This checkout's run is in the same
-records; it names only this repository.
+until every graded condition is `[MET]` across the fleet. The same day's fleet run named the nine
+repositories `gh repo list` could read, recorded in `sources.md` under "Accessible fleet graded
+2026-09-28". Condition 3 did not measure because the CLI was logged out. Five repositories from
+the historical ten on #4281 were not readable from this host.
 
 The shim costs about 55 tokens per session, never makes Claude read the file twice, and loads in
 the conditions that record lists as unavailable for direct reading (stated under "Why the shim
