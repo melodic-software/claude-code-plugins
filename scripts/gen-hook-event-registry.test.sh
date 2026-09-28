@@ -22,10 +22,10 @@ LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
-PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+# shellcheck disable=SC2016  # literal hooks.json path, never expanded here
+PRODUCER='${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
-RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
+RETENTION='${CLAUDE_PLUGIN_ROOT}/hooks/session-retention.sh'
 # new_fixture -> a repo root carrying the real hooks.json with every producer
 # row stripped (so the base is the nine handlers alone) and the lib.
 new_fixture() { # <out-var>
@@ -33,8 +33,10 @@ new_fixture() { # <out-var>
   fixture_tree::build "$1" --plugins || return 1
   dir="${!1}"
   mkdir -p "$dir/plugins/claude-ops/hooks"
-  jq --indent 2 --arg prod "$PRODUCER" '
-    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not)))
+  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" '
+    def is_log: ((.args // []) | index($prod)) != null or .command == $prod or ((.command // "") | endswith("/hooks/session-event-log.sh"));
+    def is_ret: ((.args // []) | index($ret)) != null or .command == $ret or ((.command // "") | endswith("/hooks/session-retention.sh"));
+    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; is_log or is_ret) | not)))
                | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/claude-ops/hooks/hooks.json"
   cp "$LIB" "$dir/plugins/claude-ops/hooks/"
 }
@@ -72,31 +74,29 @@ fi
 for ev in WorktreeCreate MessageDisplay FileChanged PreToolUse PostToolUse; do
   p=$(jq -r --arg e "$ev" '.[] | select(.name == $e) | .producer' "$REG")
   if [[ "$p" == exclude:* ]]; then ok "$ev is excluded ($p)"; else fail "$ev should be excluded, got: $p"; fi
-  rows=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod)] | length' "$HJ")
+  rows=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(((.args // []) | index($prod)) != null)] | length' "$HJ")
   if [[ "$rows" == 0 ]]; then ok "$ev has no producer row in hooks.json"; else fail "$ev has $rows producer rows"; fi
 done
 observed=$(jq '[.[] | select(.producer == "observe")] | length' "$REG")
 if ((observed == 28)); then ok "28 events are observable"; else fail "expected 28 observable events, got $observed"; fi
 
-# One producer row per observable event, with statusMessage, timeout, and the
-# pinned shell: a shell-form row with no `shell` field defaults to PowerShell on
-# a Windows host without Git Bash, where `[ ... ]`, `$VAR` and `exec` all error.
+# One producer row per observable event: node, the option gate, no shell key.
 missing=0
 while IFS= read -r ev; do
-  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod and .shell == "bash" and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
+  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == "node" and ((.args // []) | index($prod)) != null and ((.args // []) | index("--require-true")) != null and ((.args // []) | index("SESSION_EVENT_LOG_ENABLED")) != null and (has("shell") | not) and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
   [[ "$c" == 1 ]] || missing=$((missing + 1))
 done < <(jq -r '.[] | select(.producer == "observe") | .name' "$REG")
-if ((missing == 0)); then ok "every observable event has exactly one producer row, pinned to bash"; else fail "$missing observable events lack their producer row"; fi
+if ((missing == 0)); then ok "every observable event has exactly one exec-form producer row"; else fail "$missing observable events lack their producer row"; fi
 
-ret=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
+ret=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(((.args // []) | index($ret)) != null)] | length' "$HJ")
 if [[ "$ret" == 1 ]]; then ok "SessionEnd carries the retention row once"; else fail "retention rows on SessionEnd: $ret"; fi
-ret_shell=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | .shell' "$HJ")
-if [[ "$ret_shell" == bash ]]; then ok "the retention row is pinned to bash too"; else fail "retention row shell: $ret_shell"; fi
-ret_timeout=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | has("timeout")' "$HJ")
+ret_shell=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(((.args // []) | index($ret)) != null) | has("shell")' "$HJ")
+if [[ "$ret_shell" == false ]]; then ok "the retention row is exec form"; else fail "retention row still sets shell"; fi
+ret_timeout=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(((.args // []) | index($ret)) != null) | has("timeout")' "$HJ")
 if [[ "$ret_timeout" == false ]]; then ok "the retention row carries no timeout (a plugin timeout only lowers the cap)"; else fail "retention row has a timeout"; fi
 
 # The nine existing handlers survive the merge, in order.
-AFTER_HANDLERS=$(jq -S --arg prod "$PRODUCER" --arg ret "$RETENTION" '[.hooks[][] | .hooks[] | select(.command != $prod and .command != $ret) | .command] | sort' "$HJ")
+AFTER_HANDLERS=$(jq -S --arg prod "$PRODUCER" --arg ret "$RETENTION" '[.hooks[][] | .hooks[] | select((((.args // []) | index($prod)) == null) and (((.args // []) | index($ret)) == null) and (((.command // "") | endswith("/hooks/session-event-log.sh")) | not) and (((.command // "") | endswith("/hooks/session-retention.sh")) | not)) | .command] | sort' "$HJ")
 if [[ "$BASE_HANDLERS" == "$AFTER_HANDLERS" ]]; then ok "the existing handlers survive the regeneration"; else fail "existing handlers changed"; fi
 first_key=$(jq -r '.hooks | keys_unsorted[0]' "$HJ")
 if [[ "$first_key" == StopFailure ]]; then ok "existing key order preserved (StopFailure first)"; else fail "first key is $first_key"; fi
@@ -124,8 +124,8 @@ jq --indent 2 --arg old 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh
   '.hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $old, shell: "bash"}]}])' \
   "$HJ" >"$HJ.legacy" && mv "$HJ.legacy" "$HJ"
 bash "$SCRIPT" --from "$TABLE" --root "$f" --as-of 2026-09-05 >/dev/null 2>&1
-gated=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
-legacy=$(jq -r --arg ret "$RETENTION" '[.hooks[][] | .hooks[] | select((.command | endswith("/hooks/session-retention.sh")) and .command != $ret)] | length' "$HJ")
+gated=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(((.args // []) | index($ret)) != null)] | length' "$HJ")
+legacy=$(jq -r '[.hooks[][] | .hooks[] | select((.command // "") | endswith("/hooks/session-retention.sh"))] | length' "$HJ")
 if [[ "$gated" == 1 && "$legacy" == 0 ]]; then
   ok "a legacy ungated retention row regenerates to one gated row"
 else
@@ -169,7 +169,7 @@ out=$(bash "$SCRIPT" --from "$odd" --root "$f" 2>&1)
 if [[ "$out" == *"WARN unknown event 'MysteryEvent'"* ]]; then ok "an unknown event warns"; else fail "no warning for an unknown event: $out"; fi
 p=$(jq -r '.[] | select(.name == "MysteryEvent") | .producer' "$f/plugins/claude-ops/hooks/hook-events.registry.json")
 if [[ "$p" == "exclude: unclassified"* ]]; then ok "an unknown event is excluded"; else fail "unknown event producer: $p"; fi
-rows=$(jq -r --arg prod "$PRODUCER" '[.hooks.MysteryEvent[]? | .hooks[] | select(.command == $prod)] | length' "$f/plugins/claude-ops/hooks/hooks.json")
+rows=$(jq -r --arg prod "$PRODUCER" '[.hooks.MysteryEvent[]? | .hooks[] | select(((.args // []) | index($prod)) != null)] | length' "$f/plugins/claude-ops/hooks/hooks.json")
 if [[ "$rows" == 0 ]]; then ok "an unknown event gets no row"; else fail "unknown event got $rows rows"; fi
 
 test_harness::report
