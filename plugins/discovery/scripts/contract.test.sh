@@ -590,6 +590,35 @@ else
   fail 'the source-applicability checker ships'
 fi
 
+# ---------------------------------------------------------------------------
+# 16. The research verifier is a named, read-only agent the parent dispatches
+#     from a copyable block, and a skip is recorded rather than left pending
+#     (#4231)
+# ---------------------------------------------------------------------------
+verifier='agents/research-verifier.md'
+if [[ -f "$PLUGIN_ROOT/$verifier" ]]; then
+  pass 'the research verifier agent ships'
+  assert_present 'the verifier names an explicit model' "$verifier" '^model: [a-z]'
+  assert_present 'the verifier allowlist holds only read tools' \
+    "$verifier" '^tools: "Read, Grep, Glob, WebFetch, WebSearch"$'
+  assert_present 'the verifier returns the literal verification line' \
+    "$verifier" '^verification_line: "verification: pass \(research-verifier, <YYYY-MM-DD>\)"$'
+else
+  fail 'the research verifier agent ships'
+fi
+assert_present 'SKILL.md carries a copyable verifier dispatch block' \
+  'skills/research/SKILL.md' '^  subagent_type: "discovery:research-verifier",$'
+assert_present 'SKILL.md dispatches the verifier at the gate-printed index path' \
+  'skills/research/SKILL.md' 'Target: <the index= path the artifact gate printed>'
+for file in skills/research/SKILL.md skills/research/context/dispatch.md \
+  skills/research/context/artifact-shape.md; do
+  assert_present "$file records a cost skip as skipped (cost)" "$file" 'verification: skipped \(cost\)|`skipped \(cost\)`'
+done
+assert_present 'the researcher writes verification: pending in its first write' \
+  'agents/researcher.md' 'first write carries `verification: pending`'
+assert_present 'the artifact gate prints the verification value' \
+  'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
