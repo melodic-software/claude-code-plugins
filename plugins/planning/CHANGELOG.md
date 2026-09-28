@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.12] - 2026-09-28
+
+### Added
+
+- **`planning:interview scope` action** ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)):
+  ad hoc scope rounds with ledger + register gate, no `PLAN.md` Brief; returns `Scope decisions:`
+  for callers such as repo-sweep.
+
 ## [0.44.11] - 2026-09-28
 
 ### Added
