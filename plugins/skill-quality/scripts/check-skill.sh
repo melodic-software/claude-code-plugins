@@ -674,6 +674,20 @@ else
     fi
   done
 
+  # Frontmatter `model` is honored for the rest of the current turn. Accept
+  # inherit, an alias or model id, and one optional [1m] suffix. Empty, spaced,
+  # or otherwise non-scalar values are the defect. Auto mode keeping the
+  # session model when the named model is unsupported is runtime behavior,
+  # documented on the skills page, not a second finding here.
+  # Basis: https://code.claude.com/docs/en/skills#frontmatter-reference
+  if grep -qE '^model:' <<<"$FRONTMATTER"; then
+    RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
+    CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
+    if [[ ! "$CUR_MODEL" =~ ^(inherit|[A-Za-z0-9._-]+(\[1[mM]\])?)$ ]]; then
+      err "frontmatter model '$CUR_MODEL' is not inherit, a model alias, or a model id with an optional [1m] suffix"
+    fi
+  fi
+
   # An unquoted ": " in a plain description scalar is a YAML mapping indicator.
   # A quoted scalar or a block scalar may contain it. Claude Code's skills
   # reference: when the YAML between the markers does not parse, the skill

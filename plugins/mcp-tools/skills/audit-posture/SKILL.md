@@ -70,7 +70,8 @@ needed:
   directory.
 
 The output is a TSV: a dated header comment, a column header row (`scope`, `name`, `effective`,
-`transport`, `launcher`, `package`, `pin`, `publisher`, `sandboxed`), one row per server, then
+`transport`, `launcher`, `package`, `pin`, `publisher`, `sandboxed`, `provided_by`), one row per
+server, then
 `# source` lines saying whether each file was `found`, `found-empty` (no server map),
 `absent`, or `skipped` (its server map is a path or a list, as in a plugin manifest; pass the
 file it names as `--config`), and `# not read:` and `# not evaluated:` footer lines. A `package`
@@ -78,6 +79,14 @@ of `-` with pin `unparsed` means the script withheld an argument it could not cl
 Exit 2 names a missing `jq`, an unparsable file, or a server map that is a number or boolean;
 report it and stop. Phase 1 is done when the script has exited 0 and its
 full output is in hand.
+
+`provided_by` is `organization` for a `managedMcpServers` row, `managed-mcp.json` for a server from
+that file, and `-` for a server the user configured. Claim: an organization provides remote MCP
+servers through `managedMcpServers`, and `claude mcp remove` refuses those with a message that the
+server is provided by the organization. Basis:
+<https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings>. As of:
+2026-09-28. Recheck: that section stops attributing the servers to managed settings, or the removal
+error stops naming the organization.
 
 ### Phase 2: Evaluate P1-P5
 

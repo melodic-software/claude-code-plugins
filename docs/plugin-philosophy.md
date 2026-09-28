@@ -288,7 +288,7 @@ re-deriving a row.
 
 | Component | Stance | Rationale and constraints | Verified |
 |---|---|---|---|
-| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`. | 2026-07-17 |
+| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model` (the override lasts for the current turn and is not saved; in auto mode a model auto mode does not support is not used and the session keeps its model; with `context: fork` the value sets the forked subagent's model). `model` verified 2026-09-28 against the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck when that row changes what `model` accepts or when auto mode stops keeping the session model. | 2026-07-17 |
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
@@ -1025,7 +1025,19 @@ unbound subagents rather than an override
 ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
 verified 2026-09-11, recheck when a release note touches subagent model selection;
 `env` applies to every session and spawned subprocess,
-[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10). There is no per-plugin
+[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10).
+
+**Decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** Claim: do not set
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. It forces one model onto every subagent, teammate, and
+workflow agent and ignores per-spawn and definition `model` values, which erases the tier ladder
+above. Basis:
+<https://code.claude.com/docs/en/env-vars> (`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, Claude Code
+v2.1.257 or later) and
+<https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>. As of: 2026-09-28.
+Recheck: that env-vars row stops ignoring definition and per-spawn `model` values, or the
+subagents page stops describing the force switch.
+
+There is no per-plugin
 model surface, because plugin `userConfig` declares only generic typed options with no model semantics
 ([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
 verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
@@ -1047,7 +1059,11 @@ default (`opus[1m]`, an alias): `opus` resolves to Opus 5.5 on the Anthropic API
 ([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
 models overview says to "start with … for most workloads", while Fable 5.1 is among "the most
 capable models in Claude Code", suited to tasks larger than a single sitting rather than to harder
-verdicts at ordinary length. Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
+verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in a Claude apps
+gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
+id
+([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
+verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
 unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
@@ -1229,8 +1245,15 @@ name is not the same underlying value across models):
   consumer must clear rather than a silent cost. The same section independently corroborates the
   no-op corollary above: a change resolving to the level already in effect "skips the dialog and
   keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-10; recheck trigger: a Claude Code release changes the effort-change
-  confirmation flow, or that section is reworded).
+  verified 2026-08-10). Re-read 2026-09-28: on most models that dialog sentence still
+  holds, and each effort level has its own cache. On Opus 5.5 and Fable 5.1, with an API key or a
+  Claude subscription, changing effort keeps the cache and Claude Code applies the new level
+  without asking. The exception does not apply on Amazon Bedrock, Google Cloud's Agent Platform,
+  or a Claude apps gateway, when `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` is set, or when the
+  organization has a HIPAA configuration. Before v2.1.260, Fable 5.1 invalidated the cache too
+  ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
+  fetched 2026-09-28, 45,082 bytes; recheck trigger: that section drops the Opus 5.5 / Fable 5.1
+  exception or changes which providers it excludes).
 
 **Pinned `effort: high` agents (recorded decision, #4253).** Option A: keep the pins. Document
 the operator cost. Do not unpark a funded sweep that drops or lowers them.
