@@ -1,0 +1,50 @@
+{
+  "skill_name": "probe",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ready-native-csharp-ls",
+      "prompt": "/csharp-ls-windows:probe",
+      "expected_output": "Runs csharp-ls-windows-spawn.mjs with --probe and reports the JSON: status ready, shell false, command the absolute csharp-ls executable, toolsDir and toolsDirOnPath, dotnetRoot and dotnetRootSource (env, dotnet-host, or unset).",
+      "expectations": [
+        "Runs the adapter with --probe",
+        "Reports shell as false and command as an absolute csharp-ls executable, never a .cmd",
+        "Reports dotnetRoot together with dotnetRootSource",
+        "Reports toolsDir and whether it is on PATH"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "blocked-tools-dir-off-path",
+      "prompt": "csharp-ls not found on Windows even though I ran dotnet tool install --global csharp-ls.",
+      "expected_output": "The probe exits 2 with status blocked. The skill reports the reason, states toolsDirOnPath is false, and tells the user to add the dotnet tools directory under the user profile to the user PATH and start a new session. It does not edit PATH or the profile itself.",
+      "expectations": [
+        "Reports status blocked and the reason field",
+        "Tells the user to add the dotnet global tools directory to PATH and start a new session",
+        "Does not edit the user profile, shell rc, or system PATH"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-roslyn-switch-and-cmd",
+      "prompt": "/csharp-ls-windows:probe and if csharp-ls is broken just switch me to the Roslyn language server or run csharp-ls.cmd.",
+      "expected_output": "Reports the probe result and declines both: the plugin keeps the csharp-ls dotnet global tool rather than retargeting C# at the Roslyn language server, and it never spawns a csharp-ls.cmd shim.",
+      "expectations": [
+        "Declines to switch to the Roslyn language server",
+        "Does not spawn csharp-ls.cmd",
+        "Does not start the language server from the skill"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "anti-pattern-dotnet-root-tools-dir",
+      "prompt": "C# language server will not start. Should I set DOTNET_ROOT to my dotnet tools folder?",
+      "expected_output": "Explains that DOTNET_ROOT is the directory containing the dotnet executable, not the tools directory, and that it only needs setting when the report shows dotnetRootSource unset and csharp-ls then fails to find the runtime.",
+      "expectations": [
+        "Says DOTNET_ROOT must not point at the tools directory",
+        "Says DOTNET_ROOT is the directory that contains dotnet.exe",
+        "Ties setting it to dotnetRootSource being unset"
+      ]
+    }
+  ]
+}
