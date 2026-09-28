@@ -664,7 +664,7 @@ def model_fill(text: str) -> str:
     for line in text.split("\n"):
         whole = FILL_RE.fullmatch(line.strip())
         if whole and (
-            whole.group(1) in ("goal-rearm", "below-rail")
+            whole.group(1) in ("goal-rearm", "below-rail", "resume-alternate")
             or whole.group(1).endswith("-new")
         ):
             continue
@@ -1463,7 +1463,9 @@ def test_fill_normalizes_a_crlf_value_to_one_break_per_line(tmp_path):
     assert b"\n" not in crlf_data.replace(b"\r\n", b"")
 
 
-@pytest.mark.parametrize("slot", ["goal-rearm", "below-rail", "constraints-new"])
+@pytest.mark.parametrize(
+    "slot", ["goal-rearm", "below-rail", "resume-alternate", "constraints-new"]
+)
 def test_fill_deletes_absent_optional_slot_line(tmp_path, slot):
     target = new_hop2_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
@@ -1490,6 +1492,58 @@ def test_fill_substitutes_a_present_optional_slot(tmp_path):
     assert "<!-- FILL" not in after
     validated = run("validate", str(target), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
+
+
+def test_validate_rejects_a_goal_parked_below_the_rails(tmp_path):
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    text = target.read_text(encoding="utf-8")
+    needle = "Or reopen the producing session in place:"
+    target.write_text(text.replace(needle, "/goal ship overnight\n" + needle, 1), encoding="utf-8")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "first line between the rails, not below them" in out(result)
+
+
+def test_fresh_goal_is_the_first_line_of_the_only_copy_region(tmp_path):
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    payload["goal-rearm"] = "/goal ship the fresh goal"
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    validated = run("validate", str(target), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    emitted = out(run("emit", str(target)))
+    assert emitted.count("`/clear`, then copy everything between the dashed lines:") == 1
+    lines = emitted.splitlines()
+    rails = [i for i, line in enumerate(lines) if line.startswith("─")]
+    assert lines[rails[0] + 1] == "/goal ship the fresh goal"
+    assert lines[rails[0] + 2].startswith("Read @")
+
+
+def test_choice_emits_the_goal_region_before_the_plain_region(tmp_path):
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    payload["goal-rearm"] = "/goal ship the fresh goal"
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    text = target.read_text(encoding="utf-8")
+    section = text.split("## Resume prompt\n", 1)[1]
+    plain = "\n".join(line for line in section.split("\n") if line != "/goal ship the fresh goal")
+    target.write_text(text + plain, encoding="utf-8")
+    validated = run("validate", str(target), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    emitted = out(run("emit", str(target)))
+    assert emitted.count("`/clear`, then copy everything between the dashed lines:") == 2
+    lines = emitted.splitlines()
+    rails = [i for i, line in enumerate(lines) if line.startswith("─")]
+    assert len(rails) == 4
+    assert lines[rails[0] + 1] == "/goal ship the fresh goal"
+    assert lines[rails[2] + 1].startswith("Read @")
+    both = text + section
+    target.write_text(both, encoding="utf-8")
+    rejected = run("validate", str(target), "--strict-transcript")
+    assert rejected.returncode == 1
+    assert "one goal-armed resume and one plain resume" in out(rejected)
 
 
 @pytest.mark.parametrize(
@@ -1763,7 +1817,7 @@ def test_fill_preserves_a_file_with_no_trailing_newline(tmp_path):
     assert data.endswith(b"\n")
     target.write_bytes(data.rstrip(b"\n"))
     payload = required_slots(target.read_text(encoding="utf-8"))
-    payload["below-rail"] = "Re-arm nothing; the loop is retired."
+    payload["resume-alternate"] = "Re-arm nothing; the loop is retired."
     run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
     after = target.read_bytes()
     assert after.endswith(b"the loop is retired.")

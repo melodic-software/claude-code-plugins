@@ -386,6 +386,22 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   conversation with no later stop/completion, not "infer from conversation" prose. When no such call
   is found, omit it and note below the bottom rail: "if a goal was active, prepend
   `/goal <condition>`."
+- **Fresh goal, one paste.** When the user asked this handoff to carry a **new** `/goal`
+  (a condition drafted this session, including one from `/planning:draft-goal-condition`, that is
+  not already an active goal), fill `goal-rearm` with the single line `/goal <condition>`. That
+  is the primary copy region: one paste sets the goal and carries the resume directive. Do not
+  also print the goal below the rails. A `/goal` line that is not the first line between the
+  rails fails `validate`. Before filling, count the condition with
+  `/planning:draft-goal-condition`'s counter against the live limit that skill reads from the
+  official `/goal` page. This engine does not bake that number. A condition that does not fit is
+  not placed on the first line.
+- **Choosing between two pastes.** When the user asked to see both a plain resume and a
+  goal-armed one, the region matching their stated intent stays first (a requested goal wins).
+  Fill `resume-alternate` with the other option as a complete second copy region: the copy
+  instruction, two rails, the prompt, and its `claude --resume` line. `emit` prints both, intent
+  first. `find-handoff` recovers the whole `## Resume prompt` section, so both regions come back
+  and the first one is first. Omit `resume-alternate` when there is only one paste. The two
+  regions must be one goal-armed resume and one plain resume; `validate` rejects two of a kind.
 - **Loop-aware re-arm:** running under `/loop` means this session's own
   `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, or
   a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent

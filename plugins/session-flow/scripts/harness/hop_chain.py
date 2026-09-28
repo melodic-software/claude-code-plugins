@@ -295,7 +295,7 @@ def parse_iso(stamp: str) -> float | None:
 # 20-hop chain and what lets `--dry-run` hand `emit` and `validate` a real file.
 
 
-DELETED_SLOTS = ("goal-rearm", "below-rail")
+DELETED_SLOTS = ("goal-rearm", "below-rail", "resume-alternate")
 CUMULATIVE_SLOTS = ("constraints", "side-effects", "decisions", "abandoned", "findings")
 PADDED_SLOTS = (
     "brief",

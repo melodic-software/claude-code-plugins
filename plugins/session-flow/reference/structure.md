@@ -553,7 +553,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
 #    next slot and the cumulative slots need. Leave an optional slot out
-#    (goal-rearm, below-rail, <section>-new) and fill deletes its line. For a
+#    (goal-rearm, below-rail, resume-alternate, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem

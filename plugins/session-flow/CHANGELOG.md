@@ -1,5 +1,14 @@
 # Changelog: session-flow plugin
 
+## [0.38.23] - 2026-09-28
+
+### Added
+
+- **`handoff` can deliver a new `/goal` inside the resume rails (#4337).** Fill `goal-rearm`
+  with `/goal <condition>` when the user asked for a fresh goal, so one paste sets the goal and
+  carries the resume. A `/goal` line below the rails fails `validate`. When the user asked to
+  choose, `resume-alternate` is a second copy region and the intent-matching region stays first.
+
 ## [0.38.22] - 2026-09-28
 
 ### Changed

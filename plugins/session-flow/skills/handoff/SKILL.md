@@ -53,6 +53,16 @@ save-point engine, different delivery.
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
 
+**Fresh `/goal`.** Not a positional token. When the user asked this handoff to carry a new
+`/goal`, fill `goal-rearm` with `/goal <condition>` so that line is the first line of the one
+copy region. Do not park the goal below the rails, and do not print a second unrailed resume.
+Count the condition with `/planning:draft-goal-condition`'s counter against the live limit that
+skill reads; this skill does not memorize the number. When the user asked to choose, the region
+matching that request stays first and `resume-alternate` holds the other option as its own copy
+region (copy instruction and rails). A requested goal wins the first region. Omit
+`resume-alternate` when there is only one paste. The engine doc owns the shape ("Fresh goal, one
+paste" and "Choosing between two pastes").
+
 ## Hard rule. Handoff terminates the current execution
 
 The point of `/session-flow:handoff` is `/clear` plus a fresh-session resume. The skill produces
@@ -296,8 +306,10 @@ ticked. Emit the rails block before ending the turn, always.
   forward-slash-normalized path, never the bare `<memory_dir>/handoffs/…` segment, which resolves
   against the resuming session's cwd, and carries the invoke-the-skill sentence; the
   `Handoff origin:` line names the repository (a remote URL with its userinfo credential stripped)
-  and repo-relative path a different machine re-resolves from; `/goal` first line if a goal is
-  active; a below-the-rails note re-arming EVERY surviving loop, one
+  and repo-relative path a different machine re-resolves from; `/goal` first line when a goal is
+  active or the user asked for a new one, and that line is inside the rails, never below them;
+  when the user asked to choose, the intent-matching region is first and the other is a second
+  railed region; a below-the-rails note re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
@@ -326,7 +338,9 @@ ticked. Emit the rails block before ending the turn, always.
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
   purpose given → nothing to tick
 - [ ] Self-contained resume prompt between dashed rails. Remaining-work bullets inline
-- [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
+- [ ] Copy instruction above the rails; `/goal` first line when a goal is active or the user asked
+  for a new one, inside the rails; when they asked to choose, that region is first and the other
+  option is a second railed region; a below-the-rails
   note re-arming EVERY surviving loop, one `/loop [<interval>] <original prompt>` line per loop,
   each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover

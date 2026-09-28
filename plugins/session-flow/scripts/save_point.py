@@ -561,10 +561,39 @@ def _resolve_transcript(session_id: str, projects_root: Path) -> str:
     )
 
 
+def _opens_goal(segment: list[str]) -> bool | None:
+    rails = [i for i, line in enumerate(segment) if RAIL_RE.match(line.strip())]
+    if len(rails) != 2:
+        return None
+    between = [line.strip() for line in segment[rails[0] + 1 : rails[1]] if line.strip()]
+    return bool(between) and between[0].startswith("/goal ")
+
+
 def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     body = doc.section("Resume prompt")
     if body is None:
         return
+    copies = [i for i, line in enumerate(body) if line.strip() == COPY_LINE]
+    if len(copies) > 2:
+        f.fail(
+            f"Resume prompt: at most two copy regions (found {len(copies)} copy instructions)"
+        )
+        return
+    if len(copies) <= 1:
+        _check_one_copy_region(doc, body, f, session_id, "Resume prompt")
+        return
+    first, second = body[: copies[1]], body[copies[1] :]
+    _check_one_copy_region(doc, first, f, session_id, "Resume prompt")
+    _check_one_copy_region(doc, second, f, session_id, "Resume prompt alternate")
+    primary = _opens_goal(first)
+    alternate = _opens_goal(second)
+    if primary is not None and alternate is not None and primary == alternate:
+        f.fail(
+            "Resume prompt: the two copy regions must be one goal-armed resume and one plain resume"
+        )
+
+
+def _check_one_copy_region(doc: Doc, body: list[str], f: Findings, session_id: str, label: str) -> None:
     rails = [i for i, line in enumerate(body) if RAIL_RE.match(line.strip())]
     ascii_rails = [
         i for i, line in enumerate(body) if ASCII_RAIL_RE.match(line.strip())
@@ -575,23 +604,23 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
             detail += (
                 f", plus {len(ascii_rails)} ASCII rail line(s); rails are U+2500 only"
             )
-        f.fail(f"Resume prompt: exactly two U+2500 rails required ({detail})")
+        f.fail(f"{label}: exactly two U+2500 rails required ({detail})")
         return
     top, bottom = rails
     if not any(line.strip() == COPY_LINE for line in body[:top]):
         f.fail(
-            f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the top rail"
+            f"{label}: copy instruction line {COPY_LINE!r} missing above the top rail"
         )
     between = body[top + 1 : bottom]
     if any(not line.strip() for line in between):
-        f.fail("Resume prompt: blank line between the rails")
+        f.fail(f"{label}: blank line between the rails")
     between = [line for line in between if line.strip()]
     pos = 0
     if between and between[0].startswith("/goal "):
         pos = 1
     if pos >= len(between) or not between[pos].startswith("Read @"):
         f.fail(
-            "Resume prompt: first line between the rails (after an optional /goal) must be the 'Read @' directive"
+            f"{label}: first line between the rails (after an optional /goal) must be the 'Read @' directive"
         )
         return
     directive = between[pos]
@@ -600,7 +629,7 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
         path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)
     ):
         f.fail(
-            f"Resume prompt: 'Read @' path must be absolute and forward-slash (got {path_part!r})"
+            f"{label}: 'Read @' path must be absolute and forward-slash (got {path_part!r})"
         )
     elif not _same_file(path_part, doc.path):
         # A stored path naming this file's own basename under another directory
@@ -611,27 +640,27 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
         # different save-point.
         if path_part.rsplit("/", 1)[-1] == doc.basename:
             f.warn(
-                f"Resume prompt: 'Read @' path {path_part!r} names this file's basename under another directory; this file is {_posix(doc.path)} (relocated chain; emit substitutes the real path)"
+                f"{label}: 'Read @' path {path_part!r} names this file's basename under another directory; this file is {_posix(doc.path)} (relocated chain; emit substitutes the real path)"
             )
         else:
             f.fail(
-                f"Resume prompt: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})"
+                f"{label}: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})"
             )
     if DIRECTIVE_CLAUSE not in directive:
-        f.fail(f"Resume prompt: directive lacks the clause {DIRECTIVE_CLAUSE!r}")
+        f.fail(f"{label}: directive lacks the clause {DIRECTIVE_CLAUSE!r}")
     pos += 1
     if pos >= len(between) or not (m := PRIOR_SESSION_RE.match(between[pos])):
         f.fail(
-            "Resume prompt: 'Prior session: <UUID>.' line missing after the directive"
+            f"{label}: 'Prior session: <UUID>.' line missing after the directive"
         )
         return
     if m.group(1).lower() != session_id.lower():
         f.fail(
-            f"Resume prompt: 'Prior session:' {m.group(1)} differs from session_id {session_id}"
+            f"{label}: 'Prior session:' {m.group(1)} differs from session_id {session_id}"
         )
     pos += 1
     if pos >= len(between) or not between[pos].startswith("Handoff origin: "):
-        f.fail("Resume prompt: 'Handoff origin:' line missing after 'Prior session:'")
+        f.fail(f"{label}: 'Handoff origin:' line missing after 'Prior session:'")
         return
     try:
         slots = shlex.split(between[pos][len("Handoff origin: ") :], posix=True)
@@ -639,52 +668,62 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
         slots = []
     if len(slots) != 2:
         f.fail(
-            f"Resume prompt: 'Handoff origin:' must carry exactly two slots (found {len(slots)})"
+            f"{label}: 'Handoff origin:' must carry exactly two slots (found {len(slots)})"
         )
     pos += 1
     if pos >= len(between) or not between[pos].startswith("Next:"):
-        f.fail("Resume prompt: 'Next:' line missing after 'Handoff origin:'")
+        f.fail(f"{label}: 'Next:' line missing after 'Handoff origin:'")
         return
     next_line = between[pos]
     headlines = between[pos + 1 :]
     if next_line == NEXT_CLOSED:
         if headlines:
             f.fail(
-                f"Resume prompt: {NEXT_CLOSED!r} admits no headline lines (found {len(headlines)})"
+                f"{label}: {NEXT_CLOSED!r} admits no headline lines (found {len(headlines)})"
             )
     elif next_line.strip() != "Next:":
         f.fail(
-            f"Resume prompt: 'Next:' must be bare or exactly {NEXT_CLOSED!r} (got {next_line!r})"
+            f"{label}: 'Next:' must be bare or exactly {NEXT_CLOSED!r} (got {next_line!r})"
         )
     else:
         if not headlines:
-            f.fail("Resume prompt: 'Next:' needs 1 to 5 headline lines")
+            f.fail(f"{label}: 'Next:' needs 1 to 5 headline lines")
         if len(headlines) > NEXT_MAX:
             f.fail(
-                f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})"
+                f"{label}: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})"
             )
         for line in headlines:
             # Headlines are bare lines: a bullet reads as a list in the pasted
             # prompt, and the contract refuses it.
             if BULLET_RE.match(line):
                 f.fail(
-                    f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})"
+                    f"{label}: 'Next:' headline must not be a bullet (got {line!r})"
                 )
         thens = [i for i, line in enumerate(headlines) if line.startswith("Then:")]
         if len(thens) > 1:
-            f.fail("Resume prompt: at most one 'Then: /<skill>' line")
+            f.fail(f"{label}: at most one 'Then: /<skill>' line")
         elif thens and thens[0] != len(headlines) - 1:
             f.fail(
-                "Resume prompt: 'Then: /<skill>' must be the last line between the rails"
+                f"{label}: 'Then: /<skill>' must be the last line between the rails"
             )
         for i in thens:
             if not THEN_RE.match(headlines[i]):
                 f.fail(
-                    f"Resume prompt: 'Then:' must name exactly one skill as /<skill> (got {headlines[i]!r})"
+                    f"{label}: 'Then:' must name exactly one skill as /<skill> (got {headlines[i]!r})"
                 )
+    opens_goal = bool(between) and between[0].startswith("/goal ")
+    stray_goal = [
+        line
+        for line in [*between[1:], *body[bottom + 1 :]]
+        if line.strip().startswith("/goal ")
+    ]
+    if (not opens_goal and any(line.strip().startswith("/goal ") for line in between)) or stray_goal:
+        f.fail(
+            f"{label}: a /goal line belongs as the first line between the rails, not below them"
+        )
     resume_line = f"claude --resume {session_id}"
     if not any(resume_line in line for line in body[bottom + 1 :]):
-        f.fail(f"Resume prompt: below-rail line carrying {resume_line!r} missing")
+        f.fail(f"{label}: below-rail line carrying {resume_line!r} missing")
 
 
 def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
@@ -1584,7 +1623,7 @@ def build_skeleton(
             RAIL,
             _fill(
                 "goal-rearm",
-                "optional: when a /goal is active this session, replace this line with '/goal <condition>' as the FIRST line between the rails; otherwise delete this line",
+                "optional: when a /goal is active this session, or the user asked this handoff to carry a new /goal, replace this line with '/goal <condition>' as the FIRST line between the rails; otherwise delete this line",
             ),
             f"Read @{read_path}, {DIRECTIVE_TAIL}",
             f"Prior session: {session_id}.",
@@ -1599,7 +1638,11 @@ def build_skeleton(
             f"Or reopen the producing session in place: `claude --resume {session_id}`.",
             _fill(
                 "below-rail",
-                "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
+                "optional: the /loop re-arm notes save-point.md prescribes below the bottom rail; a /goal line does not belong here; delete this line when none applies",
+            ),
+            _fill(
+                "resume-alternate",
+                "optional: when the user asked to choose between a plain resume and a goal-armed one, replace this line with the other option as a full second copy region (copy instruction, two rails, the prompt, and its claude --resume line); the option matching their stated intent stays in the region above; otherwise delete this line",
             ),
         ],
     )

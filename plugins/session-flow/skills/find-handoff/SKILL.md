@@ -76,7 +76,10 @@ legacy form `Handoff origin: <identity>, relative path <path>.`.
 back the prompt from the file alone, without a transcript
 (`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py emit <file>`; see rung 1). A `type: handoff` file
 that still carries a `<!-- FILL` slot is an unfinished skeleton the producer never completed; it
-is named as such and never presented as the lost handoff.
+is named as such and never presented as the lost handoff. A section may hold two copy regions
+when the producer offered a choice. The first matches the user's stated intent. `emit` prints the
+whole section, so recovery surfaces both, first first. Detection still keys on the rails and the
+`Read @` directive.
 
 **The resume prompt this skill recovers is the rails block PLUS every below-rail `/loop` re-arm
 message** (save-point.md "Detection contract"). Everything else the producer arms lives between the
