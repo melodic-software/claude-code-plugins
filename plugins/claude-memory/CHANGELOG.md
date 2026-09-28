@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.7] - 2026-09-28
+
+### Fixed
+
+- **`lib/managed-scope.sh` matches the claude-config canonical copy** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Server-managed settings are cached at `~/.claude/remote-settings.json`. The failure read is the Organization policy line in `/status`. Cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings), [managed settings](https://code.claude.com/docs/en/managed-settings)).
+
 ## [0.13.6] - 2026-09-28
 
 ### Fixed
