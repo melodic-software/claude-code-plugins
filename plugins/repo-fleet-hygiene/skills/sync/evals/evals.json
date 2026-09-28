@@ -1,0 +1,15 @@
+{
+  "skill_name": "sync",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-is-a-dry-run",
+      "prompt": "/repo-fleet-hygiene:sync --repo /tmp/example-checkout",
+      "expected_output": "The skill runs sync-fleet.sh without --apply. It prints a plan and does not switch branches, pull, or create a worktree.",
+      "expectations": [
+        "Does not pass --apply",
+        "Reports the plan rather than mutating the checkout"
+      ]
+    }
+  ]
+}
