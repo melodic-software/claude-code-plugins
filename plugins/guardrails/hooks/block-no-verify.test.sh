@@ -249,8 +249,8 @@ run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
 # An EXPANDABLE `@"` body is a different shape from the verbatim `@'` body above:
 # `$( … )` inside it is a command position evaluated where it is written, and the
 # body is dropped at intake, so no git-freedom proof can be taken over what is
-# left. This guard carries no allow-list, so it is the one that still refuses the
-# class after `block-noncanonical-commit` defers it.
+# left. With block_no_verify_allow empty (the default), this guard is the one
+# that still refuses the class after `block-noncanonical-commit` defers it.
 run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")" 2
 # The `readonly-ok` relief this guard passes to the classifier does not reach the
@@ -260,11 +260,11 @@ run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fai
 run_pwsh "PS: expandable here-string body running read-only git (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
 # The harshest consequence of that acceptance, pinned where it actually lands: a
-# command naming no git at all is refused here, and this guard consults no
-# allow-list, so nothing narrower than its own kill switch relieves it.
-# block-dangerous-git takes ps-unparsable-herestring-subexpr; this one takes
-# nothing. Pinned so a later narrowing flips a case instead of passing silently.
-run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no allow token here)" \
+# command naming no git at all is refused here. Since #4235 the
+# ps-unparsable-herestring-subexpr token relieves it, as it does in
+# block-dangerous-git; with no token set it still refuses. Pinned so a later
+# narrowing flips a case instead of passing silently.
+run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no allow token set)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
@@ -274,8 +274,8 @@ run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commi
 # and drops that command as here-string body. Measured on the base through this
 # hook: rc 0, with the bypass never seen. A `#` anywhere on a CONFIRMED opener
 # line, before the two-character suffix, now refuses the shape, on a plain
-# substring test of the raw line with no quote pairing. This guard consults no
-# allow-list, so the refusal here is final.
+# substring test of the raw line with no quote pairing. No block_no_verify_allow
+# token exists for the shape, so the refusal here is final.
 run_pwsh "PS: --no-verify recovered from behind a commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
 run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
@@ -493,6 +493,27 @@ run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
   "& { git merge-tree --write-tree main HEAD }" 0
 run_pwsh "PS: git count-objects (interrogator, allowed)" "& { git count-objects -v }" 0
 run_pwsh "PS: git for-each-ref (interrogator, allowed)" "& { git for-each-ref refs/heads }" 0
+# Dual-mode `remote` and `stash` are argument-aware (#4235): their read-only
+# spellings pass, their mutating verbs still block, and a mutating verb anywhere
+# in the command still blocks the whole of it.
+run_pwsh "PS: git remote -v in scriptblock (read-only, allowed — #4235)" "& { git remote -v }" 0
+run_pwsh "PS: git remote --verbose (read-only, allowed — #4235)" "& { git remote --verbose }" 0
+run_pwsh "PS: bare git remote (read-only, allowed — #4235)" "& { git remote }" 0
+run_pwsh "PS: git remote show origin (read-only, allowed — #4235)" "& { git remote show origin }" 0
+run_pwsh "PS: git remote get-url origin (read-only, allowed — #4235)" \
+  "& { git remote get-url origin }" 0
+run_pwsh "PS: git stash list (read-only, allowed — #4235)" "& { git stash list }" 0
+run_pwsh "PS: git stash show (read-only, allowed — #4235)" "& { git stash show -p }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: the reported read-only foreach loop (allowed — #4235)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; \"== \$d\"; git -C \$p remote -v; git -C \$p status --short --branch | Select-Object -First 8; git -C \$p log --oneline -3; git -C \$p stash list }" 0
+run_pwsh "PS: git remote add (remote config write, blocked — #4235)" "& { git remote add x y }" 2
+run_pwsh "PS: git stash pop (worktree write, blocked — #4235)" "& { git stash pop }" 2
+run_pwsh "PS: git stash drop (destroys a stash, blocked — #4235)" "& { git stash drop }" 2
+run_pwsh "PS: -v before a mutating remote verb (blocked — #4235)" "& { git remote -v rename a b }" 2
+run_pwsh "PS: read-only remote beside a mutating one (blocked — #4235)" \
+  "& { git remote -v; git remote add x y }" 2
+run_pwsh "PS: stash list beside stash drop (blocked — #4235)" "& { git stash list; git stash drop }" 2
 # Dynamic-invocation regressions: iex / string-literal call run an opaque string,
 # so a construct-free form must still route to the fail-closed sink (it otherwise
 # reached the Bash parser, which sees `iex`, not git, and passed).
@@ -623,6 +644,35 @@ assert_absent "PS msg #2662: iex headline does not say 'PowerShell git command'"
 stop_nov_out="$(pwsh_stderr 'git --% commit --no-verify')"
 assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
   "$stop_nov_out" "cannot be parsed with confidence"
+
+# --- #4235: denial text fits the command, and a narrow lever exists ------------
+nocommit_out="$(pwsh_stderr '& { git push; git remote add x y }')"
+assert_absent "PS msg #4235: no commit token, no commit-form text" \
+  "$nocommit_out" "canonical PowerShell commit form"
+assert_contains "PS msg #4235: the trigger line leads with the in-PowerShell rewrite" \
+  "$nocommit_out" "unroll a loop or script block into flat statements"
+assert_contains "PS msg #4235: the grantable trigger names its allow token" \
+  "$nocommit_out" "block_no_verify_allow option (add ps-unparsable-special-construct)"
+commit_out="$(pwsh_stderr '& { git commit -m x }')"
+assert_contains "PS msg #4235: a commit token keeps the commit-form text" \
+  "$commit_out" "canonical PowerShell commit form"
+case "$nocommit_out" in
+*"unroll a loop"*"via the Bash tool"*) ok "PS msg #4235: the rewrite precedes the Bash-tool suggestion" ;;
+*) bad "PS msg #4235: the rewrite precedes the Bash-tool suggestion" ;;
+esac
+
+expect "PS #4235: the special-construct token sets aside the block (allowed)" 0 \
+  --tool PowerShell --command '& { git push }' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-special-construct
+expect "PS #4235: a visible --no-verify beside the granted region still blocks" 2 \
+  --tool PowerShell --command '& { git push }; git commit --no-verify -m x' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-special-construct
+expect "PS #4235: an unrelated token does not open the special-construct sink" 2 \
+  --tool PowerShell --command '& { git push }' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-launcher
+expect "PS #4235: the commented-opener shape has no token and still blocks" 2 \
+  --tool PowerShell --command "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW=ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr
 
 malformed_rc=0
 bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?

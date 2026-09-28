@@ -37,6 +37,12 @@
       "description": "Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set: lefthook/husky/pre-commit/simple-git-hooks by default)",
       "default": true
     },
+    "block_no_verify_allow": {
+      "type": "string",
+      "title": "block-no-verify allow-list",
+      "description": "Comma-separated PowerShell fail-closed sink shapes block-no-verify sets aside: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr. A granted shape's region is blanked and the rest is still checked, so a visible --no-verify still blocks; a command still unreadable after five granted rounds is refused whatever the list holds; empty blocks all",
+      "default": ""
+    },
     "block_dangerous_git_enabled": {
       "type": "boolean",
       "title": "block-dangerous-git guard",
@@ -153,5 +159,5 @@
       "min": 1
     }
   },
-  "version": "0.41.3"
+  "version": "0.42.0"
 }

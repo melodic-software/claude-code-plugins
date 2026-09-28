@@ -28,7 +28,10 @@
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
 # sandbox. The ONLY supported deliberate bypass is the kill switch
-# (block_no_verify_enabled userConfig option set to false).
+# (block_no_verify_enabled userConfig option set to false). The
+# block_no_verify_allow option is not a bypass: its ps-unparsable-* tokens only
+# set aside a PowerShell region the guard cannot read, and the rest is still
+# checked.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -136,6 +139,14 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
+
+# The PowerShell sink allow-list (block_no_verify_allow): ps-unparsable-<trigger>
+# tokens only. No bypass form is allowlistable here, so a token can set aside an
+# unreadable region but never wave through a visible --no-verify.
+allowed() {
+  local tok="$1" list=",${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW:-},"
+  [[ "$list" == *,"$tok",* ]]
+}
 
 SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
@@ -293,17 +304,46 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
-  case $? in
-  2)
-    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
-      PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
+  _ps_rc=$?
+  _ps_sink_attempts=0
+  # The sink allow-list (#4235), block-dangerous-git's loop narrowed to this
+  # guard: a granted ps-unparsable-<trigger> token blanks that opaque region and
+  # re-classifies the rest, so a visible `git commit --no-verify` beside it is
+  # still read. The here-string comment-char shape and an exhausted budget are
+  # refused with no token, for the reasons argued at that loop.
+  while ((_ps_rc == 2)); do
+    if ((_ps_sink_attempts > 4)); then
+      echo "BLOCKED: this PowerShell command still cannot be parsed with confidence after five rounds of setting aside allowed sink shapes — blocked (fail-closed)." >&2
+      echo "No allow token clears this. Split the command into smaller ones, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+      emit_tel "blocked" "powershell-unparsable-budget-exhausted"
+      exit 2
     fi
-    ps::print_unparsable_block_message
-    # The trigger rides along in the form token: five distinct shapes reach this
-    # sink, and one collapsed token cannot show which of them is over-blocking.
-    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
-    exit 2
-    ;;
+    _ps_grantable=0
+    case "${PS_SINK_TRIGGER:-}" in
+    dynamic-invocation | launcher | special-construct | herestring-unbalanced | herestring-subexpr)
+      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) || _ps_grantable=1
+      ;;
+    *) ;;
+    esac
+    if ((!_ps_grantable)) || ! allowed "ps-unparsable-$PS_SINK_TRIGGER"; then
+      ((PS_HERESTRING_OPENER_COMMENT_CHAR)) && PS_SINK_TRIGGER="herestring-comment-char"
+      ps::print_unparsable_block_message "$COMMAND"
+      # The trigger rides along in the form token: five distinct shapes reach this
+      # sink, and one collapsed token cannot show which of them is over-blocking.
+      emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
+      exit 2
+    fi
+    ps::blank_sink_opaque_regions "$COMMAND" "$PS_SINK_TRIGGER"
+    COMMAND="$PS_SAFE_COMMAND"
+    if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
+      emit_tel "ok" ""
+      exit 0
+    fi
+    _ps_sink_attempts=$((_ps_sink_attempts + 1))
+    ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
+    _ps_rc=$?
+  done
+  case $_ps_rc in
   1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct — not this guard's proven surface
   *) COMMAND="$PS_SAFE_COMMAND" ;;
   esac

@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0] - 2026-09-28
+
+### Added
+
+- **`block_no_verify_allow` userConfig option** ([#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235)). `block-no-verify`'s only lever for a false positive on the PowerShell fail-closed sink was its user-global kill switch. It now takes the same `ps-unparsable-*` sink tokens as `block_dangerous_git_allow` (`dynamic-invocation`, `launcher`, `special-construct`, `herestring-unbalanced`, `herestring-subexpr`). A granted token blanks that unreadable region and the rest is re-checked, so `& { git push }; git commit --no-verify -m x` still blocks with `ps-unparsable-special-construct` set. The commented here-string opener has no token, and a command still unreadable after five granted rounds is refused.
+
+### Fixed
+
+- **Read-only git inside PowerShell `{}` / `()` no longer trips two guards** ([#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235)). `foreach ($d in 'a','b') { git -C $p remote -v; git -C $p status --short; git -C $p log --oneline -3; git -C $p stash list }` was blocked by both `block-no-verify` and `block-dangerous-git`. `ps::git_command_is_readonly` listed `remote` and `stash` as mutating stems with no regard to their argument; it now cuts `remote` alone, `remote -v`/`--verbose` ending the statement, `remote show`, `remote get-url`, `stash list` and `stash show` before the blocklist runs, while `remote add`, `remote -v rename`, `stash pop` and `stash drop` still block. `block-dangerous-git` consulted no read-only test at all; it now uses a new `interrogation-ok` sink scope backed by `ps::git_command_is_interrogation_only`, an allowlist of built-in interrogators read off the argv. The allowlist closes the blocklist's three documented residuals rather than inheriting them: an assembled or variable subcommand, an alias such as `git co`, and `-c <config>`, `--exec-path` or `$env:GIT_*` all still block, as does a quoted `'git'` call target or an `iex` anywhere in the command. `grep`, `ls-remote`, `fetch` and `help` are left off because each can run a named program.
+- **PowerShell sink denials fit the command** ([#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235)). The canonical commit form is printed only when the refused command carries a `commit` token, the `special-construct` trigger line leads with the in-PowerShell rewrite (unroll a loop or block into flat statements, join backtick-continued lines) before the Bash-tool suggestion, and a grantable trigger names its `block_no_verify_allow` token.
+
 ## [0.41.3] - 2026-09-28
 
 ### Changed

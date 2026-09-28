@@ -1204,6 +1204,42 @@ assert_contains "PS msg #2662: genuine unparsable-git path keeps cannot-parse cl
 assert_contains "PS msg #2662: genuine unparsable-git path names could-reach-git" \
   "$stop_out" "could reach git"
 
+# --- #4235: interrogation-only git passes the sink (SECURITY) -----------------
+# This guard reads an ALLOWLIST (ps::git_command_is_interrogation_only), not the
+# readonly blocklist, so the blocklist's three residuals (obscured subcommand,
+# alias, `-c`/env execution) stay blocked while a routine read-only loop passes.
+# shellcheck disable=SC2016  # literal PowerShell variables in the payloads
+{
+  run_pwsh "PS #4235: the reported read-only foreach loop (allowed)" \
+    "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; \"== \$d\"; git -C \$p remote -v; git -C \$p status --short --branch | Select-Object -First 8; git -C \$p log --oneline -3; git -C \$p stash list }" 0
+  run_pwsh "PS #4235: remote show / get-url / stash show in a block (allowed)" \
+    '& { git remote show origin; git remote get-url origin; git stash show; git remote }' 0
+  run_pwsh "PS #4235: --no-pager and -C before the interrogator (allowed)" \
+    '& { git --no-pager -C $p diff --stat }' 0
+  run_pwsh "PS #4235: destructive sibling of an interrogator (blocked)" \
+    '& { git status; git reset --hard }' 2
+  run_pwsh "PS #4235: obscured subcommand (blocked)" \
+    "& { git ('cle'+'an') -fdx }" 2
+  run_pwsh "PS #4235: variable subcommand (blocked)" \
+    '& { git $sub -fdx }' 2
+  run_pwsh "PS #4235: alias is not on the allowlist (blocked)" \
+    '& { git co main }' 2
+  run_pwsh "PS #4235: -c config override stops the walk (blocked)" \
+    '& { git -c core.pager=./x log }' 2
+  run_pwsh "PS #4235: \$env:GIT_* beside a read (blocked)" \
+    '& { $env:GIT_PAGER="./x"; git log }' 2
+  run_pwsh "PS #4235: quoted git call target (blocked)" \
+    "& { & 'git' reset --hard }" 2
+  run_pwsh "PS #4235: iex sibling of an interrogator (blocked)" \
+    '& { git status }; iex "git reset --hard"' 2
+  run_pwsh "PS #4235: remote -v before a mutating remote verb (blocked)" \
+    '& { git remote -v rename a b }' 2
+  run_pwsh "PS #4235: remote add / stash pop are not interrogators (blocked)" \
+    '& { git remote add x y; git stash pop }' 2
+  run_pwsh "PS #4235: grep is left off the allowlist (blocked)" \
+    '& { git grep -O./x needle }' 2
+}
+
 # --- #2664: sink-shape allow-list tokens narrow the PS fail-closed branch ------
 # Distinct from destructive-form tokens so an existing allow value cannot silently
 # open the sink. Matching shape allows; unrelated form token does not.
@@ -1273,7 +1309,9 @@ run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
 
 # Counterexamples: every one keeps the quote-intact probe and stays blocked.
 run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
-  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+  "git reset --hard; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: bare git status beside a comparison takes the interrogation relief (#4235)" \
+  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 0
 run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
   "Start-Process 'git' reset --hard; Get-Process | Where-Object { \$_.Name -eq 'x' }" 2
 run_pwsh "PS cmp: saps 'git' is a call target, not an operand (blocked)" \

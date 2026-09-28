@@ -1402,7 +1402,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
-  ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+  ps::classify_git_command "$TOOL_NAME" "$COMMAND" "interrogation-ok"
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
@@ -1463,7 +1463,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       exit 0
     fi
     _ps_sink_attempts=$((_ps_sink_attempts + 1))
-    ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+    ps::classify_git_command "$TOOL_NAME" "$COMMAND" "interrogation-ok"
     _ps_rc=$?
   done
   case $_ps_rc in

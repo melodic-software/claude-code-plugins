@@ -1581,13 +1581,30 @@ ps::might_invoke_git() {
 # read-only iff every git occurrence is followed by a known interrogator — which
 # is a redesign of the #1415 allowance, not a widening of this list. Until then
 # this narrows the sink on a best-effort basis and is never the only thing between
-# a destructive form and the repository: the DEFAULT `mutating` sink scope (what
-# block-dangerous-git uses) does not consult this function at all.
+# a destructive form and the repository: block-dangerous-git never consults this
+# function, and its `interrogation-ok` scope reads the allowlist in
+# ps::git_command_is_interrogation_only instead (#4235).
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
   # Same command-position git probe as ps::might_invoke_git (#2592).
   [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
+  # ARGUMENT-AWARE READ-ONLY FORMS OF TWO DUAL-MODE STEMS (#4235). `remote` and
+  # `stash` stay listed below because each has mutating modes, but these
+  # spellings only read, and cutting them out first is what lets a routine
+  # `git remote -v` or `git stash list` inside a loop through:
+  #   `remote` alone, or `remote -v` / `remote --verbose`, each ending the
+  #   statement. `-v` may also sit BEFORE a subcommand (`git remote -v rename a
+  #   b`), so it is cut only when nothing follows it;
+  #   `remote show` and `remote get-url`, whose operands are remote names;
+  #   `stash list` and `stash show`.
+  # Only the verb is cut, never its operands, so `git remote show prune` keeps
+  # `prune` for the tests below. A mutating form elsewhere in the same command
+  # (`git remote -v; git remote add x y`, `git stash list; git stash drop`) still
+  # leaves its stem behind and still blocks.
+  while [[ "$lc" =~ (^|[^[:alnum:]_.-])(remote([[:space:]]+(-v|--verbose))?[[:space:]]*([\;\|\}\)]|$)|remote[[:space:]]+(show|get-url)|stash[[:space:]]+(list|show))([^[:alnum:]_.-]|$) ]]; do
+    lc="${lc/"${BASH_REMATCH[0]}"/ }"
+  done
   # Mutating subcommands, alphabetical, split across six tests purely for
   # reviewability. Each alternation stays a LITERAL in pattern position — never a
   # variable spliced into the pattern (see the call-target note above for why a
@@ -1606,6 +1623,110 @@ ps::git_command_is_readonly() {
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(replace|rerere|reset|restore|revert|rm|send-pack|sparse-checkout|stage|stash)([^[:alnum:]_.-]|$) ]] && return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(submodule|subtree|svn|switch|symbolic-ref|tag|update-index|update-ref|update-server-info|worktree)([^[:alnum:]_.-]|$) ]] && return 1
   return 0
+}
+
+# True (0) when every git invocation in the text is a built-in INTERROGATOR, read
+# off the argv rather than off a list of spellings to refuse. This is the
+# allowlist the residual note above ps::git_command_is_readonly names, and it is
+# what block-dangerous-git consults (sink scope `interrogation-ok`, #4235): that
+# guard owns destructive forms, so it cannot take the blocklist's residuals.
+#
+# Each git token must be a bare command word, optionally behind `-C <path>`,
+# `--no-pager`/`-P`, `--no-optional-locks` or `--literal-pathspecs`, and followed
+# by one of the built-ins below as a literal word. That closes the blocklist's
+# three residual families:
+#   a. an OBSCURED subcommand (`git ('cle'+'an')`, `git $sub`) is not a literal
+#      word, so it is not on the list;
+#   b. an ALIAS (`git co`) is not on the list, and git never lets an alias shadow
+#      a built-in, so `git status` always means status;
+#   c. `-c <name>=<value>`, `--exec-path`, `--git-dir` and every other global
+#      option outside the four above stop the walk, and what they leave in
+#      subcommand position is not on the list. `$env:GIT_*` anywhere refuses too,
+#      because GIT_PAGER / GIT_EXTERNAL_DIFF turn a read into execution.
+# `-C` is compared case-sensitively: git reads `-c` as a config override.
+#
+# Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
+# alone or `remote -v`/`--verbose` ending the statement, `remote show`, `remote
+# get-url`, `stash list`, `stash show`. `grep` (whose `-O` opens files in a
+# named program), `ls-remote` and `fetch` (whose `--upload-pack` runs a named
+# program against a local repository) and `help` (which can launch a browser)
+# are left off on purpose.
+#
+# A git token inside a quoted string is not a bare command word: the count of
+# git tokens the quote-INTACT probe sees must equal the count found in the
+# argv, so `& 'git' reset --hard` and `Write-Host 'git clean'; git status` both
+# refuse. Every other way ps::might_invoke_git can say yes without a literal git
+# token (iex, a quoted or subexpression call target, a launcher) refuses here as
+# well, since those can run anything.
+ps::git_command_is_interrogation_only() {
+  local recovered="${1//\`/}" lc opaque s tok ch i k j sub next n_probe=0 n_git=0
+  local -a toks=()
+  lc="${recovered,,}"
+  # shellcheck disable=SC2016  # a literal PowerShell `$env:` prefix, not an expansion
+  [[ "$lc" == *'$env:git_'* ]] && return 1
+  ps::has_dynamic_invocation "$1" && return 1
+  ps::has_launcher "$1" && return 1
+  ps::call_target_is_bare_subexpression "$recovered" && return 1
+  ps::call_target_is_interpolating_string "$recovered" && return 1
+  s="$lc"
+  while [[ "$s" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; do
+    n_probe=$((n_probe + 1))
+    s="${s#*"${BASH_REMATCH[0]}"}"
+  done
+  ((n_probe > 0)) || return 1
+  ps::opaque_quoted_spans_to opaque "$recovered"
+  tok=""
+  for ((i = 0; i < ${#opaque}; i++)); do
+    ch="${opaque:i:1}"
+    case "$ch" in
+    [[:space:]] | '=')
+      [[ -n "$tok" ]] && toks+=("$tok")
+      tok=""
+      ;;
+    ';' | '|' | '&' | '{' | '}' | '(' | ')' | ',')
+      [[ -n "$tok" ]] && toks+=("$tok")
+      tok=""
+      toks+=(';')
+      ;;
+    *) tok+="$ch" ;;
+    esac
+  done
+  [[ -n "$tok" ]] && toks+=("$tok")
+  for ((k = 0; k < ${#toks[@]}; k++)); do
+    [[ "${toks[k],,}" =~ (^|[/\\:])git([.]exe)?$ ]] || continue
+    n_git=$((n_git + 1))
+    j=$((k + 1))
+    while ((j < ${#toks[@]})); do
+      case "${toks[j]}" in
+      -C)
+        [[ "${toks[j + 1]-;}" != ';' ]] || return 1
+        j=$((j + 2))
+        ;;
+      --no-pager | -P | --no-optional-locks | --literal-pathspecs) j=$((j + 1)) ;;
+      *) break ;;
+      esac
+    done
+    sub="${toks[j]-}"
+    next="${toks[j + 1]-;}"
+    case "$sub" in
+    status | log | show | diff | rev-parse | ls-files | ls-tree | cat-file | describe | blame | shortlog | for-each-ref | show-ref | merge-base | rev-list | name-rev | count-objects | version | cherry | range-diff | check-ignore | check-attr) ;;
+    remote)
+      case "$next" in
+      ';' | show | get-url) ;;
+      -v | --verbose) [[ "${toks[j + 2]-;}" == ';' ]] || return 1 ;;
+      *) return 1 ;;
+      esac
+      ;;
+    stash)
+      case "$next" in
+      list | show) ;;
+      *) return 1 ;;
+      esac
+      ;;
+    *) return 1 ;;
+    esac
+  done
+  ((n_git == n_probe))
 }
 
 # True (0) when the command both names a python3 interpreter TOKEN and carries a
@@ -1773,6 +1894,9 @@ ps::has_launcher() {
 #   `readonly-ok` — block only when git might be reached AND the visible git use is
 #      not read-only (commit/push/reset-class). Lets routine read-only PowerShell
 #      through the fail-closed branch (#1415).
+#   `interrogation-ok` — block unless every git invocation is a built-in
+#      interrogator on ps::git_command_is_interrogation_only's allowlist. The
+#      stricter relief, for a guard that owns destructive forms (#4235).
 ps::classify_git_command() {
   local tool="$1" cmd="$2" sink_scope="${3:-mutating}" scan
   PS_SAFE_COMMAND="$cmd"
@@ -1836,6 +1960,9 @@ ps::classify_git_command() {
     ((PS_HERESTRING_EXPANDABLE)) && return 2
     ps::might_invoke_git "$PS_BLANKED" || return 1
     if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
+      return 1
+    fi
+    if [[ "$sink_scope" == "interrogation-ok" ]] && ps::git_command_is_interrogation_only "$PS_BLANKED"; then
       return 1
     fi
     return 2
@@ -2210,7 +2337,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string ($closer must start at column 0)." >&2
     ;;
   special-construct)
-    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Remove it, or run the command via the Bash tool." >&2
+    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Rewrite it in PowerShell without the construct: unroll a loop or script block into flat statements (git -C <path> status; git -C <path> log), and join backtick-continued lines. Or run the command via the Bash tool." >&2
     ;;
   dynamic-invocation)
     # The INVOCATION FORM is what routes here, not the decidability of the
@@ -2247,7 +2374,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: a carriage return that is not part of a CRLF pair. PowerShell ends a statement at a bare CR, and this guard splits on LF only, so the text after that CR is not the command it classifies. Rewrite the command with LF or CRLF line endings, or run it via the Bash tool." >&2
     ;;
   *)
-    echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
+    echo "Rewrite the command without the unparsable construct, or run it via the Bash tool." >&2
     ;;
   esac
 }
@@ -2257,15 +2384,32 @@ ps::print_sink_trigger_line() {
 # so the headline must not claim a git command is present — iex / a computed call
 # / a computed launcher can reach here with no git token at all (#2662).
 # Printed to stderr by the caller before it exits 2.
+#
+# The optional argument is the command being refused. The canonical commit form
+# is printed only when that text carries a `commit` token, because a read-only
+# loop told how to commit has been handed advice about a command it never ran
+# (#4235). Called with no argument, the form is printed as before.
 ps::print_unparsable_block_message() {
+  local lc="${1-}"
+  lc="${lc//\`/}"
+  lc="${lc,,}"
   echo "BLOCKED: this PowerShell command cannot be parsed with confidence — blocked (fail-closed)." >&2
   ps::print_sink_trigger_line
-  echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
-  echo "  @'" >&2
-  echo "  <subject>" >&2
-  echo "  '@ | git commit -F -" >&2
-  echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
-  echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+  if (($# == 0)) || [[ "$lc" =~ (^|[^[:alnum:]_-])commit([^[:alnum:]_-]|$) ]]; then
+    echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
+    echo "  @'" >&2
+    echo "  <subject>" >&2
+    echo "  '@ | git commit -F -" >&2
+    echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+  fi
+  case "$PS_SINK_TRIGGER" in
+  dynamic-invocation | launcher | special-construct | herestring-unbalanced | herestring-subexpr)
+    echo "If this is a false positive for the sink shape named above, allow it via the guardrails block_no_verify_allow option (add ps-unparsable-$PS_SINK_TRIGGER), or set the block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+    ;;
+  *)
+    echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+    ;;
+  esac
 }
 
 # Shell-agnostic block text for a PowerShell command block-dangerous-git cannot
