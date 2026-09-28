@@ -240,33 +240,8 @@ out="$(bash "$SCRIPT" "$wt_repo")"
 assert_not_contains "self: the origin remote's repository name is self too" "$out" '"to":"fixture-owner/real-name"'
 assert_not_contains "self: in any case" "$out" '"to":"Fixture-Owner/Real-Name"'
 assert_contains "self: a real reference in the same file survives" "$out" '"to":"fixture-owner/ci-workflows"'
-assert_contains "identity: from uses the origin repository name, not the checkout directory (#4554)"   "$out" '"from":"real-name"'
-assert_not_contains "identity: from is not the checkout directory name (#4554)"   "$out" '"from":"checkout-dir-name"'
-
-# Two differently named checkouts of the same origin produce the same from.
-alt_checkout="$TEST_TMPDIR/other-checkout-dir"
-mkdir -p "$alt_checkout"
-git -C "$alt_checkout" init --quiet 2>/dev/null
-git -C "$alt_checkout" config user.email "fixture@example.invalid"
-git -C "$alt_checkout" config user.name "Fixture"
-git -C "$alt_checkout" config commit.gpgsign false
-git -C "$alt_checkout" remote add origin "https://github.com/fixture-owner/real-name.git"
-mkdir -p "$alt_checkout/docs"
-cp "$wt_repo/docs/about.md" "$alt_checkout/docs/about.md"
-commit_repo "$alt_checkout"
-alt_out="$(bash "$SCRIPT" "$alt_checkout")"
-assert_contains "identity: a second checkout name still emits from=real-name (#4554)"   "$alt_out" '"from":"real-name"'
-
-# No github.com origin keeps directory-name identity.
-nongh_repo="$(make_repo nongithub-dir)"
-git -C "$nongh_repo" remote set-url origin "https://gitlab.example.invalid/acme/other-name.git"
-mkdir -p "$nongh_repo/docs"
-# A full github.com URL cite emits without trusting the (non-github) origin owner.
-printf 'Depends on <https://github.com/actions/checkout>.\n' >"$nongh_repo/docs/about.md"
-commit_repo "$nongh_repo"
-nongh_out="$(bash "$SCRIPT" "$nongh_repo")"
-assert_contains "identity: non-github origin keeps directory basename (#4554)" \
-  "$nongh_out" '"from":"nongithub-dir"'
+e="$(edge "$out" fixture-owner/ci-workflows cites)"
+assert_equals "self: from is the origin repository, not the directory" "$(field "$e" from)" "real-name"
 
 # git accepts a remote URL with a trailing slash; the repository is still named.
 git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git/"
@@ -285,6 +260,7 @@ host_repo="$(make_repo host-check)"
 mkdir -p "$host_repo/docs"
 cat >"$host_repo/docs/about.md" <<'MD'
 Upstream is <https://github.com/zorg/real-name>.
+A neighbor is <https://github.com/neighbor-org/toolkit>.
 MD
 commit_repo "$host_repo"
 for evil in "https://evilgithub.com/zorg/real-name.git" \
@@ -300,6 +276,8 @@ for evil in "https://evilgithub.com/zorg/real-name.git" \
   out="$(bash "$SCRIPT" "$host_repo")"
   assert_contains "host: $evil is not self" "$out" '"to":"zorg/real-name"'
   assert_equals "host: $evil yields no owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "unknown"
+  e="$(edge "$out" neighbor-org/toolkit cites)"
+  assert_equals "host: $evil from stays the directory name" "$(field "$e" from)" "host-check"
 done
 for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-name.git" \
   "ssh://git@github.com/zorg/real-name.git" "https://user@github.com/zorg/real-name.git" \
@@ -310,6 +288,8 @@ for good in "https://github.com/zorg/real-name.git" "git@github.com:zorg/real-na
   out="$(bash "$SCRIPT" "$host_repo")"
   assert_not_contains "host: $good is self" "$out" '"to":"zorg/real-name"'
   assert_equals "host: $good yields its owner" "$(bash "$SCRIPT" "$host_repo" --print-owner)" "zorg"
+  e="$(edge "$out" neighbor-org/toolkit cites)"
+  assert_equals "host: $good from is the origin repository" "$(field "$e" from)" "real-name"
 done
 
 # --- Case group 6: the .git suffix ------------------------------------------

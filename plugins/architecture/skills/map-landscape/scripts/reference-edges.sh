@@ -32,7 +32,7 @@
 #
 #   {"from":…,"to":…,"type":…,"relation":…,"count":N,"files":[…]}
 #
-#   from      github.com origin repository name when origin resolves; else directory basename (#4554)
+#   from      repository segment of a github.com origin, else the directory name
 #   to        `owner/repo`
 #   type      uses-workflow | installs-plugin | depends-on | cites
 #   relation  internal (owner matches this repository's) | external
@@ -61,6 +61,9 @@
 # Exit: 0 = edges emitted (possibly none); 1 = the path is not a readable git
 # repository; 2 = usage.
 set -uo pipefail
+
+# shellcheck source=checkout-identity.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/checkout-identity.sh"
 
 FILE_CAP=5
 
@@ -119,10 +122,7 @@ repo="$(cd "$repo_arg" 2>/dev/null && pwd)" || {
   printf 'reference-edges.sh: unreadable: %s\n' "$repo_arg" >&2
   exit 1
 }
-# Tentative identity: directory basename. Overridden below when a github.com
-# origin resolves, so two differently named checkouts of the same repository
-# share one node key (#4554).
-name="$(basename "$repo")"
+name="$(checkout_repository_name)"
 
 if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
   printf 'reference-edges.sh: not a git repository, no tracked files to read: %s\n' "$repo" >&2
@@ -136,42 +136,7 @@ fi
 # The owner segment of a github.com remote. Only github.com is read here: this
 # owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
 # token on a host whose path shape we have not verified is how fixture names
-# become systems.
-#
-# The origin's path on github.com, `owner/repo...`, when the remote's host IS
-# github.com. The host is the authority with the scheme and user info removed,
-# compared case-insensitively, with `www.` allowed. With a scheme, a port of
-# digits (possibly empty, as RFC 3986 allows) is removed; any other `:` after
-# the host is not a port and the URL names no github.com path. So
-# `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a
-# `/github.com/` path on another server, a `file://` path and a relative path
-# all fail. A URL without a scheme counts only in the scp form `host:path`.
-github_remote_path() {
-  local url host rest scheme=0 result=1 had_nocase=0
-  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    [[ "$rest" == :* ]] && return 1
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  shopt -q nocasematch && had_nocase=1
-  shopt -s nocasematch
-  [[ "$host" == github.com || "$host" == www.github.com ]] && result=0
-  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
-  [[ $result -eq 0 && -n "$rest" ]] || return 1
-  printf '%s' "$rest"
-}
-
+# become systems. The host rules live with `github_remote_path`.
 remote_owner_segment() {
   local path
   path="$(github_remote_path)" || return 1
@@ -184,11 +149,10 @@ remote_owner_segment() {
 owner="$owner_override"
 [[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
 
-# The `owner/repo` slug of a github.com origin remote. A worktree or a renamed
-# clone sits in a directory whose name is not the repository's, so the
-# directory basename alone would read the repository's own citations as an
-# edge to a second system. The slug is the remote's own, independent of
-# --owner, which moves the subject organization but not what this clone is.
+# The `owner/repo` slug of a github.com origin remote. `--owner` moves the
+# subject organization, so `$owner/$name` is a different repository when the
+# override disagrees with the remote. The slug is the remote's own and stays
+# the self-reference either way.
 remote_slug() {
   local path o r
   path="$(github_remote_path)" || return 1
@@ -199,12 +163,6 @@ remote_slug() {
   printf '%s/%s' "$o" "$r"
 }
 self_slug="$(remote_slug)" || self_slug=""
-
-# Prefer the github.com repository name as the subject identity when origin
-# resolves (#4554). Edge `from` and portfolio `name` must agree across checkouts.
-if [[ -n "$self_slug" ]]; then
-  name="${self_slug#*/}"
-fi
 
 # The owner this run resolved, for a caller that has to record which
 # organization the graph was drawn from. Reading it back from here keeps one

@@ -446,11 +446,11 @@ compare_set() {
 
 report="$report"'Landscape drift, fresh collection versus '"$compare_to"$'\n'
 
-# A repository is identified by `name`: the github.com origin repository name
-# when collectors resolve one (#4554), else the directory basename. Two
-# checkouts sharing a basename would still collapse onto one key here and
-# silently match the wrong row below, so an ambiguous identity is reported
-# rather than guessed at.
+# A repository is identified by `name`: the github.com origin's repository
+# segment when one resolves, otherwise the checkout's directory name. Two
+# checkouts sharing that name would collapse onto one key here and silently
+# match the wrong row below, so an ambiguous identity is reported rather than
+# guessed at.
 dup_names() {
   printf '%s\n' "$1" | awk "$SPLIT_AWK"'
     NF { n = unquote(field($0, "name")); if (n != "") seen[n]++ }

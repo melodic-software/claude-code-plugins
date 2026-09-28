@@ -335,6 +335,47 @@ bad="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/junk.jsonl" 2>&1)"
 assert_equals "remote-facts: a malformed line exits 1 rather than dropping quietly" "$?" "1"
 assert_contains "remote-facts: naming the line" "$bad" "line 1"
 
+# --- Case group 11b: one repository, two directory names --------------------
+#
+# The record key is the github.com origin's repository segment. Two checkouts
+# whose directories differ and whose origin does not produce one record, and a
+# drift comparison between them does not report a repository added or removed.
+# A non-github origin keeps the directory name on both the fact row and `from`.
+slug_a="$(make_repo slug-a)"
+slug_b="$(make_repo slug-b)"
+for slug in "$slug_a" "$slug_b"; do
+  git -C "$slug" remote set-url origin "https://github.com/fixture-owner/canonical.git"
+  mkdir -p "$slug/docs"
+  printf 'See fixture-owner/standards.\n' >"$slug/docs/notes.md"
+  GIT_AUTHOR_DATE="2026-01-15T00:00:00Z" GIT_COMMITTER_DATE="2026-01-15T00:00:00Z" \
+    commit_repo "$slug"
+done
+out_a="$(bash "$SCRIPT" "$slug_a")"
+out_b="$(bash "$SCRIPT" "$slug_b")"
+assert_contains "identity: the first checkout is named from the origin" "$out_a" '{"name":"canonical",'
+assert_contains "identity: the second checkout agrees" "$out_b" '{"name":"canonical",'
+assert_contains "identity: edges from the first use that name" "$out_a" '"from":"canonical"'
+assert_contains "identity: edges from the second use that name" "$out_b" '"from":"canonical"'
+assert_not_contains "identity: the directory slug is not the record key" "$out_a" '"name":"slug-a"'
+norm_record() { sed 's/"generated_on": "[^"]*"/"generated_on": "DATE"/'; }
+norm_a="$(printf '%s\n' "$out_a" | norm_record)"
+norm_b="$(printf '%s\n' "$out_b" | norm_record)"
+assert_equals "identity: two directory names produce one record" "$norm_a" "$norm_b"
+printf '%s\n' "$out_a" >"$TEST_TMPDIR/ident-a.json"
+out="$(bash "$SCRIPT" "$slug_b" --drift-against "$TEST_TMPDIR/ident-a.json")"
+assert_equals "identity: drift between the two checkouts does not gate" "$?" "0"
+assert_not_contains "identity: and does not report a repository added" "$out" "added repository"
+assert_not_contains "identity: or removed" "$out" "removed repository"
+
+kept="$(make_repo kept-basename)"
+git -C "$kept" remote set-url origin "https://gitlab.example/acme/other-name.git"
+mkdir -p "$kept/docs"
+printf 'See https://github.com/neighbor-org/toolkit.\n' >"$kept/docs/notes.md"
+commit_repo "$kept"
+out="$(bash "$SCRIPT" "$kept")"
+assert_contains "identity: no github.com origin keeps the directory name" "$out" '{"name":"kept-basename",'
+assert_contains "identity: and the edge from agrees" "$out" '"from":"kept-basename"'
+
 # --- Case group 12: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no repository path exits 2" "$?" "2"

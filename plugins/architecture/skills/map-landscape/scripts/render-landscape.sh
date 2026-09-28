@@ -481,9 +481,10 @@ END {
   drawn_edges = 0
   unresolved = 0
   for (i = 1; i <= en; i++) {
-    # The edge source names a checkout by basename, so resolve it through the
-    # map the repository pass built. Iterating the node array instead would put
-    # the answer at the mercy of the unspecified array order in awk.
+    # The edge `from` is the same identity the repository record stores as
+    # `name`, so resolve it through the map the repository pass built.
+    # Iterating the node array instead would put the answer at the mercy of
+    # the unspecified array order in awk.
     fk = localkey[efrom[i]]
     if (fk == "" || !(fk in isnode)) { unresolved++; continue }
     if (!(etarget[i] in drawn)) continue

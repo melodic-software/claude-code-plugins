@@ -294,6 +294,52 @@ assert_contains "nested: the top-level dependencies win (a)" "$out" '"real-dep-a
 assert_contains "nested: the top-level dependencies win (b)" "$out" '"real-dep-b"'
 assert_not_contains "nested: a same-named nested member does not shadow them" "$out" '"ghost-from-nested"'
 
+# --- Case group 7d: the checkout's name is the repository, not the directory --
+#
+# Two directories with one github.com origin are one system. An origin on any
+# other host, and a checkout with no origin, keep the directory name.
+ident_a="$TEST_TMPDIR/checkout-slug"
+ident_b="$TEST_TMPDIR/other-slug"
+for ident_dir in "$ident_a" "$ident_b"; do
+  mkdir -p "$ident_dir"
+  git -C "$ident_dir" init --quiet 2>/dev/null
+  git -C "$ident_dir" config user.email "fixture@example.invalid"
+  git -C "$ident_dir" config user.name "Fixture"
+  git -C "$ident_dir" config commit.gpgsign false
+  git -C "$ident_dir" remote add origin "https://github.com/fixture-owner/canonical-name.git"
+  printf 'x\n' >"$ident_dir/README.md"
+  commit_repo "$ident_dir"
+done
+out_a="$(bash "$SCRIPT" "$ident_a")"
+out_b="$(bash "$SCRIPT" "$ident_b")"
+assert_equals "identity: https origin names the repository, not the directory" \
+  "$(field "$out_a" name)" "canonical-name"
+assert_equals "identity: a second directory of the same origin agrees" \
+  "$(field "$out_b" name)" "canonical-name"
+
+ssh_ident="$(make_repo ssh-named-dir)"
+git -C "$ssh_ident" remote add origin "git@github.com:fixture-owner/ssh-canonical.git"
+printf 'x\n' >"$ssh_ident/README.md"
+commit_repo "$ssh_ident"
+out="$(bash "$SCRIPT" "$ssh_ident")"
+assert_equals "identity: an scp-style github origin names the repository" \
+  "$(field "$out" name)" "ssh-canonical"
+
+nongh="$(make_repo kept-directory-name)"
+git -C "$nongh" remote add origin "https://gitlab.example/acme/not-the-directory.git"
+printf 'x\n' >"$nongh/README.md"
+commit_repo "$nongh"
+out="$(bash "$SCRIPT" "$nongh")"
+assert_equals "identity: a non-github origin keeps the directory name" \
+  "$(field "$out" name)" "kept-directory-name"
+
+noremo="$(make_repo no-origin-name)"
+printf 'x\n' >"$noremo/README.md"
+commit_repo "$noremo"
+out="$(bash "$SCRIPT" "$noremo")"
+assert_equals "identity: no origin keeps the directory name" \
+  "$(field "$out" name)" "no-origin-name"
+
 # --- Case group 8: the dependency cap ---------------------------------------
 capped_repo="$(make_repo capped)"
 {

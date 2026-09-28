@@ -3,6 +3,17 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-09-28
+
+### Fixed
+
+- **`map-landscape`:** a checkout is identified by the repository segment of its github.com
+  `origin`, not by the directory it sits in. `portfolio-facts.sh`'s `name` and
+  `reference-edges.sh`'s `from` both use that segment, so two differently named checkouts of one
+  repository produce the same record. A checkout whose origin is not on github.com keeps the
+  directory name. A committed `landscape.json` generated from a checkout whose directory name was
+  not the repository name changes that key once; compare the fresh record and accept the rename.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

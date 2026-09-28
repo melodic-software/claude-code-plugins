@@ -85,7 +85,9 @@ first path under `--repos` unless the operator names another.
 The record carries `repositories[]` from `portfolio-facts.sh` (`name`, `remote`, `owner`, `runtime`,
 `tooling`, `target_framework`, `dependencies[]`, `dev_dependencies[]`, `last_touched`, `evidence{}`)
 and `edges[]` from `reference-edges.sh` (`from`, `to` as `owner/repo`, `type`, `relation`, `count`,
-`files[]`).
+`files[]`). `name` and `from` are the repository segment of a github.com `origin` when one
+resolves, and the checkout directory's name otherwise, so two checkouts of one repository share a
+key.
 
 It also records `subject_owner`, the organization the graph was drawn from, resolved by the edge
 extractor so the nodes and the edges cannot disagree about it. That is what makes a checkout
