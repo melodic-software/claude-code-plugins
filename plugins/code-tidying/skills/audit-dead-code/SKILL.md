@@ -136,8 +136,8 @@ Bounded by design. Full evidence catalogue in
 
 ## When coverage is incomplete
 
-A `skipped` lane, a `scanned-zero-files` lane, or source files with no lane at all are gaps, not a
-clean bill. After presenting the lane roster:
+A `skipped` lane, a `no-manifest` lane, a `scanned-zero-files` lane, or source files with no lane at
+all are gaps, not a clean bill. After presenting the lane roster:
 
 1. **Name each gap** from `Summary coverage:` and each `Note: uncovered` line: the path and the
    reason (`no lane for the language`, `no manifest root`, `tool not installed`, or `lane not
