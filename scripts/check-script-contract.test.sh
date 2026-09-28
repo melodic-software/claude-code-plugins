@@ -65,6 +65,7 @@ f=""
 # and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
+  "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-contract-slice-prune.sh|-|-|-"
@@ -94,6 +95,7 @@ REGISTRY=(
   "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
   "check-plugin-catalog-enablement.sh|jq|-|-"
   "check-plugin-manifest-presence.sh|jq|-|-"
+  "check-publisher-token-alignment.sh|-|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
   "check-shell-portability.sh|-|-|-"

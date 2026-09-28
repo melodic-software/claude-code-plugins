@@ -37,14 +37,22 @@
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
 # docs/adr/** (decision records are a historical account, not prose to restyle),
-# plugins/*/skills/*/vendor/** (third-party text, which the repo's own
+# plugins/*/skills/*/vendor/** (vendored third-party text, which the repo's own
 # vendor-docs-are-not-style rule puts out of scope), the per-source ledgers
 # docs/upstream/*.md (each records one third-party source and quotes it at
 # length, so the source's own punctuation rides along), and the eval fixtures
 # under plugins/ai-slop/skills/audit/evals/, which contain the tells they exist
-# to test. docs/upstream/claude-code-mods/ is not a third-party ledger: it is
-# this repository's own evidence trail for ADR 0035, so its live documents are
-# declared below. Its dated research snapshot stays off for the ADR reason.
+# to test.
+#
+# docs/upstream/ IS NOT A VENDOR TREE, and the boundary there is authorship,
+# not path. Its files are this repository's own provenance records and research
+# trails about upstream sources. What they quote from upstream is third-party
+# text and stays byte-exact, inside an ai-slop-ignore-marked region when it
+# carries an em dash. Their own prose is first-party and joins this list once
+# purged, like any other surface. The unlisted ones are unpurged, not exempt.
+# docs/upstream/claude-code-mods/ is not a third-party ledger: it is this
+# repository's own evidence trail for ADR 0035, so its live documents and the
+# dated research snapshot are declared below.
 
 # Root README, purged in #3265.
 README.md
@@ -99,11 +107,11 @@ docs/conventions/windows-path-emit/*.md
 docs/specs/*.md
 docs/specs/*/*.md
 # The Claude Code mods evidence trail behind ADR 0035, purged in #4288: the
-# reading-order README, the cited source index, the go-no-go runbook and the
-# experiments. research-2026-09-19/ is left off on purpose: its README says
-# nothing there is updated in place and that no claim text differs from the
-# verified report, so it is a historical record like docs/adr/**.
+# reading-order README, the cited source index, the go-no-go runbook, the
+# experiments, and the dated research snapshot. First-party prose under
+# docs/upstream/, so the rule above puts it on this list rather than off it.
 docs/upstream/claude-code-mods/*.md
+docs/upstream/claude-code-mods/research-2026-09-19/*.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
