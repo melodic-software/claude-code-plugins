@@ -490,18 +490,19 @@ out of scope until such a signal exists.
   command string, and a drive-root path there still has to sit in a
   write-shaped position, so a heredoc body carrying `C:\tmp` inside a
   `cat > file` does not block either.
-- **`block-windows-drive-tmp` reads inline python's `open(` as a read unless a
-  write mode rides with it** (since **0.38.11**, #3951). `open(f)` and
-  `open(f,'w')` differ only by an argument, so a bare `open(` beside a
-  drive-root path, such as `json.load(open('/tmp/x.json'))` in a `python3 -`
-  heredoc or an issue body that quotes that line, is allowed. It blocks when a
-  write-mode literal (one containing `w`, `a`, `x` or `+`) sits in argument
-  position: after a comma, after `mode=`, or first inside a method-form
-  `.open(`. It also blocks on `write_text(` / `write_bytes(` / `makedirs(`, and
-  on `os.open` with a write-side `O_*` flag. This is the boundary
-  `block-hook-bypass` adopted in 0.19.3. Residuals: a read-only `open()` in a
-  segment that separately carries an argument-position write-mode literal still
-  blocks, and a mode passed through a variable is not seen.
+- **`block-windows-drive-tmp` lets inline python READ a drive-root path**
+  (since **0.41.4**, #3951). Every `open(` in the segment must be a provable
+  read, or the segment blocks as before. A bare `open(` is a read when its call
+  is one comma-free, paren-free argument, an optional read-mode literal (only
+  `r`, `b`, `t`), optional literal `encoding=` / `errors=` / `newline=`, then
+  `)`, so `json.load(open('/tmp/x.json'))` in a `python3 -` heredoc, or an
+  issue body that quotes that line, is allowed. A method-form `.open(` is a read
+  with no argument or a lone read-mode literal (`Path(p).open('rb')`). A write
+  or unknown mode, a mode in a variable, a nested call inside `open(`,
+  `os.open`, `popen(` / `fdopen(`, and `write_text(` / `write_bytes(` /
+  `makedirs(` all still block. Residual, in the fail-closed direction: a real
+  read in one of those shapes (`open(os.path.join(d, f))`,
+  `os.open(p, os.O_RDONLY)`) blocks.
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching

@@ -342,6 +342,24 @@ run_win "python os.makedirs(/tmp/x) (blocked)" "python3 -c \"import os; os.maked
 run_win "python os.open(/tmp, O_WRONLY|O_CREAT) (blocked)" \
   "python3 -c \"import os; os.open('/tmp/x', os.O_WRONLY | os.O_CREAT)\"" 2
 run_win "python open(C:\\tmp,'w') drive-letter (blocked)" "python3 -c \"open(r'C:\\tmp\\x','w')\"" 2
+# Anything not provably a read fails closed.
+run_win "python open(/tmp, m) variable mode (blocked)" "python3 -c \"open('/tmp/x', m).write('a')\"" 2
+run_win "python open(/tmp, mode=m) variable mode (blocked)" "python3 -c \"open('/tmp/x', mode=m)\"" 2
+run_win "python read then write open in one segment (blocked)" \
+  "python3 -c \"open('/tmp/x').read(); open('/tmp/y', 'w')\"" 2
+run_win "python heredoc read then write open (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read()\nopen(\'/tmp/y\', \'a\').write(d)\nEOF' 2
+run_win "python os.popen writing /tmp (blocked)" "python3 -c \"import os; os.popen('echo a > /tmp/x')\"" 2
+run_win "python os.fdopen beside /tmp (blocked)" \
+  "python3 -c \"import os; os.fdopen(os.open('/tmp/x', 1), 'w')\"" 2
+run_win "python os.open(/tmp, O_RDONLY) unproven (blocked)" \
+  "python3 -c \"import os; os.open('/tmp/x', os.O_RDONLY)\"" 2
+run_win "python Path(/tmp).open() method read (allowed)" \
+  "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open().read())\"" 0
+run_win "python Path(/tmp).open('rb') method read (allowed)" \
+  "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open('rb').read())\"" 0
+run_win "python open(/tmp,'r',encoding=) read (allowed)" \
+  "python3 -c \"print(open('/tmp/x', 'r', encoding='utf-8').read())\"" 0
 
 # --- PowerShell writers (blocked) --------------------------------------------
 run_win_pwsh "PS: Set-Content C:\\tmp\\x (blocked)" 'Set-Content -Path C:\tmp\x -Value hi' 2
@@ -362,7 +380,7 @@ run_win "redirect >%TEMP%/x literal (allowed)" 'echo x > %TEMP%/x' 0
 run_win "redirect >/var/tmp/x (allowed)" 'echo x > /var/tmp/x' 0
 run_win "mkdir /var/tmp/x (allowed)" 'mkdir -p /var/tmp/x' 0
 # shellcheck disable=SC2016
-run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0
+run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0 # portability-ok: payload data for the hook, not a mktemp call
 # shellcheck disable=SC2016
 run_win_pwsh "PS: Set-Content \$env:TEMP (allowed)" 'Set-Content -Path $env:TEMP\x -Value hi' 0
 # shellcheck disable=SC2016

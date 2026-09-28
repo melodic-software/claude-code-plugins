@@ -517,6 +517,33 @@ segment_downloader_output_operand() {
   printf '%s' "$dest"
 }
 
+# True only when EVERY `open(` in the segment is a provable python read; any
+# other shape fails closed (#3951). Bare `open(` is a read when its call is one
+# comma-free, paren-free argument, an optional read-mode literal (only r/b/t),
+# optional literal encoding=/errors=/newline=, then `)`. So a variable mode
+# (`open(p, m)`), a nested call (`open(join(a, b), 'w')`) and a call the
+# segment splitter cut before its `)` all block. Method form `.open(` is a read
+# only with no argument or a lone read-mode literal (`Path(p).open('rb')`), so
+# `os.open(p, …)` / `io.open(p)` block. An identifier before `open(` (`popen(`,
+# `fdopen(`, `urlopen(`) always blocks.
+_PY_READ_MODE="[\"'][rbt]+[\"']"
+_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*[\"'][^\"']*[\"']"
+_PY_BARE_OPEN_READ="^[^,()]+([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
+_PY_METHOD_OPEN_READ="^[[:space:]]*(${_PY_READ_MODE}[[:space:]]*)?\)"
+segment_opens_only_for_read() {
+  local rest="$1" before
+  while [[ "$rest" == *'open('* ]]; do
+    before="${rest%%open(*}"
+    rest="${rest#*open(}"
+    case "${before: -1}" in
+    .) [[ "$rest" =~ $_PY_METHOD_OPEN_READ ]] || return 1 ;;
+    [[:alnum:]_]) return 1 ;;
+    *) [[ "$rest" =~ $_PY_BARE_OPEN_READ ]] || return 1 ;;
+    esac
+  done
+  return 0
+}
+
 # True when a segment's destination-shaped operand is a drive-root tmp path.
 # Creators (mkdir/touch/…) treat any drive-root path argument as a write;
 # copy/move utilities bind only the destination operand.
@@ -553,8 +580,10 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$dest" && return 0
     return 1
   fi
-  # Inline python write opening a drive-root tmp path
-  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]]; then
+  # Inline python write opening a drive-root tmp path. An `open(` counts only
+  # when segment_opens_only_for_read cannot prove it a read (#3951).
+  if [[ "$subject" =~ (write_text|write_bytes|makedirs)\( ]] ||
+    { [[ "$subject" == *'open('* ]] && ! segment_opens_only_for_read "$subject"; }; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi
