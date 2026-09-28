@@ -15,6 +15,14 @@ name: claude-review
 # The `review / claude-review-status` check goes red and names the cause when
 # the review fails (ci-workflows#619). It is advisory: never add it, or any
 # check in this file, to required status checks.
+#
+# Known gap (#4306, parked): v0.29.1 grants Skill(<plugin-command>) inside
+# the reusable. This caller does not restore a skill-degrade guard. If Skill
+# still misses, the model can review the diff by hand and the lane can stay
+# green. Claim: harness fix is not this repo's. Basis: #4306, ci-workflows#625,
+# #4492. As of: 2026-09-28. Recheck: an ordinary PR log shows the skill body
+# loaded, or the reusable fails closed. Ledger:
+# docs/out-of-scope/claude-review-skill-load-gap.md.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
