@@ -5,12 +5,15 @@ cost levers around them. Claude Code sessions get most of this from the harness;
 when your code builds the request itself (an Agent SDK fleet, a service calling the Messages API,
 an eval harness). Session-side counterparts are cross-referenced at the end.
 
-Every claim below was verified against the named live page on 2026-09-09. Shared recheck trigger:
-a re-fetch of the named page diverging from the row, or an API release note touching prompt
-caching, effort, batching, or the Admin API. Beta rows name their beta explicitly; a beta header
-is part of the request contract, not decoration. Current prices and model lists resolve through
-the pricing page or the bundled `claude-api` skill at the moment of use; this chapter carries
-mechanisms, not numbers.
+Every claim below was verified against the named live page on 2026-09-09. **Recheck 2026-09-28:**
+that full pass was not repeated row by row, so 2026-09-09 remains the last date each row was read
+against its page. **Claim:** the rows are still the 2026-09-09 reading, not a 2026-09-28 re-proof.
+**Basis:** the named URL on each row. **As of:** 2026-09-09 for the rows; 2026-09-28 for this
+status. **Recheck trigger:** a re-fetch of the named page diverging from the row, or an API
+release note touching prompt caching, effort, batching, or the Admin API. Beta rows name their
+beta explicitly; a beta header is part of the request contract, not decoration. Current prices
+and model lists resolve through the pricing page or the bundled `claude-api` skill at the moment
+of use; this chapter carries mechanisms, not numbers.
 
 ## Prefix stability
 
