@@ -31,6 +31,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+# shellcheck source=lib/resolve-targets.sh
+source "$SCRIPT_DIR/lib/resolve-targets.sh"
 
 # All text processing runs in the C locale: the byte-sequence rules require it,
 # and word counts diverge between UTF-8 and C locales (caught by the CI
@@ -138,7 +140,6 @@ OFFSET=0
 LIMIT=0
 SHOW_CONFIG=0
 LIST_TARGETS=0
-PATHS_FILE_EMPTY=0
 
 usage() {
   cat <<'EOF'
@@ -431,175 +432,7 @@ fi
 
 # --- Target list -----------------------------------------------------------------
 
-if [[ -n "$PATHS_FILE" ]]; then
-  if [[ ! -r "$PATHS_FILE" ]]; then
-    echo "detect.sh: cannot read --paths-file: $PATHS_FILE" >&2
-    exit 2
-  fi
-  # A line with exactly one tab is `<key><TAB><path>` (--list-targets output)
-  # and contributes its path; any other line is the path itself.
-  while IFS= read -r line; do
-    [[ -n "${line//[[:space:]]/}" ]] || continue
-    rest="${line#*$'\t'}"
-    [[ "$rest" != "$line" && "$rest" != *$'\t'* ]] && line="$rest"
-    TARGETS+=("$line")
-  done <"$PATHS_FILE"
-  # A list with no non-blank line is an empty scope, not "no scope given":
-  # falling through to the repository listing would scan files nobody asked for.
-  if [[ "${#TARGETS[@]}" -eq 0 ]]; then
-    echo "detect.sh: --paths-file lists no paths; nothing was scanned: $PATHS_FILE" >&2
-    PATHS_FILE_EMPTY=1
-  fi
-fi
-
-# A bare invocation lists the repository's tracked markdown, and it carries the
-# same two hazards the directory expansion below already answers.
-#
-# `ls-files` quotes any pathname holding a byte above 0x80 unless
-# `core.quotePath=false` (git-config: "bytes higher than 0x80 are not
-# considered unusual any more"), so a tracked `notes-é.md` arrived as the literal
-# escape `"notes-\303\251.md"`, failed the scan loop's existence test, and
-# produced neither a finding nor a declined row. A bare invocation is the shape
-# the audit skill uses to sweep a whole repository, so that silent drop meant
-# every non-ASCII-named file was outside the audit while the report claimed
-# repository-wide coverage.
-#
-# A listing that fails says so on stderr instead of vanishing into
-# `2>/dev/null`. An empty target list from a failed `ls-files` is
-# indistinguishable from a repository with no tracked markdown, and both read
-# as a clean audit. `--is-inside-work-tree` picks the branch up front so a
-# missing git binary and a directory outside any checkout each get their own
-# message rather than one opaque nonzero exit.
-list_repo_markdown() {
-  local inside listing status
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  inside="$(git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)"
-  status=$?
-  if [[ "$status" -ne 0 || "$inside" != "true" ]]; then
-    echo "detect.sh: git could not confirm a work tree at $REPO_ROOT; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
-    return 0
-  fi
-
-  listing="$(git -C "$REPO_ROOT" -c core.quotePath=false ls-files '*.md')"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed in $REPO_ROOT (exit $status); nothing was scanned" >&2
-    return 0
-  fi
-
-  [[ -n "$listing" ]] || return 0
-  printf '%s\n' "$listing"
-}
-
-if [[ "${#TARGETS[@]}" -eq 0 && "$PATHS_FILE_EMPTY" -eq 0 ]]; then
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    TARGETS+=("$REPO_ROOT/$line")
-  done < <(list_repo_markdown)
-fi
-
-# Directory targets expand to the markdown beneath them (tracked files when the
-# directory is inside a git checkout, a filesystem walk otherwise). Without
-# this a directory fails the scan loop's -f test and is skipped silently.
-#
-# ONE anchor, the caller's own spelling of the directory. A directory has
-# several spellings on Git Bash: git answers `C:/Users/<user>/...` for the same
-# checkout a shell reaches as `/tmp/...`. The earlier expansion built its
-# prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
-# any host where those disagree no candidate survived the filter and the walk
-# below silently replaced the tracked-files listing it was meant to back up.
-# `ls-files` C-quotes any path holding a non-ASCII byte unless
-# `core.quotePath=false`, so a tracked `notes-é.md` (or a filename that itself
-# holds an em dash) would arrive as a literal quoted escape, fail the scan
-# loop's existence test, and produce neither a finding nor a declined row.
-#
-# Running `ls-files` with `-C <dir>` needs neither: it is already
-# restricted to that directory's subtree and answers in paths relative to it,
-# so `<dir>` is the only anchor and cannot disagree with itself.
-#
-# The branch is chosen up front from `--is-inside-work-tree`, never from an
-# empty pipeline. A silent walk is only the answer when git is present and
-# reports the directory is genuinely outside a checkout. If git is missing,
-# or git cannot confirm a work tree (safe.directory refusal, unreadable
-# .git, nonzero rev-parse), the walk still runs because tracked-files-only
-# is not achievable, and that fallback is reported on stderr. Inside a
-# confirmed checkout, a listing that fails says so on stderr rather than
-# degrading into a different set of files.
-#
-# Strip one trailing slash, except when that would turn a Windows drive root
-# (`C:/`) into a drive-relative path (`C:`). Windows then treats the target as
-# "cwd on that drive", so git -C / find can scan the wrong tree or nothing.
-# Unix root `/` is the same class: stripping leaves empty, so the original
-# spelling is kept. `C:\` is unchanged because this strip only removes `/`.
-normalize_dir_target() {
-  local dir="${1%/}"
-  if [[ -z "$dir" || "$dir" == [A-Za-z]: ]]; then
-    printf '%s\n' "$1"
-    return 0
-  fi
-  printf '%s\n' "$dir"
-}
-
-expand_dir_target() {
-  local dir inside listing status
-  dir="$(normalize_dir_target "$1")"
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "detect.sh: git is not on PATH; directory $dir expanded via filesystem walk (tracked-files-only is not achievable)" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-
-  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git could not confirm a work tree under $dir (exit $status); expanding via filesystem walk" >&2
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-  if [[ "$inside" != "true" ]]; then
-    find "$dir" -name '*.md' -type f 2>/dev/null
-    return 0
-  fi
-
-  listing="$(git -C "$dir" -c core.quotePath=false ls-files '*.md')"
-  status=$?
-  if [[ "$status" -ne 0 ]]; then
-    echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2
-    return 0
-  fi
-
-  while IFS= read -r rel; do
-    [[ -n "$rel" ]] || continue
-    if [[ "$dir" == */ || "$dir" == *\\ ]]; then
-      printf '%s%s\n' "$dir" "$rel"
-    else
-      printf '%s/%s\n' "$dir" "$rel"
-    fi
-  done <<<"$listing"
-}
-
-EXPANDED=()
-for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
-  if [[ -d "$t" ]]; then
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && EXPANDED+=("$line")
-    done < <(expand_dir_target "$t")
-  else
-    EXPANDED+=("$t")
-  fi
-done
-mapfile -t TARGETS < <(printf '%s\n' ${EXPANDED[@]+"${EXPANDED[@]}"} | sort -u)
-if [[ "$LIST_TARGETS" -eq 0 ]] && [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
-  end="${#TARGETS[@]}"
-  [[ "$LIMIT" -gt 0 ]] && end=$((OFFSET + LIMIT))
-  mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | awk -v s="$OFFSET" -v e="$end" 'NR > s && NR <= e')
-fi
+resolve_targets TARGETS "$REPO_ROOT" "$PATHS_FILE" "$OFFSET" "$LIMIT" "$LIST_TARGETS" ${TARGETS[@]+"${TARGETS[@]}"} || exit $?
 
 matches_glob() {
   # matches_glob <path> <glob>...: any glob matches the path (or its repo-relative form).
@@ -614,10 +447,9 @@ matches_glob() {
   return 1
 }
 
-# The same two filters the scan loop applies before reading a file.
+# Excluded paths, the filter the scan loop applies before reading a file.
 if [[ "$LIST_TARGETS" -eq 1 ]]; then
   for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
-    [[ -f "$file" ]] || continue
     [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}" && continue
     printf '%s\t%s\n' "${file#"$REPO_ROOT"/}" "$file"
   done
@@ -883,7 +715,6 @@ emit_finding() {
 }
 
 for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
-  [[ -f "$file" ]] || continue
   rel="${file#"$REPO_ROOT"/}"
 
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then
