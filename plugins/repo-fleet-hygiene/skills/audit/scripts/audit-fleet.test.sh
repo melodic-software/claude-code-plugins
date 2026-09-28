@@ -452,8 +452,10 @@ ls-remote)
   # Live remote existence probe for merged-remote-branch HIGH confidence. Default: echo the
   # matching tip. feature/stale-cached is present only in the local remote-tracking inventory
   # (auto-deleted upstream); ls-remote returns empty. feature/ls-fail forces a probe error → MEDIUM.
+  # FAKE_LS_REMOTE_FAIL_ALL=1 makes every probe fail, which rolls up to one fleet UNKNOWN (#4211).
   # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
   # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
+  [[ "${FAKE_LS_REMOTE_FAIL_ALL:-}" == 1 ]] && exit 7
   [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
   [[ "${FAKE_LS_REMOTE_ALWAYS_FAIL:-}" != 1 ]] || exit 7
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
@@ -923,22 +925,29 @@ fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
-  "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+  "Finding: remote-verification-unavailable"
+# #4211 follow-up: when every live probe fails, withhold the per-branch MEDIUMs and emit one
+# fleet-level UNKNOWN instead of repeating the same unverifiable paragraph N times.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
-FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+FAKE_LS_REMOTE_FAIL_ALL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
   bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
-assert_contains_file "all-fail ls-remote emits fleet unavailable" \
-  "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
-if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
-  grep -Fq "Confidence: UNKNOWN"; then
-  printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
+if grep -Fq "Finding: remote-verification-unavailable" "$all_fail_out" &&
+  grep -A6 -F "Finding: remote-verification-unavailable" "$all_fail_out" | grep -Fq "Confidence: UNKNOWN" &&
+  grep -B3 -F "Finding: remote-verification-unavailable" "$all_fail_out" | grep -Fq "Target: fleet"; then
+  printf 'PASS: every-ls-remote-fail emits one fleet UNKNOWN remote-verification-unavailable\n'
 else
-  printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
+  printf 'FAIL: every-ls-remote-fail should emit one fleet UNKNOWN remote-verification-unavailable\n' >&2
   failures=$((failures + 1))
 fi
-assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+all_fail_count="$(grep -cF "Finding: remote-verification-unavailable" "$all_fail_out" || true)"
+if [[ "$all_fail_count" -eq 1 ]]; then
+  printf 'PASS: remote-verification-unavailable is emitted once\n'
+else
+  printf 'FAIL: remote-verification-unavailable count want 1 got %s\n' "$all_fail_count" >&2
+  failures=$((failures + 1))
+fi
+assert_not_contains_file "all-fail run withholds per-branch merged-remote-branch MEDIUMs" \
   "Finding: merged-remote-branch" "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote

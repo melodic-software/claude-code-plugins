@@ -140,13 +140,13 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    `git ls-remote --heads <remote> refs/heads/<branch>`. A matching tip → `HIGH`
    `merged-remote-branch` (remote head still present after merge, unset or blocked
    `delete_branch_on_merge`). ls-remote failure → `MEDIUM` cached observation (may be stale after a
-   prune-less fetch). Empty ls-remote → no finding (head already gone upstream). Unlike every
+   prune-less fetch), unless every ls-remote in the run failed, in which case those per-branch
+   MEDIUMs are withheld and the report carries one fleet-level `UNKNOWN`
+   `remote-verification-unavailable` finding instead. Empty ls-remote → no finding (head already gone upstream). Unlike every
    other probe, ls-remote keeps global and system Git config, where the transport lives
    (`core.sshCommand`, `credential.helper`, proxies). It runs only when the remote URL names the
    same github.com repository with and without that config; otherwise it counts as a failure.
-   When every attempted probe in the run fails (non-zero status; empty success does not count),
-   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding. The per-repository
-   MEDIUM findings stay; they are not independent live-probe failures.
+   A non-zero probe status counts as a failure; an empty successful ls-remote does not.
    Remote-only heads (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
@@ -199,7 +199,7 @@ Default output is screen-scale:
 1. Fleet header (config, scope, discovery counts).
 2. **Repository rollup**. One row per repository with `CLEAN` / `N candidates` /
    `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
-   duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
+   duplicate checkouts, remote-verification outage) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
 3. **Fleet action plan**. Recommended skill invocations **once per repository** (not once per
    finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
 4. Path to the machine-readable action-plan JSON (and the `--apply-plan` dry-run invocation).
@@ -300,7 +300,7 @@ Related fleet contracts that remain separate:
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
 | `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
 | `worktree-root-unconfigured` | Set `worktreeroot.path` (git config) or source-control `worktree_root`, then rerun |
-| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun. Per-repository MEDIUM `merged-remote-branch` findings are not independent |
+| `remote-verification-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun. The all-fail rollup withheld the per-branch MEDIUM rows |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |

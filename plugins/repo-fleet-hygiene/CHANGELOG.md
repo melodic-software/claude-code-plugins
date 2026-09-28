@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-28
+
+### Fixed
+
+- **`audit`: when every `ls-remote` probe in a run fails, emit one fleet-level `UNKNOWN` `remote-verification-unavailable` finding instead of repeating `MEDIUM` `merged-remote-branch` once per branch** ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)). A transport or network outage used to print the same unverifiable-cached-tip paragraph for every merged head. Mixed success still reports those heads at `MEDIUM`. Empty ls-remote (head already gone) stays a successful probe and does not count.
+
 ## [0.23.41] - 2026-09-28
 
 ### Fixed

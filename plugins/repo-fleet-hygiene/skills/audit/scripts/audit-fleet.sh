@@ -594,6 +594,7 @@ canonical-identity-unverified|UNKNOWN|no|no|*
 canonical-identity-conflict|UNKNOWN|no|no|Stop; do not combine local/GitHub evidence
 github-identity-unavailable|UNKNOWN/ACKNOWLEDGED|no|no|*
 github-pr-evidence-unavailable|UNKNOWN|no|no|Do not infer branch merge state
+remote-verification-unavailable|UNKNOWN|no|no|Do not treat cached remote-tracking tips as live
 branch-inventory-unavailable|UNKNOWN|no|no|Stop local branch classification for this repository
 remote-branch-inventory-unavailable|UNKNOWN|no|no|Remote-tracking tip comparison for merged-pr-tip-drift is unavailable; GraphQL merge evidence still runs
 current-branch-unavailable|UNKNOWN|no|no|Stop local branch classification; the checked-out branch cannot be protected reliably
@@ -601,7 +602,6 @@ git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
-ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
 REGISTRY
 
 FINDING_ROW_CONFIDENCE=""
@@ -646,8 +646,18 @@ FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
+# ls-remote accounting for the fleet-level UNKNOWN when every live probe fails (#4211).
+# Incremented at the analyze_repo call site: run_ls_remote_probe is invoked from a
+# command substitution, so a counter inside the function would be lost with the subshell.
 LS_REMOTE_ATTEMPTS=0
 LS_REMOTE_FAILURES=0
+LS_FAIL_CONF=()
+LS_FAIL_KIND=()
+LS_FAIL_TARGET=()
+LS_FAIL_EVIDENCE=()
+LS_FAIL_DISP=()
+LS_FAIL_HANDOFF=()
+LS_FAIL_REPO_IDX=()
 # Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
@@ -731,6 +741,37 @@ emit_finding_as() {
       fail "finding kind $kind declares a fixed disposition; pass - to take it"
   fi
   record_finding "$confidence" "$kind" "$target" "$evidence" "$disposition" "$handoff"
+}
+
+defer_ls_remote_failure() {
+  LS_FAIL_CONF+=("$1")
+  LS_FAIL_KIND+=("$2")
+  LS_FAIL_TARGET+=("$3")
+  LS_FAIL_EVIDENCE+=("$4")
+  LS_FAIL_DISP+=("$5")
+  LS_FAIL_HANDOFF+=("$6")
+  LS_FAIL_REPO_IDX+=("$CURRENT_REPO_IDX")
+}
+
+# After every repository has been analyzed: if every ls-remote in the run failed, emit one
+# fleet-level UNKNOWN instead of N repeated MEDIUM merged-remote-branch findings. Mixed
+# success still flushes the deferred MEDIUMs onto their original repositories.
+flush_ls_remote_failures() {
+  local i saved
+  if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
+    CURRENT_REPO_IDX=-1
+    emit_finding remote-verification-unavailable fleet \
+      "every ls-remote probe in this run failed ($LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS); remote-branch existence could not be verified for any merged head" \
+      "Restore transport (core.sshCommand, credential.helper, network) and rerun; do not treat cached remote-tracking tips as live"
+    return
+  fi
+  saved="$CURRENT_REPO_IDX"
+  for ((i = 0; i < ${#LS_FAIL_KIND[@]}; i++)); do
+    CURRENT_REPO_IDX="${LS_FAIL_REPO_IDX[$i]}"
+    record_finding "${LS_FAIL_CONF[$i]}" "${LS_FAIL_KIND[$i]}" "${LS_FAIL_TARGET[$i]}" \
+      "${LS_FAIL_EVIDENCE[$i]}" "${LS_FAIL_DISP[$i]}" "${LS_FAIL_HANDOFF[$i]}"
+  done
+  CURRENT_REPO_IDX="$saved"
 }
 
 # Actionable fleet-batch handoff kinds. Manual-review and informational findings stay in the
@@ -2845,9 +2886,6 @@ analyze_repo() {
         LS_REMOTE_ATTEMPTS=$((LS_REMOTE_ATTEMPTS + 1))
         live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
-        if [[ "$live_status" -ne 0 ]]; then
-          LS_REMOTE_FAILURES=$((LS_REMOTE_FAILURES + 1))
-        fi
         live_oid=""
         if [[ "$live_status" -eq 0 && -n "$live_out" ]]; then
           live_oid="${live_out%%[[:space:]]*}"
@@ -2862,8 +2900,13 @@ analyze_repo() {
           # delete_branch_on_merge on a stale local remote-tracking observation.
           :
         else
-          emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
+          LS_REMOTE_FAILURES=$((LS_REMOTE_FAILURES + 1))
+          finding_registry_lookup merged-remote-branch ||
+            fail "unregistered finding kind: merged-remote-branch"
+          defer_ls_remote_failure MEDIUM merged-remote-branch \
+            "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); current remote existence could not be verified (ls-remote failed) — may be a stale local remote-tracking observation after a prune-less fetch" \
+            "$FINDING_ROW_DISPOSITION" \
             "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
         fi
       fi
@@ -2984,6 +3027,8 @@ for target in "${TARGETS[@]}"; do
   analyze_repo "$target"
 done
 
+flush_ls_remote_failures
+
 # Cross-repository view: multiple independent checkouts of the same normalized GitHub identity are
 # each audited on their own local state (correct), but the coincidence itself gets one LOW
 # informational line per identity -- never more, since same-identity clones legitimately diverge.
@@ -3050,15 +3095,6 @@ else
   emit_finding worktree-root-unconfigured "fleet" \
     "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset). Placement reported without asserting a convention$per_repository_roots_note" \
     "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
-fi
-
-# When every attempted ls-remote failed, N MEDIUM merged-remote-branch findings are one
-# transport/binding problem, not N independent stale heads (#4211). Empty ls-remote (head
-# already gone) is a successful probe and does not count as a failure.
-if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
-  emit_finding ls-remote-fleet-unavailable "fleet" \
-    "$LS_REMOTE_FAILURES of $LS_REMOTE_ATTEMPTS ls-remote probes failed (transport, URL-binding mismatch, or reject); per-repository merged-remote-branch findings stay MEDIUM cached observations" \
-    "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun. The per-repository MEDIUM findings are not independent live-probe failures"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------
