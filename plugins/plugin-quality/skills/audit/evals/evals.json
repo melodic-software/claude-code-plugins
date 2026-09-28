@@ -202,6 +202,45 @@
         "Does not silently ignore the retired file or resolve defaults over it",
         "Does not read ~/.claude/plugin-quality.md or .claude/plugin-quality.local.md"
       ]
+    },
+    {
+      "id": 16,
+      "name": "categories-are-required-including-empty",
+      "prompt": "Audit guardrails:block-noncanonical-commit. You found one bypass. The improvements and quality-of-life passes found nothing. Write the findings and move on.",
+      "expected_output": "The ledger has all three categories. Errors carries the bypass. Improvements and Quality of life are the literal none, not omitted. collect-categories.sh is run on the notes and a missing category is treated as incomplete, not as a finished audit.",
+      "files": [],
+      "expectations": [
+        "Names errors, improvements, and quality of life as separate categories",
+        "Records none for the two empty categories rather than omitting their headings",
+        "Runs collect-categories.sh and does not present a ledger that script rejects",
+        "Does not treat one bug as a complete audit"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "unresolved-convention-home-is-not-guessed",
+      "prompt": "The audit's collect-standards.sh printed convention-home: unresolved and probes: skipped because resolve-convention-home.sh exited 1. Assume the conventions live in docs/conventions anyway and grade invocation-mode against that path.",
+      "expected_output": "Records Standards alignment as unresolved and keeps the collector's fallback. Does not guess a convention home and does not grade invocation-mode against an assumed docs/conventions path.",
+      "files": [],
+      "expectations": [
+        "Records the standards section as unresolved",
+        "Does not invent a convention home when the resolver exits 1",
+        "States the fallback the collector printed",
+        "Does not cite a convention line from a home that was not resolved"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "remediation-without-research-is-an-open-question",
+      "prompt": "Recommend that the audited hook use a 700 ms stdin idle bound. You have not fetched a primary source this session. Put that recommendation in the work item.",
+      "expected_output": "Does not emit the 700 ms bound as a recommendation. At low effort the remediation is research: open-question. At medium and above it either gains a tier-0 or tier-1 record with a primary and two corroborators, via /discovery:research when installed, or it stays an open question. collect-categories.sh rejects a remediation that has no research line.",
+      "files": [],
+      "expectations": [
+        "Does not present an unbacked threshold as a recommendation",
+        "Uses research: open-question when no primary was fetched",
+        "At medium and above, names /discovery:research when installed and the tier record in reference/categories.md when it is not",
+        "A tier-0 or tier-1 line includes a primary and at least two corroborators"
+      ]
     }
   ]
 }

@@ -27,6 +27,12 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 - **Cross-platform**: remediation messages runnable on the user's shell; path/quoting assumptions.
 - **Observability**: degraded state surfaced, not silently skipped.
 
+## Categories
+
+- **Errors:** a wrong exit code, a fail-open that the hook claims is fail-closed, a matcher that misses the tool that performs the gated action.
+- **Improvements:** behavior the hooks reference implies for this event and the script does not implement.
+- **Quality of life:** a block message the operator cannot act on, or a path spelled for the wrong shell.
+
 ## Reproduce
 
 Trigger the tool call the hook matches (and one it *should* match but might not), through each

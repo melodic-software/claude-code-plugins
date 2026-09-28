@@ -1,0 +1,71 @@
+# Category ledger
+
+The shape `collect-categories.sh` grades and `collect-standards.sh` feeds.
+An audit that omits a section is incomplete. `none` is a real answer.
+A skipped section is not.
+
+## Sections
+
+| Heading | Closes with |
+|---|---|
+| `## Errors` | `none`, or one `###` finding per observed defect |
+| `## Improvements` | `none`, or findings for behavior the component's own contract or the official component model implies and the component does not do |
+| `## Quality of life` | `none`, or findings for friction the operator hit while using the component |
+| `## Standards alignment` | `none`, `unresolved` (convention home unresolved; the collector's fallback line may follow), or findings |
+| `## Emitted findings` | `not-applicable` when the component does not emit findings to a user, or one `###` sample per sampled finding |
+
+## Finding fields
+
+Errors, improvements, and quality-of-life findings:
+
+```text
+### short title
+evidence: packet reference or reproduction
+remediation: the change, when one is proposed
+research: open-question
+```
+
+or, when the remediation is a recommendation:
+
+```text
+research: tier-0
+primary: the primary source fetched this session
+corroborators: 2
+```
+
+`tier-1` is the same shape. A remediation without `research:` is rejected.
+`open-question` is not a recommendation. The tier names are discovery's
+source-tier table (`plugins/discovery/skills/research/context/discipline.md`);
+this file does not restate that table.
+
+Standards findings add:
+
+```text
+convention: <home>/<topic>/README.md:<line>
+component: <path>:<line>
+```
+
+Emitted-finding samples:
+
+```text
+### short title
+plugin-said: what the audited plugin reported
+verdict: confirmed
+```
+
+`verdict` is `confirmed`, `false`, or `unvalidated`. `false` requires
+`basis:`. `false` is the finding class "the plugin reported X and X was false".
+`unvalidated` is not a grade that the plugin was correct.
+
+## Collectors
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <audit-notes.md>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>
+```
+
+`collect-categories.sh` exits 1 when a section or field is missing.
+`collect-standards.sh` exits 0 when the convention home is unresolved and
+prints `probes: skipped` plus the fallback. It exits 3 when the resolver
+FAILs, and 1 when a probe disagrees. Hook-budget is `not-applicable` here
+because cost is measured, not grep-graded; the hook lens still asks for it.

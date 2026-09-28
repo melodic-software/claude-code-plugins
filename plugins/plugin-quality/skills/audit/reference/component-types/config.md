@@ -44,6 +44,12 @@ convention/config files the plugin reads.
   either page stops describing the monitor trigger values or the stdout-to-notification path, or
   when a release note names the monitors component.)
 
+## Categories
+
+- **Errors:** a key that does not resolve the way the settings reference says, or a silent no-op key that reads as configuration.
+- **Improvements:** a default or scope the schema implies and the resolver does not implement.
+- **Quality of life:** an option the operator cannot tell is unset, or a value that only appears inside a file the session does not show.
+
 ## Reproduce
 
 Set/unset the key at each scope and confirm the effective value and winner match expectations.

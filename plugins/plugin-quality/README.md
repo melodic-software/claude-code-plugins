@@ -6,7 +6,9 @@ whether it actually does what it claims. `/plugin-quality:audit <plugin>[:<compo
 six-step audit and ends with a work item in the plugin maintainers' lap, never with you patching
 their repo mid-session.
 
-- **Audit skill** (`skills/audit`), the six-step hub:
+- **Audit skill** (`skills/audit`), the six-step hub. Every component returns errors,
+  improvements, and quality of life (`none` or findings). `collect-categories.sh` and
+  `collect-standards.sh` grade that ledger:
   1. Evidence capture on the main thread, into a durable, compaction-proof packet.
   2. Map and ground in the fresh `auditor` subagent, with every load-bearing harness-behavior claim
      verified against current official docs.
