@@ -107,6 +107,21 @@ Selection itself is host-neutral: on Windows, use the listing forms above to see
 what your change affects and run individual suites by hand. CI's Linux lanes are
 the gate that decides.
 
+The wall-clock cut of this corpus is not one dispatch. **Claim:** further work
+lands as bounded measured slices, not as this umbrella; two named slices already
+shipped (`affected-tests.sh` merge-in-progress base as
+[#4607](https://github.com/melodic-software/claude-code-plugins/issues/4607),
+changelog-parity fan-out as
+[#4608](https://github.com/melodic-software/claude-code-plugins/issues/4608)).
+The remaining program (per-suite baseline table, 60 s gate ceiling, 2 min
+typical `--run`, 10 min full corpus, path-qualified reverse lookup, budget lane)
+stays parked until the next slice is briefed. **Basis:** operator decision
+2026-09-27 on
+[#3716](https://github.com/melodic-software/claude-code-plugins/issues/3716)
+("split"; umbrella stays parked). **As of:** 2026-09-28. **Recheck:** an operator
+unpark of #3716, or a new bounded slice with a measured Windows Git Bash
+before/after.
+
 It maps a changed file to its co-located suite, to any suite that names it, and
 to its dependents transitively, and it fans a shared-lib change out to every
 carrying plugin by reading the `copies=(...)` array out of that lib's
