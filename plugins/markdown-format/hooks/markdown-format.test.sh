@@ -1049,10 +1049,12 @@ while ((i < 20)); do
   plugin_bins="${plugin_bins}:${d}"
   i=$((i + 1))
 done
+# jq may live outside /usr/bin (mise, Homebrew); without it the hook skips first.
+JQ_DIR="$(dirname "$(type -P jq)")"
 PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_TRIM="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin")"
+  PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin")"
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_cygpath_rewrites_posix_path; then
   skip "PATH probed trims plugin-bin directories to a count" \
@@ -1074,7 +1076,7 @@ fi
 PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_EMPTY="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin:")"
+  PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin:")"
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_cygpath_rewrites_posix_path; then
   skip "PATH probed preserves empty components as cwd" \

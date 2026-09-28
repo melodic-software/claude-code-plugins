@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Fixed
+
+- **Two hook suites no longer fail when run inside a Claude Code session.** `block-hook-bypass.test.sh` unsets an inherited `CLAUDE_PLUGIN_DATA`, whose skip-notice latch silenced the levers document the two-blocking-guards case counts. `run-guards.test.sh` unsets `HOOK_TELEMETRY_SINK`, whose extra output broke two post-verify jq counts. Test-only; hook behavior is unchanged.
+
 ## [0.41.3] - 2026-09-28
 
 ### Changed
