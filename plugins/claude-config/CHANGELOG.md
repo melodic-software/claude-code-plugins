@@ -12,10 +12,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   prohibition (after list, blockquote, checkbox, and emphasis markers) and carries neither a paired
   positive (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) nor a rationale
   marker. Soft-wrapped paragraph lines join into one sentence before the split, and frontmatter,
-  fenced code, table rows, headings, and HTML comment lines are never read. On this repository at
-  `2dfaaa40` the seed falls from 6,608 raw rows to 913. New `--i6-counts` prints
-  `I6 raw=<n> surviving=<n>`, which the Phase D cost line now states. `criteria.md` 1.23.0 rewrites
-  the I6 Detect sentence to say the exclusions are structural, not the row's fences (#4115).
+  fenced code, table rows, headings, and HTML comment lines are never read. A fence, blockquoted
+  or not, closes only on its opener's character at the opener's length or longer with nothing
+  after it. audit-noise's hard-guardrail carve-out (secrets, credentials, production, …) is not
+  adopted: a guardrail "never" still owes I6's fallback rationale (I7), so it stays a candidate. On
+  this repository at `2dfaaa40`, over the 990 `*.md` files under `plugins/*/skills/`,
+  `plugins/*/agents/`, and `.claude/`, plus every `CLAUDE.md` and `AGENTS.md`, the seed falls from
+  6,608 raw rows to 913. New `--i6-counts` prints `I6 raw=<n> surviving=<n>`, which the Phase D
+  cost line now states. `criteria.md` 1.24.0 rewrites the I6 Detect sentence to say the exclusions
+  are structural, not the row's fences, and adds I33's Reporting line (#4115).
 - **`audit-instructions`: I33 is reported one finding per spoke and rolled up per plugin.** Each
   finding is anchored by an excerpt over the spoke's opener sentence with its heading path as the
   discriminator, never a whole-surface anchor. The lane brief restates the row's Must NOT flag

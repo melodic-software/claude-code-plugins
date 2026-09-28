@@ -12,8 +12,11 @@
 #       attributed to the first physical line of its sentence. Frontmatter,
 #       fenced code, table rows, headings, and HTML comment lines are never
 #       read. These are the gates docs-hygiene's audit-noise
-#       rule-negation-without-positive measures; they are structural, not the
-#       catalog's fences, which the model lane still applies to every row.
+#       rule-negation-without-positive measures, less its hard-guardrail
+#       carve-out (secrets, credentials, production, …): a guardrail "never"
+#       still owes I6's fallback rationale (I7), so it stays a candidate.
+#       The gates are structural, not the catalog's fences, which the model
+#       lane still applies to every row.
 #       --i6-counts reports the raw count (the per-line rule: a prohibition
 #       token on a line with no rationale marker) beside the surviving count.
 #   I10 reasoning-echo directive (show/explain/reproduce your thinking or
@@ -358,7 +361,7 @@ run_i6() {
   : >"$i6_tmp"
   for file in "${files[@]}"; do
     printf '@FILE\n%s\n' "$file" >>"$i6_tmp"
-LC_ALL=C awk \
+    LC_ALL=C awk \
     -v cue="^(${I6_CUE_ALT})([^[:alnum:]_]|\$)" \
     -v anycue="${WB_L}(${I6_CUE_ALT})${WB_R}" \
     -v paired="$I6_PAIRED_ERE" \
@@ -445,12 +448,19 @@ LC_ALL=C awk \
     NR == 1 && text ~ /^---[ \t]*$/ { infm = 1; next }
     infm { if (text ~ /^---[ \t]*$/) infm = 0; next }
     {
-      if (match(text, /^ ? ? ?(````*|~~~~*)/)) {
-        d = substr(text, RSTART, RLENGTH)
+      # A fence may sit inside a blockquote. Per CommonMark it closes only on
+      # the opener character, at least the opener length, with nothing but
+      # whitespace after it; a fence line with an info string inside an open
+      # fence is code.
+      ft = text
+      while (ft ~ /^ ? ? ?>/) sub(/^ ? ? ?> ?/, "", ft)
+      if (match(ft, /^ ? ? ?(````*|~~~~*)/)) {
+        d = substr(ft, RSTART, RLENGTH)
+        rest = substr(ft, RSTART + RLENGTH)
         gsub(/ /, "", d)
         flush()
         if (!infence) { infence = 1; fc = substr(d, 1, 1); fl = length(d) }
-        else if (substr(d, 1, 1) == fc && length(d) >= fl) infence = 0
+        else if (substr(d, 1, 1) == fc && length(d) >= fl && rest ~ /^[ \t]*$/) infence = 0
         next
       }
       if (infence) next

@@ -141,11 +141,46 @@ OUT=$(bash "$SCRIPT" "$I6X")
 assert_not_contains "frontmatter is not read for I6" "$OUT" "$I6X:2:I6"
 assert_not_contains "a heading is not read for I6" "$OUT" "$I6X:5:I6"
 assert_not_contains "fenced code is not read for I6" "$OUT" "$I6X:8:I6"
-assert_not_contains "a shorter inner fence does not close the outer one" "$OUT" "$I6X:13:I6"
+assert_not_contains "a fence of the other character does not close the outer one" "$OUT" "$I6X:13:I6"
 assert_not_contains "a table row is not read for I6" "$OUT" "$I6X:19:I6"
 assert_contains "prose after the table is still read" "$OUT" "$I6X:21:I6"
 assert_eq "--i6-counts reports raw and surviving" "I6 raw=6 surviving=1" \
   "$(bash "$SCRIPT" --i6-counts "$I6X")"
+
+# --- Case 3f: I6 fence closing rules ------------------------------------------
+I6C="$TEST_TMPDIR/i6-fence-close.md"
+cat >"$I6C" <<'EOF'
+````markdown
+```
+Never run this in a shorter inner fence.
+```
+````
+
+```
+Never run this before the info-string line.
+```bash
+Never run this after the info-string line.
+```
+
+Never run this after the real closer.
+EOF
+OUT=$(bash "$SCRIPT" "$I6C")
+assert_not_contains "a shorter same-character fence does not close the outer one" "$OUT" "$I6C:3:I6"
+assert_not_contains "a fence line with an info string does not close the fence" "$OUT" "$I6C:10:I6"
+assert_contains "prose after the real closer is scanned" "$OUT" "$I6C:13:I6"
+
+I6Q="$TEST_TMPDIR/i6-quoted-fence.md"
+cat >"$I6Q" <<'EOF'
+> ```
+> Never run this in a quoted fence.
+> ```
+
+Never run this after the quoted fence.
+EOF
+OUT=$(bash "$SCRIPT" "$I6Q")
+assert_not_contains "a blockquoted fence opener is not read as prose" "$OUT" "$I6Q:1:I6"
+assert_not_contains "a blockquoted fence body is not read" "$OUT" "$I6Q:2:I6"
+assert_contains "prose after a blockquoted fence is scanned" "$OUT" "$I6Q:5:I6"
 
 # --- Case 4: I10 reasoning-echo directives flagged --------------------------
 I10F="$TEST_TMPDIR/i10.md"
