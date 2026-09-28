@@ -114,6 +114,7 @@ assert_eq "surface records survive --scopes" "1" "$(count_matching "$OUT_SCOPES"
 
 # --- Case 7: server-managed settings are disclosed, never implied absent -----
 assert_contains "server-managed settings disclosed" "$OUT" "Server-managed settings"
+assert_contains "managed-policy diagnosis routes to /status" "$OUT" "Organization policy"
 
 # --- Case 8: status vocabulary distinguishes absent from malformed -----------
 BAD="$TEST_TMPDIR/bad"

@@ -52,6 +52,7 @@ workflows, pass `dissolve-comments override <path>` for each workflow the operat
 - skill: testing:audit
 - args: .
 - applies-when: repo has tests in JavaScript, TypeScript, Python, or C#
+- prime: false
 - checked: true
 
 ### scan-todos

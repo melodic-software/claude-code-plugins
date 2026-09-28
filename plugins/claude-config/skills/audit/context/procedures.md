@@ -64,7 +64,8 @@ added, and neither is mechanical:
    defends may already block it, in which case the finding is `info` rather than `error` and the rule
    is redundant. See [required-permissions.md](../reference/required-permissions.md) "Narrowing the
    baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
-   and the managed `allowManagedHooksOnly` / `strictPluginOnlyCustomization` levers switch hooks off),
+   and the managed `allowManagedHooksOnly` lever, or `strictPluginOnlyCustomization` set to `true` or
+   to an array that includes `"hooks"`, switches hooks off; an array of only `"mcp"` does not),
    a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
    nothing about another's. **The inventory half is a lookup**: Phase 1.0's
    `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,

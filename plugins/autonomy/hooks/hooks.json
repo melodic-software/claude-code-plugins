@@ -6,8 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh\"",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh"
+            ],
             "timeout": 15,
             "statusMessage": "Checking lane-stop gate..."
           }
