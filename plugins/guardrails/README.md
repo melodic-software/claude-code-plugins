@@ -188,7 +188,9 @@ out of scope until such a signal exists.
   verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
   too ("stop and tell the user"). On the `cat`, `echo`/`printf` and staged-move
   lanes it also says why the target was not scratch-exempt and lists the roots
-  that exempt a bare target in this session. The PowerShell and python lanes
+  that exempt an unquoted literal target in this session, with no configuration
+  needed for the temp tree when the project root is outside it. It says a quoted
+  or variable-carried target is never exempt. The PowerShell and python lanes
   never consult a scratch root, so their message names none. The operator's
   levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
   targets only), a session-scoped disable via `claude --settings`, and the
