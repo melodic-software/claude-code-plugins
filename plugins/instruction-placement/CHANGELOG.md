@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: destination enumerations,
+  silent-failure ladders, and shim-removal mechanics. `setup` is
+  `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
+  plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
+  or merged.
+
 ## [0.15.9] - 2026-09-28
 
 ### Changed
