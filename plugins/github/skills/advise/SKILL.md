@@ -56,7 +56,7 @@ and name what the change does to each before recommending it. Every recommendati
 and docs cannot settle is withheld: present it as a decision point naming the evidence that would
 settle it, not as a recommendation. A changed recommendation is restated as old → new → why.
 Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
-full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
+full convention: `docs/conventions/recommendation-basis/README.md` in the marketplace repository.
 
 ## 4. Advise
 
