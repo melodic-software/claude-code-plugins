@@ -328,6 +328,7 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
     if [[ -n "${v//[[:space:]]/}" ]]; then
       mapfile -t "$dest" <<<"$v"
     else
+      # shellcheck disable=SC2178  # nameref: dest holds the caller's array name, not a string
       local -n dest_ref="$dest"
       # shellcheck disable=SC2034  # nameref: this assignment clears the caller's array without a null device
       dest_ref=()
