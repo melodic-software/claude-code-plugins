@@ -75,7 +75,11 @@ against a run that produced none):
    and a later reader cannot tell an unverified run from a verified one whose result went unrecorded.
 
    Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
-   index's outcome-gate result: `verification: pending` becomes the verifier's verdict, the verifier
+   index's outcome-gate result: `verification: pending` becomes the verifier's verdict, written as
+   the literal line in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+   ("The sibling verifier, stated once"), which also names the verifier's route, its prompt, and
+   what to write when none can be dispatched; the verifier
    rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with

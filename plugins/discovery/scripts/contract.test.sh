@@ -590,6 +590,37 @@ else
   fail 'the source-applicability checker ships'
 fi
 
+# ---------------------------------------------------------------------------
+# The sibling verifier is specified once and pointed at (#4274)
+#
+# Every payload asks for a verifier, and no agent, prompt, write-back line or
+# no-verifier fallback was stated anywhere, so a verified index and one whose
+# verifier never ran read the same.
+# ---------------------------------------------------------------------------
+verifier_heading='^## The sibling verifier, stated once$'
+verifier_line='^verification: <pass\|fail\|unverified> <YYYY-MM-DD> <worker>$'
+assert_present 'the parent contract owns the sibling verifier' \
+  'reference/parent-contract.md' "$verifier_heading"
+assert_present 'the parent contract states the literal write-back line' \
+  'reference/parent-contract.md' "$verifier_line"
+assert_present 'the parent contract names the verifier route' \
+  'reference/parent-contract.md' '^\*\*Route\.\*\* Dispatch a `general-purpose` subagent'
+assert_present 'the parent contract states the no-verifier fallback' \
+  'reference/parent-contract.md' '`verification: unverified <YYYY-MM-DD> none`'
+for pair in "heading:$verifier_heading" "write-back line:$verifier_line"; do
+  owners="$(surface | xargs grep -lE -- "${pair#*:}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$owners" -eq 1 ]]; then
+    pass "the sibling verifier's ${pair%%:*} is stated exactly once"
+  else
+    fail "the sibling verifier's ${pair%%:*} is stated exactly once — $owners files carry it"
+  fi
+done
+for file in skills/explore/SKILL.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file points at the sibling verifier" \
+    "$file" '"The sibling verifier, stated once"'
+done
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

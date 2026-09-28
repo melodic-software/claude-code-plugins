@@ -1,5 +1,25 @@
 # Changelog: discovery plugin
 
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **The sibling verifier is specified once.** Every dispatched run returns
+  `verification: pending` and asks for a fresh-context verifier. No agent, prompt, write-back
+  format or no-verifier fallback was stated anywhere, so a verified `EXPLORE.md` and one whose
+  verifier never ran read the same. `reference/parent-contract.md` now owns all four for the
+  three families:
+  - the route: a `general-purpose` subagent, not built-in Explore or a producing `discovery:*`
+    worker;
+  - a five-line labeled prompt, `Target:`, `Criterion:`, `Evidence:`, `Posture:` and `Return:`;
+  - the literal index line `verification: <pass|fail|unverified> <YYYY-MM-DD> <worker>`, where a
+    missing line means never verified;
+  - `unverified … none` plus a numbered gap when no verifier can be dispatched.
+
+  Research keeps its row 4, 7 and 12 brief in its own dispatch file. `explore`, `research` and
+  `trace-intent` point at the section, and `contract.test.sh` holds the heading and the line to one
+  owner ([#4274](https://github.com/melodic-software/claude-code-plugins/issues/4274)).
+
 ## [0.24.7] - 2026-09-27
 
 ### Added
