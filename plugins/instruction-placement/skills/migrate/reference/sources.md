@@ -183,8 +183,52 @@ historical ten on #4281, so this run does not cover that list.
   Code)`, bundle offset 225456771 `var W=!0`, env-vars fetch with the AGENTS.md bullet absent.
   The pre-map run is the same command before this row existed.
 - **As of**: 2026-09-28.
-- **Recheck trigger**: the next cutover-check run, a named repository moving its pin, or one of
-  the five unread repositories becoming readable.
+- **Recheck trigger**: fired the same day at 12:31 UTC. The grade from that run is
+  [Standing refresh (#5163)](#standing-refresh-5163). A pin move or a previously unread
+  repository becoming readable is that section's trigger.
+
+## Standing refresh (#5163)
+
+`cutover-check.sh` again, 2026-09-28 12:31 UTC, without `--skip-canary`, against the nine
+live repositories `gh repo list melodic-software` returned. Archived `claude-lane-sandbox`
+was not cloned (#4282). `gh repo view` for `medley`, `songwriting`, `claude-code-proxy`,
+`knowledge-corpus`, and `provisioning` returned repository-not-found, so those five of the
+historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
+
+| Repository | Commit graded |
+|---|---|
+| claude-code-plugins | `5e6eade117ec3e6737840434602dbfb930f5ab3e` (origin/main at run time) |
+| standards | `849678b5e59d20b50ec39b4dd587d70756417727` |
+| ci-runner | `ac7ac20af851ca93f7d636cee5425bde032e04eb` |
+| ci-workflows | `b570d97203c7973b25c14e3de91c5ff3a4aa0e82` |
+| claude-code-account-rotation | `af6541e4ff2a4d12400310b21a7203bfff1013f8` |
+| cursor-plugins | `9cb950e62443300764ee81537df8bbb19931880a` |
+| agent-plugins | `03260bb8a4fdda42809e4f9dbd42409f96b47f59` |
+| codex-plugins | `be421d0a7ae900fa5cdefe17343110be412b5a64` |
+| .github | `5bc36c9492720dedfd922ec82355dfe95125920e` |
+
+- **Claim**: Condition 1 is `[MET]`. The bundle code default for `tengu_agents_md_mod` is
+  true (`var W=!0` at offset 225456771 on CLI 2.1.282). The env-vars fetch in the same run
+  found the feature-flag heading and no `AGENTS.md` bullet. Condition 2 is `[MET]`. The only
+  pins are the two in ci-workflows (`claude-review.yml:167` and
+  `claude-security-review.yml:160`), both `756cc22e19660d20e8cc9496b4f242475a7f7790`, which
+  the release map installs as CLI 2.1.283, at or above 2.1.277. CI canary run `35475056935`
+  stays the recorded run. Condition 3 is `[UNREACH]`. The home scratch root was
+  `/home/ubuntu/.cache` and the second path was `/tmp`. Each `claude -p` exited 1. A separate
+  probe, `claude -p "say hi" --model haiku --tools ""`, printed `Not logged in · Please run
+  /login` and exited 1. `claude auth status` reported `loggedIn` false and `authMethod` none.
+  Condition 4 is `[MET]`: 68 acknowledged rows, all in this marketplace; the other eight
+  trees report no path detection. The verdict is NOT MET. `agents-md-cutover-check` in
+  `.github/recurring-schedule.json` stays `last_checked` 2026-09-20 and `next_due`
+  2026-10-20. Shim removal stays blocked.
+- **Basis**: `cutover-check.sh` stdout from this host on 2026-09-28 12:31 UTC (conditions 1,
+  2, and 4 `[MET]`, condition 3 `[UNREACH]`, exit 1); `claude auth status`; the login probe
+  above; `gh repo list` and the five `gh repo view` not-found results; the commits in the
+  table.
+- **As of**: 2026-09-28.
+- **Recheck trigger**: the next cutover-check run, a named repository moving its pin, one of
+  the five unread repositories becoming readable, or a host where `claude auth status`
+  reports `loggedIn` true so condition 3 can measure.
 
 ## Install-dependent loader tests parked (#4283)
 
