@@ -117,18 +117,20 @@ user must decide. `[CC: direct]`
 ## API-side facts, for integrations you author
 
 Conversation histories must be append-only. Append each assistant turn exactly as the API returned it,
-thinking blocks included, and never edit an earlier turn between requests: a replayed thinking block
-whose prefix has changed returns a 400. The guide scopes that enforcement to accounts created on or
-after 2026-08-31 and says later models are expected to enforce it for every account
-(guide section: "Keep the conversation history append-only"). Forced `tool_choice` of `any` or a named
-tool returns a 400 on this model. Fable 5.1 is on the keep-all-prior-turns list, so earlier thinking
-blocks stay in context and bill as input. A Fable 5.1 thinking block is readable by Fable 5.1 and
-Mythos 5.1, and those two read earlier models' blocks; an earlier model does not read a Fable 5.1
-block, and the API drops it without an error
-(thinking page, "Thinking with tool use", "Keep all prior turns", and "Switching models
-mid-conversation", read 2026-09-28). The Claude Code harness keeps the prefix intact for you; these facts bite only
-when your code builds the `messages` array itself. Resolve the current details through the `claude-api`
-skill at the moment of use; this chapter carries no model ID, price, or limit. `[CC: API-side]`
+thinking blocks included, and never edit an earlier turn between requests. For accounts created on or
+after 2026-08-31, a replayed thinking block whose prefix has changed returns a 400, or the API drops
+the affected blocks when the request sets `thinking.block_binding.prefix_mismatch_behavior` to
+`"drop_block"`. The guide does not say a later model will enforce that prefix check for every account.
+On older accounts the thinking page says the check runs only when the request sets that field
+(guide section: "Keep the conversation history append-only"; thinking page, "Preserved thinking").
+Forced `tool_choice` (`{"type": "any"}` or `{"type": "tool", ...}`) returns a 400 on every request on
+this model (thinking page, "Response prefill and forced tool use"). Fable 5.1 is on the
+keep-all-prior-turns list, so earlier thinking blocks stay in context and bill as input. Fable 5.1
+and Mythos 5.1 read every earlier model's thinking blocks, and no earlier model reads theirs. The
+page does not say those two read each other's blocks (thinking page, "Thinking block preservation by
+model"). The Claude Code harness keeps the prefix intact for you; these facts bite only when your
+code builds the `messages` array itself. Resolve the current details through the `claude-api` skill
+at the moment of use; this chapter carries no model ID, price, or limit. `[CC: API-side]`
 
 ## Cross-model effort economics, for model selection
 
@@ -178,11 +180,14 @@ section when that symptom is the task. The prompt blocks stay on the page.
 ## Sources
 
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>,
-  the live "Prompting Claude Fable 5.1" page, read 2026-09-28. The "without changes" claim, the
-  formatting default including fewer quotation marks, and the deferred sections above rest on it.
-- <https://platform.claude.com/docs/en/build-with-claude/thinking>, read 2026-09-28. Basis for
-  forced `tool_choice` returning 400, the keep-all-prior-turns list, and which models can read a
-  Fable 5.1 thinking block.
+  the live "Prompting Claude Fable 5.1" page, read 2026-09-28. Two fetches that day returned
+  identical bytes (54,502 B, MD5 `e0eaef3718f51f871fccac2141919cd3`). The "without changes" claim,
+  the formatting default including fewer quotation marks, and the deferred sections above rest on it.
+  The page has no section on keeping or removing an instructed check.
+- <https://platform.claude.com/docs/en/build-with-claude/thinking>, read 2026-09-28. Two fetches
+  that day returned identical bytes (74,179 B, MD5 `e058ca2056a2bd9a80ffe13c620364ba`). Basis for
+  forced `tool_choice` returning 400, the prefix-check scope, the keep-all-prior-turns list, and
+  which models can read a Fable 5.1 thinking block.
 - <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence>
   ("Tune effort"), read 2026-09-09, plus the vendor's cost-and-performance article on the
   claude.com blog (2026-09-08). Basis for the cross-model effort economics section; the benchmark
