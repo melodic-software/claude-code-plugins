@@ -9,6 +9,12 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 - **`explain`:** an offered HTML view for the research and concept explainer genre (#3606). The markdown explanation stays the deliverable. The page is built only after the reader accepts, by `build-concept-view.mjs`, which escapes every field through the shared helper.
 
+## [0.11.4] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
 ## [0.11.3] - 2026-09-27
 
 ### Fixed
