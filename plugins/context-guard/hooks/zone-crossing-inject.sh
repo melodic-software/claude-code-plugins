@@ -348,13 +348,13 @@ cg_prove_scalar_ids() {
 # <json> <key> <varname>. The key appears once, and the value has no escape.
 cg_json_plain_string() {
   local s="$1" key="$2" rest stripped count
-  local -n _cg_out=$3
   stripped=${s//"\"$key\""/}
   count=$(((${#s} - ${#stripped}) / (${#key} + 2)))
   ((count == 1)) || return 1
   rest=${s#*"\"$key\""}
   [[ "$rest" =~ ^[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || return 1
-  _cg_out=${BASH_REMATCH[1]}
+  # printf -v, not a nameref: namerefs need bash 4.3 and this plugin supports 3.2.
+  printf -v "$3" '%s' "${BASH_REMATCH[1]}"
 }
 
 EVENT=""
@@ -812,6 +812,9 @@ umask 077
 # The state directory exists on every fire after the session's first, so the
 # guard pays the process once per session instead of once per tool batch.
 # `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
+# Without jq no emit can run, so exit before any marker moves; a later fire
+# with jq installed then still sees the crossing. `command -v` is a builtin.
+command -v jq >/dev/null 2>&1 || cg_require_utils
 [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 # A marker whose on-disk value already matches is not rewritten. This hook
 # fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
