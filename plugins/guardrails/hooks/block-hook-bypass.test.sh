@@ -644,6 +644,19 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written on block"
 fi
+# The `& $var` two-positional arm reports its own form, distinct from
+# powershell-write (#4235).
+TEL_PSPOS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_PSPOS="$(make_sink "cat >\"$TEL_PSPOS\"")"
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $sh x.sh record dir' \
+  -- "HOOK_TELEMETRY_SINK=$SINK_PSPOS" "CLAUDE_PROJECT_DIR=$TEST_TMPDIR"
+if wait_for_sink "$TEL_PSPOS"; then
+  assert_eq "telemetry: form powershell-computed-positional" \
+    "powershell-computed-positional" "$(jq -r '.data.form' "$TEL_PSPOS" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a computed-positional block"
+fi
 
 # --- Telemetry subject never carries an assignment VALUE (#3372) -------------
 # The local `bash_subject` copy this hook carried stripped `sudo` / `NAME=*`
@@ -1057,6 +1070,26 @@ run_pwsh "PS: stop-parsing token after a computed target (blocked)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: bare-computed target, literal beside a positional (blocked — #2722 signal)" \
   "& \$py \$script out.jsonl" 2
+# #4235: the same arm is the one `block_hook_bypass_allow=ps-computed-positional`
+# grants. The token is that arm only: Set-Content and a splat stay blocked.
+# shellcheck disable=SC2016
+expect "PS: computed-positional allow token lets & \$py \$script out.jsonl through" 0 \
+  --tool PowerShell --command '& $py $script out.jsonl' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+# shellcheck disable=SC2016
+expect "PS: computed-positional allow token lets & \$sh x.sh record dir through" 0 \
+  --tool PowerShell --command '& $sh x.sh record dir' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+expect "PS: Set-Content still blocked under ps-computed-positional" 2 \
+  --tool PowerShell --command "Set-Content -Path f.txt -Value 'x'" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+# shellcheck disable=SC2016
+expect "PS: splat still blocked under ps-computed-positional" 2 \
+  --tool PowerShell --command '& $w @p' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional
+expect "PS: Bash cat redirect still blocked under ps-computed-positional" 2 \
+  --command 'cat > foo.txt' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW=ps-computed-positional CLAUDE_PROJECT_DIR=
 # shellcheck disable=SC2016
 run_pwsh "PS: bare-computed target, all operands computed (allowed — #2848)" \
   "& \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
@@ -1406,6 +1439,18 @@ assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
 $MSG_USE
 $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
+# #4235: the two-positional arm on a `& $var` call names its own rule, the
+# rewrites, and the allow token, and reports its own form token.
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $sh "$r/packet-seal.sh" record "$s/t"' -- "${MSG_ENV[@]}"
+assert_exit "message: PowerShell computed positional blocks" 2 "$GUARD_RC"
+# shellcheck disable=SC2016
+assert_eq "message: PowerShell computed positional names the & \$var rule, rewrite, and allow token" \
+  'BLOCKED: PowerShell call through a variable (& $var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>
+'"$MSG_USE"'
+If this call writes no file, rewrite it: call the program by a literal quoted path (& '\''C:/path/tool.exe'\'' script.sh arg), bind that path as a single-quoted literal earlier in the same command ($t='\''C:/path/tool.exe'\''; & $t script.sh arg), or put a flag before the positionals.
+Or allow it via the block_hook_bypass_allow option (add ps-computed-positional).
+'"$MSG_POINTER" "$GUARD_ERR"
 guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \

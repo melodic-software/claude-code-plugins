@@ -30,14 +30,16 @@
 # guard may do. An LLM never emits this form; the deny-list plus human oversight
 # are the adversarial layers.
 # The supported deliberate bypasses are the kill switch
-# (block_hook_bypass_enabled set to false) and the scratch-root exemption
-# (block_hook_bypass_scratch_roots). The option's own list is still empty by
-# default; since #3719 it composes with the roots the guard ships exempt — the
-# host temp trees, which the harness scratchpad sits under, and the plugin data
-# directory, where plugins persist their reports — each gated on a project root
-# that does not contain it and confirmed through symlink resolution. See the
-# block above scratch_target_exempt for why exempting those gives up no
-# protection, and why the memory tier is deliberately not one of them.
+# (block_hook_bypass_enabled set to false), the scratch-root exemption
+# (block_hook_bypass_scratch_roots), and block_hook_bypass_allow (currently
+# ps-computed-positional, the PowerShell `& $var` two-positional arm). The
+# scratch option's own list is still empty by default; since #3719 it composes
+# with the roots the guard ships exempt — the host temp trees, which the
+# harness scratchpad sits under, and the plugin data directory, where plugins
+# persist their reports — each gated on a project root that does not contain it
+# and confirmed through symlink resolution. See the block above
+# scratch_target_exempt for why exempting those gives up no protection, and why
+# the memory tier is deliberately not one of them.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -1397,6 +1399,10 @@ block_bypass() {
     fi
     echo "If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots." >&2
     ;;
+  powershell-computed-positional)
+    echo "If this call writes no file, rewrite it: call the program by a literal quoted path (& 'C:/path/tool.exe' script.sh arg), bind that path as a single-quoted literal earlier in the same command (\$t='C:/path/tool.exe'; & \$t script.sh arg), or put a flag before the positionals." >&2
+    echo "Or allow it via the block_hook_bypass_allow option (add ps-computed-positional)." >&2
+    ;;
   *)
     echo "If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only." >&2
     ;;
@@ -1429,7 +1435,17 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   if ps::write_bypass "$COMMAND"; then
-    block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+    if [[ "$PS_WRITE_BYPASS_ARM" == computed-positional ]]; then
+      _bbh_allow_list=",${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW:-},"
+      _bbh_allow_list="${_bbh_allow_list// /}"
+      if [[ "$_bbh_allow_list" == *",ps-computed-positional,"* ]]; then
+        :
+      else
+        block_bypass "powershell-computed-positional" "PowerShell call through a variable (& \$var) with two or more positional operands, one a bare word, reads as Set-Content <path> <value>"
+      fi
+    else
+      block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+    fi
   fi
   # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
   # around Write/Edit whichever tool launches them, and ps::write_bypass models only

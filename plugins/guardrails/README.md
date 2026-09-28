@@ -213,13 +213,16 @@ out of scope until such a signal exists.
   lanes it also says why the target was not scratch-exempt and lists the roots
   that exempt a bare target in this session. The PowerShell and python lanes
   never consult a scratch root, so their message names none. The operator's
-  levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
-  targets only), a session-scoped disable via `claude --settings`, and the
-  user-global `block_hook_bypass_enabled` switch, which persists across every
-  repository where guardrails is enabled. They arrive once per session and agent
-  as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
-  human has confirmed that notice renders on a block, stderr also ends with a
-  one-line pointer to this README.
+  levers, narrowest first, are `block_hook_bypass_allow` (`ps-computed-positional`
+  for the PowerShell `& $var` two-positional arm), `block_hook_bypass_scratch_roots`
+  (Bash redirect targets only), a session-scoped disable via `claude --settings`,
+  and the user-global `block_hook_bypass_enabled` switch, which persists across
+  every repository where guardrails is enabled. They arrive once per session and
+  agent as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0.
+  Until a human has confirmed that notice renders on a block, stderr also ends
+  with a one-line pointer to this README. On the computed-positional arm the
+  denial names the rewrite first (literal quoted path, a preceding single-quoted
+  binding, or a flag before the positionals) and then the allow token.
 - **Every hook says so when it could not run.** A hook has three outcomes,
   not two: allow (exit 0), block (exit 2), and could-not-run. Every registered
   hook and the dispatcher install the shared abort boundary
@@ -1309,6 +1312,7 @@ reads it from.
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
 | `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
+| `block_hook_bypass_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ALLOW` | Comma-separated PowerShell write-bypass arm tokens block-hook-bypass permits. Currently: ps-computed-positional, the `& $var` two-or-more positional operand arm that reads as Set-Content <path> <value>. A granted token skips only that arm; Set-Content, redirects, splats, and Bash writes still block. Empty blocks all |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block |
 
 ### How to set these
