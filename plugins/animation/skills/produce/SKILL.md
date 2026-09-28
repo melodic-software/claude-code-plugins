@@ -23,8 +23,8 @@ needs only the standard library:
 
 ## Production directory
 
-One directory the user names. `produce.py init <dir>` creates the skeleton and does not overwrite
-a `brief.md` that is already there.
+One directory the user names. `produce.py init <dir>` creates each missing skeleton file and never
+overwrites one that is already there.
 
 | Path | Who writes it | What it holds |
 |---|---|---|

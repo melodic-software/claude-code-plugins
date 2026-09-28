@@ -7,7 +7,7 @@ usage: produce.py init <dir>
        produce.py shots <dir>
        produce.py cuts <dir>
        produce.py review <dir> [--frames DIR]
-  init     create the production skeleton. Leaves an existing brief.md alone.
+  init     create each missing skeleton file. Never overwrites an existing one.
   boards   check pre-production boards. Exit 1 when any required field is missing.
   approve  write boards/approval.json bound to a digest of those boards. Refuses
            until boards passes. The skill calls this only after the user approves.
@@ -313,20 +313,25 @@ def report(problems):
     return 1 if problems else 0
 
 
+SKELETON = {
+    'brief.md': '# Brief\n\nSubject:\nLength:\nAudience:\nPacks:\nDelivery:\n',
+    'boards/style-guide.md': '# Style guide\n\nPack:\n\nDiffers from the pack:\n',
+    'boards/vibe.md': '# Vibe\n\nCredit:\n',
+    'boards/palette.json': json.dumps({'pack': '', 'ink': '', 'paper': '', 'tones': []}, indent=2) + '\n',
+    'boards/storyboard.json': json.dumps({'panels': []}, indent=2) + '\n',
+}
+
+
 def cmd_init(prod):
-    if (prod / 'brief.md').is_file():
-        print(f'produce: {prod} already has brief.md')
-        return 0
+    """Create each missing skeleton file; never overwrite one, so a re-run completes an interrupted init."""
     for folder in ('models', 'elements', 'storyboard'):
         (prod / 'boards' / folder).mkdir(parents=True, exist_ok=True)
-    (prod / 'brief.md').write_text(
-        '# Brief\n\nSubject:\nLength:\nAudience:\nPacks:\nDelivery:\n', encoding='utf-8')
-    (prod / 'boards/style-guide.md').write_text(
-        '# Style guide\n\nPack:\n\nDiffers from the pack:\n', encoding='utf-8')
-    (prod / 'boards/vibe.md').write_text('# Vibe\n\nCredit:\n', encoding='utf-8')
-    (prod / 'boards/palette.json').write_text(
-        json.dumps({'pack': '', 'ink': '', 'paper': '', 'tones': []}, indent=2) + '\n', encoding='utf-8')
-    (prod / 'boards/storyboard.json').write_text(json.dumps({'panels': []}, indent=2) + '\n', encoding='utf-8')
+    for name, text in SKELETON.items():
+        path = prod / name
+        if path.is_file():
+            print(f'produce: {prod} already has {name}')
+        else:
+            path.write_text(text, encoding='utf-8')
     print(prod)
     return 0
 
