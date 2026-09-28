@@ -7,7 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes, and names `perl -i`, `tee`, `cp`, and `node -e` among the forms it does not detect.
+- README: what `guardrails`' `block-hook-bypass` covers of the unseen write paths now includes `python3 -c` writes that use a file-write call it recognizes, and names `perl -i`, `tee`, a standalone `cp`, and `node -e` among the forms it does not detect.
 
 ## [0.7.1] - 2026-09-28
 
