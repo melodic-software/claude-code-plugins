@@ -34,4 +34,4 @@ When `verdict` is `not-a-candidate` because **no upscaler DLL** was found:
 ## Tracking
 
 Full manifest-backed Feeder support (route detection, apply/remove/status, verifier integration) remains
-#4592. This file is the research-settle park until that ships.
+`#4592`. This file is the research-settle park until that ships.
