@@ -218,6 +218,7 @@ mkdir -p "$LS_DIR"
 : >"$LS_DIR/second"
 stamp="$(date +%Y%m%d%H%M.%S)"
 if touch -t "$stamp" "$LS_DIR/first" "$LS_DIR/second"; then
+  # shellcheck disable=SC2012 # ls -t is the ordering under measurement, not a file listing
   ls_order="$(ls -t "$LS_DIR" | tr '\n' ' ' | sed 's/ $//')"
   if command -v python3 >/dev/null 2>&1; then
     ls_resolution="$(python3 - "$LS_DIR/first" "$LS_DIR/second" <<'PY'
