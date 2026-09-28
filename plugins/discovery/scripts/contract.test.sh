@@ -198,7 +198,7 @@ assert_present 'the research parent-obligation table carries a Source breadth ro
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
 # A breadth token narrows a small question below caller effort, and Budget: has
-# one vocabulary mapped to Effort rows (#4230).
+# one vocabulary mapped to Effort rows.
 assert_present 'research argument-hint shows the breadth token' \
   'skills/research/SKILL.md' '^argument-hint: "\[breadth=low\|medium\]'
 assert_present 'research SKILL.md states breadth narrows and never widens' \
