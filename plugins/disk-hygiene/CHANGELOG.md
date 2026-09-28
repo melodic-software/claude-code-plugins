@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.8] - 2026-09-28
+## [0.28.9] - 2026-09-28
 
 ### Added
 
 - **`scan` flags home-root `*.py` files that shadow a standard-library module** ([#4217](https://github.com/melodic-software/claude-code-plugins/issues/4217)). A loose `~/gettext.py` shadowed stdlib `gettext` for Python started from the home directory, and the engine hinted only the `__pycache__` it kept rebuilding. The snapshot and stdout, including `--quiet`, now carry `stdlib_shadowing`, one row per home-root file whose stem is in the interpreter's `sys.stdlib_module_names`, with the sibling `bytecode_cache` when that cache holds its `.pyc`. The file's entry gains a `stdlib-module-shadow` advisory, and the home-root `__pycache__` entry gains `bytecode_sources` naming the module each `.pyc` was compiled from, read with one directory listing even when a depth cut left the cache unwalked. The advisory is not a hint: it adds no tier and no eligibility.
+
+## [0.28.8] - 2026-09-28
+
+### Changed
+
+- **The belt's last env-derived data-root channels are closed** ([#4669](https://github.com/melodic-software/claude-code-plugins/issues/4669)). `CLAUDE_PLUGIN_DATA` is never a data-root channel: the engine requires `--data-root`, the guard no longer reads the variable, and a `--plugin-dir` session with no cache layout and no `known_marketplaces.json` proof fails closed. The no-authority denial names the recovery as a marketplace install or `claude plugin marketplace add <checkout>`, not a launch-shell export. `engine_context.py` names the channel that supplied `data_root`. User-scope `extraKnownMarketplaces` is declined: the settings-reference key is Any-file, its purpose is repo-or-org registration, and a `directory` source is development-only. A paid probe of whether a launch-shell export reaches a skill-frontmatter hook was not run; the recovery hint matches that decision.
 
 ## [0.28.7] - 2026-09-28
 

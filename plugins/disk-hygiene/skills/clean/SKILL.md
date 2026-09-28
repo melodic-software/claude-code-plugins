@@ -113,9 +113,9 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   both from the probe. The probe itself needs `<hook-python>`: if neither source has supplied it,
   submit the probe once with bare `python`, and the guard denies that read-only call and names its
   interpreter; rerun the probe with it. Never submit a scan to learn either value. A `data_root` of
-  `none` in the note or `null` from the probe means the install layout proved no data root: pass
-  `${CLAUDE_PLUGIN_DATA}` and let the guard judge, and a denial then is the coverage gap §1
-  describes. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
+  `none` in the note or `null` from the probe means the install layout proved no data root, so the
+  guard denies every engine call: report the audit as not run, relay the recovery the guard's
+  denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
   improvising a different scanner or deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
