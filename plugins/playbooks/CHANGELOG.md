@@ -11,6 +11,13 @@ only after that version increases.
 - **`repo-sweep` next** skips `/session-flow:orchestrate` and `/discipline:use-your-skills` when a
   catalog entry sets `- prime: false` (`catalog.sh` eighth column; `testing-audit` in `hygiene`).
 
+## [0.13.14] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep`**: record partial skill coverage with `tick.sh partial` and recommend `rerun` in
+  `history.sh` instead of treating the step as a clean `no findings` run (`reference/next.md`).
+
 ## [0.13.13] - 2026-09-28
 
 ### Fixed
