@@ -1,4 +1,4 @@
-# typos — https://github.com/crate-ci/typos
+# typos: https://github.com/crate-ci/typos
 # Config reference: https://github.com/crate-ci/typos/blob/master/docs/reference.md
 # Identifiers vs words: https://github.com/crate-ci/typos/blob/master/docs/design.md
 #
@@ -20,9 +20,9 @@ extend-ignore-re = [
   # directives above (?Rm) and below (?s); a bare \n silently no-ops on a CRLF file.
   "(#|//)\\s*spellchecker:ignore-next-line\\r?\\n.*",
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
-  # Markdown / HTML comment form of the block directive — invisible in render.
+  # Markdown / HTML comment form of the block directive: invisible in render.
   "(?s)<!--\\s*spellchecker:off\\s*-->.*?<!--\\s*spellchecker:on\\s*-->",
-  # Braced GUID / UUID literals — typos skips uniform-case UUIDs natively, but
+  # Braced GUID / UUID literals: typos skips uniform-case UUIDs natively, but
   # a mixed-case one trips the word splitter on its hex segments (e.g. `Ba54`
   # splits to `Ba` -> "By"). Matches the canonical 8-4-4-4-12 brace form.
   "\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}",
@@ -32,64 +32,64 @@ extend-ignore-re = [
 # whole-token identifiers (case-sensitive, below): the base carries the
 # CONSTELLATION-WIDE UNION. This file is synced verbatim to consumers and typos
 # has no config layering, so a repo-specific exception cannot survive as a
-# local edit — route a broadly valid exception here via an upstream PR; a repo
+# local edit: route a broadly valid exception here via an upstream PR; a repo
 # with genuinely different policy owns the complete component locally.
 # Each entry only skips its exact token, so the union is inert outside the
 # repos that need it; keep every entry annotated.
 [default.extend-words]
 # ASUS Armoury Crate, and the `Asus.ArmouryCrate` winget package id it is
-# installed by — provisioning. typos splits the compound, so the word entry is
+# installed by. Used in provisioning. typos splits the compound, so the word entry is
 # what spares the id; rewriting it to "Armory" would break the install.
 armoury = "armoury"
-# Reaching for "the full axe" — claude-code-plugins docs-hygiene. The en-us
+# Reaching for "the full axe": claude-code-plugins docs-hygiene. The en-us
 # locale prefers the "ax" variant; both are American, so this is a house
 # spelling choice, not a correction.
 axe = "axe"
 # The Calibre ebook manager: the `calibre.calibre` winget package id, the
-# `calibre`/`calibredb` CLIs, and CALIBRE_-prefixed environment variables —
+# `calibre`/`calibredb` CLIs, and CALIBRE_-prefixed environment variables:
 # claude-code-plugins kindle-dedrm, provisioning. Rewriting it to "caliber"
 # would break both the package id and the command names.
 calibre = "calibre"
 
 [default.extend-identifiers]
-# Win32 APPBARDATA variable ($abd) — dotfiles set-windows-prefs (taskbar auto-hide).
+# Win32 APPBARDATA variable ($abd): dotfiles set-windows-prefs (taskbar auto-hide).
 abd = "abd"
-# Business Associate Agreements (HIPAA) — provisioning.
+# Business Associate Agreements (HIPAA): provisioning.
 BAAs = "BAAs"
-# Python trust-store package (the certifi CA bundle) — claude-code-proxy.
+# Python trust-store package (the certifi CA bundle): claude-code-proxy.
 certifi = "certifi"
-# Scansion vocalization for a stressed syllable ("DUM da DUM da") — songwriting
+# Scansion vocalization for a stressed syllable ("DUM da DUM da"): songwriting
 # plugin, prosody/meter craft docs. Corrected to "DUMB" by default. Case-sensitive
 # and whole-token, so lowercase "dum" and any word containing it are unaffected.
 DUM = "DUM"
 # schtasks output-format switch (/FO, documented uppercase in
-# `schtasks /query /?`) — claude-code-proxy. Case-sensitive and whole-token, so
+# `schtasks /query /?`): claude-code-proxy. Case-sensitive and whole-token, so
 # lowercase "fo" is unaffected.
 FO = "FO"
-# Features on Demand (Windows optional-feature packaging) — provisioning.
+# Features on Demand (Windows optional-feature packaging): provisioning.
 FoD = "FoD"
-# The MITRE Corporation (MITRE ATT&CK, the CVE program) — review conventions.
+# The MITRE Corporation (MITRE ATT&CK, the CVE program): review conventions.
 # The en-us locale corrects the woodworking joint's British spelling to "miter";
 # case-sensitive and whole-token, so that correction still applies to prose.
 MITRE = "MITRE"
-# CC BY-ND license abbreviation (NoDerivatives) — claude-code-proxy.
+# CC BY-ND license abbreviation (NoDerivatives): claude-code-proxy.
 # Case-sensitive and whole-token, so lowercase "nd" is unaffected.
 ND = "ND"
 # Plug and Play, the standard Windows abbreviation in prose ("PnP device
-# enumeration") — claude-code-proxy. The splitter flags the `Pn` segment as
+# enumeration"): claude-code-proxy. The splitter flags the `Pn` segment as
 # "On". Whole-token: the PnP-prefixed identifiers below still need their own
 # entries.
 PnP = "PnP"
-# NIC power-management registry value name — provisioning.
+# NIC power-management registry value name: provisioning.
 PnPCapabilities = "PnPCapabilities"
 # Deliberate word-stem inside a documented grep pattern (matches rotate/rotation
-# variants) — claude-code-proxy. Whole-token, so real "rotate" typos still flag.
+# variants): claude-code-proxy. Whole-token, so real "rotate" typos still flag.
 rotat = "rotat"
-# Win32 WMI device class — claude-code-proxy. The whole identifier is the
+# Win32 WMI device class: claude-code-proxy. The whole identifier is the
 # token typos sees (its splitter flags the `Pn` segment as "On"), so the
 # entry carries the full class name, not the bare PnPEntity suffix.
 Win32_PnPEntity = "Win32_PnPEntity"
-# Jasmine/Jest suite-skip global (the x-prefixed describe) — claude-code-plugins
+# Jasmine/Jest suite-skip global (the x-prefixed describe): claude-code-plugins
 # testing detector and any consumer with JS tests. Corrected to "describe" by
 # default; whole-token, so prose "describe" is unaffected.
 xdescribe = "xdescribe"

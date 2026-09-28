@@ -15,9 +15,9 @@
 *.bash  diff=bash
 
 ###############################################################################
-# PowerShell — LF is deliberate. Verified to run on both PowerShell 7 and
+# PowerShell: LF is deliberate. Verified to run on both PowerShell 7 and
 # Windows PowerShell 5.1. The PowerShell repo pins .ps1 to eol=lf; the popular
-# community gitattributes template pins crlf — they target different eras. Listed
+# community gitattributes template pins crlf, and they target different eras. Listed
 # explicitly so it is not "corrected" to crlf without a requirement to round-trip
 # pre-existing CRLF-signed scripts unchanged.
 ###############################################################################
@@ -27,14 +27,14 @@
 *.psd1  text eol=lf
 
 ###############################################################################
-# Windows-native — cmd.exe requires CRLF (overrides the LF default above).
+# Windows-native: cmd.exe requires CRLF (overrides the LF default above).
 ###############################################################################
 
 *.cmd   text eol=crlf
 *.bat   text eol=crlf
 
 ###############################################################################
-# Lockfiles — tracked, but suppress noisy diffs (regenerate to resolve).
+# Lockfiles: tracked, but suppress noisy diffs (regenerate to resolve).
 ###############################################################################
 
 package-lock.json   -diff
@@ -42,7 +42,7 @@ packages.lock.json  -diff
 *.lock              -diff
 
 ###############################################################################
-# Binary — no line-ending conversion, no diff.
+# Binary: no line-ending conversion, no diff.
 ###############################################################################
 
 *.png    binary
