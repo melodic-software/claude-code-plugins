@@ -18,7 +18,9 @@ mode; the displayed fraction in cli-parse mode).
 1. **Stamp.** Binary path and version, measurement mode and precision, `sessionKind: headless`,
    the session model, the working directory measured from, and the UTC timestamp. On a cloud or
    container surface, one added sentence: these numbers describe this container's binary and
-   settings, not the operator's machine.
+   settings, not the operator's machine. When the state key is `nonrepo` (the working directory
+   is not a git checkout), project settings, `.mcp.json`, and `CLAUDE.md` discovery are outside
+   the measured tree, so the reported total is a floor for a session opened inside a project.
 2. **Headline.** Fixed payload as tokens and as a share of the window; one sentence of smart-zone
    framing. The deferred pool is stated beside it as *recurring request weight outside the
    window*. That dual-ledger sentence appears exactly once.
@@ -32,22 +34,31 @@ mode; the displayed fraction in cli-parse mode).
    not measurable rather than as not additive. Unmeasured tools (candidates this run
    that were not priced) are listed as unmeasured, not omitted. Silence reads as "measured
    zero". Some tools exist only in an interactive session: Artifact, SendUserFile,
-   AskUserQuestion, plan-mode tools, and interactive-only MCP servers. These are listed as
+   AskUserQuestion, plan-mode tools, EndConversation, and interactive-only MCP servers. These are listed as
    **known-uncovered**, a distinct category from unmeasured-but-candidate, because they were
    never candidates in this headless sweep. The names come from the attribution record's
    `knownUncovered.tools` (product-level surfaces) plus `knownUncovered.notes` (the
    interactive-only MCP class). A name that appeared in this run's candidate list is not
-   repeated as known-uncovered.
+   repeated as known-uncovered. A name in `knownUncovered.deniedAbsent` is absent because the
+   operator bare-name-denied it (`--operator-deny`); say that, and do not call it structurally
+   unreachable.
 5. **Lever findings.** One entry per applicable catalogue lever
    ([`levers.json`](levers.json)): current detected state, honesty category (with the condition's
    measured resolution where the row has one), the measured or measurable delta, the exact
-   emitted config, and the official citation. Grouped by category, `removes-weight` first.
-   Postures bind: `never-recommend` rows appear under a "priced, not recommended" heading;
-   `report-only` vendor weight closes the group as the honest floor.
+   emitted config, and the official citation. A row with `saving: "runtime-resolved"` does not
+   print its stored category as the saving; print the measured resolution, including an explained
+   zero when the listing cap is saturated. The listing cap is characters, not the Skills token
+   total. A row with `measurementScope: "unmeasurable-in-this-session-kind"` is its own group,
+   "unmeasurable in this session kind", and is not reported as a measured zero. Grouped by
+   category, `removes-weight` first. Postures bind: `never-recommend` rows appear under a
+   "priced, not recommended" heading; `report-only` vendor weight closes the group as the honest
+   floor.
 6. **Routes.** The catalogue's route-outs (`/doctor` for usage-based removal, which the operator
    runs; memory files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
-   engine could not measure and why. An audit that hit rung 3 reports the structured error's
+   engine could not measure and why. The attribution record already merges the baseline with
+   each deny run and the combined additivity run, so a deny-run disclosure is in that list and
+   is reported, not dropped. An audit that hit rung 3 reports the structured error's
    remediation here and stops claiming numbers it does not have.
 
 ## Rules
@@ -57,7 +68,7 @@ mode; the displayed fraction in cli-parse mode).
   own development history, or a previous audit enters the report body; previous audits live in
   the ledger section, labeled with their own stamps.
 - **Zeros are findings.** A lever that measured zero is reported with its zero and the category
-  that explains it.
+  that explains it. A lever marked unmeasurable in this session kind is not one of those zeros.
 - **Precision is carried, not dropped.** `display-rounded` numbers are presented as approximate
   (`~`); exact integers plain. Never mix the two in one comparison.
 - **The report is persisted** to `<data-dir>/reports/<UTC-timestamp>-audit.md`, one file per
