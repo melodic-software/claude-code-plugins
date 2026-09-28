@@ -78,11 +78,13 @@ and, in multi-session form, an `aggregate` block and a `chain_coverage` block. E
 
 ### Check chain coverage before presenting
 
-`chain_coverage` reports `requested` / `found` / `available` / `ratio`, `available` being the
-transcripts present for this project, which is the denominator the walk itself cannot see. Under
-`--chain-from` it counts only the chain plus the other transcripts that mention the handoff's topic
-(named in `topic`), so a chain launched from a shared directory such as `$HOME` is not measured
-against unrelated work. `fork_candidates` lists transcripts outside the requested set that share
+`chain_coverage` reports `requested` / `found` / `available` / `ratio` / `project_transcripts`.
+`available` is the chain: the sessions requested (the walk, under `--chain-from`), plus under
+`--chain-from` the other transcripts that mention the handoff's topic (named in `topic`), which are
+the sessions a walk that stopped early did not reach. `project_transcripts` counts every transcript
+in the project directory; it is a diagnostic and never the denominator, because a chain launched
+from a shared directory such as `$HOME` shares that directory with every unrelated session on the
+machine. `fork_candidates` lists transcripts outside the requested set that share
 record uuids with it: forks no handoff points at. Offer them for a `--sessions` re-run; never add
 them silently. The
 `--chain-from` walk ends at the first session that wrote no handoff file, so a chain linked by

@@ -6,7 +6,7 @@
 - [Boundary: what C6's population actually is](#boundary-what-c6s-population-actually-is)
 - [Prerequisite: co-residency](#prerequisite-co-residency)
 - [Prerequisite: effective liveness, which the tree does not determine](#prerequisite-effective-liveness-which-the-tree-does-not-determine)
-- [Known limit: Phase A does not reach the plugin-source tree](#known-limit-phase-a-does-not-reach-the-plugin-source-tree)
+- [Known limit: the plugin-source tree and the installed cache](#known-limit-the-plugin-source-tree-and-the-installed-cache)
 - [Scope filters findings, never reads](#scope-filters-findings-never-reads)
 - [The five gates](#the-five-gates)
 - [Precedence: what the docs settle, and what they do not](#precedence-what-the-docs-settle-and-what-they-do-not)
@@ -16,8 +16,8 @@
 - [Worked examples](#worked-examples)
 - [Output format](#output-format)
 
-Version: 1.5.0
-Last updated: 2026-08-15
+Version: 1.6.0
+Last updated: 2026-09-28
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition: what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -342,22 +342,30 @@ describes or a declined import that leaves no trace in the tree, mark the affect
 finding whose liveness depends on a machine-local setting is not reproducible elsewhere, and a reader
 comparing two machines' reports needs to know which inputs differed.
 
-## Known limit: Phase A does not reach the plugin-source tree
+## Known limit: the plugin-source tree and the installed cache
 
-**Installed plugins are covered; a marketplace repository's own `plugins/` source tree is not.**
-These are different surfaces and only one of them is a limit. Phase A's read-only tier reads the
-*installed cache* of every enabled plugin at its selected install record: skill bodies, agent
-definitions, `type: "prompt"` handler text, and the active output style. So an agent definition
-shipped by an enabled plugin does have its second side, and an agent-versus-memory pair is
-available rather than missing.
+**Installed plugins are covered everywhere.** Phase A's read-only tier reads the *installed cache*
+of every enabled plugin at its selected install record: skill bodies, agent definitions,
+`type: "prompt"` handler text, and the active output style. So an agent definition shipped by an
+enabled plugin does have its second side, and an agent-versus-memory pair is available rather than
+missing.
 
-What Phase A still does not enumerate is the **authoring** tree: `plugins/**` in a marketplace
-repository is plugin *source*, not an installed plugin, and nothing there is loaded into the session
-being audited. Pairs drawn wholly from it, such as a skill's stated default against its own plugin
-README, therefore have no second side. Extending Phase A to the authoring tree is a separate change,
-since it widens what every phase reads. **Report that narrower limit in the pass's
-tier-transparency line**, and only that one: reporting installed-plugin surfaces as uncovered would
-understate coverage the pass now has.
+**In a marketplace repository, the plugin source is the editable set.** When
+`.claude-plugin/marketplace.json` is present at the project root, the repository publishes the
+plugins under `plugins/**`, so their surfaces are locally owned: Phase A inventories them as
+editable, lanes audit them, and a proposed diff lands on the source file, never on the cache. The
+installed cache of those same plugins is read for **residency only**, to decide whether a surface
+loads in this session and what text the session actually sees, and is never the target of a
+proposal. Without a marketplace manifest the source tree is not special and the cache stays
+upstream-owned, as the Scope boundary says.
+
+**The limit is drift between the two.** The session loads the cache, not the source, so a finding on
+a source surface describes the next published text, not necessarily what loads now. For every
+marketplace plugin the session has installed, the report names the drift: the install record's
+commit against `git rev-parse HEAD` when the record carries a commit, otherwise the installed
+version against the manifest `version` at HEAD, stating which comparison was made. A plugin with no
+drift says so in one line. Report the drift in the pass's tier-transparency line, since a reader who
+sees a source finding the live session cannot reproduce needs to know the two trees differ.
 
 ## Scope filters findings, never reads
 

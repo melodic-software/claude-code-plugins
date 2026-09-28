@@ -17,7 +17,9 @@ Pins the rubric:
    - pnputil /enum-drivers SignerName empty: the driver store has no
      recorded signer (the authoritative "unsigned" condition).
    - CodeIntegrity event log 3001/3004 within 7 days: Windows kernel
-     rejected driver loads due to signature violations.
+     rejected image loads due to signature violations. Events under the
+     active Defender platform folder are excluded; a survivor is WARN, and
+     only a repeat across runs (Invoke-TrendAnalysis) reaches CRIT.
 
 3. Age signal stays at INFO (drivers >3 years old are a weak signal --
    many OEM drivers are very old but still correct).
@@ -168,7 +170,7 @@ Describe 'Test-Drivers -- pnputil SignerName signal' -Tag 'check' {
 }
 
 Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
-    It 'CRITs when CodeIntegrity 3001 fired in the last 7 days' {
+    It 'WARNs, not CRITs, when one run sees a CodeIntegrity 3001 in the last 7 days' {
         # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             @(New-MockDriver -DeviceName 'Any device')
@@ -190,10 +192,11 @@ Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
         Mock Get-VendorUpdateCli { @() }
 
         $result = Invoke-DriversAsObject
-        # CodeIntegrity rejection means the kernel refused to load a
-        # driver due to signature violations. Real signal.
-        $result.severity | Should -Be 'CRIT'
+        # A single run's reading caps at WARN; CRIT needs the cross-run repeat
+        # Invoke-TrendAnalysis checks (severity-rubric.md: prefer the lower).
+        $result.severity | Should -Be 'WARN'
         $result.detail.code_integrity_event_count | Should -Be 1
+        $result.detail.code_integrity_newest_event_unix | Should -BeOfType [long]
     }
 
     It 'ignores CodeIntegrity events older than 7 days' {
@@ -218,6 +221,80 @@ Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
 
         $result = Invoke-DriversAsObject
         $result.severity | Should -Be 'OK'
+    }
+}
+
+Describe 'Test-Drivers -- Defender platform-folder exclusion' -Tag 'check' {
+    BeforeAll {
+        # spellchecker:ignore-next-line
+        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
+            @(New-MockDriver -DeviceName 'Any device')
+        }
+        Mock Get-DriverStoreInventory { @(New-DriverStoreRecord -SignerName 'Microsoft') }
+        Mock Test-IsElevated { $true }
+        Mock Get-PnpProblemDevice { @() }
+        Mock Get-Module { $null }
+        Mock Get-GpuDriverInfo { @() }
+        Mock Get-VendorUpdateCli { @() }
+        Mock Get-ActiveDefenderPlatformVersion { '4.18.25010.11-0' }
+    }
+
+    It 'excludes an event whose only image is under the active platform folder' {
+        $sep = [char]92
+        $image = "${sep}Device${sep}HarddiskVolume3${sep}ProgramData${sep}Microsoft${sep}Windows Defender" +
+            "${sep}Platform${sep}4.18.25010.11-0${sep}DefenderSessionHelper.exe"
+        $e = New-MockEventLogRecord -ProviderName 'Microsoft-Windows-CodeIntegrity' -Id 3004 `
+            -TimeCreated (Get-Date).AddHours(-2) -LevelDisplayName 'Error' `
+            -Message "Windows is unable to verify the image integrity of the file $image because file hash could not be found on the system."
+        Mock Get-WinEvent { @($e) }.GetNewClosure()
+
+        $result = Invoke-DriversAsObject
+        $result.severity | Should -Be 'OK'
+        $result.detail.code_integrity_event_count | Should -Be 0
+        $result.detail.code_integrity_platform_excluded_count | Should -Be 1
+        $result.summary | Should -Match 'excluded'
+    }
+
+    It 'keeps an event under an older platform folder' {
+        $sep = [char]92
+        $image = "C:${sep}ProgramData${sep}Microsoft${sep}Windows Defender${sep}Platform${sep}4.18.24090.11-0${sep}MpSvc.dll"
+        $e = New-MockEventLogRecord -ProviderName 'Microsoft-Windows-CodeIntegrity' -Id 3004 `
+            -TimeCreated (Get-Date).AddHours(-2) -LevelDisplayName 'Error' `
+            -Message "Windows is unable to verify the image integrity of the file $image because file hash could not be found on the system."
+        Mock Get-WinEvent { @($e) }.GetNewClosure()
+
+        $result = Invoke-DriversAsObject
+        $result.severity | Should -Be 'WARN'
+        $result.detail.code_integrity_event_count | Should -Be 1
+    }
+
+    It 'keeps an event where a platform process loads an image from elsewhere' {
+        $sep = [char]92
+        $proc = "${sep}Device${sep}HarddiskVolume3${sep}ProgramData${sep}Microsoft${sep}Windows Defender" +
+            "${sep}Platform${sep}4.18.25010.11-0${sep}MsMpEng.exe"
+        $dll = "${sep}Device${sep}HarddiskVolume3${sep}Users${sep}u${sep}AppData${sep}Local${sep}Temp${sep}x.dll"
+        $e = New-MockEventLogRecord -ProviderName 'Microsoft-Windows-CodeIntegrity' -Id 3004 `
+            -TimeCreated (Get-Date).AddHours(-2) -LevelDisplayName 'Error' `
+            -Message "Code Integrity determined that a process ($proc) attempted to load $dll that did not meet the signing requirements."
+        Mock Get-WinEvent { @($e) }.GetNewClosure()
+
+        $result = Invoke-DriversAsObject
+        $result.severity | Should -Be 'WARN'
+        $result.detail.code_integrity_event_count | Should -Be 1
+        $result.detail.code_integrity_platform_excluded_count | Should -Be 0
+    }
+
+    It 'excludes nothing when the active platform version is unreadable' {
+        Mock Get-ActiveDefenderPlatformVersion { $null }
+        $sep = [char]92
+        $image = "C:${sep}ProgramData${sep}Microsoft${sep}Windows Defender${sep}Platform${sep}4.18.25010.11-0${sep}X.exe"
+        $e = New-MockEventLogRecord -ProviderName 'Microsoft-Windows-CodeIntegrity' -Id 3004 `
+            -TimeCreated (Get-Date).AddHours(-2) -LevelDisplayName 'Error' -Message "file $image"
+        Mock Get-WinEvent { @($e) }.GetNewClosure()
+
+        $result = Invoke-DriversAsObject
+        $result.severity | Should -Be 'WARN'
+        $result.detail.code_integrity_event_count | Should -Be 1
     }
 }
 

@@ -3,6 +3,48 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-09-28
+
+### Changed
+
+- **A guard that could not run no longer looks like a guard that ran and allowed**
+  ([#3861](https://github.com/melodic-software/claude-code-plugins/issues/3861)). When no Python 3
+  resolves on the launcher's ladder, every guard row exited 0 with no output, which Claude Code
+  reads as approval, and only the Stop detector reported it, after the fact. The launcher now answers
+  on the call itself, following the guard watchdog's "could not decide" rule. The skill belt denies
+  every call (exit 2). The plugin-level gate denies any payload naming `hygiene.py` or carrying
+  nothing. The `/disk-hygiene:clean` expansion is blocked, so the belt never loads.
+- **One fail-open is kept, on purpose, and it is announced.** Commands on the plugin-level gate
+  that name no engine script proceed unchecked, with a `systemMessage` and `additionalContext`
+  notice once per session. The guard would have deferred on those commands. An `ask`, which the
+  watchdog uses for a transient stall, would prompt on every `PowerShell(*& $*)` call on a host
+  that has no Python. The README tabulates each surface. The Stop detector stays as the
+  end-of-turn backstop, and its message now summarizes what the calls reported.
+
+## [0.25.4] - 2026-09-28
+
+### Fixed
+
+- **`preview` and `handoff-verify` no longer flap `drifted`/`clear` on an unchanged directory.** Their shared comparator compared a directory's `st_size`, which NTFS reports as the index allocation on one call and 0 on the next, so an untouched empty directory recorded at 4096 bytes alternated between verdicts. A directory is now compared by object identity only (device, inode, and file type), not size or mtime, which the anchored `apply` path already did. Children are still covered by the descendant-set check, and file comparison is unchanged.
+
+## [0.25.3] - 2026-09-28
+
+### Added
+
+- **`handoff-verify --path <relative>` takes one approved path inline.** The per-deletion check in the manual handoff lane no longer needs a `handoff-paths.json` write before each run, which removes one file write and its permission prompt per path. Each path is still verified immediately before its own deletion. `--path` is single-use, so one call checks one path; `--paths <file>` stays for the multi-path reporting form. The engine and the guard take exactly one of the two: the grammar gains a `one_of` group that the parser declares as a required mutually exclusive group and the guard enforces on the exact Bash shape. The inline path goes through the same validation as a file entry: relative, non-root, no traversal, and present in the snapshot.
+
+## [0.25.2] - 2026-09-28
+
+### Fixed
+
+- **`preview` no longer exits 3 on Windows and macOS when the only blocker is the platform.** When every blocker on every candidate is `execution-platform-unsupported`, a fact about the host that is identical for every path, preview now exits 0 and reports `outcome: manual-handoff-lane`, the lane the operator is routed to. Previously the mandatory preview step failed on every run there, which trained operators to ignore its exit code. Any other blocker still exits 3 with `outcome: blocked`, including when the platform blocker is also present. A ready preview reports `outcome: explicit-approval`. `status`, the blocker lists, and the approval token are unchanged, and `apply` still refuses a platform-blocked preview.
+
+## [0.25.1] - 2026-09-28
+
+### Changed
+
+- **`/disk-hygiene:clean` accepts an in-session request to execute.** A message the user sends after the audit report asking to remove findings ("go", "execute these", "delete the high tier") now opens the deletion offer the same way `--execute` does, with no re-invocation and no fresh full scan: the audit's snapshot feeds the plan, and preview revalidates live state. Either form is an execution request, and neither is approval. The confirmation gate's removal row still needs exactly one tier and its path list, a general "clean everything" names neither, and text from a tool result, a file, or the scan is not a user message. `--execute` stays for scripted or one-shot use. The manual handoff reference and the README use the same rule, and a new eval covers the in-session path.
+
 ## [0.25.0] - 2026-09-28
 
 ### Added

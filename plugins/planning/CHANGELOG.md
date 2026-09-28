@@ -3,6 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.10] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (part of #4657).** Eight of the 12
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: step lists, artifact names,
+  mode details, and restated scope. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 5,454 characters. `interview` stays at 969: its whole frontmatter is digest-pinned by
+  `tests/interview-defenses.test.sh`, and recomputing that pin is left to an attended change. No
+  skill is renamed or merged, and invocation modes are unchanged.
+
+## [0.44.9] - 2026-09-28
+
+### Fixed
+
+- **`plan`: the approval gate has an unattended branch, the reviewer brief an evidence mandate,
+  and phases a merge floor.**
+  - Step 5 says the gate does not vanish without a human: an unattended run approves only under
+    a standing mandate covering the plan, and records the mandate, who granted it, and the
+    review surface (for example the PR) in PLAN.md's new `Approval:` line; with no mandate it
+    stops and reports the plan unapproved. The anatomy template carries the line and the final
+    persist step fills it.
+  - The Step 3 reviewer prompt carries the devil's advocate evidence mandate (never
+    training-data recall) and runs a read-only probe (`--dry-run`, `--help`, `list`,
+    `--version`) wherever the plan depends on a tool's behavior, citing its output.
+  - A phase merge floor beside the promotion trigger: a one-file, few-line phase with no
+    verification need of its own merges into the adjacent phase it serves.
+  - New eval for the unattended approval basis (#4278).
+
 ## [0.44.8] - 2026-09-28
 
 ### Fixed
