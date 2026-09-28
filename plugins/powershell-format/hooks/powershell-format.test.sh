@@ -1044,6 +1044,31 @@ else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
 fi
 
+# --- Gitignored path (#4671): neither rewritten nor analyzed by default ------
+# Invoke-Formatter would fix the casing; under an ignored directory it does not
+# run, unless powershell_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_IGN/.work/scratch.ps1"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.ps1")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.ps1")
+if [[ -z "$OUT" ]]; then ok "gitignored: nothing reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.ps1")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.ps1")"
+fi
+run_hook_env "$REPO_IGN/.work/scratch.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q 'Get-ChildItem' "$REPO_IGN/.work/scratch.ps1"; then
+  ok "gitignored + powershell_format_lint_gitignored=true: casing fixed"
+else
+  fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.ps1")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

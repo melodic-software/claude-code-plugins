@@ -13,6 +13,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`instruction-scan.sh` greps each family once over all files** (GNU and BSD `--null`), so process count no longer grows with file or hit count.
 
+## [0.51.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Eight of the nine listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: surface enumerations, check
+  lists, run mechanics, and the long "not for" lists. `check-listing-budget.sh
+  plugins/claude-config/skills` goes from 6,640 to 4,341 characters. No skill is renamed or
+  merged.
+
 ## [0.51.0] - 2026-09-28
 
 ### Added
