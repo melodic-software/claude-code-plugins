@@ -30,26 +30,31 @@ touching instruction files, as
 ## Why
 
 Direct reading is conditional in ways a repository cannot fix from inside: it is gated on a remote
-feature flag whose code default is false, is suppressed by any `CLAUDE.md` at or above the working
+feature flag, is suppressed by any `CLAUDE.md` at or above the working
 directory, needs CLI 2.1.277 or later, and is absent from some sessions entirely. Each of those is
 a four-part dated record in
 `plugins/instruction-placement/skills/migrate/reference/sources.md` ("The remote flag, and how its
 code default is read", "The documented feature-flag dependency", "The minimum CLI version"), and
 the loading rule itself is the record under "Why the shim stays" in that skill's `SKILL.md`.
 
+On 2026-09-28 those records were re-derived against Claude Code 2.1.282. The bundle code default
+for `tengu_agents_md_mod` reads true, the env-vars feature-flag list no longer names `AGENTS.md`,
+and from v2.1.280 `/memory` lists a directly read `AGENTS.md`. The decision stands: shims stay
+until every graded condition is `[MET]` across the fleet. This checkout's run is in the same
+records; it names only this repository.
+
 The shim costs about 55 tokens per session, never makes Claude read the file twice, and loads in
-the conditions that record lists as unavailable for direct reading (all three stated under "Why the
-shim stays"). It also keeps what direct reading loses: an `AGENTS.md` read directly appears in
-neither `/memory` nor the `/context` Memory files and fires no `InstructionsLoaded` hook ("What
-shim removal costs"), so this repository's own load verification cannot see it ("What the loss
-means for measuring the cutover"), both in the same `sources.md`. Removal is therefore a priced
-decision, not tidying.
+the conditions that record lists as unavailable for direct reading (stated under "Why the shim
+stays"). What direct reading still loses is an `InstructionsLoaded` hook ("What shim removal
+costs"), so this repository's own load verification cannot see it ("What the loss means for
+measuring the cutover"), both in the same `sources.md`. Removal is therefore a priced decision,
+not tidying.
 
 Three alternatives were rejected, each with the fact that would flip it:
 
 | Rejected | Why | What would flip it |
 |---|---|---|
-| Native only: delete `CLAUDE.md` now | With the flag off, a lone `AGENTS.md` loads nothing ("The remote flag, and how its code default is read"), and any `CLAUDE.md` above the working directory suppresses the read regardless ("Why the shim stays") | All four graded conditions report `[MET]` |
+| Native only: delete `CLAUDE.md` now | Accepted while direct reading was still conditional ("The remote flag, and how its code default is read", "Why the shim stays"). Any `CLAUDE.md` above the working directory still suppresses the read | All four graded conditions report `[MET]` |
 | The `claude-md-and-agents-md` both-files setting | A user, `--settings` or managed setting, ignored in project and local settings, so no repository can ship it ("Why the shim stays"); never adopted or run as a convention | The setting becomes readable from project or local settings |
 | A common-ancestor `AGENTS.md` in the directory that holds every clone | No repository versions it, and it misses every worktree checked out outside that tree | Claude Code reads a versioned org-level tier above the repository |
 

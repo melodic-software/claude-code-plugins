@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.3] - 2026-09-28
+## [0.41.5] - 2026-09-28
 
 ### Fixed
 
@@ -14,6 +14,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   fixture bin cannot land on that PATH, and neither pass reaches the real `gh` or
   `curl`. Pinning the suite to one CPU already passed 10/10, so the serial
   allowlist entry is removed. It was not the fix.
+
+## [0.41.4] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `scan-todos` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
 
 ## [0.41.2] - 2026-09-28
 
