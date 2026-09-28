@@ -3,11 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.5] - 2026-09-28
+## [0.45.6] - 2026-09-28
 
 ### Changed
 
 - **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). `interview` keeps `${user_config.surface}`: `page` starts the local page, and the shipped default stays inline prose. `prd`, `design`, `plan`, and `brainstorm` do not gain a new HTML document. A question round uses the interview page when that ladder selects one.
+
+## [0.45.5] - 2026-09-28
+
+### Added
+
+- **`planning:interview scope` action** ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)):
+  ad hoc scope rounds with ledger + register gate, no `PLAN.md` Brief; returns `Scope decisions:`
+  for callers such as repo-sweep. `interview-defenses.test.sh` re-pins the frontmatter, Action
+  Router, Step 1, Step 1.5, and Step 4 digests; `scope` skips auto-detect and the prior-Brief
+  prompt, and leaves the
+  auto-guard and unattended path unchanged.
 
 ## [0.45.4] - 2026-09-28
 
