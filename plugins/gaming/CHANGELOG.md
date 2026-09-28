@@ -3,6 +3,13 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-09-28
+
+### Added
+
+- **DLSS5-Feeder research park (#4592):** `reference/feeder-route.md` documents the manual Feeder
+  route for no-upscaler games; `assess` copy points there without implying `apply` installs it.
+
 ## [0.8.1] - 2026-09-27
 
 ### Fixed

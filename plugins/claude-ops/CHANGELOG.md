@@ -3,6 +3,50 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.0] - 2026-09-28
+
+### Added
+
+- **`audit-native-overlap`: every store row carries `integration`**
+  ([#4049](https://github.com/melodic-software/claude-code-plugins/issues/4049)).
+  The field is `route`, `wrap`, or `suggest`, required beside `verdict`. Class rules:
+  a built-in command takes `route` or `suggest`; a bundled skill, plugin-backed built-in,
+  or marketplace plugin takes `route` or `wrap`; a bundled skill marked
+  `model-invocation-disabled` takes `suggest`; a session skill takes `route`; a `defer`
+  verdict takes `route` and overrides the marker rule. `wrap` and `suggest` rows name the
+  observed invocation mode in evidence. `baked` gains `native_step` and `suggest_sentence`.
+  The generated view renders an Integration column. native-references moves to 2.0.0 for
+  the Native step grammar, the suggest sentence, and the built gate-token check.
+
+## [0.62.17] - 2026-09-28
+
+### Changed
+
+- **Machine-profile orchestrator stays parked
+  ([#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666)).**
+  Do not build a host-fact store that drives the 58 setup skills. Options 2 and
+  3 need an invocation-mode class (ii) amendment (#4240). Option 1 is unpaid
+  operator typing. Recorded in `docs/out-of-scope/machine-profile.md`.
+
+## [0.62.16] - 2026-09-28
+
+### Changed
+
+- **`audit-skill-visibility`'s `--installed` shell fixture host-skips on Git Bash**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). After the
+  Python unit tests pass, the contract that a two-scope install collapses to one plugin
+  embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
+  counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **`audit-performance` composes `/doctor` after the capture, not before**
+  ([#3533](https://github.com/melodic-software/claude-code-plugins/issues/3533)). The overlap
+  verdict stays `complementary`. A Scope-boundary row and a Reading-the-report line name the
+  transcript half this engine never reads. No description change.
+
 ## [0.62.14] - 2026-09-28
 
 ### Fixed

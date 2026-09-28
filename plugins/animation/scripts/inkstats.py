@@ -5,7 +5,7 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
                    [--rows OUT] [--pack PACK]
   <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else BASE_FPS), or a
             rotoscope work dir
-            (src/dNNN.png timed by d/index.json)
+            (src/dNNN.png timed by d/index.json; the last drawing holds until that index's duration)
   --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
             long (default 3.35). Columns are for reading only: the check judges the whole film.
   --region  measure only this box of every frame (a prop, a dark field); --t keeps only frames with T0 <= t < T1
@@ -22,6 +22,7 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
             over the rows it defines, and ranks films that all pass.
 Frames that repeat a drawing (decode.is_repeat) are dropped, so a 24 fps
 capture and a variable-rate source both reduce to distinct drawings with their hold times.
+A work dir's last drawing holds until d/index.json duration (its t1), not one frame after its start.
 
 Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and above 128; T = their midpoint):
   ink       fraction of the frame darker than T
@@ -87,6 +88,7 @@ import cv2
 import numpy as np
 
 import decode
+import workdir
 
 SEG = 3.35
 BASE_FPS = 24             # the film rate a drawing's hold is counted on when no pack or render.json names one
@@ -101,9 +103,27 @@ CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 WEAK_PEAK = 0.005         # judgment: a mode gray level holding under 0.5% of the frame is no flat tone
 
 
+def film_end(film, last_t, fps):
+    """When the last drawing's hold ends: a video's stream end, a work dir's last t1, else one frame after last_t."""
+    if not isinstance(film, (str, Path)):
+        return last_t + 1 / fps
+    film = Path(film)
+    if film.is_file():
+        return decode.end(film)
+    ix_path = workdir.index(film)
+    if ix_path.is_file():
+        ix = json.load(open(ix_path, encoding='utf-8'))
+        ds = ix.get('drawings') or []
+        if ds and len(ds[-1]) > 2:
+            return ds[-1][2]
+        if 'duration' in ix:
+            return ix['duration']
+    return last_t + 1 / fps
+
+
 def drawings(film, fps, region=None, window=None):
     """Yield (rgb, t0) for each distinct drawing (cropped to region, inside window), and finally (None, end time)."""
-    prev, t, dt = None, 0.0, 1 / fps
+    prev, t = None, 0.0
     t0, t1 = window or (-1e9, 1e9)
     for rgb, t in decode.frames(film, fps):
         if t < t0:
@@ -120,8 +140,8 @@ def drawings(film, fps, region=None, window=None):
             continue
         prev = rgb.astype(np.int16)
         yield rgb, t
-    else:   # the film ended: a video where its stream ends, anything else one frame after the last
-        t = decode.end(film) if isinstance(film, (str, Path)) and Path(film).is_file() else t + dt
+    else:   # the film ended: a video where its stream ends, a work dir at the last drawing's t1, anything else one frame after the last
+        t = min(film_end(film, t, fps), t1)
     yield None, t
 
 

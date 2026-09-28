@@ -171,9 +171,6 @@ seven have a live pass; description triggering is unpaid.
 
 ## Known gaps
 
-- The two convention adopter rows (the marketplace's per-plugin conventions registry) are deferred
-  until the operator settles which conventions this plugin adopts; the plugin's own conventions
-  are the ones its reference files declare.
 - Bash has no collector for cognitive complexity or function ranges, and Python none for cognitive
   complexity; those rows report `unavailable` with the validation date rather than a number.
 - C# is counted and its duplication measured, but its complexity lane is deferred to a native

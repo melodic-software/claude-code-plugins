@@ -10,11 +10,11 @@ The authoritative file for this section is
 test kit and in two live headless runs). It **supersedes** the corresponding
 passages in `architecture-pdf/ARCHITECTURE-PDF.md`, which are marked in place.
 
-## Deny — what blocks, and what does not
+## Deny: what blocks, and what does not
 
 | Construction | Effect | Basis |
 |---|---|---|
-| `tool.call` hook returns a well-formed `{ deny: reason }` **instead of** calling `next(e)` | **Blocks.** Caller receives the deny, the hook beneath never runs, the model receives `<tool_use_error>reason</tool_use_error>` with `is_error: true`, and the side effect does not happen (the shell command did not run; the file was not created). | `OBSERVED` HIGH — test kit + live headless run |
+| `tool.call` hook returns a well-formed `{ deny: reason }` **instead of** calling `next(e)` | **Blocks.** Caller receives the deny, the hook beneath never runs, the model receives `<tool_use_error>reason</tool_use_error>` with `is_error: true`, and the side effect does not happen (the shell command did not run; the file was not created). | `OBSERVED` HIGH: test kit + live headless run |
 | `tool.check` hook returns `{ decision: 'deny', reason }` instead of `next` | **Blocks**, same way. `decision` is `'allow' \| 'ask' \| 'deny'`; the last word up the chain is the decision. | `OBSERVED` `SOURCE` HIGH |
 | `{ deny }` returned **after** `await next(e)` | **Does not un-run anything.** Beneath ran; the caller still receives the deny; the file is on disk. Ground truth and what the model is told diverge. | `OBSERVED` HIGH |
 | Returning `{}` or `undefined` without calling `next` | **Fails open.** The site refuses the shape, treats the hook as failed, skips it, and the chain beneath runs: the tool executes and the model is told it succeeded. | `SOURCE` `COMMUNITY` HIGH |
@@ -92,7 +92,7 @@ failed hook is absent"*) and works in practice. Latest maintainer restatement:
 *"Have you come across the `on(...).catch(...)` spelling yet? I think this would
 address your use-case re fail-closed / fail-open."* `STAFF` · HIGH ·
 comment 5702935782, 2026-09-16T18:58:28Z. `.catch` has only 1,000 ms of grace,
-charged fresh — the handler should return a constant deny and nothing else.
+charged fresh, so the handler should return a constant deny and nothing else.
 
 ### The four conditions for a guard written as a mod today
 
@@ -100,13 +100,13 @@ charged fresh — the handler should return a constant deny and nothing else.
    **instead of** `next(e)`, never after. Non-empty reason; never an implicit
    `undefined` fall-through.
 2. Attach `.catch(() => ({ deny: … }))` to **every** guard hook. Without it a
-   throwing or slow guard is removed and the tool runs — **strictly weaker than
+   throwing or slow guard is removed and the tool runs, **strictly weaker than
    the classic command hook it replaces**, since a classic hook exiting with code
    2 blocks.
 3. Keep the guard's own code well under 10 s.
 4. For authority over other *plugins* rather than over the model alone, the guard
    must be seated in a managed tier. A user-tier install binds the model's tool
-   calls — the normal guard threat model — but not sibling plugins.
+   calls (the normal guard threat model) but not sibling plugins.
 
 `OBSERVED` · HIGH · `architecture-pdf/DENY-AND-ERROR-SEMANTICS.md` verdict.
 
@@ -147,7 +147,7 @@ Consequences for a third-party author:
 1. On a managed machine your plugin is seated **beneath** `sec-default` and
    cannot reach what it guards. Design for that, not around it.
 2. `prependPlugins` is the managed-settings key that changes seating. It is
-   implemented in 2.1.278 (`BINARY` · HIGH) and has **zero** issue-tracker hits —
+   implemented in 2.1.278 (`BINARY` · HIGH) and has **zero** issue-tracker hits:
    undocumented in the community record and unexercised in public.
 3. **Outside a managed org, `sec-default` is not seated at all**, so none of this
    protection exists.
@@ -173,7 +173,7 @@ Asked whether isolation is a boundary or a convention, the maintainer answered:
 - **Do not design against the Worker.** The mechanism is today's implementation;
   the promise is only "no ambients". `STAFF` · HIGH
 - **`node:vm` is not a security sandbox.** This is *this corpus's inference*, not
-  a maintainer concession — he asserted the opposite in form and nobody in the
+  a maintainer concession: he asserted the opposite in form and nobody in the
   thread challenged it. The support is Node's own documentation: *"The `node:vm`
   module is not a security mechanism. Do not use it to run untrusted code."*
   **No independent security review of mods was found.** `INFERRED` · HIGH-supported ·
@@ -193,8 +193,8 @@ model is explicitly delegated to the org admin:
 `STAFF` · HIGH. **For a team with no managed settings and no admin-authored gate
 plugin, there is no constraint beyond the decision to install.**
 
-Staff also flag `next.trace` as a deliberate hazard — it exposes the chain's
-event snapshots below you — and propose surfacing its use as `plugin.register`
+Staff also flag `next.trace` as a deliberate hazard (it exposes the chain's
+event snapshots below you) and propose surfacing its use as `plugin.register`
 metadata so admins can refuse plugins that read it. `STAFF` · MEDIUM.
 
 ## Supply chain
@@ -217,7 +217,7 @@ metadata so admins can refuse plugins that read it. `STAFF` · MEDIUM.
   The same honesty applies to mods and is not written down anywhere for them.
   `SOURCE` · HIGH
 
-## Issue #92533 — the worktree break
+## Issue #92533: the worktree break
 
 **The highest-value known defect for this repository.**
 
@@ -253,11 +253,11 @@ gate and its further conditions resolve true.
 
 Adjacent open defects, all `COMMUNITY`: #92675 plugin-native `PreToolUse` hooks
 auto-discovered via `hooks/hooks.json` reported not enforced in interactive
-sessions (OPEN, 0 comments) — this undermines the coexistence story; #95328 a
+sessions (OPEN, 0 comments), which undermines the coexistence story; #95328 a
 `session.compact` hook's compaction undone on resume; #92469 and #92440 on
 generated-type incompleteness and drift.
 
-## Performance — do not plan against either number
+## Performance: do not plan against either number
 
 Two figures exist and disagree by four orders of magnitude because they measure
 different things: **~50 µs p99 per hook**, a vendor claim about in-process
