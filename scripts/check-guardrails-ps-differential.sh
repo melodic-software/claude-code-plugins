@@ -59,6 +59,8 @@ if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3))); 
   exit 2
 fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "$PROG: not inside a git work tree" >&2
   exit 2
@@ -162,10 +164,7 @@ if ((HARVEST)); then
 fi
 
 # --- the two trees -----------------------------------------------------------
-if ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
-  echo "$PROG: base ref not resolvable: $BASE_REF" >&2
-  exit 2
-fi
+gate_entry::require_base "$BASE_REF" "$PROG: base ref not resolvable: $BASE_REF"
 mkdir -p "$WORK/base" || exit 2
 if ! git archive --format=tar "$BASE_REF" plugins/guardrails | tar -xf - -C "$WORK/base"; then
   echo "$PROG: could not extract plugins/guardrails from $BASE_REF" >&2

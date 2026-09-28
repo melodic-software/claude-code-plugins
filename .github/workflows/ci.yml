@@ -1820,6 +1820,14 @@ jobs:
         run: |
           [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/changed-files.test.sh
+      # scripts/lib/gate-entry.sh is the mode, base-ref, and exit-code entry
+      # the checker gates share. Its suite is what makes an unresolvable base
+      # ref unswallowable by mapfile (#3377, #3413).
+      - name: Run shared gate-entry tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 2 ] || exit 0
+          bash scripts/lib/gate-entry.test.sh
       # scripts/lib/read-list.sh is the list-file reader the gates share. Its
       # two comment modes are semantically different on purpose (#3161) and
       # each is asserted against the other's answer.

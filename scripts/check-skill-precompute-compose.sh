@@ -20,6 +20,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
 STRICT=0
 POSITIONAL=()
@@ -53,9 +55,6 @@ POSITIONAL+=("$@")
 if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
   usage
 fi
-
-first="${POSITIONAL[0]}"
-rest=("${POSITIONAL[@]:1}")
 
 # precompute_block <file> — print the ## Pre-computed context section body.
 precompute_block() {
@@ -96,32 +95,29 @@ scan_skill() {
   return 0
 }
 
-# The base ref is validated HERE, in the parent shell, and the diff itself is
-# taken through scripts/lib/changed-files.sh. Both halves answer the same
-# failure: a `mapfile` fed from a process substitution sees only the READ's
-# status, so neither an `exit 2` inside nor a failed `git diff` reaches the
-# parent, which saw nothing but an empty `targets` and scanned zero files at
-# exit 0. Validating the ref catches the typo'd branch (#3377); the shared
-# resolver catches everything else a diff can fail on (a shallow clone missing
-# an object, a corrupt pack, an unreadable index), because a failed diff is its
-# own non-zero return rather than an empty scope.
+# Mode dispatch, the parent-shell base-ref check, and the diff all live in
+# scripts/lib/gate-entry.sh. A `mapfile` fed from a process substitution sees
+# only the READ's status, so an `exit 2` inside it used to die with the
+# subshell and the parent scanned zero files at exit 0 (#3377). The shared
+# entry exits 2 from this shell instead, including when discovery itself is
+# invoked from a subshell. A failed diff is its own non-zero return rather
+# than an empty scope.
 targets=()
-case "$first" in
---all)
+if ! gate_entry::classify ${POSITIONAL[@]+"${POSITIONAL[@]}"}; then
+  usage
+fi
+case "$GE_MODE" in
+all)
   mapfile -t targets < <(find plugins -path 'plugins/*/skills/*/SKILL.md' -type f 2>/dev/null | sort)
   ;;
---paths)
-  targets=("${rest[@]}")
+paths)
+  targets=("${GE_PATHS[@]}")
   ;;
-*)
-  if ! changed_files::verify_base "$first"; then
-    printf 'Error: base ref %s is not a valid commit\n' "$first" >&2
-    exit 2
-  fi
+base)
   # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
   # git pathspec does not match under git's default (non-pathname) globbing.
   changed=()
-  changed_files::into changed "$first" -- 'plugins/' || exit 2
+  gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     case "$f" in
     plugins/*/skills/*/SKILL.md)
@@ -151,7 +147,7 @@ done
 
 if ((scanned == 0)); then
   echo "No skill SKILL.md files in scope — nothing to gate."
-  exit 0
+  gate_entry::finish 0
 fi
 
 printf '\n%d skill(s) scanned, %d violation(s).\n' "$scanned" "$violations"
@@ -159,8 +155,8 @@ printf '\n%d skill(s) scanned, %d violation(s).\n' "$scanned" "$violations"
 if ((violations > 0)); then
   if ((STRICT == 1)); then
     echo "Strict mode: failing." >&2
-    exit 1
+    gate_entry::finish 1
   fi
   echo "Warn-only mode: violations reported but step passes (use --strict to fail)." >&2
 fi
-exit 0
+gate_entry::finish 0
