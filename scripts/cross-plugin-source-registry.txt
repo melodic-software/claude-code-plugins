@@ -61,6 +61,13 @@ lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.
 # for the duplication audit: the copies sit at two shapes within a plugin.
 lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
 
+# No dedicated check: the recommendation-basis contract each adopting plugin
+# ships, because only the plugin directory installs (the convention's
+# "Plugin-shipped copies"). Canonical copy:
+# plugins/discipline/context/recommendation-basis.md; copy it into the other
+# plugins' context/ to fix a drift failure.
+context/recommendation-basis.md
+
 # Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
 lib/spawn_noise.py
 
