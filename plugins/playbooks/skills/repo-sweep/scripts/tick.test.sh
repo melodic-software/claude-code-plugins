@@ -71,6 +71,9 @@ assert_eq "edit that does not land: exit 1" "1" "$rc"
 case "$(cat "$TMP/err")" in *"did not land"*) pass "edit that does not land: stderr says so" ;; *) fail "did not land stderr" "*did not land*" "$(cat "$TMP/err")" ;; esac
 
 body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four not-applicable 'no tracked tests' p:q@2.0
+assert_eq "not-applicable" "0 - [x] four: p:q@2.0, not applicable: no tracked tests" "$rc $out"
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
 run four report-only 3 p:q@2.0
 assert_eq "report-only" "0 - [x] four: p:q@2.0, no fix-eligible findings (3 report-only)" "$rc $out"
 
