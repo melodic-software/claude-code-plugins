@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.38.25] - 2026-09-28
+## [0.38.26] - 2026-09-28
 
 ### Added
 
@@ -8,6 +8,13 @@
   with `/goal <condition>` when the user asked for a fresh goal, so one paste sets the goal and
   carries the resume. A `/goal` line below the rails fails `validate`. When the user asked to
   choose, `resume-alternate` is a second copy region and the intent-matching region stays first.
+
+## [0.38.25] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.38.24] - 2026-09-28
 
