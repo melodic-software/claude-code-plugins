@@ -2133,7 +2133,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word, or run the command via the Bash tool." >&2
     ;;
   launcher)
-    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2
+    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the launched command directly in this session instead: 'git status', not \"pwsh -Command 'git status'\"; for a repo script, 'Set-Location <dir>; & ./<script>.ps1'. Or run the launched command itself via the Bash tool." >&2
     ;;
   herestring-subexpr)
     # What is true of EVERY command that reaches here: an expandable body was

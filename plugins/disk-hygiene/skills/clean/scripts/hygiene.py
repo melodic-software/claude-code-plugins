@@ -2113,6 +2113,12 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         kind = "file"
     else:
         kind = "other"
+    # A directory's st_size is not a stable observation: on NTFS one lstat
+    # reports the index allocation and the next reports 0, so an unchanged
+    # directory would flap drifted/clear. Callers compare the descendant set
+    # separately, so a directory needs only object identity here.
+    if kind == "directory":
+        return same_object_identity(info, entry)
     checks = (
         kind == entry.get("kind"),
         info.st_size == entry.get("stat_size"),
@@ -2646,10 +2652,13 @@ def evidence_adjusted_protections(
     return sorted(adjusted)
 
 
+PLATFORM_BLOCKER = "execution-platform-unsupported"
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
-        return ["execution-platform-unsupported"]
+        return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
         return ["dirfd-anchoring-unavailable"]
@@ -2927,8 +2936,21 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
+    # A blocker that is a fact about the platform, identical for every
+    # candidate, routes the operator to the manual handoff lane; only a
+    # blocker about a path means "do not proceed".
+    platform_only = {reason for item in results for reason in item["blockers"]} == {
+        PLATFORM_BLOCKER
+    }
+    if not blocked:
+        outcome = "explicit-approval"
+    elif platform_only:
+        outcome = "manual-handoff-lane"
+    else:
+        outcome = "blocked"
     payload = {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
+        "outcome": outcome,
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
@@ -3669,7 +3691,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 _PARSER_VALUE_TYPES = {"int": int}
 
 
-def _add_flag(command: argparse.ArgumentParser, flag: engine_grammar.Flag) -> None:
+def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
     """Declare one grammar flag on a subparser.
 
     A valueless flag is always ``store_true`` here even when the grammar marks
@@ -3704,8 +3726,12 @@ def build_parser() -> argparse.ArgumentParser:
         if spec.help is not None:
             options["help"] = spec.help
         command = subparsers.add_parser(spec.name, **options)
+        containers: dict[str, argparse._ActionsContainer] = {}
+        for group in spec.one_of:
+            exclusive = command.add_mutually_exclusive_group(required=True)
+            containers.update(dict.fromkeys(group, exclusive))
         for flag in spec.flags:
-            _add_flag(command, flag)
+            _add_flag(containers.get(flag.name, command), flag)
     return parser
 
 
@@ -3942,7 +3968,10 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                load_json(Path(args.paths)), entry_map(snapshot)
+                {"version": SCHEMA_VERSION, "paths": [args.path]}
+                if args.path is not None
+                else load_json(Path(args.paths)),
+                entry_map(snapshot),
             )
             vcs_evidence = (
                 validate_vcs_evidence(load_json(Path(args.vcs_evidence)), approved)
@@ -3954,7 +3983,7 @@ def main(argv: list[str] | None = None) -> int:
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
-            return emit(checked, 3 if checked["status"] == "blocked" else 0)
+            return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
         if checked["status"] != "ready-for-explicit-approval":

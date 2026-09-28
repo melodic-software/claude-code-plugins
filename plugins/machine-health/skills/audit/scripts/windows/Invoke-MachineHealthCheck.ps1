@@ -70,7 +70,9 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Invoke-Discovery.ps1')
 . (Join-Path $libRoot 'Get-WindowsDiscoveryProbes.ps1')
 . (Join-Path $libRoot 'ConvertTo-AppendixMarkdown.ps1')
+. (Join-Path $libRoot 'ConvertTo-DetailMarkdown.ps1')
 . (Join-Path $libRoot 'Invoke-FindingCorrelation.ps1')
+. (Join-Path $libRoot 'Invoke-CustomCheckClamp.ps1')
 . (Join-Path $libRoot 'Merge-CatalogOverlay.ps1')
 . (Join-Path $libRoot 'Get-CheckSelection.ps1')
 . (Join-Path $libRoot 'Get-CheckArgument.ps1')
@@ -241,6 +243,8 @@ try {
     Write-MachineHealthLog "catalog_load_failed $($_.Exception.Message)"
     $catalog = [pscustomobject]@{ checks = @() }
 }
+$shippedIds = @($catalog.checks | Where-Object { $_ -and $_.PSObject.Properties['id'] } | ForEach-Object { [string]$_.id })
+$customIds = @()
 
 # Machine-local catalog overlay: disable/deprecate/demote shipped checks or
 # register custom ones without editing the plugin install (a plugin update
@@ -252,7 +256,10 @@ if (Test-Path -LiteralPath $overlayPath) {
         $overlay = ConvertFrom-Jsonc -InputText $overlayRaw
         $mergedChecks = @(Merge-CatalogOverlay -BaseChecks @($catalog.checks) -Overlay $overlay)
         $catalog = [pscustomobject]@{ checks = $mergedChecks }
-        Write-MachineHealthLog "catalog_overlay_merged path=$overlayPath entries=$($mergedChecks.Count)"
+        $customIds = @($mergedChecks |
+                Where-Object { $_ -and $_.PSObject.Properties['id'] -and $shippedIds -notcontains [string]$_.id } |
+                ForEach-Object { [string]$_.id })
+        Write-MachineHealthLog "catalog_overlay_merged path=$overlayPath entries=$($mergedChecks.Count) custom=$($customIds.Count)"
     } catch {
         Write-MachineHealthLog "catalog_overlay_failed $($_.Exception.Message)"
     }
@@ -459,6 +466,15 @@ try {
     Write-MachineHealthLog "correlation_failed $($_.Exception.Message)"
 }
 
+# Custom-check clamp: after every upgrade path, so no rule can lift a custom
+# check past WARN before it has a clean record (reference/shared/catalog-overlay.md).
+try {
+    $checkResults = @(Invoke-CustomCheckClamp -CheckResults $checkResults -CustomIds $customIds `
+            -HistoryTail $historyTail)
+} catch {
+    Write-MachineHealthLog "custom_clamp_failed $($_.Exception.Message)"
+}
+
 # Remediation dispatch (dry-run-aware, user-load-aware, approval-gated via approvals.json)
 $remediationAttempts = [System.Collections.Generic.List[object]]::new()
 $remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded)
@@ -637,6 +653,12 @@ Write-MachineHealthLog "wrote_latest_json path=$latestPath"
 # top_metrics so subsequent runs can detect trend context. Keys use the
 # "{checkId}.{detailKey}" convention documented in reference/shared/output-schema.md.
 $topMetrics = ConvertTo-TopMetric -CheckResults $checkResults
+# Final (post-trend, post-clamp) severity per successfully-run check: the
+# custom-check clamp counts clean runs from this map.
+$checkSeverities = [ordered]@{}
+foreach ($r in $checkResults) {
+    if ($ranCheckIds -contains $r.id) { $checkSeverities[$r.id] = $r.severity }
+}
 
 $historyLine = [ordered]@{
     run_id             = $runId
@@ -647,6 +669,7 @@ $historyLine = [ordered]@{
     remediation_counts = $remediationCounts
     duration_seconds   = $durationSeconds
     checks_ran         = @($ranCheckIds)
+    check_severities   = $checkSeverities
     top_metrics        = $topMetrics
 }
 $historyJson = $historyLine | ConvertTo-Json -Depth 10 -Compress
@@ -662,18 +685,35 @@ $oneLine = ("$($totalBySeverity.CRIT) CRIT, $($totalBySeverity.WARN) WARN, " +
     "$($totalBySeverity.INFO) INFO, $($totalBySeverity.OK) OK, " +
     "$($totalBySeverity.UNKNOWN) UNKNOWN")
 
+function Format-CheckLabel {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)] [string] $Id)
+    return ($customIds -contains $Id) ? "$Id [custom]" : $Id
+}
+
 function Format-Finding {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] $Result)
 
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add("#### $($Result.id) - $($Result.summary)")
+    $lines.Add("#### $(Format-CheckLabel -Id $Result.id) - $($Result.summary)")
     $lines.Add('')
     $lines.Add("**Severity:** $($Result.severity)")
     $lines.Add('')
+    $hasHistory = $Result.PSObject.Properties['trend'] -and $Result.trend -and $Result.trend.last_run
+    if ($Result.severity -in @('WARN', 'CRIT') -and -not $hasHistory) {
+        $lines.Add('_No trend history for this check; single reading._')
+        $lines.Add('')
+    }
     if ($Result.notes) {
         $lines.Add("_Note: $($Result.notes)_")
+        $lines.Add('')
+    }
+    $detailTable = ConvertTo-DetailMarkdown -Detail $Result.detail
+    if ($detailTable) {
+        $lines.Add($detailTable)
         $lines.Add('')
     }
     if ($Result.commands -and $Result.commands.Count -gt 0) {
@@ -699,11 +739,11 @@ function Format-Section {
 
 $okList = @($checkResults |
         Where-Object { $_.severity -eq 'OK' } |
-        ForEach-Object { "- **$($_.id)** - $($_.summary)" }) -join "`n"
+        ForEach-Object { "- **$(Format-CheckLabel -Id $_.id)** - $($_.summary)" }) -join "`n"
 if (-not $okList) { $okList = '_none_' }
 
 $glanceRows = @($checkResults | ForEach-Object {
-        "| $($_.category) | $($_.id) | **$($_.severity)** | $($_.summary) | - |"
+        "| $($_.category) | $(Format-CheckLabel -Id $_.id) | **$($_.severity)** | $($_.summary) | - |"
     }) -join "`n"
 $glanceTable = @"
 | Category | Check | Severity | Summary | Trend |
