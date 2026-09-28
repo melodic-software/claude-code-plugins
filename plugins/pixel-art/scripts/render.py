@@ -3,9 +3,18 @@
 
 Spec (JSON):
   palette     {"k": "#1a1c2c", ...}   one character per color; "." is always transparent
+              or a string: a bundled preset name ("pico-8"), a path to a project palette
+              file (relative to the spec; same shape as palettes/*.json), or inline JSON
+              of the object form. See palettes/README.md for key assignment.
   frames      {"name": ["row", ...]}  every frame the same width and height
   animations  {"name": {"frames": ["f0", "f1"], "fps": 8, "durations_ms": [..optional..]}}
   sheet       {"columns": 3, "order": ["f0", ...]}   optional; defaults to one row of all frames
+
+Snap (images from another backend), standard library, nearest sRGB color:
+  render.py --snap in.png --palette pico-8 --out snapped.png
+  render.py --snap in.png --palette ./project.json --out frames.json --emit-frames
+  Add --dither for 4x4 Bayer ordered dither (off by default). Alpha below 128 becomes
+  transparent and the rest opaque. --palette accepts a preset, a file, or inline JSON.
 
 Outputs in --out:
   sheet.png          1x sprite sheet (the engine asset)
@@ -20,6 +29,8 @@ import re
 import struct
 import sys
 import zlib
+
+import palette as palette_mod
 
 TRANSPARENT = "."
 
@@ -151,7 +162,8 @@ def frame_durations(anim):
     return [round(1000 / anim.get("fps", 8))] * len(anim["frames"])
 
 
-def render(spec, out_dir, scale=8):
+def render(spec, out_dir, scale=8, spec_path=None):
+    spec = palette_mod.prepare_spec(spec, spec_path)
     w, h = validate(spec)
     out_dir.mkdir(parents=True, exist_ok=True)
     palette, frames = spec["palette"], spec["frames"]
@@ -217,15 +229,53 @@ def render(spec, out_dir, scale=8):
     return sorted(["sheet.png", "preview.png", "sheet.json"] + [f"{name}.gif" for name in animations])
 
 
+def snap_image(source, palette_value, out_path, dither=False, emit_frames=False, base_dir=None):
+    """Read a PNG, snap it, and write either a PNG or a one-frame spec JSON."""
+    _width, _height, rows = palette_mod.read_png(source)
+    base = pathlib.Path(base_dir) if base_dir is not None else pathlib.Path.cwd()
+    resolved = palette_mod.resolve_palette(palette_value, base)
+    if not isinstance(resolved, dict) or not resolved:
+        raise ValueError("snap palette resolved to an empty object")
+    for key, color in resolved.items():
+        if len(key) != 1 or key == palette_mod.TRANSPARENT:
+            raise ValueError(f"palette key {key!r} must be one character other than '.'")
+        palette_mod.hex_rgb(color)
+    out_path = pathlib.Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if emit_frames:
+        frame = palette_mod.snap_frame_rows(rows, resolved, dither)
+        spec = {"palette": resolved, "frames": {"snap": frame}}
+        out_path.write_text(json.dumps(spec, indent=2))
+        return [out_path.name]
+    _keys, colors = palette_mod.palette_colors(resolved)
+    snapped = palette_mod.snap_rgba(rows, colors, dither)
+    write_png(out_path, len(snapped[0]), len(snapped), snapped)
+    return [out_path.name]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("spec", type=pathlib.Path)
+    parser.add_argument("spec", nargs="?", type=pathlib.Path)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--scale", type=int, default=8, help="preview and GIF upscale factor (default 8)")
+    parser.add_argument("--snap", type=pathlib.Path, help="PNG to snap onto --palette")
+    parser.add_argument("--palette", help="preset name, palette file, or inline JSON object")
+    parser.add_argument("--dither", action="store_true", help="4x4 Bayer ordered dither (off by default)")
+    parser.add_argument("--emit-frames", action="store_true", help="write a spec JSON of frame rows instead of a PNG")
     args = parser.parse_args(argv)
     try:
-        written = render(json.loads(args.spec.read_text()), args.out, args.scale)
-    except (ValueError, KeyError) as exc:
+        if args.snap:
+            if args.spec is not None:
+                raise ValueError("pass either a spec or --snap, not both")
+            if not args.palette:
+                raise ValueError("--snap requires --palette")
+            snap_image(args.snap, args.palette, args.out, args.dither, args.emit_frames)
+            print(args.out)
+            return 0
+        if args.spec is None:
+            raise ValueError("a spec path is required (or pass --snap)")
+        written = render(json.loads(args.spec.read_text()), args.out, args.scale, spec_path=args.spec)
+    except (ValueError, KeyError, OSError) as exc:
         print(f"render.py: {exc}", file=sys.stderr)
         return 2
     print("\n".join(str(args.out / name) for name in written))

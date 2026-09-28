@@ -61,6 +61,10 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
+- **`/review:pr-explainer [pr-number|this branch]`**. Offered HTML explainer for a
+  pull request: risk map, file-by-file tour, where to focus. The markdown record
+  is the deliverable. The page is built only by the checked-in escape helper and
+  is not written unless the reader accepts it.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture

@@ -1,35 +1,26 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
+argument-hint: "[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
-        # which runs the launcher without the `env` process its shebang costs.
-        # Git Bash, which runs the shell-form string, looks that `bash` up on
-        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
-        # Verified 2026-09-23 against Claude Code 2.1.281 at
-        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
-        # Windows; exec form resolves `command` on PATH); recheck when that
-        # page changes how shell-form commands are run on Windows, or a
-        # release note names hook shell selection. Exec form resolves
-        # `command` on PATH with no shell, and a bare `python3` there is
-        # the zero-length WindowsApps App Execution Alias stub on stock
-        # Windows, the hook cannot launch, and a failed launch is non-blocking,
-        # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
-        # rejects that stub and falls through to `python`, then `py -3`.
-        # `${CLAUDE_PLUGIN_ROOT}` is the only substitution a skill-frontmatter
-        # hook receives. Never ${CLAUDE_PLUGIN_DATA} or
-        # ${user_config.*}, either of which makes Claude Code refuse the launch.
-        # The single-quoted YAML scalar is the same value hooks.json spells with
-        # \" escapes; every path placeholder must stay double-quoted, because the
-        # shell re-tokenizes the string and plugin roots contain spaces.
+        # Exec form. `command` is `node` (a real executable). exec-bash.mjs
+        # finds Git Bash and never System32\bash.exe, then runs
+        # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
+        # launch that fails open on Windows.
+        # Claim: exec form spawns `command` with `args` and no shell, and a
+        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
+        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
+        # and "Command hook fields".
+        # As of: 2026-09-28.
+        # Recheck: that page stops ignoring `shell` when `args` is set, or a
+        # skill hook gains another placeholder.
         - type: command
-          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
-          shell: bash
+          command: node
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
           timeout: 60
 metadata:
   workflow-stage: anytime
@@ -71,10 +62,11 @@ full walk after the human clears the [confirmation gate](#confirmation-gate)'s s
 it never walks that root recursively. The same flags also select immediate children of any other
 target, so after a depth-1 home audit the operator can re-inventory the approved directories
 without walking the rest of the home. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate directories (on an OS-managed volume
-root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-directory entries
-are withheld; on a non-OS target, hidden and volume-OS-named directories stay selectable so
-approved home children can be named). With one
+`root-children-selection-required` listing admitted immediate children (on an OS-managed volume
+root, OS-owned, hidden, system, reparse, mount, protected-shell-folder, and non-regular types are
+withheld, and regular files use the same admission ladder as directories; on a non-OS target, only
+directories are admitted, and hidden and volume-OS-named directories stay selectable so approved
+home children can be named). With one
 or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
@@ -156,7 +148,7 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the scan target itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -168,9 +160,14 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  [--max-depth <N>] [--confirmed-large-scan] [--quiet] \
+  [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
+
+For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
+`--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
+when the walk completed; depth-limited sizing runs mark `rollup_precision: partial`. Pasteable
+fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -198,7 +195,8 @@ root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdo
 the snapshot the list); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
-fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
+fan-out worker receives a bounded subtree and returns evidence only (see
+[fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
@@ -216,7 +214,8 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
-A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
+A hint annotation is not the only trigger for triage: at a user-home target or an OS-managed
+volume root addressed through `--root-children`, treat any loose
 root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too, the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.

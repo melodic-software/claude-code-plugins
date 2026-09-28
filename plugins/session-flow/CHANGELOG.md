@@ -1,5 +1,65 @@
 # Changelog: session-flow plugin
 
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
+
+## [0.38.22] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.38.21] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.38.20] - 2026-09-28
+
+### Changed
+
+- **`hop_chain.py` passes `--permission-prompts none` on Claude Code 2.1.259+** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The harness keeps `bypassPermissions` and the pinned `--tools` list. The flag denies only what would still have prompted. Older CLIs omit it. Basis: the headless page, fetched 2026-09-28.
+
+## [0.38.15] - 2026-09-28
+
+### Changed
+
+- **Observer analysis passes `--permission-prompts none`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The unattended `claude -p` run keeps `--permission-mode dontAsk` and adds the print-mode flag that denies anything still waiting on a person and tells the model not to retry it. Basis: the headless page's unattended-runs section.
+
+## [0.38.12] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.38.11] - 2026-09-28
+
+### Changed
+
+- **`workflow` names its two ordered slots**
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  `arguments: [mode, modifier]` maps `$mode` to the first argument and `$modifier` to the second.
+  An empty mode is the default row. An empty modifier on `continue` stays suggest-only. `auto` is
+  still the only modifier.
+
+## [0.38.10] - 2026-09-28
+
+### Changed
+
+- **`keep-going` does not trust a captured usage-limit message across an account
+  switch (#3915).** A still-blocked verdict requires a live re-check of the
+  current account (`/usage`, or statusline `rate_limits` when present). The
+  date-bearing `resets Sep 8, 6pm` form stays unparsed (checker exit 2), pinned
+  by a test. Mechanical account-identity plumbing is unpaid.
+
 ## [0.38.9] - 2026-09-28
 
 ### Changed
