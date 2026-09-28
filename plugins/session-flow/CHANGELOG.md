@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.38.23] - 2026-09-28
+## [0.38.24] - 2026-09-28
 
 ### Fixed
 
@@ -17,6 +17,16 @@
   that same resolved root, and find-handoff's rung 1 globs `<memory-root>/handoffs/` on the
   no-project-root branch instead of `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`, so it finds the
   handoffs the writer saves.
+
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
 
 ## [0.38.22] - 2026-09-28
 
