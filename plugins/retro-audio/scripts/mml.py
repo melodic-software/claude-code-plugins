@@ -24,7 +24,7 @@ SEMITONE = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
 def _number(text, index):
     end = index
-    while end < len(text) and (text[end].isdigit() or text[end] == "."):
+    while end < len(text) and text[end].isdigit():
         end += 1
     if end == index:
         return None, index
@@ -208,10 +208,9 @@ def main(argv=None):
     if bool(args.score) == bool(args.text):
         print("mml.py: pass a score file or one quoted score, not both", file=sys.stderr)
         return 2
-    score = Path(args.score).read_text() if args.score else args.text
-    score = score.lower()
     try:
-        samples = render_mml(score, args.chip, args.rate)
+        score = Path(args.score).read_text() if args.score else args.text
+        samples = render_mml(score.lower(), args.chip, args.rate)
     except (OSError, ValueError) as exc:
         print(f"mml.py: {exc}", file=sys.stderr)
         return 1

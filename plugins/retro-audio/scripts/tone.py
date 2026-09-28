@@ -1,4 +1,5 @@
 """Oscillators and an sfxr-shaped envelope. Parameter names follow that model; this loop is not a copy of sfxr or jsfxr."""
+import math
 
 
 def oscillate(wave, phase, duty):
@@ -6,7 +7,9 @@ def oscillate(wave, phase, duty):
         return 1.0 if phase < duty else -1.0
     if wave == "saw":
         return phase * 2 - 1
-    if wave == "sine" or wave == "triangle" or wave == "wave":
+    if wave == "sine":
+        return math.sin(2 * math.pi * phase)
+    if wave == "triangle" or wave == "wave":
         # A 32-step triangle stands in for chip wave and NES triangle.
         step = int(phase * 32) / 32
         return (4 * abs(step - 0.5) - 1)

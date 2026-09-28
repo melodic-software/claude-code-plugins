@@ -97,14 +97,14 @@ def main(argv=None):
     if bool(args.preset) == bool(args.params):
         print("sfx.py: pass exactly one of --preset or --params", file=sys.stderr)
         return 2
-    if args.preset:
-        params = dict(presets.SFX_PRESETS[args.preset])
-    else:
-        raw = args.params.strip()
-        params = json.loads(raw) if raw.startswith("{") else json.loads(Path(raw).read_text())
     try:
+        if args.preset:
+            params = dict(presets.SFX_PRESETS[args.preset])
+        else:
+            raw = args.params.strip()
+            params = json.loads(raw) if raw.startswith("{") else json.loads(Path(raw).read_text())
         samples = render_sfx(params, args.rate)
-    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, KeyError) as exc:
         print(f"sfx.py: {exc}", file=sys.stderr)
         return 1
     seconds = wav.write_wav(args.out, samples, args.rate)

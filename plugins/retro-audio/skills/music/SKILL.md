@@ -42,4 +42,4 @@ argument and inlines the file. Do not edit that plugin from here.
 ## Gotchas
 
 - Length numbers are denominators: `l4` is a quarter note, `l8` an eighth.
-- The renderer does not write MP3. Browsers will not start the WAV until a click.
+- The renderer does not write MP3.

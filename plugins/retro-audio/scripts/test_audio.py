@@ -11,6 +11,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import mml  # noqa: E402
 import presets  # noqa: E402
 import sfx  # noqa: E402
+import tone  # noqa: E402
 import wav  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -44,6 +45,21 @@ class AudioTest(unittest.TestCase):
         samples = mml.render_mml("t120 o4 l4 c d e f", "gameboy", rate=22050)
         self.assertAlmostEqual(len(samples) / 22050, 2.0, delta=0.02)
         self.assertGreater(max(abs(sample) for sample in samples), 0.05)
+
+    def test_dotted_notes_last_one_and_a_half_beats(self):
+        for score in ("t120 c4.", "t120 l4 c."):
+            samples = mml.render_mml(score, "gameboy", rate=22050)
+            self.assertAlmostEqual(len(samples) / 22050, 0.75, delta=0.01)
+
+    def test_sine_is_not_the_stepped_triangle(self):
+        self.assertAlmostEqual(tone.oscillate("sine", 0.25, 0.5), 1.0)
+        self.assertNotEqual(tone.oscillate("sine", 0.1, 0.5), tone.oscillate("triangle", 0.1, 0.5))
+
+    def test_bad_params_exit_one_without_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = str(pathlib.Path(tmp) / "x.wav")
+            self.assertEqual(sfx.main(["--params", "{bad", "--out", out]), 1)
+            self.assertEqual(sfx.main(["--params", str(pathlib.Path(tmp) / "missing.json"), "--out", out]), 1)
 
     def test_gameboy_rejects_a_fifth_channel(self):
         score = "c | d | e | f | g"
