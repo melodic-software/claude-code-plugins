@@ -231,3 +231,8 @@ jobs:
       # exit code is its failure count.
       - name: Run the gaming DLSS 5 selftest on Windows
         run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      # #3757. Git Bash on this runner is the host the hook-budget convention
+      # binds to. The script exits 2 anywhere else, so a Linux lane cannot
+      # fill these figures in.
+      - name: Record Windows Git Bash hook-log figures
+        run: bash plugins/claude-ops/hooks/windows-git-bash-figures.sh

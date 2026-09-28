@@ -277,9 +277,11 @@ bare script path costs (median wall 41 ms against 107 ms, n=5). The script
 keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
 floor on the Linux CI host). Enabled, the row execs the script and the chain is
 the same three creations as before (median 117 ms); a 2 KB payload costs about
-5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
-hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
-is still owed, and the default stays off until it is taken.
+5 ms and a 512 KB one 36 ms. Those are serial per-event figures. The Windows Git Bash lane runs
+`hooks/windows-git-bash-figures.sh`, which prints the kill-switch cost, the
+30-way parallel wall, the 4 KB append result, the `ls -t` same-second result,
+and the late-EOF stall. The default stays off until those FIGURE lines are
+copied into this section.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch in shell form, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and

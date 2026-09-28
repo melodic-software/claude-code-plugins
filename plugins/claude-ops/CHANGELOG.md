@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.18] - 2026-09-28
+
+### Added
+
+- `hooks/windows-git-bash-figures.sh` prints the four Windows Git Bash figures for the session event log ([#3757](https://github.com/melodic-software/claude-code-plugins/issues/3757)). It exits 2 on any other host, so a Linux timing cannot be recorded as that evidence. The Windows lane runs it. The README copies the FIGURE lines from that run; until then the default stays off.
+
 ## [0.62.17] - 2026-09-28
 
 ### Changed
