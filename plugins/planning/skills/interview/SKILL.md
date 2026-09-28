@@ -114,7 +114,7 @@ Q<N>: <one question>
 [<one line of context — ONLY when the round-header restate doesn't reach this question, or the first round after a session gap>]
 
 My recommendation: **<answer>** — <2-3 sentences; grounded in codebase/convention; why it beats the alternatives>.
-Basis: <verified: file:line, tool output, or URL read this session | judgment>
+Basis: <verified, file:line / tool output / URL fetched this session | judgment>
 
 [Commits you to: <ONLY when the recommendation fixes more than one decision; each part of it, numbered>
 - Q<N+1>: <sub-decision>: <recommended value>
