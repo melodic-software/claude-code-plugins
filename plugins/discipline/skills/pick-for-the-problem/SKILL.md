@@ -69,6 +69,12 @@ posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or
 `/discovery:research-deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
 sources yourself and cite them) when that capability is not installed, never a bare recalled verdict.
+State the chosen option with a `Basis:`: `verified` with the source URLs or tool output it rests
+on, or `judgment` only where the call is not consequential (cross-repo, shared
+infrastructure, irreversible, or security). A consequential choice research cannot settle is
+withheld: raise it as an open question naming the evidence that would settle it. Contract:
+[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 
 ## Audit. What to look for
 
