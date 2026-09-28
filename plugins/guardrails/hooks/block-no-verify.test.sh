@@ -689,7 +689,10 @@ for granted_bypass in \
   '& { git commit --no-ve -m x }' \
   '& { git commit --no-v -m x }' \
   "& { \$env:GIT_CONFIG_COUNT=1; \$env:GIT_CONFIG_KEY_0='core.hooksPath'; \$env:GIT_CONFIG_VALUE_0='/dev/null'; git commit -m x }" \
-  "& { git commit \"--no-\$('verify')\" -m x }"; do
+  "& { git commit \"--no-\$('verify')\" -m x }" \
+  "$(printf '& { git commit\xc2\xa0-n -m x }')" \
+  "& { [Environment]::SetEnvironmentVariable('LEFTHOOK','0'); git commit -m x }" \
+  '& { si env:LEFTHOOK 0; git commit -m x }'; do
   expect "PS #4235: bypass inside a granted region still blocks: $granted_bypass" 2 \
     --tool PowerShell --command "$granted_bypass" \
     -- CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ALLOW="$ALL_PS_TOKENS" \

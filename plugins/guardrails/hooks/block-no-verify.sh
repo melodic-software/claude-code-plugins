@@ -310,8 +310,13 @@ ps_scan_raw_git_calls() {
 ps_grant_content_unsafe() {
   local lc="${1//\`/}" seg rest
   local -a segs=()
+  # Any non-ASCII byte (PowerShell reads NBSP and other Unicode spaces and
+  # dashes as separators and flag prefixes), then the environment writers.
+  local LC_ALL=C
+  [[ "$1" == *[$'\x80'-$'\xff']* ]] && return 0
   lc="${lc,,}"
-  [[ "$lc" == *no-verify* || "$lc" == *noverify* || "$lc" == *--no-v* ]] && return 0
+  [[ "$lc" == *env:* || "$lc" == *'[environment]'* || "$lc" == *setenvironmentvariable* ]] && return 0
+  [[ "$lc" == *no-verify*|| "$lc" == *noverify* || "$lc" == *--no-v* ]] && return 0
   # git config from the environment (GIT_CONFIG_*), a hooksPath override, or
   # a subexpression / braced variable that can assemble either at run time.
   # shellcheck disable=SC2016  # literal PowerShell text, not an expansion
