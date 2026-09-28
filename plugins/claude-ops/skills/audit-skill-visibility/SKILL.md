@@ -8,6 +8,9 @@ metadata:
   summary: Which skills the model can actually see, which are starved, and which are unobservable
   cadence: weekly
 ---
+## Run-start suggestion
+
+If /skill-doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
 ## Purpose
 
@@ -379,6 +382,12 @@ user act.
 environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
 gate; this section states what to do when one resolves, never that it is present. The four-part
 records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+
+## Run-end suggestion
+
+If /doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
+
+**`unattended`:** record both suggestions in the report; do not ask.
 
 ## Gotchas
 

@@ -178,6 +178,12 @@ CSV path and row count, and state that the tree was live (`quiesced: false`). Fa
 and the upstream-claim rule (raw markdown only; absence from a summary is not evidence of absence):
 [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
+### Person-invoked `/doctor` suggestion
+
+If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this read-only inventory does not perform.
+
+**`unattended`:** record this suggestion in the report's final section; do not ask.
+
 ## Next
 
 /disk-hygiene:clean
