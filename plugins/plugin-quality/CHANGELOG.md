@@ -5,6 +5,17 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.27] - 2026-09-28
+
+### Changed
+
+- **Write-once is a documented discipline, not a filesystem guarantee (#3866).** The packet
+  contract, the `auditor` prompt, and the recurring-concerns checklist now state that the
+  producing agent can break write-once, that `packet-seal.sh verify` detects after the fact,
+  and that an in-place edit is terminal for that packet (`record` refuses to reseal). Mechanical
+  chmod or a sealed-file write proxy is unpaid. A sealed packet asserts bytes at seal time, not
+  current world state, which unblocks the snapshot question on #3867.
+
 ## [0.7.26] - 2026-09-28
 
 ### Changed
