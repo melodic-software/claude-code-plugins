@@ -5,16 +5,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ## [0.28.7] - 2026-09-28
 
-### Changed
+### Removed
 
-- **Contested throwaway Git checkouts stay contested; the model never deletes them outside
-  the engine**
-  ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)). Option A:
-  gates 1–2 (empty porcelain including untracked, `github.com` remote-confirmed heads) do
-  not grow an `accept_unpublished` relaxation. A local repo with no remote, or with
-  untracked files, remains `contested`. The operator who wants that tree gone removes it
-  themselves; the skill warns that unpushed and untracked content would be lost and stops.
-  Serializes after #3855 (0.27.1), #3856 (0.27.2), and #4224 (0.27.3).
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
 
 ## [0.28.6] - 2026-09-28
 
