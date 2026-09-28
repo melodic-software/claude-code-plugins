@@ -132,7 +132,7 @@ function listing_context(s, low) {
   if (index(low, "description")) return 1
   if (index(low, "when_to_use")) return 1
   if (index(low, "frontmatter")) return 1
-  if (index(low, "truncat")) return 1
+  if (index(low, "truncat")) return 1 # stem matches truncate and truncation # spellchecker:disable-line
   if (index(low, "per-skill")) return 1
   if (index(low, "per-entry")) return 1
   if (index(low, "-char")) return 1
