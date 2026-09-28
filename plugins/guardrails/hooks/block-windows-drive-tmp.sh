@@ -172,50 +172,6 @@ fi
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
-# Cached: 0 = POSIX /tmp is this process's user temp, 1 = not (or unknown).
-# One probe per hook process. Git for Windows stock /tmp is a usertemp mount
-# of %TEMP% (#4251).
-_DRIVE_TMP_POSIX_USERTEMP=""
-posix_tmp_maps_to_usertemp() {
-  if [[ -n "$_DRIVE_TMP_POSIX_USERTEMP" ]]; then
-    return "$_DRIVE_TMP_POSIX_USERTEMP"
-  fi
-  _DRIVE_TMP_POSIX_USERTEMP=1
-  local tmp_win="" temp_win="" temp_env mount_line tmp_n temp_n
-  temp_env="${TEMP:-${TMP:-}}"
-  if command -v cygpath >/dev/null 2>&1 && [[ -n "$temp_env" ]]; then
-    tmp_win=$(cygpath -w /tmp 2>/dev/null) || tmp_win=""
-    if [[ -n "$tmp_win" ]]; then
-      temp_win=$(cygpath -w "$temp_env" 2>/dev/null) || temp_win="$temp_env"
-      tmp_n="${tmp_win,,}"
-      tmp_n="${tmp_n//\\//}"
-      tmp_n="${tmp_n%/}"
-      temp_n="${temp_win,,}"
-      temp_n="${temp_n//\\//}"
-      temp_n="${temp_n%/}"
-      if [[ -n "$tmp_n" && -n "$temp_n" && ( "$tmp_n" == "$temp_n" || "$tmp_n" == "$temp_n"/* ) ]]; then
-        _DRIVE_TMP_POSIX_USERTEMP=0
-        return 0
-      fi
-    fi
-  fi
-  # Git for Windows mount table: "... on /tmp type ntfs (...,usertemp)".
-  # Linux CI's /tmp tmpfs line has no usertemp flag, so forcing OSTYPE=msys
-  # there does not trip this arm.
-  mount_line=$(mount 2>/dev/null) || mount_line=""
-  if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
-    _DRIVE_TMP_POSIX_USERTEMP=0
-    return 0
-  fi
-  return 1
-}
-
-# Bash-lane only: when POSIX /tmp already is %TEMP%, skip the /tmp arm.
-# File-path and PowerShell lanes keep matching /tmp (no MSYS mount table).
-_DRIVE_TMP_SKIP_POSIX=0
-if [[ "$TOOL_NAME" == "Bash" ]] && posix_tmp_maps_to_usertemp; then
-  _DRIVE_TMP_SKIP_POSIX=1
-fi
 # Write / Edit / MultiEdit spell the target `file_path`; NotebookEdit spells it
 # `notebook_path`. Reading both and taking whichever is populated keeps the lane
 # correct without depending on which spelling a given tool version emits.

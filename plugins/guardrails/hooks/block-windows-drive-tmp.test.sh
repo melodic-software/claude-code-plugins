@@ -342,7 +342,7 @@ cat >"$USERTEMP_STUB/cygpath" <<'EOF'
 if [[ "$1" == "-w" ]]; then
   shift
   if [[ "$1" == "/tmp" ]]; then
-    printf '%s\n' "${TEMP:-C:\\Users\\user\\AppData\\Local\\Temp}"
+    printf '%s\n' "${TEMP:-C:\\Users\\<user>\\AppData\\Local\\Temp}"
   else
     printf '%s\n' "$1"
   fi
@@ -351,7 +351,7 @@ fi
 exit 1
 EOF
 chmod +x "$USERTEMP_STUB/cygpath"
-USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\user\AppData\Local\Temp')
+USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\<user>\AppData\Local\Temp')
 run_win "usertemp: mkdir /tmp/x (allowed)" 'mkdir -p /tmp/x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >/tmp/x (allowed)" 'echo x > /tmp/x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: curl -o /tmp/x (allowed)" \
