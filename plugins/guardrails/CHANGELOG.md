@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.10] - 2026-09-28
+
+### Fixed
+
+- **The PowerShell launcher block names a form that passes.** The `ps-unparsable-launcher`
+  trigger line said only "run the program directly": it now gives the in-session forms, the
+  launched command itself (`git status`, not `pwsh -Command 'git status'`) and, for a repo
+  script, `Set-Location <dir>; & ./<script>.ps1`, so a retry is one correction rather than a
+  loop. A README scope note records the working shape for a repo script under PowerShell:
+  in-session on the PowerShell tool, and `pwsh -NoProfile -NonInteractive -WorkingDirectory
+  <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"` where only Bash is available, with
+  why `pwsh -File` from another directory fails its relative `Import-Module`, and the declared
+  gap that the Bash lane does not parse inside a `-Command` string (#4261).
 ## [0.38.9] - 2026-09-28
 
 ### Fixed
