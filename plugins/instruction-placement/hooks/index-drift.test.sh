@@ -197,8 +197,12 @@ if needle not in text:
     raise SystemExit("abort-boundary trap line missing")
 p.write_text(text.replace(needle, needle + "exit 3\n", 1))
 PY
+# File-fed stdin: the injected exit happens before the hook reads the payload.
+# A pipe would leave printf writing to a closed fd; with `pipefail` that is
+# SIGPIPE (141), the #4458 abort-boundary harness bug, not a hook failure.
 idx_abort_rc=0
-idx_abort_err=$(printf '%s' "$(payload_for "$repo/src/a.cs")" | bash "$IDX_COPY" 2>&1 >/dev/null) || idx_abort_rc=$?
+printf '%s' "$(payload_for "$repo/src/a.cs")" >"$repo/abort.in"
+idx_abort_err=$(bash "$IDX_COPY" <"$repo/abort.in" 2>&1 >/dev/null) || idx_abort_rc=$?
 expect_eq "injected exit 3 fails open (exit 0)" "0" "$idx_abort_rc"
 expect_has "injected failure names the hook on stderr" "$idx_abort_err" \
   "index-drift: did not run (status 3); fail-open"

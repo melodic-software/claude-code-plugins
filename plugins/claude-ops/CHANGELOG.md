@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed.
+- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
 
 ## [0.62.12] - 2026-09-28
 

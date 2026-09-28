@@ -7,7 +7,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 ### Fixed
 
-- **`index-drift` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory PostToolUse hook that dies of a hard error used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`instruction-placement index-drift: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed.
+- **`index-drift` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory PostToolUse hook that dies of a hard error used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`instruction-placement index-drift: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
 
 ## [0.15.7] - 2026-09-28
 
