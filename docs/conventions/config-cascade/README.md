@@ -287,6 +287,15 @@ surface, or amend this contract) is a separate human-gated decision.
   sanctioned exceptions, not undeclared drift: `source-control`'s recursive overlay line, and
   `work-items`' ADR 0015 overlay line. Own-ignore-file inside a plugin-owned directory stays a
   different file, not a third exception. Fleet-wide convergence was declined.
+  - **Claim:** the three gitignore postures stay; recommend is default; two consumer-root
+    appends are sanctioned exceptions; own-ignore-file is a different file.
+  - **Basis:** #3573 (recommend / append-announced / own-ignore-file). Overlay spelling drift
+    already described the two appends and the standards-dir own-ignore-file. ADR 0015 owns the
+    work-items overlay path. Converging would either leak overlays or write a memory-root
+    guard into the consumer ignore file.
+  - **As of:** 2026-09-28.
+  - **Recheck:** a setup skill grows a third consumer-root append, or a maintainer
+    converges the fleet onto one posture.
 - **`source-control` stops `branch_issue_pattern` resolution on an unusable layer (#4673).**
   Rule 4 of the resolution algorithm would resolve as if a malformed layer were absent. For this
   one key, `parse-branch-issue.sh` instead fails closed: a layer whose `## branch_issue_pattern`
