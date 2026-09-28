@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.11] - 2026-09-28
+
+### Fixed
+
+- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the five guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. `block-hook-bypass`, `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand, so `wsl.exe -e bash -c "echo secret > …"` is still allowed by this version ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)).
+
+## [0.38.10] - 2026-09-28
+
+### Fixed
+
+- **The PowerShell launcher block names a form that passes.** The `ps-unparsable-launcher`
+  trigger line said only "run the program directly": it now gives the in-session forms, the
+  launched command itself (`git status`, not `pwsh -Command 'git status'`) and, for a repo
+  script, `Set-Location <dir>; & ./<script>.ps1`, so a retry is one correction rather than a
+  loop. A README scope note records the working shape for a repo script under PowerShell:
+  in-session on the PowerShell tool, and `pwsh -NoProfile -NonInteractive -WorkingDirectory
+  <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"` where only Bash is available, with
+  why `pwsh -File` from another directory fails its relative `Import-Module`, and the declared
+  gap that the Bash lane does not parse inside a `-Command` string (#4261).
+
 ## [0.38.9] - 2026-09-28
 
 ### Fixed

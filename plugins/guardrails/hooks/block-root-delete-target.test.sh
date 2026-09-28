@@ -364,6 +364,10 @@ expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
 expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
 expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
 expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
+expect_both 'wsl rm -rf / blocks' 2 --command 'wsl rm -rf /'
+expect_both 'wsl.exe -e rm -rf / blocks' 2 --command 'wsl.exe -e rm -rf /'
+expect_both 'wsl -d Ubuntu -- sudo rm -rf / blocks' 2 --command 'wsl -d Ubuntu -- sudo rm -rf /'
+expect_both 'wsl ls / allowed' 0 --command 'wsl ls /'
 
 # `su` runs its operand through the target user's shell, so one process is every
 # command inside it too. Its grammar is not a shell's: the operand follows the

@@ -117,6 +117,24 @@ out of scope until such a signal exists.
   **These are friction guards against accidental/casual bypass, not a
   sandbox.** (A command longer than 16 KB is not parsed and is blocked
   fail-closed.)
+- **`wsl` / `wsl.exe` is read like `bash -c`** (since **0.38.8**). It runs its
+  command line inside a Linux distribution, so every guard that re-parses a
+  `sh -c` operand (`block-no-verify`, `block-dangerous-git`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-root-delete-target`) re-parses that command line too: `wsl git reset
+  --hard`, `wsl.exe -e git reset --hard` and `wsl -d Ubuntu -- rm -rf /` block.
+  `wsl`'s run options (`-d`, `-u`, `--cd`, `--shell-type`, `--`) and a leading
+  `~` are stepped over, as is an option it does not know. Without `-e` /
+  `--exec` wsl hands its raw Windows command line to `$SHELL -c`, so the words
+  are rebuilt the way Git Bash builds that line: a word with whitespace is
+  double-quoted, so `wsl bash -c 'git reset --hard'` blocks while
+  `wsl 'git status && git clean -fd'` is one command word to the distro shell.
+  With `-e` each word stays one argv word. On the
+  PowerShell tool `wsl` is a launcher, so it reaches the fail-closed sink with
+  `Start-Process`, `pwsh` and `cmd`. Not covered: `block-windows-drive-tmp` and
+  `block-exported-msys-pathconv` do not re-parse a `-c` operand at all, and
+  `block-root-delete-target` judges a relative target from the payload `cwd`,
+  not from `wsl --cd`.
 - **`block-dangerous-git` scope boundaries (not bypasses).** Three cases are
   often filed together; only one is a live bypass (#2151 item A, inherited
   `--git-dir`/`--work-tree` in a `!` alias body). The other two are
@@ -454,6 +472,20 @@ out of scope until such a signal exists.
   drive-root prefix matches at any length, so length creates no parse ambiguity
   and a blocking ceiling would only refuse legitimate long paths. The payload as
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
+- **Running a repo script under PowerShell: the form that passes.** On the
+  PowerShell tool a launcher (`pwsh`, `powershell`, `cmd`, `Start-Process`) in a
+  command that could reach git is the `ps-unparsable-launcher` fail-closed sink,
+  so run the script in the tool's own session instead, where every guard reads
+  it in full:
+  `Set-Location <dir>; & ./<script>.ps1`. Set the directory first: a script
+  that imports a module by a relative path resolves it against the current
+  directory, not the script's, which is the `Import-Module` failure a bare
+  `pwsh -File <script>` from another directory hits. Where only the Bash tool is
+  available (an agent whose tool list omits PowerShell), the working shape is
+  `pwsh -NoProfile -NonInteractive -WorkingDirectory <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"`,
+  with `exit $LASTEXITCODE` carrying the script's exit code back to Bash. The
+  Bash lane does not parse inside that `-Command` string, so a git command
+  written there is not guarded: run git as its own Bash command.
 
 ### Hook budget accounting
 

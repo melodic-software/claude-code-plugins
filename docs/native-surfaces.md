@@ -136,7 +136,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `prototype:explore-directions`
@@ -289,7 +289,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description: CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
 - **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record) (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Session-provided skills (observation-only)
