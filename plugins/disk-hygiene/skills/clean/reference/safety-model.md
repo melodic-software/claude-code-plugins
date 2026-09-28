@@ -210,7 +210,8 @@ otherwise exact call that omits it is denied, because the engine would then fall
 `--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
 `resolve_authorized_data_root()` results as `additionalContext`, so the skill needs no denied call to
 learn them. It grants nothing: the guard still judges every call, and a hook that fails prints
-nothing and leaves the skill on the denial route. One divergence is possible: a plugin hook receives
+nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
+come from the guard's `launch_disclosure` for the probe's install root. One divergence is possible: a plugin hook receives
 `CLAUDE_PLUGIN_DATA` in its environment and a skill hook may not, so where neither derivation
 resolves, the note can name an env-supplied root the skill guard then denies. That denial names
 the fix. Verified 2026-09-27 against https://code.claude.com/docs/en/hooks ("UserPromptExpansion":
