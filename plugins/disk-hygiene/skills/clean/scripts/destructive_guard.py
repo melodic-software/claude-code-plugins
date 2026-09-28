@@ -1518,6 +1518,161 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
+# PowerShell's tokenizer treats the typographic quotes as quote characters, and
+# any member of a class closes a string any member opened (`'abc’` is one
+# literal). Masking on ASCII quotes alone would read `'a’; rm x; 'b'` as one
+# literal and hide the live `rm` between them (#4226).
+_PS_SINGLE_QUOTES = "'\u2018\u2019\u201a\u201b"
+_PS_DOUBLE_QUOTES = '"\u201c\u201d\u201e'
+_PS_QUOTES = _PS_SINGLE_QUOTES + _PS_DOUBLE_QUOTES
+# A here-string opens with `@'` or `@"` followed only by horizontal whitespace
+# to the end of the line, and closes with the matching quote and `@` at the
+# start of a line. The opener leaves the line break unconsumed so an empty
+# body's closer still finds the newline it starts with.
+_POWERSHELL_HERE_STRING_OPENER = re.compile(r"@[" + _PS_QUOTES + r"][^\S\n]*(?=\r?\n)")
+_POWERSHELL_HERE_STRING_CLOSER = re.compile(r"\n[" + _PS_QUOTES + r"]@")
+# Masking string data only holds when no string in the command is executed.
+# A call operator (`& 'Remove-Item' x`, `& $cmd x`) or a dot-source runs string
+# or variable content as a command, so either keeps the raw-text match. `>&`
+# stream merges and `&&` chains are not call operators.
+_POWERSHELL_CALL_OPERATOR = re.compile(r"(?<![>&])&(?!&)")
+_POWERSHELL_DOT_SOURCE = re.compile(r"(?:^|[;|{(\n])\s*\.(?=[\s$(" + _PS_QUOTES + r"])")
+# ENUMERATED, NOT COMPLETE: evaluators that run string content as code, matched
+# on the masked text so a quoted mention does not count. Any hit keeps the
+# raw-text match, which prompts as the belt did before masking existed.
+_POWERSHELL_STRING_EVALUATORS = re.compile(
+    r"(?i)(?<![\w-])("
+    r"invoke-expression|iex|invoke-command|icm|start-process|saps|start"
+    r"|start-job|sajb|start-threadjob|invoke-wmimethod|iwmi|invoke-cimmethod"
+    r"|powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|bash(?:\.exe)?|sh|wsl(?:\.exe)?"
+    r"|scriptblock|executioncontext|addscript|addcommand|add-type"
+    r"|new-alias|set-alias|nal|sal"
+    r")(?![\w-])|function:"
+)
+
+
+class _UnparsedPowerShell(Exception):
+    """The masker could not find where a string or subexpression ends."""
+
+
+def _powershell_scan_code(
+    text: str, start: int, in_subexpression: bool
+) -> tuple[str, int]:
+    """Mask string data in code from ``start``; return (masked, end).
+
+    In a subexpression the scan stops at the ``)`` that closes it and ``end``
+    is that index; otherwise it runs to the end of the text.
+    """
+    out: list[str] = []
+    depth = 0
+    i = start
+    while i < len(text):
+        char = text[i]
+        if char == "`":
+            out.append(text[i : i + 2])
+            i += 2
+            continue
+        if char == "@" and text[i + 1 : i + 2] and text[i + 1] in _PS_QUOTES:
+            opener = _POWERSHELL_HERE_STRING_OPENER.match(text, i)
+            if opener is not None:
+                masked, i = _powershell_expandable_body(
+                    text, opener.end(), here=text[i + 1]
+                )
+                out.append(masked)
+                continue
+        if char in _PS_SINGLE_QUOTES:
+            i = _powershell_single_quoted_end(text, i)
+            out.append(" ")
+            continue
+        if char in _PS_DOUBLE_QUOTES:
+            masked, i = _powershell_expandable_body(text, i + 1, here=None)
+            out.append(masked)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            if in_subexpression and depth == 0:
+                return "".join(out), i
+            depth -= 1
+        out.append(char)
+        i += 1
+    if in_subexpression:
+        raise _UnparsedPowerShell("unterminated subexpression")
+    return "".join(out), i
+
+
+def _powershell_single_quoted_end(text: str, start: int) -> int:
+    """Index just past the single-quoted literal opened at ``start``."""
+    i = start + 1
+    while i < len(text):
+        if text[i] in _PS_SINGLE_QUOTES:
+            if text[i + 1 : i + 2] and text[i + 1] in _PS_SINGLE_QUOTES:
+                i += 2
+                continue
+            return i + 1
+        i += 1
+    raise _UnparsedPowerShell("unterminated single-quoted string")
+
+
+def _powershell_expandable_body(
+    text: str, start: int, here: str | None
+) -> tuple[str, int]:
+    """Keep only the live ``$(...)`` subexpressions of a string body.
+
+    ``here`` is None for a quoted string and the opening quote character for a
+    here-string. A single-quoted here-string never expands, so its whole body
+    is masked. Returns (masked, index just past the closing delimiter).
+    """
+    expands = here is None or here in _PS_DOUBLE_QUOTES
+    kept: list[str] = [" "]
+    i = start
+    while i < len(text):
+        char = text[i]
+        if here is None:
+            if char in _PS_DOUBLE_QUOTES:
+                if text[i + 1 : i + 2] and text[i + 1] in _PS_DOUBLE_QUOTES:
+                    i += 2
+                    continue
+                return "".join(kept), i + 1
+        else:
+            closer = _POWERSHELL_HERE_STRING_CLOSER.match(text, i)
+            if closer is not None and (text[i + 1] in _PS_DOUBLE_QUOTES) == expands:
+                return "".join(kept), closer.end()
+        if expands and char == "`":
+            i += 2
+            continue
+        if expands and char == "$" and text[i + 1 : i + 2] == "(":
+            inner, close = _powershell_scan_code(text, i + 2, in_subexpression=True)
+            kept.append(f"$({inner}) ")
+            i = close + 1
+            continue
+        i += 1
+    raise _UnparsedPowerShell("unterminated string")
+
+
+def _powershell_word_match_text(command: str) -> str:
+    """The text the mutation-word list is matched against (#4226).
+
+    String data is masked so a commit message, search term, or issue body
+    that contains ``move`` or ``del`` does not prompt, while ``$(...)``
+    subexpressions inside expandable strings stay visible because PowerShell
+    runs them. The raw command is returned whenever a string could be run as
+    code (a call operator, a dot-source, or an evaluator), or when the masker
+    cannot find where a string ends.
+    """
+    if _POWERSHELL_CALL_OPERATOR.search(command) or _POWERSHELL_DOT_SOURCE.search(
+        command
+    ):
+        return command
+    try:
+        masked, _ = _powershell_scan_code(command, 0, in_subexpression=False)
+    except _UnparsedPowerShell:
+        return command
+    if _POWERSHELL_STRING_EVALUATORS.search(masked):
+        return command
+    return masked
+
+
 # Exclude the two redirect forms that cannot name a file:
 #   - stream merges (`2>&1`, `1>&2`, `*>&1`): in PowerShell `>&` only merges
 #     streams and never designates a file;
@@ -1703,7 +1858,7 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
         return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
-    match = _POWERSHELL_MUTATION_WORDS.search(command)
+    match = _POWERSHELL_MUTATION_WORDS.search(_powershell_word_match_text(command))
     if match:
         return _powershell_mutation_verdict(
             enabled,

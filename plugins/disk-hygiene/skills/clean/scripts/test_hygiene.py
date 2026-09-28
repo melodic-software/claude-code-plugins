@@ -8761,6 +8761,62 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_mutation_words_in_string_data_defer(self) -> None:
+        """#4226: a mutation word inside string data is not a mutation."""
+        for command in (
+            'git log --oneline --grep "move"',
+            'gh issue list --search "rename flag"',
+            'git commit -m "del stale entry"',
+            'Write-Output "rm is a word"',
+            'Get-ChildItem | Where-Object { $_.Name -match "rd" }',
+            'gh issue comment 3347 --body "the move to a batched lane"',
+            "git commit -m 'del stale entry'",
+            "git commit -m 'it''s the rm step'",
+            'git commit -m "a ""del"" b"',
+            'git commit -m "a `"del`" b"',
+            "git commit -m \u201cmove it\u201d",
+            "git commit -m \u2018del it\u2019",
+            "gh issue comment 1 --body @'\nthe move to rm\n'@",
+            'gh issue comment 1 --body @"\nthe move of $name\n"@',
+            'git log --grep "$($item.Name) move"',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+
+    def test_powershell_mutation_words_that_execute_still_prompt(self) -> None:
+        """#4226: masking string data must not hide a word PowerShell runs."""
+        for command in (
+            # Live subexpressions inside expandable strings run.
+            '"$(Remove-Item x)"',
+            'Write-Output "a $(rm x) b"',
+            'Write-Output @"\n$(Remove-Item x)\n"@',
+            # Command position.
+            "Remove-Item x",
+            "Move-Item a b",
+            "Rename-Item a b",
+            "git commit -m 'x'; del y",
+            "Get-Item x | Remove-Item",
+            # A typographic quote closes a string an ASCII quote opened.
+            "'a\u2019; rm x; 'b'",
+            # Strings run as code keep the raw-text match.
+            "& 'Remove-Item' x",
+            '$c = "Remove-Item"; & $c x',
+            ". 'rm.ps1'",
+            "iex 'Remove-Item x'",
+            'Invoke-Expression "rm x"',
+            "powershell -c 'rm x'",
+            'pwsh -Command "Remove-Item x"',
+            "cmd /c 'del x'",
+            'Start-Process pwsh -ArgumentList "-c", "rm x"',
+            "[scriptblock]::Create('rm x').Invoke()",
+            "Set-Alias z 'Remove-Item'; z x",
+            # An unterminated string or subexpression is not masked.
+            "'unterminated rm",
+            '"$(rm x"',
+        ):
+            verdict = guard.powershell_decision(command, True)
+            assert verdict is not None, command
+            self.assertEqual("ask", verdict[0], command)
+
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
         for command in (

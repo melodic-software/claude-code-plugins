@@ -155,6 +155,14 @@ hooks and settings pages treat as forcing a prompt in `auto` and `bypassPermissi
 surfacing, and leave `dontAsk` first when the operator needs the confirm prompt. Engine
 invocations from PowerShell stay hard-denied.
 
+A mutation word inside string data (a commit message, a search term, an issue body) does not
+prompt: single-quoted literals and here-strings are ignored, and a double-quoted string counts
+only for its `$(...)` subexpressions, which PowerShell runs. When a command can run a string as
+code (a call operator `&`, a dot-source, `Invoke-Expression`, a nested `powershell`, `pwsh`, or
+`cmd`, a script block, or an alias definition), the whole text is matched and a quoted word still
+prompts. To keep prose out of the command line entirely, pass `gh` bodies through
+`--body-file <path>` or `-F <path>`.
+
 ## Hook registration outlives the cleanup
 
 Claude Code registers a skill's frontmatter hooks when the
