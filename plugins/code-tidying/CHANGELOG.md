@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.8] - 2026-09-28
+
+### Changed
+
+- **Deferred standalone JS/TS dead-code scan** ([#4522](https://github.com/melodic-software/claude-code-plugins/issues/4522)).
+  Grep-lane fallback and knip-without-manifest remain parked; #4525 documents the no-`package.json`
+  gap. Version 0.23.7 serializes with other open code-tidying parks on the same base.
+
 ## [0.23.7] - 2026-09-28
 
 ### Fixed
