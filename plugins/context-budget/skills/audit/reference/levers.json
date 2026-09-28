@@ -1,14 +1,11 @@
 {
   "schema": "context-budget.levers/1",
   "meta": {
-    "purpose": "The lever catalogue: every known operator-controllable switch over the fixed startup payload, as data rows. A new lever is a row, not a rewrite. No row carries a token value \u2014 every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
+    "purpose": "The lever catalogue: every known operator-controllable switch over the fixed startup payload, as data rows. A new lever is a row, not a rewrite. No row carries a token value — every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
     "honestyRule": "A lever whose category cannot be determined for the consumer's configuration is not offered. Rows whose category is condition-dependent say so in `conditions`; the audit resolves the condition by measurement before presenting the lever.",
-    "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space \u2014 the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
-    "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered \u2014 never trusted from this file alone.",
-    "verifiedAgainst": {
-      "cliVersion": "2.1.241",
-      "date": "2026-08-23"
-    },
+    "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space — the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
+    "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered — never trusted from this file alone.",
+    "verifiedAgainst": { "cliVersion": "2.1.241", "date": "2026-08-23" },
     "categories": {
       "removes-weight": "Genuinely removes tokens from the request payload (and the context window where applicable).",
       "works-but-saves-nothing-here": "The mechanism functions as documented, but under the consumer's current configuration the measured saving is zero (for example, budget-capped surfaces that redistribute freed space).",
@@ -39,7 +36,7 @@
       "emittedConfig": "{\"permissions\": {\"deny\": [\"<ToolName>\"]}}",
       "caveats": [
         "There is no `disallowedTools` settings key; emitting one writes a silently ignored key. Persistent config is permissions.deny only.",
-        "Denying a tool removes capability, not just weight \u2014 confirm the operator does not use it (route usage questions to /doctor).",
+        "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor).",
         "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny."
       ],
       "citations": [
@@ -84,7 +81,7 @@
       "measurement": "attribute --tools Workflow prices the removal; snapshot before/after the setting confirms the wiring.",
       "emittedConfig": "{\"disableWorkflows\": true}",
       "caveats": [
-        "Workflows are plan-gated and org-disablable; the lever may already be moot for this consumer \u2014 detect before offering."
+        "Workflows are plan-gated and org-disablable; the lever may already be moot for this consumer — detect before offering."
       ],
       "citations": [
         "https://code.claude.com/docs/en/workflows",
@@ -104,7 +101,7 @@
       "posture": "recommendable-on-fit",
       "scope": "User or managed. Do not emit either key into project `.claude/settings.json`: enableArtifact is ignored there, and a project disableArtifact is overridden by any higher-precedence file rather than acting as a lock. enableArtifact: false is the user-scope form (the /config Artifacts row); disableArtifact is the org-wide lock (managed). Env var CLAUDE_CODE_DISABLE_ARTIFACT is equivalent for one session.",
       "detection": "disableArtifact/enableArtifact across scopes; CLAUDE_CODE_DISABLE_ARTIFACT in the environment; Artifact in the baseline tool list; artifact-* rows in the skill listing.",
-      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after the user-scope write additionally shows the skill-listing rows leaving (subject to the listing cap \u2014 see cap dynamics).",
+      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after the user-scope write additionally shows the skill-listing rows leaving (subject to the listing cap — see cap dynamics).",
       "emittedConfig": "{\"enableArtifact\": false}",
       "caveats": [
         "Prefer this over a bare-name deny for never-publishes-artifacts operators: the deny is the weaker trim, leaving the companion skill descriptions listed.",
@@ -124,12 +121,12 @@
       "title": "includeGitInstructions: false / CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS",
       "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description. The env var overrides the settings key (binary predicate at the verified version: a set env wins; otherwise includeGitInstructions defaults true).",
       "category": "removes-weight",
-      "categoryBasis": "Settings row documented; the env override is implemented in the binary but is not on the public env-vars page. Measured at the verified version \u2014 the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description.",
+      "categoryBasis": "Settings row documented; the env override is implemented in the binary but is not on the public env-vars page. Measured at the verified version — the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description.",
       "conditions": null,
       "posture": "recommendable-on-fit",
       "scope": "Settings key (recommended emitted config); env var CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS as the headless measurement route (no settings write).",
       "detection": "includeGitInstructions across settings scopes; CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the environment.",
-      "measurement": "snapshot with and without CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the spawned environment (no settings write); watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs \u2014 report what measures).",
+      "measurement": "snapshot with and without CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the spawned environment (no settings write); watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs — report what measures).",
       "emittedConfig": "{\"includeGitInstructions\": false}",
       "caveats": [
         "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions.",
@@ -148,14 +145,14 @@
       "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
       "category": "removes-weight",
       "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
-      "conditions": "Model-dependent, and the dependence is resolvable from the binary's lean-prompt selector rather than only from a measured zero: the full-prompt path is the legacy list (model id contains `claude-3-`, `haiku`, or `sonnet`, or equals `claude-opus-4-0` / `claude-opus-4-1` / `claude-opus-4-5` / `claude-opus-4-6` / `claude-opus-4-7`); everything else \u2014 including the opus-5 family \u2014 already defaults lean, so the env var can only measure zero there. A zero on those models is explained (already-default), not merely reported. Per operator decision, advice does not branch on model \u2014 measure on the consumer's session model and report the measured delta, including an explained zero.",
+      "conditions": "Model-dependent, and the dependence is resolvable from the binary's lean-prompt selector rather than only from a measured zero: the full-prompt path is the legacy list (model id contains `claude-3-`, `haiku`, or `sonnet`, or equals `claude-opus-4-0` / `claude-opus-4-1` / `claude-opus-4-5` / `claude-opus-4-6` / `claude-opus-4-7`); everything else — including the opus-5 family — already defaults lean, so the env var can only measure zero there. A zero on those models is explained (already-default), not merely reported. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable only; no settings key.",
       "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",
       "measurement": "snapshot with and without the variable in the spawned environment; compare System prompt (and System tools, if the prompt category is omitted).",
       "emittedConfig": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1 (environment; no settings.json form)",
       "caveats": [
-        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery \u2014 a behavior change, not a prompt trim. Never conflate them.",
+        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery — a behavior change, not a prompt trim. Never conflate them.",
         "Headless sdk-mode /context may omit a System prompt category at this version; a lean-vs-full delta then surfaces only in the buckets that move."
       ],
       "citations": [
@@ -167,7 +164,7 @@
     {
       "id": "bare-simple-mode",
       "title": "CLAUDE_CODE_SIMPLE / --bare (the confusion guard)",
-      "mechanism": "Simple mode: disables fetches, keychain reads, and CLAUDE.md auto-discovery. Not a prompt-stripping lever \u2014 that is the sibling variable above.",
+      "mechanism": "Simple mode: disables fetches, keychain reads, and CLAUDE.md auto-discovery. Not a prompt-stripping lever — that is the sibling variable above.",
       "category": "removes-weight",
       "categoryBasis": "Documented (env-vars row plus the --bare CLI equivalent). Its payload effect (memory files not auto-discovered) is a side effect of a behavior change, unmeasured here.",
       "conditions": "Only the memory-file bucket is affected, and only where CLAUDE.md auto-discovery was contributing; the behavior cost usually dominates.",
@@ -189,17 +186,17 @@
     {
       "id": "skill-overrides",
       "title": "skillOverrides (per-skill off)",
-      "mechanism": "Per-skill visibility override in settings; reaches bundled and claude.ai-synced skills. Plugin skills are excluded \u2014 the resolver short-circuits them to on; they toggle via plugin enablement instead.",
+      "mechanism": "Per-skill visibility override in settings; reaches bundled and claude.ai-synced skills. Plugin skills are excluded — the resolver short-circuits them to on; they toggle via plugin enablement instead.",
       "category": "works-but-saves-nothing-here",
-      "categoryBasis": "Documented (settings reference plus the skills page's visibility-override section); the zero saving under an over-budget listing is measured \u2014 freed budget redistributes to still-listed skills.",
+      "categoryBasis": "Documented (settings reference plus the skills page's visibility-override section); the zero saving under an over-budget listing is measured — freed budget redistributes to still-listed skills.",
       "conditions": "While the skill listing is over its budget cap, disabling individual skills changes WHICH skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
       "posture": "recommendable-on-fit",
       "scope": "Settings key; the only lever reaching claude.ai-synced skills.",
       "detection": "skillOverrides across scopes; collapsed rows in the baseline skill listing indicate cap saturation.",
-      "measurement": "snapshot before/after an override; compare the Skills bucket AND note the System tools artifact (see comparability rules \u2014 the listing changed, so System tools deltas are not tool-attributable).",
+      "measurement": "snapshot before/after an override; compare the Skills bucket AND note the System tools artifact (see comparability rules — the listing changed, so System tools deltas are not tool-attributable).",
       "emittedConfig": "{\"skillOverrides\": {\"<skill-name>\": \"off\"}}",
       "caveats": [
-        "The honest benefit while capped is routing accuracy (fewer candidates competing), not tokens \u2014 present it as that.",
+        "The honest benefit while capped is routing accuracy (fewer candidates competing), not tokens — present it as that.",
         "/doctor is exempt from bundled-skill kill switches and needs its own skillOverrides entry or DISABLE_DOCTOR_COMMAND to hide."
       ],
       "citations": [
@@ -244,7 +241,7 @@
       "measurement": "snapshot before/after the key change; compare Skills (and the System tools artifact).",
       "emittedConfig": "{\"skillListingBudgetFraction\": <fraction>}",
       "caveats": [
-        "This is the knob that explains why per-skill disabling saves nothing while over budget \u2014 surface it as explanation before offering it as a lever."
+        "This is the knob that explains why per-skill disabling saves nothing while over budget — surface it as explanation before offering it as a lever."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction",
@@ -260,14 +257,14 @@
       "mechanism": "Enables/disables a plugin (\"name@marketplace\": boolean) at managed/user/project/local scope, with the plugin's defaultEnabled as fallback.",
       "category": "removes-weight",
       "categoryBasis": "Key and scopes documented. The split is measured: agent definitions are uncapped and shrink proportionally; the skill listing is budget-capped and measured zero change even with most plugins disabled.",
-      "conditions": "Removes weight on the Custom agents row (and any MCP servers the plugin ships). On the Skills row, zero while the listing is over cap \u2014 the honest benefit there is routing accuracy.",
+      "conditions": "Removes weight on the Custom agents row (and any MCP servers the plugin ships). On the Skills row, zero while the listing is over cap — the honest benefit there is routing accuracy.",
       "posture": "recommendable-on-fit",
       "scope": "enabledPlugins at four scopes; precedence managed > CLI > local > project > user.",
       "detection": "enabledPlugins maps across scopes; the baseline's agents and skill listing show what each plugin contributes.",
       "measurement": "snapshot before/after disabling; compare Custom agents (real), Skills (expect capped), and MCP tools if the plugin ships servers.",
       "emittedConfig": "{\"enabledPlugins\": {\"<plugin>@<marketplace>\": false}}",
       "caveats": [
-        "A plugin shipping an MCP server can also cost the prompt cache on toggle \u2014 the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix."
+        "A plugin shipping an MCP server can also cost the prompt cache on toggle — the one component type whose enable/disable forces a full prefix re-read when its tools load into the prefix."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings",
@@ -281,7 +278,7 @@
       "title": "permissions.deny Agent(<name>)",
       "mechanism": "Blocks invoking the named agent. Measured at the verified version: the agent's description stays in the startup payload unchanged.",
       "category": "blocks-without-saving",
-      "categoryBasis": "Measured against a control deny that did move a bucket. The sub-agents docs present this rule as disabling an agent \u2014 the payload non-effect is the measured discrepancy this row discloses.",
+      "categoryBasis": "Measured against a control deny that did move a bucket. The sub-agents docs present this rule as disabling an agent — the payload non-effect is the measured discrepancy this row discloses.",
       "conditions": null,
       "posture": "disclose-only",
       "scope": "Any permission-rule surface.",
@@ -300,9 +297,9 @@
     {
       "id": "connectors-disable",
       "title": "claude.ai connectors: disableClaudeAiConnectors and companions",
-      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from 2.1.259 the way to keep a managed-mcp.json / managedMcpServers entry off \u2014 allowedMcpServers governs only servers users add), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
+      "mechanism": "Removes connector MCP servers (and so their tool schemas) from the session. Mechanisms with distinct scopes: disableClaudeAiConnectors (all, settings), ENABLE_CLAUDEAI_MCP_SERVERS (env gate), the /mcp panel toggle (one connector, per project, written to disabledMcpServers in ~/.claude.json), deniedMcpServers (policy, by serverName or serverUrl pattern; from 2.1.259 the way to keep a managed-mcp.json / managedMcpServers entry off — allowedMcpServers governs only servers users add), managed-mcp.json with allowAllClaudeAiMcps, and --mcp-config/--strict-mcp-config (per invocation).",
       "category": "removes-weight",
-      "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline \u2014 the dual-ledger note applies.",
+      "categoryBasis": "Mechanisms documented across the MCP/settings/managed-MCP pages. Connector tools commonly sit in the deferred pool, so the saving is request weight that may barely move the context-usage headline — the dual-ledger note applies.",
       "conditions": "LOCAL CLI ONLY. On cloud/web surfaces connectors arrive as server-delivered --mcp-config entries: disableClaudeAiConnectors does not apply and deniedMcpServers serverUrl patterns do not match. Declare the narrower scope rather than promising correctness there (operator decision 2026-08-17).",
       "posture": "recommendable-on-fit",
       "scope": "Per mechanism, from managed policy down to one invocation.",
@@ -311,7 +308,7 @@
       "emittedConfig": "{\"disableClaudeAiConnectors\": true}",
       "caveats": [
         "disabledMcpServers/enabledMcpServers (connectors) are distinct keys from enabledMcpjsonServers/disabledMcpjsonServers/enableAllProjectMcpServers (.mcp.json approval); emitting the wrong family silently misses the target.",
-        "From Claude Code 2.1.259, allowedMcpServers no longer filters a literal managed-mcp.json server off; use deniedMcpServers to keep a managed connector or managed server out (#4027 / 259-035). The managed-mcp docs page may still state the old allowlist rule \u2014 changelog wins until that page updates."
+        "From Claude Code 2.1.259, allowedMcpServers no longer filters a literal managed-mcp.json server off; use deniedMcpServers to keep a managed connector or managed server out (#4027 / 259-035). The managed-mcp docs page may still state the old allowlist rule — changelog wins until that page updates."
       ],
       "citations": [
         "https://code.claude.com/docs/en/mcp",
@@ -324,9 +321,9 @@
     {
       "id": "mcp-project-servers",
       "title": "Project MCP servers (.mcp.json approval keys)",
-      "mechanism": "Governs which .mcp.json servers load: enabledMcpjsonServers, disabledMcpjsonServers, enableAllProjectMcpServers \u2014 a separate key family from the connector keys.",
+      "mechanism": "Governs which .mcp.json servers load: enabledMcpjsonServers, disabledMcpjsonServers, enableAllProjectMcpServers — a separate key family from the connector keys.",
       "category": "removes-weight",
-      "categoryBasis": "Keys documented in the settings reference; removing a server removes its tool schemas from the request. Deferred-pool placement makes the headline effect small \u2014 dual-ledger note applies.",
+      "categoryBasis": "Keys documented in the settings reference; removing a server removes its tool schemas from the request. Deferred-pool placement makes the headline effect small — dual-ledger note applies.",
       "conditions": null,
       "posture": "recommendable-on-fit",
       "scope": "Settings keys; .mcp.json itself is the project surface.",
@@ -356,7 +353,7 @@
       "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
       "emittedConfig": null,
       "caveats": [
-        "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did NOT reproduce at the verified version \u2014 a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
+        "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did NOT reproduce at the verified version — a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
       ],
       "citations": [
         "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",
@@ -376,7 +373,7 @@
       "posture": "disclose-only",
       "scope": "CLI flag, per invocation.",
       "detection": "Not persistent; nothing to detect in settings.",
-      "measurement": "snapshot spawned with and without the flag; compare System prompt AND Messages \u2014 judging only one row misreads relocation as saving.",
+      "measurement": "snapshot spawned with and without the flag; compare System prompt AND Messages — judging only one row misreads relocation as saving.",
       "emittedConfig": null,
       "caveats": [
         "Exists for prompt-caching stability, not for savings; evaluating it on one row is exactly the confident-wrong-number trap."
@@ -392,7 +389,7 @@
       "title": "Custom output style (keep-coding-instructions default false)",
       "mechanism": "An output style modifies the system prompt; a custom style omits Claude Code's built-in software-engineering instructions unless keep-coding-instructions is true.",
       "category": "net-negative",
-      "categoryBasis": "Documented on the output-styles page and measured: the saving comes from discarding the built-in engineering instructions \u2014 buying tokens with behavior.",
+      "categoryBasis": "Documented on the output-styles page and measured: the saving comes from discarding the built-in engineering instructions — buying tokens with behavior.",
       "conditions": "An operator who wants a custom style keeps the instructions (keep-coding-instructions: true) and accepts the style's own cost; the token 'saving' path is the one never recommended.",
       "posture": "never-recommend",
       "scope": "Output style files; /output-style.",
@@ -417,7 +414,7 @@
       "conditions": null,
       "posture": "never-recommend",
       "scope": "Environment variable.",
-      "detection": "The variable in the environment \u2014 flag it if set, with the measured cost.",
+      "detection": "The variable in the environment — flag it if set, with the measured cost.",
       "measurement": "snapshot with and without; compare both System tools buckets and MCP tools.",
       "emittedConfig": null,
       "caveats": [
@@ -438,7 +435,7 @@
       "categoryBasis": "Measurable by the engine (it is most of what remains after every consumer lever), reducible only by vendor releases or the specific documented switches carried as their own rows.",
       "conditions": null,
       "posture": "report-only",
-      "scope": "None \u2014 no consumer lever.",
+      "scope": "None — no consumer lever.",
       "detection": "The residual: baseline System prompt plus the System tools weight not attributed to deniable tools.",
       "measurement": "Reported as the unaddressable remainder in the attribution report, so the operator sees an honest floor instead of an implied promise.",
       "emittedConfig": null,
@@ -449,7 +446,7 @@
         "https://code.claude.com/docs/en/settings"
       ],
       "verified": "2026-08-17",
-      "recheckTrigger": "Any release note announcing system-prompt or tool-description reductions \u2014 re-measure the floor."
+      "recheckTrigger": "Any release note announcing system-prompt or tool-description reductions — re-measure the floor."
     }
   ]
 }
