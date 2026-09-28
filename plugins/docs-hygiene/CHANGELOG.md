@@ -1,5 +1,12 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.12] - 2026-09-28
+
+### Added
+
+- **`extract-ssot batch --commit-mode=<per-wave|single|none>`.** A caller chooses one commit per
+  wave (the unchanged default), one commit for the whole run, or no commits.
+
 ## [0.23.11] - 2026-09-28
 
 ### Changed
