@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.38.6] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
 ## [0.38.5] - 2026-09-28
 
 ### Fixed
