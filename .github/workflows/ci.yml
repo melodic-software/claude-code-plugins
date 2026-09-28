@@ -2092,6 +2092,29 @@ jobs:
           fi
           scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
 
+      - name: Verify html-escape copies match the canonical helper
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-html-escape.sh --check
+      - name: Run html-escape tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/html-escape.test.sh
+          bash scripts/sync-html-escape.test.sh
+      - name: Verify adopting plugins bumped when the escape helper changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
+
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
