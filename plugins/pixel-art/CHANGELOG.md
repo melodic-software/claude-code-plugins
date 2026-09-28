@@ -3,6 +3,18 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+
+- `tileset`, `ui`, and `vfx` skills. Tilesets cover terrain, autotiles (RPG Maker MZ A1-A5 and B-E,
+  blob-47, and 16-tile corner sets), backgrounds, and parallax. UI covers window skins, icon sets,
+  HUD elements, and bitmap fonts. VFX covers sparks, spells, explosions, and other cell sheets,
+  including MV-style `img/animations`. Effekseer (`.efkefc`) stays out of scope.
+- Worked generators under `examples/tileset`, `examples/ui`, and `examples/vfx`, rendered by
+  `scripts/render.py`. Tests check an MZ A2 sheet, a `Window.png` skin, and a five-column animation
+  sheet against the grids in `engine-layouts.md`.
+
 ## [0.1.1]
 
 ### Changed
