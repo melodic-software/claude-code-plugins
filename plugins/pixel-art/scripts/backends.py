@@ -260,7 +260,7 @@ def main(argv=None):
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--scale", type=int, default=8)
     parser.add_argument("--backend", choices=["native", "aseprite", "pixellab", "retrodiffusion"])
-    parser.add_argument("--confirm", action="store_true", help="allow one paid PixelLab or Retro Diffusion call")
+    parser.add_argument("--confirm", action="store_true", help="allow paid PixelLab or Retro Diffusion calls, one per generated frame")
     parser.add_argument("--ingest", type=pathlib.Path, help="snap this PNG instead of reading a spec")
     parser.add_argument("--palette", help="preset, palette file, or inline JSON (with --ingest)")
     parser.add_argument("--width", type=int, default=32)
@@ -277,7 +277,7 @@ def main(argv=None):
             if args.spec is None:
                 raise RuntimeError("a spec path is required (or pass --ingest)")
             spec = json.loads(args.spec.read_text())
-            written = run(spec, args.out, args.backend, args.scale, args.spec, env, args.confirm)
+            written = run(spec, args.out, args.backend, args.scale, args.spec, env, confirmed(args.confirm, env))
     except (RuntimeError, ValueError, KeyError, OSError, json.JSONDecodeError) as exc:
         print(f"backends.py: {exc}", file=sys.stderr)
         return 2
