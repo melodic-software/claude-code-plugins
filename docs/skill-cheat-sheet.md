@@ -47,7 +47,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/architecture:map-dependencies`](../plugins/architecture/skills/map-dependencies/SKILL.md) | `architecture` | Cite project and package edges from build manifests |
 | [`/architecture:map-deployment`](../plugins/architecture/skills/map-deployment/SKILL.md) | `architecture` | Chart IaC deployment topology per environment, with a diff |
 | [`/architecture:map-events`](../plugins/architecture/skills/map-events/SKILL.md) | `architecture` | Chart publishers, consumers, and orphan messages |
-| [`/architecture:map-flow`](../plugins/architecture/skills/map-flow/SKILL.md) | `architecture` | Trace one C# entry point into a C4 dynamic diagram with a citation on every hop |
+| [`/architecture:map-flow`](../plugins/architecture/skills/map-flow/SKILL.md) | `architecture` | Trace one C# entry point into a sequence diagram with a citation on every hop |
 | [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
 | [`/architecture:map-states`](../plugins/architecture/skills/map-states/SKILL.md) | `architecture` | Draw a cited state diagram, or refuse when the table is not explicit |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |

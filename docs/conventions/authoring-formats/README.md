@@ -65,10 +65,10 @@ already run, and receive an architectural artifact that was not part of the deli
 Zero config means *emitted output is unchanged*, and any default here breaks that.
 
 **With `diagram_dialect.system` unset, no C4 container view is emitted and the design skill behaves
-exactly as it does today.** Declaring the key is the opt-in, and it is the only opt-in for that
-design artifact. `/architecture:map-containers` does not read this key. It reuses
-`landscape_dialect`. A consumer who wants the design view names a dialect; a consumer who says
-nothing gets what they already had.
+exactly as it does today.** Declaring the key is the opt-in, and it is the only opt-in. A consumer
+who wants the view names a dialect; a consumer who says nothing gets what they already had. The
+architecture plugin's C4 views of the code read the same key the same way: unset, they write their
+records and draw no C4 picture.
 
 The `data` key can carry a default precisely because it cannot cause this: `mermaid` is what data
 artifacts are already emitted in, so the default preserves current behavior rather than adding
@@ -96,10 +96,7 @@ values. The claim rests on an upstream fact and therefore carries a four-part re
   `landscape_dialect`'s mermaid default (owned by the architecture plugin's
   `reference/config.md`) should change, and whether `/architecture:map-landscape`'s mermaid
   output should use a dedicated landscape type instead of a `C4Context` diagram without a
-  focal system, and whether the other architecture pictures that reuse `landscape_dialect`
-  should keep their mermaid shapes (`C4Component`, a focal `C4Context`, `C4Container`, a
-  sequence diagram, the events flowchart, and `C4Deployment`), and records those outcomes in
-  the architecture plugin's `CHANGELOG.md`. This
+  focal system, and records those outcomes in the architecture plugin's `CHANGELOG.md`. This
   record is the single recheck trigger for every surface whose mermaid default or mermaid
   output shape depends on mermaid's C4 status.
 
@@ -109,35 +106,33 @@ Nothing here restricts mermaid for the architecture plugin's `landscape_dialect`
 
 ## C4 dialect surfaces
 
-This convention owns the design container view and the data diagram. The architecture plugin
-owns `landscape_dialect`, which the as-built C4 views and the async topology reuse. They keep
-separate keys, separate allowed values, and separate defaults because they are different
-artifacts, not because they disagree about mermaid.
+This convention's system key governs every C4 view except the landscape, which the architecture
+plugin keys separately. The two keys keep separate allowed values and separate defaults because
+they are different artifacts, not because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
 | C4 container view of a design | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
-| C4 system landscape, component, context, as-built container, dynamic, and deployment views, plus the async topology | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#map-family-dialect-decision) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape`, `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, `/architecture:map-flow`, `/architecture:map-events`, `/architecture:map-deployment` |
-| Data diagram | `diagram_dialect.data` | this convention | `mermaid`, `dbml` | `mermaid` | `/planning:design`, `/architecture:map-data` |
+| C4 component, system context, container, and deployment views of the code | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, `/architecture:map-deployment` |
+| C4 system landscape | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#c4-dialect-surfaces) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
 
-`diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
-key would add an artifact a consumer never asked for, which is why the key is unset unless the team
-names a dialect. Mermaid stays refused for this key. `/architecture:map-containers` does not read
-it.
+`diagram_dialect.system` is the opt-in C4 view `/planning:design` and the architecture map views
+emit. A default on that key would add an artifact a consumer never asked for, which is why the key
+is unset unless the team names a dialect. The architecture plugin records which of its views read
+which key in its
+[map family dialect decision](../../../plugins/architecture/reference/config.md#map-family-dialect-decision).
 
-`landscape_dialect` is the dialect the architecture plugin's as-built pictures reuse once
-`architecture_dir` is set. Its mermaid default is a format choice for artifacts those skills emit
-when invoked. It does not add a key. The decision, including which skills do not read it, is in
-the architecture plugin's config.
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
+`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
+already emits; it does not add a new deliverable.
 
 Mermaid C4 being experimental is why this convention's system key refuses mermaid as a value. It is
-not a claim that mermaid is unfit for `landscape_dialect`, whose allowed set is
+not a claim that mermaid is unfit for the landscape surface, whose allowed set is
 `structurizr | mermaid`. The four-part record in
 [Why mermaid is not offered for the system key](#why-mermaid-is-not-offered-for-the-system-key)
-is the single recheck trigger for these surfaces: when it fires, re-derive the system-key allowed
-set, whether the landscape key's mermaid default should change, whether the landscape
-emitter's mermaid output should use a dedicated landscape type, and whether the other mermaid
-pictures that reuse that key should keep their current shapes.
+is the single recheck trigger for both surfaces: when it fires, re-derive the system-key allowed
+set, whether the landscape key's mermaid default should change, and whether the landscape
+emitter's mermaid output should use a dedicated landscape type.
 
 ## The consumer surface
 
@@ -209,7 +204,7 @@ home through the resolver its own plugin bundles and restates the ladder in its 
 |---|---|
 | `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria) |
 | `diagram_dialect.data` | `/planning:design` (data-scope artifact) and `/architecture:map-data` (as-built ERD from a declared schema) |
-| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set). `/architecture:map-containers` does not read this key. |
+| `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set), and `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`, and `/architecture:map-deployment` (C4 views of the code, each drawn only when the key is set) |
 
 `landscape_dialect` is not a key of this convention. It is owned by the architecture plugin; see
 [C4 dialect surfaces](#c4-dialect-surfaces).

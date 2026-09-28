@@ -44,7 +44,7 @@ render() {
   shift
   rm -rf "$dir"
   mkdir -p "$dir"
-  bash "$SCRIPT" --out "$dir" "$@" >"$out"
+  bash "$SCRIPT" --out "$dir" --dialect c4-plantuml "$@" >"$out"
 }
 
 cat >"$TEST_TMPDIR/layers.json" <<'JSON'
@@ -72,7 +72,7 @@ JSON
 render layered --graph "$TEST_TMPDIR/layers.json" --group-by layer --layers host,application,domain
 assert_equals "layer: exits 0 with a violation" "$?" "0"
 md="$(cat "$TEST_TMPDIR/layered/components.md")"
-assert_contains "layer: C4Component" "$md" 'C4Component'
+assert_contains "layer: C4-PlantUML component library" "$md" '!include <C4/C4_Component>'
 assert_contains "layer: host then the others are boundaries" "$md" 'Boundary(grp_0, "host", "layer")'
 assert_contains "layer: application boundary" "$md" 'Boundary(grp_1, "application", "layer")'
 assert_contains "layer: domain boundary" "$md" 'Boundary(grp_2, "domain", "layer")'
@@ -83,8 +83,8 @@ assert_contains "layer: the upward edge is visibly a violation" "$md" 'ProjectRe
 assert_contains "layer: the violation table names Domain to Application" "$md" '| Domain | Application |'
 assert_contains "layer: informational, and the run does not fail" "$md" 'does not fail'
 assert_contains "layer: the package is not a component" "$md" 'External packages collapsed: 1'
-mermaid="$(awk '/^```mermaid$/,/^```$/' "$TEST_TMPDIR/layered/components.md")"
-assert_not_contains "layer: Newtonsoft is not drawn" "$mermaid" 'Newtonsoft'
+diagram="$(awk '/^```plantuml$/,/^```$/' "$TEST_TMPDIR/layered/components.md")"
+assert_not_contains "layer: Newtonsoft is not drawn" "$diagram" 'Newtonsoft'
 assert_contains "layer: the unresolved reference is listed" "$md" 'Missing.csproj'
 assert_contains "layer: summary violations=1" "$(cat "$TEST_TMPDIR/layered.out")" 'violations=1'
 
@@ -98,19 +98,38 @@ render ns --graph "$TEST_TMPDIR/layers.json" --group-by namespace
 assert_contains "namespace: uses the namespace field" "$(cat "$TEST_TMPDIR/ns/components.md")" \
   'Boundary(grp_0, "Billing.Application", "namespace")'
 
-render dsl --graph "$TEST_TMPDIR/layers.json" --dialect structurizr --group-by layer --layers host,application,domain
-assert_equals "structurizr: exits 0" "$?" "0"
-if [[ -f "$TEST_TMPDIR/dsl/components.dsl" && -f "$TEST_TMPDIR/dsl/components.md" ]]; then
-  pass "structurizr: writes components.dsl and components.md"
+render lc4 --graph "$TEST_TMPDIR/layers.json" --dialect likec4 --group-by layer --layers host,application,domain
+assert_equals "likec4: exits 0" "$?" "0"
+lc4="$(cat "$TEST_TMPDIR/lc4/components.md")"
+assert_contains "likec4: fence tag" "$lc4" '```likec4'
+assert_contains "likec4: a component view of the container" "$lc4" 'view components of c4system.c4container {'
+assert_contains "likec4: a layer is a nested boundary" "$lc4" 'grp_0 = boundary "host" {'
+assert_contains "likec4: relations use full names" "$lc4" 'c4system.c4container.grp_2.'
+assert_contains "likec4: the violation is styled" "$lc4" 'color red'
+assert_contains "likec4: the violation is labeled" "$lc4" 'ProjectReference, layer violation'
+assert_not_contains "likec4: no plantuml block" "$lc4" '@startuml'
+assert_contains "likec4: summary names the dialect" "$(cat "$TEST_TMPDIR/lc4.out")" 'dialect=likec4'
+if [[ -f "$TEST_TMPDIR/lc4/components.dsl" ]]; then
+  fail "likec4: no dsl file" "components.dsl exists"
 else
-  fail "structurizr: writes components.dsl and components.md" "$(ls "$TEST_TMPDIR/dsl")"
+  pass "likec4: no dsl file"
 fi
-dsl="$(cat "$TEST_TMPDIR/dsl/components.dsl")"
-assert_contains "structurizr: a component view" "$dsl" 'component c4container "Components"'
-assert_contains "structurizr: the violation is tagged" "$dsl" 'tags "LayerViolation"'
-assert_contains "structurizr: the tag has a style" "$dsl" 'relationship "LayerViolation"'
-assert_not_contains "structurizr: the markdown is not a second mermaid diagram" \
-  "$(cat "$TEST_TMPDIR/dsl/components.md")" '```mermaid'
+
+rm -rf "$TEST_TMPDIR/none"
+mkdir -p "$TEST_TMPDIR/none"
+none_out="$(bash "$SCRIPT" --out "$TEST_TMPDIR/none" --graph "$TEST_TMPDIR/layers.json")"
+assert_equals "none: exits 0" "$?" "0"
+assert_contains "none: summary names the dialect" "$none_out" 'dialect=none'
+assert_equals "none: nothing is written" "$(find "$TEST_TMPDIR/none" -type f | wc -l | tr -d ' ')" "0"
+for refused in mermaid structurizr; do
+  bash "$SCRIPT" --out "$TEST_TMPDIR/none" --graph "$TEST_TMPDIR/layers.json" --dialect "$refused" >/dev/null 2>&1
+  assert_equals "$refused is a usage error" "$?" "2"
+done
+
+sed 's/"name":"Domain"/"name":"evil\\")\\n@enduml```x"/' "$TEST_TMPDIR/layers.json" >"$TEST_TMPDIR/hostile.json"
+render hostile --graph "$TEST_TMPDIR/hostile.json" --group-by directory
+assert_equals "hostile: one @enduml line" "$(grep -c '^@enduml$' "$TEST_TMPDIR/hostile/components.md")" "1"
+assert_contains "hostile: the name is drawn, sanitized" "$(cat "$TEST_TMPDIR/hostile/components.md")" "evil')n@enduml'''x"
 
 render layered2 --graph "$TEST_TMPDIR/layers.json" --group-by layer --layers host,application,domain
 if diff -q "$TEST_TMPDIR/layered/components.md" "$TEST_TMPDIR/layered2/components.md" >/dev/null; then
@@ -168,7 +187,7 @@ JSON
 render one --graph "$TEST_TMPDIR/one.json"
 one="$(cat "$TEST_TMPDIR/one/components.md")"
 assert_contains "thin: yes" "$(cat "$TEST_TMPDIR/one.out")" 'thin=yes'
-assert_not_contains "thin: no C4Component" "$one" 'C4Component'
+assert_not_contains "thin: no diagram" "$one" '@startuml'
 assert_contains "thin: map-landscape" "$one" '/architecture:map-landscape'
 assert_contains "thin: map-containers" "$one" '/architecture:map-containers'
 assert_contains "thin: improve" "$one" '/architecture:improve'
@@ -246,7 +265,7 @@ JSON
 render unknown --graph "$TEST_TMPDIR/unknown.json"
 assert_equals "unknown: exits 0" "$?" "0"
 assert_contains "unknown: the reason is on the artifact" "$(cat "$TEST_TMPDIR/unknown/components.md")" 'package.json'
-assert_not_contains "unknown: no diagram" "$(cat "$TEST_TMPDIR/unknown/components.md")" 'C4Component'
+assert_not_contains "unknown: no diagram" "$(cat "$TEST_TMPDIR/unknown/components.md")" '@startuml'
 
 cat >"$TEST_TMPDIR/deps-unknown.json" <<'JSON'
 {
@@ -263,7 +282,7 @@ JSON
 render deps-unknown --graph "$TEST_TMPDIR/deps-unknown.json"
 assert_equals "dependencies unknown: exits 0" "$?" "0"
 assert_contains "dependencies unknown: message is the reason" "$(cat "$TEST_TMPDIR/deps-unknown/components.md")" 'no shipped adapter'
-assert_not_contains "dependencies unknown: no diagram" "$(cat "$TEST_TMPDIR/deps-unknown/components.md")" 'C4Component'
+assert_not_contains "dependencies unknown: no diagram" "$(cat "$TEST_TMPDIR/deps-unknown/components.md")" '@startuml'
 
 # A quote in a name cannot close the diagram string. A pipe cannot break the table.
 cat >"$TEST_TMPDIR/odd.json" <<'JSON'

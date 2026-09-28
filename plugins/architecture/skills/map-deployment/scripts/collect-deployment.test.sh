@@ -115,15 +115,151 @@ assert_contains "secret differs" "$rec" "secret parameter PASSWORD differs"
 assert_contains "image differs" "$rec" "ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"
 assert_contains "replicas differ" "$rec" '"change":"replicas"'
 assert_contains "cron added" "$rec" "present only in prod"
-sum="$(bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-out" --dialect mermaid --diff staging prod)"
+sum="$(bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-out" --dialect c4-plantuml --diff staging prod)"
 assert_equals "render exits 0" "$?" "0"
 md="$(cat "$TEST_TMPDIR/dep-out/deployment.md")"
-assert_contains "c4 deployment" "$md" "C4Deployment"
+assert_contains "plantuml fence" "$md" '```plantuml'
+assert_contains "plantuml include" "$md" "!include <C4/C4_Deployment>"
+assert_contains "plantuml environment node" "$md" 'Deployment_Node(env1_prod, "prod", "environment") {'
+assert_contains "plantuml container" "$md" '"api", "ghcr.io/acme/api:1.4.0", "replicas 3")'
+assert_contains "plantuml network relationship" "$md" '"joins")'
+assert_contains "plantuml ends" "$md" "@enduml"
+assert_not_contains "no mermaid" "$md" "C4Deployment"
 assert_contains "names compose" "$md" "compose"
 assert_contains "diff table has the image" "$md" "1.4.0 ->"
 assert_not_contains "diagram has no secret" "$md" "SuperSecret"
 assert_contains "catalog absent note" "$md" "map-containers output was not present"
 assert_contains "summary" "$sum" "status=drawn"
+assert_contains "summary names the dialect" "$sum" "dialect=c4-plantuml"
+
+bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-l" --dialect likec4 >/dev/null
+lmd="$(cat "$TEST_TMPDIR/dep-l/deployment.md")"
+assert_contains "likec4 fence" "$lmd" '```likec4'
+assert_contains "likec4 deployment node kind" "$lmd" "deploymentNode environment"
+assert_contains "likec4 environment" "$lmd" "= environment 'prod' {"
+assert_contains "likec4 instance" "$lmd" "instanceOf c"
+assert_contains "likec4 deployment view" "$lmd" "deployment view view"
+assert_equals "likec4 writes one fenced block" "$(grep -c '^```' "$TEST_TMPDIR/dep-l/deployment.md")" "2"
+
+nsum="$(bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-n" --diff staging prod)"
+assert_equals "dialect none exits 0" "$?" "0"
+assert_contains "dialect none is the default" "$nsum" "dialect=none"
+assert_contains "dialect none still counts placements" "$nsum" "placements=5"
+assert_equals "dialect none writes no file" "$(ls -A "$TEST_TMPDIR/dep-n" 2>/dev/null)" ""
+
+for bad_dialect in mermaid structurizr; do
+  bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-bad" --dialect "$bad_dialect" >/dev/null 2>&1
+  assert_equals "--dialect $bad_dialect is a usage error" "$?" "2"
+done
+
+# Every emitted value goes through the shared redactor. Each fixture value is a
+# fake placeholder. Shapes a secret scanner flags as a literal are assembled at
+# runtime so the flagged literal never lands in the repository.
+fake="FAKE-NOT-A-SECRET-0000"
+sas_sig="s""ig"
+gh_tok() { printf 'gh''p_%s' "$(printf "$1%.0s" {1..36})"; }
+gh_pat() { printf 'github''_pat_11%s_%s' "$1" "$(printf "$1%.0s" {1..40})"; }
+aws_id() { printf 'AK''IAFAKEFAKEFAKE%s' "$1"; }
+aws_secret() { printf 'FakeNotASecret0000/FakeNotASecret0000+%s0' "$1"; }
+pem() { printf -- '-----BEGIN ''PRIVATE KEY-----MIIFAKE%s-----END PRIVATE KEY-----' "$1"; }
+leak_env() {
+  local s="$1"
+  cat <<EOF
+      CS_SQL: "Server=db.example.com;User ID=app;Password=${fake}-SQL${s}"
+      CS_BLOB: "DefaultEndpointsProtocol=https;AccountName=fakeacct;AccountKey=${fake}-KEY${s};EndpointSuffix=core.windows.net"
+      CS_BUS: "Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKeyName=root;SharedAccessKey=${fake}-SAK${s}"
+      BLOB_SAS: "https://fakeacct.blob.core.windows.net/c?sv=2022-11-02&${sas_sig}=${fake}-SIG${s}"
+      UPSTREAM_A: "$(gh_tok "$s")"
+      UPSTREAM_B: "$(gh_pat "$s")"
+      AWS_ACCESS_KEY_ID: "$(aws_id "$s")"
+      CLOUD_B: "$(aws_secret "$s")"
+      SIGNING_KEY: "${fake}-SIGN${s}"
+      PEM_BLOB: "$(pem "$s")"
+      PARTNER_URL: "https://svc:${fake}-URL${s}@partner.example.com/api"
+      AUTH_HEADER: "Authorization: Basic ${fake}-BASIC${s}"
+      LOG_LEVEL: level${s}
+EOF
+}
+leak_keys="CS_SQL CS_BLOB CS_BUS BLOB_SAS UPSTREAM_A UPSTREAM_B AWS_ACCESS_KEY_ID CLOUD_B SIGNING_KEY PEM_BLOB PARTNER_URL AUTH_HEADER"
+leak_needles=("$fake" "$(gh_tok S)" "$(gh_tok P)" "$(gh_pat S)" "$(gh_pat P)" "$(aws_id S)" "$(aws_id P)"
+  "$(aws_secret S)" "$(aws_secret P)" "PRIVATE KEY" "MIIFAKE" "Basic " "${sas_sig}=")
+assert_no_leak() {
+  local label="$1" text="$2" needle
+  for needle in "${leak_needles[@]}"; do
+    assert_not_contains "$label has no ${needle:0:12}" "$text" "$needle"
+  done
+}
+repo5="$TEST_TMPDIR/leaks"
+init_repo "$repo5"
+mkdir -p "$repo5/deploy/staging" "$repo5/deploy/prod" "$repo5/deploy/k8s"
+for s in S P; do
+  [[ "$s" == S ]] && d=staging || d=prod
+  {
+    printf 'services:\n  api:\n    image: ghcr.io/acme/api:1.0.0\n    environment:\n'
+    leak_env "$s"
+  } >"$repo5/deploy/$d/compose.yaml"
+done
+{
+  printf 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\n  namespace: qa\nspec:\n  template:\n    spec:\n      containers:\n        - name: api\n          image: ghcr.io/acme/api:2\n          env:\n'
+  printf '            - name: UPSTREAM_A\n              value: "%s"\n' "$(gh_tok K)"
+  printf '            - name: CS_BUS\n              value: "Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKey=%s-SAKK"\n' "$fake"
+  printf '            - name: SIGNING_KEY\n              value: "%s-SIGNK"\n' "$fake"
+} >"$repo5/deploy/k8s/app.yaml"
+leak_needles+=("$(gh_tok K)")
+commit_all "$repo5"
+bash "$COLLECT" --repo "$repo5" --out "$TEST_TMPDIR/leaks.json" --generated-on 2026-09-28
+assert_equals "leak fixture collect exits 0" "$?" "0"
+leakrec="$(cat "$TEST_TMPDIR/leaks.json")"
+assert_contains "leak fixture is drawn" "$leakrec" '"status": "drawn"'
+for k in $leak_keys; do
+  assert_contains "leak fixture records $k" "$leakrec" "\"parameter\":\"$k\""
+done
+assert_contains "leak fixture keeps a plain value" "$leakrec" '"value":"levelS"'
+assert_contains "leak fixture diffs the plain value" "$leakrec" "LOG_LEVEL levelP -> levelS"
+assert_no_leak "record" "$leakrec"
+leaksum="$(bash "$RENDER" --record "$TEST_TMPDIR/leaks.json" --out "$TEST_TMPDIR/leaks-out" --dialect c4-plantuml --diff staging prod)"
+assert_equals "leak fixture render exits 0" "$?" "0"
+leakmd="$(cat "$TEST_TMPDIR/leaks-out/deployment.md")"
+assert_contains "leak diff table is present" "$leakmd" "LOG_LEVEL levelP -> levelS"
+assert_no_leak "diff output" "$leakmd"
+assert_no_leak "render summary" "$leaksum"
+
+# The renderer redacts on its own, for a record written by anything else.
+cat >"$TEST_TMPDIR/hostile.json" <<EOF
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "subject": "hostile",
+  "status": "drawn",
+  "reason": "",
+  "tools": [
+    {"name":"compose","shipped":"yes","evidence":"compose.yaml"}
+  ],
+  "environments": [
+    {"environment":"a","tool":"compose","evidence":"compose.yaml"},
+    {"environment":"b","tool":"compose","evidence":"compose.yaml"}
+  ],
+  "nodes": [],
+  "placements": [
+    {"container":"api","env":"a","tool":"compose","node":"default","image":"https://u:${fake}-IMG@reg.example.com/api:1","replicas":"1","ports":"","networks":"default","evidence":"compose.yaml"},
+    {"container":"x\`\`\`}@enduml'\"","env":"a","tool":"compose","node":"default","image":"i\`\`\`'\\\\","replicas":"1","ports":"","networks":"default","evidence":"compose.yaml"}
+  ],
+  "parameters": [],
+  "diffs": [
+    {"change":"parameter","left":"a","right":"b","tool":"compose","container":"api","detail":"UPSTREAM_A $(gh_tok S) -> $(gh_tok P)"}
+  ],
+  "catalog": []
+}
+EOF
+for d in likec4 c4-plantuml; do
+  hsum="$(bash "$RENDER" --record "$TEST_TMPDIR/hostile.json" --out "$TEST_TMPDIR/hostile-$d" --dialect "$d" --diff a b)"
+  assert_equals "hostile record $d render exits 0" "$?" "0"
+  hmd="$(cat "$TEST_TMPDIR/hostile-$d/deployment.md")"
+  assert_contains "hostile record $d diff row is present" "$hmd" "| parameter |"
+  assert_no_leak "hostile $d render" "$hmd$hsum"
+  assert_equals "hostile $d name stays inside one fenced block" "$(grep -c '```' "$TEST_TMPDIR/hostile-$d/deployment.md")" "2"
+  assert_equals "hostile $d name adds no @enduml" "$(grep -c '@enduml' "$TEST_TMPDIR/hostile-$d/deployment.md")" "$([[ $d == c4-plantuml ]] && echo 1 || echo 0)"
+done
 
 # containers catalog
 printf '{\n  "schema_version": 1,\n  "containers": [\n    {"name":"api"},\n    {"name":"batch"}\n  ]\n}\n' >"$TEST_TMPDIR/containers.json"
@@ -144,9 +280,9 @@ both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "partial read" "$both" '"reason": "partial-read"'
 assert_contains "names terraform" "$both" '"name":"terraform"'
 assert_contains "names compose" "$both" '"name":"compose"'
-bash "$RENDER" --record "$TEST_TMPDIR/both.json" --out "$TEST_TMPDIR/both-out" >/dev/null
+bash "$RENDER" --record "$TEST_TMPDIR/both.json" --out "$TEST_TMPDIR/both-out" --dialect likec4 >/dev/null
 bothmd="$(cat "$TEST_TMPDIR/both-out/deployment.md")"
-assert_not_contains "partial read draws nothing" "$bothmd" "C4Deployment"
+assert_not_contains "partial read draws nothing" "$bothmd" '```'
 assert_contains "partial read prose" "$bothmd" "partial read"
 
 # terraform only
@@ -204,10 +340,10 @@ assert_contains "k8s tool" "$k8s" '"name":"kubernetes"'
 assert_contains "compose still read" "$k8s" '"name":"compose"'
 assert_contains "ingress host" "$k8s" "api.example.com"
 assert_not_contains "k8s secret dropped" "$k8s" "SuperSecret123"
-bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-dsl" --dialect structurizr >/dev/null
-dsl="$(cat "$TEST_TMPDIR/k8s-dsl/deployment.dsl")"
-assert_contains "structurizr environment" "$dsl" "deploymentEnvironment"
-assert_contains "container instance" "$dsl" "containerInstance"
+bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-l" --dialect likec4 --env prod >/dev/null
+kl="$(cat "$TEST_TMPDIR/k8s-l/deployment.md")"
+assert_contains "likec4 ingress node" "$kl" "= node 'api' 'ingress api.example.com'"
+assert_contains "likec4 view includes the environment" "$kl" ".**"
 
 # flat record
 printf '%s\n' '{"schema_version":1}' >"$TEST_TMPDIR/flat.json"

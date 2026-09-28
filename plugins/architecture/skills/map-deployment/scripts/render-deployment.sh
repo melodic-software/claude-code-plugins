@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Render deployment.md (and deployment.dsl) from a collect-deployment.sh record.
+# Render deployment.md from a collect-deployment.sh record.
 #
 # Usage:
 #   render-deployment.sh --record <deployment.json> --out <dir>
-#       [--dialect mermaid|structurizr] [--env <name>] [--diff <a> <b>]
+#       [--dialect likec4|c4-plantuml|none] [--env <name>] [--diff <a> <b>]
 #   render-deployment.sh --help
 #
-# Exit: 0 artifact written; 1 unreadable record; 2 usage; 3 unknown environment,
-# refusal written.
+# --dialect is diagram_dialect.system, resolved by lib/resolve-diagram-dialect.sh.
+# likec4 and c4-plantuml write deployment.md with one fenced likec4 or plantuml
+# block. none (the default) writes no file and prints only the summary line.
+# Every printed value passes through lib/redact-connection.awk.
+#
+# Exit: 0 rendered; 1 unreadable record; 2 usage; 3 unknown environment,
+# refusal rendered.
 set -uo pipefail
+
+REDACT_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/redact-connection.awk"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -21,7 +28,7 @@ die() {
 
 record=""
 out=""
-dialect="mermaid"
+dialect="none"
 env_filter=""
 diff_a=""
 diff_b=""
@@ -66,17 +73,26 @@ done
 
 [[ -n "$record" && -n "$out" ]] || die "--record and --out are required" 2
 [[ -f "$record" ]] || die "record is not a file: $record" 1
-[[ "$dialect" == "mermaid" || "$dialect" == "structurizr" ]] || die "dialect must be mermaid or structurizr" 2
+case "$dialect" in
+likec4 | c4-plantuml | none) ;;
+*) die "--dialect must be likec4, c4-plantuml, or none, got: $dialect" 2 ;;
+esac
 
-mkdir -p "$out"
 md="$out/deployment.md"
-dsl="$out/deployment.dsl"
+target="$md"
+if [[ "$dialect" == "none" ]]; then
+  target="/dev/null"
+else
+  mkdir -p "$out"
+fi
 
 set +e
 summary="$(
-  awk -v dialect="$dialect" -v env_filter="$env_filter" -v diff_a="$diff_a" -v diff_b="$diff_b" -v md="$md" -v dsl="$dsl" '
+  awk -v dialect="$dialect" -v env_filter="$env_filter" -v diff_a="$diff_a" -v diff_b="$diff_b" -v md="$target" -f "$REDACT_AWK" -f - "$record" <<<'
     function die(msg) { printf "render-deployment.sh: %s\n", msg > "/dev/stderr"; exit 1 }
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    function clean(s) { return redact_secret_value(s) ? "[redacted]" : s }
+    function lab(s) { s = clean(s); gsub(/[`"'\''\\]/, "", s); gsub(/[\r\n]/, " ", s); gsub(/@/, "(at)", s); return s }
     function field(line, key,    re, rest, i) {
       re = "\"" key "\":"
       i = index(line, re)
@@ -90,8 +106,8 @@ summary="$(
       return substr(rest, 1, i - 1)
     }
     function jget(line, key,    s) { s = field(line, key); gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\", s); return s }
-    function safe(s) { gsub(/"/, "'\''", s); gsub(/\|/, "/", s); return s }
-    function alias(s,    a) { a = s; gsub(/[^A-Za-z0-9_]/, "_", a); if (a ~ /^[0-9]/) a = "n_" a; return a }
+    function safe(s) { s = clean(s); gsub(/"/, "'\''", s); gsub(/\|/, "/", s); gsub(/`/, "'\''", s); gsub(/[\r\n]/, " ", s); return s }
+    function alias(prefix, i, s,    a) { a = clean(s); gsub(/[^A-Za-z0-9_]/, "_", a); return prefix i "_" a }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
       if (line == "\"" key "\": []" || line == "\"" key "\": [],") return
@@ -147,9 +163,10 @@ summary="$(
         for (i = 1; i <= ne; i++) if (env_name[i] == env_filter) found = 1
         if (!found) { status = "refused"; reason = "unknown-environment"; exit_code = 3 }
       }
+      reason = safe(reason)
       print "# Deployment" > md
       print "" > md
-      print "Generated on " generated "." > md
+      print "Generated on " safe(generated) "." > md
       print "" > md
       print "Subject: " safe(subject) "." > md
       print "" > md
@@ -161,7 +178,7 @@ summary="$(
         print reason_prose(reason) > md
         print "" > md
       } else {
-        print "Dialect: " dialect ". This is the C4 deployment view. It reuses landscape_dialect and adds no dialect key." > md
+        print "Dialect: " dialect ", from diagram_dialect.system. This is the C4 deployment view." > md
         print "" > md
         if (env_filter != "") { print "Environment: " safe(env_filter) "." > md; print "" > md }
       }
@@ -210,73 +227,92 @@ summary="$(
         np = count["placements"] + 0
         nn = count["nodes"] + 0
         drawn_p = 0
-        if (dialect == "mermaid") {
+        if (dialect == "c4-plantuml") {
+          print "```plantuml" > md
+          print "@startuml" > md
+          print "!include <C4/C4_Deployment>" > md
           for (i = 1; i <= ne; i++) {
             e = env_name[i]
             if (env_filter != "" && e != env_filter) continue
-            print "```mermaid" > md
-            print "C4Deployment" > md
-            print "title " safe(e) > md
-            print "  Deployment_Node(" alias("env_" e) ", \"" safe(e) "\", \"environment\") {" > md
+            print "Deployment_Node(" alias("env", i, e) ", \"" lab(e) "\", \"environment\") {" > md
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
+              net_alias[e SUBSEP jget(item, "name")] = alias("n", n, jget(item, "name"))
+              print "  Deployment_Node(" alias("n", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"" lab(jget(item, "kind")) "\", \"" lab(jget(item, "detail")) "\")" > md
+            }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
               if (jget(item, "env") != e) continue
               drawn_p++
-              c = jget(item, "container")
-              print "    Container(" alias("c_" e "_" c) ", \"" safe(c) "\", \"" safe(jget(item, "image")) "\", \"replicas " safe(jget(item, "replicas")) "\")" > md
+              print "  Container(" alias("c", p, jget(item, "container")) ", \"" lab(jget(item, "container")) "\", \"" lab(jget(item, "image")) "\", \"replicas " lab(jget(item, "replicas")) "\")" > md
             }
-            for (n = 1; n <= nn; n++) {
-              item = held["nodes", n]
+            print "}" > md
+            for (p = 1; p <= np; p++) {
+              item = held["placements", p]
               if (jget(item, "env") != e) continue
-              if (jget(item, "kind") == "compute") continue
-              print "    Deployment_Node(" alias("n_" e "_" jget(item, "name")) ", \"" safe(jget(item, "name")) "\", \"" safe(jget(item, "kind")) "\", \"" safe(jget(item, "detail")) "\")" > md
+              nnet = split(jget(item, "networks"), nets, ",")
+              for (k = 1; k <= nnet; k++)
+                if ((e SUBSEP nets[k]) in net_alias)
+                  print "Rel(" alias("c", p, jget(item, "container")) ", " net_alias[e SUBSEP nets[k]] ", \"joins\")" > md
             }
-            print "  }" > md
-            print "```" > md
-            print "" > md
           }
-        } else {
-          print "The diagram is deployment.dsl." > md
+          print "@enduml" > md
+          print "```" > md
           print "" > md
-          print "workspace {" > dsl
-          print "  model {" > dsl
-          print "    system = softwareSystem \"" safe(subject) "\" {" > dsl
+        } else if (dialect == "likec4") {
+          print "```likec4" > md
+          print "specification {" > md
+          print "  element container" > md
+          print "  deploymentNode environment" > md
+          print "  deploymentNode node" > md
+          print "}" > md
+          print "model {" > md
           for (p = 1; p <= np; p++) {
             item = held["placements", p]
             if (env_filter != "" && jget(item, "env") != env_filter) continue
-            c = jget(item, "container")
-            if (!(c in seen_c)) {
-              seen_c[c] = 1
-              print "      " alias(c) " = container \"" safe(c) "\" \"" safe(jget(item, "image")) "\"" > dsl
-            }
+            print "  " alias("c", p, jget(item, "container")) " = container \047" lab(jget(item, "container")) "\047 {" > md
+            print "    technology \047" lab(jget(item, "image")) "\047" > md
+            print "    description \047replicas " lab(jget(item, "replicas")) "\047" > md
+            print "  }" > md
           }
-          print "    }" > dsl
+          print "}" > md
+          print "deployment {" > md
           for (i = 1; i <= ne; i++) {
             e = env_name[i]
             if (env_filter != "" && e != env_filter) continue
-            print "    deploymentEnvironment \"" safe(e) "\" {" > dsl
-            print "      deploymentNode \"" safe(e) "\" {" > dsl
+            print "  " alias("env", i, e) " = environment \047" lab(e) "\047 {" > md
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
+              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" lab(jget(item, "kind")) " " lab(jget(item, "detail")) "\047" > md
+            }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
               if (jget(item, "env") != e) continue
               drawn_p++
-              print "        containerInstance " alias(jget(item, "container")) > dsl
+              print "    instanceOf " alias("c", p, jget(item, "container")) > md
             }
-            print "      }" > dsl
-            print "    }" > dsl
+            print "  }" > md
           }
-          print "  }" > dsl
-          print "  views {" > dsl
+          print "}" > md
+          print "views {" > md
           for (i = 1; i <= ne; i++) {
             e = env_name[i]
             if (env_filter != "" && e != env_filter) continue
-            print "    deployment * \"" safe(e) "\" \"" safe(e) "\" {" > dsl
-            print "      include *" > dsl
-            print "      autoLayout" > dsl
-            print "    }" > dsl
+            print "  deployment view " alias("view", i, e) " {" > md
+            print "    title \047" lab(e) "\047" > md
+            print "    include " alias("env", i, e) ".**" > md
+            print "  }" > md
           }
-          print "  }" > dsl
-          print "}" > dsl
+          print "}" > md
+          print "```" > md
+          print "" > md
+        } else {
+          for (p = 1; p <= np; p++) {
+            e = jget(held["placements", p], "env")
+            if (env_filter == "" || e == env_filter) drawn_p++
+          }
         }
         nc = count["catalog"] + 0
         print "## Containers" > md
@@ -300,16 +336,17 @@ summary="$(
         tools = (tools == "" ? jget(held["tools", i], "name") : tools "," jget(held["tools", i], "name"))
       }
       if (tools == "") tools = "none"
+      tools = safe(tools)
       printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s\n", \
         status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect
       exit exit_code
     }
-  ' "$record"
+  '
 )"
 rc=$?
 set -e
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
-  rm -f "$md" "$dsl"
+  [[ "$target" == "$md" ]] && rm -f "$md"
   exit "$rc"
 fi
 printf '%s\n' "$summary"

@@ -4,24 +4,24 @@
     {
       "id": 1,
       "name": "cited-hops-and-unresolved-interface",
-      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. landscape_dialect is absent, so the mermaid default applies. The subject is a git checkout. src/Transport/OrdersEndpoint.cs has [HttpGet(\"/orders/{id}\")] and awaits _orders.Place where _orders is IOrders, then awaits _service.Handle where _service is OrdersService. src/Application/OrdersService.cs Handle publishes OrderPlaced and calls Repository.Save. src/DecoyWorker/OrdersImpl.cs also defines Place. This is a non-interactive run.",
+      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. The subject is a git checkout. src/Transport/OrdersEndpoint.cs has [HttpGet(\"/orders/{id}\")] and awaits _orders.Place where _orders is IOrders, then awaits _service.Handle where _service is OrdersService. src/Application/OrdersService.cs Handle publishes OrderPlaced and calls Repository.Save. src/DecoyWorker/OrdersImpl.cs also defines Place. This is a non-interactive run.",
       "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved dependency-injection, and does not name OrdersImpl. Handle is inferred. Publish is an asynchronous handoff to map-events. Save is synchronous.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-flow.sh with --entry /orders/{id} rather than composing the sequence by hand",
-        "Writes flow.json before rendering, then runs render-flow.sh --dialect mermaid to produce flow.md",
+        "Writes flow.json before rendering, then runs render-flow.sh to produce flow.md",
         "The Place hop resolution is unresolved and the mechanism is dependency-injection",
         "OrdersImpl is not a callee",
         "The Publish hop is handoff yes and asynchronous, and flow.md names /architecture:map-events",
         "The Save hop is synchronous",
-        "Does not add a dialect key"
+        "Does not read or add a dialect key"
       ]
     },
     {
       "id": 2,
       "name": "depth-truncation-is-stated",
-      "prompt": "/architecture:map-flow /orders/{id} --depth 1\n\narchitecture_dir is docs/architecture and landscape_dialect is mermaid. The same checkout as the cited-hops case.",
+      "prompt": "/architecture:map-flow /orders/{id} --depth 1\n\narchitecture_dir is docs/architecture. The same checkout as the cited-hops case.",
       "expected_output": "The record says truncated yes. Publish is not a hop. flow.md says the depth stopped the trace.",
       "files": [],
       "narration": true,
@@ -74,15 +74,15 @@
     },
     {
       "id": 6,
-      "name": "structurizr-reuses-landscape-dialect",
-      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture and the topic doc declares landscape_dialect: structurizr. The checkout has one matching route and one hop.",
-      "expected_output": "Renders flow.dsl with a dynamic view. Does not write flow.md. Does not read diagram_dialect.system.",
+      "name": "dialect-keys-do-not-change-the-sequence",
+      "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture and the topic doc declares landscape_dialect: structurizr. The authoring-formats doc declares diagram_dialect.system: likec4. The checkout has one matching route and one hop.",
+      "expected_output": "Writes flow.md with a mermaid sequenceDiagram. Writes no flow.dsl. Reads neither dialect key.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Passes --dialect structurizr because landscape_dialect is structurizr",
-        "flow.dsl contains dynamic",
-        "Does not write flow.md",
+        "Runs render-flow.sh without a --dialect argument",
+        "flow.md contains sequenceDiagram",
+        "Writes no flow.dsl and no likec4 block",
         "Does not add a new dialect key"
       ]
     },
@@ -96,7 +96,7 @@
       "expectations": [
         "Runs render-flow.sh on the existing record",
         "The renderer exits 1 and names the one-object-per-line layout",
-        "No flow.md or flow.dsl is written",
+        "No flow.md is written",
         "Does not reformat the record by hand"
       ]
     },

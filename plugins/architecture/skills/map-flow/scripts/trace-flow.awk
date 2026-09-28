@@ -325,7 +325,6 @@ END {
   printf "  \"schema_version\": 1,\n"
   printf "  \"generated_on\": \"%s\",\n", jesc(generated)
   printf "  \"subject\": \"%s\",\n", jesc(subject)
-  printf "  \"dialect_key\": \"landscape_dialect\",\n"
   printf "  \"entry\": {\"name\":\"%s\",\"file\":\"%s\",\"line\":\"%s\"},\n", jesc(entry), jesc(ent_rel[1]), ent_cite[1]
   printf "  \"depth\": %d,\n", depth_limit
   printf "  \"truncated\": \"%s\",\n", (truncated ? "yes" : "no")

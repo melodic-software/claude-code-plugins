@@ -21,24 +21,29 @@ Answer "who publishes which message, and who consumes it" from committed C# call
 registrations. Every edge cites a file and a line. The scripts collect and render. Do not add an
 edge the script did not emit, and do not drop a publish whose contract type did not resolve.
 
-The shipped adapter is the MassTransit shape: `Publish<T>` is broadcast, `Send<T>` is
-point-to-point, `IConsumer<T>` and `AddConsumer<T>` are consumers. Identity is the
+The shipped adapter is the MassTransit shape: `Publish<T>` or `Publish(new T(..))` is broadcast,
+`Send<T>` or `Send(new T(..))` is point-to-point, `IConsumer<T>` consumes `T`. `AddConsumer<C>` and
+`ConfigureConsumer<C>` register the consumer class `C`; they are not messages. Inside
+`ReceiveEndpoint("q", ..)` they put `C`'s consume edges on queue `q`. A message is a type some
+publish, send, or consume names; a service or consumer class is not one. Identity is the
 namespace-qualified type. In-process calls are `/architecture:map-flow`. A cross-process hop in
 that trace is a hand-off to this skill.
 
-## Resolve home and dialect
+## Resolve home
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`
-and reads `landscape_dialect`. It does not add a dialect key. Mermaid writes `events.md` (a
-flowchart: dotted broadcast, solid point-to-point). Structurizr writes `events.dsl`.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`.
+It reads no dialect key and adds none: it always writes `events.md`, a mermaid flowchart (dotted
+broadcast, solid point-to-point). The authoring-formats convention keys a dialect only for data
+diagrams and C4 system views. A message-topology flowchart is neither, so it follows the unkeyed
+mermaid rule, as `/planning:design`'s sequence flows do.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`.
-Exit 0 means read `<home>/architecture/README.md` for `architecture_dir` and `landscape_dialect`.
-Exit 1, 2, and 3 mean there is no declared home.
+Exit 0 means read `<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean
+there is no declared home.
 
 `--out <dir>` wins for this run. Then a declared `architecture_dir`. Then one question.
-`landscape_dialect` falls back to `mermaid`. `architecture_dir` has NO default. An undeclared and
-unconfirmed home, including every non-interactive run, STOPS and points at `/architecture:setup`.
+`architecture_dir` has NO default. An undeclared and unconfirmed home, including every
+non-interactive run, STOPS and points at `/architecture:setup`.
 
 ## Build the record
 
@@ -48,19 +53,22 @@ unconfirmed home, including every non-interactive run, STOPS and points at `/arc
 ```
 
 The record is schema_version 1. Message lines start with `{"id":`. Edge lines start with
-`{"from":`. Finding lines start with `{"kind":`. Findings include orphan publishers, orphan
-consumers, fan-out past `fanout_threshold` (3), competing consumers on one queue, and unresolved
-publishes. `fanout_threshold` is this plugin's limit, not the broker's.
+`{"from":`. Finding lines start with `{"kind":`. A message line cites the file and line that
+declare the type. Findings include orphan publishers, orphan consumers, fan-out past
+`fanout_threshold` (3), competing consumers on one queue, and unresolved edges.
+`fanout_threshold` is this plugin's limit, not the broker's.
 
-A dynamic `Publish(` or `Send(` with no type argument is `resolution: unresolved`. It is never
-omitted.
+A short type name resolves through the file's namespace, its parent namespaces, and its `using`
+directives, then through the one repo type with that name. A `Publish(` or `Send(` whose type
+does not resolve (a variable, an anonymous or target-typed `new`, an undeclared or ambiguous name)
+is an edge with `resolution: unresolved` and an `unresolved` finding naming the kind, the type
+text or `-`, and `file:line`. It is never omitted.
 
 ## Render
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/render-events.sh" \
-  --record "<architecture_dir>/events.json" --out "<architecture_dir>" \
-  --dialect "<landscape_dialect>"
+  --record "<architecture_dir>/events.json" --out "<architecture_dir>"
 ```
 
 Add `--unrouted-only` when the invocation asked for orphans and unresolved edges only. The findings
@@ -81,7 +89,7 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
 - **Edges**: `publishers=`, `consumers=`, `unresolved=`.
 - **Findings**: `orphans=` and the other finding kinds present.
 - **Filter**: `unrouted_only=` yes or no. Findings are listed either way.
-- **Dialect**: `mermaid` or `structurizr`, from `landscape_dialect`.
+- **Dialect**: mermaid flowchart. `landscape_dialect` was not read. No key was added.
 - **Handoff**: that cross-process edges are in the Handoff section for `/architecture:map-flow`.
 
 ## What this skill does NOT do
@@ -91,7 +99,7 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
 - Broker hosts, replicas, or partitions. Those are a deployment view.
 - Treat two types with the same short name as one message.
 - Drop an unresolved publish.
-- Add a dialect key. Events use `landscape_dialect`.
+- Read `landscape_dialect` or add a dialect key. The flowchart is always mermaid.
 - Invent a home.
 
 ## Next
@@ -110,12 +118,15 @@ Exit 1 means the record is unreadable or not one object per line. Nothing was wr
 - **Identity is the resolved type.** `Billing.Contracts.OrderPlaced` and
   `Shipping.Contracts.OrderPlaced` are different messages. A short name that matches two types
   stays unresolved rather than being joined.
-- **An unresolved publish is a finding.** Dropping it would make an orphan-consumer finding
-  wrong. The edge is listed with `resolution: unresolved`.
+- **An unresolved publish or send is a finding.** Dropping it would make an orphan-consumer
+  finding wrong. The edge is listed with `resolution: unresolved` and satisfies no consumer.
+- **A registered consumer is not a message.** `AddConsumer<C>` names the consumer class. The
+  message is the `T` in `C`'s `IConsumer<T>`, so a registration never yields an orphan.
 - **Findings are not the diagram.** `--unrouted-only` filters arrows. The findings list remains.
-- **The two dialects share `landscape_dialect`.** Mermaid uses a dotted arrow for broadcast and a
-  solid arrow for point-to-point. This skill does not add a key.
+- **No dialect key.** The flowchart is mermaid whatever `landscape_dialect` says: a dotted arrow
+  for broadcast, a solid arrow for point-to-point.
 - **A reformatted record is refused.** `render-events.sh` exits 1 and writes nothing.
-- **The scan is the MassTransit shape.** `Publish<T>`, `Send<T>`, `IConsumer<T>`, and
-  `AddConsumer<T>` on one line. Another messaging library is not inferred from a method named
-  Publish in a different shape.
+- **The scan is the MassTransit shape, one line at a time.** `Publish<T>`, `Send<T>`,
+  `.Publish(new T`, `.Send(new T`, `IConsumer<T>`, `AddConsumer<C>`, and `ConfigureConsumer<C>`.
+  A call split across lines is not joined. A `.Publish(` or `.Send(` from another library is
+  still listed, not dropped.

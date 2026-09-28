@@ -5,6 +5,7 @@
 # Source this file. redact_connection_shape KEY VALUE prints zero or more
 # lines of "kind<TAB>host<TAB>port" and returns 0 when it printed a line, 1
 # when the value yielded no external shape. The raw value is never printed.
+# redact_is_secret KEY VALUE returns 0 when either one carries a credential.
 #
 # Executing this file prints usage and exits 2. The awk implementation is
 # redact-connection.awk beside this file.
@@ -29,4 +30,10 @@ AWK
   )"
   [[ -n "$out" ]] || return 1
   printf '%s\n' "$out" | awk -F'\t' 'NF >= 3 { printf "%s\t%s\t%s\n", $1, $2, $3 }'
+}
+
+redact_is_secret() {
+  REDACT_KEY="$1" REDACT_VALUE="$2" awk -f "$_REDACT_CONNECTION_AWK" -f - <<'AWK'
+BEGIN { exit !redact_secret(ENVIRON["REDACT_KEY"], ENVIRON["REDACT_VALUE"]) }
+AWK
 }

@@ -4,11 +4,11 @@
     {
       "id": 1,
       "name": "output-kind-ignores-directory-names",
-      "prompt": "/architecture:map-containers\n\nThe convention home resolves and landscape_dialect is mermaid. The repository has a Microsoft.NET.Sdk.Web project in a directory named Worker, a Microsoft.NET.Sdk.Worker project in a directory named Api, an OutputType Exe in a directory named Web, and a class library in a directory named Services. No dependency-graph.json exists.",
-      "expected_output": "Runs collect-containers.sh and render-containers.sh. The web SDK is kind web, the worker SDK is kind worker, the exe is kind cli, and the class library is not a container. Renders containers.md with a C4Container diagram.",
+      "prompt": "/architecture:map-containers\n\nThe convention home resolves and the authoring-formats doc declares diagram_dialect.system: c4-plantuml. The repository has a Microsoft.NET.Sdk.Web project in a directory named Worker, a Microsoft.NET.Sdk.Worker project in a directory named Api, an OutputType Exe in a directory named Web, and a class library in a directory named Services. No dependency-graph.json exists.",
+      "expected_output": "Runs collect-containers.sh and render-containers.sh. The web SDK is kind web, the worker SDK is kind worker, the exe is kind cli, and the class library is not a container. Renders containers.md with one fenced plantuml block (C4_Container).",
       "expectations": [
         "Does not classify a project from its directory name",
-        "Passes --dialect mermaid from landscape_dialect and does not read diagram_dialect.system",
+        "Resolves diagram_dialect.system to c4-plantuml, passes --dialect c4-plantuml, and does not read landscape_dialect",
         "Omits --graph because dependency-graph.json is absent, and the record says containment is project-references",
         "Closes with the fixed report: artifacts, focal, deployables, stores, modules, shared, dialect, technology, containment source, thin result, redaction"
       ]

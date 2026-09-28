@@ -102,7 +102,7 @@ bash "$COLLECT" --repo "$repo" --entry "/orders/{id}" --generated-on 2026-09-28 
 assert_equals "collect exits 0" "$?" "0"
 blob="$(cat "$record")"
 assert_contains "subject is the github repo name" "$blob" '"subject": "billing"'
-assert_contains "dialect key is landscape_dialect" "$blob" '"dialect_key": "landscape_dialect"'
+assert_not_contains "record names no dialect key" "$blob" "dialect_key"
 place_line="$(grep -n '_orders.Place' "$repo/src/Transport/OrdersEndpoint.cs" | awk -F: 'NR==1{print $1}')"
 assert_contains "interface hop cites the call site" "$blob" "\"file\":\"src/Transport/OrdersEndpoint.cs\",\"line\":\"$place_line\""
 assert_contains "interface hop is unresolved dependency-injection" "$blob" '"resolution":"unresolved","mechanism":"dependency-injection"'
@@ -120,7 +120,7 @@ assert_contains "save cites its call site" "$blob" "\"line\":\"$save_line\""
 assert_contains "save is synchronous" "$blob" '"sync":"synchronous"'
 assert_contains "trace is complete" "$blob" '"truncated": "no"'
 
-render_out="$(bash "$RENDER" --record "$record" --out "$out" --dialect mermaid)"
+render_out="$(bash "$RENDER" --record "$record" --out "$out")"
 assert_equals "render mermaid exits 0" "$?" "0"
 md="$(cat "$out/flow.md")"
 assert_contains "summary names the entry" "$render_out" "entry=/orders/{id}"
@@ -129,21 +129,12 @@ assert_contains "sync arrow" "$md" "->>"
 assert_contains "handoff names map-events" "$md" "handoff /architecture:map-events"
 assert_contains "unresolved label is on the diagram" "$md" "unresolved"
 assert_contains "inferred label is on the diagram" "$md" "inferred"
-assert_not_contains "mermaid render is not a dsl file" "$(ls "$out")" "flow.dsl"
+assert_not_contains "render writes no dsl file" "$(ls "$out")" "flow.dsl"
 assert_not_contains "guessed implementation is not a participant" "$md" "OrdersImpl"
 
-dsl_dir="$TEST_TMPDIR/dsl"
-mkdir -p "$dsl_dir"
-bash "$RENDER" --record "$record" --out "$dsl_dir" --dialect structurizr >/dev/null
-assert_equals "render structurizr exits 0" "$?" "0"
-dsl="$(cat "$dsl_dir/flow.dsl")"
-assert_contains "structurizr dynamic view" "$dsl" "dynamic sys"
-assert_not_contains "structurizr does not write sequenceDiagram" "$dsl" "sequenceDiagram"
-if [[ ! -f "$dsl_dir/flow.md" ]]; then
-  pass "structurizr does not write flow.md"
-else
-  fail "structurizr wrote flow.md" "present"
-fi
+assert_contains "render is a mermaid sequence diagram" "$md" "sequenceDiagram"
+bash "$RENDER" --record "$record" --out "$out" --dialect structurizr >/dev/null 2>&1
+assert_equals "a dialect argument is a usage error" "$?" "2"
 
 depth_record="$TEST_TMPDIR/depth.json"
 bash "$COLLECT" --repo "$repo" --entry "/orders/{id}" --depth 1 --out "$depth_record" >/dev/null
@@ -208,7 +199,6 @@ cat >"$collapse_json" <<'JSON'
   "schema_version": 1,
   "generated_on": "2026-09-28",
   "subject": "billing",
-  "dialect_key": "landscape_dialect",
   "entry": {"name":"Get","file":"src/A.cs","line":"1"},
   "depth": 5,
   "truncated": "no",

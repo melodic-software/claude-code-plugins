@@ -9,9 +9,14 @@
 #   collect-events.sh --repo <path> --out <file> [--generated-on <date>]
 #   collect-events.sh --help
 #
-# The shipped adapter is C# in the MassTransit shape: Publish<T> (broadcast),
-# Send<T> (point-to-point), IConsumer<T> and AddConsumer<T> (consumers).
-# Identity is the namespace-qualified type, not the short name.
+# The shipped adapter is C# in the MassTransit shape: Publish<T> or
+# Publish(new T(..)) (broadcast), Send<T> or Send(new T(..)) (point-to-point),
+# IConsumer<T> (consumer of T). AddConsumer<C> and ConfigureConsumer<C> register
+# consumer class C; inside ReceiveEndpoint("q", ..) they give C's edges queue q.
+# A message is a type some publish, send, or consume names. Other types are not.
+# A publish or send whose type does not resolve is an unresolved edge and finding.
+# Identity is the namespace-qualified type. A short name resolves through the
+# file's namespace and using directives, then through a unique repo match.
 # fanout_threshold is 3, a limit of this plugin, not of the broker.
 #
 # schema_version 1. Message lines start with {"id":. Edge lines start with
@@ -135,14 +140,26 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       }
       return ""
     }
-    BEGIN { ns = ""; queue = "-" }
+    # Names a short type name can bind to here: the namespace, its parents, and usings.
+    function scope(    s, n) {
+      s = ","
+      for (n = ns; n != ""; ) { s = s n ","; if (!sub(/\.[^.]*$/, "", n)) n = "" }
+      return s usings
+    }
+    BEGIN { ns = ""; queue = "-"; cls = "-"; usings = "" }
     {
       line = strip($0)
       sub(/\r$/, "", line)
+      if (line ~ /^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*;/) {
+        u = line
+        sub(/^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+/, "", u)
+        sub(/[[:space:]]*;.*$/, "", u)
+        usings = usings u ","
+      }
       if (line ~ /^[[:space:]]*namespace[[:space:]]+/) {
         ns = line
         sub(/^[[:space:]]*namespace[[:space:]]+/, "", ns)
-        sub(/[[:space:]]*\{.*$/, "", ns)
+        sub(/[[:space:]]*[;{].*$/, "", ns)
         gsub(/[[:space:]]/, "", ns)
       }
       if (line ~ /(class|record|interface|struct)[[:space:]]+[A-Za-z_]/) {
@@ -150,28 +167,39 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
         sub(/^.*(class|record|struct|interface)[[:space:]]+/, "", name)
         sub(/[^A-Za-z0-9_].*$/, "", name)
         if (name != "") {
-          full = (ns == "" ? name : ns "." name)
-          printf "T\t%s\t%s\t%s\t%s\t%d\n", full, name, ns, rel, FNR
+          cls = (ns == "" ? name : ns "." name)
+          printf "T\t%s\t%s\t%s\t%s\t%d\n", cls, name, ns, rel, FNR
         }
       }
       if (match(line, /ReceiveEndpoint[[:space:]]*\([[:space:]]*"/)) {
-        q = substr(line, RSTART, RLENGTH)
-        sub(/^.*"/, "", q)
         rest = substr(line, RSTART + RLENGTH)
         if (match(rest, /[^"]*/)) queue = substr(rest, RSTART, RLENGTH)
       }
-      n = split("IConsumer,AddConsumer,Publish,Send", keys, ",")
+      n = split("IConsumer,Publish,Send,AddConsumer,ConfigureConsumer", keys, ",")
       for (k = 1; k <= n; k++) {
-        arg = typearg(line, keys[k])
-        if (arg == "") continue
-        kind = keys[k]
-        if (kind == "IConsumer" || kind == "AddConsumer") kind = "consume"
-        else if (kind == "Publish") kind = "publish"
-        else kind = "send"
-        printf "E\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n", kind, arg, ns, rel, FNR, queue, "static"
+        s = line
+        while ((i = index(s, keys[k] "<")) > 0) {
+          arg = typearg(substr(s, i), keys[k])
+          s = substr(s, i + length(keys[k]) + 1)
+          if (arg == "") break
+          if (k > 3) {
+            printf "R\t%s\t%s\t%s\t%d\t%s\n", arg, scope(), rel, FNR, queue
+            continue
+          }
+          kind = (k == 1 ? "consume" : tolower(keys[k]))
+          printf "E\t%s\t%s\t%s\t%s\t%d\t%s\tstatic\t%s\n", kind, arg, scope(), rel, FNR, queue, cls
+        }
       }
-      if (line ~ /\.Publish[[:space:]]*\(/ && line !~ /Publish</) {
-        printf "E\tunresolved-publish\t-\t%s\t%s\t%d\t%s\tunresolved\n", ns, rel, FNR, queue
+      s = line
+      while (match(s, /\.(Publish|Send)[[:space:]]*\(/)) {
+        kind = (substr(s, RSTART + 1, 4) == "Send" ? "send" : "publish")
+        s = substr(s, RSTART + RLENGTH)
+        arg = "-"
+        if (match(s, /^[[:space:]]*new[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*/)) {
+          arg = substr(s, RSTART, RLENGTH)
+          sub(/^[[:space:]]*new[[:space:]]+/, "", arg)
+        }
+        printf "E\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", kind, arg, scope(), rel, FNR, queue, (arg == "-" ? "unresolved" : "static"), cls
       }
     }
   ' "$root/$rel"
@@ -179,44 +207,37 @@ done < <(git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n') >"$raw"
 
 awk -F'\t' '$1 == "T" { print }' "$raw" >"$types"
 
-# Resolve short type names. A qualified name is itself. One short name in the
-# repo binds. Two short names do not: identity is the resolved type.
-awk -F'\t' -v types="$types" '
-  function qualify(arg, ns,    n, i, full, shortn, hits, same) {
+# Resolve short type names. A qualified name is itself. A short name binds to the
+# one match in scope (namespace, parents, usings; the global namespace always),
+# else to the one match in the repo. Anything else stays unresolved.
+# Pass 1 reads types, pass 2 registrations, pass 3 edges.
+awk -F'\t' '
+  function qualify(arg, sc,    n, i, c, pick, inscope) {
     if (arg == "" || arg == "-") return "-"
     if (index(arg, ".") > 0) return arg
-    hits = 0
-    same = ""
-    while ((getline line < types) > 0) {
-      split(line, f, "\t")
-      if (f[3] == arg) {
-        hits++
-        full = f[2]
-        if (f[4] == ns) same = f[2]
-      }
-    }
-    close(types)
-    if (same != "") return same
-    if (hits == 1) return full
+    n = split(byname[arg], c, SUBSEP)
+    inscope = 0
+    for (i = 2; i <= n; i++) if (nsof[c[i]] == "" || index(sc, "," nsof[c[i]] ",")) { inscope++; pick = c[i] }
+    if (inscope == 1) return pick
+    if (inscope == 0 && n == 2) return c[2]
     return "-"
   }
-  $1 == "E" {
+  pass == 1 { if (!($2 in nsof)) byname[$3] = byname[$3] SUBSEP $2; nsof[$2] = $4; next }
+  pass == 2 && $1 == "R" { cid = qualify($2, $3); if (cid != "-" && $6 != "-") regq[cid] = $6; next }
+  pass == 3 && $1 == "E" {
     resolved = qualify($3, $4)
-    res = $8
-    if ($2 != "unresolved-publish" && resolved == "-") res = "unresolved"
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $2, resolved, $5, $6, $7, res, $3
+    res = (resolved == "-" ? "unresolved" : $8)
+    q = $7
+    if ($2 == "consume" && q == "-" && ($9 in regq)) q = regq[$9]
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $2, resolved, $5, $6, q, res, $3
   }
-' "$raw" >"$edges_tsv"
+' pass=1 "$types" pass=2 "$raw" pass=3 "$raw" >"$edges_tsv"
 
+# A message is a declared type some edge names, cited at its first declaration.
 awk -F'\t' '
-  { seen[$2] = $3 "\t" $4 "\t" $5 }
-  END {
-    for (id in seen) {
-      split(seen[id], f, "\t")
-      printf "%s\t%s\t%s\t%s\n", id, f[1], f[2], f[3]
-    }
-  }
-' "$types" | LC_ALL=C sort | while IFS=$'\t' read -r id name file line; do
+  FILENAME == ARGV[1] { if ($2 != "-") used[$2] = 1; next }
+  ($2 in used) && !($2 in seen) { seen[$2] = 1; printf "%s\t%s\t%s\t%s\n", $2, $3, $5, $6 }
+' "$edges_tsv" "$types" | LC_ALL=C sort | while IFS=$'\t' read -r id name file line; do
   json_escape "$id"
   obj="{\"id\":\"$JSON_ESC\""
   json_escape "$name"
@@ -244,17 +265,17 @@ while IFS=$'\t' read -r kind contract file line queue resolution rawarg; do
   printf '%s\n' "$obj"
 done <"$edges_tsv" >"$edge_body"
 
-# Findings. Orphans compare resolved contracts only. Unresolved publishes are
-# their own finding and do not satisfy a consumer.
+# Findings. Orphans compare resolved contracts only. An unresolved edge is its
+# own finding and satisfies nothing.
 awk -F'\t' '
-  $1 == "publish" || $1 == "send" { if ($2 != "-") pub[$2] = 1 }
-  $1 == "consume" { if ($2 != "-") con[$2] = con[$2] + 1; if ($5 != "-" && $5 != "" && $2 != "-") q[$2 "\t" $5]++ }
-  $1 == "unresolved-publish" { print "unresolved\t-\tunresolved publish " $3 ":" $4 }
+  $6 == "unresolved" { print "unresolved\t-\tunresolved " $1 " " $7 " " $3 ":" $4; next }
+  $1 == "publish" || $1 == "send" { pub[$2] = 1 }
+  $1 == "consume" { con[$2]++; if ($5 != "-" && $5 != "") q[$2 SUBSEP $5]++ }
   END {
     for (c in pub) if (!(c in con)) print "orphan-publisher\t" c "\tno registered consumer"
     for (c in con) if (!(c in pub)) print "orphan-consumer\t" c "\tno publisher"
     for (c in con) if (con[c] > 3) print "fanout\t" c "\t" con[c] " consumers"
-    for (k in q) if (q[k] > 1) print "competing\t" k "\t" q[k] " consumers on one queue"
+    for (k in q) if (q[k] > 1) { split(k, p, SUBSEP); print "competing\t" p[1] "\t" q[k] " consumers on queue " p[2] }
   }
 ' "$edges_tsv" | LC_ALL=C sort | while IFS=$'\t' read -r kind contract detail; do
   json_escape "$kind"

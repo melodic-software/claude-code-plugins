@@ -63,7 +63,7 @@ parsing the topic doc yourself. The ladder is a resolution order, not a task lis
 ```
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/resolve-data-dialect.sh" \
+bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-diagram-dialect.sh" --kind data \
   --formats "<root>/<home>/authoring-formats/README.md"
 ```
 

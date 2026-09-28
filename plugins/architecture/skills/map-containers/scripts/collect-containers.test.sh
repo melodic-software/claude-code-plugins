@@ -200,8 +200,8 @@ MOUT="$TEST_TMPDIR/mono-out"
 mkdir -p "$MOUT"
 bash "$COLLECT" --repo "$MONO" --out "$MOUT/containers.json" --generated-on 2026-09-28 >"$MOUT/collect.out"
 assert_equals "mono: collect exits 0" "$?" "0"
-bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect mermaid >"$MOUT/render.out"
-assert_equals "mono: mermaid render exits 0" "$?" "0"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect c4-plantuml >"$MOUT/render.out"
+assert_equals "mono: c4-plantuml render exits 0" "$?" "0"
 mono_text="$(cat "$MOUT/containers.json" "$MOUT/containers.md" "$MOUT/collect.out" "$MOUT/render.out")"
 deployables="$(grep -c '"kind":"web"' "$MOUT/containers.json" || true)"
 assert_equals "monolith is one web deployable" "$deployables" "1"
@@ -213,10 +213,10 @@ assert_contains "diagram names contained modules" "$mono_text" "Contains: Billin
 container_elems="$(grep -c 'Container(' "$MOUT/containers.md" || true)"
 assert_equals "diagram draws one container" "$container_elems" "1"
 assert_contains "summary counts modules" "$(cat "$MOUT/render.out")" "modules=2"
-assert_contains "mermaid dialect is C4Container" "$mono_text" "C4Container"
-bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect structurizr >"$MOUT/struct.out"
-assert_equals "mono: structurizr render exits 0" "$?" "0"
-assert_contains "structurizr is a container view" "$(cat "$MOUT/containers.dsl")" "container sys"
+assert_contains "c4-plantuml includes the container library" "$mono_text" "!include <C4/C4_Container>"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect likec4 >"$MOUT/struct.out"
+assert_equals "mono: likec4 render exits 0" "$?" "0"
+assert_contains "likec4 is a container view" "$(cat "$MOUT/containers.md")" "view containers of e_sys"
 
 BUS="$TEST_TMPDIR/bus"
 mkdir -p "$BUS/src/Api" "$BUS/src/Worker"
@@ -255,7 +255,7 @@ BOUT="$TEST_TMPDIR/bus-out"
 mkdir -p "$BOUT"
 bash "$COLLECT" --repo "$BUS" --out "$BOUT/containers.json" --generated-on 2026-09-28 >"$BOUT/collect.out" 2>"$BOUT/collect.err"
 assert_equals "bus: collect exits 0" "$?" "0"
-bash "$RENDER" --record "$BOUT/containers.json" --out "$BOUT" --dialect mermaid >"$BOUT/render.out" 2>"$BOUT/render.err"
+bash "$RENDER" --record "$BOUT/containers.json" --out "$BOUT" --dialect c4-plantuml >"$BOUT/render.out" 2>"$BOUT/render.err"
 assert_equals "bus: render exits 0" "$?" "0"
 bus_text="$(cat "$BOUT/containers.json" "$BOUT/containers.md" "$BOUT/collect.out" "$BOUT/collect.err" "$BOUT/render.out" "$BOUT/render.err")"
 assert_contains "shared-infrastructure edge exists" "$bus_text" '"kind":"shared-infrastructure"'
@@ -305,11 +305,22 @@ else
 fi
 
 set +e
-bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect likec4 >"$MOUT/like.out" 2>"$MOUT/like.err"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect mermaid >"$MOUT/like.out" 2>"$MOUT/like.err"
 like_rc=$?
-set +e
-assert_equals "likec4 is not this dialect" "$like_rc" "2"
-assert_contains "refusal names landscape_dialect" "$(cat "$MOUT/like.err")" "landscape_dialect"
+assert_equals "mermaid is refused" "$like_rc" "2"
+assert_contains "refusal names diagram_dialect.system" "$(cat "$MOUT/like.err")" "diagram_dialect.system"
+bash "$RENDER" --record "$MOUT/containers.json" --out "$MOUT" --dialect structurizr >/dev/null 2>&1
+assert_equals "structurizr is refused" "$?" "2"
+mkdir -p "$TEST_TMPDIR/none-render"
+none_out="$(bash "$RENDER" --record "$MOUT/containers.json" --out "$TEST_TMPDIR/none-render")"
+assert_contains "unset dialect reports none" "$none_out" "dialect=none"
+assert_equals "unset dialect writes no picture" "$(find "$TEST_TMPDIR/none-render" -type f | wc -l | tr -d ' ')" "0"
+sed 's/"name":"[^"]*"/"name":"evil\\")\\n@enduml```x"/' "$MOUT/containers.json" >"$TEST_TMPDIR/hostile.json"
+mkdir -p "$TEST_TMPDIR/hostile-render"
+bash "$RENDER" --record "$TEST_TMPDIR/hostile.json" --out "$TEST_TMPDIR/hostile-render" --dialect c4-plantuml >/dev/null
+assert_equals "hostile: one @enduml line" "$(grep -c '^@enduml$' "$TEST_TMPDIR/hostile-render/containers.md")" "1"
+assert_equals "hostile: two fence lines" "$(grep -c '^```' "$TEST_TMPDIR/hostile-render/containers.md")" "2"
+assert_contains "hostile: the name is drawn, sanitized" "$(cat "$TEST_TMPDIR/hostile-render/containers.md")" "evil') @enduml'''x"
 
 GRAPH="$TEST_TMPDIR/graph-repo"
 mkdir -p "$GRAPH/src/Host" "$GRAPH/src/OnlyGraph" "$GRAPH/src/FromFile"

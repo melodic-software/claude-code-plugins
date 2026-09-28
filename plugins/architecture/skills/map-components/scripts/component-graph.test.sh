@@ -99,7 +99,7 @@ assert_not_contains "collect: obj output is not a node" "$record" 'obj/Debug'
 
 # One object per line: the renderer accepts this record.
 mkdir -p "$TEST_TMPDIR/view"
-bash "$RENDER" --graph "$graph" --out "$TEST_TMPDIR/view" --container Billing.Api \
+bash "$RENDER" --dialect c4-plantuml --graph "$graph" --out "$TEST_TMPDIR/view" --container Billing.Api \
   --group-by layer --layers host,application,domain --source component-graph.sh >"$TEST_TMPDIR/view.out"
 assert_equals "render collected: exits 0" "$?" "0"
 view="$(cat "$TEST_TMPDIR/view/components.md")"
@@ -121,8 +121,8 @@ assert_contains "render collected: violations do not fail the prose" "$view" 'do
 
 # Directory and namespace grouping of the same graph.
 mkdir -p "$TEST_TMPDIR/dir" "$TEST_TMPDIR/ns"
-bash "$RENDER" --graph "$graph" --out "$TEST_TMPDIR/dir" --container Billing.Api --group-by directory >/dev/null
-bash "$RENDER" --graph "$graph" --out "$TEST_TMPDIR/ns" --container Billing.Api --group-by namespace >/dev/null
+bash "$RENDER" --dialect c4-plantuml --graph "$graph" --out "$TEST_TMPDIR/dir" --container Billing.Api --group-by directory >/dev/null
+bash "$RENDER" --dialect c4-plantuml --graph "$graph" --out "$TEST_TMPDIR/ns" --container Billing.Api --group-by namespace >/dev/null
 assert_contains "group directory: a path boundary" "$(cat "$TEST_TMPDIR/dir/components.md")" \
   'Boundary(grp_0, "src/application/Billing.Application", "directory")'
 assert_contains "group namespace: the project name is the namespace" "$(cat "$TEST_TMPDIR/ns/components.md")" \
@@ -130,7 +130,7 @@ assert_contains "group namespace: the project name is the namespace" "$(cat "$TE
 
 # Several deployables, no --container.
 mkdir -p "$TEST_TMPDIR/choice"
-choice="$(bash "$RENDER" --graph "$graph" --out "$TEST_TMPDIR/choice" 2>&1)" || choice_rc=$?
+choice="$(bash "$RENDER" --dialect c4-plantuml --graph "$graph" --out "$TEST_TMPDIR/choice" 2>&1)" || choice_rc=$?
 choice_rc="${choice_rc:-0}"
 assert_equals "choice: several deployables exit 3" "$choice_rc" "3"
 assert_contains "choice: the message names the flag" "$choice" 'pass --container'
@@ -152,13 +152,13 @@ assert_contains "unknown: ecosystem unknown" "$unkrec" '"ecosystem": "unknown"'
 assert_contains "unknown: the reason names the manifest" "$unkrec" 'package.json'
 assert_contains "unknown: nodes are an empty array, not a fake graph" "$unkrec" '"nodes": []'
 mkdir -p "$TEST_TMPDIR/unkout"
-bash "$RENDER" --graph "$TEST_TMPDIR/unknown.json" --out "$TEST_TMPDIR/unkout" >"$TEST_TMPDIR/unkout.txt"
+bash "$RENDER" --dialect c4-plantuml --graph "$TEST_TMPDIR/unknown.json" --out "$TEST_TMPDIR/unkout" >"$TEST_TMPDIR/unkout.txt"
 assert_equals "unknown render: exits 0" "$?" "0"
 unkmd="$(cat "$TEST_TMPDIR/unkout/components.md")"
 # The artifact quotes the word unknown in markdown backticks.
 # shellcheck disable=SC2016
 assert_contains "unknown render: says unknown" "$unkmd" 'ecosystem `unknown`'
-assert_not_contains "unknown render: no diagram" "$unkmd" 'C4Component'
+assert_not_contains "unknown render: no diagram" "$unkmd" '@startuml'
 assert_contains "unknown render: summary is thin" "$(cat "$TEST_TMPDIR/unkout.txt")" 'thin=yes'
 
 # A single project is thin, and not a one-box diagram.
@@ -166,13 +166,13 @@ solo="$TEST_TMPDIR/solo"
 write_proj "$solo/Only.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
 bash "$SCRIPT" --repo "$solo" --out "$TEST_TMPDIR/solo.json" --generated-on 2026-09-28
 mkdir -p "$TEST_TMPDIR/soloout"
-bash "$RENDER" --graph "$TEST_TMPDIR/solo.json" --out "$TEST_TMPDIR/soloout" >"$TEST_TMPDIR/soloout.txt"
+bash "$RENDER" --dialect c4-plantuml --graph "$TEST_TMPDIR/solo.json" --out "$TEST_TMPDIR/soloout" >"$TEST_TMPDIR/soloout.txt"
 solomd="$(cat "$TEST_TMPDIR/soloout/components.md")"
 assert_contains "thin: the summary says thin" "$(cat "$TEST_TMPDIR/soloout.txt")" 'thin=yes'
 assert_contains "thin: names map-landscape" "$solomd" '/architecture:map-landscape'
 assert_contains "thin: names map-containers" "$solomd" '/architecture:map-containers'
 assert_contains "thin: names improve" "$solomd" '/architecture:improve'
-assert_not_contains "thin: no one-box diagram" "$solomd" 'C4Component'
+assert_not_contains "thin: no one-box diagram" "$solomd" '@startuml'
 assert_contains "thin: says a one-box diagram is not the answer" "$solomd" 'one-box diagram is not the answer'
 
 bad="$(bash "$SCRIPT" --repo "$TEST_TMPDIR/no-such-dir" 2>&1)"

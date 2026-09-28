@@ -7,7 +7,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECT="$SCRIPT_DIR/collect-data.sh"
 RENDER="$SCRIPT_DIR/render-data.sh"
-DIALECT="$SCRIPT_DIR/resolve-data-dialect.sh"
+DIALECT="$SCRIPT_DIR/../../../lib/resolve-diagram-dialect.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -238,9 +238,9 @@ assert_contains "ef diagram" "$efmd" 'User ||--o{ Post'
 # --- dialect resolver -------------------------------------------------------
 # shellcheck disable=SC2016 # the fence is literal markdown, not a command substitution
 printf '```yaml\ndiagram_dialect:\n  data: dbml\n```\n' >"$TEST_TMPDIR/formats.md"
-got="$(bash "$DIALECT" --formats "$TEST_TMPDIR/formats.md")"
+got="$(bash "$DIALECT" --kind data --formats "$TEST_TMPDIR/formats.md")"
 assert_equals "dialect dbml" "$got" "dbml"
-missing="$(bash "$DIALECT" --formats "$TEST_TMPDIR/missing.md" 2>"$TEST_TMPDIR/dialect-err")"
+missing="$(bash "$DIALECT" --kind data --formats "$TEST_TMPDIR/missing.md" 2>"$TEST_TMPDIR/dialect-err")"
 assert_equals "missing doc defaults" "$missing" "mermaid"
 assert_contains "missing doc explains" "$(cat "$TEST_TMPDIR/dialect-err")" "default mermaid"
 bash "$RENDER" --record "$out/data-model.json" --out "$TEST_TMPDIR/dbml" --dialect dbml --include-columns >/dev/null

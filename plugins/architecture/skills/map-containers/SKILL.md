@@ -34,20 +34,48 @@ is `/architecture:map-components`. A request trace is `/architecture:map-flow`.
 
 ## Resolve home and dialect
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`
-and reads `landscape_dialect`. It does not add a dialect key and it does not read
-`diagram_dialect.system`. Mermaid writes `containers.md` (`C4Container`). Structurizr writes
-`containers.dsl` (a container view).
+Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`.
+It does not read `landscape_dialect` and it does not add a dialect key. The diagram dialect is
+`diagram_dialect.system` from the authoring-formats topic doc.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
 follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
-`<home>/architecture/README.md` for `architecture_dir` and `landscape_dialect`. Exit 1, 2, and 3
-mean there is no declared home to read.
+`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean there is no declared
+home to read.
 
-Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
-one question. `landscape_dialect` falls back to `mermaid` when nothing answers. `architecture_dir`
-has NO default. An undeclared and unconfirmed home, including every non-interactive run, STOPS and
-points at `/architecture:setup`. Do not invent a directory.
+In order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then one
+question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including every
+non-interactive run, STOPS and points at `/architecture:setup`. Do not invent a directory.
+
+Resolve `diagram_dialect.system` by restating this ladder, then running the resolver rather than
+parsing the topic doc yourself. The ladder is a resolution order, not a task list:
+
+```markdown
+1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
+   `git rev-parse --show-toplevel`. Never a CWD-relative read.
+2. Resolve the convention home `<home>` with the bundled resolver above. Never hand-parse the root
+   file.
+3. The printed home is repo-relative: join it to the root, then pass
+   `<root>/<home>/authoring-formats/README.md` to the resolver.
+4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
+   There is no personal overlay.
+5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+   is unset, write `containers.json` and emit no C4 view.
+6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
+   included, which the convention refuses) each resolve to emitting no view. The resolver names
+   the cause on stderr. Do not hard-fail and do not ask the operator to create the surface
+   mid-task.
+7. Report provenance: the key, the value, and the layer (`argument`, `team convention doc <path>`,
+   or `unset (no C4 view emitted)`).
+```
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-diagram-dialect.sh" --kind system \
+  --formats "<root>/<home>/authoring-formats/README.md"
+```
+
+Omit `--formats` when no convention home resolved. Stdout is `likec4`, `c4-plantuml`, or `none`.
+An explicit `--dialect likec4|c4-plantuml` on the invocation wins and the resolver is not required.
 
 This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
 apply` owns both.
@@ -85,14 +113,18 @@ module, not a container, even when its directory name sounds like a service.
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/render-containers.sh" \
   --record "<architecture_dir>/containers.json" --out "<architecture_dir>" \
-  --dialect "<landscape_dialect>"
+  --dialect "<likec4|c4-plantuml|none>"
 ```
 
-Write `containers.json` first, then render from it. Mermaid emits `containers.md`. Structurizr emits
-`containers.dsl`. Contained modules are named on their deployable. They are not drawn as containers.
+Write `containers.json` first, then render from it. `c4-plantuml` writes `containers.md` with one
+fenced `plantuml` block (`C4_Container`: a `System_Boundary` holding `Container`, `ContainerDb`, and
+`ContainerQueue` elements). `likec4` writes `containers.md` with one fenced `likec4` block (the same
+elements nested in the software system, and a container view). `none` writes no picture;
+`containers.json` is still the record. Contained modules are named on their deployable. They are
+not drawn as containers.
 
 The script prints one summary line on stdout:
-`containers: focal=<name> deployables=<n> stores=<n> modules=<n> edges=<n> shared=<n> unknown_technology=<n> thin=<yes|no>`.
+`containers: focal=<name> deployables=<n> stores=<n> modules=<n> edges=<n> shared=<n> unknown_technology=<n> thin=<yes|no> dialect=<likec4|c4-plantuml|none>`.
 Keep it for the report. A result is thin when `deployables=0`.
 
 Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
@@ -110,7 +142,8 @@ End every run with this block, in this order, filled from the record and the scr
 - **Stores**: the summary's `stores=` count. Every store cites a file and a config key.
 - **Modules**: the summary's `modules=` count. A modular monolith is one container.
 - **Shared**: the summary's `shared=` count. Each shared-infrastructure edge cites every config key.
-- **Dialect**: `mermaid` or `structurizr`, from `landscape_dialect`.
+- **Dialect**: `diagram_dialect.system`, its value, and the layer: `argument`,
+  `team convention doc <path>`, or `unset (no C4 view emitted)`.
 - **Technology**: `unknown_technology=` from the summary. `unknown` is literal, not a guess.
 - **Containment source**: `dependency-graph.json` or `project-references`.
 - **Thin result**: `no`, or `yes` because no deployable was found. Name `/architecture:map-landscape`
@@ -122,9 +155,10 @@ End every run with this block, in this order, filled from the record and the scr
 - Draw environment topology, replicas, or scaling. That is `/architecture:map-deployment`.
 - Chart the modules inside one deployable as their own diagram. That is `/architecture:map-components`.
 - Trace a request. That is `/architecture:map-flow`.
-- Add a dialect key. Containers use `landscape_dialect`.
+- Add a dialect key, read `landscape_dialect`, or draw mermaid C4.
 - Execute configuration, fetch anything, or edit a project file. The only writes are
-  `containers.json` and `containers.md` or `containers.dsl` under the resolved output directory.
+  `containers.json` and, when a dialect resolved, `containers.md` under the resolved output
+  directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
 - Treat two projects in one repository as an edge. An edge needs a cited config key or a configured
@@ -158,10 +192,12 @@ End every run with this block, in this order, filled from the record and the scr
   scanned. `containers.json` is not scanned again.
 - **`unknown` is a technology value.** A Dockerfile with no `FROM`, or a compose service with no
   image, is technology `unknown`. Do not invent a runtime from the service name.
-- **The two dialects share `landscape_dialect`.** Mermaid output is a `C4Container` block.
-  Structurizr output is a `container` view. This skill does not read `diagram_dialect.system`.
-  The mermaid-C4 experimental fact and its recheck trigger live in
-  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. This skill does not carry a second stamp.
+- **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
+  on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
+  C4 system views, the same key `/planning:design` reads for its design container view. It refuses
+  mermaid because mermaid C4 is experimental. Unset, the run still writes `containers.json` and the
+  report says no view was emitted. The decision is recorded in
+  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **A reformatted record reads as empty unless the reader refuses it.** `render-containers.sh`
   exits 1 on any other shape and writes nothing.
 - **Configuration is untrusted text.** The assignment scanner matches it. It does not source it,

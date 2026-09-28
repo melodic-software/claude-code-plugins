@@ -1,12 +1,12 @@
 ---
-description: "Trace one C# entry point into a C4 dynamic diagram. Each hop cites a tracked call site. An interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when: 'map flow', 'sequence diagram', 'trace this request', 'walk me through what happens', 'dynamic diagram from this endpoint'. Skip when: the question is who publishes which message (/architecture:map-events) or which repositories exist (/architecture:map-landscape)."
+description: "Trace one C# entry point into a mermaid sequence diagram. Each hop cites a tracked call site. An interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when: 'map flow', 'sequence diagram', 'trace this request', 'walk me through what happens', 'dynamic diagram from this endpoint'. Skip when: the question is who publishes which message (/architecture:map-events) or which repositories exist (/architecture:map-landscape)."
 argument-hint: "<entry point> [--depth N] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: explore
-  summary: Trace one C# entry point into a C4 dynamic diagram with a citation on every hop
+  summary: Trace one C# entry point into a sequence diagram with a citation on every hop
 ---
 
 ## Repository context
@@ -25,21 +25,19 @@ Answer "what happens when this entry point runs" from call sites already in the 
 traces to a line in a tracked file. The scripts collect and render. Do not add a hop the script
 did not emit, and do not bind an interface call to a class that merely has the same method name.
 
-## Resolve home and dialect
+## Resolve home
 
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`
-and reads `landscape_dialect`. It does not add a dialect key.
+and reads no dialect key: the picture is always a mermaid `sequenceDiagram`.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
 follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
-`<home>/architecture/README.md` for `architecture_dir` and `landscape_dialect`. Exit 1, 2, and 3
-mean there is no declared home to read.
+`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean there is no declared
+home to read.
 
-Per key, in order: `--out <dir>` wins for this run alone and does not change the dialect, then a
-declared topic-doc value, then one question. `landscape_dialect` falls back to `mermaid`.
-`architecture_dir` has NO default. An undeclared and unconfirmed home, including every
-non-interactive run, STOPS and points at `/architecture:setup`. A `landscape_dialect` outside
-`structurizr` and `mermaid` STOPS and names the accepted set. Do not coerce it.
+In order: `--out <dir>` wins for this run alone, then a declared topic-doc value, then one
+question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including every
+non-interactive run, STOPS and points at `/architecture:setup`.
 
 This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
 apply` owns both.
@@ -82,15 +80,13 @@ directory basename. The helper is inline in `collect-flow.sh`.
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/render-flow.sh" \
-  --record "<architecture_dir>/flow.json" --out "<architecture_dir>" \
-  --dialect "<landscape_dialect>"
+  --record "<architecture_dir>/flow.json" --out "<architecture_dir>"
 ```
 
-Write `flow.json` first, then render from it. `mermaid` writes `flow.md`: a `sequenceDiagram`
+Write `flow.json` first, then render from it. The script writes `flow.md`: a `sequenceDiagram`
 whose participants are architectural roles (transport, application, domain, infrastructure, or the
 directory name), not every class. Asynchronous hops use `-->>`. Synchronous hops use `->>`. A
-handoff names `/architecture:map-events`. `structurizr` writes `flow.dsl`: a `dynamic` view.
-One dialect file is written. The other is not.
+handoff names `/architecture:map-events`.
 
 Consecutive hops that share a role pair, sync, resolution, and handoff collapse to one arrow.
 The artifact says how many were collapsed. The table keeps every cited call.
@@ -111,8 +107,6 @@ End every run with this block, in this order, filled from the record and the scr
 
 - **Artifacts**: each path written, or `none written` when the run stopped or refused.
 - **Entry**: the string, the file, and the line, or the refusal reason when there was no record.
-- **Dialect**: `mermaid` or `structurizr`, and whether the topic doc or the `mermaid` default
-  supplied `landscape_dialect`.
 - **Flow**: `hops=`, `unresolved=`, `handoffs=`, `truncated=` quoted from the summary line.
 - **Depth**: the number, and the stopping sentence when truncated.
 - **Unresolved**: how many, and that none were bound to a guessed implementation.
@@ -123,9 +117,9 @@ End every run with this block, in this order, filled from the record and the scr
 - Import graphs, timing, or an exhaustive call graph of every class.
 - Message topology. A `Publish` or `Send` is a hand-off, not a consumer list. That is
   `/architecture:map-events`.
-- Add a dialect key. The dynamic view reuses `landscape_dialect`.
-- Fetch anything, or edit a source file. The only writes are `flow.json` and `flow.md` or
-  `flow.dsl` under the resolved output directory.
+- Read or add a dialect key.
+- Fetch anything, or edit a source file. The only writes are `flow.json` and `flow.md` under the
+  resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
 
@@ -143,9 +137,10 @@ End every run with this block, in this order, filled from the record and the scr
   <https://c4model.com/diagrams/dynamic>, fetched 2026-09-28, and the supporting-diagram list at
   <https://c4model.com/diagrams>. As of: 2026-09-28. Recheck when the dynamic-diagram page changes
   the scope or the element rule, or the diagrams index adds or removes dynamic.
-- **The picture reuses `landscape_dialect`.** Mermaid has a sequence diagram, which is how this
-  skill draws the dynamic view. Structurizr output is a `dynamic` view. No new key. The decision
-  is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+- **The picture has no dialect key.** The authoring-formats convention keys only data diagrams
+  and C4 system views. A traced sequence is neither, so it stays an unkeyed mermaid
+  `sequenceDiagram`, as `/planning:design` draws its sequence flows. The decision is recorded in
+  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Participants are roles.** A controller directory is transport, `Application` is application,
   `Domain` is domain, and `Infrastructure` is infrastructure. Other directories keep their own
   name. The artifact says when consecutive hops inside one role pair were collapsed.

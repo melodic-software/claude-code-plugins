@@ -6,18 +6,19 @@
 # collect-containers.sh writes.
 #
 # Usage:
-#   render-containers.sh --record <file> --out <dir> [--dialect mermaid|structurizr]
+#   render-containers.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
 #   render-containers.sh --help
 #
-# --dialect defaults to mermaid, the landscape_dialect default. map-containers
-# reads that same key. It does not read diagram_dialect.system.
+# --dialect is the resolved authoring-formats diagram_dialect.system. It has no
+# default: none, the value when the key is unset, writes no picture. Mermaid is
+# refused, as the convention refuses it for that key.
 #
-# mermaid writes containers.md with a C4Container diagram.
-# structurizr writes containers.dsl with a container view.
+# likec4 and c4-plantuml write containers.md with one fenced likec4 or plantuml
+# block, then the shared-infrastructure and evidence tables.
 # Contained modules are named on their deployable. They are not containers.
 #
 # Prints:
-#   containers: focal=<name> deployables=<n> stores=<n> modules=<n> edges=<n> shared=<n> unknown_technology=<n> thin=<yes|no>
+#   containers: focal=<name> deployables=<n> stores=<n> modules=<n> edges=<n> shared=<n> unknown_technology=<n> thin=<yes|no> dialect=<d>
 #
 # Exit: 0 written; 1 unreadable, not schema_version 1, or wrong layout
 # (nothing written); 2 usage.
@@ -34,7 +35,7 @@ die() {
 
 record=""
 outdir=""
-dialect="mermaid"
+dialect="none"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,7 +44,7 @@ while [[ $# -gt 0 ]]; do
   --record=*) record="${1#--record=}"; shift ;;
   --out) [[ $# -ge 2 ]] || die "--out needs a directory" 2; outdir="$2"; shift 2 ;;
   --out=*) outdir="${1#--out=}"; shift ;;
-  --dialect) [[ $# -ge 2 ]] || die "--dialect needs mermaid or structurizr" 2; dialect="$2"; shift 2 ;;
+  --dialect) [[ $# -ge 2 ]] || die "--dialect needs likec4, c4-plantuml, or none" 2; dialect="$2"; shift 2 ;;
   --dialect=*) dialect="${1#--dialect=}"; shift ;;
   *) die "unknown argument: $1" 2 ;;
   esac
@@ -54,8 +55,8 @@ done
   exit 2
 }
 case "$dialect" in
-mermaid | structurizr) ;;
-*) die "--dialect must be mermaid or structurizr (landscape_dialect), got: $dialect" 2 ;;
+likec4 | c4-plantuml | none) ;;
+*) die "--dialect must be likec4, c4-plantuml, or none (diagram_dialect.system), got: $dialect" 2 ;;
 esac
 [[ -r "$record" ]] || die "cannot read record: $record" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
@@ -97,11 +98,7 @@ layout_problem="$(awk '
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout collect-containers.sh writes ($layout_problem); regenerate it: $record" 1
 
-if [[ "$dialect" == "mermaid" ]]; then
-  target="$outdir/containers.md"
-else
-  target="$outdir/containers.dsl"
-fi
+target="$outdir/containers.md"
 
 OUT_FILE="$target" DIALECT="$dialect" awk '
 function jstr(line, key,    pat, i, rest, out, c, n) {
@@ -133,6 +130,8 @@ function jstr(line, key,    pat, i, rest, out, c, n) {
 function safe(s) {
   gsub(/\\/, "/", s)
   gsub(/"/, "\047", s)
+  gsub(/`/, "\047", s)
+  gsub(/[|]/, "/", s)
   gsub(/\t/, " ", s)
   gsub(/\r/, "", s)
   gsub(/\n/, " ", s)
@@ -141,8 +140,10 @@ function safe(s) {
 function alias(s,    a) {
   a = s
   gsub(/[^A-Za-z0-9]/, "_", a)
-  if (a == "" || a ~ /^[0-9]/) a = "n_" a
-  return a
+  return "e_" a
+}
+function rel(k) {
+  return (k == "calls" ? "Calls" : "Uses")
 }
 function uniq(a,    c, cand) {
   cand = a
@@ -193,30 +194,75 @@ END {
   dialect = ENVIRON["DIALECT"]
   for (i = 1; i <= cn; i++) calias[i] = uniq(alias(cname[i]))
   for (i = 1; i <= cn; i++) idalias[cid[i]] = calias[i]
-  if (dialect == "mermaid") {
+  if (dialect != "none") {
     print "# Containers" > out
     print "" > out
-    print "C4 container diagram for " safe(focal) ". Modules named on a deployable are contained in it. They are not separate containers. A shared-infrastructure row cites every config key for that store. `unknown` is the technology when the manifest named no runtime." > out
+    print "C4 container diagram for " safe(focal) ". Dialect: diagram_dialect.system=" dialect ". Modules named on a deployable are contained in it. They are not separate containers. A shared-infrastructure row cites every config key for that store. `unknown` is the technology when the manifest named no runtime." > out
     print "" > out
-    print "```mermaid" > out
-    print "C4Container" > out
-    print "title Container diagram for " safe(focal) > out
-    print "System_Boundary(sys, \"" safe(focal) "\") {" > out
-    for (i = 1; i <= cn; i++) {
-      desc = csum[i]
-      if (desc == "") desc = ckind[i]
-      el = element(ckind[i], cstore[i])
-      print "  " el "(" calias[i] ", \"" safe(cname[i]) "\", \"" safe(ctech[i]) "\", \"" safe(desc) "\")" > out
-    }
-    print "}" > out
-    for (i = 1; i <= en; i++) {
-      if (ekind[i] == "shared-infrastructure") continue
-      fa = idalias[efrom[i]]
-      ta = idalias[edge_to[i]]
-      if (fa == "" || ta == "") continue
-      label = "Uses"
-      if (ekind[i] == "calls") label = "Calls"
-      print "Rel(" fa ", " ta ", \"" label "\", \"" safe(eev[i]) "\")" > out
+    if (dialect == "c4-plantuml") {
+      print "```plantuml" > out
+      print "@startuml" > out
+      print "!include <C4/C4_Container>" > out
+      print "title Container diagram for " safe(focal) > out
+      print "System_Boundary(e_sys, \"" safe(focal) "\") {" > out
+      for (i = 1; i <= cn; i++) {
+        desc = csum[i]
+        if (desc == "") desc = ckind[i]
+        el = element(ckind[i], cstore[i])
+        print "  " el "(" calias[i] ", \"" safe(cname[i]) "\", \"" safe(ctech[i]) "\", \"" safe(desc) "\")" > out
+      }
+      print "}" > out
+      for (i = 1; i <= en; i++) {
+        if (ekind[i] == "shared-infrastructure") continue
+        fa = idalias[efrom[i]]
+        ta = idalias[edge_to[i]]
+        if (fa == "" || ta == "") continue
+        print "Rel(" fa ", " ta ", \"" rel(ekind[i]) "\", \"" safe(eev[i]) "\")" > out
+      }
+      print "@enduml" > out
+    } else {
+      print "```likec4" > out
+      print "specification {" > out
+      print "  element softwareSystem" > out
+      print "  element container" > out
+      print "  element store {" > out
+      print "    style {" > out
+      print "      shape storage" > out
+      print "    }" > out
+      print "  }" > out
+      print "  element queue {" > out
+      print "    style {" > out
+      print "      shape queue" > out
+      print "    }" > out
+      print "  }" > out
+      print "}" > out
+      print "model {" > out
+      print "  e_sys = softwareSystem \"" safe(focal) "\" {" > out
+      for (i = 1; i <= cn; i++) {
+        desc = csum[i]
+        if (desc == "") desc = ckind[i]
+        el = element(ckind[i], cstore[i])
+        lk = (el == "ContainerDb" ? "store" : (el == "ContainerQueue" ? "queue" : "container"))
+        print "    " calias[i] " = " lk " \"" safe(cname[i]) "\" {" > out
+        print "      technology \"" safe(ctech[i]) "\"" > out
+        print "      description \"" safe(desc) "\"" > out
+        print "    }" > out
+      }
+      print "  }" > out
+      for (i = 1; i <= en; i++) {
+        if (ekind[i] == "shared-infrastructure") continue
+        fa = idalias[efrom[i]]
+        ta = idalias[edge_to[i]]
+        if (fa == "" || ta == "") continue
+        print "  e_sys." fa " -> e_sys." ta " \"" rel(ekind[i]) "\"" > out
+      }
+      print "}" > out
+      print "views {" > out
+      print "  view containers of e_sys {" > out
+      print "    title \"Container diagram for " safe(focal) "\"" > out
+      print "    include *" > out
+      print "  }" > out
+      print "}" > out
     }
     print "```" > out
     print "" > out
@@ -237,47 +283,8 @@ END {
     for (i = 1; i <= cn; i++) {
       print "| " safe(cid[i]) " | " safe(ckind[i]) " | " safe(ctech[i]) " | " safe(csum[i]) " | " safe(cev[i]) " |" > out
     }
-  } else {
-    print "workspace \"" safe(focal) "\" \"containers\" {" > out
-    print "  model {" > out
-    print "    sys = softwareSystem \"" safe(focal) "\" {" > out
-    for (i = 1; i <= cn; i++) {
-      desc = csum[i]
-      if (desc == "") desc = ckind[i]
-      print "      " calias[i] " = container \"" safe(cname[i]) "\" \"" safe(desc) "\" \"" safe(ctech[i]) "\"" > out
-    }
-    for (i = 1; i <= en; i++) {
-      if (ekind[i] == "shared-infrastructure") continue
-      fa = idalias[efrom[i]]
-      ta = idalias[edge_to[i]]
-      if (fa == "" || ta == "") continue
-      label = "Uses"
-      if (ekind[i] == "calls") label = "Calls"
-      print "      " fa " -> " ta " \"" label "\" \"" safe(eev[i]) "\"" > out
-    }
-    print "    }" > out
-    print "  }" > out
-    print "  views {" > out
-    print "    container sys \"Containers\" {" > out
-    print "      include *" > out
-    print "      autoLayout lr" > out
-    print "    }" > out
-    print "  }" > out
-    print "}" > out
-    print "" > out
-    print "/*" > out
-    print "Shared infrastructure. Each row cites every config key for that store." > out
-    if (shared == 0) print "none" > out
-    for (i = 1; i <= en; i++) {
-      if (ekind[i] != "shared-infrastructure") continue
-      print safe(efrom[i]) " -> " safe(edge_to[i]) " " safe(eev[i]) > out
-    }
-    for (i = 1; i <= cn; i++) {
-      if (csum[i] != "") print safe(cname[i]) " " safe(csum[i]) > out
-    }
-    print "*/" > out
+    close(out)
   }
-  close(out)
-  printf "containers: focal=%s deployables=%d stores=%d modules=%d edges=%d shared=%d unknown_technology=%d thin=%s\n", focal, deployables + 0, stores + 0, modules + 0, en + 0, shared + 0, unknown + 0, thin
+  printf "containers: focal=%s deployables=%d stores=%d modules=%d edges=%d shared=%d unknown_technology=%d thin=%s dialect=%s\n", focal, deployables + 0, stores + 0, modules + 0, en + 0, shared + 0, unknown + 0, thin, dialect
 }
 ' "$record"

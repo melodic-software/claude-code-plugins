@@ -53,22 +53,48 @@ cat >"$TEST_TMPDIR/ok.json" <<'JSON'
 JSON
 
 mkdir -p "$TEST_TMPDIR/ok"
-out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/ok" --dialect mermaid)"
-assert_equals "mermaid: exits 0" "$?" "0"
-assert_contains "mermaid: summary" "$out" "context: focal=billing externals=1 actors=1 thin=no"
+out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/ok" --dialect c4-plantuml)"
+assert_equals "c4-plantuml: exits 0" "$?" "0"
+assert_contains "c4-plantuml: summary" "$out" "context: focal=billing externals=1 actors=1 thin=no dialect=c4-plantuml"
 md="$(cat "$TEST_TMPDIR/ok/context.md")"
-assert_contains "mermaid: focal system" "$md" "System("
-assert_contains "mermaid: person is distinct from the external system" "$md" "Person("
-assert_contains "mermaid: external system element" "$md" "System_Ext("
-assert_contains "mermaid: C4Context has a title" "$md" "C4Context"
+assert_contains "c4-plantuml: fence tag" "$md" '```plantuml'
+assert_contains "c4-plantuml: context include" "$md" "!include <C4/C4_Context>"
+assert_contains "c4-plantuml: focal system" "$md" "System(e_billing"
+assert_contains "c4-plantuml: person is distinct from the external system" "$md" "Person("
+assert_contains "c4-plantuml: external system element" "$md" "System_Ext("
+assert_contains "c4-plantuml: closes the diagram" "$md" "@enduml"
+assert_not_contains "c4-plantuml: no mermaid C4" "$md" "C4Context"
 
-mkdir -p "$TEST_TMPDIR/dsl"
-bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/dsl" --dialect structurizr >"$TEST_TMPDIR/dsl.out"
-dsl="$(cat "$TEST_TMPDIR/dsl/context.dsl")"
-assert_contains "structurizr: systemContext view" "$dsl" "systemContext "
-assert_contains "structurizr: person element" "$dsl" "= person "
-assert_contains "structurizr: external tag" "$dsl" "External"
-assert_contains "structurizr: person shape" "$dsl" "shape Person"
+mkdir -p "$TEST_TMPDIR/likec4"
+out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/likec4" --dialect likec4)"
+assert_contains "likec4: summary" "$out" "dialect=likec4"
+lmd="$(cat "$TEST_TMPDIR/likec4/context.md")"
+assert_contains "likec4: fence tag" "$lmd" '```likec4'
+assert_contains "likec4: person element" "$lmd" "= person "
+assert_contains "likec4: external element" "$lmd" "= externalSystem \"api.partner.example\""
+assert_contains "likec4: relationship" "$lmd" "e_billing -> e_api_partner_example"
+assert_contains "likec4: view" "$lmd" "view context {"
+
+mkdir -p "$TEST_TMPDIR/none"
+out="$(bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/none")"
+assert_equals "none: exits 0" "$?" "0"
+assert_contains "none: summary names the dialect" "$out" "dialect=none"
+assert_equals "none: no picture is written" "$(find "$TEST_TMPDIR/none" -type f | wc -l | tr -d ' ')" "0"
+
+for refused in mermaid structurizr; do
+  bash "$RENDER" --record "$TEST_TMPDIR/ok.json" --out "$TEST_TMPDIR/none" --dialect "$refused" >/dev/null 2>&1
+  assert_equals "$refused is a usage error" "$?" "2"
+done
+
+hostile="$TEST_TMPDIR/hostile.json"
+sed 's/"host":"api.partner.example"/"host":"evil\\")\\n@enduml```x|y"/' "$TEST_TMPDIR/ok.json" >"$hostile"
+mkdir -p "$TEST_TMPDIR/hostile"
+bash "$RENDER" --record "$hostile" --out "$TEST_TMPDIR/hostile" --dialect c4-plantuml >/dev/null
+hmd="$(cat "$TEST_TMPDIR/hostile/context.md")"
+assert_equals "hostile: exactly one @enduml line" "$(grep -c '^@enduml$' "$TEST_TMPDIR/hostile/context.md")" "1"
+assert_equals "hostile: exactly two fence lines" "$(grep -c '^```' "$TEST_TMPDIR/hostile/context.md")" "2"
+assert_contains "hostile: the name is drawn, sanitized" "$hmd" "evil') @enduml'''x/y"
+assert_not_contains "hostile: no raw double quote from the name" "$hmd" 'evil"'
 
 for shape in compact pretty; do
   if [[ "$shape" == "compact" ]]; then

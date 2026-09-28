@@ -23,10 +23,12 @@
 #                          a later layer to an earlier one is marked as a
 #                          violation. The mark is informational: the exit code
 #                          stays 0.
-#   --dialect <name>       mermaid (default) or structurizr. Mermaid writes
-#                          components.md with a C4Component diagram. Structurizr
-#                          writes components.dsl (a component view) and a
-#                          components.md that carries the tables.
+#   --dialect <name>       likec4, c4-plantuml, or none (default): the resolved
+#                          authoring-formats diagram_dialect.system, which has
+#                          no default and refuses mermaid. likec4 and
+#                          c4-plantuml write components.md with one fenced
+#                          likec4 or plantuml block plus the tables. none writes
+#                          nothing and still prints the summary.
 #   --source <text>        Provenance line. Default: dependency-graph.json.
 #   --node-threshold <N>   Component count above which the view aggregates to
 #                          coarser groups and says so. Default: the record's
@@ -79,7 +81,7 @@ outdir=""
 container=""
 groupby="directory"
 layers=""
-dialect="mermaid"
+dialect="none"
 source_name="dependency-graph.json"
 threshold=""
 notes=""
@@ -182,8 +184,8 @@ done
   exit 2
 }
 case "$dialect" in
-mermaid | structurizr) ;;
-*) die "unknown dialect: $dialect (mermaid or structurizr)" 2 ;;
+likec4 | c4-plantuml | none) ;;
+*) die "--dialect must be likec4, c4-plantuml, or none (diagram_dialect.system), got: $dialect" 2 ;;
 esac
 case "$groupby" in
 directory | namespace | layer) ;;
@@ -251,9 +253,12 @@ generated_on="$(sed -n 's/^[[:space:]]*"generated_on"[[:space:]]*:[[:space:]]*"\
 [[ -n "$generated_on" ]] || generated_on="unknown"
 [[ -n "$ecosystem" ]] || ecosystem="unknown"
 
+md_out="$outdir/components.md"
+[[ "$dialect" != "none" ]] || md_out="/dev/null"
+
 write_summary() {
-  printf 'components: container="%s" components=%s edges=%s drawn_edges=%s violations=%s aggregated=%s thin=%s external_collapsed=%s unresolved=%s\n' \
-    "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+  printf 'components: container="%s" components=%s edges=%s drawn_edges=%s violations=%s aggregated=%s thin=%s external_collapsed=%s unresolved=%s dialect=%s\n' \
+    "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "$dialect"
 }
 
 if [[ "$ecosystem" == "unknown" ]]; then
@@ -267,8 +272,7 @@ if [[ "$ecosystem" == "unknown" ]]; then
       printf '\n'
       cat "$notes"
     fi
-  } >"$outdir/components.md"
-  rm -f "$outdir/components.dsl"
+  } >"$md_out"
   write_summary "none" 0 0 0 0 no yes 0 0
   exit 0
 fi
@@ -359,6 +363,7 @@ function unquote(v,   out, i, c, last) {
 function safe(s) {
   gsub(/\\/, "/", s)
   gsub(/"/, "'", s)
+  gsub(/`/, "'", s)
   gsub(/\t/, " ", s)
   gsub(/\r/, " ", s)
   gsub(/\n/, " ", s)
@@ -752,19 +757,48 @@ function collect_groups(   i, g) {
         t = groups[i]; groups[i] = groups[j]; groups[j] = t
       }
 }
+function lc4_open() {
+  printf "lc4\tspecification {\n"
+  printf "lc4\t  element softwareSystem\n"
+  printf "lc4\t  element container\n"
+  printf "lc4\t  element boundary\n"
+  printf "lc4\t  element component\n"
+  printf "lc4\t}\n"
+  printf "lc4\tmodel {\n"
+  printf "lc4\t  c4system = softwareSystem \"%s\" {\n", safe(name[chosen])
+  printf "lc4\t    c4container = container \"%s\" {\n", safe(name[chosen])
+  printf "lc4\t      description \"deployable\"\n"
+}
+function lc4_rel(from, to, label, vio) {
+  if (vio) {
+    printf "lc4\t  %s -> %s \"%s\" {\n", from, to, label
+    printf "lc4\t    style {\n"
+    printf "lc4\t      color red\n"
+    printf "lc4\t    }\n"
+    printf "lc4\t  }\n"
+  } else {
+    printf "lc4\t  %s -> %s \"%s\"\n", from, to, label
+  }
+}
+function lc4_close() {
+  printf "lc4\t}\n"
+  printf "lc4\tviews {\n"
+  printf "lc4\t  view components of c4system.c4container {\n"
+  printf "lc4\t    title \"Components of %s\"\n", safe(name[chosen])
+  printf "lc4\t    include *\n"
+  printf "lc4\t  }\n"
+  printf "lc4\t}\n"
+}
 function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
   collect_groups()
   drawn = 0
-  printf "mmd\t  title Components of %s\n", safe(name[chosen])
-  printf "mmd\t  Container_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
-  printf "dsl\tworkspace {\n"
-  printf "dsl\t  model {\n"
-  printf "dsl\t    c4system = softwareSystem \"%s\" {\n", safe(name[chosen])
-  printf "dsl\t      c4container = container \"%s\" \"deployable\" {\n", safe(name[chosen])
+  printf "puml\ttitle Components of %s\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
-    printf "mmd\t    Boundary(grp_%d, \"%s\", \"%s\") {\n", gi - 1, safe(g), groupby
-    printf "dsl\t        group \"%s\" {\n", safe(g)
+    printf "puml\t  Boundary(grp_%d, \"%s\", \"%s\") {\n", gi - 1, safe(g), groupby
+    printf "lc4\t      grp_%d = boundary \"%s\" {\n", gi - 1, safe(g)
     nm = 0
     for (i = 1; i <= ncomp; i++) {
       id = comps[i]
@@ -775,71 +809,55 @@ function emit_components(   i, id, g, gi, members, nm, label, vio, drawn) {
     for (i = 1; i <= nm; i++) {
       id = members[i]
       alias[id] = uniq(alias_of(id))
-      printf "mmd\t      Component(%s, \"%s\", \"%s\", \"%s\")\n", alias[id], safe(name[id]), safe(eco[id]), safe(path[id] != "" ? path[id] : id)
-      printf "dsl\t          %s = component \"%s\" \"%s\" \"%s\"\n", alias[id], safe(name[id]), safe(path[id] != "" ? path[id] : id), safe(eco[id])
+      fqn[id] = "c4system.c4container.grp_" (gi - 1) "." alias[id]
+      printf "puml\t    Component(%s, \"%s\", \"%s\", \"%s\")\n", alias[id], safe(name[id]), safe(eco[id]), safe(path[id] != "" ? path[id] : id)
+      printf "lc4\t        %s = component \"%s\" {\n", alias[id], safe(name[id])
+      printf "lc4\t          technology \"%s\"\n", safe(eco[id])
+      printf "lc4\t          description \"%s\"\n", safe(path[id] != "" ? path[id] : id)
+      printf "lc4\t        }\n"
     }
-    printf "mmd\t    }\n"
-    printf "dsl\t        }\n"
+    printf "puml\t  }\n"
+    printf "lc4\t      }\n"
   }
-  printf "mmd\t  }\n"
+  printf "puml\t}\n"
+  printf "lc4\t    }\n"
+  printf "lc4\t  }\n"
   for (i = 1; i <= ne; i++) {
     if (eclass[i] != "project") continue
     if (!(efrom[i] in reached) || !(edge_to[i] in reached)) continue
     label = edge_label(ekind[i], eevidence[i])
     vio = is_violation(efrom[i], edge_to[i])
     if (vio) label = label ", layer violation"
-    printf "mmd\t  Rel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[edge_to[i]], label
-    if (vio) printf "mmd\t  UpdateRelStyle(%s, %s, \"#b00020\", \"#b00020\", 0, 0)\n", alias[efrom[i]], alias[edge_to[i]]
-    if (vio) {
-      printf "dsl\t      %s -> %s \"%s\" {\n", alias[efrom[i]], alias[edge_to[i]], label
-      printf "dsl\t        tags \"LayerViolation\"\n"
-      printf "dsl\t      }\n"
-    } else {
-      printf "dsl\t      %s -> %s \"%s\"\n", alias[efrom[i]], alias[edge_to[i]], label
-    }
+    printf "puml\tRel(%s, %s, \"%s\")\n", alias[efrom[i]], alias[edge_to[i]], label
+    if (vio) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", alias[efrom[i]], alias[edge_to[i]]
+    lc4_rel(fqn[efrom[i]], fqn[edge_to[i]], label, vio)
     drawn++
   }
-  printf "dsl\t      }\n"
-  printf "dsl\t    }\n"
-  printf "dsl\t  }\n"
-  printf "dsl\t  views {\n"
-  printf "dsl\t    component c4container \"Components\" {\n"
-  printf "dsl\t      include *\n"
-  printf "dsl\t      autoLayout lr\n"
-  printf "dsl\t    }\n"
-  if (nviol > 0) {
-    printf "dsl\t    styles {\n"
-    printf "dsl\t      relationship \"LayerViolation\" {\n"
-    printf "dsl\t        color #b00020\n"
-    printf "dsl\t      }\n"
-    printf "dsl\t    }\n"
-  }
-  printf "dsl\t  }\n"
-  printf "dsl\t}\n"
+  lc4_close()
   printf "meta\tdrawn_edges\t%d\n", drawn
 }
 function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, members, nm, rep) {
   collect_groups()
   drawn = 0
-  printf "mmd\t  title Components of %s\n", safe(name[chosen])
-  printf "mmd\t  Container_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
-  printf "dsl\tworkspace {\n"
-  printf "dsl\t  model {\n"
-  printf "dsl\t    c4system = softwareSystem \"%s\" {\n", safe(name[chosen])
-  printf "dsl\t      c4container = container \"%s\" \"deployable\" {\n", safe(name[chosen])
+  printf "puml\ttitle Components of %s\n", safe(name[chosen])
+  printf "puml\tContainer_Boundary(c4box, \"%s\", \"deployable\") {\n", safe(name[chosen])
+  lc4_open()
   for (gi = 1; gi <= ng; gi++) {
     g = groups[gi]
     nm = 0
     for (i = 1; i <= ncomp; i++) if (gcur[comps[i]] == g) nm++
     galias[g] = uniq(alias_of(g))
-    printf "mmd\t    Boundary(grp_%d, \"%s\", \"%s\") {\n", gi - 1, safe(g), groupby
-    printf "mmd\t      Component(%s, \"%s\", \"aggregate\", \"%d components\")\n", galias[g], safe(g), nm
-    printf "mmd\t    }\n"
-    printf "dsl\t        group \"%s\" {\n", safe(g)
-    printf "dsl\t          %s = component \"%s\" \"%d components\" \"aggregate\"\n", galias[g], safe(g), nm
-    printf "dsl\t        }\n"
+    printf "puml\t  Boundary(grp_%d, \"%s\", \"%s\") {\n", gi - 1, safe(g), groupby
+    printf "puml\t    Component(%s, \"%s\", \"aggregate\", \"%d components\")\n", galias[g], safe(g), nm
+    printf "puml\t  }\n"
+    printf "lc4\t      %s = component \"%s\" {\n", galias[g], safe(g)
+    printf "lc4\t        technology \"aggregate\"\n"
+    printf "lc4\t        description \"%d components\"\n", nm
+    printf "lc4\t      }\n"
   }
-  printf "mmd\t  }\n"
+  printf "puml\t}\n"
+  printf "lc4\t    }\n"
+  printf "lc4\t  }\n"
   delete pair_count
   delete pair_vio
   delete pair_label
@@ -872,34 +890,12 @@ function emit_aggregated(   i, g, gi, id, label, vio, drawn, key, fc, tc, member
     label = pair_label[key]
     if (pair_count[key] > 1) label = label " (" pair_count[key] ")"
     if (pair_vio[key]) label = label ", layer violation"
-    printf "mmd\t  Rel(%s, %s, \"%s\")\n", galias[pair_from[key]], galias[pair_to[key]], label
-    if (pair_vio[key]) printf "mmd\t  UpdateRelStyle(%s, %s, \"#b00020\", \"#b00020\", 0, 0)\n", galias[pair_from[key]], galias[pair_to[key]]
-    if (pair_vio[key]) {
-      printf "dsl\t      %s -> %s \"%s\" {\n", galias[pair_from[key]], galias[pair_to[key]], label
-      printf "dsl\t        tags \"LayerViolation\"\n"
-      printf "dsl\t      }\n"
-    } else {
-      printf "dsl\t      %s -> %s \"%s\"\n", galias[pair_from[key]], galias[pair_to[key]], label
-    }
+    printf "puml\tRel(%s, %s, \"%s\")\n", galias[pair_from[key]], galias[pair_to[key]], label
+    if (pair_vio[key]) printf "puml\tUpdateRelStyle(%s, %s, $textColor=\"#b00020\", $lineColor=\"#b00020\")\n", galias[pair_from[key]], galias[pair_to[key]]
+    lc4_rel("c4system.c4container." galias[pair_from[key]], "c4system.c4container." galias[pair_to[key]], label, pair_vio[key])
     drawn++
   }
-  printf "dsl\t      }\n"
-  printf "dsl\t    }\n"
-  printf "dsl\t  }\n"
-  printf "dsl\t  views {\n"
-  printf "dsl\t    component c4container \"Components\" {\n"
-  printf "dsl\t      include *\n"
-  printf "dsl\t      autoLayout lr\n"
-  printf "dsl\t    }\n"
-  if (nviol > 0) {
-    printf "dsl\t    styles {\n"
-    printf "dsl\t      relationship \"LayerViolation\" {\n"
-    printf "dsl\t        color #b00020\n"
-    printf "dsl\t      }\n"
-    printf "dsl\t    }\n"
-  }
-  printf "dsl\t  }\n"
-  printf "dsl\t}\n"
+  lc4_close()
   printf "meta\tdrawn_edges\t%d\n", drawn
 }
 AWK
@@ -907,14 +903,14 @@ AWK
 awk_rc=$?
 [[ "$awk_rc" -eq 0 ]] || die "could not read the graph" 1
 
-mmd="$tmp.mmd"
-dslf="$tmp.dsl"
+puml="$tmp.puml"
+lc4="$tmp.lc4"
 rows="$tmp.rows"
 vios="$tmp.vios"
 unrs="$tmp.unrs"
-trap 'rm -f "$tmp" "$mmd" "$dslf" "$rows" "$vios" "$unrs"' EXIT
-: >"$mmd"
-: >"$dslf"
+trap 'rm -f "$tmp" "$puml" "$lc4" "$rows" "$vios" "$unrs"' EXIT
+: >"$puml"
+: >"$lc4"
 : >"$rows"
 : >"$vios"
 : >"$unrs"
@@ -938,8 +934,8 @@ while IFS=$'\t' read -r kind payload || [[ -n "${kind:-}" ]]; do
   meta)
     META["${payload%%$'\t'*}"]="${payload#*$'\t'}"
     ;;
-  mmd) printf '%s\n' "$payload" >>"$mmd" ;;
-  dsl) printf '%s\n' "$payload" >>"$dslf" ;;
+  puml) printf '%s\n' "$payload" >>"$puml" ;;
+  lc4) printf '%s\n' "$payload" >>"$lc4" ;;
   row) printf '%s\n' "$payload" >>"$rows" ;;
   vio) printf '%s\n' "$payload" >>"$vios" ;;
   unr) printf '%s\n' "$payload" >>"$unrs" ;;
@@ -978,8 +974,7 @@ if [[ "$status" == "empty" ]]; then
       printf '\n'
       cat "$notes"
     fi
-  } >"$outdir/components.md"
-  rm -f "$outdir/components.dsl"
+  } >"$md_out"
   write_summary "none" 0 0 0 0 no yes 0 0
   exit 0
 fi
@@ -1007,11 +1002,9 @@ layers_declared="$(meta_get layers_declared)"
   printf 'Container: %s (`%s`).\n' "$cname" "$cid"
   printf 'Grouping: %s.\n' "$grouping"
   if [[ "$thin" == "yes" ]]; then
-    printf 'Dialect: %s. No diagram is drawn for a thin result.\n\n' "$dialect"
-  elif [[ "$dialect" == "mermaid" ]]; then
-    printf 'Dialect: mermaid, a C4Component diagram of this one container.\n\n'
+    printf 'Dialect: diagram_dialect.system=%s. No diagram is drawn for a thin result.\n\n' "$dialect"
   else
-    printf 'Dialect: structurizr, a component view of this one container.\n\n'
+    printf 'Dialect: diagram_dialect.system=%s, a C4 component view of this one container.\n\n' "$dialect"
   fi
   if [[ "$thin" == "yes" ]]; then
     printf 'Thin result: yes. Container `%s` is a single module with no internal component edges. A one-box diagram is not the answer.\n\n' "$cname"
@@ -1020,12 +1013,14 @@ layers_declared="$(meta_get layers_declared)"
     printf '%s\n' '- `/architecture:map-containers` charts the deployables. This view is one of them.'
     printf '%s\n' '- `/architecture:improve` looks for module-design friction inside the single module.'
     printf '\n'
-  elif [[ "$dialect" == "mermaid" ]]; then
-    printf '```mermaid\nC4Component\n'
-    cat "$mmd"
-    printf '```\n\n'
+  elif [[ "$dialect" == "c4-plantuml" ]]; then
+    printf '```plantuml\n@startuml\n!include <C4/C4_Component>\n'
+    cat "$puml"
+    printf '@enduml\n```\n\n'
   else
-    printf 'Diagram: `components.dsl`.\n\n'
+    printf '```likec4\n'
+    cat "$lc4"
+    printf '```\n\n'
   fi
   printf '%s\n\n' "$note"
   printf 'External packages collapsed: %s. Their declarations are in the evidence table.\n' "$next"
@@ -1062,13 +1057,7 @@ layers_declared="$(meta_get layers_declared)"
     printf '\n'
     cat "$notes"
   fi
-} >"$outdir/components.md"
-
-if [[ "$dialect" == "structurizr" && "$thin" != "yes" ]]; then
-  cat "$dslf" >"$outdir/components.dsl"
-else
-  rm -f "$outdir/components.dsl"
-fi
+} >"$md_out"
 
 summary_name="$cname"
 [[ -n "$summary_name" ]] || summary_name="none"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collect a C4 dynamic trace from one C# entry point.
+# Collect a call-sequence trace from one C# entry point.
 #
 # WHY. A sequence drawn from memory has no citation. This script records a hop
 # only when a tracked C# file contains the call. A receiver whose declared type

@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# Render flow.json as a C4 dynamic diagram.
+# Render flow.json as a mermaid sequence diagram.
 #
 # WHY. The record is the fact. This script only draws hops the collector
 # cited. A reformatted record must not render as an empty sequence with exit 0.
 #
 # Usage:
-#   render-flow.sh --record <file> --out <dir> [--dialect mermaid|structurizr]
+#   render-flow.sh --record <file> --out <dir>
 #   render-flow.sh --help
 #
-# --dialect defaults to mermaid, the landscape_dialect default. map-flow reads
-# that same key. A separate flow dialect is not introduced here.
+# No dialect key: the authoring-formats convention keys data diagrams and C4
+# system views only, and sequences stay unkeyed mermaid as in /planning:design.
 #
 # Writes, into <dir>:
 #   flow.md    mermaid sequenceDiagram. Asynchronous hops use -->> .
 #              Synchronous hops use ->> . A handoff names map-events.
-#   flow.dsl   structurizr dynamic view. One dialect file is written.
 #
 # Consecutive hops with the same from-role, to-role, sync, resolution, and
 # handoff collapse to one arrow. The artifact says how many were collapsed.
@@ -37,7 +36,6 @@ die() {
 
 record=""
 outdir=""
-dialect="mermaid"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,15 +61,6 @@ while [[ $# -gt 0 ]]; do
     outdir="${1#--out=}"
     shift
     ;;
-  --dialect)
-    [[ $# -ge 2 ]] || die "--dialect needs mermaid or structurizr" 2
-    dialect="$2"
-    shift 2
-    ;;
-  --dialect=*)
-    dialect="${1#--dialect=}"
-    shift
-    ;;
   *)
     die "unknown argument: $1" 2
     ;;
@@ -82,10 +71,6 @@ done
   usage >&2
   exit 2
 }
-case "$dialect" in
-mermaid | structurizr) ;;
-*) die "--dialect must be mermaid or structurizr, got: $dialect" 2 ;;
-esac
 [[ -r "$record" ]] || die "cannot read record: $record" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
@@ -121,15 +106,7 @@ END {
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout collect-flow.sh writes ($layout_problem); regenerate it: $record" 1
 
-if [[ "$dialect" == "mermaid" ]]; then
-  target="$outdir/flow.md"
-  rm -f "$outdir/flow.dsl"
-else
-  target="$outdir/flow.dsl"
-  rm -f "$outdir/flow.md"
-fi
-
-OUT_FILE="$target" DIALECT="$dialect" awk -f - "$record" <<'AWK'
+OUT_FILE="$outdir/flow.md" awk -f - "$record" <<'AWK'
 function jstr(line, key,    pat, i, rest, out, c, n) {
   pat = "\"" key "\""
   i = index(line, pat)
@@ -160,7 +137,7 @@ function q(s) {
   return s
 }
 function emit(s) { print s > out }
-BEGIN { out = ENVIRON["OUT_FILE"]; dialect = ENVIRON["DIALECT"] }
+BEGIN { out = ENVIRON["OUT_FILE"] }
 /"entry"[[:space:]]*:[[:space:]]*\{"name":/ {
   entry = jstr($0, "name")
   entry_file = jstr($0, "file")
@@ -211,10 +188,9 @@ END {
     c_count[m] = j - i + 1
     i = j + 1
   }
-  if (dialect == "mermaid") {
     emit("# Flow")
     emit("")
-    emit("Dialect: landscape_dialect=mermaid. C4 dynamic diagram, drawn as a sequence of architectural roles.")
+    emit("A mermaid sequence diagram of architectural roles. No dialect key applies.")
     emit("")
     emit("Entry: `" entry "` at " entry_file ":" entry_line ".")
     emit("")
@@ -260,34 +236,6 @@ END {
       emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, and handoff. The table above keeps every cited call.")
     else
       emit("No consecutive hops were collapsed.")
-  } else {
-    emit("workspace {")
-    emit("  model {")
-    emit("    sys = softwareSystem \"" q(entry) "\" {")
-    for (i = 1; i <= m; i++) {
-      role_seen[c_from[i]] = 1
-      role_seen[c_to[i]] = 1
-    }
-    for (r in role_seen)
-      emit("      " r " = container \"" r "\" \"architectural role\" \"\"")
-    for (i = 1; i <= m; i++) {
-      label = c_call[i]
-      if (c_hand[i] == "yes") label = label " handoff map-events"
-      if (c_sync[i] == "asynchronous") label = label " async"
-      else label = label " sync"
-      if (c_count[i] > 1) label = label " collapsed " c_count[i]
-      emit("      " c_from[i] " -> " c_to[i] " \"" q(label) "\" \"" c_res[i] "\"")
-    }
-    emit("    }")
-    emit("  }")
-    emit("  views {")
-    emit("    dynamic sys \"flow\" {")
-    emit("      include *")
-    emit("      autoLayout")
-    emit("    }")
-    emit("  }")
-    emit("}")
-  }
   printf "flow: entry=%s hops=%d truncated=%s unresolved=%d handoffs=%d\n", entry, n + 0, (truncated == "" ? "no" : truncated), unresolved + 0, handoffs + 0
 }
 AWK

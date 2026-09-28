@@ -4,11 +4,13 @@
     {
       "id": 1,
       "name": "compose-diff-redacts-secrets",
-      "prompt": "/architecture:map-deployment --diff staging prod\n\nThe convention home resolves and architecture_dir is docs/architecture. deploy/staging/compose.yaml and deploy/prod/compose.yaml are tracked. Production runs api at ghcr.io/acme/api:1.4.0 with replicas 3. Staging runs api at ghcr.io/acme/api:1.0.0 with replicas 1. Both set PASSWORD to different values. No cloud credentials are used. landscape_dialect is mermaid. containers.json is absent.",
-      "expected_output": "collect-deployment.sh writes deployment.json from Compose only. render-deployment.sh writes one C4Deployment diagram per environment and a diff that names the image, the replica count, and that PASSWORD differs. Neither password appears.",
+      "prompt": "/architecture:map-deployment --diff staging prod\n\nThe convention home resolves and architecture_dir is docs/architecture. deploy/staging/compose.yaml and deploy/prod/compose.yaml are tracked. Production runs api at ghcr.io/acme/api:1.4.0 with replicas 3. Staging runs api at ghcr.io/acme/api:1.0.0 with replicas 1. Both set PASSWORD to different values. No cloud credentials are used. The authoring-formats doc sets diagram_dialect.system to c4-plantuml. containers.json is absent.",
+      "expected_output": "collect-deployment.sh writes deployment.json from Compose only. render-deployment.sh writes deployment.md with one fenced plantuml block holding a Deployment_Node per environment, and a diff that names the image, the replica count, and that PASSWORD differs. Neither password appears.",
       "narration": true,
       "expectations": [
         "Runs collect-deployment.sh and render-deployment.sh",
+        "Resolves the dialect with resolve-diagram-dialect.sh --kind system and passes --dialect c4-plantuml",
+        "Reports diagram_dialect.system, c4-plantuml, and the team convention doc path as the layer",
         "Does not call a cloud API",
         "The artifact names compose and the two environment files",
         "The diff reports the image change and the replica change",
@@ -20,7 +22,7 @@
       "id": 2,
       "name": "two-tools-refuse",
       "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and main.tf with a Terraform resource. Both are tracked.",
-      "expected_output": "The record reason is partial-read. deployment.md names compose and terraform and contains no C4Deployment diagram.",
+      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and terraform, and no deployment diagram is drawn.",
       "narration": true,
       "expectations": [
         "Does not draw the Compose services and ignore Terraform",
@@ -57,15 +59,28 @@
     {
       "id": 5,
       "name": "kubernetes-and-compose-both-read",
-      "prompt": "/architecture:map-deployment\n\nTracked files include deploy/compose.yaml and deploy/api.yaml, a Deployment plus an Ingress host api.example.com in namespace prod. The Ingress manifest also sets PASSWORD. landscape_dialect is structurizr.",
-      "expected_output": "Both compose and kubernetes are shipped tools. deployment.dsl contains a deploymentEnvironment and a containerInstance. The password is absent. The ingress host is in the record.",
+      "prompt": "/architecture:map-deployment\n\nTracked files include deploy/compose.yaml and deploy/api.yaml, a Deployment plus an Ingress host api.example.com in namespace prod. The Ingress manifest also sets PASSWORD. The authoring-formats doc sets diagram_dialect.system to likec4.",
+      "expected_output": "Both compose and kubernetes are shipped tools. deployment.md contains one fenced likec4 block with a deployment environment, an instanceOf placement, and a deployment view. The password is absent. The ingress host is in the record.",
       "narration": true,
       "expectations": [
         "Reads both tools rather than declining a pair of shipped readers",
-        "Passes --dialect structurizr",
-        "deployment.dsl contains deploymentEnvironment and containerInstance",
+        "Passes --dialect likec4",
+        "deployment.md contains one fenced likec4 block with instanceOf and a deployment view",
         "api.example.com is recorded",
         "PASSWORD's value is not in the artifact"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "system-dialect-unset-emits-no-view",
+      "prompt": "/architecture:map-deployment\n\nThe convention home resolves and architecture_dir is docs/architecture. deploy/compose.yaml is tracked. The authoring-formats doc sets diagram_dialect.system to mermaid.",
+      "expected_output": "The resolver prints none. deployment.json is written. No deployment.md is written. The summary says dialect=none and the report gives unset (no C4 view emitted).",
+      "narration": true,
+      "expectations": [
+        "Runs resolve-diagram-dialect.sh --kind system",
+        "Does not emit a mermaid diagram",
+        "deployment.json is written and deployment.md is not",
+        "Reports diagram_dialect.system as unset (no C4 view emitted) and names the unrecognized value"
       ]
     }
   ]

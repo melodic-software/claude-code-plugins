@@ -11,6 +11,9 @@
 # A shape is a service kind plus a hostname and an optional numeric port.
 # Userinfo, query strings, passwords, account keys, tokens, and secret-only
 # values are dropped. A value that is only a credential produces no row.
+#
+# redact_secret(key, value) is 1 when the key names a credential or the value
+# carries one. A caller that prints a raw value drops it when this is 1.
 
 function redact_rank(k) {
   if (k == "authority") return 7
@@ -246,4 +249,42 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
       if (index(host, "://") == 0) redact_emit("broker", host, port)
     }
   }
+}
+
+function redact_secret_key(key,    n) {
+  n = redact_last_segment(key)
+  gsub(/[^a-z0-9]/, "", n)
+  if (n == "pwd" || n == "sas") return 1
+  return n ~ /password|passwd|secret|token|apikey|accountkey|accesskey|privatekey|signingkey|sharedaccess|credential/
+}
+
+# A run of 40 or more base64 characters mixing upper case, lower case, and
+# digits: an AWS secret access key, a storage account key, a signing key.
+function redact_long_key(v,    rest, run) {
+  rest = v
+  while (match(rest, /[A-Za-z0-9+\/=]+/)) {
+    run = substr(rest, RSTART, RLENGTH)
+    rest = substr(rest, RSTART + RLENGTH)
+    if (length(run) >= 40 && run ~ /[A-Z]/ && run ~ /[a-z]/ && run ~ /[0-9]/) return 1
+  }
+  return 0
+}
+
+function redact_secret_value(v,    l, i) {
+  if (redact_aws_id_re == "") {
+    redact_aws_id_re = "(AKIA|ASIA)"
+    for (i = 0; i < 16; i++) redact_aws_id_re = redact_aws_id_re "[A-Z0-9]"
+  }
+  l = tolower(v)
+  if (l ~ /(^|[^a-z0-9])(password|pwd|accountkey|sharedaccesskey|sharedaccesssignature|sig|client_?secret|api_?key|access_?token|token)[[:space:]]*=/) return 1
+  if (l ~ /[a-z][a-z0-9+.-]*:\/\/[^\/@[:space:]]*:[^\/@[:space:]]*@/) return 1
+  if (l ~ /(^|[^a-z0-9])(basic|bearer)[[:space:]]+[a-z0-9+\/=._~-]/) return 1
+  if (index(l, "private key") > 0) return 1
+  if (v ~ /(^|[^A-Za-z0-9])(gh[pousr]_|github_pat_)[A-Za-z0-9]/) return 1
+  if (v ~ redact_aws_id_re) return 1
+  return redact_long_key(v)
+}
+
+function redact_secret(key, value) {
+  return redact_secret_key(key) || redact_secret_value(value)
 }

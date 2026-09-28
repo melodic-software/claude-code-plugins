@@ -10,11 +10,12 @@ and no version bump, per the upstream-drift contract's four-part-record rule.
 
 Clarification. No key, allowed value, or default changes.
 
-- **As-built readers.** `landscape_dialect` is reused by the architecture plugin's component,
-  context, as-built container, dynamic, deployment, and async-topology pictures.
-  `diagram_dialect.system` stays the opt-in design container view. `/architecture:map-containers`
-  does not read it. `diagram_dialect.data` gains `/architecture:map-data` as a reader beside
-  `/planning:design`. `map-dependencies` and `map-states` read no key of this convention.
+- **Architecture map readers (#4639).** `diagram_dialect.system` gains four readers:
+  `/architecture:map-components`, `/architecture:map-context`, `/architecture:map-containers`,
+  and `/architecture:map-deployment`. Each draws a C4 view of the code only when the key names
+  `likec4` or `c4-plantuml`; unset, the view is not drawn, and mermaid stays refused.
+  `diagram_dialect.data` gains `/architecture:map-data`. `landscape_dialect` stays the
+  architecture plugin's key for `/architecture:map-landscape` alone.
 
 ## [1.0.2] - 2026-09-08
 

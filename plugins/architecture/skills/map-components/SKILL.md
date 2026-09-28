@@ -27,20 +27,50 @@ landscape of repositories is `/architecture:map-landscape`.
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
 and follow the exit code. Exit 0 means read `<home>/architecture/README.md` for
-`architecture_dir`, `landscape_dialect`, and the optional `component_layers`.
-Exit 1, 2, and 3 mean there is no declared home.
+`architecture_dir` and the optional `component_layers`. Exit 1, 2, and 3 mean
+there is no declared home.
 
 `--out <dir>` wins for this run alone. Then a declared topic-doc value. Then
-one question. `landscape_dialect` falls back to `mermaid`. `architecture_dir`
-has no default: an undeclared, unconfirmed home, including every non-interactive
-run, stops and points at `/architecture:setup`. `component_layers` has no
-default. Absent, `--group-by layer` cannot run.
+one question. `architecture_dir` has no default: an undeclared, unconfirmed
+home, including every non-interactive run, stops and points at
+`/architecture:setup`. `component_layers` has no default. Absent,
+`--group-by layer` cannot run.
 
-This skill reads `landscape_dialect` for the component view. It does not add a
-`component_dialect` key and it does not read `diagram_dialect.system`. That
-deferral is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` under C4 dialect surfaces.
-`mermaid` writes `components.md` with a `C4Component` diagram. `structurizr`
-writes `components.dsl` (a component view) plus `components.md` for the tables.
+This skill does not read `landscape_dialect` and does not add a dialect key.
+The diagram dialect is `diagram_dialect.system` from the authoring-formats
+topic doc. Resolve it by restating this ladder, then running the resolver
+rather than parsing the topic doc yourself. The ladder is a resolution order,
+not a task list:
+
+```markdown
+1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
+   `git rev-parse --show-toplevel`. Never a CWD-relative read.
+2. Resolve the convention home `<home>` with the bundled resolver above. Never hand-parse the root
+   file.
+3. The printed home is repo-relative: join it to the root, then pass
+   `<root>/<home>/authoring-formats/README.md` to the resolver.
+4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc.
+   There is no personal overlay.
+5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+   is unset, emit no C4 view. This skill has no record of its own, so it writes nothing.
+6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
+   included, which the convention refuses) each resolve to emitting no view. The resolver names
+   the cause on stderr. Do not hard-fail and do not ask the operator to create the surface
+   mid-task.
+7. Report provenance: the key, the value, and the layer (`argument`, `team convention doc <path>`,
+   or `unset (no C4 view emitted)`).
+```
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-diagram-dialect.sh" --kind system \
+  --formats "<root>/<home>/authoring-formats/README.md"
+```
+
+Omit `--formats` when no convention home resolved. Stdout is `likec4`,
+`c4-plantuml`, or `none`. `c4-plantuml` writes `components.md` with one fenced
+`plantuml` block (`C4_Component`); `likec4` writes it with one fenced `likec4`
+block and a component view of the container. Both carry the tables. `none`
+writes nothing and still prints the summary line.
 
 This skill never writes the consumer's root instruction file or its topic doc.
 
@@ -112,7 +142,7 @@ artifact. It does not drop a component or an evidence row.
 "${CLAUDE_SKILL_DIR}/scripts/render-components.sh" \
   --graph "<architecture_dir>/dependency-graph.json" \
   --out "<architecture_dir>" \
-  --dialect "<landscape_dialect>" \
+  --dialect "<likec4|c4-plantuml|none>" \
   --group-by directory \
   --layers "<component_layers>" \
   --container "<name>" \
@@ -130,7 +160,7 @@ annotation as an annotation. Annotations say what a component is for.
 
 The renderer prints one summary line. Keep it for the report:
 
-`components: container="<name>" components=<n> edges=<n> drawn_edges=<n> violations=<n> aggregated=<yes|no> thin=<yes|no> external_collapsed=<n> unresolved=<n>`
+`components: container="<name>" components=<n> edges=<n> drawn_edges=<n> violations=<n> aggregated=<yes|no> thin=<yes|no> external_collapsed=<n> unresolved=<n> dialect=<likec4|c4-plantuml|none>`
 
 A thin result (`thin=yes`) is a single module with no internal edges. The
 artifact says so and names the neighboring rungs. It does not present a one-box
@@ -157,6 +187,8 @@ End every run with this block, in this order:
   matched by name.
 - **Graph source**: existing `dependency-graph.json`, `dependency-graph.sh`,
   or `component-graph.sh`.
+- **Dialect**: `diagram_dialect.system`, its value, and the layer: `argument`,
+  `team convention doc <path>`, or `unset (no C4 view emitted)`.
 
 ## What this skill does NOT do
 
@@ -178,12 +210,12 @@ End every run with this block, in this order:
 
 ## Gotchas
 
-- **The component view reuses `landscape_dialect`.** Mermaid output is a
-  `C4Component` diagram. Structurizr output is a `component` view. It does not
-  add `component_dialect` and it does not read `diagram_dialect.system`. That
-  decision and its recheck live in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
-  Mermaid C4 being experimental is the authoring-formats convention's record,
-  not restated here.
+- **The dialect key is `diagram_dialect.system`, and it has no default.** The
+  operator's decision on #4639 puts every C4 view of the code on the key the
+  authoring-formats convention assigns to C4 system views, which refuses
+  mermaid because mermaid C4 is experimental. That decision lives in
+  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. Unset, the run writes nothing,
+  and the report says no view was emitted.
 - **A component diagram is one container.** Claim: the C4 component diagram
   scopes to a single container, and its primary elements are the components
   inside that container. The model is notation-independent. Basis:

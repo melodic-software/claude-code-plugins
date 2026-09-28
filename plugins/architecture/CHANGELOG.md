@@ -3,41 +3,43 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.13.0] - 2026-09-28
+## [0.12.3] - 2026-09-28
 
 ### Added
 
 - Nine `map-*` skills below the landscape rung, each with a tested extractor.
   `map-dependencies` cites .NET `ProjectReference` and `PackageReference` edges
-  into `dependency-graph.json` and renders a mermaid flowchart. It does not read
-  `landscape_dialect`. `portfolio-facts.sh` uses the same .NET reader.
+  into `dependency-graph.json` and renders a mermaid flowchart.
+  `portfolio-facts.sh` uses the same .NET reader.
 - `map-components` renders a C4 component view of one deployable from that
-  record, reusing `landscape_dialect`. An existing `dependency-graph.json` wins.
-  Otherwise the skill runs `dependency-graph.sh`. `component-graph.sh` remains
-  the fallback when that writer is absent. Optional `component_layers` groups
-  by a declared layering. `/architecture:setup` accepts that key.
-- `map-events` charts C# MassTransit publish and send topology, including orphan
-  findings, and reuses `landscape_dialect`.
-- `map-flow` traces one C# entry point from cited call sites. Mermaid writes a
-  sequence diagram and structurizr writes a dynamic view, both from
-  `landscape_dialect`.
-- `map-containers` charts deployables and the stores they bind. Credentials are
-  redacted. The picture reuses `landscape_dialect` (`C4Container` or a
-  Structurizr container view). It does not read `diagram_dialect.system`.
+  record. An existing `dependency-graph.json` wins; otherwise the skill runs
+  `dependency-graph.sh`, and `component-graph.sh` is the fallback when that
+  writer is absent. Optional `component_layers` groups by a declared layering.
+  `/architecture:setup` accepts that key.
+- `map-events` charts C# MassTransit publish, send, and consume topology as a
+  mermaid flowchart, with orphan findings and a finding for each dynamic send.
+- `map-flow` traces one C# entry point from cited call sites into a mermaid
+  sequence diagram.
+- `map-containers` charts deployables and the stores they bind, with credentials
+  redacted.
 - `map-context` charts one system plus the external systems named in committed
-  configuration, with credentials redacted, and reuses `landscape_dialect`.
-- `map-data` draws an entity-relationship diagram from declared schema.
-  The dialect is authoring-formats `diagram_dialect.data`. It does not open a
-  database connection.
+  configuration, with credentials redacted.
+- `map-data` draws an entity-relationship diagram from declared schema in
+  `diagram_dialect.data`. It does not open a database connection.
 - `map-deployment` charts committed Docker Compose and Kubernetes topology per
-  environment, with a diff and secrets redacted, and reuses `landscape_dialect`.
+  environment, with a diff. Every emitted value, the diff included, passes the
+  shared connection redactor.
 - `map-states` draws one entity from an explicit XState or Stateless transition
-  table as a mermaid `stateDiagram-v2`. It adds no dialect key.
+  table as a mermaid `stateDiagram-v2`.
+- `lib/resolve-diagram-dialect.sh` resolves `diagram_dialect.data` and
+  `diagram_dialect.system` from the authoring-formats topic doc.
 - `map-landscape`'s thin result and `## Next` name `/architecture:map-components`
   for the modules inside one deployable.
-- The dialect decision is recorded in `reference/config.md`. Components, context,
-  containers, flow, events, and deployment reuse `landscape_dialect`. Data reads
-  `diagram_dialect.data`. Dependencies and states add no dialect key.
+- `reference/config.md` records the operator's dialect decision from #4639: the
+  component, context, container, and deployment views read the authoring-formats
+  `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default, mermaid
+  refused) and draw no picture when it is unset. Flow, events, dependencies, and
+  states are mermaid with no key. `landscape_dialect` stays with `map-landscape`.
 
 ## [0.12.2] - 2026-09-28
 

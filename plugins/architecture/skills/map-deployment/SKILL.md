@@ -1,6 +1,6 @@
 ---
 description: "Chart committed infrastructure as a C4 deployment view: which containers sit on which declared nodes, per environment, and what differs between two environments. Use when: 'map deployment', 'deployment diagram', 'what is different in production', 'IaC topology', 'where does this container run'. Skip when: the question is a live cloud inventory, cost, or runtime health."
-argument-hint: "[environment] [--diff <env-a> <env-b>] [--live] [--out <dir>]"
+argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--live] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -28,20 +28,49 @@ This is the C4 deployment view. One diagram is one deployment environment.
 
 ## Resolve home and dialect
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`
-and reads `landscape_dialect`. It does not add a dialect key. Mermaid writes one `C4Deployment`
-block per environment inside `deployment.md`. Structurizr writes `deployment.dsl` with one
-deployment view per environment.
+Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`.
+It does not read `landscape_dialect` and it does not add a dialect key. The diagram dialect is
+`diagram_dialect.system` from the authoring-formats topic doc. `likec4` writes `deployment.md` with
+one fenced `likec4` block. `c4-plantuml` writes it with one fenced `plantuml` block. Mermaid is not
+offered.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
 follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
-`<home>/architecture/README.md` for `architecture_dir` and `landscape_dialect`. Exit 1, 2, and 3
-mean there is no declared home.
+`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean there is no declared
+home.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
-one question. `landscape_dialect` falls back to `mermaid`. `architecture_dir` has NO default. An
-undeclared and unconfirmed home, including every non-interactive run, STOPS and points at
-`/architecture:setup`. Do not invent a directory.
+one question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including
+every non-interactive run, STOPS and points at `/architecture:setup`. Do not invent a directory.
+
+Resolve `diagram_dialect.system` by restating this ladder, then running the resolver rather than
+parsing the topic doc yourself. The ladder is a resolution order, not a task list:
+
+```markdown
+1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
+   `git rev-parse --show-toplevel`. Never a CWD-relative read.
+2. Resolve the convention home `<home>` with the bundled resolver above. Never hand-parse the root
+   file.
+3. The printed home is repo-relative: join it to the root, then pass
+   `<root>/<home>/authoring-formats/README.md` to the resolver.
+4. Layer order is one layer deep: an explicit `--dialect` argument, then the team convention doc,
+   then the documented default. There is no personal overlay.
+5. `diagram_dialect.system` has NO default. Allowed values are `likec4` and `c4-plantuml`. When it
+   is unset, emit no C4 deployment view. The record is still written.
+6. Degrade soft, and say so. No pointer, no doc, no key, or an unrecognized value (mermaid
+   included) each resolve to emitting nothing. The resolver names the cause on stderr. Do not
+   hard-fail and do not ask the operator to create the surface mid-task.
+7. Report provenance: the key, the value, and the layer (`argument`,
+   `team convention doc <path>`, or `unset (no C4 view emitted)`).
+```
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-diagram-dialect.sh" --kind system \
+  --formats "<root>/<home>/authoring-formats/README.md"
+```
+
+Omit `--formats` when no convention home resolved. Stdout is `likec4`, `c4-plantuml`, or `none`.
+An explicit `--dialect likec4|c4-plantuml` on the invocation wins and the resolver is not required.
 
 This skill never writes the consumer's root instruction file or its topic doc.
 
@@ -71,10 +100,13 @@ present, the record is refused, including when Compose or Kubernetes is also pre
 only the shipped tool would be a partial read. A repository whose only IaC is an unshipped tool is
 refused as `adapter-not-shipped`, not drawn empty.
 
-Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.sh` for connection-shaped values, and the
-collector drops any value whose key or text is secret-shaped. A password must not appear in the
-record, the diagram, or stdout. A diff of two secret values says that the parameter differs and
-does not print either value.
+Every value the collector writes and the renderer prints passes through
+`${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`. A parameter whose key names a credential, or
+whose value carries one (a connection-string password or key, a SAS signature, a GitHub token, a
+cloud access key, a private key, URL userinfo, or an HTTP Basic or Bearer credential), is recorded
+with an empty value and `"redacted":"yes"`. Any other emitted field that carries one prints as
+`[redacted]`. A secret must not appear in the record, the diagram, the diff, or stdout. A diff of
+two secret values says that the parameter differs and does not print either value.
 
 When `<architecture_dir>/containers.json` exists, container names that the IaC does not place are
 listed. When it does not exist, the artifact says container names came from the IaC.
@@ -84,17 +116,20 @@ listed. When it does not exist, the artifact says container names came from the 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/render-deployment.sh" \
   --record "<architecture_dir>/deployment.json" --out "<architecture_dir>" \
-  --dialect "<landscape_dialect>" --env "<environment>" --diff "<env-a>" "<env-b>"
+  --dialect "<likec4|c4-plantuml|none>" --env "<environment>" --diff "<env-a>" "<env-b>"
 ```
 
-Omit `--env` to draw every collected environment, one diagram each. Omit `--diff` when the
+Pass the resolved dialect. With `none` the script writes no file: `deployment.json` is the whole
+output, the summary line still prints, and the diff lives in the record's `diffs` array. Omit
+`--env` to draw every collected environment, one deployment environment each inside the one
+fenced block. Omit `--diff` when the
 invocation did not ask for a comparison. The diff table is the first section after the tools. An
 unknown `--env` writes a refusal that lists the environments and exits 3. In a non-interactive run,
 stop there.
 
 The script prints one summary line. Keep it:
 
-`deployment: status=<drawn|refused> reason=<reason|none> tools=<list> environments=<n> placements=<n> diffs=<n> dialect=<mermaid|structurizr>`
+`deployment: status=<drawn|refused> reason=<reason|none> tools=<list> environments=<n> placements=<n> diffs=<n> dialect=<likec4|c4-plantuml|none>`
 
 Exit 1 means the record is unreadable or not schema_version 1 in the one-object-per-line layout.
 Nothing was written. Do not reformat the record by hand.
@@ -108,7 +143,8 @@ End every run with this block, in this order:
 - **Tools**: which IaC tools were shipped readers and which were recognized and declined.
 - **Environment**: the one drawn, or each environment, and the file that declared it.
 - **Diff**: the summary's `diffs=` count, or that `--diff` was not requested.
-- **Dialect**: `mermaid` or `structurizr`, from `landscape_dialect`.
+- **Dialect**: `diagram_dialect.system`, the value, and the layer (`argument`,
+  `team convention doc <path>`, or `unset (no C4 view emitted)`).
 - **Containers**: `map-containers` output was used, or it was absent and names came from the IaC.
 - **Secrets**: redacted. No secret value was written.
 - **Live**: not requested, or requested and refused. No cloud API was called.
@@ -118,7 +154,8 @@ End every run with this block, in this order:
 - Call a cloud API, use credentials, or compare live state to the declaration.
 - Cost, scaling, capacity, or runtime health.
 - Apply Helm templates or Kustomize. Those tools are a refusal, not a guessed render.
-- Add a dialect key. Deployment reuses `landscape_dialect`.
+- Add a dialect key, read `landscape_dialect`, or emit mermaid. The dialect is the existing
+  `diagram_dialect.system`.
 - Invent a home, a network, or a node the script did not emit.
 
 ## Next
@@ -134,12 +171,20 @@ End every run with this block, in this order:
   against <https://c4model.com/diagrams/deployment>. Recheck when that page changes the scope or
   the primary elements. This skill draws one diagram per environment so a diff does not become a
   single mixed picture.
-- **The deployment view reuses `landscape_dialect`.** Mermaid output is `C4Deployment`.
-  `Deployment_Node` is the deployment element on Mermaid's C4 page. Verified 2026-09-28 against
-  <https://mermaid.js.org/syntax/c4.html>. Recheck when that page drops `C4Deployment` or
-  `Deployment_Node`. The experimental banner and its recheck trigger live in
-  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. This skill does not carry a second stamp and it
-  does not add a key.
+- **C4-PlantUML shape.** The block uses `!include <C4/C4_Deployment>`,
+  `Deployment_Node(alias, label, ?type, ?descr)` with a `{ }` body for nesting,
+  `Container(alias, label, ?techn, ?descr)`, and `Rel(from, to, label)`. Verified 2026-09-28
+  against <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>. Recheck when
+  that README changes those signatures or the include path. `Rel` is drawn only from a container
+  to a network node its placement names; the record has no other edges.
+- **LikeC4 shape.** Deployment node kinds are declared as `deploymentNode <kind>` in
+  `specification`, nodes nest in `deployment { environment ... }`, a model element is placed with
+  `instanceOf`, and a `deployment view <name> { include <env>.** }` draws one environment. Verified
+  2026-09-28 against <https://likec4.dev/dsl/deployment/model/> and
+  <https://likec4.dev/dsl/deployment/views/>. Recheck when either page changes that syntax.
+- **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
+  from labels, `@` prints as `(at)`, and every identifier is prefixed and numbered, so a hostile
+  name cannot close the fence, end the diagram, or collide with a keyword.
 - **Compose without a `networks` entry joins the default network.** A service that declares none
   is recorded on `default`. A service that names a network is recorded on that network.
 - **A required secret is not a topology fact.** The value is dropped. The diff can say the

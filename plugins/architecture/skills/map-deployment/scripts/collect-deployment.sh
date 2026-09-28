@@ -15,10 +15,14 @@
 # recognized and then the record is refused, including when a shipped reader
 # also matches, so the diagram is never a partial read.
 #
-# Output: deployment.json, schema_version 1, one object per line.
+# Output: deployment.json, schema_version 1, one object per line. Every value
+# written passes through plugins/architecture/lib/redact-connection.awk; a
+# value or key that carries a credential is dropped.
 #
 # Exit: 0 = a record was written (including a refusal); 1 = bad path; 2 = usage.
 set -uo pipefail
+
+REDACT_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/redact-connection.awk"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -354,18 +358,10 @@ if [[ -s "$TMP/compose.txt" ]]; then
       printf '\n'
     } >>"$TMP/compose-replay.txt"
   done <"$TMP/compose.txt"
-  if ! awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/compose-flag" '
+  if ! awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/compose-flag" -f "$REDACT_AWK" -f - "$TMP/compose-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function ind(s,    i) { i = 1; while (substr(s, i, 1) == " ") i++; return i - 1 }
-    function jesc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
-    function secret_key(k,    n) {
-      n = tolower(k)
-      gsub(/[^a-z0-9]/, "", n)
-      return (n ~ /password/ || n ~ /passwd/ || n ~ /secret/ || n ~ /token/ || n ~ /apikey/ || n ~ /accountkey/ || n ~ /privatekey/)
-    }
-    function secret_value(v) {
-      return (v ~ /[Pp]assword=/ || v ~ /AccountKey=/ || v ~ /:\/\/[^:]+:[^@]+@/)
-    }
+    function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
     function remember_env(e) { if (!(e in seen_env)) { seen_env[e] = 1; env_list[++env_n] = e } }
     function emit_place(env, svc,    nets, img, reps, ports) {
       nets = netjoin[env SUBSEP svc]
@@ -464,7 +460,7 @@ if [[ -s "$TMP/compose.txt" ]]; then
           gsub(/^["'\'']|["'\'']$/, "", val)
         }
         if (k != "") {
-          red = (secret_key(k) || secret_value(val)) ? "yes" : "no"
+          red = redact_secret(k, val) ? "yes" : "no"
           shown = (red == "yes") ? "" : val
           printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
             jesc(k), jesc(env), jesc(svc), jesc(shown), red, jesc(path) >> params
@@ -547,7 +543,7 @@ if [[ -s "$TMP/compose.txt" ]]; then
         }
       }
     }
-  ' "$TMP/compose-replay.txt"; then
+  '; then
     refuse "compose-unreadable"
   fi
   if [[ -s "$TMP/compose-flag" ]]; then
@@ -571,17 +567,9 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       printf '\n'
     } >>"$TMP/k8s-replay.txt"
   done <"$TMP/k8s.txt"
-  awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" '
+  awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f - "$TMP/k8s-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-    function jesc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
-    function secret_key(k,    n) {
-      n = tolower(k)
-      gsub(/[^a-z0-9]/, "", n)
-      return (n ~ /password/ || n ~ /passwd/ || n ~ /secret/ || n ~ /token/ || n ~ /apikey/ || n ~ /accountkey/ || n ~ /privatekey/)
-    }
-    function secret_value(v) {
-      return (v ~ /[Pp]assword=/ || v ~ /AccountKey=/ || v ~ /:\/\/[^:]+:[^@]+@/)
-    }
+    function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
     function remember_env(e) { if (e != "" && !(e in seen_env)) { seen_env[e] = 1; env_list[++env_n] = e } }
     function env_for(ns, path,    n, parts) {
       if (ns != "") return ns
@@ -654,7 +642,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         val = trim(substr(raw, index(raw, ":") + 1))
         gsub(/^["'\'']|["'\'']$/, "", val)
         e = env_for(ns, path)
-        red = (secret_key(ek) || secret_value(val)) ? "yes" : "no"
+        red = redact_secret(ek, val) ? "yes" : "no"
         shown = (red == "yes") ? "" : val
         printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(ek), jesc(e), jesc(cname), jesc(shown), red, jesc(path) >> params
@@ -702,7 +690,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
         }
       }
     }
-  ' "$TMP/k8s-replay.txt"
+  '
   if [[ -s "$TMP/k8s-flag" ]]; then
     refuse "$(head -n 1 "$TMP/k8s-flag")"
   fi

@@ -7,22 +7,21 @@
 # empty diagram with exit 0.
 #
 # Usage:
-#   render-context.sh --record <file> --out <dir> [--dialect mermaid|structurizr]
+#   render-context.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
 #   render-context.sh --help
 #
-# --dialect defaults to mermaid, the landscape_dialect default. map-context
-# reads that same key. A separate context dialect is not introduced here.
+# --dialect is the resolved authoring-formats diagram_dialect.system. It has no
+# default: none, the value when the key is unset, writes no picture. Mermaid is
+# refused, as the convention refuses it for that key.
 #
-# Writes, into <dir>:
-#   context.md    mermaid C4Context with a focal System, Person for each
-#                 operator-stated actor, and System_Ext for each derived
-#                 external system
-#   context.dsl   structurizr workspace with a systemContext view, person
-#                 elements tagged Operator, and external software systems
-#                 tagged External
+# Writes, into <dir>, unless the dialect is none:
+#   context.md    prose, one fenced likec4 or plantuml block with a focal
+#                 system, a person for each operator-stated actor, and an
+#                 external system for each derived host, then the node and
+#                 evidence tables
 #
 # Prints one summary line on stdout:
-#   context: focal=<name> externals=<n> actors=<n> thin=<yes|no>
+#   context: focal=<name> externals=<n> actors=<n> thin=<yes|no> dialect=<d>
 # thin is yes when the record has no external systems.
 #
 # Exit: 0 = written; 1 = unreadable, not schema_version 1, or not the
@@ -40,7 +39,7 @@ die() {
 
 record=""
 outdir=""
-dialect="mermaid"
+dialect="none"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -67,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --dialect)
-    [[ $# -ge 2 ]] || die "--dialect needs mermaid or structurizr" 2
+    [[ $# -ge 2 ]] || die "--dialect needs likec4, c4-plantuml, or none" 2
     dialect="$2"
     shift 2
     ;;
@@ -86,8 +85,8 @@ done
   exit 2
 }
 case "$dialect" in
-mermaid | structurizr) ;;
-*) die "--dialect must be mermaid or structurizr, got: $dialect" 2 ;;
+likec4 | c4-plantuml | none) ;;
+*) die "--dialect must be likec4, c4-plantuml, or none (diagram_dialect.system), got: $dialect" 2 ;;
 esac
 [[ -r "$record" ]] || die "cannot read record: $record" 1
 [[ -d "$outdir" ]] || die "not a directory: $outdir" 1
@@ -129,11 +128,8 @@ layout_problem="$(awk "$LAYOUT_AWK" "$record")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout collect-context.sh writes ($layout_problem); regenerate it: $record" 1
 
-if [[ "$dialect" == "mermaid" ]]; then
-  target="$outdir/context.md"
-else
-  target="$outdir/context.dsl"
-fi
+target="$outdir/context.md"
+[[ "$dialect" != "none" ]] || target="/dev/null"
 
 OUT_FILE="$target" DIALECT="$dialect" awk -f - "$record" <<'AWK'
 function jstr(line, key,    pat, i, rest, out, c, n) {
@@ -183,6 +179,8 @@ function rel_label(k) {
 function safe(s) {
   gsub(/\\/, "/", s)
   gsub(/"/, "\047", s)
+  gsub(/`/, "\047", s)
+  gsub(/[|]/, "/", s)
   gsub(/\t/, " ", s)
   gsub(/\r/, "", s)
   gsub(/\n/, " ", s)
@@ -191,8 +189,7 @@ function safe(s) {
 function alias(s,    a) {
   a = s
   gsub(/[^A-Za-z0-9]/, "_", a)
-  if (a == "" || a ~ /^[0-9]/) a = "n_" a
-  return a
+  return "e_" a
 }
 function uniq(a,    c, cand) {
   cand = a
@@ -267,10 +264,10 @@ END {
   for (i = 1; i <= an; i++) aalias[i] = uniq(alias(aname[i]))
   for (i = 1; i <= nh; i++) halias[hosts[i]] = uniq(alias(hosts[i]))
 
-  if (dialect == "mermaid") {
+  if (dialect != "none") {
     emit("# System Context")
     emit("")
-    emit("Generated on " generated ".")
+    emit("Generated on " safe(generated) ". Dialect: diagram_dialect.system=" dialect ".")
     emit("")
     emit("Operator-stated actors are drawn as people. External systems derived from configuration are drawn as external software systems. The focal system is drawn as the software system in scope.")
     emit("")
@@ -279,25 +276,67 @@ END {
       emit("Neighboring rungs: system landscape (/architecture:map-landscape), containers (the deployables inside this system).")
       emit("")
     }
-    emit("```mermaid")
-    emit("C4Context")
-    emit("  title System Context for " safe(focal))
-    for (i = 1; i <= an; i++) {
-      desc = adesc[i]
-      if (desc == "") desc = "Operator-stated actor"
-      emit("  Person(" aalias[i] ", \"" safe(aname[i]) "\", \"" safe(desc) "\")")
-    }
-    emit("  System(" focal_alias ", \"" safe(focal) "\", \"The software system in scope\")")
-    for (i = 1; i <= nh; i++) {
-      h = hosts[i]
-      emit("  System_Ext(" halias[h] ", \"" safe(h) "\", \"" safe(kind_desc(h)) "\")")
-    }
-    emit("")
-    for (i = 1; i <= an; i++)
-      emit("  Rel(" aalias[i] ", " focal_alias ", \"Uses\")")
-    for (i = 1; i <= nh; i++) {
-      h = hosts[i]
-      emit("  Rel(" focal_alias ", " halias[h] ", \"" rel_label(hkind[h]) "\")")
+    if (dialect == "c4-plantuml") {
+      emit("```plantuml")
+      emit("@startuml")
+      emit("!include <C4/C4_Context>")
+      emit("title System Context for " safe(focal))
+      for (i = 1; i <= an; i++) {
+        desc = adesc[i]
+        if (desc == "") desc = "Operator-stated actor"
+        emit("Person(" aalias[i] ", \"" safe(aname[i]) "\", \"" safe(desc) "\")")
+      }
+      emit("System(" focal_alias ", \"" safe(focal) "\", \"The software system in scope\")")
+      for (i = 1; i <= nh; i++) {
+        h = hosts[i]
+        emit("System_Ext(" halias[h] ", \"" safe(h) "\", \"" safe(kind_desc(h)) "\")")
+      }
+      for (i = 1; i <= an; i++)
+        emit("Rel(" aalias[i] ", " focal_alias ", \"Uses\")")
+      for (i = 1; i <= nh; i++) {
+        h = hosts[i]
+        emit("Rel(" focal_alias ", " halias[h] ", \"" rel_label(hkind[h]) "\")")
+      }
+      emit("@enduml")
+    } else {
+      emit("```likec4")
+      emit("specification {")
+      emit("  element person {")
+      emit("    style {")
+      emit("      shape person")
+      emit("    }")
+      emit("  }")
+      emit("  element softwareSystem")
+      emit("  element externalSystem {")
+      emit("    style {")
+      emit("      color muted")
+      emit("    }")
+      emit("  }")
+      emit("}")
+      emit("model {")
+      for (i = 1; i <= an; i++) {
+        desc = adesc[i]
+        if (desc == "") desc = "Operator-stated actor"
+        emit("  " aalias[i] " = person \"" safe(aname[i]) "\" \"" safe(desc) "\"")
+      }
+      emit("  " focal_alias " = softwareSystem \"" safe(focal) "\" \"The software system in scope\"")
+      for (i = 1; i <= nh; i++) {
+        h = hosts[i]
+        emit("  " halias[h] " = externalSystem \"" safe(h) "\" \"" safe(kind_desc(h)) "\"")
+      }
+      for (i = 1; i <= an; i++)
+        emit("  " aalias[i] " -> " focal_alias " \"Uses\"")
+      for (i = 1; i <= nh; i++) {
+        h = hosts[i]
+        emit("  " focal_alias " -> " halias[h] " \"" rel_label(hkind[h]) "\"")
+      }
+      emit("}")
+      emit("views {")
+      emit("  view context {")
+      emit("    title \"System Context for " safe(focal) "\"")
+      emit("    include *")
+      emit("  }")
+      emit("}")
     }
     emit("```")
     emit("")
@@ -324,58 +363,8 @@ END {
       }
     }
     emit("")
-  } else {
-    emit("// Operator-stated actors are drawn as people (element tag Operator, shape Person).")
-    emit("// External systems derived from configuration are drawn as external software systems (element tag External).")
-    emit("// The focal system is the software system in scope.")
-    emit("// Generated on " safe(generated) ".")
-    if (nh == 0) {
-      emit("// No external systems were found in committed configuration.")
-      emit("// Neighboring rungs: system landscape (/architecture:map-landscape), containers (the deployables inside this system).")
-    }
-    emit("workspace {")
-    emit("  model {")
-    for (i = 1; i <= an; i++) {
-      desc = adesc[i]
-      if (desc == "") desc = "Operator-stated actor"
-      emit("    " aalias[i] " = person \"" safe(aname[i]) "\" \"" safe(desc) "\" {")
-      emit("      tags \"Operator\"")
-      emit("    }")
-    }
-    emit("    " focal_alias " = softwareSystem \"" safe(focal) "\" \"The software system in scope\"")
-    for (i = 1; i <= nh; i++) {
-      h = hosts[i]
-      emit("    " halias[h] " = softwareSystem \"" safe(h) "\" \"" safe(kind_desc(h)) "\" {")
-      emit("      tags \"External\"")
-      emit("    }")
-    }
-    for (i = 1; i <= an; i++)
-      emit("    " aalias[i] " -> " focal_alias " \"Uses\"")
-    for (i = 1; i <= nh; i++) {
-      h = hosts[i]
-      emit("    " focal_alias " -> " halias[h] " \"" rel_label(hkind[h]) "\"")
-    }
-    emit("  }")
-    emit("  views {")
-    emit("    systemContext " focal_alias " \"context\" {")
-    emit("      include *")
-    emit("      autoLayout")
-    emit("    }")
-    emit("    styles {")
-    emit("      element \"Operator\" {")
-    emit("        shape Person")
-    emit("        background #08427b")
-    emit("        color #ffffff")
-    emit("      }")
-    emit("      element \"External\" {")
-    emit("        background #999999")
-    emit("        color #ffffff")
-    emit("      }")
-    emit("    }")
-    emit("  }")
-    emit("}")
   }
-  printf "context: focal=%s externals=%d actors=%d thin=%s\n", focal, nh, an, (nh == 0 ? "yes" : "no")
+  printf "context: focal=%s externals=%d actors=%d thin=%s dialect=%s\n", focal, nh, an, (nh == 0 ? "yes" : "no"), dialect
 }
 AWK
 

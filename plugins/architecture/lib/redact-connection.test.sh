@@ -88,6 +88,35 @@ assert_not_contains "mail: password is absent" "$mail" "P4ss-UNIQUE-991"
 bare="$(shape "Owner" "alice@example.com" || true)"
 assert_equals "an email is not a connection" "$bare" ""
 
+secret() {
+  if redact_is_secret "$2" "$3"; then pass "secret: $1"; else fail "secret: $1" "not flagged: $2"; fi
+}
+clean() {
+  if redact_is_secret "$2" "$3"; then fail "clean: $1" "flagged: $2 = $3"; else pass "clean: $1"; fi
+}
+# Fake placeholders. Shapes a secret scanner flags as a literal are assembled at runtime.
+fake="FAKE-NOT-A-SECRET-0000"
+secret "sql password" "Db" "Server=db.example.com;Password=${fake}"
+secret "storage account key" "Blob" "AccountName=a;AccountKey=${fake}"
+secret "shared access key" "Bus" "Endpoint=sb://b.servicebus.windows.net/;SharedAccessKey=${fake}"
+secret "sas signature" "Sas" "https://a.blob.core.windows.net/c?sv=1&s""ig=${fake}"
+secret "github token" "Upstream" "gh""p_$(printf 'X%.0s' {1..36})"
+secret "github fine-grained token" "Upstream" "github""_pat_11$(printf 'X%.0s' {1..40})"
+secret "aws access key id" "Cloud" "AK""IAFAKEFAKEFAKE0000"
+secret "aws secret access key" "Cloud" "FakeNotASecret0000/FakeNotASecret0000+X1"
+secret "private key header" "Pem" "-----BEGIN ""PRIVATE KEY-----MIIFAKE"
+secret "url userinfo" "Partner" "https://svc:${fake}@partner.example.com"
+secret "basic authorization" "Header" "Authorization: Basic ${fake}"
+secret "bearer authorization" "Header" "Bearer ${fake}"
+secret "signing key name" "JWT_SIGNING_KEY" "anything"
+secret "access key name" "AWS_ACCESS_KEY_ID" "anything"
+secret "password name" "DB_PASSWORD" "anything"
+clean "log level" "LOG_LEVEL" "info"
+clean "image" "Image" "ghcr.io/acme/api:1.0.0"
+clean "image digest" "Image" "ghcr.io/acme/api@sha256:$(printf 'a%.0s' {1..64})"
+clean "plain url" "Auth.Authority" "https://login.example.com/tenant"
+clean "host and port" "Cache" "cache.example.com:6380"
+
 exec_out="$(bash "$SCRIPT_DIR/redact-connection.sh" 2>&1)"
 assert_equals "executing the wrapper exits 2" "$?" "2"
 assert_contains "executing the wrapper says to source it" "$exec_out" "source this file"
