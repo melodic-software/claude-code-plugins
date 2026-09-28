@@ -1,7 +1,7 @@
 {
   "schema": "context-budget.levers/1",
   "meta": {
-    "purpose": "The lever catalogue: every known operator-controllable switch over the fixed startup payload, as data rows. A new lever is a row, not a rewrite. No row carries a token value — every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
+    "purpose": "The lever catalogue: operator-controllable switches over the fixed startup payload that this plugin has recorded, as data rows. It is not a proof that no other switch exists; verify-catalogue --find-unstored lists env names in the measured binary that no row cites. A new lever is a row, not a rewrite. No row carries a token value — every saving is measured on the consumer's machine by the engine, per row's `measurement`.",
     "honestyRule": "A lever whose category cannot be determined for the consumer's configuration is not offered. Rows whose category is condition-dependent say so in `conditions`; the audit resolves the condition by measurement before presenting the lever.",
     "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space — the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
     "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered — never trusted from this file alone.",
@@ -25,7 +25,7 @@
     {
       "id": "deny-bare-tool",
       "title": "Bare tool name in permissions.deny (or --disallowedTools per invocation)",
-      "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships.",
+      "mechanism": "A deny rule that is a bare tool name removes that tool's definition from the request; the schema no longer ships. EndConversation is the documented exception: a bare-name deny cannot remove it while any other tool remains.",
       "category": "removes-weight",
       "categoryBasis": "Documented in request terms and reproduced by this plugin's own differencing engine. The two attributed buckets compose differently: deferred-side deltas add, so a basket's deferred saving is the sum of its members, while prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix saving. attribute --verify-additivity reports its verdict per bucket.",
       "conditions": null,
@@ -37,15 +37,17 @@
       "caveats": [
         "There is no `disallowedTools` settings key; emitting one writes a silently ignored key. Persistent config is permissions.deny only.",
         "Denying a tool removes capability, not just weight — confirm the operator does not use it (route usage questions to /doctor).",
-        "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny."
+        "Never deny the deferral mechanism itself for savings: denying the tool-search tool forces the entire deferred pool upfront into the prefix (measured at the verified version as a large negative saving). Measure any infrastructure tool before recommending its deny.",
+        "EndConversation is exempt from bare-name removal while any other tool remains, and an ask rule never prompts for it. Do not price a deny of EndConversation as a schema removal."
       ],
       "citations": [
+        "https://code.claude.com/docs/en/permissions",
         "https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules",
         "https://code.claude.com/docs/en/settings",
         "https://code.claude.com/docs/en/cli-reference#cli-flags"
       ],
-      "verified": "2026-08-17",
-      "recheckTrigger": "The permissions page stops describing whole-tool deny in request/schema-removal terms, or a measured bare-name deny stops moving the System tools buckets."
+      "verified": "2026-09-28",
+      "recheckTrigger": "The permissions page drops the EndConversation exception, stops describing whole-tool deny in request/schema-removal terms, or a measured bare-name deny of a tool other than EndConversation stops moving the System tools buckets."
     },
     {
       "id": "deny-scoped-rule",
@@ -101,7 +103,8 @@
       "posture": "recommendable-on-fit",
       "scope": "User or managed. Do not emit either key into project `.claude/settings.json`: enableArtifact is ignored there, and a project disableArtifact is overridden by any higher-precedence file rather than acting as a lock. enableArtifact: false is the user-scope form (the /config Artifacts row); disableArtifact is the org-wide lock (managed). Env var CLAUDE_CODE_DISABLE_ARTIFACT is equivalent for one session.",
       "detection": "disableArtifact/enableArtifact across scopes; CLAUDE_CODE_DISABLE_ARTIFACT in the environment; Artifact in the baseline tool list; artifact-* rows in the skill listing.",
-      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after the user-scope write additionally shows the skill-listing rows leaving (subject to the listing cap — see cap dynamics).",
+      "measurementScope": "unmeasurable-in-this-session-kind",
+      "measurement": "Artifact is interactive-only, so attribute --tools Artifact is not a measurement in the headless session this skill runs. Do not publish that route's zero. Price the lever only in a session kind where Artifact is a candidate. A headless Skills delta of 0 means the companion artifact-* skills never entered the listing, not that the lever is inert.",
       "emittedConfig": "{\"enableArtifact\": false}",
       "caveats": [
         "Prefer this over a bare-name deny for never-publishes-artifacts operators: the deny is the weaker trim, leaving the companion skill descriptions listed.",
@@ -187,8 +190,9 @@
       "id": "skill-overrides",
       "title": "skillOverrides (per-skill off)",
       "mechanism": "Per-skill visibility override in settings; reaches bundled and claude.ai-synced skills. Plugin skills are excluded — the resolver short-circuits them to on; they toggle via plugin enablement instead.",
-      "category": "works-but-saves-nothing-here",
-      "categoryBasis": "Documented (settings reference plus the skills page's visibility-override section); the zero saving under an over-budget listing is measured — freed budget redistributes to still-listed skills.",
+      "category": "removes-weight",
+      "saving": "runtime-resolved",
+      "categoryBasis": "The mechanism removes a skill from the listing. Whether that saves tokens is resolved on this machine: while the listing cap is saturated, freed space redistributes and the measured saving is zero; below the cap the Skills bucket moves. The cap is a character budget (skillListingBudgetFraction of the window, and skillListingMaxDescChars), not the Skills token total.",
       "conditions": "While the skill listing is over its budget cap, disabling individual skills changes WHICH skills get full descriptions, not what is paid. Below the cap it removes weight. Resolve by measurement: if the baseline listing shows collapsed rows, the cap is binding.",
       "posture": "recommendable-on-fit",
       "scope": "Settings key; the only lever reaching claude.ai-synced skills.",
@@ -210,8 +214,9 @@
       "id": "disable-bundled-skills",
       "title": "disableBundledSkills / CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
       "mechanism": "Disables the bundled skill set wholesale (with /doctor as the documented kill-switch survivor).",
-      "category": "works-but-saves-nothing-here",
-      "categoryBasis": "Mechanism documented; the cap dynamics that zero out the saving while over budget are measured (bundled skills are also protected from truncation, so they occupy budget user/plugin skills cannot reclaim).",
+      "category": "removes-weight",
+      "saving": "runtime-resolved",
+      "categoryBasis": "The mechanism disables the bundled skill set. Whether that saves tokens is resolved on this machine: a saving appears only if the surviving listing drops below the character cap (skillListingBudgetFraction of the window, and skillListingMaxDescChars). The Skills token total is a different unit from that cap. Bundled skills are also protected from truncation, so they occupy budget user and plugin skills cannot reclaim.",
       "conditions": "Same cap condition as skill-overrides: a saving appears only if the surviving listing drops below the cap. Measure; expect the Skills bucket to hold and System tools to shift by the subtraction artifact.",
       "posture": "disclose-only",
       "scope": "Settings key; env var.",
@@ -241,7 +246,8 @@
       "measurement": "snapshot before/after the key change; compare Skills (and the System tools artifact).",
       "emittedConfig": "{\"skillListingBudgetFraction\": <fraction>}",
       "caveats": [
-        "This is the knob that explains why per-skill disabling saves nothing while over budget — surface it as explanation before offering it as a lever."
+        "This is the knob that explains why per-skill disabling saves nothing while over budget — surface it as explanation before offering it as a lever.",
+        "The budget is characters: skillListingBudgetFraction of the window, and skillListingMaxDescChars per description. The snapshot's Skills token total is a different unit. collapsedSkills is totalSkills minus includedSkills when both numbers are present, not a character count."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction",
@@ -393,7 +399,7 @@
       "conditions": "An operator who wants a custom style keeps the instructions (keep-coding-instructions: true) and accepts the style's own cost; the token 'saving' path is the one never recommended.",
       "posture": "never-recommend",
       "scope": "Output style files; /output-style.",
-      "detection": "Active output style in settings; keep-coding-instructions in the style's frontmatter.",
+      "detection": "Active output style in settings. keep-coding-instructions is read from a custom style file's frontmatter. A built-in style (outputStyle set to a product name, no file under ~/.claude/output-styles/) has no frontmatter and is not this lever.",
       "measurement": "snapshot with and without the style; compare System prompt.",
       "emittedConfig": null,
       "caveats": [
