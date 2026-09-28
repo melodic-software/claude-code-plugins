@@ -16,10 +16,10 @@ bad() { echo "FAIL: $*" >&2; FAIL=$((FAIL + 1)); }
 
 cat >"$TMP/decisions.tsv" <<'EOF'
 correct	Fable 5.1 supersedes Fable 5	257-001	docs/PLUGIN-PHILOSOPHY.md	Fable 5 the rung above / fable resolves to Fable 5.1	open	changelog says 5.1; docs page still says Fable 5
-replace	Stale sandbox mask files	257-006	audit-install-state	/doctor warns for mask files	pending human verdict	
-adopt	permission-prompts none	259-002	hop_chain.py	unattended runs no longer choose between dontAsk and bypassPermissions		
-note	SessionStart is background	261-004	hook-budget	the hooks page says SessionStart runs in the background		
-skip	vscode-only tooltip	261-099	—	ui only		
+replace	Stale sandbox mask files	257-006	audit-install-state	/doctor warns for mask files	pending human verdict
+adopt	permission-prompts none	259-002	hop_chain.py	unattended runs no longer choose between dontAsk and bypassPermissions
+note	SessionStart is background	261-004	hook-budget	the hooks page says SessionStart runs in the background
+skip	vscode-only tooltip	261-099	—	ui only
 EOF
 
 out=$(bash "$DECIDE" "$TMP/decisions.tsv")
