@@ -148,3 +148,27 @@ else in this repository.
   status check, and has no `workflow_dispatch` re-review, no per-PR cap and no path gate, so
   `skip-actors`, `status-check`, `max-reviews-per-pr`, `timeout-minutes` and `pr-number` are
   gone from the callers. A new review comes from a push, a reopen, or a draft-then-ready flip.
+
+## Addendum (2026-09-28): an empty skill invocation fails the lane (#4306)
+
+Decision 4's status check remains the signal for an infrastructure failure. It
+does not see a session that exits 0 after the Skill tool returns only
+`Execute skill:` and the model reviews the diff itself. That substitution is a
+failed lane, not a green review.
+
+- Each caller gains a `skill-invocation` job. It reads the lane bot's review
+  bodies for this head and the bot's issue comments updated during the run.
+  Exit 3 when the text is the fail-closed marker or the empty-invocation
+  confession. Exit 0 when it is not. Exit 2 when the read cannot be done. The
+  job is advisory and is not a required check.
+- The deleted evidence guards stay deleted. This job does not score
+  skip-actors, coverage, or a positive proof that the skill ran.
+- The review plugin hook stops the lane session when the tool result for
+  `/review:code-review` or `/review:security-review` is only that empty
+  Execute skill line, so the model does not continue into a hand review.
+- The earlier sentence that the skill-degrade guard no longer meets #4306 is
+  superseded for this one failure. The new job and the hook are how the lane
+  fails closed. `allowed-tools` stays on both skills. The headless load path
+  is the wrapper's `Skill(<plugin-command>)` pre-allow, or a user-typed slash
+  prompt. The record is
+  `plugins/review/reference/headless-skill-grant.md`.

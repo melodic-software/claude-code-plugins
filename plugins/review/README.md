@@ -72,6 +72,10 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:security-review`**. CI security-review lane command for a pull
   request (org-authored; built-in `/security-review` is unusable under Actions
   checkout).
+- **Empty invocation fails closed.** If either CI skill returns only
+  `Execute skill:` and no body, the session stops and the caller's
+  `skill-invocation` job exits 3. A hand review of the diff is a failed lane,
+  not a green review.
 
 ## Requirements
 

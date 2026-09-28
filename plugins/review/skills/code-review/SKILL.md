@@ -1,5 +1,5 @@
 ---
-description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. When the bundled code-review skill resolves in your session, prefer it for a session-driven review of the current diff or a named PR; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
+description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. When the bundled code-review skill resolves in your session, prefer it for a session-driven review of the current diff or a named PR; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command. If the Skill tool returns only `Execute skill:` and no body, the CI reply starts with `review-lane-fail-closed: code-review` on its own line and stops; do not review the diff yourself."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
@@ -44,6 +44,27 @@ bundled skill's flags or trigger the managed service on this lane's behalf.
 host; this section states what to do when one resolves, never that it is present. The four-part
 records behind these statements live in
 [reference/bundled-code-review.md](reference/bundled-code-review.md).
+
+## Fail closed
+
+`allowed-tools` grants the listed tools for the invoking turn and does not
+restrict other tools. Under headless `claude -p`, when the model invokes this
+skill, that grant needs an approval the session cannot ask. The Skill tool
+then returns only `Execute skill: review:code-review` and the body never
+loads. The session can still exit 0.
+
+That result is a failed lane. Do not review the diff yourself. The CI reply
+starts with the token `review-lane-fail-closed: code-review` on its own line,
+says the body never loaded, and stops. A hand review is not this lane.
+
+Headless runs that do load the body pre-allow the Skill tool
+(`claude --allowedTools "Skill()"`) or pass the slash command as the user
+prompt (`claude -p "/review:code-review ..."`). The lane wrapper's
+`Skill(review:code-review)` grant is that pre-allow. It does not make a
+missing body a green review.
+
+The claim, basis, as-of date, and recheck trigger are in
+[../../reference/headless-skill-grant.md](../../reference/headless-skill-grant.md).
 
 ## Gotchas
 

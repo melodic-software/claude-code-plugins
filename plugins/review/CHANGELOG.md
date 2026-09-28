@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-09-28
+
+### Fixed
+
+- **An empty `/review:code-review` or `/review:security-review` invocation fails the lane ([#4306](https://github.com/melodic-software/claude-code-plugins/issues/4306)).** Both skills keep `allowed-tools`. Under headless `claude -p`, a model invocation of a skill with that field returns only `Execute skill:` and the body never loads, while the process can still exit 0. The description and a `## Fail closed` section tell the session to stop instead of reviewing the diff by hand. The reply's own line `review-lane-fail-closed: code-review` or `review-lane-fail-closed: security-review` is the failed-lane marker. A hook on `PostToolUseFailure` (Skill), `PreToolUse` (Bash, lane prompt only), and `Stop` prints `continue: false` for that empty result. The caller workflows' `skill-invocation` jobs exit 3 when the lane bot's review or comment for this head carries the marker or the empty-invocation confession. Exit 0 is not a hand review. Workarounds that load the body are `--allowedTools "Skill()"` and a user-typed slash prompt. The four-part record is `reference/headless-skill-grant.md`.
+
 ## [0.32.0] - 2026-09-28
 
 ### Changed

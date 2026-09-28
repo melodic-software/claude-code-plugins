@@ -1,5 +1,5 @@
 ---
-description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in your session, prefer it for a one-off security pass over your current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
+description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. When the plugin-backed built-in security-review command resolves in your session, prefer it for a one-off security pass over your current branch; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command. If the Skill tool returns only `Execute skill:` and no body, the CI reply starts with `review-lane-fail-closed: security-review` on its own line and stops; do not review the diff yourself."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
@@ -53,6 +53,29 @@ native command on this lane's behalf.
 environment, and host; this section states what to do when one resolves, never that it is
 present. The four-part records live in
 [reference/bundled-security-review.md](reference/bundled-security-review.md).
+
+## Fail closed
+
+`allowed-tools` grants the listed tools for the invoking turn and does not
+restrict other tools. Under headless `claude -p`, when the model invokes this
+skill, that grant needs an approval the session cannot ask. The Skill tool
+then returns only `Execute skill: review:security-review` and the body never
+loads. The session can still exit 0.
+
+That result is a failed lane. Do not review the diff yourself. In the CI lane
+the reply starts with the token `review-lane-fail-closed: security-review` on
+its own line, says the body never loaded, and stops. Seat-run mode still posts
+nothing: say that token in the conversation and stop. A hand review is not
+this lane.
+
+Headless runs that do load the body pre-allow the Skill tool
+(`claude --allowedTools "Skill()"`) or pass the slash command as the user
+prompt (`claude -p "/review:security-review ..."`). The lane wrapper's
+`Skill(review:security-review)` grant is that pre-allow. It does not make a
+missing body a green review.
+
+The claim, basis, as-of date, and recheck trigger are in
+[../../reference/headless-skill-grant.md](../../reference/headless-skill-grant.md).
 
 ## Seat-run mode
 

@@ -15,6 +15,10 @@ name: claude-review
 # The `review / claude-review-status` check goes red and names the cause when
 # the review fails (ci-workflows#619). It is advisory: never add it, or any
 # check in this file, to required status checks.
+#
+# `skill-invocation` is the #4306 fail-closed check (ADR 0038, 2026-09-28
+# addendum). A session that exits 0 after `Execute skill:` with no body, or
+# after a hand review of the diff, is a failed lane. The job is advisory.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
@@ -45,3 +49,29 @@ jobs:
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Distinct from review / claude-review-status: that check is infrastructure.
+  # This one is a posted empty skill invocation or a confessed hand review.
+  skill-invocation:
+    needs: review
+    if: >-
+      always() && needs.review.result != 'skipped'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fail closed when the review skill body never loaded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LANE_SKILL: code-review
+          REVIEWER_LOGIN: claude[bot]
+        run: python3 plugins/review/hooks/fail-closed-skill-invocation.py check-lane

@@ -1,0 +1,46 @@
+{
+  "description": "Stops a CI review lane when /review:code-review or /review:security-review returns only Execute skill and no body, so the session does not continue into a hand review.",
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/fail-closed-skill-invocation.py hook",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "Checking that the review skill body loaded..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/fail-closed-skill-invocation.py hook",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "Checking that a failed review skill did not continue into a hand review..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/hooks/fail-closed-skill-invocation.py hook",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "Checking the review lane did not finish on a hand review..."
+          }
+        ]
+      }
+    ]
+  }
+}
