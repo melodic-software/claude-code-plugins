@@ -171,10 +171,10 @@ validator preference order and plan-validate-execute, and diagnosing an embedded
 ## Authoring guidance and pre-share checklist (Melodic Software addition)
 
 Read [`reference/authoring-guidance.md`](reference/authoring-guidance.md) when writing a
-description, choosing a freedom level, splitting a body into spokes, pointing at scripts or MCP
-tools, or planning evals: it cross-reads Anthropic's cross-product best-practices page against what
-Claude Code enforces. Its description contract (one description, `when_to_use` optional, key use
-case first, the two caps with their sources) is the fuller form of tip 5.
+description, choosing a freedom level, shaping arguments and `argument-hint` (the [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)),
+splitting a body into spokes, pointing at scripts or MCP tools, or planning evals: it cross-reads
+Anthropic's cross-product best-practices page against what Claude Code enforces. Its description contract
+(one description, `when_to_use` optional, key use case first, the two caps with their sources) is the fuller form of tip 5.
 
 Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
 row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.

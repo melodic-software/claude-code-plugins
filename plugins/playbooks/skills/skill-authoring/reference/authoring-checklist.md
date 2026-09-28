@@ -31,6 +31,7 @@ have checked a judgment row is misreporting.
 | `disable-model-invocation` is written explicitly | mechanical (check 24) |
 | A gotchas surface exists (`## Gotchas` inline or a gotchas spoke) | mechanical (check 11) |
 | `## Next` is present and names the successor in mention-only form | judgment |
+| Arguments follow the skill argument shape: one action first, earned `--flag` modifiers, one subject kind last, `argument-hint` in the same order ([`authoring-guidance.md`](authoring-guidance.md#argument-surface)) | judgment |
 | No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; a restated number carries the four-part record | judgment |
 | One term per concept throughout | judgment |
 | Examples are concrete, not abstract | judgment |
