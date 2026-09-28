@@ -96,7 +96,8 @@ The independent `portability-lint` job stages a related publisher-token class in
 
 A reusable plugin must not bake in one machine's paths, one org's repo names, or one project's
 layout. Values that genuinely vary per environment, operator, or consumer belong in the consumer's
-own config layers (`shareable-artifact-design.md` externalized configuration). This subsection is
+own config layers (`melodic-software/standards` `conventions/engineering/shareable-artifact-design.md`
+§ externalized configuration). This subsection is
 the doctrine owner; component-scoped audits cite it instead of restating the rule:
 
 - `plugin-quality:audit` recurring-concerns (per-component detection cues).
