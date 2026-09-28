@@ -216,7 +216,7 @@ Option A: a sealed packet is a snapshot. The seal proves integrity since the las
   mark an earlier packet superseded when the audited world moves. Write-once remains
   an agent discipline with after-the-fact `verify` ([#3866](https://github.com/melodic-software/claude-code-plugins/issues/3866)):
   a correction is a new file, then a re-seal, never an edit of a sealed file.
-- **Basis:** This file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
+- **Basis:** The operator decision recorded on #3867 (2026-09-28); this file's write-once rules and Resume verify cases; `scripts/packet-seal.sh`
   COVERED / NOT COVERED header and exits 0 / 1 / 2 / 3; issue
   [#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867).
 - **As of:** 2026-09-28.
@@ -237,8 +237,9 @@ Option A: a sealed packet is a snapshot. The seal proves integrity since the las
 
 - **Run identity.** `<run-nonce>` (`YYYYMMDDTHHMMSSZ`) is one run. A greater nonce in the
   same session directory is a later run. The Resume rule already groups by nonce and
-  reports every group; a group you did not select is a superseded run, not a missing
-  packet.
+  reports every group; a group you did not select is set aside, not superseded: it may
+  audit a different target, and nonce order alone cannot prove a legitimate successor,
+  because a planted high-sorting nonce is possible.
 - **Flush identity.** Supplementary evidence is `evidence-<n>.md` beside `evidence.md`,
   never an append. A higher `n` in the same packet is a later flush of that snapshot
   sequence.
@@ -258,4 +259,4 @@ Option A: a sealed packet is a snapshot. The seal proves integrity since the las
   artifact. That is the whole answer to "what each asserts relative to its successors."
 
 Nothing in this plugin's surfaces may be read as "the seal proves the packet is still
-true of the world." The seal proves the packet was not tampered with after `record`.
+true of the world." `verify` exit 0 proves only that the current files match the current manifest.
