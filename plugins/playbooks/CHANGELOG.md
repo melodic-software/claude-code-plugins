@@ -13,6 +13,17 @@ only after that version increases.
   The worktrees page read on 2026-09-28 scopes the command-shape check to git. A `$` expansion
   in a block that never runs git is not that check. The compose gate was already git-only.
 
+## [0.13.17] - 2026-09-28
+
+### Changed
+
+- **`boris` effort hold matches the current model-config page**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The 2026-08-02 amendment said first-running Fable 5, Opus 4.8, or Opus 4.7 holds that model's
+  default, and that Opus 5 has no such hold. Re-read 2026-09-28: that hold sentence is gone.
+  Opus 5.5 starts at `medium` and ignores a top-level user `effortLevel`; that key still applies
+  on Opus 5, Fable 5.1, and earlier models. `reference/autonomy.md` records the page.
+
 ## [0.13.16] - 2026-09-28
 
 ### Added

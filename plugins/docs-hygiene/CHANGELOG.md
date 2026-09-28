@@ -10,6 +10,17 @@
   `--append-subagent-system-prompt` forms. The subagent flags are `-p` only. The same three
   rows are in `docs/specs/agent-doc-surfaces.md`.
 
+## [0.23.9] - 2026-09-28
+
+### Changed
+
+- **`write-for-agents` CLI surface table names the file and subagent append flags**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027), item 261-003).
+  `reference/agent-doc-surfaces.md` now lists `--append-system-prompt-file`,
+  `--append-subagent-system-prompt`, and `--append-subagent-system-prompt-file` beside
+  `--append-system-prompt`. Re-read cli-reference 2026-09-28. The marketplace spec
+  `docs/specs/agent-doc-surfaces.md` gains the same rows.
+
 ## [0.23.8] - 2026-09-28
 
 ### Changed
