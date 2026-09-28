@@ -228,14 +228,81 @@ esac
 # non-whitespace so `read` keeps an EMPTY field in place (tab is IFS
 # whitespace and would collapse a nameless manifest's fields together); neither
 # byte can appear in a manifest name or path.
+# srv_git_dir_to <var>
+# Checkout git dir, so the manifest index can be cached beside it.
+srv_git_dir_to() {
+  local g="$REPO_ROOT/.git" line
+  if [[ -d "$g" ]]; then
+    printf -v "$1" '%s' "$g"
+    return 0
+  fi
+  if [[ -f "$g" ]]; then
+    IFS= read -r line <"$g" || return 1
+    line=${line%$'\r'}
+    [[ "$line" == 'gitdir:'* ]] || return 1
+    line=${line#gitdir:}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$REPO_ROOT/$line"
+    fi
+    printf -v "$1" '%s' "$line"
+    return 0
+  fi
+  return 1
+}
+
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
   ((PLUGIN_INDEX_BUILT)) && return 0
   PLUGIN_INDEX_BUILT=1
-  local m pdir pname paths
+  local m pdir pname paths line git_dir="" cache_file="" use_cache=0 i start
+  local -a rows=() hdr=()
   local -A seen=()
-  while IFS=$'\x1e' read -r m pname paths; do
+  # A repeat reference at an unchanged manifest set skips jq. The cache is
+  # used only when it is strictly newer than every manifest.
+  if srv_git_dir_to git_dir; then
+    cache_file="$git_dir/guardrails-skill-index"
+  fi
+  if [[ -n "$cache_file" && -f "$cache_file" ]]; then
+    mapfile -t hdr <"$cache_file"
+    if [[ "${hdr[0]-}" == "${#manifests[@]}" ]]; then
+      use_cache=1
+      for ((i = 0; i < ${#manifests[@]}; i++)); do
+        [[ "${hdr[i + 1]-}" == "${manifests[i]}" ]] || use_cache=0
+        [[ "$cache_file" -nt "${manifests[i]}" ]] || use_cache=0
+      done
+      [[ "${hdr[${#manifests[@]} + 1]-}" == '---' ]] || use_cache=0
+    fi
+  fi
+  if ((use_cache)); then
+    start=$((${#manifests[@]} + 2))
+    if ((${#hdr[@]} > start)); then
+      rows=("${hdr[@]:start}")
+    fi
+  else
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      rows+=("$line")
+    done < <(
+      jq -r '[input_filename, (.name // "" | tostring),
+              ((.skills // null) | if . == null then ""
+                elif type == "array" then map(tostring) | join("\u001f")
+                else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
+    )
+    if [[ -n "$cache_file" ]]; then
+      {
+        printf '%s\n' "${#manifests[@]}"
+        printf '%s\n' "${manifests[@]}"
+        printf '%s\n' '---'
+        if ((${#rows[@]} > 0)); then
+          printf '%s\n' "${rows[@]}"
+        fi
+      } >"$cache_file" 2>/dev/null || :
+    fi
+  fi
+  for line in ${rows[@]+"${rows[@]}"}; do
+    [[ -n "$line" ]] || continue
+    IFS=$'\x1e' read -r m pname paths <<<"$line"
     m="${m//$'\r'/}"
     [[ -n "$m" ]] || continue
     # `input_filename` echoes the argument as jq received it, and on Windows
@@ -256,12 +323,7 @@ build_plugin_index() {
     paths="${paths//$'\r'/}"
     PLUGIN_SKILL_PATHS["$pname"]="${paths//$'\x1f'/$'\n'}"
     seen["$pdir"]=1
-  done < <(
-    jq -r '[input_filename, (.name // "" | tostring),
-            ((.skills // null) | if . == null then ""
-              elif type == "array" then map(tostring) | join("\u001f")
-              else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
-  )
+  done
   # jq stops the batch at the first manifest it cannot parse, so every manifest
   # behind a malformed one comes back unread. Those, and the malformed one, take
   # the per-manifest read the batch replaced: exact for the readable ones, and

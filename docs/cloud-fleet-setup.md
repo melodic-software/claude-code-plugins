@@ -341,3 +341,10 @@ session on this repo in the new environment and ask Claude to verify:
   there.
 - **Windows-shaped work stays local.** `provisioning` runbooks and `dotfiles` Windows content
   can be authored and linted in cloud sessions (Ubuntu VMs) but never executed.
+- **Known residual: Claude Code cloud sessions can still ship Ubuntu-archive `gh` 2.45
+  (#3169).** Checklist step 1 already expects 2.98.0 or newer from the `standards`
+  pinned-tarball. This repository will not rebuild that image. Operator workaround:
+  current stamp first, then force-rebuild if stale; if the stamp is current and `gh`
+  is still 2.45, treat it as a `standards` install failure and keep the seam's
+  per-verb floor (lease verbs work; native-hierarchy verbs do not). Recorded in
+  [cloud-sessions.md](cloud-sessions.md#known-gap-ubuntu-archive-gh-245-vs-the-seams-294-floor-3169).

@@ -20,7 +20,7 @@ default checked state, and override text; changing a sweep means editing the cat
 |---|---|---|
 | `/playbooks:repo-sweep plan` | Recommend per entry, open the selection page, create the sweep branch and draft PR | [reference/plan.md](reference/plan.md) |
 | `/playbooks:repo-sweep next` | Run the first unticked step: audit, review findings with the user, fix, one commit, tick | [reference/next.md](reference/next.md) |
-| `/playbooks:repo-sweep review` | Ask what went wrong in the last step; audit and file each problem after approval | [reference/review.md](reference/review.md) |
+| `/playbooks:repo-sweep review` | Dispatch an independent reviewer on the last step, merge with user report, audit and file each problem after approval | [reference/review.md](reference/review.md) |
 
 No argument: run `state.sh` (below). Exit 10 or 11 means `plan`; exit 0 means `next`. Say
 which you chose.
@@ -35,13 +35,13 @@ carry the meanings below; any other non-zero code is a failed `gh`, `git`, or `j
 
 | Script | Does | Exit codes |
 |---|---|---|
-| `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when. `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
+| `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when, prime (`false` skips orchestrate/use-your-skills in `next`). `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
 | `skill-version.sh [--dir <loaded-dir>] <skill>...` | `<skill>@<version>`. `plugin:skill`: with `--dir` before it, the version of the copy the session loaded, from the nearest `plugin.json` or the plugin cache path, naming on stderr a version that differs from the install record; else the installed plugin's version, `@unknown` when not installed. `REPO_SWEEP_PLUGIN_DIRS` (colon-separated, as passed to `--plugin-dir`) overrides the install record. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 2 `--dir` with no value or no skill after it |
 | `history.sh <catalog>` | TSV id, recommendation (`run`, `rerun`, `rerun-optional`), reason, from merged sweep PRs then `Playbook-Step` trailers | 1 catalog error |
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
 | `render.sh --page <catalog> <recs-tsv>` | The filled selection page on stdout | 1 as above, or template missing |
 | `state.sh` | `key value` lines: `pr`, `branch`, `pr-state`, `playbook`, `dirty`, `untick-committed <id> <sha> <skill@version>...`, `done-unverified <id>`, `next <id> in-progress\|pending`, `sweep <n> <branch>` | 0 next step found; 1 no markers; 10 no sweep PR; 11 PR merged or closed; 12 dirty tree, step pending; 13 all done; 14 one open sweep on another branch; 15 several open sweeps |
-| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
+| `tick.sh <id> in-progress` / `committed <sha> <skill@version>...` / `no-findings <skill@version>...` / `partial <detail> <skill@version>...` / `not-applicable <evidence> <skill@version>...` / `report-only <n> <skill@version>...` | Sets that checklist line, re-reads the body to confirm | 1 line missing, already done, or edit did not land |
 | `guard.sh <base-sha> <pr-snapshot-file>` | Checks a step stayed on the branch and opened no PR | 10 stop (prints `branch-changed`, `base-not-ancestor`, `new-pr` lines); 11 prints `squash git reset --soft <base-sha>` |
 
 The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`.
@@ -51,7 +51,8 @@ The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`
 **Catalog** (`catalogs/<playbook>.md`, playbook name is the file stem): `###` heading is the
 entry id; `- skill:` one or more skill names, comma-separated, run in order, each `plugin:skill`
 or a bare name for a skill bundled with Claude Code; `- args:`,
-`- applies-when:`, `- checked: true|false`, optional `- issue:` one line each; optional
+`- applies-when:`, `- checked: true|false`, optional `- prime: false` (omit or any other value
+means `next` invokes orchestrate and use-your-skills), optional `- issue:` one line each; optional
 `#### Override` and `#### Notes` blocks. `##` phase headings group entries for display only.
 Arguments in angle brackets are resolved per repo before the step runs.
 
@@ -66,7 +67,11 @@ Arguments in angle brackets are resolved per repo before the step runs.
 ```
 
 `[ ]` pending, `[~]` in progress (left in place when a step stops partway), `[x]` done with
-`committed <short-sha>` or `no findings`. The next step is the first `[~]`, else the first `[ ]`.
+`committed <short-sha>`, `no findings`, `no findings, partial coverage: <detail>` when the
+skill ran but did not cover the whole repo, or `no fix-eligible findings (N report-only)` when
+the skill produced report-only tiers and the user reviewed them but nothing was edited.
+`history.sh` recommends `rerun` after partial coverage. The next step is the first `[~]`, else
+the first `[ ]`.
 A `Not run:` list outside the markers records entries left unchecked at plan time.
 
 **Step commit** ends with a `Scope decisions:` section, then one final trailer paragraph:
@@ -123,5 +128,7 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   `plan` flags an override whose tracking issue has closed so it can be removed from the catalog.
 - A skill that commits anyway is squashed into the one step commit by `guard.sh` exit 11. A skill
   that switches branch or opens a PR stops the step (exit 10); run `review` to file it.
+- `review` never reuses the session that ran the step: dispatch a separate reviewer with procedure
+  files and artifacts only, then merge its list with what the user reports.
 - Dotfiles sweeps run in a chezmoi source worktree and apply each changed target right after the
   step commit; see [reference/next.md](reference/next.md).

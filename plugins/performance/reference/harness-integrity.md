@@ -119,6 +119,30 @@ Path spelling is behind failures 3 and 4 in the table above, and path resolution
 
 On a mixed MSYS/native host this is not an edge case. It is the default hazard.
 
+## Process counting on MSYS/Cygwin (Git Bash)
+
+**Claim:** On Git Bash under MSYS, many Windows-side process counters (Job Object child counts,
+Process Explorer, some hook telemetry) rise by **two** per external command the shell runs: one
+for the MSYS fork and one for the Windows `CreateProcess` the shim performs to run the real binary.
+**Basis:** Observed during Windows hook-latency work ([#4408](https://github.com/melodic-software/claude-code-plugins/issues/4408)); one added `tail` raised the job-object count by 2, not 1.
+**As-of:** 2026-09-28. **Recheck:** when the host shell or MSYS runtime changes.
+
+This plugin's spawn census counts **PATH-shim intercepts** (external tools the subject invoked),
+not Job Object membership. A goal that expects "+1 process" from "+1 external command" on MSYS must
+state which accounting it uses. The census line is labeled `spawns=` in `spawn-census.sh` output;
+quote that label in the goal and snapshot report rather than re-labeling it as a Job Object delta.
+
+**Zero-process cases** (do not expect a shim hit or a Job Object bump from these alone):
+
+- shell **builtins** (`echo`, `cd`, `test`, …)
+- **`$(<file)`** and other redirection forms that do not spawn a child to read the file
+- **command substitution** that runs no external binary (but `$(...)` wrapping an external command
+  **is** a spawn on MSYS; see below)
+
+When the goal's counter is a Windows-side process count, record the expected **+2 per external
+command** on MSYS in the goal's `Boundary:` or `Done when:` line, or prefer the bundled spawn census
+so before/after comparisons use one accounting end to end.
+
 ## Two shell behaviors that hide a wrong number
 
 - **`$(...)` command substitution is a process spawn on MSYS.** A "builtins-only" hot path that

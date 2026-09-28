@@ -6,10 +6,12 @@
     "AskUserQuestion",
     "SendUserFile",
     "EnterPlanMode",
-    "ExitPlanMode"
+    "ExitPlanMode",
+    "EndConversation"
   ],
   "notes": [
     "Interactive-only MCP servers are known-uncovered as a class; third-party names are not enumerated.",
-    "Plan-mode tools are listed by the product names EnterPlanMode and ExitPlanMode; a future rename is a listing edit, not a silent omission."
+    "Plan-mode tools are listed by the product names EnterPlanMode and ExitPlanMode; a future rename is a listing edit, not a silent omission.",
+    "EndConversation never enters either attributed headless bucket. A bare-name deny also cannot remove it while any other tool remains (permissions page, re-read 2026-09-28)."
   ]
 }
