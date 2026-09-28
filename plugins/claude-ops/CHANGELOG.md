@@ -5224,4 +5224,3 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   - `claude-observability` → `observability` (`/claude-ops:observability`)
   - `claude-troubleshooting` → `troubleshoot` (`/claude-ops:troubleshoot`)
   - `claude-code-changelog` → `changelog` (`/claude-ops:changelog`)
-

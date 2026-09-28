@@ -4943,4 +4943,3 @@ offered as a mechanical `--fix`.
   No `allowed-tools` self-grant ships with the blocks: a `Bash(bash <path>*)` grant is the
   interpreter-led P1 shape this plugin's own `permission-hygiene` criteria flag (auto mode drops it),
   and `!`-execution does not route through `allowed-tools`.
-

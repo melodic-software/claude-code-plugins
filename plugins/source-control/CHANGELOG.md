@@ -6486,4 +6486,3 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - Readiness security-gate, mixed-actor, and three worktree evals.
-
