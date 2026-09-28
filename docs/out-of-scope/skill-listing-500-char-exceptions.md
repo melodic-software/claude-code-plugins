@@ -25,8 +25,8 @@ merge, or a maintainer unparks `architecture:map-landscape`, `pixel-art`, or
 - map / pixel / Fable stay long on purpose this pass: `architecture:map-landscape`,
   the `pixel-art` plugin, and `playbooks:fable-5`. Trimming architecture without
   `map-landscape` would leave that plugin over the per-plugin 500-character bar.
-- In-flight Refs PRs carry the rest of the table. This record does not close
-  #4660 (the enablement-rule child).
+- In-flight Refs PRs still carry code-metrics, instruction-placement, and
+  overengineering. This record does not close #4660 (the enablement-rule child).
 
 ## Original #4661 table
 
@@ -35,7 +35,7 @@ merge, or a maintainer unparks `architecture:map-landscape`, `pixel-art`, or
 | session-flow | on main |
 | docs-hygiene | on main |
 | claude-ops | on main |
-| planning | on main except `interview`; Refs PR #4931 |
+| planning | on main (#4931) |
 | work-items | on main |
 | discipline | on main (#4555) |
 | claude-config | on main |
