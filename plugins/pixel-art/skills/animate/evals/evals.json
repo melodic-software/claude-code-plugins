@@ -83,6 +83,19 @@
         "Does not invoke the animate skill for a video request",
         "Does not deliver a sprite sheet or GIF as a substitute for the requested video"
       ]
+    },
+    {
+      "id": 8,
+      "name": "extends-existing-brief-and-grades-criteria",
+      "prompt": "animate the watchman spec in ./watchman/watchman.json, which already has ./watchman/brief.md beside it: a 4-direction walk, plain PNG strip. Done when contact and passing poses differ in every direction.",
+      "expected_output": "Fires /pixel-art:animate. Reads the existing brief.md and extends it with cycles, directions, and layout instead of re-asking subject, proportions, or style. Writes the extended brief before the first render. Each review round marks every done criterion pass or fail with a one-line reason.",
+      "files": [],
+      "expectations": [
+        "Reads the brief.md beside the reused spec instead of re-asking those fields",
+        "Extends the brief with cycles, directions, and the target layout",
+        "Writes the extended brief before the first render",
+        "Each review round marks each done criterion pass or fail"
+      ]
     }
   ]
 }
