@@ -43,9 +43,15 @@ Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
   install record at that scope and enabled the plugin there, measured both ways: a `-s user` rerun
   of a plugin installed at `project` and `local` enabled it machine-wide, and a `-s project` rerun
   of a `user`-installed plugin added a project install record and `enabledPlugins` entry.
+- **Home directory, one file, two labels.** When the working directory is the home directory,
+  project scope resolves to the same settings file as user scope, so `claude plugin list` can
+  show that one file as both `user` and `project`. Observed on the context-budget audit
+  (cwd `$HOME`). Pass `user`. This is not part of the 2026-09-27 sandbox probe.
 
-Not covered: a `sensitive` option, a same-scope `string` rerun at `local` scope, and same-scope
-`boolean` or `directory` reruns at `user` or `project` scope. Re-verify before relying on the claim outside the covered
+Not covered by that probe: a `sensitive` option, a same-scope `string` rerun at `local` scope,
+same-scope `boolean` or `directory` reruns at `user` or `project` scope, and uninstall dropping
+the plugin's stored `pluginConfigs` entry. The uninstall caveat below is the documented install
+behavior, not a 2.1.283 measurement. Re-verify before relying on a claim outside the covered
 conditions, and update this section (only here) when a newer release is verified.
 
 ## Caveats every setup skill's short form carries
@@ -53,10 +59,12 @@ conditions, and update this section (only here) when a newer release is verified
 1. **Never uninstall to reconfigure.** Uninstalling drops the plugin's entire stored
    `pluginConfigs` entry, resetting every option in its README Options reference to its manifest
    default. Customized values are simply gone, with nothing left to read the old values from.
-2. **Scope.** `-s` defaults to `user`; pass the scope `claude plugin list` reports for the plugin,
-   and run from that project's directory for a `project`/`local` scope. A rerun at another scope
-   adds an install record at that scope and enables the plugin there (measured in both directions,
-   user over project/local and project over user); the value itself always lands in user settings.
+2. **Scope.** Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option
+   value always lands in user settings. Do not copy a scope from `claude plugin list`. A rerun at
+   another scope adds an install record at that scope and enables the plugin there (measured in
+   both directions, user over project/local and project over user). When the working directory is
+   the home directory, project scope and user scope are the same settings file, so the list can
+   label that one file as both `user` and `project`.
 3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
    each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
    a same-session `check` still reports the OLD value. That is not a failed write. Verify the
