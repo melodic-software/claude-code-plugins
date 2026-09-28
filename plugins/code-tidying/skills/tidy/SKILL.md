@@ -261,7 +261,7 @@ two get conflated whenever the request is "clean this up":
   glob-scoped lane regardless of recent activity, under a scope budget, and ships one
   structure-only PR.
 
-**Routing.** When the bundled `simplify` skill resolves in your session, prefer it for refining a
+**Routing.** When the bundled `simplify` skill resolves in this session, prefer it for refining a
 diff that exists: what you just wrote, a path, a PR. Prefer this skill when nothing has changed
 yet and the question is what small structural improvement one slice of the codebase can take
 today. The sibling `batch-simplify` owns the same cleanup at sweep scale.

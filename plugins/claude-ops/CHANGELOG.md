@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.18] - 2026-09-28
+
+### Changed
+
+- **The native-surface presence-gate token is `resolves in this session`** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). `audit-native-overlap`'s `GATE_TOKEN` was `resolves in your session`, which kept second person in every description that bakes a native-surface route. Anthropic's skill-authoring best practices say to always write a description in the third person because it is injected into the system prompt. The forward and reverse parity checks, the ungated-presence advisory's suggested fix, and the test fixtures now use the new token. The `audit-install-state` and `audit-skill-visibility` descriptions, which kept the old token after the voice sweep in #4108, carry the new one, as do their bodies, `audit-performance`'s routing line, the `audit-native-overlap` body and evals, and the store evidence in `docs/native-surfaces/records.json`. The native-references convention moves to 3.0.0 for the token change. A baked row whose description still carries `resolves in your session` now fails forward parity (self-check exit 1) until the description is rebaked with the new token.
+
 ## [0.63.17] - 2026-09-28
 
 ### Fixed

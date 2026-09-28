@@ -73,7 +73,7 @@ conflated when the question is "how do I find the cheapest configuration that ho
   success criteria, eval anatomy, grading methods, and effort as an eval axis. It runs nothing and
   edits nothing.
 
-**Routing.** When the bundled `claude-api` skill resolves in your session, prefer its `hillclimb`
+**Routing.** When the bundled `claude-api` skill resolves in this session, prefer its `hillclimb`
 for the search itself: sweeping model and effort against a suite you already have. Prefer this skill
 when the suite does not exist yet or its criteria are not yet measurable, and `/evals:design` to
 scaffold it. The two chain: design the suite here, then hand it to the search.
