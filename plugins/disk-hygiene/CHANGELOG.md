@@ -5,6 +5,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ## [0.26.0] - 2026-09-28
 
+### Added
+
+- **`--root-children` on non-volume targets (home fan-out)**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
+  depth-1 home audit, re-run against the home path with `--root-children` and explicit
+  `--root-child` names to fully inventory approved top-level directories into one snapshot without
+  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
 ### Changed
 
 - **A guard that could not run no longer looks like a guard that ran and allowed**
