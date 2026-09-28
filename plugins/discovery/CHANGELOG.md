@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [0.24.8] - 2026-09-28
+
+### Changed
+
+- **A direct dispatch of `researcher` learns the gate it owes.** The post-dispatch acceptance gate
+  lives in the research skill body, and a parent that dispatches `discovery:researcher` without
+  loading the skill (to keep its own context small) never reads it. `researcher.md` now states
+  that whatever dispatched it owes the gate and points at the skill's "Post-dispatch acceptance
+  gate" and the parent contract's "Running the acceptance gate". Its return payload carries a
+  fixed `gate_owed:` line naming the three gate scripts and the section, so the obligation arrives
+  in band. The parent contract says the same for a direct dispatcher. `contract.test.sh` section
+  15 pins all three (#4275).
+
 ## [0.24.7] - 2026-09-27
 
 ### Added
