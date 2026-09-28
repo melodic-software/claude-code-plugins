@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-09-28
+
+### Changed
+
+- **The two CI lanes route against their native namesakes in the description (part of #4053).**
+  `code-review` gains "When the bundled code-review skill resolves in your session, prefer it for
+  a session-driven review of the current diff or a named PR; this skill for the CI lane a
+  reusable workflow runs on one PR." `security-review` gains the same shape for the plugin-backed
+  built-in `security-review` command, preferred for a one-off security pass over the current
+  branch. The rules: the clause is presence-gated on the model's own listing (`resolves in your
+  session`) and never asserts that the native surface is there; it names the provenance class and
+  splits the job; no body section and no `allowed-tools` change. Both store rows now record
+  `baked.description_phrase: true`. The Boundary sections are unchanged.
+
 ## [0.31.2] - 2026-09-28
 
 ### Security

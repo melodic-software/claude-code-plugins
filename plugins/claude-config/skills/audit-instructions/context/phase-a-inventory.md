@@ -109,6 +109,14 @@ plugin-cache content,
 and any managed materialization per the Scope boundary. Record each surface found and each surface
 skipped, so the report's tier-transparency line can name both.
 
+**A marketplace repository's own plugin source is editable, not excluded.** When
+`.claude-plugin/marketplace.json` is present at the project root, inventory the instruction surfaces
+under `plugins/**` (skill bodies and their context and reference files, agent definitions, prompt
+text in `hooks/hooks.json`, output styles) as locally owned, each record grouped by its plugin and
+skill for Phase B's lane partition. The installed cache of those plugins is still read below, for
+residency only. [reference/conflict-criteria.md](../reference/conflict-criteria.md) "Known limit"
+owns the rule and the cache-versus-HEAD drift the report names.
+
 Some surfaces are inventoried **read-only** rather than excluded outright, because a later phase has
 to compare against them even though no proposed edit may ever touch them. Read-only inventory changes
 nothing about ownership: these surfaces still produce no proposal of their own, and a finding

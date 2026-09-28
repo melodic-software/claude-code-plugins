@@ -1,6 +1,6 @@
 ---
-description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, a natively read AGENTS.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
-argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+description: "Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
+argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings] [--unattended] [--resume]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
@@ -180,6 +180,15 @@ for `review:fanout`'s `fix` action (off by default; only I28 and I29 are eligibl
 proposal for a human-gated relay, not an applied edit; see
 [context/persist-findings.md](context/persist-findings.md)).
 
+`--unattended` declares that nobody is available to answer: the ~20-dispatch confirmation in
+Phase B becomes a disclosure on the Phase D cost line instead of a question. Only the caller
+declares it, in the invocation; a run never infers it from its own session, and a run without the
+flag asks.
+
+`--resume` continues the latest run under this project's state key instead of starting a new one,
+re-running only the lanes whose report is incomplete or whose inputs changed. Phase B's "Run files
+and resume" owns the mechanics.
+
 ## Phase A: Inventory
 
 Enumerate every locally-owned instruction surface, then hand the per-surface list to Phase B.
@@ -189,9 +198,10 @@ off, and the exclusions. Phase B cannot run against a record set built any other
 
 ## Phase B: Per-surface lanes
 
-Run one **fresh read-only subagent per surface**, each sharing
+Run one **fresh read-only subagent per lane**, where a lane is a set of surfaces packed under the
+token budget in "Lane sizing" below, each lane sharing
 [reference/criteria.md](reference/criteria.md) and applying the per-surface check partition from
-the Scope boundary. **A record whose residency Phase A could not establish carries that state into
+the Scope boundary to every surface it holds. **A record whose residency Phase A could not establish carries that state into
 its lane**: the lane still runs, and reports each result as `RESIDENCY-UNRESOLVED` with the named
 unresolved condition (Phase D) rather than as a finding, since a removal or a rewrite proposed
 against a surface the session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
@@ -222,13 +232,69 @@ is a reporting gate, whether a budget mention is a directive or the counter-stee
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
 run's resolved target model.
 
-Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
-total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user. When the
-caller has declared the run unattended (a routine, a dispatched worker, any session with nobody to
-answer), a question stalls the run, so proceed and let the Phase D cost line disclose the planned and
-actual dispatch counts in place of the confirmation. The declaration comes from the caller, in the
-invocation text; a run never infers it from its own session, and an invocation that carries no
-declaration is attended.
+### Lane sizing
+
+A lane's budget is a fraction of the **lane model's own** context window, since a subagent's window
+is sized by the model it runs on, not the parent's. The budget is **0.25 of that window**, leaving
+the rest for the catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per
+token** (Anthropic's glossary: "a token approximately represents 3.5 English characters", fetched
+2026-09-28 from <https://docs.claude.com/en/docs/about-claude/glossary>; recheck when that entry
+changes or a lane overflows its window on a supported model). Non-ASCII text runs more bytes per
+character, so the estimate errs toward smaller lanes. Never state the budget as a line count: the
+line figure is derived per run from the bytes per line measured over the in-scope files.
+
+Partition deterministically, feeding every in-scope file as `<group>\t<unit>\t<path>`, where the
+group is its plugin (or the memory layer) and the unit is its skill (or the file itself):
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/lane-runs.sh" partition \
+  --window-tokens <lane model window> --fraction 0.25 --bytes-per-token 3.5 <rows
+```
+
+Plugins stay atomic: whole plugins pack into a lane up to the budget, and only a plugin whose
+surface text exceeds the budget splits, by skill, into lanes of its own. Each `split=<plugin>:<n>`
+line the script prints goes on the Phase D cost line, and an `over_budget=` line (a single skill
+larger than the budget, still one lane) is named there too. Lane ids are a function of the
+partition, and the partition's digest is part of every lane's input digest.
+
+Bound concurrency to 3 to 5 lanes at a time. Before the total dispatch count (lanes plus Phase C
+verifiers) would exceed ~20, confirm with the user; with `--unattended`, proceed instead and let the
+Phase D cost line disclose the planned and actual dispatch counts in place of the confirmation.
+
+### Run files and resume
+
+Each run lives under
+`${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/`, the run id a UTC
+`YYYYMMDDTHHMMSSZ` stamp, and each lane writes its report to `lanes/<lane-id>.md` there.
+`last-audit.md` stays where Phase D puts it. The lease is audit-pass's `run-state.sh`, invoked with
+`--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions` so its containment pin holds:
+`paths` names the run directory, `lease acquire` starts the run, `lease heartbeat` runs as each
+lane's report lands, and `lease release` writes the tombstone at the end. The skill is read-only,
+so it takes a lease and no lock.
+
+Every lane carries an **input digest** from `lane-runs.sh digest`: the lane's ordered file list with
+content hashes, the partition digest, and one `--param` for each of `catalog_version` (the
+`version:` in `reference/criteria.md`), `conflict_criteria_version` (the `Version:` in
+`reference/conflict-criteria.md`), `prompt_digest` (a sha256 of the lane brief with its surface
+list removed), `harness_version` (`claude --version`), `target_model` (the resolved target),
+`scope`, `opinion`, and `no_stopping_condition`. The script refuses a digest missing any of them.
+The lane brief hands the lane the exact last line its report must end with, from
+`lane-runs.sh marker --lane <id> --digest <digest>`; a report without it as its last non-blank line
+is incomplete.
+
+With `--resume`, pick the run with `lane-runs.sh latest --runs-dir <plugin-data>/audit-instructions/runs/<state-key>`,
+then `lane-runs.sh attach --run-dir <run-dir>`. Exit 4 means a live lease holds the run: stop and
+report the `heartbeat_at` and `stale_after_s` it names, and never attach. Otherwise adopt it with
+`lease acquire --epoch <next_epoch>`, recompute every lane's digest, and feed `<lane-id>\t<digest>`
+rows to `lane-runs.sh plan --run-dir <run-dir>`: dispatch only the `rerun` lanes and read the
+`reuse` lanes' reports from disk. A changed input anywhere in the digest re-runs every lane it
+touches, and a changed partition re-runs them all. With no prior run, `--resume` says so and starts
+a new one.
+
+The standing execution model and the report identity contract are recorded together in
+[context/execution-and-report.md](context/execution-and-report.md). Lane sizing, resume, and the
+lease stay in this section and `scripts/lane-runs.sh`; that file states the two contracts so a
+later change to either lands in one place.
 
 A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
 plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
@@ -315,10 +381,15 @@ Then summarize in chat. The report header carries a **cost line**: how many chec
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
 the estimated per-surface token delta versus the previous catalog version **for this project**, and
 the dispatch count, planned and actual (lanes plus Phase C verifiers), stating whether the
-~20-dispatch confirmation was asked or, because the caller declared the run unattended, disclosed
-here in its place. It also confirms the run added zero new interactive gates (report-only contract
+~20-dispatch confirmation was asked or, because the run carried `--unattended`, disclosed here in
+its place. It names the lane budget (tokens and the derived line figure), every plugin the
+partition split by skill and into how many lanes, any over-budget skill, and on a `--resume` how
+many lanes were reused and how many re-ran. It also confirms the run added zero new interactive gates (report-only contract
 unchanged; the target-model fail-loud stop is an invocation-time validation abort, not an
-interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table:
+interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table.
+Each row's identity is `(check, claim, sites)` per
+[context/execution-and-report.md](context/execution-and-report.md); presentation fields stay
+outside the hash. An I15 conflict is one finding with two sites.
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|

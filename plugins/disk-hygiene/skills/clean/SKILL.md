@@ -50,8 +50,8 @@ Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, op
 `--quiet`, optional
 `--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
-`--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
-subcommands) are supplied by this skill's command templates, not typed by the user.
+`--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and `--vcs-evidence` on
+the other subcommands) are supplied by this skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform, the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. A message the user sends
 in this session after the audit report, explicitly asking to remove findings ("go", "execute
@@ -67,20 +67,23 @@ both modes, so read per-child detail and the coverage gaps there and pass `--qui
 whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
-`--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
-it never walks that root recursively. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate directories (OS-owned, hidden,
-system, reparse, mount, protected-shell-folder, and non-directory entries are withheld). With one
-or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
-root-children row, it audits only those admitted children into one snapshot. A general "clean
-everything" is not selection. With no target, ask once. Reject an
-OS-managed root (unless `--root-children`), a non-root mount target, a protected shell-folder root
-or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
-is not OS-managed (a Windows Dev Drive) is a valid target, but
-as a known-large root it is gated like a home target (see step 1): the scan returns
+`--root-children` is how to fan out without walking a whole home or OS-managed volume root (for
+example `C:\Users\<user>` or `C:\`): <!-- portability-ok: placeholder angle bracket in a path example, not a shell redirection --> it never walks the parent recursively. Without `--root-child`
+names the engine returns `root-children-selection-required` listing admitted immediate
+directories (on a volume root, OS-owned, hidden, system, reparse, mount, protected-shell-folder,
+and non-directory entries are withheld; on a non-volume target such as a home directory,
+dot-prefixed profile folders are admitted). With one or more explicit `--root-child <name>` flags,
+after the human clears the confirmation gate's root-children row, it audits only those admitted
+children into one snapshot. A general "clean everything" is not selection. With no target, ask once.
+Reject an OS-managed root (unless `--root-children`), a non-root mount target, a protected
+shell-folder root or descendant, a missing directory, a symlink, or a Windows reparse point. A
+whole-volume root that is not OS-managed (a Windows Dev Drive) is a valid target, but as a
+known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
-`--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
-target; scan those without the flag. `root-children-selection-required` and
+`--confirmed-large-scan`. `--root-children` on a volume root is only valid when that root is
+OS-managed; on other targets use it directly against the home (or subtree parent) path. After a
+depth-1 home pass, re-run with `--root-children` and each approved top-level directory name to
+inventory that subtree for `handoff-verify` without a whole-home walk. `root-children-selection-required` and
 `large-target-confirmation-required` name the next step, not a failure, so `scan` exits 0 for them
 and `status` carries the distinction. A non-zero `scan` exit is a real failure: 2 for an invalid or
 blocked target, 3 when elevation is needed or filesystem state could not be verified.
@@ -266,6 +269,14 @@ walked directory whose `logical_size` is `0` with an empty `size_qualifiers` is 
 while a `logical_size` of `null` carrying the `not-walked` qualifier is an uninventoried coverage gap. Never
 fold the first into a byte-centric roll-up that drops it, and never read it as the second.
 
+Those ranking preferences stay a model instruction. The engine does not grow a ranking signal on
+the destructive surface.
+**Claim:** ranking by tier, location sensitivity, and provenance strength is not an engine
+primitive; the provenance mandate does not rest on a coded ranker. **Basis:** operator park
+2026-09-27 on #3858 (keep attended, stay parked): ranking on a deletion-adjacent surface is a
+design question, not a missing sort key. **As of:** 2026-09-28. **Recheck:** an operator unpark
+of #3858, or a documented case where byte-size ranking caused a wrong deletion offer.
+
 **Lead the frontier with `children_rollup`.** The snapshot carries one row per immediate child the run covered, whatever
 that child's coverage, and `walked` is the single discriminator: `true` means every aggregate is exact; `false` means
 they are all `null` with `unwalked_reasons` naming the cause, never `0`, never a partial subtree sum. Rank on
@@ -341,6 +352,13 @@ handles from current state rather than trusting snapshot annotations. It also pr
 directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
+`outcome` names where the preview routes you, and the exit code follows it: `explicit-approval`
+(status `ready-for-explicit-approval`, exit 0); `manual-handoff-lane` (status `blocked`, exit 0),
+when every blocker on every candidate is `execution-platform-unsupported`, a fact about the host
+rather than any path; and `blocked` (exit 3), when any other blocker is present, including beside
+the platform one. Invalid input exits 2. `manual-handoff-lane` issues no approval token, and
+`apply` still refuses it.
+
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
 it is, why removable, risk, whether it is an empty directory, the single tier, and only then logical
 / reclaimable bytes, plus the preview's approval token, then pass the
@@ -380,8 +398,9 @@ so the engine never deletes there and the default outcome is the report. When, a
 an execution request was made on one of those platforms and the human approved an exact single-tier
 path list in this session, read
 [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the `handoff-paths.json` shape, the per-path revalidation, and the hook belt that
-outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
+it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
+revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
+lane from the engine steps above.
 
 ## Gotchas
 
@@ -389,7 +408,7 @@ Harness mechanics live in one copy, in the safety model, so a fix there cannot l
 restatement behind here. Load [the safety model](reference/safety-model.md) when you need
 them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
 what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
-and the residual fail-open → "Hook launch form".
+and what the guard does when no Python resolves → "Hook launch form".
 
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.

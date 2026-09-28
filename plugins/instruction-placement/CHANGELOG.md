@@ -3,6 +3,28 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.9] - 2026-09-28
+
+### Changed
+
+- **CI-canary host parked (#4282).** `melodic-software/claude-lane-sandbox` stays
+  archived; this marketplace does not grow a `claude-code-action` canary
+  workflow. Cutover condition 2 continues to rest on the knowledge-corpus run
+  already recorded in `reference/sources.md`. A maintainer who wants the two-pin
+  three-case matrix runs it on a host they choose and replaces that run id.
+
+## [0.15.8] - 2026-09-28
+
+### Fixed
+
+- **`index-drift` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory PostToolUse hook that dies of a hard error used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`instruction-placement index-drift: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
+## [0.15.7] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.15.6] - 2026-09-27
 
 ### Changed

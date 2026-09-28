@@ -40,6 +40,20 @@
         "Verifies the resolved memory root self-ignore and announces any creation",
         "Re-running does not rewrite an equivalent configuration"
       ]
+    },
+    {
+      "id": 4,
+      "name": "offers-gate-allow-rules-and-refreshes-stale-ones",
+      "prompt": "/discovery:setup apply\n\nThe research gates keep prompting me every run. My ~/.claude/settings.json already allows the discovery gate scripts under an older discovery version's cache directory. Yes, add whatever rules are needed.",
+      "expected_output": "Check reports the gate allow rules as stale, naming the older root, and never as a FAIL. Apply offers the six direct-path rules for this install root (quoted and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers, each with a trailing ` *`), and on the user's yes adds the missing ones and removes only the stale gate rules, keeping every other key and rule in the settings file. It re-reads the file to confirm, and says the rules pin this version so a later update needs another apply. It does not write a version wildcard such as `.../discovery/*/scripts/...`.",
+      "files": [],
+      "expectations": [
+        "The check row for gate allow rules is INFO stale (naming the older root), not FAIL",
+        "The rules written name this install's plugin root directly and cover all three gate scripts in quoted and unquoted forms",
+        "No rule wildcards the version segment of the path",
+        "Only the stale gate rules are removed; every other permission rule and settings key survives",
+        "The file is re-read after the write, and the summary says to re-run apply after a plugin update"
+      ]
     }
   ]
 }

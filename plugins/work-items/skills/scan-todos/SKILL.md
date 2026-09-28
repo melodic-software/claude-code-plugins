@@ -1,5 +1,5 @@
 ---
-description: "Sweep the codebase's source comments, not tracker items, for actionable markers (TODO/FIXME/HACK/XXX) and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. NOT the encouraged workflow for new work. Durable work belongs in the tracker at authoring time; prefer a commit-time hygiene gate. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:decompose (plan → tickets)."
+description: "Sweep source comments, not tracker items, for TODO/FIXME/HACK/XXX markers and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. Not the workflow for new work: durable work belongs in the tracker when it is written. Tracker items go to /work-items:track."
 argument-hint: "[--path <dir>] [--work]. Sweep TODO/FIXME/HACK/XXX markers"
 user-invocable: true
 disable-model-invocation: false
