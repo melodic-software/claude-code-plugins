@@ -1,6 +1,6 @@
 ---
 description: "Slowness diagnostic that never 'fixes', run while Claude Code is slow, before restarting or deleting: version, retention sweep, install bloat, hook and subagent fan-out, and a Windows kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues."
-argument-hint: "[--root <path>] [--session-id <id>] [--note <fact>]"
+argument-hint: "[unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -273,6 +273,12 @@ Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the
 per-keystroke render cost), and every entry in `timings_seconds` (a slow phase names a slow
 subsystem).
+
+## Run-end suggestion
+
+Shared `/doctor` surface facts live in [audit-install-state's Boundary section](../audit-install-state/SKILL.md#boundary-the-bundled-doctor-skill). If /doctor is available in your session (gate basis in that section), run it for the quick health-and-fix pass this timed capture does not perform.
+
+**`unattended`:** record the suggestion in the report's final section; do not ask.
 
 ## Gotchas
 

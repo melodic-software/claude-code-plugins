@@ -1,6 +1,6 @@
 ---
 description: "When the built-in skill-doctor command resolves in your session, prefer it for cost; when the bundled doctor skill resolves in your session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
-argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [budget flags]"
+argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [budget flags]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,9 @@ metadata:
   summary: Which skills the model can actually see, which are starved, and which are unobservable
   cadence: weekly
 ---
+## Run-start suggestion
+
+If /skill-doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
 **Arguments.** `[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [budget flags]`. Full form: [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
@@ -381,6 +384,12 @@ user act.
 environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
 gate; this section states what to do when one resolves, never that it is present. The four-part
 records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+
+## Run-end suggestion
+
+If /doctor is available in your session (gate basis: [reference/bundled-doctor.md](reference/bundled-doctor.md)), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
+
+**`unattended`:** record both suggestions in the report; do not ask.
 
 ## Gotchas
 

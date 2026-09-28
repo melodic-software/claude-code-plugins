@@ -18,7 +18,7 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 end_of_line = lf
 
-# Markdown — trailing whitespace is significant (two trailing spaces = a hard
+# Markdown: trailing whitespace is significant (two trailing spaces = a hard
 # line break); indentation is variable per CommonMark.
 [*.{md,markdown}]
 trim_trailing_whitespace = false
@@ -28,13 +28,13 @@ indent_size = unset
 [*.{json,jsonc,yml,yaml,toml}]
 indent_size = 2
 
-# JavaScript / TypeScript — 2-space, matching the shared Biome formatter policy
+# JavaScript / TypeScript: 2-space, matching the shared Biome formatter policy
 # (the single owner of JS/TS formatting). IndentSize is disabled in the checker,
 # so this is an editor hint that keeps editors aligned with Biome.
 [*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}]
 indent_size = 2
 
-# Go — gofmt is the sole formatter and indents with tabs, so the space default
+# Go: gofmt is the sole formatter and indents with tabs, so the space default
 # does not apply; indent enforcement is disabled here and deferred to gofmt
 # (mirrors the JS/TS deferral to Biome).
 [*.go]
@@ -45,19 +45,19 @@ indent_size = unset
 [*.{sh,bash}]
 indent_size = 2
 
-# Windows batch — cmd.exe requires CRLF.
+# Windows batch: cmd.exe requires CRLF.
 [*.{cmd,bat}]
 end_of_line = crlf
 
-# Git config — git writes (and idiomatically uses) tab indentation under each
+# Git config: git writes (and idiomatically uses) tab indentation under each
 # section, so the space default does not apply. Covers the plain file, gitconfig
 # includes, and chezmoi-style source forms (dot_gitconfig, dot_gitconfig.tmpl).
 [{.gitconfig,*.gitconfig,dot_gitconfig*}]
 indent_style = tab
 
-# Lockfiles — generated; suppress formatting enforcement. packages.lock.json is
+# Lockfiles: generated; suppress formatting enforcement. packages.lock.json is
 # NuGet's lock file (written by restore with platform line endings and no final
-# newline — hence end_of_line is unset too; .gitattributes still normalizes the
+# newline, hence end_of_line is unset too; .gitattributes still normalizes the
 # committed bytes to LF).
 [{package-lock.json,packages.lock.json,*.lock}]
 end_of_line = unset
