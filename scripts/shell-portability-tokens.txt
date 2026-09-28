@@ -543,6 +543,29 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `"&"`, `'&'`, and the deletion form `${var//pat}`), and its known limits.
 !subst-replacement-ampersand
 
+# --- RUNTIME-PROBED (no token; `--awk-probe`) ---
+#
+# `awk -v name="$shellvar"` where the value can carry a backslash, a regex
+# above all. POSIX runs escape processing on a `-v` value, and the
+# implementations part on an escape they do not define: gawk warns and
+# drops the backslash, mawk keeps it. `\]\([^)]*$` reaches
+# gawk as `]([^)]*$` and gawk dies on the unmatched paren, while mawk runs the
+# script as written. A doubled backslash is halved and `\t` becomes a TAB on
+# every implementation. Pass such a value as `NAME="$shellvar" awk '...
+# ENVIRON["NAME"] ...'`, which every awk reads byte for byte.
+#
+# It is not a token because the hazard is in the VALUE, which lives in a shell
+# variable rather than on the scanned line: a pattern on `-v name="$..."` flags
+# ~150 sites that pass plain values and still cannot tell which one holds a
+# regex. It shipped twice (the emit-gate.sh comment records the first; #4143
+# the second, in apply-rename.sh, green under mawk and red under gawk on every
+# runner). The check is behavioral instead:
+#
+#   scripts/check-shell-portability.sh --awk-probe <suite.test.sh>...
+#
+# runs each suite once per distinct awk on PATH and fails on a suite whose exit
+# status differs between them. See scripts/lib/awk-probe.sh.
+
 # --- STAGED (commented until enabled) ---
 #
 # No class is staged today: `date -d` and `stat -c` went active in #1544 and

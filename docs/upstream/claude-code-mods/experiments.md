@@ -308,8 +308,8 @@ the value returned by `next(e)`, received in plaintext on the first prompt of th
 model was called:
 
 - **Every instruction file's full text**, as an `instructionFiles[]` array carrying each file's
-  absolute path, its `kind`, and its `content` (the text as loaded, with comments and frontmatter already
-  stripped). In that run the array held four entries: the **user's private global `CLAUDE.md`** at
+  absolute path, its `kind`, and its `content`, which is the text as loaded, comments and frontmatter already
+  stripped. In that run the array held four entries: the **user's private global `CLAUDE.md`** at
   kind `user` (5,957 characters), two project-scope files from the repository the session was near
   (one of them a rules file pulled in by a parent instruction file rather than named directly), and
   the working directory's own `CLAUDE.md`.
@@ -421,7 +421,7 @@ mkdir -p "$P/e6a-node/.claude-plugin" "$P/e6a-node/hooks" \
 
 The probe bodies, one statement each so the arm measures the mechanism and not the work.
 `$P/e6a-node/hooks/probe.js` is `process.stdout.write('{}');` and `$P/e6b-bash/hooks/probe.sh` is
-`echo '{}'`. Neither needs an exec bit; both are invoked through their interpreter. Inside this
+`echo '{}'`. Neither needs an exec bit. Both are invoked through their interpreter. Inside this
 repository the `guardrails` plugin refuses shell file-writes, so create all six files with the
 editor or the Write tool.
 

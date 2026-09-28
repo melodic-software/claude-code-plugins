@@ -2,6 +2,27 @@
 
 Recipes and rationale behind the bars stated in the research skill's SKILL.md body, plus failure patterns observed in real sessions.
 
+## Contents
+
+- [Source tiers (canonical for this plugin)](#source-tiers-canonical-for-this-plugin)
+- [Source-tier ratio (per claim)](#source-tier-ratio-per-claim)
+- [Recency gate (for libraries, tools, CLIs, APIs)](#recency-gate-for-libraries-tools-clis-apis)
+- [Falsification step (mandatory Phase 2 query)](#falsification-step-mandatory-phase-2-query)
+- [Broad-topic auto-detect](#broad-topic-auto-detect)
+- [Effort, source breadth](#effort-source-breadth)
+- [Query scaling: floors are not targets](#query-scaling-floors-are-not-targets)
+- [Per-gap fan-out (Phase 2)](#per-gap-fan-out-phase-2)
+- [Corpus enumeration (Phase 0 recipe)](#corpus-enumeration-phase-0-recipe)
+- [Tool-ecosystem Phase 3 fallback](#tool-ecosystem-phase-3-fallback)
+- [Read-only `gh` forms](#read-only-gh-forms)
+- [Primary-source-first protocol](#primary-source-first-protocol)
+- [Machine-readable doc-index discovery](#machine-readable-doc-index-discovery)
+- [Source-quality red flags](#source-quality-red-flags)
+- [Graceful degradation (missing tools)](#graceful-degradation-missing-tools)
+- [Confidence calibration](#confidence-calibration)
+- [Joint-inference check](#joint-inference-check)
+- [Observed failure patterns](#observed-failure-patterns)
+
 ## Source tiers (canonical for this plugin)
 
 | Tier | Source | Counts as |
@@ -96,6 +117,37 @@ The per-phase minimums (3+ standard, 6+ broad-topic) are floors to start from, n
 | Phase 4 | one per still-open gap or LOW-confidence claim, until all reach HIGH |
 
 Depth scales to the topic's actual open-question surface, not to a higher flat floor. A simple topic with 3 gaps runs ~3 Phase 2 queries; a gnarly one with 9 gaps runs 9.
+
+## Per-gap fan-out (Phase 2)
+
+A single topic with many gaps otherwise runs them one after another against one worker's turn
+limit. `/discovery:research-deep` splits only topics that share no claims, so gaps that share a
+source stay in one run by design. This step is where those gaps fan out.
+
+**When.** All three hold: the dispatch prompt says `Capability flags: nested spawning available`,
+the `Agent` tool is actually present, and the Phase 1 list (or the brief) carries 3 or more
+numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
+
+1. **Group, then assign.** Gaps that point at the same primary go to one worker; every other gap
+   gets its own. Cap the fan-out at 5 workers, grouping further past that. Done when every numbered
+   gap has exactly one worker.
+2. **Brief each worker to gather, not to judge.** Use a generic subagent, not another
+   `discovery:researcher`, whose preload would rerun the whole discipline under its own 40-turn
+   limit. The brief carries its gap numbers and text verbatim, the leading hypothesis, the target
+   version, the source categories to try, and the fetch recipe under "Primary-source-first
+   protocol", with `<scratch>` set to a directory inside this run's memory slice. It returns, per
+   gap, each source's URL, its on-disk artifact path, the quoted span, and what the source measures.
+   It returns no verdict. Done when every worker is dispatched in one turn.
+3. **Keep the falsification query yourself.** It tests the leading hypothesis the whole run rests
+   on, so it never goes to a gap worker.
+4. **Merge, then confirm.** Append each worker's fetches to the fetch log. A worker's return is
+   Tier 3 until you confirm it (see "Subagent return = Tier 3 by default"): read each cited primary's
+   on-disk artifact yourself before counting it as Tier 0/1. Done when every cited primary is
+   either confirmed or recorded as unconfirmed.
+5. **An empty return leaves the gap open.** A worker that found nothing for a gap leaves that gap
+   in the Phase 2 output; the merge never closes a gap its worker did not answer.
+
+Phases stay sequential ("Phases must be sequential" below); this is parallelism inside Phase 2.
 
 ## Corpus enumeration (Phase 0 recipe)
 
@@ -271,7 +323,7 @@ A claim whose primary measures a different variable, a different population, a d
 - **Synthesis tools give wrong versions.** AI-synthesis tools routinely assert wrong version numbers and hallucinate canonical conventions (a config path that "is canonical" but isn't). Always verify version-specific features empirically (`gh api repos/<owner>/<repo>/releases/latest`, an actual import/call test). Never trust secondary sources for version claims. A single direct fetch of the canonical doc falsifies this class.
 - **Agent consensus can be unanimously wrong.** Multiple subagents agreeing is one source, not N, because they share training priors. Verify claims empirically before shipping, especially env-var / tool-behavior claims.
 - **Two sources can both be wrong.** Two sources parroting the same incorrect information is common. Count INDEPENDENT primary sources, not citation count.
-- **Phases must be sequential.** Phase 2 MUST analyze Phase 1 results before launching. Running all phases in parallel produces redundant queries that miss the gaps Phase 1 would have revealed.
+- **Phases must be sequential.** Phase 2 MUST analyze Phase 1 results before launching. Running all phases in parallel produces redundant queries that miss the gaps Phase 1 would have revealed. Parallelism inside a phase is a different thing and is expected: see "Per-gap fan-out (Phase 2)".
 - **No parallel MCP calls to the same stdio server.** stdio transport serializes. Run queries sequentially within a server; parallelize across different servers/tools.
 - **Subagent return = Tier 3 by default.** Even when a subagent's prompt mandates citation, the return is synthesis. Cited primary sources inside the return promote to Tier 1 once fetched/confirmed; bare claims stay Tier 3.
 - **Cached doc URLs from prior turns are Tier 3, not Tier 1.** A fetch result from months ago that's now in the model's assumption set has aged out. Re-fetch on every research pass for the topic.

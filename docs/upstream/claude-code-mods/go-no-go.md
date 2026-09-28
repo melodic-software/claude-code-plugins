@@ -202,7 +202,7 @@ Expected today: `{"closedAt":null,"state":"OPEN","stateReason":""}`.
 **Met when:** `state` is `CLOSED` **and** the local reproduction in
 [experiments.md](experiments.md) (E2) no longer reproduces. Both halves are required, because
 **closed does not prove fixed**: a `stateReason` of `not_planned` closes without a fix, and a
-`completed` close can be against macOS (where the issue was filed) while Windows still breaks. Run
+`completed` close can be against macOS, where the issue was filed, while Windows still breaks. Run
 E2 against a throwaway git repository, never a real one.
 
 Risks: the hazard is a green `gh` line with no reproduction run. An unauthenticated `gh` returns an
@@ -306,7 +306,7 @@ only**. About a minute. Owned by whoever bumps the pin.
 
    Pin-time: `2.1.278 (Claude Code)`; npm `latest` published 2026-09-19T01:48:59Z; release
    `v2.1.278` published 2026-09-19T03:10:40Z. The installed `claude` and the pin being bumped are not
-   necessarily the same version; record both.
+   necessarily the same version, so record both.
 2. Build the test mod, or reuse `$P` from an earlier run in the same session.
 3. Criterion 1, unset arm plus the positive control.
 4. Criterion 2, the documentation greps and the changelog grep.
@@ -336,7 +336,7 @@ Record the run whatever the outcome. A no-go that is not written down gets re-de
 **A flip to go does not lift the three guard-conversion conditions in ADR 0035; it reopens them.**
 A go verdict says a consumer who installs one of this repository's plugins gets a working mod without
 setting an undocumented variable, which is a distribution question. The three conditions ask whether
-a *guard* (a hook whose whole job is to refuse) is as strong as the classic command hook it
+a *guard*, a hook whose whole job is to refuse, is as strong as the classic command hook it
 replaces, and a guard written as a mod is fail-open on throw and on overrun unless it attaches
 `.catch(() => ({ deny }))`. Evaluate them on their own evidence. Two structural misfits survive a go
 verdict and are in no criterion: a mod cannot take per-repository configuration, because a project's

@@ -39,16 +39,17 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 
 ## 4. SSOT / DRY / drift
 
-- Does the same fact (a regex, a convention, a path) live in multiple hand-maintained places? Name
-  the single origin. A plugin config that *mirrors* a consuming repo's own instructions or hooks is
-  a drift risk unless one derives from the other.
-- Prefer a decoupled, tool-agnostic single source of truth that multiple consumers point at over a
-  per-tool copy. For machine-readable-yet-human-first data, a small flat-scalar YAML beats
-  frontmatter-in-markdown (brittle for shell) and beats a tool-specific config that traps the value
-  in a language (e.g. a regex inside a JS parserPreset a shell hook can't read).
-- Where a contract file explicitly declares an inline-floor rule (consumers copy named values
-  verbatim), check the copies actually match. Byte-identity drift between a writer's contract and
-  a consumer's inlined constants is a silent split-brain.
+- **Detection cue (this checklist only):** does the same fact (a regex, a convention, a path) live
+  in multiple hand-maintained places within this component? Name each duplicate site and the owner
+  you believe should hold the value.
+- **Doctrine owner:** when the fix is extract-or-point, not a plugin-local judgment call, route to
+  `/docs-hygiene:extract-ssot` when installed (Rule of Three, remedies, and the extraction workflow).
+  When the duplicated value is a plugin-shipped constant or config field, also read **One owner per
+  value** in `docs/plugin-philosophy.md`. Restatement across instruction surfaces (skills, agents,
+  rules) is `/claude-config:audit-instructions` territory when that plugin is installed.
+- **Inline-floor contracts:** where a contract file declares consumers copy named values verbatim,
+  check the copies actually match. Byte-identity drift between a writer's contract and a consumer's
+  inlined constants is a silent split-brain.
 
 ## 5. Coupling & portability
 

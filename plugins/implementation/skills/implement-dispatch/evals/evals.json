@@ -117,6 +117,20 @@
         "Names commit authority orchestrator, declared in the briefs rather than inferred, as the only way to run both rows at once in that worktree",
         "Does NOT provision a per-row worktree or split the phase's briefs to manufacture parallelism"
       ]
+    },
+    {
+      "id": 10,
+      "name": "wave-fences-composed-disjoint-before-dispatch",
+      "prompt": "/implementation:implement-dispatch phase-3 — autonomous run, commit authority orchestrator in one assigned worktree. Phase 3 has three worker rows: row A may edit src/order/*.py, row B may edit src/order/intake.py and src/pricing/*.py, row C may edit tests/order/*.py. Compose the briefs and dispatch the wave.",
+      "expected_output": "Before dispatching any row, the orchestrator composes the three ALLOWED sets together and finds that rows A and B both allow src/order/intake.py. Overlapping rows do not go out as one wave: it narrows the fences so they are disjoint by file path, or runs the overlapping rows in sequential waves. Each dispatched row's FORBIDDEN list carries the paths the other rows of its wave own, so a touch on a sibling's path trips the divergence-escalation clause. The briefs list paths only, never which row or worker owns them.",
+      "files": [],
+      "expectations": [
+        "Detects that rows A and B both allow src/order/intake.py before dispatching any row",
+        "Does NOT dispatch A and B in the same wave with overlapping ALLOWED sets; narrows the fences to disjoint paths or runs them in sequential waves",
+        "Adds each same-wave sibling's owned paths to every row's FORBIDDEN list",
+        "Measures disjointness on the file path written, not on which worktree the row writes from",
+        "Lists paths in each brief without naming which row or worker owns them"
+      ]
     }
   ]
 }

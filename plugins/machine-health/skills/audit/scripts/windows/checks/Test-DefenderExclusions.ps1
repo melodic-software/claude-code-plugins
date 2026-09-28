@@ -62,9 +62,12 @@ try {
                 -ErrorMessage 'Defender preference API not accessible.' `
                 -AdminFields $adminFieldList
         } else {
-            $paths = @($pref.ExclusionPath)
-            $exts = @($pref.ExclusionExtension)
-            $procs = @($pref.ExclusionProcess)
+            # With no exclusions, Get-MpPreference returns $null (not @()) per
+            # property, and @($null) is a one-element array that would count
+            # as one "unexpected" path. Blanks go the same way.
+            $paths = @($pref.ExclusionPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            $exts = @($pref.ExclusionExtension | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            $procs = @($pref.ExclusionProcess | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
             $unexpectedPaths = @($paths | Where-Object {
                     $p = $_
