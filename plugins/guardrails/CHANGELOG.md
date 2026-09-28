@@ -3,6 +3,101 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1] - 2026-09-27
+
+### Fixed
+
+- **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
+  ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
+  command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
+  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)), so a long enough command passed every
+  guard on the row unchecked. On `main` the row took 7.23 s for a 10 KB heredoc and 12.6 s for 16 KB, and a
+  ~70 KB one was still running at 120 s. Now it takes 132 ms, 203 ms and 64 ms.
+  - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
+    which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
+    blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
+    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
+    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
+    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
+    `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
+    shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
+  - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is
+    recorded and replayed to the other five, `HOOK_SEG_*` arrays included. A parse that a guard cut short with
+    `exit` is not kept, and a callback's re-parse of a substring is never cached.
+  - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
+## [0.38.0] - 2026-09-27
+
+### Changed
+
+- **`block-hook-bypass` prints what the blocked agent can act on, and nothing else**
+  ([#4679](https://github.com/melodic-software/claude-code-plugins/issues/4679)). A block printed about
+  1,400 characters on stderr: the verdict, the Write/Edit remedy, advice to write under
+  `block_hook_bypass_scratch_roots`, the operator lever list, and a scope note listing the write forms
+  the guard does not inspect. The agent cannot use the lever list, the scratch-root advice was wrong on
+  the PowerShell and python lanes (neither consults a scratch root), and the scope note handed every
+  reader the list of unchecked forms. stderr is now:
+  - On the `cat`, `echo`/`printf` and staged-move lanes: the verdict; the Write/Edit remedy; one line
+    saying why the target was not scratch-exempt (a quoted or escaped target, a relative target after a
+    directory change or with no known cwd, a target holding `$`, a backtick, `~` or a glob, no root
+    configured and no project root, a temp-rooted project, a target outside every root, or one that
+    resolves outside it); the roots that exempt a bare target in this session, when any applies,
+    including the temp tree and the plugin data directory; and "If Write or Edit is refused for this
+    path, stop and tell the user; the operator can add a root with `block_hook_bypass_scratch_roots`."
+    The staged-move lane says "move destination" where the others say "target".
+  - On the PowerShell and python lanes: the verdict, the Write/Edit remedy, and "If Write or Edit is
+    refused for this path, stop and tell the user; this guard's switches are operator-only."
+  - On every lane, a last line pointing the operator at the guardrails README. It stays until a human confirms
+    interactively that an exit-2 `PreToolUse` `systemMessage` renders.
+- **The operator levers moved to one `systemMessage` per session and agent.** They were on stderr and on
+  a `systemMessage` on every block. The notice now fires on the first block of a (session, agent) pair,
+  latched by `hook::notice_once`, and this guard declines that latch's every-8 renewal. It lists the
+  levers narrowest first and says the guard is a deterrent over one command string, not a sandbox,
+  with the README as the list of what it does not inspect. `hook-utils.sh` is unchanged, so the other
+  guards' notices still renew. Without `jq` the guard allows before it could block, so the latch is not
+  spent on a run that never delivered it.
+- Exit code 2, the verdict text, the telemetry `form` strings and every pinned block are unchanged.
+
+### Fixed
+
+- **The "`systemMessage` is discarded on exit 2" claim is gone** from the README, the hook's comments and
+  its suite. The hooks reference says Claude Code "still reads any valid JSON output on stdout" on exit
+  2, and lists `systemMessage` as a "Warning message shown to the user", with no `PreToolUse` exception
+  ([hooks: Exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), fetched 2026-09-27).
+  `docs/conventions/hook-observability/README.md` is corrected to match and admits this notice to its
+  carve-out list.
+
+## [0.37.3] - 2026-09-27
+
+### Fixed
+
+- **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
+  ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
+  command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
+  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)), so a long enough command passed every
+  guard on the row unchecked. On `main` the row took 7.23 s for a 10 KB heredoc and 12.6 s for 16 KB, and a
+  ~70 KB one was still running at 120 s. Now it takes 132 ms, 203 ms and 64 ms.
+  - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
+    which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
+    blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
+    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
+    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
+    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
+    `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
+    shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
+  - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is
+    recorded and replayed to the other five, `HOOK_SEG_*` arrays included. A parse that a guard cut short with
+    `exit` is not kept, and a callback's re-parse of a substring is never cached.
+  - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
+
+### Changed
+
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+
 ## [0.37.2] - 2026-09-27
 
 ### Changed

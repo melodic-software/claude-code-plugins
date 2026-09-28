@@ -80,14 +80,15 @@
     {
       "id": 7,
       "name": "wave-cap-argument-overrides-internal-default",
-      "prompt": "/implementation:implement-dispatch --wave-cap 2 — autonomous run, execute the approved plan; a phase routes eight parallelizable worker rows.",
-      "expected_output": "The passed --wave-cap 2 replaces the internal 3–5 default: concurrent dispatch waves are capped at 2 workers, so the eight rows run in waves of at most 2 rather than 3–5. With no --wave-cap the internal 3–5 default would stand instead; the argument is the single enforcement point for a caller-configured concurrency ceiling and does not otherwise change the dispatch cadence. A fractional cap (e.g. --wave-cap 2.5) is floored to whole waves (2), since a wave is discrete, and a value below 1 is treated as 1 — never a fractional or zero cap.",
+      "prompt": "/implementation:implement-dispatch --wave-cap 2 — autonomous run, execute the approved plan; a phase routes eight parallelizable worker rows with disjoint fences, and the plan declares commit authority orchestrator in one assigned worktree.",
+      "expected_output": "The passed --wave-cap 2 replaces the internal 3–5 default: a wave is a batch of that phase's worker rows, so at most 2 rows are in flight at once and the eight rows run as sequential waves of at most 2 rather than 3–5. The rows can share the assigned worktree only because the orchestrator is its only git writer; they keep disjoint fences, none stages, and the build/test gate runs after each wave settles. With no --wave-cap the internal 3–5 default would stand instead; the argument is the single enforcement point for a caller-configured concurrency ceiling and does not otherwise change the dispatch cadence. A fractional cap (e.g. --wave-cap 2.5) is floored to whole rows (2), and a value below 1 is treated as 1 — never a fractional or zero cap.",
       "files": [],
       "expectations": [
-        "Honors --wave-cap 2 as the concurrent-wave ceiling, capping at 2 workers rather than the internal 3–5",
-        "Runs the eight rows in waves bounded by the passed cap instead of the internal default",
+        "Honors --wave-cap 2 as the ceiling on worker rows in flight at once within the phase, capping at 2 rather than the internal 3–5",
+        "Runs the eight rows as sequential waves of at most 2 within the one phase, never starting a later phase's rows alongside them",
+        "Shares the assigned worktree only under the declared orchestrator authority: disjoint fences, no worker stages, and the build/test gate runs after each wave settles",
         "Treats the argument as the only change — the rest of the dispatch cadence (scope-fenced briefs, verify-returns, main-side build) is unchanged",
-        "Floors a fractional cap to whole waves and treats a value below 1 as 1 — never a fractional or zero concurrent-wave cap"
+        "Floors a fractional cap to whole rows and treats a value below 1 as 1 — never a fractional or zero cap"
       ]
     },
     {
@@ -102,6 +103,19 @@
         "Verifies the return against the uncommitted tree (status --porcelain including untracked entries, diff HEAD) and runs the build/test gate on it",
         "The orchestrator commits source and plan marks in one phase-boundary commit under its commit-subject gate and does not push before the plan's single push",
         "Does NOT treat a fence forbidding only a narrow action (for example force-push or opening the PR) as switching commit authority to orchestrator"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "worker-authority-rows-sharing-a-worktree-run-one-at-a-time",
+      "prompt": "/implementation:implement-dispatch phase-2 --wave-cap 3 — autonomous run; phase 2 routes two independent worker rows with disjoint fences, both editing in the item's one persisted worktree, and no brief declares a commit authority.",
+      "expected_output": "Commit authority is worker, the default for an absent field, so each row stages, commits, and pushes early in the shared worktree. One git writer per worktree binds under both authorities: the two rows dispatch one at a time (a wave of one in that worktree) even though --wave-cap 3 would allow three, with the second dispatched after the first returns. Running them concurrently would need commit authority orchestrator declared in both briefs, where the orchestrator is the only git writer. The skill does not split the worktree or provision a second one to get parallelism.",
+      "files": [],
+      "expectations": [
+        "Treats the absent commit-authority field as worker, and does not dispatch the two rows concurrently into the one shared worktree",
+        "Explains that --wave-cap 3 does not lift the one-writer-per-worktree rule: under worker, rows sharing a worktree run one per wave",
+        "Names commit authority orchestrator, declared in the briefs rather than inferred, as the only way to run both rows at once in that worktree",
+        "Does NOT provision a per-row worktree or split the phase's briefs to manufacture parallelism"
       ]
     }
   ]

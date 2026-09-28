@@ -3,6 +3,23 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5] - 2026-09-27
+
+### Added
+
+- **`check`: a stage-bearing skill with no successor section warns (check 27b).** Check 27 treated
+  every missing `## Next` as an INFO note, "fine for a terminal skill", so a skill whose
+  `metadata.workflow-stage` places it mid-sequence and which routes its successor only in prose read
+  the same as one with nothing after it. A `workflow-stage` of `explore`, `research`, `plan`,
+  `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` now warns. A skill
+  that already routes under a `Handoff`, `Routing`, `Integration`, or `Skill chaining` heading
+  (each matched as a case-insensitive prefix, because the fleet titles them several ways) keeps the
+  note. `contract` is excluded because interview, prd, and design route through the slice they
+  write. Measured on this marketplace's skills at the time of the change, the WARN fires on 29 of
+  72 stage-bearing skills. It stays advisory, so no PASS/FAIL verdict moves, and the advertised
+  twenty-six-check count is unchanged.
+- **README:** the `## Next` check gets its own entry in the check list, which had none.
+
 ## [0.24.4] - 2026-09-27
 
 ### Fixed

@@ -74,6 +74,12 @@ For the Claude Desktop / claude.ai account store (server-side, not local files),
 [context/desktop.md](context/desktop.md). Relevant to `status` and `purge` whenever the user
 wants to be stateless everywhere, not just in this repo.
 
+The `context/` files write each bundled script as `<skill-dir>/scripts/<name>.sh`, where
+`<skill-dir>` is this skill's directory: `${CLAUDE_SKILL_DIR}`. Put that path in place of the
+placeholder before running a command; a file read through the Read tool is not substituted, and
+the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT`. Basis: the plugins reference, "Where each
+variable resolves", verified 2026-09-27; recheck when that table adds supporting files.
+
 ## Gotchas
 
 - **Precedence**: `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (`=0` forces

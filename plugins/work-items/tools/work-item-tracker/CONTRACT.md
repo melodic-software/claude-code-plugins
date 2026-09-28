@@ -45,7 +45,7 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
   A plain `create-item` (title, body, labels, `--type`, repo) and `get-item` run on an older `gh`:
   `get-item` omits the native `--json` fields, so `parent_id` is `null`, `blocked_by_count`
   is `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
-  drops the 2.94 `gh issue create --type` flag and applies the coarse `type:` label. The lease trio (`claim`, `renew-lease`, `reclaim`) reads
+  drops the 2.94 `gh issue create --type` flag and applies the coarse `type:` label. The lease verbs (`claim`, `renew-lease`, `release`, `reclaim`) read
   assignees and comments only. `capabilities` never shells out. The dispatcher gates
   before dispatch.
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
@@ -183,8 +183,9 @@ user-global layer.
 ```text
 work-item-tracker.sh create-item --title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id>
-work-item-tracker.sh claim <id> [--ttl-hours <n>] [--session-id <s>]
+work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
+work-item-tracker.sh release <id> --lease-comment-id <n>
 work-item-tracker.sh reclaim <id>
 work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
@@ -192,6 +193,9 @@ work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
+
+`claim --ttl-minutes <n>` (0–59) **adds to** `--ttl-hours`, it never replaces it: `--ttl-hours 24
+--ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.
 
 `list-sub-items` enumerates a container's **direct** children as full normalized item objects
 (same envelope as `list-items`), each carrying the container as its `parent_id`. It is a RAW
@@ -332,6 +336,7 @@ Per-verb result objects:
 | `get-item` | normalized item object |
 | `claim` | `id, holder, acquired_at, renewed_at, ttl_hours, lease_comment_id, session_id` |
 | `renew-lease` | same as `claim` (with bumped `renewed_at`) |
+| `release` | `id, lease_comment_id, released` (bool), `reason` |
 | `reclaim` | `id, reclaimed` (bool), `reason` |
 | `link-blocks` | `id, blocked_by, linked: true` |
 | `add-sub-item` | `id, parent_id, linked: true` |
@@ -375,7 +380,7 @@ issue comment with a machine marker:
 ```
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
-  reclaim/back-off by adding `"superseded_at":"<ISO>"` to the JSON.
+  reclaim, back-off, or release by adding `"superseded_at":"<ISO>"` to the JSON.
 - A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours×3600 +
   (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
@@ -389,8 +394,8 @@ issue comment with a machine marker:
 - The **lease handle** (`lease_comment_id`, emitted by `claim`/`renew-lease`) is
   provider-specific: the GitHub adapter uses the lease comment's own id (external,
   not stored in the JSON); the local-markdown adapter has no external ids, so it
-  embeds a store-global `lease_comment_id` field in the marker JSON. `renew-lease`
-  addresses a lease by this handle either way.
+  embeds a store-global `lease_comment_id` field in the marker JSON. `renew-lease` and
+  `release` address a lease by this handle either way.
 
 Claim sequence (race-safe, same-identity aware):
 
@@ -403,6 +408,23 @@ Claim sequence (race-safe, same-identity aware):
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
 5. Emit the claim object.
+
+Release (early end of the caller's own lease): `release` supersedes a lease before its TTL
+elapses, so a session that has finished with an item hands it back at once instead of blocking
+every later claim, same-login ones included (claim step 4), until expiry. It acts only on a lease
+that is all of: on the addressed item, held by the authenticated login, and the item's active
+(newest non-superseded) lease. Anything else is refused with exit `7` and nothing is written: a
+cross-item handle, another login's lease, or a stale handle under a newer claim. The login check
+exists because lease handles are public (a GitHub comment id), and within one login the handle
+tells sessions apart, as for `renew-lease`. An already-superseded or expired lease is an
+idempotent no-op (`released: false`, exit `0`), because it already blocks nobody. A live lease is
+superseded in place (`released: true`). Release never touches assignees: the caller clears its
+own assignee through the adapter's assignee edit, and `/work-items:attend-queue` flips the role
+label, clears `@me`, then releases. The write carries the same TOCTOU caveat as reclaim's
+revalidation: GitHub's comment PATCH has no If-Match/CAS, so a concurrent writer can still
+interleave. The verb is capability-gated (`verbs.release`); an adapter that declares it `false`,
+or a manifest that predates it and has no key, exits `6`, and the caller falls back to waiting out
+the TTL.
 
 Reclaim (idempotent, run at session start, no scheduled sweep): when the latest lease is
 expired, check activity (non-lease comments since `renewed_at`; open cross-referenced
@@ -564,8 +586,11 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   reclaim's contract requires an activity check over coordination-surface signals
   (non-lease comments since `renewed_at`, open cross-referenced PRs) that a flat file
   store does not have. Invoking `reclaim` on this provider exits `6` with a stderr
-  message (the core gates on the manifest before dispatch). This is the sole
-  degradation; every other verb is fully supported. Because no reclaim clears an
+  message (the core gates on the manifest before dispatch). `release: false` is
+  likewise declared for now: superseding the lease here would still leave the stored
+  assignee, which this adapter's frontier projection clears only for an expired lease,
+  so the verb needs that projection extended before it ships. Every other verb is fully
+  supported. Because no reclaim clears an
   abandoned claim, `list-items` compensates offline: an item whose lease has expired
   is reported with an empty `assignees` (its effective post-expiry assignment), so
   the core frontier returns it to selection. `get-item` still reports the stored
@@ -613,7 +638,7 @@ tracker-published spec on a coordination provider, a `work-map` container lane
 
 The `jira` adapter binds a Jira Cloud project set behind the seam. It is **read/resolve-only
 by default** (issue #379 hard constraint): `get-item`, `list-items`, and `capabilities` are
-supported; `create-item`, `claim`, `renew-lease`, `reclaim`, `link-blocks`, `add-sub-item`,
+supported; `create-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`, `add-sub-item`,
 and `list-sub-items` are declared `false` in the manifest and exit `6` at the core capability
 gate: **no code path creates, claims, or mutates a Jira ticket by default.** Consequently
 `/work-items:work`, `track start`, and `list-frontier --parent` (which needs `list-sub-items`)
@@ -693,7 +718,8 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
 
 Linear, over its single GraphQL endpoint (`https://api.linear.app/graphql`). Full verb
 parity with the github adapter: reads, writes, the claim/renew/reclaim lease protocol,
-native sub-items, and dependency edges. Auth is a **personal API key** sent as the bare
+native sub-items, and dependency edges. The exception is `release`, declared `false` until its
+provider mapping is written. Auth is a **personal API key** sent as the bare
 `Authorization` value (no scheme word), the headless-appropriate credential, since OAuth
 needs an interactive grant no cloud agent can complete. Host is pinned to `.linear.app`.
 
@@ -739,7 +765,7 @@ consumer's own egress pin: Gitea is self-hosted, so there is no vendor domain to
 default), `allow_custom_domain`.
 
 Supported: `create-item`, `get-item`, `link-blocks`, `list-items`, `capabilities`.
-Capability-gated to exit `6`: the three lease verbs and both sub-item verbs. Gitea's issue has no
+Capability-gated to exit `6`: the four lease verbs and both sub-item verbs. Gitea's issue has no
 parent link, so `sub_items` is structurally false; leases are declared false because whether
 concurrent assignment is arbitrated cannot be settled without a live instance, and an emulated
 lease over last-write-wins loses races silently.

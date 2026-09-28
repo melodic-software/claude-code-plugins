@@ -23,12 +23,14 @@ Independent of severity, this records how sure the reviewer is that the finding 
 | `high` | Verified at the call site (data flow traced, file read, behavior confirmed) |
 | `medium` | Pattern match with partial verification |
 | `low` | Suspicious pattern, unverified |
-| `unscored` | The emitting surface reported no confidence. Absence of a score is NOT low confidence |
+| `unscored` | The emitting surface reported no confidence. Absence of a score is NOT low confidence; it is no claim at all |
 
-**Rank order: `high` > `medium` > `unscored` > `low`.** Ranking reads the axis in that order, which
-puts `low` BELOW an absent score: a surface that emits `low` to express uncertainty ranks its
-finding under one nobody reported. Emit `high` or omit the field. This file owns the order; every
-consumer that ranks on confidence reads it here rather than restating it.
+**Rank order: `high` > `medium` > `low` > `unscored`.** Ranking reads the axis in that order, which
+puts every labeled finding above an unlabeled one: a `low` label still records that the reviewer
+looked and what it saw, and an absent score records nothing. Label every finding with the value its
+evidence supports, `low` included. Omitting the field to avoid a `low` ranks the finding last, so
+honest uncertainty never costs a finding its place. This file owns the order; every consumer that
+ranks on confidence reads it here rather than restating it.
 
 ## Vocabulary
 

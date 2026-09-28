@@ -6,6 +6,7 @@
     "get-item": true,
     "claim": true,
     "renew-lease": true,
+    "release": true,
     "reclaim": true,
     "link-blocks": true,
     "add-sub-item": true,

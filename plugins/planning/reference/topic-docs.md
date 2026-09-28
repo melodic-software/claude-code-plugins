@@ -16,7 +16,7 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 
 | Artifact (writer) | Tier | Location (default) |
 |---|---|---|
-| `PRD.md` (`/planning:prd`) | Contract | `docs/topics/<topic-slug>/`, committed on the task branch |
+| `PRD.md` (`/planning:prd`) | Contract | `docs/topics/<topic-slug>/`, committed on the task branch and pruned before merge |
 | `PLAN.md`, holding the Brief (`/planning:interview`) and the Plan (`/planning:plan`) | Contract | same slice |
 | `design/`, ALL design artifacts, including the `design-threads.md` / `design-resolution.md` gate files (`/planning:design`, gated by `/planning:design-handoff`; gate files must travel with the branch) | Contract | `docs/topics/<topic-slug>/design/` |
 | `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/`, never committed |
