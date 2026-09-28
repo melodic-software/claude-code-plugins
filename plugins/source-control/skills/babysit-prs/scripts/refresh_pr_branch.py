@@ -10,25 +10,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-import babysit_lease as leases
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
     find_open_prs_for_head_ref,
     gh_json,
-    parse_repo_number,
     run_gh,
     view_pr,
 )
 from babysit_state import (
-    load_state,
-    require_pr_state,
-    resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
     state_path_for,
     write_state,
 )
+from guarded_mutation import begin_guarded_mutation, require_worker_lease
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     configure_stdio,
@@ -91,25 +87,6 @@ def disarm_auto_merge(repo: str, number: int) -> None:
         run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])
 
 
-def require_worker_lease(
-    args: argparse.Namespace,
-    state_dir: Path,
-    repo: str,
-    number: int,
-    *,
-    renew: bool = False,
-) -> None:
-    if not args.apply:
-        return
-    path = leases.lease_path(state_dir, "worker", f"{repo}#{number}")
-    with state_lock(path):
-        token = getattr(args, "lease_token", None)
-        if renew:
-            leases.heartbeat(path, token, None, leases.DEFAULT_WORKER_TTL_SECONDS)
-        else:
-            leases.require_owned_lease(path, token)
-
-
 def run(args: argparse.Namespace) -> dict[str, object]:
     state_dir = resolve_state_dir(args.state_dir)
     state_path = state_path_for(state_dir)
@@ -120,14 +97,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
 def run_locked(
     args: argparse.Namespace, state_dir: Path, state_path: Path
 ) -> dict[str, object]:
-    repo, number = parse_repo_number(args.pr)
-    key = f"{repo}#{number}"
-    require_worker_lease(args, state_dir, repo, number)
-    state = load_state(state_path)
-    pr_state = require_pr_state(state, key)
-    expected_head_sha = resolve_expected_head_sha(
-        str(pr_state.get("head_sha") or ""), args.expected_head_sha
-    )
+    opened = begin_guarded_mutation(args, state_dir, state_path)
+    repo, number, key, state, pr_state, expected_head_sha = opened
     if str(pr_state.get("mergeable") or "").upper() == "CONFLICTING":
         raise RuntimeError("snapshot classifies the PR as conflicting")
     if json_object(pr_state.get("branch_freshness")).get("state") != "behind":
