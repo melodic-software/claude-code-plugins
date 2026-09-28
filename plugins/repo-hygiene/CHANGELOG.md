@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.55] - 2026-09-28
+
+### Added
+
+- **`worktree-reconcile` dry-run report (#2931).** Inventories linked worktrees
+  and stashes and prints a `Proposed:` label. `review-remove` requires a clean
+  tree, a MERGED pull request, and a HEAD that matches the remote tip, because
+  squash-merge makes `merge-base --is-ancestor` unusable. The script does not
+  delete a worktree, branch, stash, or file. `--hold` marks a path substring
+  as a carve-out.
+
 ## [0.10.54] - 2026-09-28
 
 ### Changed
