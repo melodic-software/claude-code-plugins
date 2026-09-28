@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block a recursive delete whose TARGET is a filesystem root.
-# Triggered on Bash tool calls (a command string).
+# Triggered on Bash and PowerShell tool calls (a command string).
 #
 # THE GAP THIS CLOSES. Before 0.36.0 no guard in this plugin inspected the target of
 # a delete at all: `rm -rf` appeared only in the suites, as fixture cleanup, and
@@ -140,11 +140,15 @@
 #     harmless line, so kept on the refusal side.
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
-#   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
-#     hazard through the other shell and are NOT covered, for any of the target
-#     classes above. The guard exits on any tool_name other than Bash, which
-#     also keeps it out of the shared PowerShell classifier and its sink
-#     attempt budget. PowerShell is tracked separately.
+#   * PowerShell is covered for the same target classes as Bash, with its own
+#     tokenizer (not lib/powershell/ps-command.sh, so this guard stays off the
+#     classifier's sink-attempt budget). Matched: Remove-Item and its aliases
+#     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
+#     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
+#     rd /s and rmdir /s; a pipeline into Remove-Item -Recurse with no path.
+#     Still uncovered: Start-Process/iex wrapping a delete, a command word
+#     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
+#     (`pwsh -Command '...'`), and a here-string body.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
@@ -288,9 +292,10 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 PAYLOAD_CWD=""
 RDT_CWD_NUL=0
 
-# The PowerShell lane is a declared gap, and exiting here is what keeps this
-# guard off the classifier's load path entirely.
-[[ "$TOOL_NAME" == "Bash" ]] || exit 0
+# Bash and PowerShell only. Exiting on every other tool keeps this guard off
+# the classifier's load path. The PowerShell lane uses a dedicated tokenizer
+# below and does not call the shared classifier.
+[[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]] || exit 0
 
 # Nothing to inspect.
 [[ -n "$COMMAND" ]] || exit 0
@@ -397,6 +402,12 @@ rdt_block() {
       'An empty word here is almost always a path that failed to build, and the same command with the path filled in deletes something nobody named.' \
       'Fix: name the directory to remove explicitly, or drop the empty word.' >&2
     ;;
+  pipeline-target)
+    printf '%s\n' \
+      'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
+      'Get-ChildItem x | Remove-Item -Recurse, or Remove-Item -Recurse (Get-Item C:\\), deletes whatever the left-hand side produces, including a filesystem root.' \
+      'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.' >&2
+    ;;
   bare-variable)
     # Single-quoted on purpose: the text shows a literal ${NAME:?}.
     # shellcheck disable=SC2016
@@ -484,22 +495,34 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   rdt_block "too-long"
 fi
 
-# Cheap prefilter ahead of the character walk. This guard is on the per-Bash-call
-# path, and a command whose TEXT does not contain `rm` cannot carry the one verb
-# the matcher recognizes, so it must not pay for the parse. A substring is all
-# this can be: `npm run format` contains `rm` and goes on to the tokenizer,
-# which allows it on its command word.
+# Cheap prefilter ahead of the character walk. A command whose TEXT cannot
+# carry a verb this matcher recognizes must not pay for the parse. Folded to
+# lower case: on Windows both the filesystem and the PATH lookup are
+# case-insensitive, so `RM -rf /` and `REMOVE-ITEM -Recurse C:\` run.
+# A case-SENSITIVE prefilter here would have exited allow first, a bypass of
+# the whole guard rather than a missed spelling.
 #
-# Folded to lower case, and that is load-bearing rather than tidy. The command
-# word is compared case-insensitively below, and on the Windows host this guard
-# was written for both the filesystem and the PATH lookup are case-insensitive,
-# so `RM -rf /` runs rm. A case-SENSITIVE prefilter here would have exited
-# allow before the matcher ever saw it, which is a bypass of the whole guard
-# rather than a missed spelling.
-case "${COMMAND,,}" in
-*rm*) ;;
-*) exit 0 ;;
-esac
+# Bash: a substring `rm` is all this can be (`npm run format` still reaches
+# the tokenizer and is allowed on its command word). PowerShell: Remove-Item,
+# rmdir, erase, cmd, rd, del, rm, and `ri` as a command word (not the `ri`
+# inside Write/string). Over-inclusive on purpose; the tokenizer decides.
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  rdt_ps_pre="${COMMAND,,}"
+  rdt_ps_hit=0
+  case "$rdt_ps_pre" in
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del*) rdt_ps_hit=1 ;;
+  *) ;;
+  esac
+  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
+    rdt_ps_hit=1
+  fi
+  ((rdt_ps_hit)) || exit 0
+else
+  case "${COMMAND,,}" in
+  *rm*) ;;
+  *) exit 0 ;;
+  esac
+fi
 
 # The payload cwd, for the outside-tree arm. A NUL byte in it does not refuse
 # the call here: only a recursive delete this arm must judge is refused
@@ -2861,6 +2884,414 @@ rdt_scan_substitutions() {
   done
 }
 
+# --- PowerShell Remove-Item / rd /s (#4516) ---------------------------------
+# Own tokenizer, not lib/powershell/ps-command.sh: that classifier spends a
+# shared sink-attempt budget this guard must not touch. Backslash is literal;
+# backtick is the escape. Parameters match on any unambiguous prefix of
+# Remove-Item's names. cmd /c rd /s and rmdir /s are judged as cmd grammar.
+# A pipeline into Remove-Item -Recurse with no path is refused: the target
+# arrived through the pipe and cannot be named.
+
+rdt_ps_piped=0
+
+# rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
+# when the token is not a unique prefix of one. Token includes the leading
+# dash; a :value suffix is ignored for the name.
+rdt_ps_param_to() {
+  local __name="${2#-}"
+  __name="${__name%%:*}"
+  __name="${__name,,}"
+  local __hit="" __hits=0 __p
+  for __p in confirm credential debug erroraction errorvariable exclude filter \
+    force include informationaction informationvariable literalpath outbuffer \
+    outvariable pipelinevariable path recurse stream usetransaction verbose \
+    warningaction warningvariable whatif; do
+    if [[ "$__p" == "$__name" ]]; then
+      printf -v "$1" '%s' "$__p"
+      return 0
+    fi
+    if [[ -n "$__name" && "$__p" == "$__name"* ]]; then
+      __hit="$__p"
+      __hits=$((__hits + 1))
+    fi
+  done
+  if ((__hits == 1)); then
+    printf -v "$1" '%s' "$__hit"
+  else
+    printf -v "$1" '%s' ""
+  fi
+}
+
+# rdt_ps_cmd_split_to <nameref> <text>: cmd.exe-ish whitespace split of one /c
+# operand. Double quotes group; a backslash is literal; an empty quoted span
+# is an empty word.
+rdt_ps_cmd_split_to() {
+  local -n __cs_out="$1"
+  local __s="$2" __n=${#2} __i=0 __w="" __q=0 __in=0 __c
+  __cs_out=()
+  while ((__i < __n)); do
+    __c="${__s:__i:1}"
+    if ((__q)); then
+      if [[ "$__c" == '"' ]]; then
+        __q=0
+      else
+        __w+="$__c"
+      fi
+      __in=1
+    else
+      case "$__c" in
+      '"')
+        __q=1
+        __in=1
+        ;;
+      [[:space:]])
+        if ((__in)); then
+          __cs_out+=("$__w")
+          __w=""
+          __in=0
+        fi
+        ;;
+      *)
+        __w+="$__c"
+        __in=1
+        ;;
+      esac
+    fi
+    __i=$((__i + 1))
+  done
+  if ((__in)); then
+    __cs_out+=("$__w")
+  fi
+}
+
+# rdt_ps_operand <word>: one PowerShell / cmd target through the same root,
+# empty, bare-variable and outside-tree arms as Bash. $env:NAME is a bare
+# variable in PowerShell and is not a bash $NAME form.
+rdt_ps_operand() {
+  local w="$1" n
+  n="${w,,}"
+  n="${n//\\//}"
+  if [[ "$n" =~ ^\$env:[a-z_][a-z0-9_]*([/].*)?$ || "$n" =~ ^\$\{env:[a-z_][a-z0-9_]*\}([/].*)?$ ]]; then
+    rdt_block "bare-variable" "$w"
+  fi
+  rdt_check_operand "$w" 0
+}
+
+# rdt_ps_cmd_rd: recursive cmd rd/rmdir. Remaining words are the command line.
+rdt_ps_cmd_rd() {
+  local -a __cw=("$@")
+  ((${#__cw[@]})) || return 0
+  local __base="${__cw[0],,}" __i __rec=0
+  __base="${__base##*[\\/]}"
+  __base="${__base%.exe}"
+  case "$__base" in
+  rd | rmdir) ;;
+  *) return 0 ;;
+  esac
+  local -a __paths=()
+  for ((__i = 1; __i < ${#__cw[@]}; __i++)); do
+    case "${__cw[__i],,}" in
+    /s | /s/q | /q/s | /sq | /qs) __rec=1 ;;
+    /q | /f) ;;
+    /*)
+      [[ "${__cw[__i],,}" == /s* ]] && __rec=1
+      ;;
+    *) __paths+=("${__cw[__i]}") ;;
+    esac
+  done
+  ((__rec)) || return 0
+  if ((${#__paths[@]} == 0)); then
+    rdt_block "empty-operand"
+  fi
+  local __p
+  for __p in "${__paths[@]}"; do
+    if [[ -z "$__p" ]]; then
+      rdt_block "empty-operand"
+    fi
+    rdt_ps_operand "$__p"
+  done
+}
+
+# rdt_ps_cmd_from: argv after a cmd/cmd.exe command word.
+rdt_ps_cmd_from() {
+  local -a __a=("$@")
+  local __i=0 __t
+  local -a __parts=()
+  while ((__i < ${#__a[@]})); do
+    __t="${__a[__i],,}"
+    case "$__t" in
+    /c | /k)
+      __i=$((__i + 1))
+      ((__i < ${#__a[@]})) || return 0
+      if ((__i == ${#__a[@]} - 1)); then
+        rdt_ps_cmd_split_to __parts "${__a[__i]}"
+        rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+      else
+        rdt_ps_cmd_rd "${__a[@]:__i}"
+      fi
+      return 0
+      ;;
+    /c?* | /k?*)
+      rdt_ps_cmd_split_to __parts "${__a[__i]:2}"
+      rdt_ps_cmd_rd ${__parts[@]+"${__parts[@]}"}
+      return 0
+      ;;
+    *) ;;
+    esac
+    __i=$((__i + 1))
+  done
+}
+
+# rdt_ps_ri_args <start-index>: argv after a Remove-Item family command word,
+# passed as the remainder of the statement array in "$@".
+# shellcheck disable=SC2016,SC2329  # literal `$(` grouping; invoked from rdt_ps_statement
+rdt_ps_ri_check() {
+  local -a __w=("$@")
+  local __i=0 __rec=0 __param __raw __att
+  local -a __paths=()
+  while ((__i < ${#__w[@]})); do
+    local __v="${__w[__i]}"
+    if [[ "$__v" == -* && "$__v" != - ]]; then
+      rdt_ps_param_to __param "$__v"
+      __raw="${__v#-}"
+      __raw="${__raw%%:*}"
+      __raw="${__raw,,}"
+      if [[ "$__raw" == "rf" || "$__raw" == "fr" ]]; then
+        __rec=1
+      fi
+      case "$__param" in
+      recurse)
+        if [[ "$__v" == *:* ]]; then
+          __att="${__v#*:}"
+          __att="${__att,,}"
+          __att="${__att#\$}"
+          if [[ "$__att" != "false" && "$__att" != "0" ]]; then
+            __rec=1
+          fi
+        else
+          __rec=1
+        fi
+        ;;
+      path | literalpath)
+        if [[ "$__v" == *:* && "$__v" != *: ]]; then
+          __paths+=("${__v#*:}")
+        else
+          __i=$((__i + 1))
+          while ((__i < ${#__w[@]})) && { [[ "${__w[__i]}" != -* ]] || [[ "${__w[__i]}" == - ]]; }; do
+            __paths+=("${__w[__i]}")
+            __i=$((__i + 1))
+          done
+          __i=$((__i - 1))
+        fi
+        ;;
+      filter | include | exclude | credential | stream | erroraction | warningaction | \
+        informationaction | errorvariable | warningvariable | informationvariable | \
+        outvariable | outbuffer | pipelinevariable)
+        [[ "$__v" == *:* ]] || __i=$((__i + 1))
+        ;;
+      *) ;;
+      esac
+    else
+      case "$__v" in
+      /s | /s/q | /q/s | /sq | /qs) ;;
+      '('* | '$('*) rdt_block "pipeline-target" "$__v" ;;
+      *) __paths+=("$__v") ;;
+      esac
+    fi
+    __i=$((__i + 1))
+  done
+  ((__rec)) || return 0
+  if ((${#__paths[@]} == 0)); then
+    ((rdt_ps_piped)) && rdt_block "pipeline-target"
+    rdt_block "empty-operand"
+  fi
+  local __p
+  for __p in "${__paths[@]}"; do
+    if [[ -z "$__p" ]]; then
+      rdt_block "empty-operand"
+    fi
+    rdt_ps_operand "$__p"
+  done
+}
+
+# rdt_ps_rest <i>: remaining words of "$@" from index <i>, possibly empty.
+rdt_ps_rest() {
+  local __off="$1"
+  shift
+  if ((__off < $#)); then
+    rdt_ps_ri_check "${@:__off+1}"
+  else
+    rdt_ps_ri_check
+  fi
+}
+
+# rdt_ps_statement: one pipeline stage's words.
+rdt_ps_statement() {
+  local -a __w=("$@")
+  ((${#__w[@]})) || return 0
+  local __i=0 __cmd
+  while ((__i < ${#__w[@]})) && [[ "${__w[__i]}" == "&" ]]; do
+    __i=$((__i + 1))
+  done
+  ((__i < ${#__w[@]})) || return 0
+  __cmd="${__w[__i]}"
+  __cmd="${__cmd##*\\}"
+  __cmd="${__cmd##*/}"
+  __cmd="${__cmd,,}"
+  __cmd="${__cmd%.exe}"
+  __i=$((__i + 1))
+  case "$__cmd" in
+  remove-item | ri | rm | del | erase)
+    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
+    ;;
+  rd | rmdir)
+    rdt_ps_rest "$__i" ${__w[@]+"${__w[@]}"}
+    if ((__i < ${#__w[@]})); then
+      rdt_ps_cmd_rd "$__cmd" "${__w[@]:__i}"
+    else
+      rdt_ps_cmd_rd "$__cmd"
+    fi
+    ;;
+  cmd)
+    if ((__i < ${#__w[@]})); then
+      rdt_ps_cmd_from "${__w[@]:__i}"
+    fi
+    ;;
+  *) ;;
+  esac
+}
+
+# rdt_ps_walk <command>: PowerShell quoting (backtick escape, backslash
+# literal) into statements split on ; | & && ||, then judged.
+rdt_ps_walk() {
+  local __s="$1" __n=${#1} __i=0
+  local -a __words=()
+  local __word="" __in=0 __q="" __c __nxt
+  rdt_ps_piped=0
+
+  rdt_ps_flush_word() {
+    if ((__in)); then
+      __words+=("$__word")
+    fi
+    __word=""
+    __in=0
+  }
+  rdt_ps_end_stmt() {
+    rdt_ps_flush_word
+    if ((${#__words[@]})); then
+      rdt_ps_statement "${__words[@]}"
+    fi
+    __words=()
+  }
+
+  while ((__i < __n)); do
+    __c="${__s:__i:1}"
+    if ((__i + 1 < __n)); then
+      __nxt="${__s:__i+1:1}"
+    else
+      __nxt=""
+    fi
+    if [[ -n "$__q" ]]; then
+      if [[ "$__q" == "'" ]]; then
+        if [[ "$__c" == "'" ]]; then
+          if [[ "$__nxt" == "'" ]]; then
+            __word+="'"
+            __i=$((__i + 1))
+          else
+            __q=""
+          fi
+        else
+          __word+="$__c"
+        fi
+      else
+        if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
+          __word+="$__nxt"
+          __i=$((__i + 1))
+        elif [[ "$__c" == '"' ]]; then
+          __q=""
+        else
+          __word+="$__c"
+        fi
+      fi
+      __in=1
+      __i=$((__i + 1))
+      continue
+    fi
+    if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
+      if [[ "$__nxt" == $'\n' ]]; then
+        __i=$((__i + 2))
+        continue
+      fi
+      __word+="$__nxt"
+      __in=1
+      __i=$((__i + 2))
+      continue
+    fi
+    case "$__c" in
+    "'")
+      __q="'"
+      __in=1
+      ;;
+    '"')
+      __q='"'
+      __in=1
+      ;;
+    '#')
+      if ((__in == 0)); then
+        while ((__i < __n)) && [[ "${__s:__i:1}" != $'\n' ]]; do
+          __i=$((__i + 1))
+        done
+        continue
+      else
+        __word+="#"
+      fi
+      ;;
+    '|')
+      if [[ "$__nxt" == '|' ]]; then
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        __i=$((__i + 1))
+      else
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        rdt_ps_piped=1
+      fi
+      ;;
+    '&')
+      if ((__in == 0)) && { [[ -z "$__nxt" ]] || [[ "$__nxt" == [[:space:]] ]] || [[ "$__nxt" == "'" ]] || [[ "$__nxt" == '"' ]]; }; then
+        rdt_ps_flush_word
+        __words+=("&")
+      elif [[ "$__nxt" == '&' ]]; then
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+        __i=$((__i + 1))
+      else
+        rdt_ps_piped=0
+        rdt_ps_end_stmt
+      fi
+      ;;
+    ';')
+      rdt_ps_piped=0
+      rdt_ps_end_stmt
+      ;;
+    [[:space:]])
+      rdt_ps_flush_word
+      ;;
+    *)
+      __word+="$__c"
+      __in=1
+      ;;
+    esac
+    __i=$((__i + 1))
+  done
+  rdt_ps_end_stmt
+}
+
+# rdt_ps_run: PowerShell lane. Does not load the classifier.
+rdt_ps_run() {
+  rdt_ps_walk "$COMMAND"
+}
+
 # The substitution scan runs FIRST, and the order is load-bearing rather than
 # arbitrary. The tokenizer splits on unquoted `(`, `)` and `;`, so a deeply
 # nested payload yields as many segments as a flat one of the same length and
@@ -2881,10 +3312,14 @@ elif rdt_is_abs "$PAYLOAD_CWD"; then
   rdt_lex_to _rdt_origin "$PAYLOAD_CWD"
   RDT_ORIGINS=("$_rdt_origin")
 fi
-rdt_in_subst=1
-rdt_scan_substitutions "$COMMAND"
-rdt_in_subst=0
-hook::bash_parse_segments "$COMMAND" rdt_check_segment
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  rdt_ps_run
+else
+  rdt_in_subst=1
+  rdt_scan_substitutions "$COMMAND"
+  rdt_in_subst=0
+  hook::bash_parse_segments "$COMMAND" rdt_check_segment
+fi
 # The judgment runs in a subshell, so an error nobody anticipated inside it (an
 # unset variable under `set -u`, say) ends the subshell with a status other
 # than 0 or 2, and that status is refused here. Run in place, the same error

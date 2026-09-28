@@ -280,14 +280,14 @@ run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$F
 
 assert_eq "run 1 exits 0" 0 "$RC"
 assert_eq "line 1 is the dated title" "# mcp-posture inventory 2026-01-02" "$(printf '%s\n' "$OUT" | sed -n 1p)"
-assert_eq "line 2 is the TSV header" $'scope\tname\teffective\ttransport\tlauncher\tpackage\tpin\tpublisher\tsandboxed' \
+assert_eq "line 2 is the TSV header" $'scope\tname\teffective\ttransport\tlauncher\tpackage\tpin\tpublisher\tsandboxed\tprovided_by' \
   "$(printf '%s\n' "$OUT" | sed -n 2p)"
 
 rows="$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -v '^#')"
 assert_eq "rows sorted by scope then name" "$(printf '%s\n' "$rows" | cut -f1,2 | LC_ALL=C sort)" \
   "$(printf '%s\n' "$rows" | cut -f1,2)"
-assert_eq "every row has nine fields and a known scope" "" \
-  "$(printf '%s\n' "$rows" | awk -F'\t' 'NF != 9 || $1 !~ /^(managed|managed-settings|local|project|user|file)$/')"
+assert_eq "every row has ten fields and a known scope" "" \
+  "$(printf '%s\n' "$rows" | awk -F'\t' 'NF != 10 || $1 !~ /^(managed|managed-settings|local|project|user|file)$/')"
 assert_eq "no comment line between rows" "" \
   "$(printf '%s\n' "$OUT" | sed -n '3,$p' | awk '/^#/ { seen = 1; next } seen { print }')"
 
@@ -472,6 +472,9 @@ printf '%s\n' '{"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mc
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed three" --date 2026-01-02
 assert_eq "managedMcpServers not suppressed by managed-mcp.json" "yes" "$(cell managed-settings corp 3)"
+assert_eq "managedMcpServers attributed to the organization" "organization" \
+  "$(cell managed-settings corp 10)"
+assert_eq "managed-mcp.json row names its file" "managed-mcp.json" "$(cell managed both 10)"
 assert_eq "managed-settings row shadowed by a managed-mcp.json row" "shadowed-by:managed" \
   "$(cell managed-settings both 3)"
 assert_eq "managed-mcp.json row wins over managed-settings" "yes" "$(cell managed both 3)"

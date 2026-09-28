@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "/testing:run-e2e",
-      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run's evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., 'npm install -g @playwright/cli'). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin's skill for browser mechanics when installed.",
+      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed \u2014 primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run's evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., 'npm install -g @playwright/cli'). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin's skill for browser mechanics when installed.",
       "files": []
     },
     {
@@ -12,6 +12,19 @@
       "prompt": "How do I live-test a change to an MCP server with no UI?",
       "expected_output": "Routes to context/non-ui.md. Maps the MCP-server surface to its smoke-test invocation: unit-level coverage plus the JSON-RPC initialize stdio-handshake pattern. Does not demand browser evidence for a non-UI surface.",
       "files": []
+    },
+    {
+      "id": 3,
+      "name": "missing-playwright-hard-fails-with-gap-report",
+      "prompt": "/testing:run-e2e \u2014 Playwright CLI is not installed and the app is not running.",
+      "expected_output": "Hard-fails: stops rather than improvising a workaround, and writes a structured verification-environment gap report naming the missing CLI and the missing running app, with remediation such as installing @playwright/cli and starting the app.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Stops instead of attempting a workaround",
+        "Names the missing Playwright CLI and the missing running app",
+        "Gives remediation steps rather than proceeding into a health check"
+      ]
     }
   ]
 }

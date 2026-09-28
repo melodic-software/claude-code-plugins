@@ -102,3 +102,6 @@ plugins/session-flow/skills/workflow/evals/evals.json	"expected_output": "The sk
 
 # --- Other -------------------------------------------------------------------
 plugins/claude-ops/skills/audit-install-state/scripts/install_state.py	"CLAUDE.md": (AUTHORED, "Global memory file"),	A classification table row for the user-scope ~/.claude tree, which this migration never touches.
+
+# --- ai-slop user-scope inventory -------------------------------------------
+plugins/ai-slop/skills/audit/scripts/user-scope.sh	[[ -e "$root/CLAUDE.md" || -L "$root/CLAUDE.md" ]] && consider "$root/CLAUDE.md"	User scope under CLAUDE_CONFIG_DIR or $HOME/.claude. That CLAUDE.md is the permanent user file this migration never removes. An absent file is skipped; the line inventories it and does not locate a project path.

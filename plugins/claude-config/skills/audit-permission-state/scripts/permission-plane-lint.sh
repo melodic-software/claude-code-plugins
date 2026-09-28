@@ -20,7 +20,7 @@
 #
 # Checks, each citing the mechanic it follows from — see reference/criteria.md:
 #   C2-autoMode      autoMode.* in a scope the classifier does not read
-#   C2-defaultMode   defaultMode:"auto" in project or local settings
+#   C2-defaultMode   defaultMode:"auto" or "bypassPermissions" in project or local settings
 #   C2-planMode      useAutoModeDuringPlan in shared project settings
 #   C5-disableType   disableAutoMode typed as a boolean, not the string "disable"
 #   C6-winPath       a drive-letter or UNC Windows path, which never matches
@@ -29,6 +29,8 @@
 #   C6-colonStar     `:*` mid-pattern in a command-prefix rule (not the parameter form)
 #   C6-colonStarAmbiguous  mid-pattern `:*` with no trailing space — indistinguishable from a parameter form (warning)
 #   C6-allowParam    parameter-form matching in an allow rule (deny/ask only)
+#   C6-malformed     text after the closing parenthesis, or an unclosed specifier
+#   C6-literalPath   an uncompilable Read/Edit path: deny/ask guard the literal path
 #
 # Prerequisites: jq (required for correctness — the conf/settings reads are JSON).
 #
@@ -107,6 +109,37 @@ function value_of(b,   c) {
   c = index(b, ":")
   return c ? substr(b, c + 1) : ""
 }
+# Specifier body of Tool(specifier). Parentheses inside the specifier are
+# literal and one nesting level is accepted, so Edit(./Finance (2024)/**) is one
+# rule. spec_status is ok, bare, trailing, or unclosed. Trailing text
+# such as Bash(ls) x is the malformed Tool(content) rule; stripping the last
+# character and calling the rest the body is what used to hide it.
+function specifier_body(text,   i, n, depth, ch, start) {
+  spec_status = "bare"
+  start = index(text, "(")
+  if (start == 0) return ""
+  depth = 0
+  n = length(text)
+  for (i = start; i <= n; i++) {
+    ch = substr(text, i, 1)
+    if (ch == "(") depth++
+    else if (ch == ")") {
+      depth--
+      if (depth == 0) {
+        spec_rest = substr(text, i + 1)
+        gsub(/^[ \t]+/, "", spec_rest)
+        if (spec_rest != "") {
+          spec_status = "trailing"
+          return substr(text, start + 1, i - start - 1)
+        }
+        spec_status = "ok"
+        return substr(text, start + 1, i - start - 1)
+      }
+    }
+  }
+  spec_status = "unclosed"
+  return substr(text, start + 1)
+}
 
 $1 == "rule" {
   rules[++n_rules] = $2 SUBSEP $4 SUBSEP text_of(5)
@@ -155,14 +188,19 @@ END {
     }
   }
 
-  # "Claude Code ignores defaultMode: auto in project and local settings…
-  # v2.1.142 and later ignore auto from those files so a repository cannot grant
-  # itself auto mode." Only the value `auto` is dead; other modes are read here.
+  # Project and local settings ignore defaultMode "auto" (v2.1.142+) and
+  # "bypassPermissions" (v2.1.257+). acceptEdits, plan, and dontAsk still apply.
+  # permission-modes, "Start in a different permission mode", re-read 2026-09-28:
+  # "Sessions you start in a terminal honor every value except auto and
+  # bypassPermissions."
   for (i in dead_automode) {
     s = dead_automode[i]
     k = s SUBSEP "defaultMode"
-    if (k in conf && conf[k] == "\"auto\"")
+    if (!(k in conf)) continue
+    if (conf[k] == "\"auto\"")
       finding("error", "C2-defaultMode", s, "defaultMode:\"auto\" is ignored in project and local settings so a repository cannot grant itself auto mode (v2.1.142 and later; before that, project settings could set it) — set it in user or managed settings instead")
+    else if (conf[k] == "\"bypassPermissions\"")
+      finding("error", "C2-defaultMode", s, "defaultMode:\"bypassPermissions\" is ignored in project and local settings (v2.1.257 and later; the session starts in Manual) — set it in user or managed settings, or pass --permission-mode. acceptEdits, plan, and dontAsk still apply here")
   }
 
   # "Not read from shared project settings." That names .claude/settings.json
@@ -225,7 +263,15 @@ END {
     scope = f[1]; kind = f[2]; text = f[3]
     p = index(text, "(")
     tool = p ? substr(text, 1, p - 1) : text
-    body = p ? substr(text, p + 1, length(text) - p - 1) : ""
+    body = specifier_body(text)
+
+    # Text after the closing parenthesis never matched anything. Claude Code
+    # reports it as invalid settings (the "Malformed Tool(content) rule"
+    # diagnostic). Do not lint the leftover as if it were the specifier.
+    if (spec_status == "trailing" || spec_status == "unclosed") {
+      finding("error", "C6-malformed", scope, text " — malformed Tool(content) rule: " (spec_status == "trailing" ? "text after the closing parenthesis is not part of the rule" : "the specifier is missing its closing parenthesis") ". Claude Code reports this as invalid settings instead of matching it")
+      continue
+    }
 
     # A bare tool-name rule with no path is legitimate and matches at the tool
     # level everywhere -- the page says so explicitly, and flagging it would be
@@ -335,6 +381,17 @@ END {
     # like a path rather than a parameter form.
     if (tool in uncovered && colon == 0)
       finding("warning", "C6-uncoveredPath", scope, text " — file permissions are checked against Edit(path) and Read(path) rules only, so a path rule for " tool " is accepted but never consulted (warns at startup, v2.1.210+; a Glob rule passed in --allowedTools is the documented exception)")
+
+    # An unclosed '[' is not a usable gitignore pattern. A deny or ask rule
+    # still guards that exact path. An allow rule approves nothing. Before
+    # v2.1.260 one such deny failed every file edit with "Invalid regular
+    # expression"; that widening is not the current behavior.
+    if ((tool == "Read" || tool == "Edit") && colon == 0 && body ~ /\[[^]]*$/) {
+      if (kind == "allow")
+        finding("warning", "C6-literalPath", scope, text " — an allow rule whose path is not a usable gitignore pattern approves nothing")
+      else
+        finding("warning", "C6-literalPath", scope, text " — a deny or ask rule whose path is not a usable gitignore pattern guards that exact literal path. It does not fail every other file edit")
+    }
   }
 
   # A scope the reader could not open contributes no findings, and `findings=0`
@@ -348,7 +405,7 @@ END {
   }
   if (n_unread_surfaces > 0)
     print "LINT-NOTE: " n_unread_surfaces + 0 " surface(s) across " n_unread_scopes + 0 " scope(s) could not be read: " unread_list ". Their configuration was never linted, so a finding count of " n_findings + 0 " covers the surfaces that WERE read and is not a clean bill for the plane."
-  print "lint summary findings=" n_findings + 0 " checks_run=9 status=" (n_unread_surfaces > 0 ? "incomplete" : "read")
+  print "lint summary findings=" n_findings + 0 " checks_run=11 status=" (n_unread_surfaces > 0 ? "incomplete" : "read")
 }
 ')" || {
   echo "ERROR: no scope records on input — permission-plane-lint.sh will not report a clean plane it never read" >&2

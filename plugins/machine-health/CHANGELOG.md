@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-09-28
+
+### Fixed
+
+- **audit:** PATH scope matching treats `/` and `\` as the same directory. An expanded
+  `REG_EXPAND_SZ` entry such as `%SystemRoot%/System32` was compared with the live process
+  PATH, which uses backslashes, so the winning directory was labeled `unknown`.
+
 ## [0.14.0] - 2026-09-28
 
 ### Added
