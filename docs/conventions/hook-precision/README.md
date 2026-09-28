@@ -13,9 +13,9 @@ time.
 
 ## The rules
 
-Five rules for what a hook matches and how it reads its input. A sixth, the discipline, turns every next
-over-fire into a committed regression test. A hook is precise when it matches the *structure* it targets,
-reads its input safely, and scopes its check to what actually changed.
+Six rules for what a hook matches, how it reads its input, and which paths it acts on. The discipline after
+them turns every next over-fire into a committed regression test. A hook is precise when it matches the
+*structure* it targets, reads its input safely, and scopes its check to what actually changed.
 
 1. **Diff-scope `PostToolUse:Edit` checks to the changed hunk.** An Edit hook that scans the whole file
    warns on pre-existing lines the edit never touched. Check only the edited region (the tool payload's new
@@ -35,6 +35,29 @@ reads its input safely, and scopes its check to what actually changed.
    matches the project dir as a literal substring flags every absolute path under it when the project dir is
    (or is under) the user's home. Resolve the enclosing git toplevel and compare *that* against home;
    suppress the branch when the checkout root is home or an ancestor of it.
+6. **Leave a gitignored path alone.** A format or lint hook neither rewrites nor reports on a file the
+   repository gitignores, unless the plugin's `<plugin>_lint_gitignored` option is `true` (the spelling
+   `markdown_format_lint_gitignored` set). A rewrite of an ignored file has no `git checkout` to undo it,
+   and findings on a scratch tier the repository excluded are noise. Decide with `git check-ignore` from
+   the file's own directory, so every `.gitignore`, `.git/info/exclude`, and the global excludes file
+   apply. Let the index answer, so a tracked file matching an ignore pattern stays in scope. Clear an
+   inherited `GIT_DIR`/`GIT_WORK_TREE` first, so a wrapper's repository cannot answer for the file's own.
+   Fail toward acting: git absent, no repository, or a `check-ignore` error runs the hook as before,
+   because a skip that fired on an error would disable the hook invisibly. The counter-case, a developer
+   who wants an ignored local script formatted, is what the opt-in is for. The shared implementation for
+   rewriting hooks is `hook::gitignored_out_of_scope` in `lib/rewrite-guard.sh`.
+
+   This matches the tools' own defaults when they walk a tree. It does not match what they do for a path
+   the hook names on the command line, which is how every one of these hooks invokes them: Ruff's
+   `respect-gitignore` (default `true`) does not reach an explicitly passed path even under
+   `--force-exclude`, and Biome honors an ignored explicit path only when the consumer enables
+   `vcs.useIgnoreFile` (default off), so the hook has to decide. Verification record. Claim: as stated.
+   Basis: <https://docs.astral.sh/ruff/settings/> (`respect-gitignore`, `force-exclude`),
+   <https://biomejs.dev/reference/configuration/> (`vcs.useIgnoreFile`),
+   <https://prettier.io/docs/ignore> (follows `.gitignore`), and runs of Ruff 0.16.7 and Biome 2.5.14 on
+   an ignored `.work/` file passed explicitly. As of: 2026-09-28. Recheck: a formatter release that
+   changes how an explicit path meets its ignore settings, or a hook that stops passing the path
+   explicitly.
 
 ## The discipline
 
@@ -74,6 +97,34 @@ Existing adopters conform by carrying the rule their over-fire needed:
 - `cli-flag-verify` buffers stdin through `hook::buffer_stdin` instead of reading `fd0` directly (rule 3).
 - `block-noncanonical-commit` gates on the canonical `-F -` marker alone, dropping the `--trailer`
   conjunct its advisory predecessor required (rule 4).
+
+### Rule 6 conformance: the nine format and lint hooks
+
+As of 2026-09-28. The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
+never stands in for the gate.
+
+| Hook | Acts on the file by | Gate | Verdict |
+|---|---|---|---|
+| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | its own `file_is_gitignored`, `markdown_format_lint_gitignored` | conforms; the local copy predates the shared helper |
+| `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671) |
+| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671) |
+| `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
+| `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
+| `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
+| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
+| `typos-format` | reporting, and rewriting when write mode is on | none | **does not conform yet** (#4671); registers with no `if` filter |
+| `actionlint` (`actionlint-check`) | reporting only | none; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | **does not conform yet** (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
+
+`typos-format`, `actionlint`, and `markdown-format` do not carry `rewrite-guard.sh`, so bringing the first
+two in, and moving `markdown-format` onto the shared helper, means either carrying that lib or lifting
+the helper into `hook-utils.sh`. That choice stays open under #4671.
+
+The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
+guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different
+questions. The first is an operator allowlist on a security guard, empty by default. The second marks
+the host temp tree for project membership. `.gitignore` is the repository's own statement of what is out
+of scope. Merging any two would let a formatter-scope setting widen a security exemption, so each stays
+its own list.
 
 The shared harness and a worked exemplar that co-locates both MUST-fire and MUST-stay-quiet cases:
 
