@@ -9,6 +9,17 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 - **`clarify` uses the rendered-views ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). A leading `terminal`, `file`, or `artifact` argument forces the medium. Otherwise `${user_config.medium}` (default `auto`), then `.claude/rendered-views.md` across the user, team, and overlay layers, then the shipped artifact-forward default. The next consumer is the person deciding, so the view is emitted and the original text stays the record. Page chrome comes from this plugin's `reference/html-chrome.html`, a byte copy of visualization's reference, registered in `scripts/cross-plugin-source-registry.txt`.
 
+## [0.5.1] - 2026-09-28
+
+### Changed
+
+- **`clarify` carries the source recommendation's `Basis:` through.** The decision table gains a
+  Basis column, copied verbatim, or "none stated" when the source gave none, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- The skill states the label's three outcomes inline (an installed plugin cannot read the
+  repository's `docs/`) and renders a withheld item as withheld, never with an invented
+  recommendation.
+
 ## [0.5.0] - 2026-09-23
 
 ### Changed

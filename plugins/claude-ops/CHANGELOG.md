@@ -3,11 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.25] - 2026-09-28
+## [0.63.26] - 2026-09-28
 
 ### Changed
 
 - **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). A dual-audience report offers the HTML view and keeps the markdown record unless a rung selects a page.
+
+## [0.63.25] - 2026-09-28
+
+### Changed
+
+- **`known-issues search` states the `Basis:` of its SAFE / CAUTION / DO NOT USE verdict**: the
+  issue URLs, status-page read, or version output it rests on, or `judgment`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential verdict is withheld as an open question.
 
 ## [0.63.24] - 2026-09-28
 
