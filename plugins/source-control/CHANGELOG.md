@@ -3,11 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.9] - 2026-09-28
+## [0.62.10] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `pull-request` prep reference named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.62.9] - 2026-09-28
+
+### Changed
+
+- **Blast-radius check before a fix, verdict, or merge on a shared artifact.** When a change
+  touches a reusable workflow or action, shared config, or a published package, the review
+  discipline's D3 lists its consumers and checks the change against each, and D4 states the
+  classification with a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `pull-request` mirrors it in its D3, D4, and readiness gate; `babysit-prs` states it for every
+  tier.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  D4 points to it, and a consequential verdict the evidence cannot settle is withheld as
+  UNCERTAIN, naming the evidence that would settle it.
 
 ## [0.62.8] - 2026-09-28
 

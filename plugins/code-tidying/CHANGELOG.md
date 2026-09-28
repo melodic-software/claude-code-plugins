@@ -3,11 +3,22 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.11] - 2026-09-28
+## [0.23.12] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence gate reads "resolves in this session"** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). The `batch-simplify` and `tidy` routing lines named a native surface behind "resolves in your session", which addresses the reader. The gate now names the session instead, matching the canonical token that claude-ops' native-overlap self-check matches. Routing is unchanged.
+
+## [0.23.11] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`.** `tidy`'s findings-table rows and `batch-simplify`'s
+  reported deferrals state what each rests on, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential finding or disposition is withheld as an open question.
 
 ## [0.23.10] - 2026-09-28
 

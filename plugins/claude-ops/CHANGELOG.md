@@ -3,11 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.63.25] - 2026-09-28
+## [0.63.26] - 2026-09-28
 
 ### Changed
 
 - **The native-surface presence-gate token is `resolves in this session`** ([#4112](https://github.com/melodic-software/claude-code-plugins/issues/4112)). `audit-native-overlap`'s `GATE_TOKEN` was `resolves in your session`, which kept second person in every description that bakes a native-surface route. Anthropic's skill-authoring best practices say to always write a description in the third person because it is injected into the system prompt. The forward and reverse parity checks, the ungated-presence advisory's suggested fix, and the test fixtures now use the new token. The `audit-install-state` and `audit-skill-visibility` descriptions, which kept the old token after the voice sweep in #4108, carry the new one, as do their bodies, `audit-performance`'s routing line, the `audit-native-overlap` body and evals, and the store evidence in `docs/native-surfaces/records.json`. The native-references convention moves to 3.0.0 for the token change. A baked row whose description still carries `resolves in your session` now fails forward parity (self-check exit 1) until the description is rebaked with the new token.
+
+## [0.63.25] - 2026-09-28
+
+### Changed
+
+- **`known-issues search` states the `Basis:` of its SAFE / CAUTION / DO NOT USE verdict**: the
+  issue URLs, status-page read, or version output it rests on, or `judgment`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential verdict is withheld as an open question.
 
 ## [0.63.24] - 2026-09-28
 
