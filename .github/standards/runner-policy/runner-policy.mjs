@@ -471,6 +471,7 @@ function parseLocalReusableWorkflowReference(value) {
     return { attempted: false };
   }
   const match = LOCAL_REUSABLE_WORKFLOW.exec(value);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: Biome 2.5.14 false positive, RegExp.exec can return null
   if (!match) {
     return {
       attempted: true,
@@ -1871,6 +1872,7 @@ function governedReusableRunnerStatus(workflow, policy) {
 
 function hostedMatrixStatus(job, target, policy) {
   const match = MATRIX_OUTPUT.exec(target);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: Biome 2.5.14 false positive, RegExp.exec can return null
   if (!match) {
     return undefined;
   }
@@ -2289,6 +2291,7 @@ const EXACT_NAMED_SECRET_EXPRESSION = /^\$\{\{ secrets\.([A-Za-z_][A-Za-z0-9_]*)
 
 function grantedSecretName(value, secretNames) {
   const match = EXACT_NAMED_SECRET_EXPRESSION.exec(value);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: Biome 2.5.14 false positive, RegExp.exec can return null
   return match !== null && secretNames.has(match[1]) ? match[1] : undefined;
 }
 
@@ -2627,6 +2630,7 @@ function visibilityScopedReusableContractFindings(
     );
     for (const expression of Object.values(contract.allowedSecrets)) {
       const match = EXACT_NAMED_SECRET_EXPRESSION.exec(expression);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: Biome 2.5.14 false positive, RegExp.exec can return null
       if (match !== null && PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(match[1])) {
         denylistedSecrets.add(match[1]);
       }
