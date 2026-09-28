@@ -4,3 +4,5 @@
 #
 # Remove each line when the commit it names is no longer reachable (its branch
 # squash-merged or deleted); the entry is dead config from that point on.
+6a90cdc0b195101dc5a52f27b90f1feed0cdee63:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:94
+6a90cdc0b195101dc5a52f27b90f1feed0cdee63:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
