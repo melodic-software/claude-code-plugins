@@ -144,8 +144,9 @@ assert_exit "backslash-spelled repo root still scans in-project file → exit 2"
 
 # --- NotebookEdit: the payload shape Claude Code sends ------------------------
 # A real NotebookEdit carries tool_input.notebook_path and new_source (a required
-# string, "" on a delete), never file_path; notebook_json above builds a file_path
-# shape. nb_json <notebook_path> <new_source> [edit_mode] [file_path].
+# string, "" on a delete), never file_path. nb_json extends notebook_json with an
+# optional edit_mode and a riding file_path:
+# nb_json <notebook_path> <new_source> [edit_mode] [file_path].
 nb_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" --arg m "${3:-}" --arg fp "${4:-}" \
     '{tool_name:"NotebookEdit",tool_input:({notebook_path:$np,new_source:$s}
