@@ -56,14 +56,23 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   to the working directory (or a MYPYPATH entry), so two same-named files under
   identifier-named directories (`a/foo.py`, `b/foo.py`) no longer collide. The
   walk stops at a directory whose name is not a Python identifier, so
-  same-named files under two hyphenated directories still collide and reach the
-  exit-4 path with mypy's message. mypy accepts the flag only while namespace
+  same-named files under two hyphenated directories (`a-dir/mod.py`,
+  `b-dir/mod.py`) both derive the bare `mod`, and mypy exits 2 on the first
+  such pair it meets, printing `<path>: error: Duplicate module named "<name>"
+  (also at "<other>")` to stdout. That is not the consumer's tree failing, so
+  this adapter holds the colliding files out before running mypy: `module_name`
+  groups the scope by derived name, the first file of each group (scope order,
+  the one mypy itself keeps) is measured, and the rest are named in the
+  partial reason, which makes the run row `partial` rather than
+  `unavailable`. A duplicate the derivation did not predict (mypy's
+  `__init__.py` naming mode below) is held out from mypy's own message and the
+  run repeats, once per held-out file at most. mypy accepts the flag only while namespace
   packages are on (its default), so when the consumer's config turns them off
   mypy refuses the pairing with a usage error (exit 2); the run then repeats
   without the flag, in mypy's own naming mode (packages from `__init__.py`
   files), and a stderr note says so. The shorter names that mode gives are
-  matched by the same suffix pass a config base uses; same-named files collide
-  again in it, the consumer's own configuration;
+  matched by the same suffix pass a config base uses; same-named files that
+  collide in it are held out from mypy's message as above;
 - `--cache-dir os.devnull` is mypy's documented "disable caching" value (mypy
   compares the option to os.devnull by string equality, `/dev/null` on POSIX
   and `nul` on Windows), so no `.mypy_cache` is written into the consumer's
@@ -79,6 +88,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -103,6 +113,13 @@ FATAL_EXIT = 2
 PY_EXTENSIONS = (".pyi", ".py")
 # The error codes mypy gives an import it found no stubs or implementation for.
 MISSING_STUB_CODES = ("[import-untyped]", "[import-not-found]")
+# mypy's blocking error for two files deriving one module name; the path first
+# is the file it refused, the one after `also at` the file it kept.
+DUPLICATE_MODULE = re.compile(
+    r'^(?P<path>.+?): error: Duplicate module named "(?P<name>[^"]+)"'
+    r' \(also at "(?P<kept>[^"]+)"\)',
+    re.MULTILINE,
+)
 
 
 def probe() -> int:
@@ -240,19 +257,31 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         return 3
     report_dir = tempfile.mkdtemp(prefix="code-metrics-mypy-")
     naming_note = ""
+    scope, held_out = split_collisions(files)
     try:
-        result = _run_mypy(exe, report_dir, files, explicit_bases=True)
+        explicit_bases = True
+        result = _run_mypy(exe, report_dir, scope, explicit_bases)
         if result.returncode == FATAL_EXIT and _rejects_explicit_bases(result.stderr):
             # The consumer's config turns namespace packages off, and mypy
             # allows --explicit-package-bases only with them on. Overriding
             # that config would measure a project the consumer did not
             # configure, so the run repeats in mypy's own naming mode
             # (packages from __init__.py files) and says so.
-            result = _run_mypy(exe, report_dir, files, explicit_bases=False)
+            explicit_bases = False
+            result = _run_mypy(exe, report_dir, scope, explicit_bases)
             naming_note = (
                 "namespace packages are off in the mypy config, so modules are "
                 "named from __init__.py packages rather than their paths"
             )
+        # mypy stops at the first duplicate it meets, so each pass can surface
+        # one more; bounded by the scope, since every pass removes a file.
+        while result.returncode == FATAL_EXIT:
+            refused = _refused_duplicate(result.stdout, scope)
+            if refused is None:
+                break
+            scope = [path for path in scope if path != refused[0]]
+            held_out.append(refused)
+            result = _run_mypy(exe, report_dir, scope, explicit_bases)
         if result.returncode == FATAL_EXIT:
             # A blocking error stopped mypy before analysis; the report it still
             # wrote is empty, so there is no measurement to read. The tool
@@ -288,14 +317,14 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     except ValueError as exc:
         print(f"{NAME}.py: unparsable report ({exc})", file=sys.stderr)
         return 3
-    matched = match_modules(modules, files)
+    matched = match_modules(modules, scope)
     notes: list[str] = [naming_note] if naming_note else []
     if result.returncode != 0:
         notes.append(error_note(result.stdout))
     labels = ["lane-total"] + (["mypy-reported-errors"] if result.returncode else [])
     by_path = {path: name for name, path in matched.items()}
     # File rows in scope order, whatever order the names matched in.
-    file_rows = [_row(lane, p, modules[by_path[p]], []) for p in files if p in by_path]
+    file_rows = [_row(lane, p, modules[by_path[p]], []) for p in scope if p in by_path]
     if file_rows:
         lane_counts = _summed([modules[name] for name in matched])
         left_out = len(modules) - len(matched)
@@ -314,16 +343,68 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 f"none of the {len(modules)} listed module(s) matched a scope "
                 "file; the lane row is mypy's own Total and no file rows are emitted"
             )
-    unlisted = len(files) - len(matched)
+    unlisted = len(scope) - len(matched)
     if unlisted and modules:
         notes.append(f"{unlisted} scope file(s) mypy did not list")
     # The lane row leads, so the lane's figure is the first row a reader of
     # the raw rows meets.
     for row in [_row(lane, None, lane_counts, labels), *file_rows]:
         print(json.dumps(row))
+    if held_out:
+        _report_partial("; ".join([collision_reason(held_out, len(files)), *notes]))
     if notes:
         print("; ".join(notes), file=sys.stderr)
     return 0
+
+
+def split_collisions(files: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
+    """(the files to measure, [(held-out file, module name)]): the first scope
+    file of each derived module name is kept, as mypy keeps it, and every later
+    one that derives the same name is held out, so mypy never meets the
+    duplicate that would stop it before analysis."""
+    base = os.path.normcase(os.path.abspath(os.getcwd()))
+    first: dict[str, str] = {}
+    scope: list[str] = []
+    held_out: list[tuple[str, str]] = []
+    for path in files:
+        name = module_name(path, base)
+        kept = first.setdefault(name, path)
+        if kept != path and os.path.abspath(kept) != os.path.abspath(path):
+            held_out.append((path, name))
+        else:
+            scope.append(path)
+    return scope, held_out
+
+
+def _refused_duplicate(stdout: str, scope: list[str]) -> tuple[str, str] | None:
+    """The (scope file, module name) mypy refused as a duplicate, or None when
+    its blocking error is anything else or names a file outside the scope."""
+    match = DUPLICATE_MODULE.search(stdout)
+    if match is None or match.group("path") not in scope:
+        return None
+    return match.group("path"), match.group("name")
+
+
+def collision_reason(held_out: list[tuple[str, str]], total: int) -> str:
+    named = ", ".join(f'{path} (as "{name}")' for path, name in held_out)
+    return (
+        f"{len(held_out)} of {total} scope file(s) not measured: mypy derives the "
+        f"same module name as an earlier scope file for {named}"
+    )
+
+
+def _report_partial(reason: str) -> None:
+    """One line to the dispatcher's partial-reason file, which makes the run row
+    `partial`; stderr when the variable is unset (a direct invocation)."""
+    target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE")
+    if target:
+        try:
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write(reason + "\n")
+            return
+        except OSError as exc:
+            print(f"{NAME}.py: cannot write {target}: {exc}", file=sys.stderr)
+    print(f"{NAME}.py: {reason}", file=sys.stderr)
 
 
 def _run_mypy(

@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.61.6] - 2026-09-28
+## [0.62.1] - 2026-09-28
 
 ### Changed
 
 - hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
+## [0.62.0] - 2026-09-28
+
+### Changed
+
+- **`parse-branch-issue.sh` stops on an unusable `branch_issue_pattern` layer instead of skipping it** ([#4673](https://github.com/melodic-software/claude-code-plugins/issues/4673)). A layer whose `## branch_issue_pattern` section exists but yields no usable pattern now prints a note containing `resolution stopped`, emits no issue number, and exits 1. Before, it was reported and skipped, and a lower layer, the userConfig, or the built-in default could then supply a different number to the `Closes #N` line: with a broken trailing-number team pattern, `feat/12-widget-34` closed #12. The stop covers a heading or HTML comment as the first value line, an empty or unterminated fence, a pattern that breaks a limit, holds a backreference, or does not compile, and a section with no value (previously skipped without a note). The near-miss-heading stop is unchanged. A higher layer that already supplied a valid pattern still wins, and a userConfig value that fails validation is still ignored, with a note, so the default applies. `create.md`, `config-resolution.md`, setup's `SKILL.md`, and `apply-convention.md` describe the stop, and setup's check reports a stopped layer as a FAIL. The repo's config-cascade convention records the stop as a declared deviation from its degrade-soft rule.
 
 ## [0.61.5] - 2026-09-28
 
