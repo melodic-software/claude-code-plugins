@@ -45,6 +45,7 @@ Existing:
 | `plugins/skill-quality/scripts/check-skill.sh:1931` (check 25) | The description's lead matches the verb contract, for example an `audit` skill must read as read-only | script, WARN only | yes, through `scripts/check-changed-skills.sh` (`ci.yml:1247`), changed skills only |
 | `check-skill.sh:609` (check 1) | A declared `name` must equal its directory | script | same |
 | `scripts/check-docs-naming.sh` | Lower-kebab `docs/` file names, case collisions | script | `ci.yml:788` |
+| `scripts/check-adr-numbers.sh` + `scripts/adr-numbers-baseline.txt` | No two `docs/adr/` records share a number, beyond the baselined pairs | script | `ci.yml`, step `adr_numbers` |
 | `plugins/naming/skills/name-it-better/SKILL.md:61,103-104,127-135` | Generates names: verb for an action, a "collision vocabulary" in the brief, three blind generators | judgment | no |
 | `docs/glossary.md` + `/domain-driven-design:curate-language` | The repo's resolved vocabulary (`glossary.md:1-10`) | curated doc | no |
 

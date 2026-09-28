@@ -1,0 +1,14 @@
+# ADR files that share a number and merged before scripts/check-adr-numbers.sh
+# existed. One basename under docs/adr/ per line; a `#` starts a comment. Every
+# file carrying a duplicated number must be listed for that number to pass.
+# Stale-guarded: an entry whose file is gone or whose number no longer collides
+# fails the gate. Never add a new pair here: give the new record the next free
+# number instead.
+0018-express-team-shared-conventions-as-consumer-convention-docs.md
+0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md
+0025-adopt-the-rendered-views-doctrine-with-a-cascade-carried-preference.md
+0025-adopt-the-unknowns-corpus-as-judgment-preserving-contract-deltas.md
+0028-audit-skill-bodies-fleet-wide-against-the-current-model-and-apply-directly.md
+0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md
+0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md
+0039-split-the-animation-render-boundary-into-a-scene-module-and-a-frame-folder.md
