@@ -3,6 +3,17 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- `scripts/backends.py` runs the selected backend and falls back to native with one line when it
+  is missing or unconfirmed (#4402). Aseprite is `aseprite --batch --script` plus a json-hash sheet
+  export. PixelLab (`POST /v1/generate-image-pixflux`) and Retro Diffusion (`POST /v2/inferences`)
+  snap generated pixels through `scripts/image_pipeline.py` before the native render. Paid calls
+  wait for `--confirm`. `reference/backends.md` records the flags and endpoints that were checked
+  against the vendor pages on 2026-09-28.
+
 ## [0.3.0]
 
 ### Added

@@ -22,8 +22,9 @@ animation cycles laid out for game engines, and animated scenes that open in any
    by hand for small sprites or by a short procedural generator for larger ones. A later round reads
    that brief instead of asking again. The palette may be an inline object, a bundled preset
    (`pico-8`, `nes`, `game-boy`, or a CC0 Lospec set in `palettes/`), or a project palette file.
-2. `scripts/render.py` (Python standard library only) writes the engine asset at 1x, an upscaled
-   preview, a GIF per animation, and frame data. `scripts/embed.py` builds scenes into one HTML file.
+2. `scripts/backends.py` selects the backend and `scripts/render.py` (Python standard library only)
+   writes the engine asset at 1x, an upscaled preview, a GIF per animation, and frame data.
+   `scripts/embed.py` builds scenes into one HTML file.
 3. The model looks at what it rendered and revises, usually two to four rounds. Each round marks
    the brief's done criteria pass or fail. The loop stops when they all pass, or when the round
    budget is spent and the failures are named.
@@ -44,12 +45,14 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 - **A browser automation tool** (for example a Playwright CLI or MCP): optional. With one, the
   `scene` skill screenshots its own output and reviews it; without one, it says the scene was not
   reviewed visually and asks you to open it.
-- **Backends other than `native`**: optional and documented in `reference/backends.md`, not yet
-  exercised. The skills check for a selected backend and fall back to `native` with a notice; no
-  adapter code ships in this version.
+- **Backends other than `native`**: optional. `scripts/backends.py` runs Aseprite when
+  `aseprite --version` works, and PixelLab or Retro Diffusion when the API token is set and the
+  user has confirmed the spend. Anything missing falls back to `native` with one line. Details are
+  in `reference/backends.md`.
 
-`sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation tags
-list frame names and per-frame durations rather than `from`/`to` ranges.
+Native `sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation
+tags list frame names and per-frame durations rather than `from`/`to` ranges. The Aseprite backend
+writes Aseprite's own json-hash file instead, and still writes the native GIFs and preview.
 
 ## Audio
 
