@@ -160,7 +160,7 @@ run; it is never silently absent.
 **Suspect 1. Accumulated install-tree state.** Evidence: `tree_census.walk_seconds` and
 `total_files` (the sweep pays roughly this walk daily; minutes here means minutes of background
 I/O after the first launch of the day), `settings-unparsable-pauses-sweep` (the sweep has been
-silently OFF. Nothing was cleaned for as long as that error existed), `history.mb` and
+OFF, and `/status` warns. Nothing was cleaned for as long as that error existed), `history.mb` and
 `home_root_state` sizes (unmanaged, grow forever). `last-cleanup-stale` is weaker evidence than it
 looks: the sweep defers while sessions are active, so a stale sentinel on a busy machine has a
 benign explanation. Report both readings.

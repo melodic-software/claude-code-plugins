@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Fixed
+
+- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
+
 ## [0.51.6] - 2026-09-28
 
 ### Changed

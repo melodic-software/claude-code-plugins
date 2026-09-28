@@ -16,10 +16,13 @@ under the swept paths below are deleted at startup once older than that window.
 
 Three facts about it that change how a finding should be read:
 
-- **An unparsable settings file pauses the sweep.** Upstream: Claude Code pauses retention cleanup
-  and warns in `/status` until the file is fixed, unless managed settings supply
-  `cleanupPeriodDays`, in which case the sweep runs at the managed value. A JSON syntax error is
-  therefore a retention outage, not only a config error. The engine reports it as `error`.
+- **An unparsable user settings file pauses the sweep and warns in `/status`.** Upstream: Claude
+  Code pauses retention cleanup until the user file is fixed, unless managed settings supply
+  `cleanupPeriodDays`, in which case the sweep runs at the managed value. A JSON syntax error in
+  the user file is a retention outage, not only a config error. The engine reports it as `error`.
+  A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses startup
+  (exit 1, source named, from v2.1.259) and is
+  `managed-settings-unparsable-refuses-start`, not a silent lack of enforcement.
 - **Managed settings can supply the value**, at a machine-scope path that varies by OS
   (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `%ProgramFiles%\ClaudeCode\`).
 - **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp
