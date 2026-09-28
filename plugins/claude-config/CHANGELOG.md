@@ -3,16 +3,22 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.21] - 2026-09-28
+## [0.51.22] - 2026-09-28
 
 ### Changed
 
 - **`audit-permission-state` runs as a blocking fork** (`context: fork`, `background: false`)
   (#3545). The body is an isolated subagent prompt with no parent history; `$ARGUMENTS` and the
-  working tree are the whole input. The caller — a user `/name` or `audit-pass` via the Skill
-  tool — waits for the report in the same turn, so the pass's one-gate flow is unchanged.
+  working tree are the whole input. The caller, a user `/name` or `audit-pass` via the Skill
+  tool, waits for the report in the same turn, so the pass's one-gate flow is unchanged.
   `audit-pass`'s lane catalog records that composition posture. Anti-candidate classes and the
   when-fork-pays tests live in `docs/conventions/invocation-context/`.
+
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **`unhobble` keeps the experiment ledger in the repo** ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)). Phase 1 writes `manifest.json` and `stumbles.md` under `.claude/unhobble/<experiment-id>/` with the Write or Edit tool, and the strip commit carries them. Later ledger updates are committed on the experiment branch. `${CLAUDE_PLUGIN_DATA}` holds only `backups/`. Identity is `origin_url`, `branch`, and `base_commit`; a committed manifest records no absolute host path. A state path under the topic-docs contract dir is refused, because `scripts/check-contract-slice-prune.sh --check-diff` fails a pull request that leaves one there. Evals cover the repo state dir, the identity fields, the contract-dir refusal, and Write or Edit for state writes.
 
 ## [0.51.20] - 2026-09-28
 
