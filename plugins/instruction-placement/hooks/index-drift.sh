@@ -34,6 +34,18 @@ set -uo pipefail
 # would notice.
 [[ "${CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED:-true}" == "true" ]] || exit 0
 
+# Advisory abort boundary (#3713): any status other than 0 writes one stderr
+# line and exits 0, so Claude Code never records hook_non_blocking_error with
+# empty stderr. Chosen status is 0 only.
+_idx_on_exit() {
+  local rc=$?
+  trap - EXIT
+  ((rc == 0)) && return 0
+  echo "instruction-placement index-drift: did not run (status ${rc}); fail-open" >&2
+  builtin exit 0
+}
+trap _idx_on_exit EXIT
+
 hook_dir="${BASH_SOURCE[0]%/*}"
 [[ "$hook_dir" == "${BASH_SOURCE[0]}" ]] && hook_dir=.
 # shellcheck source=hook-utils.sh
