@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.17] - 2026-09-28
+
+### Changed
+
+- **Machine-profile orchestrator stays parked
+  ([#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666)).**
+  Do not build a host-fact store that drives the 58 setup skills. Options 2 and
+  3 need an invocation-mode class (ii) amendment (#4240). Option 1 is unpaid
+  operator typing. Recorded in `docs/out-of-scope/machine-profile.md`.
+
 ## [0.62.16] - 2026-09-28
 
 ### Changed
