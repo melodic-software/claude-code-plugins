@@ -290,8 +290,13 @@
 #
 #     All of them need parser state this scanner does not have. None appears in
 #     the registered detector, which is why the gate is correct today rather
-#     than by construction. claude-code-plugins#4222 tracks replacing the
-#     extraction with a real parser, which is the only fix for this class.
+#     than by construction. Replacing the extraction with a real parser
+#     (`shfmt -tojson`) is the only fix for this class. That rewrite is parked
+#     unpaid: claim: awk stays; the gate is correct today, not by construction.
+#     Basis: claude-code-plugins#4222, the list above, #4205/#4223. As of:
+#     2026-09-28. Recheck: a maintainer funds the rewrite and unparks #4222, or
+#     a newly registered detector contains one of these shapes. Ledger:
+#     docs/out-of-scope/eval-coverage-shell-parser.md.
 #
 #     This list is what is KNOWN to be misread, never what remains.
 #
