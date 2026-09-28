@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5] - 2026-09-28
+
+### Added
+
+- **`handoff-verify --path <relative>` takes one approved path inline.** The per-deletion check in the manual handoff lane no longer needs a `handoff-paths.json` write before each run, which removes one file write and its permission prompt per path. Each path is still verified immediately before its own deletion. `--path` is single-use, so one call checks one path; `--paths <file>` stays for the multi-path reporting form. The engine and the guard take exactly one of the two: the grammar gains a `one_of` group that the parser declares as a required mutually exclusive group and the guard enforces on the exact Bash shape. The inline path goes through the same validation as a file entry: relative, non-root, no traversal, and present in the snapshot.
+
 ## [0.24.3] - 2026-09-27
 
 ### Fixed
