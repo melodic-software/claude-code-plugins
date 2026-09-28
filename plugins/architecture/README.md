@@ -53,7 +53,9 @@ edge.
 
 A landscape that draws at most two systems or no edges is reported as thin, with
 the reason and what to run instead: `/architecture:improve` or
-`/discovery:explore` when the question is how one repository is built inside.
+`/discovery:explore` when the question is how one repository is built inside, and
+`/architecture:map-context` when the question is one system's configured external
+systems.
 
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
@@ -77,6 +79,29 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## One system
+
+`/architecture:map-context` draws the C4 system context of the repository you are
+in: one focal system, the people an operator stated, and the external systems
+named by committed configuration and IaC. Connection strings, base URLs, authority
+endpoints, broker namespaces, and storage accounts become external nodes. Each
+node cites the config key and the file it came from.
+
+Credentials never land in the artifact. The collector keeps the host and the
+service kind and drops passwords, tokens, account keys, and URL userinfo. The
+same redaction helper lives at `lib/redact-connection.sh` for later container and
+deployment maps.
+
+Actors are not derived. An interactive run asks. A non-interactive run draws
+none, and a name in the repository is not a person. Operator-stated actors are
+drawn as people. Derived systems are drawn as external software systems. The
+artifact says which is which.
+
+A run that finds no external system says so and names the neighboring rungs: the
+system landscape, and the container rung that breaks this system into
+deployables. The diagram uses `landscape_dialect`, the same key as the landscape.
+Mermaid writes `context.md`. Structurizr writes `context.dsl`.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +123,8 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-context
+/architecture:map-context billing
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,18 +134,20 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "system
+context", "C4 context", "what does this system talk to", "who uses this
+system".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
-home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
-default) and `landscape_dialect` (`structurizr` or `mermaid`, default
-`mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
-`/architecture:setup` owns the declaration: `check` reports the state read-only,
-`apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
-at setup rather than choosing a directory for you.
+`map-landscape` and `map-context` read two keys from a topic doc at your repository's
+convention home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative,
+no default) and `landscape_dialect` (`structurizr` or `mermaid`, default `mermaid`).
+`map-context` uses that same dialect key and does not add one. The contract lives
+in [`reference/config.md`](reference/config.md). `/architecture:setup` owns the
+declaration: `check` reports the state read-only, `apply` converges the pointer
+region and the topic doc. With no `architecture_dir` declared and none confirmed,
+both skills stop and point at setup rather than choosing a directory for you.
 
 ## Persistence
 
@@ -135,8 +164,7 @@ either way.
 This plugin has no `userConfig`. It adapts to your project through your
 project's own context: its glossary (if any), its architecture decision records,
 and its work-artifact convention. There is nothing to hand-edit in the plugin.
-The two `map-landscape` keys are consumer-side, not plugin-side; see Consumer
-configuration above.
+The two keys are consumer-side, not plugin-side; see Consumer configuration above.
 
 ## Install
 

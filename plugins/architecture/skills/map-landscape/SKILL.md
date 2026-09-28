@@ -180,7 +180,8 @@ End every run with this block, in this order, filled from the record and the scr
   - `edges=0`: the subject names no other repository. Lead by saying this is the wrong tool for the
     question: a landscape answers which systems exist and how they reference each other, not how
     one repository is built inside; that is `/architecture:improve` for module structure or
-    `/discovery:explore` for how it works. Then offer
+    `/discovery:explore` for how it works. Configured endpoints, brokers, and stores for this one
+    repository are `/architecture:map-context`. Then offer
     `--repos <repository-that-names-others>,<this>`, the edge-supplying one first.
   - `unresolved_edges` above 0: no charted repository has the name the edges come from, so the
     repository that supplies them is not charted. Add it to `--repos`, first.
@@ -201,7 +202,8 @@ End every run with this block, in this order, filled from the record and the scr
 ## What this skill does NOT do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
-- Container-level or component-level C4 views. This is the landscape altitude only.
+- The system context of one system (`/architecture:map-context`), and container-level or
+  component-level C4 views. This is the landscape altitude only.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.
@@ -213,6 +215,7 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Next
 
+- One system's users and the external systems its configuration names: `/architecture:map-context`.
 - One repository on the landscape needs its own module-level pass: `/architecture:improve`.
 - The landscape came back thin and the question was how one repository works inside:
   `/discovery:explore`.

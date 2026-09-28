@@ -3,6 +3,28 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-context` writes `context.json` (schema_version 1, one object per line) from committed
+  configuration and IaC: connection strings, base URLs, authority endpoints, broker namespaces, and
+  storage accounts. Each external system cites the config key and the file. Mermaid renders
+  `context.md` as a `C4Context` diagram with a focal system. Structurizr renders `context.dsl` as a
+  `systemContext` view. Both use the existing `landscape_dialect` key. A separate context dialect
+  is deferred.
+- `lib/redact-connection.sh` keeps the host and the service kind and drops passwords, tokens,
+  account keys, and URL userinfo. The helper is shared so map-containers and map-deployment can
+  reuse it. A non-interactive run emits no actors. Operator-stated actors are drawn as people,
+  distinct from derived external systems. A thin result (no external systems) says so and names
+  the landscape and container rungs.
+
+### Changed
+
+- `map-landscape` points at `map-context` when the question is one system's users and the external
+  systems its configuration names.
+- `reference/config.md` records that system context reads `landscape_dialect` and adds no dialect key.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

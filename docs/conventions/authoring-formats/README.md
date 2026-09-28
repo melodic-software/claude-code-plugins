@@ -112,14 +112,17 @@ not because they disagree about mermaid.
 |---|---|---|---|---|---|
 | C4 container view | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
 | C4 system landscape | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#c4-dialect-surfaces) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| C4 system context | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#c4-dialect-surfaces) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-context` |
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
 names a dialect.
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
-`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits, and the C4
+system context `/architecture:map-context` emits, once `architecture_dir` is set. Its mermaid
+default is a format choice for artifacts that plugin already emits. A separate context dialect is
+deferred, so this key's allowed values and default do not change, and context does not follow
+`diagram_dialect.system`.
 
 Mermaid C4 being experimental is why this convention's system key refuses mermaid as a value. It is
 not a claim that mermaid is unfit for the landscape surface, whose allowed set is

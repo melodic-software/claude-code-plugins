@@ -6,6 +6,15 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.3] - 2026-09-28
+
+Clarification. No key, allowed value, or default changes.
+
+- **System context reuses `landscape_dialect`.** `/architecture:map-context` emits a C4 system
+  context in the same `structurizr | mermaid` set, mermaid default. A separate context dialect,
+  including following `diagram_dialect.system`, is deferred. The C4 dialect surfaces table names
+  that emitter. The mermaid-C4 record is not rechecked here.
+
 ## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the
