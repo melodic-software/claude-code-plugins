@@ -3,12 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.2] - 2026-09-27
+## [0.38.3] - 2026-09-27
 
 ### Fixed
 
 - **`block-dangerous-git` refuses a PowerShell command it still cannot read once the sink-attempt budget is spent** ([#4682](https://github.com/melodic-software/claude-code-plugins/issues/4682)). With `ps-unparsable-*` allow tokens set, each round blanks one granted sink shape and re-reads the rest. After five rounds the guard used to exit 0 with the remainder unread, so a command carrying five sink triggers and `git reset --hard` passed under all five tokens. So did a granted shape whose blanking changes nothing, which spends every round on itself: `$a=& 'git reset --hard'` under `ps-unparsable-dynamic-invocation` alone. It now exits 2 (form `powershell-unparsable-budget-exhausted`), and no allow token clears it. Without tokens nothing changes, because the first unreadable shape is refused before any round runs.
 - **`block-convention-violation` and `block-noncanonical-commit` refuse a commented here-string opener whatever trigger fired first.** Both refused only when the recorded trigger was `herestring-comment-char`, a name the classifier sets only when no other trigger fired. A commit whose opener line carried a `#` behind a `{` or an `iex` was reported under that other trigger, and both guards deferred. They now test the opener flag itself. A git-free command with a commented opener and a `{` is refused too, the same accepted over-block as the plain commented opener.
+
+## [0.38.2] - 2026-09-27
+
+### Fixed
+
+- **`hardcoded-path-check` now scans `NotebookEdit` cell source.** It read the target from `tool_input.file_path`, which `NotebookEdit` never sends (it sends `notebook_path`), so every `NotebookEdit` passed unscanned. The notebook path now gets the same project scope, allowlist, and gitignore exemption as a `Write`; `file_path` is read only when `notebook_path` is empty. The dispatcher primes `notebook_path` for this guard. The shared test helper's `NotebookEdit` payload now builds the real `notebook_path` shape, and the two PostToolUse cases that fed it to guards whose rows never match `NotebookEdit` are removed.
 
 ## [0.38.1] - 2026-09-27
 

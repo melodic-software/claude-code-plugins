@@ -384,13 +384,6 @@ RC=$?
 assert_exit "non-markdown file → exit 0" 0 "$RC"
 assert_silent "non-markdown file → not scanned" "$OUT"
 
-# A tool other than Write|Edit carries nothing this call wrote.
-OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
-  <<<"$(notebook_json "$TARGET" 'plugins/re-anchor/context/re-anchor-audit-correct.md')" 2>&1)
-RC=$?
-assert_exit "NotebookEdit payload → exit 0" 0 "$RC"
-assert_silent "NotebookEdit payload → silent" "$OUT"
-
 # ============================ NO HISTORY ====================================
 
 # A repository with no commits has an unborn HEAD. `git log HEAD` errors there,

@@ -3768,6 +3768,9 @@ def main(argv: list[str] | None = None) -> int:
                 admitted, skipped = enumerate_root_children(
                     target, policy, known_mounts
                 )
+                # This status and large-target-confirmation-required name the
+                # documented next step, so they exit 0 and `status` carries the
+                # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
                     return emit(
                         {
@@ -3784,7 +3787,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "'clean everything' is not selection."
                             ),
                         },
-                        5,
+                        0,
                     )
                 resolved_children = normalize_root_child_selection(
                     selected_root_children, admitted
@@ -3818,7 +3821,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "--confirmed-large-scan."
                             ),
                         },
-                        5,
+                        0,
                     )
                 try:
                     snapshot = scan_tree(
@@ -3889,7 +3892,7 @@ def main(argv: list[str] | None = None) -> int:
                             "full walk, add --confirmed-large-scan."
                         ),
                     },
-                    5,
+                    0,
                 )
             try:
                 snapshot = scan_tree(target, policy, args.max_depth)

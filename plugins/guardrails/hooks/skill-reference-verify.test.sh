@@ -210,11 +210,6 @@ RC=$?
 assert_exit "non-markdown file → exit 0" 0 "$RC"
 assert_silent "non-markdown file → not scanned" "$OUT"
 
-OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(notebook_json "$TARGET" '`/alpha:nonexistent`')" 2>&1)
-RC=$?
-assert_exit "NotebookEdit payload → exit 0" 0 "$RC"
-assert_silent "NotebookEdit payload → silent" "$OUT"
-
 OUTSIDE="$TEST_TMPDIR/outside.md"
 : >"$OUTSIDE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE" 'Run `/alpha:nonexistent`.')" 2>&1)
