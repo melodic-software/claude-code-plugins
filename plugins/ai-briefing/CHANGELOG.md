@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.43] - 2026-09-28
+
+### Changed
+
+- **`emit-slides-data.js` runs only as the process entrypoint.** Importing it
+  does not parse argv or write a deck. A missing briefing still exits 1, and
+  `--briefing` plus `--out` writes `slides-data.js`, including the formatted
+  meeting window. `lib/window.js` stays: it is the separator parser for the
+  briefing header, covered by `test/window.test.js`, not a one-assertion shim.
+
 ## [0.7.42] - 2026-09-27
 
 ### Changed
