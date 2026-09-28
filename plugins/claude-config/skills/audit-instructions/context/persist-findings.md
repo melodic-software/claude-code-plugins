@@ -40,7 +40,8 @@ edits any of them is therefore a regression, not a debatable suggestion. Two con
 run:
 
 - Scan with `instruction-scan.sh --body-only` (I28) and `restatement-scan.py` (I29, body-scoped
-  by construction). Concatenate both onto the `--from` stream.
+  by construction). Concatenate both onto the `--from` stream. Lane findings for I30 to I33 go on
+  their own `--from-lane` stream, and the same fence binds them.
 - Do **not** rely on that alone. `emit-findings.sh` recomputes the fence over its input and
   additionally declines any body row quoting a trigger phrase that appears in the file's own
   `description`. A fence that lives only in the caller is one caller away from being bypassed.
@@ -51,9 +52,11 @@ report**. It is routed there, never to the relay.
 ## Compose by script, not by hand
 
 Once the destination is resolved and the contract fetch succeeded, run
-`${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <scan output file> --out <resolved path>`.
-The script owns the mechanical half: the fence recomputation, cell assembly and escaping, tier
-lookup (a mirror of the crosswalk, and the crosswalk row is authoritative), rank ordering, the
+`${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <scan output file> --from-lane <lane rows file> --out <resolved path>`,
+omitting whichever input the run has nothing for. The script owns the mechanical half: the fence
+recomputation, cell assembly and escaping, tier lookup (a mirror of the crosswalk, and the
+crosswalk row is authoritative), each row's finding identity (through `scripts/finding-ids.sh`,
+per [reference/finding-identity.md](../reference/finding-identity.md)), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
 the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
@@ -62,18 +65,38 @@ the contract's consumer-precedence rule.
 
 ## Which findings enter the file
 
-**Only the I28 and I29 families.** `instruction-scan.sh` marks eleven check families and
-`restatement-scan.py` marks two more; the other nine families (I6, I8-a/b/c/f, I10, I23, I25, I27)
-have no severity-crosswalk row, and the contract admits no row whose tier cannot be looked up
-from one. They stay in the human report and are counted in `## Surfaces` as
+**The I28 and I29 families from the scan, and I30 to I33 from the lanes.** `instruction-scan.sh`
+marks eleven check families and `restatement-scan.py` marks two more; the other nine scanned
+families (I6, I8-a/b/c/f, I10, I23, I25, I27) and every other lane check have no
+severity-crosswalk row, and the contract admits no row whose tier cannot be looked up from one.
+They stay in the human report and are counted in `## Surfaces` as
 `reason=no-severity-crosswalk-row`. They are declined, never silently dropped.
 
-| Scanner family | Rule id | Tier |
-|---|---|---|
-| `I28-a` | `claude-config/audit-instructions/rule-coercive-emphasis` | IMPORTANT |
-| `I28-b` | `claude-config/audit-instructions/rule-blanket-tool-default` | IMPORTANT |
-| `I29-a` | `claude-config/audit-instructions/rule-description-restatement` | IMPORTANT |
-| `I29-b` | `claude-config/audit-instructions/rule-sibling-restatement` | IMPORTANT |
+| Family | Intake | Rule id | Tier |
+|---|---|---|---|
+| `I28-a` | `--from` | `claude-config/audit-instructions/rule-coercive-emphasis` | IMPORTANT |
+| `I28-b` | `--from` | `claude-config/audit-instructions/rule-blanket-tool-default` | IMPORTANT |
+| `I29-a` | `--from` | `claude-config/audit-instructions/rule-description-restatement` | IMPORTANT |
+| `I29-b` | `--from` | `claude-config/audit-instructions/rule-sibling-restatement` | IMPORTANT |
+| `I30` | `--from-lane` | `claude-config/audit-instructions/rule-trigger-less-stamp` | IMPORTANT |
+| `I31` | `--from-lane` | `claude-config/audit-instructions/rule-migration-relative-phrasing` | IMPORTANT |
+| `I32` | `--from-lane` | `claude-config/audit-instructions/rule-route-to-absent-skill` | CRITICAL |
+| `I33` | `--from-lane` | `claude-config/audit-instructions/rule-spoke-self-description` | SUGGESTION |
+
+**A lane row is a Phase C-surviving finding, written as `<path>:<line>:<check-id>`** with the line
+of the flagged sentence's first physical line (for I33, the opener). A row on the wrong intake is
+declined naming the intake it belongs to (`reason=scanner-fed-rule` or `reason=lane-fed-rule`).
+I31 and I33 are spoke rules, so a row outside a `context/` or `reference/` spoke is declined as
+`reason=outside-rule-surfaces`. **I32 is the one lane rule whose catalog surfaces reach
+frontmatter**: a description or `when_to_use` routing clause naming an absent skill is a real
+finding, but the relay is body-scoped, so the writer declines the row as `reason=frontmatter` and
+counts it, and the human report carries it.
+
+**These rules are selected by judgment, so an unresolved call falls toward emitting.** Each I30 to
+I33 exemption in [reference/criteria.md](../reference/criteria.md) is a withholding boundary that
+needs its evidence present: a one-line scope note is one line that bounds the subject, a named
+owner record is named at the site, a CHANGELOG is a CHANGELOG. A candidate the lane cannot place
+inside an exemption on that evidence goes on the `--from-lane` stream.
 
 The model lane's criteria carve-outs still apply **before** persistence: emphasis guarding a
 destructive, security, or permission gate, a stated hard precondition, and a document *about* the
@@ -120,7 +143,9 @@ pipe-escaped the same way Finding and Action are.
 - **`Location`** is `<repo-relative path>:<line>`; never the file alone.
 - **`Surface(s)`** is `claude-config:audit-instructions`.
 - **`Finding`** leads with the qualified rule id and the fired marker in the run's own values
-  (`marker="CRITICAL:"`, `phrase="if in doubt, use"`), then the excerpt. No rubric reasoning.
+  (`marker="CRITICAL:"`, `phrase="if in doubt, use"`, `target="/fleet:reachx"`), then
+  `finding_id=<16 hex>`, then the excerpt. No rubric reasoning. A row whose identity
+  `finding-ids.sh` refuses is declined as `reason=identity-unresolved`, never emitted without one.
 - **`Action`** states the **downgrade**: normal conditional phrasing for `rule-coercive-emphasis`,
   the targeted condition for `rule-blanket-tool-default`. **The remediation is never a deletion.**
   A finding that removes the instruction rather than its shouting is wrong, so no `Action` cell
@@ -128,9 +153,15 @@ pipe-escaped the same way Finding and Action are.
   legitimate exception is **sentence-initial capitalization forced by dropping a leading wrapper**
   (`…MUST resolve` → `Resolve`), which the official source's own worked example also makes
   (`use` → `Use`). Any other wording change means the remediation overreached.
+- **`Action`** for a lane rule keeps the flagged content and changes its framing: I30 adds the
+  recheck trigger and keeps the stamp, I31 restates the current rule and names the owning
+  `CHANGELOG.md` as the target for any history kept, I32 repoints the route and keeps the routing
+  sentence, and I33 deletes the opener and names the hub as the target for a loading condition its
+  index row lacks. I31 and I33 are therefore off-site rows in the contract's sense.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row, then mapped to the consuming project's
-  severity vocabulary when it defines one. **`Confidence`** is `high` on every emitted row: a
-  deterministic detector fired.
+  severity vocabulary when it defines one. **`Confidence`** is `high` on every scanner-fed row: a
+  deterministic detector fired. It is omitted on every lane-fed row: a judgment selected it, and
+  the contract gives a producer no grade below `high`, so the row ranks as `unscored`.
 
 ## Surfaces, and when the file is written at all
 

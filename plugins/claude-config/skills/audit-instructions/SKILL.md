@@ -176,10 +176,10 @@ Two flags govern the `OPINION` tier, whose enablement policy the catalog defines
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
 
-`--persist-findings` also writes the run's I28 and I29 findings as a `type: review-findings` file
-for `review:fanout`'s `fix` action (off by default; only I28 and I29 are eligible, body-scoped; a
-proposal for a human-gated relay, not an applied edit; see
-[context/persist-findings.md](context/persist-findings.md)).
+`--persist-findings` also writes the run's I28 and I29 scan findings and its I30 to I33 lane
+findings as a `type: review-findings` file for `review:fanout`'s `fix` action (off by default; only
+those families are eligible, body-scoped; a proposal for a human-gated relay, not an applied edit;
+see [context/persist-findings.md](context/persist-findings.md)).
 
 `--unattended` declares that nobody is available to answer: the ~20-dispatch confirmation in
 Phase B becomes a disclosure on the Phase D cost line instead of a question. Only the caller
@@ -406,8 +406,14 @@ Each row's identity is `(check, claim, sites)` per
 [context/execution-and-report.md](context/execution-and-report.md); presentation fields stay
 outside the hash. An I15 conflict is one finding with two sites.
 
-| # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
-|---|-------|--------------|----------|------|-----------|---------|-----------------|
+| # | Finding ID | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
+|---|------------|-------|--------------|----------|------|-----------|---------|-----------------|
+
+**Finding ID** is the row's `finding_id/v1`, derived by piping its `<path>:<line>:<check-id>` row
+(`<pathA>:<lineA>|<pathB>:<lineB>|I15` for a conflict) through `scripts/finding-ids.sh`; it stays
+the same across re-runs over an unchanged tree, so a later run or a suppression can match it.
+[reference/finding-identity.md](reference/finding-identity.md) owns the tuple and each check's claim
+template. A row the script refuses keeps its place and reads `unidentified: <reason>` there.
 
 Phase B2's findings carry two anchors, so they get their own **Cross-surface conflicts** subsection.
 Beside it, an **Out-of-catalog** subsection holds the defects the catalog's "Out-of-catalog defects"
@@ -417,7 +423,8 @@ reach `emit-findings.sh`.
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
 check's tag from the catalog. An I15 conflict finding names **both** participating locations, since it is
-a relation between two instructions, not a property of one line.
+a relation between two instructions, not a property of one line: it is one finding with two sites
+and one Finding ID, never two linked rows.
 
 **No-change findings are exempt from the diff contract.** Where a check forbids proposing an edit,
 covering the I15 managed-policy case and any finding routed to an owning repository rather than applied,
@@ -453,7 +460,7 @@ Open the Sources line with the two official pages the paths and doctrine derive 
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
 catalog).
 
-**With `--persist-findings`**, also emit the run's I28 and I29 findings for the apply relay per
+**With `--persist-findings`**, also emit the run's I28, I29, and I30 to I33 findings for the apply relay per
 [context/persist-findings.md](context/persist-findings.md), which owns every mechanic and the
 carve-out drop preceding the write. Report the path and the emitted/declined counts, and say
 plainly that nothing has been applied.

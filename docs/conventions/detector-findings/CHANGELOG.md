@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.2.0] - 2026-09-28
+
+**Minor, additive.** Four crosswalk rows admit `claude-config:audit-instructions`'s lane-selected
+rules: `rule-trigger-less-stamp` (I30, IMPORTANT), `rule-migration-relative-phrasing` (I31,
+IMPORTANT, off-site to the owning `CHANGELOG.md` for any history kept), `rule-route-to-absent-skill`
+(I32, CRITICAL on the none-at-all limb), and `rule-spoke-self-description` (I33, SUGGESTION,
+off-site to the hub's index row). Each states its withholding boundaries as evidence that must be
+present, so an unresolved lane judgment falls toward emitting, and none is auto-applicable. The
+producer's adopter row records the second intake path, the omitted `Confidence` on lane-fed rows,
+and the `finding_id` each row now carries. No producer-owned field's rule changes.
+
 ## [3.1.3] - 2026-09-27
 
 **Patch, docs-only.** `review`'s `severity.md` now ranks confidence `high` > `medium` > `low` >
