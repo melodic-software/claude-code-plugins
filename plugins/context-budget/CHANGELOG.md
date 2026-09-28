@@ -5,6 +5,12 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.43] - 2026-09-28
+
+### Changed
+
+- **The settings-write checkpoint starts node only for a json edit** ([#4373](https://github.com/melodic-software/claude-code-plugins/issues/4373)). `hooks/hooks.json` sets `if` to `Edit(*.json)`, the one positive rule that field holds, the same shape the PostToolUse verifiers use for `Edit(*.md)`. Claude Code evaluates `if` before the spawn, so a Write or Edit of any other extension costs 0 processes. Settings files are json (`settings.json`, `settings.local.json`, `managed-settings.json`), and the script still case-folds those paths, so `Settings.json` still asks. Measured on this Linux host, 20 runs after one warmup: a no-op `node -e 'process.exit(0)'` was p50 17.6 ms (p95 19.8 ms), `bash -c :` was p50 0.75 ms, and the hook on a markdown Write payload was p50 20.8 ms (p95 23.2 ms) before exiting 0. The `if` takes that markdown fire off the turn.
+
 ## [0.6.42] - 2026-09-28
 
 ### Added

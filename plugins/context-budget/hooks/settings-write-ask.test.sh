@@ -111,6 +111,17 @@ assert_asks "$(run Edit "$WORK/repo/.claude/settings.LOCAL.json")" \
 assert_asks "$(printf '{"tool_name":"Write","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")" \
   "backslash paths normalize and ask"
 
+# The harness evaluates `if` before it spawns the hook. Edit(*.json) is the
+# one positive rule this field holds, the same shape the PostToolUse verifiers
+# use, and it covers Write as well as Edit. A non-json write then costs 0
+# processes. The script still case-folds the json paths that do spawn.
+if_field=$(jq -r '.hooks.PreToolUse[0].hooks[0].if' "$SCRIPT_DIR/hooks.json")
+if [[ "$if_field" == "Edit(*.json)" ]]; then
+  ok "hooks.json if is Edit(*.json), so a non-json write spawns no node"
+else
+  fail "hooks.json if: expected Edit(*.json), got $if_field"
+fi
+
 echo
 echo "passed: $PASS, failed: $FAIL"
 [[ $FAIL -eq 0 ]] || exit 1
