@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.6] - 2026-09-28
+## [0.45.7] - 2026-09-28
 
 ### Fixed
 
@@ -21,8 +21,15 @@ All notable changes to the `planning` plugin are documented here. Format follows
   Claim: v1 is the export contract, and readers for grammars already on main stay. Basis: the
   register gate grades the status column and does not parse the resolution
   (`plugins/planning/scripts/check-open-questions.sh`), and old ledgers still import. As of:
-  2026-09-28, planning 0.45.6. Recheck: a ledger exported before v1 fails import, or the register
+  2026-09-28, planning 0.45.7. Recheck: a ledger exported before v1 fails import, or the register
   gate starts grading resolution fields.
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 

@@ -44,7 +44,7 @@ the escaped row.
 Claim: this one grammar is the export contract, and every reader for a grammar that already
 shipped on main stays. Basis: the register gate (scripts/check-open-questions.sh) grades the
 status column and does not parse the resolution, and old ledgers still import. As of:
-2026-09-28, planning 0.45.6. Recheck: a ledger exported before v1 fails import, or
+2026-09-28, planning 0.45.7. Recheck: a ledger exported before v1 fails import, or
 check-open-questions.sh starts grading resolution fields.
 
 Rows written before v1 still import, and are not rewritten except by a later export. A held row
