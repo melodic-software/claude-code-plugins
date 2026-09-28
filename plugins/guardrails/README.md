@@ -34,7 +34,12 @@ were eight, one per Write/Edit PreToolUse where there were three, one per Write/
 PostToolUse where there were three), the exit code (2 if any guard blocks, and every
 guard still runs so a command that trips two guards shows both reasons), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
-emit. It also tokenizes the event's command once and hands every guard that parses it
+emit. On the Bash/PowerShell row it also refuses (exit 2) a command holding more than
+256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair, counted as
+text whatever the quoting) before any guard runs, because the guards' combined cost
+grows with that count and a row cancelled at its 60-second `timeout` blocks nothing
+([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).
+It also tokenizes the event's command once and hands every guard that parses it
 the same segments. One exception to "every guard still runs": on the Bash/PowerShell
 row, a command longer than `MAX_COMMAND_LEN` (16384 characters, passed to the dispatcher
 as `--max-command-len`) ends the chain at the first guard that blocks it. The five
