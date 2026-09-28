@@ -29,7 +29,7 @@ the interview unless the user accepts.
 ## 2. Choose the backend
 
 Read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native` is the default and
-always available. Honor `${user_config.backend}` when it names another backend. `scripts/backends.py`
+always available. Honor `${user_config.backend}` when it names another backend. `${CLAUDE_PLUGIN_ROOT}/scripts/backends.py`
 detects that backend, uses it when it is present, and otherwise prints one line and renders with
 `native`. PixelLab and Retro Diffusion spend money: the first run omits `--confirm`. If the notice
 says confirmation is required, ask the user, and pass `--confirm` only after they accept. Every
