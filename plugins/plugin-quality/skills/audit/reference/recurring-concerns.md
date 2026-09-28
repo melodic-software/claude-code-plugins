@@ -36,6 +36,10 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 - **Process** (rebase happened, triage occurred, footer assembled): NO command signature → NOT
   hook-enforceable. Advisory is the correct ceiling; the fix is making the advisory reliably fire,
   not hard-blocking. Never hard-block a command that has a documented legitimate direct use.
+- **Claimed property the producer can break.** If a skill asserts write-once, sealed, or immutable,
+  but the producing agent can Edit the artifact, that is a discipline with after-the-fact verify,
+  not a guarantee (#3866). Flag a surface that states the stronger reading. Detection after loss
+  is not prevention.
 
 ## 4. SSOT / DRY / drift
 
