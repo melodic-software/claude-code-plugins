@@ -3,6 +3,19 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-28
+
+### Added
+
+- **`/wizard:unattended`** ([#4199](https://github.com/melodic-software/claude-code-plugins/issues/4199)).
+  A sibling of `generate` for work that is fully scriptable and not agent-launchable. The agent
+  authors a PowerShell script onto a fixed library and does not run it. The human launches it
+  once. The library checks elevation in both directions, refuses to run inside the thing it
+  restarts, resolves secrets from the environment, a file, then one prompt, records an idempotent
+  step, fails closed on a prior script's result, preflights with a fix command, and releases a
+  shared resource only after proof. The run writes `cutover.result/1` JSON and redacts secrets
+  from the transcript.
+
 ## [0.2.10] - 2026-09-21
 
 ### Changed
