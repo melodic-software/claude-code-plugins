@@ -3,11 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.6] - 2026-09-28
+## [0.45.8] - 2026-09-28
 
 ### Added
 
 - **Eval cases:** `brainstorm` gains a case for its observed-fact evidence bar, and `plan` a case for the collapse self-check before folding mechanical sections ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 
