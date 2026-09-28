@@ -2,6 +2,8 @@
 # Tests for parse-branch-issue.sh.
 # Each case: PASS prints, FAIL prints. Non-zero exit on any FAIL.
 
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="${SCRIPT_DIR}/parse-branch-issue.sh"
 

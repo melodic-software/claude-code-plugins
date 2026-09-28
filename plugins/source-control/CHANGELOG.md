@@ -9,6 +9,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`parse-branch-issue.sh` skips team and overlay when the project root is home or not a repository** ([#4672](https://github.com/melodic-software/claude-code-plugins/issues/4672)). With `CLAUDE_PROJECT_DIR` equal to `$HOME` (or an ancestor of it), the team path `${root}/.claude/source-control.md` is the same file as user-global; with a root outside any git working tree there is no consumer repository. In both cases the script reports `team and overlay not applicable` and reads `~/.claude/source-control.md` once, as user-global. A team or overlay path that physically equals the user-global file is skipped even inside a repository. Setup `check` reports those layers as N/A; `apply layer=team` and `layer=local` refuse and offer `layer=user`. The config-cascade contract records the rule as resolution step 2 (contract 1.3). A shared root resolver for other surfaces is follow-up.
 
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- **The three guarded-mutation CLIs share one preamble (#3449).**
+  `guarded_mutation.py` owns the worker-lease check, the snapshot load, and the
+  head pin that `refresh_pr_branch.py`, `manage_feedback_ledger.py`, and
+  `request_review.py` each opened with. The helper documents what it checks,
+  what it permits, what it refuses, and that a refusal is still the exception
+  the caller already saw. Dry runs still skip the lease. What the guard permits
+  is unchanged.
+
 ## [0.62.10] - 2026-09-28
 
 ### Changed
