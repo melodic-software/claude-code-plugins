@@ -42,6 +42,29 @@ engine plan:
    `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
    `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
 
+   **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
+   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/`, and `.claude` is a protected
+   directory. A Write of `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default`
+   and `acceptEdits`, costs a classifier round trip in `auto`, and is denied in `dontAsk`. No
+   `permissions.allow` rule pre-approves it. Inline `--path` writes nothing, which is one more
+   reason it is the per-deletion form. When the prompt offers "Yes, and allow Claude to edit files
+   in its ~/.claude folder for this session", that option approves every later write anywhere
+   under `~/.claude/` for the rest of the session: settings, memory, and every plugin's data, not
+   just this run directory. Answer the single prompt instead unless the operator wants that
+   breadth. In `dontAsk` the evidence file cannot be written, so the standalone-checkout exception
+   below is unavailable there, while inline `--path` verification still runs.
+   **Claim:** `.claude` is a protected directory, whose writes are prompted in `default` and
+   `acceptEdits`, routed to the classifier in `auto`, and denied in `dontAsk`; settings allow rules
+   do not pre-approve them; and the `~/.claude/` prompt carries the session-scoped option quoted
+   above. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`. **Basis:**
+   [protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
+   ("`permissions.allow` rules in settings files do not pre-approve protected-path writes"; the
+   per-mode table; "`.claude`, except for `.claude/worktrees`") and
+   [environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+   ("`~/.claude/plugins/data/<id>/`"). **As of:** 2026-09-28, Claude Code 2.1.280. **Recheck:**
+   when the protected-paths section changes its directory list, its per-mode table, or its
+   session-scoped options, or when the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
+
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
    set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
