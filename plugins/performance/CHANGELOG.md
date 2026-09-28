@@ -3,6 +3,17 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.9] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Four of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: host-qualification mechanics,
+  floor-computation detail, and restated skip lists. `check-listing-budget.sh
+  plugins/performance/skills` goes from 4,235 to 2,277 characters. `protect` was
+  already under 500. No skill is renamed or merged.
+
 ## [0.2.8] - 2026-09-28
 
 ### Fixed
