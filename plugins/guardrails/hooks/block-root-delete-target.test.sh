@@ -1450,6 +1450,8 @@ assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 # PowerShell tool, and this guard does not cover them: it exits on a non-Bash
 # tool_name, which also keeps it out of the PowerShell classifier path entirely.
 # Pinned so widening it later is a deliberate change to this line.
+# Parked #4516 Option A: A2b (faithful PowerShell tokenization) is still the
+# prerequisite; a substring match is declined.
 expect "PowerShell payload is a declared gap, not a block" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
 

@@ -145,6 +145,14 @@
 #     classes above. The guard exits on any tool_name other than Bash, which
 #     also keeps it out of the shared PowerShell classifier and its sink
 #     attempt budget. PowerShell is tracked separately.
+#     PARKED DECISION (#4516), Option A. Do not substring-match `Remove-Item
+#     -Recurse` (or `ri`/`rm`/`rd /s`) on this Bash-only walker. Claim: a token
+#     scan that is not PowerShell argv is the same fail-open class the Bash
+#     lane refuses to take (aliases, splatting, `& $cmd`, computed targets).
+#     Basis: `plugins/guardrails/lib/powershell/ps-command.sh` still names
+#     faithful PowerShell tokenization as the A2b residual; the classifier is a
+#     reduction to the Bash tokenizer, not an argv walker. Recheck when A2b
+#     lands. Option B (naive widen now) is declined.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
