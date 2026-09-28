@@ -158,10 +158,16 @@ surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Prompting Claude Opus 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
-- The bundled `claude-api` skill's model-migration reference (Claude Code 2.1.258), sections
-  Migrating to Claude Fable 5.1 and Migrating to Claude Fable 5.1 from Claude Fable 5. This is the
-  basis for every `fable-5-1` scope widening in this catalog. **Recheck trigger:** publication of a
-  Fable 5.1 prompting guide, which replaces this basis and joins this list in its place.
+- The bundled `claude-api` skill's model-migration reference. The `fable-5-1` widenings below were
+  taken from Claude Code 2.1.258 (sections Migrating to Claude Fable 5.1 and Migrating to Claude
+  Fable 5.1 from Claude Fable 5). Re-read 2026-09-28 from the skill inside Claude Code 2.1.282:
+  those sections are still present, the guide adds `## Ground the migration with an eval` (the
+  2.1.260 refresh, which also moved the Go, Java, and C# samples onto current-generation model
+  ids), and the bundled `prompt-audit` guide still runs Steps 0–7 over Groups 1–4. Changelog
+  2.1.283 is the next release that names `prompt-audit`, so this stamp does not claim the guide is
+  byte-identical past 2.1.282. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
+  which replaces this basis and joins this list in its place, or a release note that changes
+  `prompt-audit` or the model-migration sections this catalog cites.
 - Prompting Claude Opus 5.5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
 - Getting the most out of Opus 5.5 in Claude and Claude Code (vendor blog, published 2026-09-22,

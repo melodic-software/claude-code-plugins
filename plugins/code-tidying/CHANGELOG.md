@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.11] - 2026-09-28
+## [0.23.12] - 2026-09-28
 
 ### Added
 
@@ -14,6 +14,17 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   line-1 shebang, a `__name__` guard, or `__main__.py`. A CI workflow, settings file,
   manifest, or doc counts as alive evidence. A computed path or glob does not, so the candidate
   stays uncertain rather than dead. Knip still owns unused TS/JS files inside a manifest root.
+
+## [0.23.11] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`.** `tidy`'s findings-table rows and `batch-simplify`'s
+  reported deferrals state what each rests on, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential finding or disposition is withheld as an open question.
 
 ## [0.23.10] - 2026-09-28
 
