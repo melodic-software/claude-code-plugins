@@ -24,8 +24,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/probe-prerequisite.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
             "timeout": 10,
             "statusMessage": "Checking goimports..."
           }

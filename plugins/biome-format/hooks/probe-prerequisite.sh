@@ -4,12 +4,6 @@
 # gates had passed. Never installs.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-# shellcheck source=hook-utils.sh
-source "$SCRIPT_DIR/hook-utils.sh"
-
-INPUT="$(cat || true)"
-
 have_biome() {
   command -v biome >/dev/null 2>&1 && return 0
   local dir="$PWD"
@@ -25,6 +19,13 @@ have_biome() {
 if have_biome; then
   exit 0
 fi
+
+SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+# shellcheck source=hook-utils.sh
+source "$SCRIPT_DIR/hook-utils.sh"
+
+INPUT="$(cat || true)"
+
 if hook::notice_once "biome-format-biome" "$INPUT" prerequisite; then
   hook::emit_skip_notice SessionStart \
     "biome-format: no biome binary was found on PATH or as node_modules/.bin/biome. Format and lint will skip until it is installed. Run /biome-format:check. It does not install. A repo-local install (npm i -D @biomejs/biome) is the reliable route."

@@ -1329,14 +1329,14 @@ fi
 HOOK_NOTICE_KIND=renew
 HOOK_NOTICE_KEEP_BODY=1
 HOOK_NOTICE_COUNT=8
-kept="$(hook::emit_skip_notice SessionStart $'plugin: tool missing. Install: npm i -D tool\nPATH probed: /usr/bin')"
+skip_notice="$(hook::emit_skip_notice SessionStart $'plugin: tool missing. Install: npm i -D tool\nPATH probed: /usr/bin')"
 HOOK_NOTICE_KIND=full
 HOOK_NOTICE_KEEP_BODY=0
 HOOK_NOTICE_COUNT=0
-if [[ "$kept" == *'Install: npm i -D tool'* && "$kept" == *'8 skips this session'* ]]; then
+if [[ "$skip_notice" == *'Install: npm i -D tool'* && "$skip_notice" == *'8 skips this session'* ]]; then
   ok "emit_skip_notice: prerequisite renewal keeps the install route"
 else
-  fail "emit_skip_notice: prerequisite renewal keeps the install route" "got '$kept'"
+  fail "emit_skip_notice: prerequisite renewal keeps the install route" "got '$skip_notice'"
 fi
 rm -rf "$DATA16C" "$DATA16C2" "$DATA16P" "$DATA16R"
 
