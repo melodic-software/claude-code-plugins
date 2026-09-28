@@ -132,17 +132,25 @@ path there fails that gate, and the slice is pruned before merge, which deletes 
 
    **Plugins, every one enabled at any scope.** Inventory user, project, and local
    `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
-   plugin: id, scopes, hook-wiring or skill-only, class, and the Phase 2 action. A plugin is
-   hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field. Classify each wired
+   plugin: id, scopes, the component types it ships, hook-wiring or not, class, and the Phase 2
+   action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
+   **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
+   reference "Standard layout" table and `hooks` manifest field
+   (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
+   2026-09-28. **Recheck:** that page names another hook location. Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. Any policy entry, or any behavioral entry whose oracle is non-derivable,
    makes the plugin `hybrid`: kept whole, recorded `unstripped-mixed-plugin`, with a per-hook
-   kill switch still available when the plugin exposes one. A skill-only plugin (no hook wiring)
-   uses this rubric only: `policy` when a skill encodes an invariant you would keep with a
-   perfect model; `non-derivable` when the skills carry a machine fact or procedure the model
-   cannot derive; `behavioral` when they are convenience the model can do without. `policy` and
-   `non-derivable` stay. `behavioral` is the overlay candidate. A plugin force-enabled by managed
-   settings cannot be disabled from project scope; record it kept. Managed settings are never edited.
+   kill switch still available when the plugin exposes one. A plugin with no hook wiring is not
+   automatically skill-only: inventory every component type that same table lists (MCP and LSP
+   servers, agents, `bin/` executables, monitors, output styles, workflows, settings). An MCP or
+   LSP server, executable, or monitor gives the model a capability it cannot derive, so the plugin
+   is `non-derivable`. Only then apply this rubric to its skills, commands, and agents: `policy`
+   when one encodes an invariant you would keep with a perfect model; `non-derivable` when one
+   carries a machine fact or procedure the model cannot derive; `behavioral` when all are
+   convenience the model can do without. `policy` and `non-derivable` stay. `behavioral` is the
+   overlay candidate. A plugin force-enabled by managed settings cannot be disabled from project
+   scope; record it kept. Managed settings are never edited.
 4. Write `manifest.json` and an empty `stumbles.md` under `.claude/unhobble/<experiment-id>/`
    with the Write or Edit tool. Do not write them with a shell redirect or a heredoc. Present the
    strip plan (what goes, what stays and why) and stop for confirmation. Do not commit yet: the
@@ -211,7 +219,9 @@ Apply the confirmed strip plan:
   `enabledPlugins` map. Keep every key in byte order (`LC_ALL=C` sort), one per line, which is
   what the repository catalog-enablement gate checks (check-plugin-catalog-enablement, under
   the repository scripts directory); an explicit `false` passes that gate
-  as a recorded opt-out. Restore by deleting those keys, not by setting them back to `true`.
+  as a recorded opt-out. Record each key's prior project value (absent or `true`) in the
+  manifest. Restore to that value: set `true` back where the project had `true`, and delete the
+  key where the `false` was newly added over another scope's enablement.
   A plugin classified `hybrid` is kept whole, behavioral parts recorded as
   `unstripped-mixed-plugin` (label unchanged for manifest continuity). Within that kept plugin, a
   behavioral or hybrid hook may still be stripped when a per-hook kill switch exists (a

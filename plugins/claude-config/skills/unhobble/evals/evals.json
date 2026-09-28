@@ -205,11 +205,11 @@
       "name": "behavioral-plugin-overlay-is-sorted-false-and-verified",
       "narration": true,
       "prompt": "/claude-config:unhobble bare — notes@tools was classified behavioral. Disable it. It is currently true in user settings. After you edit, assume claude plugin list --json still lists it.",
-      "expected_output": "Writes notes@tools: false into the committed project .claude/settings.json enabledPlugins map, with keys kept in byte order (LC_ALL=C), records the prior enabled set in the manifest, and restores later by removing the key rather than setting it back to true. Cites the settings-reference claim that project settings take precedence over user settings, with the as-of date and the recheck trigger. Does not call the plugin stripped, because claude plugin list --json still lists it; records that as a confound.",
+      "expected_output": "Writes notes@tools: false into the committed project .claude/settings.json enabledPlugins map, with keys kept in byte order (LC_ALL=C), records the prior enabled set in the manifest, and restores later by removing the key, because the project had no prior value for it (it was enabled only at user scope). Cites the settings-reference claim that project settings take precedence over user settings, with the as-of date and the recheck trigger. Does not call the plugin stripped, because claude plugin list --json still lists it; records that as a confound.",
       "files": [],
       "expectations": [
         "Writes a project-scope enabledPlugins false entry and keeps keys in byte order",
-        "Records the prior enabled set and restores by removing the entry",
+        "Records the prior enabled set and restores by removing the entry, since the project had no prior value",
         "States the project-over-user precedence claim with its basis, as-of date, and recheck trigger",
         "Refuses to treat the plugin as stripped while claude plugin list --json still lists it"
       ]

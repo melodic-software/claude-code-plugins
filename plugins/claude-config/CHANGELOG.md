@@ -7,7 +7,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. Skill-only plugins use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores by removing the keys. A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
+- **`unhobble` classifies every enabled plugin and ablates behavioral ones with a project `enabledPlugins` false** ([#4095](https://github.com/melodic-software/claude-code-plugins/issues/4095)). Phase 1 emits a row for every plugin enabled at any scope. Hook-wiring plugins use the plugin-philosophy "Classifying a hook" rubric. A plugin without hooks is classified across every component type; an MCP or LSP server, executable, or monitor makes it non-derivable, and its skills, commands, and agents use policy, non-derivable, or behavioral. Phase 2 writes byte-sorted `false` entries in the committed project settings, records the prior set, and restores each key to its prior project value (true, or absent). A fresh `claude plugin list --json` is what counts as stripped. The project-false versus user-true precedence claim carries a four-part record against the settings reference.
 
 ## [0.51.21] - 2026-09-28
 
