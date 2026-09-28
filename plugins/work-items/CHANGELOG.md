@@ -10,7 +10,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **Jira conformance no longer shares temp, git config, or PATH with a parallel
   job ([#3694](https://github.com/melodic-software/claude-code-plugins/issues/3694)).**
   `bindings/jira.test.sh` uses a private temp root, a private `GIT_CONFIG_GLOBAL`
-  and `HOME`, and a PATH of system directories plus a gh/curl shim. Another job's
+  and `HOME`, and a PATH of system directories, jq's directory, and a gh/curl shim. Another job's
   fixture bin cannot land on that PATH, and neither pass reaches the real `gh` or
   `curl`. Pinning the suite to one CPU already passed 10/10, so the serial
   allowlist entry is removed. It was not the fix.

@@ -28,8 +28,11 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 # System directories only. The inherited PATH carries other jobs' fixture bins
 # (and this checkout's node_modules/.bin). gh and curl exist only as the
-# blocking shim, on both passes.
-SAFE_PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+# blocking shim, on both passes. The runner needs jq, which a developer machine
+# or a Windows runner installs outside the system directories, so its directory
+# is appended after them.
+JQ_BIN="$(command -v jq)" || { echo "jira.test.sh: jq not found" >&2; exit 1; }
+SAFE_PATH="/usr/sbin:/usr/bin:/sbin:/bin:$(dirname "$JQ_BIN")"
 write_blocking_network_shim "$PRIVATE/bin"
 export PATH="$PRIVATE/bin:$SAFE_PATH"
 
