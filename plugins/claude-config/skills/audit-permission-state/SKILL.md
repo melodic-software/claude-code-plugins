@@ -32,7 +32,7 @@ could actually open, and what each one holds.
 
 This skill runs as a **blocking fork** (`context: fork`, `background: false`): the body is the
 subagent's prompt and there is no parent conversation. `$ARGUMENTS` and the working tree are the
-whole input. The caller — a user `/name` or `audit-pass` via the Skill tool — waits for the
+whole input. The caller, a user `/name` or `audit-pass` via the Skill tool, waits for the
 report in the same turn. Rubric:
 [invocation-context](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
 

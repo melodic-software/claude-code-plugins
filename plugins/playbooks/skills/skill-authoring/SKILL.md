@@ -241,8 +241,8 @@ which owns the model-invoked default, the three exception classes a `true` may c
 when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
 invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
 
-A skill's **execution context** — inline (omit `context`) versus `context: fork`, and whether a
-fork blocks — is a separate choice, owned by the
+A skill's **execution context**, inline (omit `context`) versus `context: fork`, and whether a
+fork blocks, is a separate choice, owned by the
 [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md).
 Read it before setting `context: fork`. The default is inline. A fork discards conversation
 history and, unless `background: false` is set, returns asynchronously. Skill-tool targets and
