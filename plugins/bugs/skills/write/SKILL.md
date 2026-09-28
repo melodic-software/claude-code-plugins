@@ -39,6 +39,15 @@ Five fields: title, steps to reproduce, expected vs actual, severity (with justi
 
 A sharp report captured up front saves the next session from re-asking. Unrepresented reproduction steps cost far more to recover later than to capture now.
 
+## Consumer gotchas (#3547)
+
+Before writing the report, load consumer gotchas from each cascade layer that exists
+(`~/.claude/bugs.md`, `${CLAUDE_PROJECT_DIR}/.claude/bugs.md`, `.claude/bugs.local.md`) per
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md): extract each file's
+`## Gotchas` section and concatenate in layer order after this skill's bundled `## Gotchas` below.
+Apply consumer lines during capture. Generalizable lines belong upstream; see
+[`docs/conventions/config-cascade/consumer-gotchas.md`](../../../../docs/conventions/config-cascade/consumer-gotchas.md).
+
 ## Skip conditions, when not to invoke
 
 - **Investigation needed**, the bug needs reproduce-first diagnosis, not just capture. If your project provides a debugging or investigation skill, hand off to it; otherwise scope the investigation separately from this read-only capture.

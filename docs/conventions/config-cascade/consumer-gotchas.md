@@ -42,7 +42,7 @@ Loads **only when the skill loads** (instruction-placement doctrine).
 
 | Plugin | Consumer path | Status on `main` |
 |---|---|---|
-| `bugs` | `.claude/bugs.md` `## Gotchas` (proposed) | convention ratified; reader wiring tracked in #3547 follow-up |
+| `bugs` | `.claude/bugs.md` `## Gotchas` | wired in `/bugs:scan` and `/bugs:write` (#3547 pilot) |
 
 Plugins with an existing config surface (`source-control`, `codebase-health`) adopt the same shape
 in their owner docs when wired.

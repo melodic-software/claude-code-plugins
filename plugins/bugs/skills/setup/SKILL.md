@@ -90,6 +90,9 @@ never the CWD. Then report **each layer separately** and the effective merged re
    it was not considered rather than presenting the rest as the whole effective config.
 5. **Unknown keys.** Report them as inert, naming their layer, including `output_dir`, which is not
    a recognized key here per the reference's partition rule.
+6. **Consumer `## Gotchas`.** Report whether each layer's file has a `## Gotchas` section (line count
+   or "absent"). Prose there is the local gotchas tier for `/bugs:scan` and `/bugs:write`; see
+   [`reference/config.md`](../../reference/config.md).
 
 ## `apply` (idempotent, bounded to `.claude/bugs.md`)
 

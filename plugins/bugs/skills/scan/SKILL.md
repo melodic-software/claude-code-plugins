@@ -85,6 +85,16 @@ contract. Keys, layers, and merge semantics live in
 When no layer declares lanes, use the bundled generic default lanes in
 [`context/lenses.md`](context/lenses.md).
 
+## Consumer gotchas (#3547)
+
+Before the workflow steps, load consumer gotchas from each cascade layer that exists
+(`~/.claude/bugs.md`, `${CLAUDE_PROJECT_DIR}/.claude/bugs.md`, `.claude/bugs.local.md`): read the
+file, take the `## Gotchas` section (prose under that heading until the next `##` heading or EOF),
+and concatenate those sections in layer order after this skill's bundled `## Gotchas` below. Treat
+consumer lines as binding for this run. Repo-specific lines stay in the cascade; generalizable lines
+belong in the shipped skill via an issue to this marketplace
+([`docs/conventions/config-cascade/consumer-gotchas.md`](../../../../docs/conventions/config-cascade/consumer-gotchas.md)).
+
 ## Cursor ladder (rotation mode)
 
 Which lane comes next is derived **statelessly**, first rung that answers wins:

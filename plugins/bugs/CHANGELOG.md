@@ -3,6 +3,14 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-09-28
+
+### Added
+
+- **Consumer gotchas pilot (#3547):** `/bugs:scan` and `/bugs:write` instruct loading concatenated
+  `## Gotchas` sections from the `.claude/bugs.md` cascade; `/bugs:setup check` reports per-layer
+  presence.
+
 ## [0.11.2] - 2026-09-28
 
 ### Changed
