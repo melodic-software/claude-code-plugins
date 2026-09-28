@@ -431,22 +431,6 @@ def load_pack(p):
     return json.load(open(p / 'style.json' if p.is_dir() else p, encoding='utf-8'))
 
 
-def shot_cuts(path):
-    """Interior shot boundaries from a produce shots.json. The file owns the cuts."""
-    path = Path(path)
-    try:
-        data = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, json.JSONDecodeError) as exc:
-        sys.exit(f'inkstats: cannot read {path}: {exc}')
-    shots = data.get('shots') if isinstance(data, dict) else None
-    if not isinstance(shots, list) or len(shots) < 1:
-        sys.exit(f'inkstats: {path} has no shots')
-    try:
-        return [float(shot['t0']) for shot in shots[1:]]
-    except (KeyError, TypeError, ValueError):
-        sys.exit(f'inkstats: {path} shots need a numeric t0')
-
-
 def nums(s, n=None):
     v = [float(x) for x in s.replace('-', ',').split(',')] if s else None
     if v and n and len(v) != n:

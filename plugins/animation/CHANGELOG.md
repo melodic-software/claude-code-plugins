@@ -8,22 +8,11 @@ All notable changes to the `animation` plugin are documented here. Format follow
 ### Added
 
 - **`/animation:produce`** ([#4591](https://github.com/melodic-software/claude-code-plugins/issues/4591)).
-  `produce.py init` writes the brief, the boards, and an empty `shots.json`. `produce.py gate`
-  exits 2 until the user writes `boards/APPROVED` with a first line of `approved`, so nothing
-  past the storyboard renders before that. `shots.json` owns cut times: `inkstats.py --cuts`
-  reads a shots.json path through `scripts/shots.py`, and a comma list still works for a film
-  with no production directory. After the gate, render through `scripts/render.py` and review
-  with `inkstats.py --pack`.
-
-## [0.2.0] - 2026-09-28
-
-### Added
-
-- **`/animation:produce`** ([#4591](https://github.com/melodic-software/claude-code-plugins/issues/4591)).
   A production directory holds `brief.md`, `boards/storyboard.md`, `shots.json` and, once the user
-  writes it, `boards/APPROVED`. `produce.py gate` exits non-zero until that approval exists, so
-  nothing past the storyboard renders before it. `shots.json` owns the shot cuts.
-  `inkstats.py --shots` reads them and is refused together with `--cuts`.
+  writes it, `boards/APPROVED`. `produce.py gate` exits 2 until that file is non-empty, so nothing
+  past the storyboard renders before it. `shots.json` owns the shot cuts. `inkstats.py --shots`
+  reads that file and is refused together with `--cuts`. `--cuts` still accepts a shots.json path
+  or a comma list, through `scripts/shots.py`.
 
 ## [0.1.1]
 

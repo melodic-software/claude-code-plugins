@@ -159,7 +159,12 @@ def gate(root):
     if missing:
         raise SystemExit('produce: missing ' + ', '.join(missing))
     if name != 'approved':
-        raise SystemExit('produce: boards are not approved (write boards/APPROVED); nothing past the storyboard renders')
+        print(
+            'produce: boards are not approved (write boards/APPROVED); '
+            'nothing past the storyboard renders',
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     print('produce: approved')
     return 0
 

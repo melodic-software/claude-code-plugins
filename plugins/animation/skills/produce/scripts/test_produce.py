@@ -1,4 +1,4 @@
-"""Gate, schema and shot cuts for /animation:produce. Standard library only."""
+"""produce.py stops at the boards until the user writes boards/APPROVED."""
 
 import json
 import subprocess
@@ -8,71 +8,69 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCRIPT = HERE / 'produce.py'
+PRODUCE = HERE / "produce.py"
 
 
 def run(*args):
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True, text=True,
+        [sys.executable, str(PRODUCE), *args],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
-class Produce(unittest.TestCase):
-    def test_gate_blocks_until_the_boards_are_approved(self):
+class ProduceGate(unittest.TestCase):
+    def test_init_stops_until_the_user_approves(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'film'
-            made = run('init', str(root), '--title', 'Harbor')
-            self.assertEqual(made.returncode, 0, made.stderr)
-            self.assertTrue((root / 'brief.md').is_file())
-            self.assertTrue((root / 'boards' / 'storyboard.md').is_file())
-            self.assertFalse((root / 'boards' / 'APPROVED').exists())
-            blocked = run('gate', str(root))
-            self.assertEqual(blocked.returncode, 1, blocked.stderr)
-            self.assertIn('not approved', blocked.stderr)
-            checked = run('check', str(root))
+            root = Path(tmp) / "film"
+            init = run("init", str(root), "--title", "Harbor", "--style", "woodcut-ink")
+            self.assertEqual(init.returncode, 0, init.stderr)
+            self.assertTrue((root / "brief.md").is_file())
+            self.assertTrue((root / "boards" / "storyboard.md").is_file())
+            self.assertFalse((root / "boards" / "APPROVED").exists())
+            shots = json.loads((root / "shots.json").read_text(encoding="utf-8"))
+            self.assertEqual(shots["shots"][0]["t0"], 0)
+            self.assertEqual(shots["styles"], ["woodcut-ink"])
+
+            checked = run("check", str(root))
             self.assertEqual(checked.returncode, 0, checked.stderr)
-            self.assertIn('boards', checked.stdout)
-            (root / 'boards' / 'APPROVED').write_text('approved\n', encoding='utf-8')
-            opened = run('gate', str(root))
+            self.assertIn("boards", checked.stdout)
+
+            blocked = run("gate", str(root))
+            self.assertEqual(blocked.returncode, 2, blocked.stderr)
+            self.assertIn("not approved", blocked.stderr)
+
+            (root / "boards" / "APPROVED").write_text("approved\n", encoding="utf-8")
+            opened = run("gate", str(root))
             self.assertEqual(opened.returncode, 0, opened.stderr)
-            self.assertIn('approved', opened.stdout)
+            self.assertIn("approved", opened.stdout)
 
-    def test_cuts_come_from_shots_json(self):
+            cuts = run("cuts", str(root))
+            self.assertEqual(cuts.returncode, 0, cuts.stderr)
+            self.assertEqual(cuts.stdout.strip(), "")
+
+            shots["shots"].append(
+                {"id": "s2", "t0": 1.5, "scene": "scenes/s2.js", "title": "Cross"}
+            )
+            (root / "shots.json").write_text(json.dumps(shots), encoding="utf-8")
+            later = run("cuts", str(root))
+            self.assertEqual(later.stdout.strip(), "1.5")
+
+    def test_a_decreasing_t0_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'film'
-            self.assertEqual(run('init', str(root), '--title', 'Harbor', '--style', 'woodcut-ink').returncode, 0)
-            path = root / 'shots.json'
-            data = json.loads(path.read_text(encoding='utf-8'))
-            data['shots'].append({
-                'id': 's2', 't0': 4.2, 'scene': 'scenes/s2.js', 'title': 'Turn',
-            })
-            path.write_text(json.dumps(data), encoding='utf-8')
-            got = run('cuts', str(root))
-            self.assertEqual(got.returncode, 0, got.stderr)
-            self.assertEqual(got.stdout.strip(), '4.2')
-
-    def test_a_shot_out_of_order_is_refused(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'film'
-            self.assertEqual(run('init', str(root), '--title', 'Harbor').returncode, 0)
-            path = root / 'shots.json'
-            data = json.loads(path.read_text(encoding='utf-8'))
-            data['shots'].append({
-                'id': 's2', 't0': 0, 'scene': 'scenes/s2.js', 'title': 'Turn',
-            })
-            path.write_text(json.dumps(data), encoding='utf-8')
-            got = run('check', str(root))
-            self.assertNotEqual(got.returncode, 0)
-            self.assertIn('t0', got.stderr)
-
-    def test_init_refuses_an_existing_production(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'film'
-            self.assertEqual(run('init', str(root), '--title', 'Harbor').returncode, 0)
-            again = run('init', str(root), '--title', 'Harbor')
-            self.assertNotEqual(again.returncode, 0)
+            root = Path(tmp) / "film"
+            self.assertEqual(run("init", str(root), "--title", "Harbor").returncode, 0)
+            shots = json.loads((root / "shots.json").read_text(encoding="utf-8"))
+            shots["shots"] = [
+                {"id": "b", "t0": 2, "scene": "scenes/b.js", "title": "Late"},
+                {"id": "a", "t0": 0, "scene": "scenes/a.js", "title": "Early"},
+            ]
+            (root / "shots.json").write_text(json.dumps(shots), encoding="utf-8")
+            checked = run("check", str(root))
+            self.assertNotEqual(checked.returncode, 0)
+            self.assertIn("t0", checked.stderr)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
