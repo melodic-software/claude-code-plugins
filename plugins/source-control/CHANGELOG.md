@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.2] - 2026-09-28
+
+### Changed
+
+- **CI waits poll REST and name a queued job as queued** ([#3955](https://github.com/melodic-software/claude-code-plugins/issues/3955)). `pull-request`'s `monitor.md` gains "Waiting on a pending check". Any wait longer than one read is a fixed-schedule REST poll at the monitor cadence, never `gh pr checks --watch`, whatever the worker count, because `--watch` re-runs its GraphQL query every 10 seconds for as long as the wait lasts. Before the first wait, each pending Actions job is read from the jobs API and reported as queued (with its `runs-on` labels and age) or running, since `gh pr checks` puts both in `pending`. Pool occupancy (`N/M busy`) is added when the token can list runners (admin only), and otherwise reported as not readable. The section says which action each state calls for: a running job is the change's own time, a queued one behind a busy pool is fleet capacity, and a queued job with no runner routes to `stuck_queued`. The §3.1 poll step, the `pull-request` cadence line, and `babysit-prs`'s `loop.md` CI check and Monitor fallback point at it. `stuck-checks.md` reports a `stuck_queued` check as queued on its runner label, not as a slow job.
+
+## [0.62.1] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
+
 ## [0.62.0] - 2026-09-28
 
 ### Changed

@@ -3,6 +3,51 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-09-28
+
+### Added
+
+- **`--root-children` on non-volume targets (home fan-out)**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
+  depth-1 home audit, re-run against the home path with `--root-children` and explicit
+  `--root-child` names to fully inventory approved top-level directories into one snapshot without
+  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
+## [0.26.4] - 2026-09-28
+
+### Fixed
+
+- **`guard_launch_monitor.py` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). A hard error in the Stop detector used to become a second `hook_non_blocking_error` with no hook text. `main` now catches `SystemExit` other than 0 and `BaseException`, writes one stderr line (`disk-hygiene guard-launch-monitor: did not run …; fail-open`), and returns 0. `SystemExit(0)` is re-raised so `raise SystemExit(main())` still works.
+
+## [0.26.3] - 2026-09-28
+
+### Changed
+
+- **Ranking signals stay a model instruction, not an engine primitive**
+  ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
+  provenance mandate (tier, location sensitivity, provenance strength over byte totals)
+  stays in the skill body. No coded ranker on the destructive surface. Operator park
+  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
+  #4669 (0.26.1) and #3857 (0.26.2).
+
+## [0.26.0] - 2026-09-28
+
+### Changed
+
+- **A guard that could not run no longer looks like a guard that ran and allowed**
+  ([#3861](https://github.com/melodic-software/claude-code-plugins/issues/3861)). When no Python 3
+  resolves on the launcher's ladder, every guard row exited 0 with no output, which Claude Code
+  reads as approval, and only the Stop detector reported it, after the fact. The launcher now answers
+  on the call itself, following the guard watchdog's "could not decide" rule. The skill belt denies
+  every call (exit 2). The plugin-level gate denies any payload naming `hygiene.py` or carrying
+  nothing. The `/disk-hygiene:clean` expansion is blocked, so the belt never loads.
+- **One fail-open is kept, on purpose, and it is announced.** Commands on the plugin-level gate
+  that name no engine script proceed unchecked, with a `systemMessage` and `additionalContext`
+  notice once per session. The guard would have deferred on those commands. An `ask`, which the
+  watchdog uses for a transient stall, would prompt on every `PowerShell(*& $*)` call on a host
+  that has no Python. The README tabulates each surface. The Stop detector stays as the
+  end-of-turn backstop, and its message now summarizes what the calls reported.
+
 ## [0.25.4] - 2026-09-28
 
 ### Fixed

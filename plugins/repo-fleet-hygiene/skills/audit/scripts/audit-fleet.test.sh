@@ -455,6 +455,7 @@ ls-remote)
   # The transport lives in global config (core.sshCommand on Windows), so a probe that pins
   # GIT_CONFIG_GLOBAL to /dev/null cannot reach the remote at all (#4211).
   [[ "${GIT_CONFIG_GLOBAL:-}" != /dev/null ]] || exit 128
+  [[ "${FAKE_LS_REMOTE_ALWAYS_FAIL:-}" != 1 ]] || exit 7
   [[ "${1:-}" == "--heads" && -n "${2:-}" && -n "${3:-}" ]] || exit 96
   case "${3:-}" in
   refs/heads/feature/stale-cached) exit 0 ;;
@@ -485,6 +486,11 @@ config)
   mock=""
   if [[ "$key" == "worktreeroot.path" ]]; then
     mock="${MOCK_WORKTREEROOT_PATH:-}"
+    # MOCK_WORKTREEROOT_PATH_FOR="<repo-basename>=<path>" models an includeIf that gives one
+    # repository its own root.
+    if [[ -n "${MOCK_WORKTREEROOT_PATH_FOR:-}" && "$base" == "${MOCK_WORKTREEROOT_PATH_FOR%%=*}" ]]; then
+      mock="${MOCK_WORKTREEROOT_PATH_FOR#*=}"
+    fi
   elif [[ "$key" == "melodic.worktreeroot" ]]; then
     mock="${MOCK_MELODIC_WORKTREE_ROOT:-}"
   else
@@ -911,6 +917,24 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
+assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable"
+# #4211: when every live probe fails, one fleet-level UNKNOWN rollup; per-repo MEDIUM stays.
+all_fail_out="$TMP/ls-remote-all-fail.txt"
+FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
+assert_contains_file "all-fail ls-remote emits fleet unavailable" \
+  "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
+if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
+  grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
+else
+  printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains_file "all-fail still reports per-repo MEDIUM merged-remote-branch" \
+  "Finding: merged-remote-branch" "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
 # rewrites the transport for the same repository still confirms HIGH; one that points the remote
 # at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
@@ -1690,6 +1714,31 @@ assert_not_contains_file "no-origin layout does not expect upstream owner/repo p
   "other-upstream-repo" "$no_origin_out"
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
+
+# #4212: a repository whose includeIf sets its own root is classified against that root, not the
+# fleet default taken from the first target. conform-canon resolves $TMP/other-root first, so the
+# pre-fix collector judged no-origin-canon's correctly placed worktree against it.
+per_repo_out="$TMP/per-repo-root-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/other-root" MOCK_WORKTREEROOT_PATH_FOR="no-origin-canon=$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --repo "$TMP/no-origin-canon" --detail >"$per_repo_out" 2>&1 || true
+assert_contains_file "fleet default root still heads the report" \
+  "Worktree root: $TMP/other-root (source: worktreeroot.path" "$per_repo_out"
+per_repo_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$per_repo_out" | grep -F 'Target: ' || true)"
+if [[ "$per_repo_outside_targets" == *no-origin-canon-feature-ok* ]]; then
+  printf 'FAIL: worktree under its own includeIf root flagged outside the fleet default root\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: worktree under its own includeIf root is not flagged outside the fleet default root\n'
+fi
+assert_contains_file "per-repository rollup names the repository's own root" \
+  "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked (root $TMP/conform-root)" "$per_repo_out"
+assert_contains_file "the other repository still uses the fleet default root" \
+  "expected location $TMP/other-root/acme-conform-feature-flat" "$per_repo_out"
+assert_contains_file "fleet summary lists the repository that used its own root" \
+  "classified against their own resolved root: $TMP/no-origin-canon uses $TMP/conform-root" "$per_repo_out"
+assert_not_contains_file "a repository on the fleet default root is not listed as an override" \
+  "$TMP/conform-canon uses" "$per_repo_out"
 
 # This fixture is the only one that puts TWO findings on a single target, so it
 # is the only place the detail and JSON emitters' dedupe is exercised at all. A

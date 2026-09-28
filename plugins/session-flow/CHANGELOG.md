@@ -1,5 +1,41 @@
 # Changelog: session-flow plugin
 
+## [0.38.7] - 2026-09-28
+
+### Changed
+
+- **clean-stop**, **handoff**, **retro:** rephrase `/export` offers to the suggest grammar; declare `unattended` ([#4056](https://github.com/melodic-software/claude-code-plugins/issues/4056)). Contract-slice prune and full store `integration` wait on #4049 / merged predecessors.
+
+## [0.38.6] - 2026-09-28
+
+### Fixed
+
+- **The save-point self-ignore guard is written with the Write or Edit tool, not a shell
+  redirect (#3720).** Step 3 of the handoff write procedure in `reference/structure.md` used
+  `printf '*\n' >> "$MEMORY_ROOT/.gitignore"`, the write shape guardrails' `block-hook-bypass`
+  refuses outside its scratch roots and that bypasses `secret-pattern-detection`. Bash now only
+  checks for the `*` line and prints one line when it is missing. The Write tool then creates an
+  absent file, or the Edit tool adds the line to an existing file, and the write is announced as
+  before. When the line is already present nothing is written. The end state is unchanged. The
+  refusal `save_point.py new` prints for a missing guard names the same tool step instead of the
+  redirect.
+
+## [0.38.5] - 2026-09-28
+
+### Fixed
+
+- **`retro` measures chain coverage against the chain, not the project directory (#3957).**
+  `chain_coverage.available` is now the requested sessions (the walk, under `--chain-from`), plus
+  under `--chain-from` the other transcripts that mention the handoff topic. `--sessions` used to
+  divide by every transcript in the project directory, so a complete 6-hop chain launched from
+  `$HOME` scored 0.032. That count is still reported, as `project_transcripts`, and is never the
+  denominator. A walked session whose transcript is missing now lowers the ratio.
+- **`handoff` records every hop after a legacy predecessor.** `save_point.py new` wrote a two-entry
+  `chain:` when the predecessor was a shape-1 file with no `chain:` of its own. It now walks that
+  file's `previous_handoff` pointers (within its directory, stopping at a cycle or a missing file)
+  and records every hop they reach. `validate` accepts that chain and the two-entry form that
+  existing files already carry.
+
 ## [0.38.4] - 2026-09-28
 
 ### Fixed

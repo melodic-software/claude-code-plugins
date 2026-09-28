@@ -600,8 +600,10 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # question, row, or label before the contract locks; none licenses a silent capture or a
 # fudged gap, so none contradicts case 15 or 16. Case 24 (contract slice not offered as a
 # durable home) grades where content persists after merge and touches neither defense.
+# Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
+# and the queued-output-first order, and resolves no row the user did not answer.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "b5ded5eda7e663ececdb4f669098b413a6acb7018689af5b7a8538eea449dab7"
+  "a3038d1d112c3727c1ea4bf1aa3dccbe16fccaf26587cca79050ff07e4ebf43a"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -628,6 +630,9 @@ pin_case_digest "case 8 still asks decisions and only looks up facts" \
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
+pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
+  "out-of-band-return-supersedes-before-the-reply" \
+  "60964b5db1076b8be673e75b7a0bd5c247b6e87fa62c5da0b34531deca7d22f0"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
   "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"

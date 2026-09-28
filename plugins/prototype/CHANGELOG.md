@@ -3,6 +3,21 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Changed
+
+- **`explore-directions` routes against the bundled `design` canvas with the presence gate (part
+  of #4055).** The description's "(or, where the bundled design skill is available, an editable
+  design-canvas Artifact)" becomes its own clause: "When the bundled design skill resolves in your
+  session, prefer it for a hand-editable design canvas; this skill for switchable variations of
+  your own UI." The rules: the clause is gated on the model's own listing (`resolves in your
+  session`), never on a claim that the canvas is there; it names the provenance class and splits
+  the job. The `playground` marketplace clause, the quoted triggers, the Boundary section, and the
+  body's design-canvas subsection are unchanged. The store's `design` row now records
+  `baked.description_phrase: true` with its budget caveat. Four phrasings are shortened to keep
+  the description under the 1,024-character spec field maximum.
+
 ## [0.12.0] - 2026-09-23
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code permission GRANTS for portability and auto-mode durability. Scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json/user-global permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, tilde-user paths, substitution tokens that stay literal in the scope they are written in, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
+description: "Audit Claude Code permission grants (allowed-tools frontmatter and permissions.allow in every settings scope) for portability and auto-mode durability: dropped interpreter wildcards, machine-specific paths, literal substitution tokens, inert plugin self-grants. Report-only. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', or a guarded helper is denied despite an allow rule. Effective state: audit-permission-state."
 argument-hint: "[scope]: frontmatter|settings|plugins|all (default: all)"
 user-invocable: true
 disable-model-invocation: false

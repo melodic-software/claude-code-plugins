@@ -840,6 +840,83 @@ def test_new_hop2_from_shape1_legacy_tags_and_points(tmp_path):
     assert validated.returncode == 0, out(validated) + err(validated)
 
 
+LEGACY_ROOT = "20260831T100000Z-handoff-legacy.md"
+
+
+def _two_hop_legacy_chain(handoffs: Path) -> Path:
+    """LEGACY_ROOT <- LEGACY, both shape-1 (no chain:), linked by a pointer."""
+    handoffs.mkdir()
+    source = (FIXTURES / "legacy-14" / "handoffs" / LEGACY).read_text(encoding="utf-8")
+    (handoffs / LEGACY_ROOT).write_text(source, encoding="utf-8", newline="\n")
+    linked = source.replace(
+        "session_id: 11111111-1111-4111-8111-111111111111\n",
+        "session_id: 11111111-1111-4111-8111-111111111111\n"
+        f"previous_handoff: {LEGACY_ROOT}\n",
+        1,
+    )
+    assert linked != source
+    legacy = handoffs / LEGACY
+    legacy.write_text(linked, encoding="utf-8", newline="\n")
+    return legacy
+
+
+def test_new_after_a_shape1_chain_records_every_hop_its_pointers_reach(tmp_path):
+    """A shape-1 predecessor has no chain: list, so its previous_handoff
+    pointers are walked; the successor's chain is not capped at two."""
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    legacy = _two_hop_legacy_chain(handoffs)
+    result = run(
+        *new_args(
+            repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"
+        )
+    )
+    assert result.returncode == 0, err(result)
+    hop = handoffs / HOP2
+    text = hop.read_text(encoding="utf-8")
+    assert f"chain:\n  - {LEGACY_ROOT}\n  - {LEGACY}\n  - {HOP2}\n---" in text
+    hop.write_text(model_fill(text), encoding="utf-8", newline="\n")
+    validated = run("validate", str(hop), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+
+
+def test_validate_still_accepts_the_two_entry_chain_after_a_shape1_predecessor(
+    tmp_path,
+):
+    """Files written before the walk carry [predecessor, self]; they stay valid,
+    and any other chain is refused with the walked chain named."""
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    legacy = _two_hop_legacy_chain(handoffs)
+    linked = legacy.read_text(encoding="utf-8")
+    legacy.write_text(
+        linked.replace(f"previous_handoff: {LEGACY_ROOT}\n", ""),
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = run(
+        *new_args(
+            repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"
+        )
+    )
+    assert result.returncode == 0, err(result)
+    legacy.write_text(linked, encoding="utf-8", newline="\n")
+    hop = handoffs / HOP2
+    text = model_fill(hop.read_text(encoding="utf-8"))
+    assert f"chain:\n  - {LEGACY}\n  - {HOP2}\n---" in text
+    hop.write_text(text, encoding="utf-8", newline="\n")
+    validated = run("validate", str(hop), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    hop.write_text(
+        text.replace(f"chain:\n  - {LEGACY}\n", f"chain:\n  - {HOP1}\n  - {LEGACY}\n"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    refused = run("validate", str(hop), "--strict-transcript")
+    assert refused.returncode != 0
+    assert f"['{LEGACY_ROOT}', '{LEGACY}', '{HOP2}']" in out(refused) + err(refused)
+
+
 def test_new_hop2_from_seven_section_legacy_maps_absent_sections(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
