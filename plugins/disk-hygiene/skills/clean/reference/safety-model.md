@@ -35,7 +35,8 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
   Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
   a recursive walk target, while `--root-children` may address that same root only as a listing of
   immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
-  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  walk); `--root-children` is also valid on a non-OS directory (a user home) so approved immediate
+  children can be re-inventoried into one snapshot without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
