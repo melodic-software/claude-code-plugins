@@ -574,6 +574,19 @@
       ]
     },
     {
+      "name": "csharp-ls-windows",
+      "source": "./plugins/csharp-ls-windows",
+      "category": "development",
+      "tags": ["csharp", "lsp", "dotnet", "windows", "csharp-ls", "skill"],
+      "relevance": {
+        "topic": "C#",
+        "signals": {
+          "filesRead": ["**/*.cs"],
+          "cli": ["csharp-ls", "dotnet"]
+        }
+      }
+    },
+    {
       "name": "computer-use",
       "source": "./plugins/computer-use",
       "category": "claude-code",

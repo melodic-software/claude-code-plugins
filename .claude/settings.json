@@ -33,6 +33,7 @@
   "enabledPlugins": {
     "animation@melodic-software": false,
     "attribution@melodic-software": true,
+    "csharp-ls-windows@melodic-software": true,
     "fleet@melodic-software": true,
     "gaming@melodic-software": false,
     "pixel-art@melodic-software": false,

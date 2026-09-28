@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "csharp-ls-windows",
+  "version": "0.1.0",
+  "description": "Windows-safe spawn for the csharp-ls dotnet global tool: resolve csharp-ls.exe from PATH, set DOTNET_ROOT from the dotnet host when it is unset, and never launch a .cmd shim.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["csharp", "lsp", "dotnet", "windows", "csharp-ls", "skill"]
+}
