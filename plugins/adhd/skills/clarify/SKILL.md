@@ -115,8 +115,13 @@ at the same altitude.
 ### Surface what must be decided
 
 For each chunk, make the actual choice unmissable: the recommendation (verbatim),
-its `Basis:` carried through unchanged (verbatim; "none stated" when the source gave
-none, never an inferred one). The label has three outcomes: `Basis: verified` with the
+its `Basis:` (verbatim), the alternative it was chosen over (verbatim, if the
+original named one), and, in one sentence, **what the reader is actually
+deciding**, the crux, not a restatement of the option. If the original only
+recommends with no alternative, say so rather than inventing one.
+
+Carry the `Basis:` through unchanged: "none stated" when the source gave none, never
+an inferred one. The label has three outcomes: `Basis: verified` with the
 `file:line`, tool output, or URL behind it; `Basis: judgment`, allowed only for a
 recommendation that is not consequential (cross-repo, shared infrastructure,
 irreversible, or security); or **withheld**, where the source raised an unsettled
@@ -124,11 +129,7 @@ consequential choice as an open question instead of recommending. A withheld ite
 renders as "withheld" in the Recommendation cell with the evidence that would settle
 it in the Basis cell, never with a recommendation invented for it; a recommendation
 the source re-stated as old → new → why keeps all three parts. Full convention:
-[recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)),
-the alternative it was chosen over (verbatim, if the original named one), and, in
-one sentence, **what the reader is actually deciding**, the crux, not a
-restatement of the option. If the original only recommends with no alternative,
-say so rather than inventing one.
+[recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 
 ## Rendering: artifact-forward
 
