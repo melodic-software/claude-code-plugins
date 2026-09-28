@@ -46,6 +46,10 @@ frame, so every frame stays on-model and a fix lands in every frame at once. A w
 the working directory before adapting or running it. Draw one side view and
 mirror it for the other only when the design is symmetric; reshade if the light side matters.
 
+A PNG from another backend is snapped with `render.py --snap` before its rows enter the spec
+([`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)). Palette presets and project palette
+files are the same strings `sprite` uses ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)).
+
 Name frames `<cycle>_<direction><index>` or the engine's own names, list them in `sheet.order` in
 the engine's order, and declare each cycle under `animations` with `fps` or `durations_ms`.
 

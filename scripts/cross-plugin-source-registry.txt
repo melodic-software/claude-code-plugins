@@ -112,6 +112,14 @@ scripts/context-zone.sh
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
 
+# Dedicated check: scripts/sync-html-escape.sh --check. Canonical:
+# lib/html-escape.mjs. The review plugin is the first adopting copy
+# (plugins/review/lib/html-escape.mjs). A path-within-plugin line stays out
+# until a second plugin carries lib/html-escape.mjs: the drift checker rejects
+# a registration that spans only one plugin. The arrow line is the duplication
+# audit's cluster.
+lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what
