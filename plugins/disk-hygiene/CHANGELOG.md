@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2] - 2026-09-28
+
+### Added
+
+- **Engine-gate corpus for the marker-free `samefile` scan**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)).
+  The gate behavior is unchanged. The new test pins allow, ask, and defer on a
+  command corpus, counts `os.path.samefile` calls on `git log --oneline --graph
+  --decorate origin/main` (24), and denies a hard link of the engine invoked
+  both as `python3 engine-alias` and as `python3 ./engine-alias`. The bare name
+  has no path separator, so a separator filter would not preserve that deny.
+
 ## [0.27.1] - 2026-09-28
 
 ### Added

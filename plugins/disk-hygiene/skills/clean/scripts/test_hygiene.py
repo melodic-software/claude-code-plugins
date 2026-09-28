@@ -6955,6 +6955,73 @@ class GuardTests(unittest.TestCase):
                 )
             os.unlink(alias)
 
+    def test_engine_gate_corpus_and_bare_hardlink_pin_the_samefile_scan(self) -> None:
+        """Pin the marker-free samefile scan #3527 measured, without narrowing it.
+
+        ``os.path.samefile`` reports two paths as one file when ``os.stat``
+        gives them the same device and inode, which is how a hard link is
+        recognized (https://docs.python.org/3/library/os.path.html#os.path.samefile).
+        The marker-free branch calls it on every token, including words with
+        no path separator. A hard link that sits beside the engine and is
+        invoked by that bare name therefore denies today. A separator filter
+        would let that invocation through, so this test locks the current
+        verdict and the call count instead of applying the filter.
+        """
+        ordinary = "git log --oneline --graph --decorate origin/main"
+        calls: list[str] = []
+        real_samefile = os.path.samefile
+
+        def _counting_samefile(left: object, right: object) -> bool:
+            calls.append(os.fspath(left))  # type: ignore[arg-type]
+            return real_samefile(left, right)  # type: ignore[arg-type]
+
+        with mock.patch("os.path.samefile", side_effect=_counting_samefile):
+            self.assertFalse(guard._engine_gate_relevant(ordinary, "Bash"))
+        # Six words, each identity-checked as written and beside the engine,
+        # and the marker-token pass repeats that pair. 6 * 2 * 2.
+        self.assertEqual(24, len(calls), calls)
+
+        script = str((SCRIPT_DIR / "hygiene.py").resolve()).replace("\\", "/")
+        corpus = (
+            ("git status --short", None),
+            ("echo hello", None),
+            (ordinary, None),
+            (f'python3 "{script}" scan --help', "deny"),
+            (self._engine_command("scan"), "allow"),
+            (self._engine_command("apply"), "ask"),
+        )
+        for command, expected in corpus:
+            result = self.run_guard_engine_gate(command, "Bash", enabled=True)
+            if expected is None:
+                self.assertIsNone(result, command)
+                continue
+            assert result is not None, command
+            self.assertEqual(
+                expected,
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+        alias = SCRIPT_DIR / "engine-alias"
+        try:
+            os.link(SCRIPT_DIR / "hygiene.py", alias)
+        except OSError as exc:  # pragma: no cover - filesystem-dependent
+            self.skipTest(f"hard links unavailable here: {exc}")
+        try:
+            with chdir_context(SCRIPT_DIR):
+                for command in ("python3 engine-alias", "python3 ./engine-alias"):
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+        finally:
+            alias.unlink(missing_ok=True)
+
     def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
