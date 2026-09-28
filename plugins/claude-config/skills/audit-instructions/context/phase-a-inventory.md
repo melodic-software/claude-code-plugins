@@ -44,8 +44,9 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   condition into the record**, naming which one is unresolved. Inventorying is not free on its own:
   Phase B runs a lane per record, so a record that asserted residency it cannot establish would let
   that lane propose a removal or a rewrite against a surface the session may never load. A lane
-  holding such a record reports its findings as conditional on the named condition rather than as
-  findings, the same shape `audit-prompting-postures` uses for an unresolved residency.
+  holding such a record reports each result as `RESIDENCY-UNRESOLVED` with the named condition
+  rather than as a finding (the Phase D report contract), the same shape
+  `audit-prompting-postures` uses for an unresolved residency.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared

@@ -35,6 +35,20 @@ context at startup and you did not Read the skill file; `fallback` if you Read
 it from disk. A missing or mismatched token is a hard failure for the parent.
 `preload: fallback` is not.
 
+## Whoever dispatched you owes the acceptance gate
+
+Your payload is a claim about your run, and the parent believes it only after grading the run off
+disk. That gate belongs to the parent, and it is owed on every route that dispatches you:
+`/discovery:research`, `/discovery:research-deep`, or a direct dispatch of this agent that never
+loaded either skill. A direct dispatcher has not read the gate's steps, so your return payload
+names them in `gate_owed:` on every run, whatever route you think dispatched you. The steps are
+the "Post-dispatch acceptance gate" in
+[`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md),
+and how to invoke the scripts is in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Running the acceptance gate". You do not run the parent's gate for it; your own share is the
+outcome gate below.
+
 ## Your dispatch prompt must carry these; refuse to guess any of them
 
 The parent resolves the envelope in main context and passes it in. You own a bounded middle: no
@@ -73,7 +87,8 @@ load-time machinery, no user turn, no unresolved scope.
   "Harness facts the dispatch design rests on".
 - **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
   session. Copy it into the `RESEARCH.md` frontmatter as `evidence_use:` in your first write, since
-  the verifier never sees this prompt. If the line is absent, write `internal`, say in the index
+  the verifier never sees this prompt. The same first write carries `verification: pending`, which
+  only the parent replaces. If the line is absent, write `internal`, say in the index
   that the default was taken, and mention the omission in `open_questions`. Under `publish` the
   research skill's discipline file tightens two rules ("Evidence the user will publish").
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
@@ -281,9 +296,13 @@ verification_request:
   target: <the same path as artifact: above>
   criterion: "independent corroboration, HIGH confidence, and joint-inference validity per accepted claim"
   worker: fresh-context subagent
+gate_owed: "check-dispatch-artifact.sh, check-coverage-complete.sh, check-source-applicability.py, per skills/research/SKILL.md Post-dispatch acceptance gate"
 open_questions:
   - "<question the parent must surface to the user>"
 ```
+
+**`gate_owed` is fixed text.** Emit it verbatim on every run. It tells a parent that never loaded
+the skill what it owes before believing anything above it.
 
 **`topic_as_received` is a quote, not a summary.** Copy the topic out of your dispatch prompt
 character for character: no paraphrase, no normalization, no expansion of anything that looks like
