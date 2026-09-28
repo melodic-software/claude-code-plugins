@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.5] - 2026-09-28
+## [0.19.6] - 2026-09-28
 
 ### Changed
 
@@ -12,6 +12,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
   ([#3956](https://github.com/melodic-software/claude-code-plugins/issues/3956)).**
   `skills/implement-dispatch/reference/run-end-outcome-verify.md` records Option A and the
   unpaid route.
+
+## [0.19.5] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` keeps the per-phase fresh-context verifier mandate; an opt-out is
+  parked ([#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)).**
+  `skills/implement-dispatch/reference/phase-verifier-mandate.md` records Option A and that the
+  verifier does not replace implement Step 5's end gate.
 
 ## [0.19.4] - 2026-09-28
 

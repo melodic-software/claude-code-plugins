@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [0.38.8] - 2026-09-28
+
+### Changed
+
+- **`handoff` is the single owner of the save-point and of STOP
+  ([#3952](https://github.com/melodic-software/claude-code-plugins/issues/3952)).**
+  `skills/handoff/reference/phase-boundary-owner.md` records Option A. Resident
+  `/implementation:implement-dispatch` phase boundaries do not invoke this skill. A
+  resident / no-stop argument is parked.
+
 ## [0.38.7] - 2026-09-28
 
 ### Changed
