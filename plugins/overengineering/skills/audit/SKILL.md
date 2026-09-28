@@ -1,5 +1,5 @@
 ---
-description: "Audit an existing enforcement surface. Agent hooks, standing instructions, repository and version-control hooks, CI lanes, gate scripts, branch protections, forge apps, declared integrations. Under an evidence-earned-keep model: every incumbent is a retirement candidate until evidence earns its keep, every verdict cites an empirical source or is classed UNPROVEN, and security-class items are capped at flag-for-human. Read-only: it walks and reports; unasked writes stay in the self-ignored memory tier, and its one tracked write (persisting the resolved artifact home to the concern file) happens only on explicit confirmation. Use when the ask is to assess the enforcement surface ('audit our enforcement surface', 'is our CI overengineered'), to find which incumbents can be retired ('are these hooks still earning their keep', 'do we still need this gate'), to name enforcement clutter or process cruft, or to reconstruct why a check exists. Pass one or more layers to scope a pass, or `unattended` for a dispatched or scheduled run. Not for proposing NEW automation, and it never mutates the surface it walks. The sibling `realign` skill executes accepted findings behind a per-item human gate."
+description: "Audit an existing enforcement surface under evidence-earned-keep: every incumbent is a retirement candidate until evidence earns its keep; security-class items cap at flag-for-human. Read-only: walks and reports; never mutates the surface. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'do we still need this gate', or to name enforcement clutter. Not for proposing NEW automation. Sibling realign executes accepted findings."
 argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -120,6 +120,16 @@ Parse `$ARGUMENTS`:
   run passes it. Never infer the mode.
 - Anything else, a free-text focus hint (a path, a mechanism name). Narrow attention with it; it
   does not change the layer scope, and a hint that matches nothing is reported, not silently dropped.
+
+The inline report groups by custody: in-repo findings first and in full; out-of-repo findings
+(user- and machine-scope settings, plugin hook manifests owned upstream) as one summary row per
+owner. The findings artifact is unchanged. See
+[context/report-template.md](context/report-template.md) "Custody grouping".
+**Claim:** the walk still covers every settings scope; only the inline report groups out-of-repo
+findings per owner. **Basis:** issue #4596 after #4597 scoped the playbooks repo-sweep entry off
+the four org-level layers; a direct `/overengineering:audit` still walks every harness-merged
+scope. **As of:** 2026-09-28. **Recheck:** when this skill gains a custody-scope argument or stops
+walking user or machine settings.
 
 ## Before the walk
 

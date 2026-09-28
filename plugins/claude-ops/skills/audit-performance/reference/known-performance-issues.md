@@ -40,9 +40,11 @@ before any reinstall.
   the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an
   unlink) per file. Async and yielding, so the harm mode is sustained background I/O, amplified
   per-operation by antivirus filter drivers, not a blocked event loop.
-- **An unparsable `settings.json` silently pauses the entire sweep.** Nothing is cleaned for as
-  long as the error persists; the only surfaces are `/doctor`, `/status`, and this skill's
-  `sweep_health`. The tree then grows without bound while looking normal.
+- **An unparsable user `settings.json` pauses the entire sweep and warns in `/status`.** Nothing
+  is cleaned for as long as the error persists. The surfaces are the Settings Error dialog,
+  `/status`, `/doctor`, and this skill's `sweep_health`. A managed settings file, drop-in, MDM
+  plist, or HKLM value that cannot be parsed refuses startup instead (exit 1, source named, from
+  v2.1.259). The tree then grows without bound while looking normal.
 - **Never swept, grow forever:** `history.jsonl` (every prompt ever typed) and the home-root
   `~/.claude.json`. The supported shrink lever for the latter is `claude project purge <path>`;
   a community report (Medium, 2026-07) confirmed surgically pruning one project's metadata from

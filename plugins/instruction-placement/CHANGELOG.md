@@ -3,6 +3,90 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.17] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.15.16] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.15.15] - 2026-09-28
+
+### Changed
+
+- **Fleet cutover-check on the repositories this host can read (#4281).** `cutover-check.sh`
+  named this marketplace plus standards, ci-runner, ci-workflows, claude-code-account-rotation,
+  cursor-plugins, agent-plugins, codex-plugins, and `.github`. `medley`, `songwriting`,
+  `claude-code-proxy`, `knowledge-corpus`, and `provisioning` were not readable here, so the
+  historical ten on #4281 are not fully graded. Condition 1 is `[MET]` (CLI 2.1.282, code
+  default true). Condition 2 was `[UNREACH]` until the release map gained `claude-code-action`
+  `v1.0.235` (`756cc22e19660d20e8cc9496b4f242475a7f7790`, CLI 2.1.283), the pin in ci-workflows
+  `claude-review.yml` and `claude-security-review.yml`. With that row, condition 2 is `[MET]`
+  for the named trees. The CI canary run stays `35475056935` (`v1.0.231` / CLI 2.1.278); #4282
+  still declines a replacement host, so the newer pin does not replace that run. Condition 3
+  is `[UNREACH]`: `claude auth status` reports `loggedIn: false`, and both canary legs exit 1
+  with `Not logged in · Please run /login`. Condition 4 is `[MET]` (68 acknowledged rows). Shim
+  removal stays blocked. `last_checked` on `agents-md-cutover-check` stays 2026-09-20.
+
+## [0.15.12] - 2026-09-28
+
+### Changed
+
+- **Cutover sources rechecked on Claude Code 2.1.282 (#4281).** The bundle's code default for
+  `tengu_agents_md_mod` is true (`var W=!0` at offset 225456771). The env-vars feature-flag list
+  no longer mentions `AGENTS.md`. The memory page still floors direct reading at v2.1.277, says
+  Bedrock and telemetry-disabled sessions failed only before v2.1.281, and says `/memory` lists a
+  directly read `AGENTS.md` from v2.1.280. `InstructionsLoaded` still does not fire for that
+  direct read. Recorded in `skills/migrate/reference/sources.md` and in "Why the shim stays".
+- **This-repo cutover-check, canary attempted.** `cutover-check.sh --repo` this checkout, without
+  `--skip-canary`. Conditions 1 and 2 are `[MET]` for this repo. Condition 3 is `[UNREACH]`:
+  `claude auth status` is logged out, and both canary legs exited 1 (`Not logged in`). Condition
+  4 is `[MET]` after acknowledging `user-scope.sh`'s user-scope `CLAUDE.md` inventory line. The
+  other nine repos were not in this checkout. The recurring issue stays open. `last_checked` on
+  `agents-md-cutover-check` stays 2026-09-20.
+
+## [0.15.11] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Five of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: destination enumerations,
+  silent-failure ladders, and shim-removal mechanics. `setup` is
+  `disable-model-invocation: true`, is never listed, and is unchanged. `check-listing-budget.sh
+  plugins/instruction-placement/skills` goes from 4,732 to 2,308 characters. No skill is renamed
+  or merged.
+
+## [0.15.10] - 2026-09-28
+
+### Changed
+
+- **Cursor, Grok Build, and Muse Code loader tests parked (#4283).** Empirical
+  AGENTS.md loader claims for those three tools stay at docs or source grade.
+  This checkout does not install them. Recheck when a maintainer host runs the
+  loader recipe. Recorded in `skills/migrate/reference/sources.md`.
+
+## [0.15.9] - 2026-09-28
+
+### Changed
+
+- **CI-canary host parked (#4282).** `melodic-software/claude-lane-sandbox` stays
+  archived; this marketplace does not grow a `claude-code-action` canary
+  workflow. Cutover condition 2 continues to rest on the knowledge-corpus run
+  already recorded in `reference/sources.md`. A maintainer who wants the two-pin
+  three-case matrix runs it on a host they choose and replaces that run id.
+
+## [0.15.8] - 2026-09-28
+
+### Fixed
+
+- **`index-drift` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory PostToolUse hook that dies of a hard error used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`instruction-placement index-drift: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
+
 ## [0.15.7] - 2026-09-28
 
 ### Changed

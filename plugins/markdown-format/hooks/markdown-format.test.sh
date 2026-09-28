@@ -24,6 +24,7 @@ HOOK="$HOOK_DIR/markdown-format.sh"
 
 PASS=0
 FAIL=0
+SKIPPED=0
 fail() {
   echo "FAIL: $*" >&2
   FAIL=$((FAIL + 1))
@@ -31,6 +32,23 @@ fail() {
 ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
+}
+# A case whose PATH-shape this host cannot pin is neither a pass nor a failure.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+# Git Bash / MSYS cygpath rewrites a POSIX mktemp path to a mixed Windows
+# spelling. PATH-probed cases pin the POSIX fixture spelling in the hook
+# output; when the host rewrites, those pins have no subject.
+host_cygpath_rewrites_posix_path() {
+  command -v cygpath >/dev/null 2>&1 || return 1
+  local p mixed
+  p="$(mktemp -d)"
+  mixed="$(cygpath -m "$p" 2>/dev/null || true)"
+  rm -rf "$p"
+  [[ -n "$mixed" && "$mixed" != "$p" ]]
 }
 
 WORK="$(mktemp -d)"
@@ -282,8 +300,8 @@ fi
 # stderr — official semantics for a canceled / non-zero hook with no output.
 # Registration must refuse that launch. Official hooks + permissions (fetched
 # 2026-08-21): if is exactly one permission rule; Edit(path) covers Write;
-# Write(path) is never consulted; shell form without shell: bash falls through
-# to PowerShell on Windows when Git Bash is not detected.
+# Write(path) is never consulted. The row is exec form: command is node, and
+# exec-bash.mjs finds Git Bash. Bare bash is not a legal exec-form command.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   HANDLERS="$(jq -c '
@@ -292,24 +310,20 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[].if] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(.if | startswith("Write("))] | length' <<<"$HANDLERS")"
-  ARGS_PRESENT="$(jq '[.[] | select(has("args"))] | length' <<<"$HANDLERS")"
-  SHELL_OK="$(jq '[.[] | select(.shell == "bash")] | length' <<<"$HANDLERS")"
-  CMD_OK="$(jq --arg needle '${CLAUDE_PLUGIN_ROOT}' '
+  NODE_OK="$(jq --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh' --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' '
     [.[] | select(
-      (.command | contains($needle)) and
-      (.command | contains("markdown-format.sh")) and
-      (.command | contains("\"${CLAUDE_PLUGIN_ROOT}\""))
+      .command == "node" and
+      ((.args // [])[0] == $launcher) and
+      ((.args // []) | index($script))
     )] | length
   ' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "2" &&
     "$IF_VALUES" == "Edit(*.md) Edit(*.mdc)" &&
     "$WRITE_IF" == "0" &&
-    "$ARGS_PRESENT" == "0" &&
-    "$SHELL_OK" == "2" &&
-    "$CMD_OK" == "2" ]]; then
-    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), shell form, shell bash"
+    "$NODE_OK" == "2" ]]; then
+    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), through node and exec-bash.mjs"
   else
-    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF args=$ARGS_PRESENT shell=$SHELL_OK cmd=$CMD_OK"
+    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF node_ok=$NODE_OK"
   fi
 else
   fail "hooks.json launch-gate assertions need jq and $HOOKS_JSON"
@@ -1039,31 +1053,43 @@ PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_TRIM="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
   PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin")"
-if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
-  (.hookSpecificOutput.additionalContext | contains($local)) and
-  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
-  ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
-' >/dev/null 2>&1; then
-  ok "PATH probed trims plugin-bin directories to a count"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "PATH probed trims plugin-bin directories to a count" \
+    "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  fail "PATH probed trim wrong: $OUT_TRIM"
+  if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+    (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
+    (.hookSpecificOutput.additionalContext | contains($local)) and
+    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
+    ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
+  ' >/dev/null 2>&1; then
+    ok "PATH probed trims plugin-bin directories to a count"
+  else
+    fail "PATH probed trim wrong: $OUT_TRIM"
+  fi
 fi
 # Empty PATH components are cwd. Word-split with IFS=: would drop them.
 PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_EMPTY="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
   PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin:")"
-if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
-  (.hookSpecificOutput.additionalContext | contains($local)) and
-  (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
-  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
-' >/dev/null 2>&1; then
-  ok "PATH probed preserves empty components as cwd"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "PATH probed preserves empty components as cwd" \
+    "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+  if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+    (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
+    (.hookSpecificOutput.additionalContext | contains($local)) and
+    (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
+    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
+  ' >/dev/null 2>&1; then
+    ok "PATH probed preserves empty components as cwd"
+  else
+    fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+  fi
 fi
 # In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
@@ -1100,18 +1126,24 @@ if [[ $RC_OUTREPO -eq 0 ]]; then
 else
   fail "out-of-repo missing markdownlint exit $RC_OUTREPO"
 fi
-if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
-  (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm" \
+    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
-  fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
+  if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
+    (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
+    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
+    (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
+    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+  ' >/dev/null 2>&1; then
+    ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
+  else
+    fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
+  fi
 fi
 
 # Preference: with no ~/.bun/bin on PATH, name ~/.local/bin over ~/bin.
@@ -1120,15 +1152,21 @@ OUT_LOCALBIN="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE
   CLAUDE_PLUGIN_DATA="$PD_LOCALBIN" HOME="$FAKE_HOME" \
   PATH="$FAKE_HOME/bin:$FAKE_HOME/.local/bin:$PATH" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
-  (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_cygpath_rewrites_posix_path; then
+  skip "out-of-repo notice prefers ~/.local/bin over ~/bin" \
+    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
-  fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
+  if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
+    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
+    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
+    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+  ' >/dev/null 2>&1; then
+    ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
+  else
+    fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
+  fi
 fi
 
 # A generic writable $HOME/… PATH entry (mise install tree, nested .bun/bin)
@@ -2946,5 +2984,5 @@ else
 fi
 
 echo
-echo "PASS=$PASS FAIL=$FAIL"
+echo "PASS=$PASS FAIL=$FAIL SKIPPED=$SKIPPED"
 [[ $FAIL -eq 0 ]]

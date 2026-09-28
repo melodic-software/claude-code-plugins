@@ -14,9 +14,11 @@ allowed-tools:
   # `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`), and
   # it matches none of these six scripts, nor `git branch -D`, nor
   # `git push --delete`. The guard's own header declares it a best-effort net
-  # rather than a security boundary with accepted coverage gaps; whether that
-  # coverage should grow is a separate human-gated decision, so do not
-  # read this list as a claim that the guard inspects these scripts.
+  # rather than a security boundary with accepted coverage gaps. Branch and
+  # remote-branch deletion stay out of that net (#3852): they are gated by the
+  # permission flow, the confirmation gate, and `git-branch-delete.sh`, not by
+  # a hook pattern. Do not read this list as a claim that the guard inspects
+  # these scripts.
   - Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-clean-action.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/scan.sh:*)
   - Bash(${CLAUDE_SKILL_DIR}/scripts/preflight.sh:*)
@@ -32,13 +34,18 @@ hooks:
     # carries its command in the same `.tool_input.command` field Bash uses.
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form (no `args`) on purpose: exec form resolves `command` via PATH,
-        # which on Windows finds the WSL relay (System32\bash.exe) and the guard
-        # never launches, a silent fail-open. Shell form with `shell: bash` makes
-        # Claude Code itself resolve Git Bash on every platform.
+        # Exec form. `command` is `node`. exec-bash.mjs finds Git Bash and
+        # never System32\bash.exe, then runs destructive-guard.sh.
+        # Claim: exec form spawns `command` with `args` and no shell, and a
+        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
+        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
+        # and "Command hook fields".
+        # As of: 2026-09-28.
+        # Recheck: that page stops ignoring `shell` when `args` is set, or a
+        # skill hook gains another placeholder.
         - type: command
-          command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
-          shell: bash
+          command: node
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
 metadata:
   workflow-stage: anytime
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
@@ -117,6 +124,12 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion, and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
 **Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). It is a best-effort net over command text, not a security boundary: it does not match this skill's own mutating scripts, `git branch -D`, or `git push --delete`, which are gated by the permission flow and the confirmation gate instead. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`).
+
+**Guard coverage for branch deletion (#3852).** Out of scope for this net. Local deletion goes only through `git-branch-delete.sh` after the confirmation gate; remote deletion (`git push --delete`) is not a sanctioned skill path. Adding those patterns to the hook would duplicate the gate and invite treating a best-effort net as a boundary.
+
+| Claim | Basis | As of | Recheck |
+|---|---|---|---|
+| The destructive guard does not cover `git branch -D`/`-d` or `git push --delete`. | `is_destructive()` in `scripts/destructive-guard.sh`; this skill's section 4.2; `git-branch-delete.sh`. | 2026-09-28 | `git-branch-delete.sh` stops being the only sanctioned local-delete path, or a paid slice adds those patterns with an ack path that does not duplicate the confirmation gate. |
 
 ## Confirmation gate
 

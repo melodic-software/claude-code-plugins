@@ -3,6 +3,61 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.9] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Four of the five listed
+  skills ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and
+  names its nearest sibling. What the bodies already carry is cut: host-qualification mechanics,
+  floor-computation detail, and restated skip lists. `check-listing-budget.sh
+  plugins/performance/skills` goes from 4,235 to 2,277 characters. `protect` was
+  already under 500. No skill is renamed or merged.
+
+## [0.2.8] - 2026-09-28
+
+### Fixed
+
+- **`verify` ties MET to deployed code, not only a measured tree**
+  ([#4441](https://github.com/melodic-software/claude-code-plugins/issues/4441)). Step 3 compares
+  the harness path/version with `installed_plugins.json` (or the project-scope install record) and
+  refuses **MET** when they differ without a post-deployment re-measurement. The report adds
+  `Measured:` and `Deployed:` lines.
+- **`goal` and `snapshot` document parallel event-level targets and MSYS process accounting**
+  ([#4439](https://github.com/melodic-software/claude-code-plugins/issues/4439),
+  [#4440](https://github.com/melodic-software/claude-code-plugins/issues/4440)). Goals for hooks
+  (and similar parallel units) record event wall time, unit marginal cost, and event-level
+  realistic/ideal targets. `harness-integrity.md` states the Job Object +2-per-external-command rule
+  on Git Bash and how it differs from PATH-shim `spawns=` census output.
+
+## [0.2.7] - 2026-09-28
+
+### Fixed
+
+- **`goal` requires a scaling arm when the subject reads growing state**
+  ([#4438](https://github.com/melodic-software/claude-code-plugins/issues/4438)). A single-size
+  measurement can pass while realistic transcripts grow without bound. The goal records two or more
+  sizes, a `Scaling:` line, and a done criterion on how cost may grow with size. **`target`** flags
+  growing-state candidates in the ranking table. New eval 11.
+
+## [0.2.6] - 2026-09-28
+
+### Fixed
+
+- **`snapshot` verifies the measuring tool before timing**
+  ([#4436](https://github.com/melodic-software/claude-code-plugins/issues/4436)). Record path,
+  revision, and version; confirm every flag the goal's metric command names is supported; stop and
+  name the fix when the copy is stale or incomplete. New eval 11.
+
+## [0.2.5] - 2026-09-28
+
+### Fixed
+
+- **`snapshot` reports and controls which code path each arm took**
+  ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)). Before each arm,
+  reset or record state that selects the path; report intended versus observed path with evidence;
+  flag arms that do not match the goal's named path. New eval 10.
+
 ## [0.2.3] - 2026-09-28
 
 ### Fixed

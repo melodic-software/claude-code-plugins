@@ -54,6 +54,28 @@ echo "ok: fresh-install fixture withheld every cold verdict ($UNOBS/$TOTAL)"
 # scope. A manifest listing the same plugin at two scopes must not double the
 # fleet -- the fleet is the denominator the listing budget is measured against,
 # so a doubled fleet roughly doubles the reported overflow.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+host_cygpath_rewrites_posix_path() {
+  command -v cygpath >/dev/null 2>&1 || return 1
+  local p mixed
+  p="$(mktemp -d)"
+  mixed="$(cygpath -m "$p" 2>/dev/null || true)"
+  rm -rf "$p"
+  [[ -n "$mixed" && "$mixed" != "$p" ]]
+}
+# Status captured outside `if` so SC2310 stays quiet. Errexit would exit on a
+# non-zero predicate before the skip decision, so it is off for this call only —
+# the same suppression an `if` test applies inside the function.
+set +e
+host_cygpath_rewrites_posix_path
+host_rc=$?
+set -e
+if [[ "$host_rc" -eq 0 ]]; then
+  printf 'SKIP (host: %s): %s\n' \
+    "cygpath rewrites the POSIX mktemp cfg the --installed contract embeds" \
+    "--installed collapsed two install records to one plugin"
+  exit 0
+fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"

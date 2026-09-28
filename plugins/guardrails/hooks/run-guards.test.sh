@@ -516,6 +516,18 @@ assert_contains "alias chain: the first guard's reason is on stderr" "$ERR" "blo
 assert_contains "alias chain: the second guard's reason is on stderr too (its memo was reset)" \
   "$ERR" "$(head -1 <<<"$alias_alone_err")"
 
+# --- dual-blocked PowerShell sink: both denials print (#4236) ----------------
+# Invoke-Command { git reset --hard } is unparsable (special-construct) and
+# mutating. block-no-verify and block-dangerous-git both refuse it. Stopping
+# the chain at the first exit 2 would hide the second lever; the dispatcher
+# keeps walking so the operator sees both. Over-length (#4528) remains the
+# one first-block short-circuit.
+DUAL_PS=$(pwsh_command_json 'Invoke-Command -ScriptBlock { git reset --hard }')
+run "$DUAL_PS" --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh
+assert_exit "PS dual sink: dispatched pair denies" 2 "$RC"
+assert_contains "PS dual sink: block-no-verify reason is on stderr" "$ERR" "block_no_verify_enabled"
+assert_contains "PS dual sink: block-dangerous-git reason is on stderr too" "$ERR" "block_dangerous_git_enabled"
+
 # --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')
 alone_rc=0
@@ -584,7 +596,7 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
   block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
-  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
+  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
@@ -602,7 +614,7 @@ post_n=$(jq 'length' <<<"$post_rows")
 if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
 ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
 assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated"
-distinct_cmds=$(jq -r '[.[] | [.command, .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
+distinct_cmds=$(jq -r '[.[] | [.command, ((.args // []) | join(" ")), .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
 assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
 gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
   sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
@@ -722,7 +734,7 @@ if ((PRIMED_N > 0)); then
 else
   bad "PRIME_FILTERS could not be read out of run-guards.sh"
 fi
-DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
+DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
 ALL_DISPATCHED=$(while IFS= read -r cmd; do guards_of "$cmd"; done <<<"$DISPATCH_CMDS" | sort -u)
 DISPATCHED_N=$(lines_of "$ALL_DISPATCHED" | wc -l | tr -d ' ')
 if ((DISPATCHED_N >= 10)); then
@@ -874,7 +886,7 @@ assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS A
 # cancelled at its hooks.json timeout blocks nothing. Each run below is under
 # `timeout 20`, a hang backstop and the only timing check: a wall-clock
 # threshold on a shared shard would measure the shard.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].command' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
 read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
 ROW_CAP=""
 for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
@@ -1002,7 +1014,7 @@ assert_contains "a --max-command-len that is not a whole number is reported" "$O
 # over-length command before they tokenize it, so the row answers at once and
 # the uncapped guards never see it. Each ceiling guard keeps its kill switch:
 # with the first disabled, the next one blocks.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].command' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
 read -r -a BASH_ROW_TOKS <<<"$BASH_ROW"
 BASH_ROW_ARGS=()
 for ((i = 0; i < ${#BASH_ROW_TOKS[@]}; i++)); do

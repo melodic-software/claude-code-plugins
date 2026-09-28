@@ -563,7 +563,10 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^bash (\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/go-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/go-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  CMD_OFF="$(jq -r --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh' '
+    [.[] | select(
+      ((.command == "node") and ((.args // []) | index($script)))
+      | not) | (.command // "(none)")] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
     ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else
@@ -571,6 +574,31 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+
+# --- Gitignored path (#4671): not rewritten by default ------------------------
+# goimports would add the missing "fmt" import; under an ignored directory it
+# does not run, unless go_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_go_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO_IGN/.work/scratch.go"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.go")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.go")
+if [[ "$(cat "$REPO_IGN/.work/scratch.go")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
+fi
+if [[ -z "$OUT" ]]; then ok "gitignored: silent"; else fail "gitignored: output: $OUT"; fi
+run_hook_env "$REPO_IGN/.work/scratch.go" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" \
+  CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q '"fmt"' "$REPO_IGN/.work/scratch.go"; then
+  ok "gitignored + go_format_lint_gitignored=true: import added"
+else
+  fail "gitignored + opt-in: not rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
 fi
 
 echo

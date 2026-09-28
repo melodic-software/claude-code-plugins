@@ -1,5 +1,5 @@
 ---
-description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md and a natively read AGENTS.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
+description: "Bare-baseline experiment: reversibly strip a repo's standing instructions on a dedicated branch, log stumbles against the bare model, then restore only instructions with repeated same-cause evidence. Measures the model where audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated, resumable."
 argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
@@ -54,25 +54,38 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 
 ## State
 
-`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/` where `<experiment-id>` is
-`<repo-basename>-<model-version>-<YYYYMMDD>-<nonce>` (a short random suffix minted at snapshot).
-The basename is a convenience label, not the identity: `${CLAUDE_PLUGIN_DATA}` is machine-global,
-so two checkouts sharing a basename (a fork, a same-named worktree) running the same model on the
-same day would otherwise resolve to one directory and cross-restore each other's settings. The
-manifest therefore records the canonical checkout identity, the resolved absolute worktree path
-and, when a remote exists, the origin URL, and every later phase verifies it matches the current
-checkout before acting; a mismatch aborts with the conflicting path named. `snapshot` never reuses
-an existing experiment directory: a fresh run mints a fresh id, and resuming an open experiment
-means passing its phase commands from inside the same checkout its manifest names.
+`manifest.json` and `stumbles.md` live in the repo at `.claude/unhobble/<experiment-id>/`, where
+`<experiment-id>` is `<repo-basename>-<model-version>-<YYYYMMDD>-<nonce>` (a short random suffix
+minted at snapshot). Phase 1 writes both files with the Write or Edit tool. The Phase 2 strip
+commit carries them, and every later ledger or manifest update is committed on the experiment
+branch the same way, so a later session's clone already holds the ledger.
+`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/` holds only `backups/`. It is
+not the home of the manifest or the ledger.
+
+The basename is a convenience label, not the identity. The manifest records `origin_url`,
+`branch`, and `base_commit`, and no absolute host path. Every later phase resolves the current
+origin URL and current branch, and checks that the recorded `base_commit` is still an ancestor of
+HEAD. A mismatch aborts and names the field plus the recorded and current values. A repo with no
+remote records `origin_url` as an empty string and compares that. `snapshot` never reuses an
+existing experiment directory: a fresh run mints a fresh id. Resuming an open experiment means
+passing its phase commands from a checkout of the recorded origin, on the recorded branch, at a
+commit that still contains `base_commit`. A different absolute path is not a mismatch.
+
+Refuse a state path under the topic-docs contract dir (default `docs/topics/`, or `contract_dir`
+when `.claude/topic-docs.yaml` sets one). Name
+`scripts/check-contract-slice-prune.sh --check-diff` as the reason: a pull request that leaves a
+path there fails that gate, and the slice is pruned before merge, which deletes the ledger.
 
 - `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention`),
-  what was stripped, how to restore it (path, restore mechanism, backup location), branch name,
-  target model, phase timestamps.
+  what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
+  the plugin data dir), `origin_url`, `branch`, `base_commit`, target model, phase timestamps.
+  No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity).
-- `backups/`: pre-strip copies of any non-git-tracked file modified or removed (settings hook
-  entries, and an untracked instruction file the plan classified behavioral, which git cannot
-  restore and so is never stripped through the git helper).
+- `backups/`, under `${CLAUDE_PLUGIN_DATA}` only: pre-strip copies of any non-git-tracked file
+  modified or removed (settings hook entries, and an untracked instruction file the plan classified
+  behavioral, which git cannot restore and so is never stripped through the git helper). Never
+  commit `backups/`.
 
 `status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
 
@@ -114,8 +127,10 @@ means passing its phase commands from inside the same checkout its manifest name
    config where one exists, otherwise recorded as `unstripped-hybrid-hook` with the confound
    noted for the observe phase. Never remove a hybrid entry's wiring whole; that takes the policy
    residue down with the behavioral surface.
-4. Write `manifest.json`; present the strip plan (what goes, what stays and why) and stop for
-   confirmation.
+4. Write `manifest.json` and an empty `stumbles.md` under `.claude/unhobble/<experiment-id>/`
+   with the Write or Edit tool. Do not write them with a shell redirect or a heredoc. Present the
+   strip plan (what goes, what stays and why) and stop for confirmation. Do not commit yet: the
+   strip commit carries both files.
 
 ## Phase 2: bare
 
@@ -127,7 +142,9 @@ Apply the confirmed strip plan:
   retained file. A file classified `hybrid` operationalizes exactly like a mixed file, stripping the
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
-  `experiment: strip instruction surfaces for unhobble baseline`.
+  `experiment: strip instruction surfaces for unhobble baseline`, and that commit includes
+  `.claude/unhobble/<experiment-id>/manifest.json` and `stumbles.md`. The clean-tree check already
+  ran in Phase 1, before those files existed; other uncommitted dirt still refuses this phase.
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
@@ -137,8 +154,10 @@ Apply the confirmed strip plan:
   of it gone and the rest still loading. **An untracked instruction file, the ordinary case for
   `CLAUDE.local.md`, is not this helper's to strip**, since git holding the undo is what lets it
   remove anything at all. One the plan classified behavioral takes the same route as the settings
-  entries below: back it up to `backups/`, record the path and its restore in the manifest, and
-  remove it there. The helper names it rather than stripping it, so the bare baseline is still
+  entries below: back it up under
+  `${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/backups/`, record the path and its restore in the
+  manifest, and remove the working-tree file. The helper
+  names it rather than stripping it, so the bare baseline is still
   reached, by the path that can actually restore it. **Name the files the plan approved.** A repository can hold
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
@@ -165,7 +184,8 @@ Apply the confirmed strip plan:
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
   `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
   which only moves whole files.
-- Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
+- Project-settings hook entries classified `behavioral`: back up the settings file to
+  `${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
   or config where one exists, else leave it wired and record `unstripped-hybrid-hook` (observe
@@ -196,7 +216,8 @@ instructions in context, so it cannot measure their absence.
 
 Work normally on real tasks for a meaningful window (days of real work, not one toy prompt). When
 the model stumbles, doing something an instruction used to prevent, missing a convention, or breaking a
-workflow, append a row to `stumbles.md`:
+workflow, append a row to `stumbles.md` with the Write or Edit tool and commit that update on the
+experiment branch:
 
 | Date | Task | What happened | Expected | Suspected missing instruction | Severity |
 
@@ -265,7 +286,15 @@ scheduling surfaces vary per consumer and are the operator's choice.
   nor depends on either: the experiment here ablates *your* instructions, which is the part you
   own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
   this experiment.)
-- **Windows:** restore paths in `manifest.json` are stored with forward slashes; git handles both.
+- **Windows:** repo-relative restore paths in `manifest.json` use forward slashes. The manifest
+  still records no absolute host path.
+- **Machine-specific paths.** A committed manifest that contains an absolute host path fails the
+  machine-specific-paths CI lane. This skill records none: identity is `origin_url`, `branch`, and
+  `base_commit`.
+- **State writes go through Write or Edit.** The guardrails `block-hook-bypass` hook blocks shell
+  redirects and heredocs that write a file, exit 2, because those forms skip the Write and Edit
+  gates. Writing the manifest or the ledger with `cat >`, `echo >`, or a heredoc is the blocked
+  form. Use Write or Edit.
 
 ## What this skill does NOT do
 

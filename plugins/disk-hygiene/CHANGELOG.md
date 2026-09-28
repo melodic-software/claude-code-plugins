@@ -3,6 +3,99 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Removed
+
+- **The baseline `pulumi-writability-probe` hint (`.pulumi-write-test-*`)** ([#3860](https://github.com/melodic-software/claude-code-plugins/issues/3860)). The probe sits in Pulumi's managed state, which the engine never makes eligible, so the hint told operators to look for residue the plugin would only hand off. Managed state stays excluded, and the safety model records why, so the hint is not re-added without the gated managed-state lane tracked in [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006).
+
+## [0.28.6] - 2026-09-28
+
+### Fixed
+
+- The `clean` skill's frontmatter `args` is a YAML sequence. A single-quoted JSON string is one argument, so the belt would not have received `exec-bash.mjs` and `run-python-hook.sh` as separate argv entries ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+## [0.28.5] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.28.2] - 2026-09-28
+
+### Changed
+
+- **macOS engine execution stays behind the platform-name gate**
+  ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
+  reversal trigger has not fired. The safety model quotes it and records the four-part
+  2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
+  change. Version is 0.28.2 so it serializes after 0.28.1 on main.
+
+## [0.28.1] - 2026-09-28
+
+### Changed
+
+- **`--root-children` admits regular files through the same ladder as directories**
+  ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). This supersedes
+  #2588 criterion 2 ("the volume root's own files are never inventoried"). On an OS-managed
+  volume root, regular files are admitted and non-regular types fall to
+  `not-regular-file-or-directory`. On any other target, files stay `not-a-directory`. A per-platform OS-owned file
+  name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
+  `root_children_skipped` by reason with counts; `empty_file_count` sits beside
+  `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
+  current user's home as a separate target.
+
+## [0.28.0] - 2026-09-28
+
+### Added
+
+- **`scan --sizes-only` for exact subtree sizing**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). Full walk with no
+  per-entry inventory, no inventory entry cap, and `rollup_precision` marking exact vs partial output.
+- **Fan-out worker brief** at `skills/clean/reference/fan-out-worker-brief.md` (Bash contract, scan
+  templates, evidence-only rules).
+
+## [0.27.1] - 2026-09-28
+
+### Added
+
+- **`--root-children` inventories approved children of any target, not only an OS-managed volume
+  root** ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). A depth-1
+  home audit left every approved directory `truncated-not-inventoried`, and a deeper whole-home
+  walk hit the 250,000-entry cap. The same `--root-child` selection that already bounded an
+  OS-managed volume root now re-inventories those named immediate children into one snapshot,
+  paths relative to the original target. On a non-OS target, hidden directories (`.dotnet`,
+  `AppData`) stay selectable; the volume-root OS-owned / hidden / system ladder still applies
+  only at an OS-managed volume root. An OS-managed path that is not a volume root is still
+  refused.
+
+## [0.27.0] - 2026-09-28
+
+### Added
+
+- **`--root-children` on non-volume targets (home fan-out)**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
+  depth-1 home audit, re-run against the home path with `--root-children` and explicit
+  `--root-child` names to fully inventory approved top-level directories into one snapshot without
+  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+
+## [0.26.4] - 2026-09-28
+
+### Fixed
+
+- **`guard_launch_monitor.py` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). A hard error in the Stop detector used to become a second `hook_non_blocking_error` with no hook text. `main` now catches `SystemExit` other than 0 and `BaseException`, writes one stderr line (`disk-hygiene guard-launch-monitor: did not run …; fail-open`), and returns 0. `SystemExit(0)` is re-raised so `raise SystemExit(main())` still works.
+
+## [0.26.3] - 2026-09-28
+
+### Changed
+
+- **Ranking signals stay a model instruction, not an engine primitive**
+  ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
+  provenance mandate (tier, location sensitivity, provenance strength over byte totals)
+  stays in the skill body. No coded ranker on the destructive surface. Operator park
+  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
+  #4669 (0.26.1) and #3857 (0.26.2).
+
 ## [0.26.0] - 2026-09-28
 
 ### Changed

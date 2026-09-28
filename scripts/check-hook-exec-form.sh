@@ -136,6 +136,25 @@ fi
 # demand-driven, never pre-emptive, since an unused entry is a hole nobody is
 # watching. Adding a name is a reviewed change to this array plus its pinning
 # test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
+#
+# `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
+# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds Git Bash
+# and never the WSL relay. Option gates are `--require-true` and
+# `--run-if-unset-or-true` on that launcher, not a shell command line.
+#   Claim: exec form offers no portable `command` that names Git Bash. `command`
+#     is resolved on PATH (bare `bash` finds the WSL relay); `shell` is "Ignored
+#     when `args` is set"; a `.sh` path as `command` is not a real executable
+#     there (libuv EFTYPE); and the only placeholders are CLAUDE_PROJECT_DIR,
+#     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
+#     which names a shell. The gate-legal route is the `node` launcher above,
+#     not an allowlist entry for `bash`.
+#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields" and
+#     "Exec form and shell form"; the EFTYPE and WSL-relay spawns observed in
+#     (#3708); upstream https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form `args`
+#     dropped, the hook still routed through bash.exe) open.
+#   As of: 2026-09-28.
+#   Recheck: the hooks reference adds a shell or interpreter placeholder for
+#     exec form, or stops ignoring `shell` when `args` is set; or #90495 closes.
 EXEC_NAME_ALLOWLIST=(node)
 
 errors=0
@@ -402,7 +421,10 @@ doing a PATH lookup:
     "shell": "bash"
 
 Or keep exec form and give `command` a ${CLAUDE_PLUGIN_ROOT}-rooted or absolute
-path to a real executable.
+path to a real executable: a binary, not a script. On Windows exec form has no
+shell to read a `#!` line, so a `.sh` path as `command` fails to spawn (EFTYPE).
+A bash-scripted hook therefore stays shell form as above; a Node script can use
+`"command": "node"` with the script path in `args`.
 REMEDY
   exit 1
 fi

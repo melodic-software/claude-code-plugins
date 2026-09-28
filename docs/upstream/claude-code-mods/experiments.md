@@ -421,7 +421,7 @@ mkdir -p "$P/e6a-node/.claude-plugin" "$P/e6a-node/hooks" \
 
 The probe bodies, one statement each so the arm measures the mechanism and not the work.
 `$P/e6a-node/hooks/probe.js` is `process.stdout.write('{}');` and `$P/e6b-bash/hooks/probe.sh` is
-`echo '{}'`. Neither needs an exec bit: both are invoked through their interpreter. Inside this
+`echo '{}'`. Neither needs an exec bit. Both are invoked through their interpreter. Inside this
 repository the `guardrails` plugin refuses shell file-writes, so create all six files with the
 editor or the Write tool.
 
@@ -479,7 +479,7 @@ bash", only "not slower".
 because there is no shell in the execution path, citing about 90 ms of process-spawn latency on
 Windows for classic bash hooks. This run measured about **12 ms** for the same mechanism, seven times
 cheaper, and `bash` was the cheapest classic arm here rather than the bottleneck. Different machines,
-different methods, and neither is a benchmark, so record the disagreement, do not pick a winner, and do
+different methods, and neither is a benchmark. Record the disagreement, do not pick a winner, and do
 not build a performance argument for adoption on either number.
 
 Honest limits, restated because they are larger than some of the effects: one session per arm, one
@@ -546,7 +546,7 @@ The procedure, by hand:
    documented**.
 4. Fully quit Claude Desktop, tray icon included, and start it again; route (c) already did this.
    Environment variables and plugin enablement are read at session start.
-5. In the Code tab open a **local** session, not a cloud session: the plugin browser and locally
+5. In the Code tab open a **local** session, not a cloud session, because the plugin browser and locally
    installed plugins are documented as unavailable in cloud sessions. Any folder. Send one message.
 6. Check the marker file.
 

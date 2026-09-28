@@ -1069,8 +1069,18 @@ INVENTORY_STATE="$(jqs -r '.inventory // "none"' <<<"$INVENTORY_JSON")"
 # inventory reports the lever state unknown and the narrowing is unavailable,
 # because a lever that disables every hook may be sitting in the file nothing
 # could read.
-LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and .value=="true")] | length' <<<"$INVENTORY_JSON")"
-LEVER_MANAGED="$(jqs -r '[.levers[]? | select((.key=="allowManagedHooksOnly" or .key=="strictPluginOnlyCustomization") and .value=="true")] | length' <<<"$INVENTORY_JSON")"
+LEVER_DISABLE_ALL="$(jqs -r '[.levers[]? | select(.key=="disableAllHooks" and (.value==true or .value=="true"))] | length' <<<"$INVENTORY_JSON")"
+# strictPluginOnlyCustomization locks hooks only when it is true or its array
+# names "hooks". An array of only "mcp" blocks user and project MCP servers and
+# leaves hooks running. v2.1.257 closed the /mcp reconnect bypass for a lock
+# that loads after startup.
+LEVER_MANAGED="$(jqs -r '[.levers[]? | select(
+  (.key=="allowManagedHooksOnly" and (.value==true or .value=="true"))
+  or (.key=="strictPluginOnlyCustomization" and (
+    (.value==true or .value=="true")
+    or ((.value|type)=="array" and ((.value|index("hooks")) != null))
+  ))
+)] | length' <<<"$INVENTORY_JSON")"
 LEVER_STATE="$(jqs -r '.lever_state // "complete"' <<<"$INVENTORY_JSON")"
 HOOKS_LIVE=1
 HOOKS_LIVE_REASON="a suppression lever is set, so the hook is not live"
@@ -1133,6 +1143,46 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   done <<<"$entries"
 done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
 
+# --- Declared unattended-push lane (narrowing 1, ask-rules family only) ------
+# A permissions.ask rule prompts even in auto mode and is auto-denied under
+# dontAsk, so recommending the git push ask-gates to a repo that runs an
+# unattended lane would stall or break that lane's own pushes. The signal is
+# babysit_loop_merge resolving above human-only in the team-tracked
+# .claude/source-control.md: raises bind from that layer only
+# (source-control's config-resolution.md), and a file that adopts loop-lane
+# keys without the merge key resolves to the c2-mechanical baseline.
+UNATTENDED_LANE=""
+SC_TEAM="$PROJECT_ROOT/.claude/source-control.md"
+if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
+  IFS=$'\t' read -r lane_adopted lane_rung < <(awk '
+    {
+      sub(/\r$/, "")
+    }
+    /^## / {
+      inkey = ($0 ~ /^## babysit_loop_merge[ \t]*$/)
+      if ($0 ~ /^## babysit_loop_/) adopted = 1
+      next
+    }
+    inkey && NF && val == "" {
+      val = $0
+      gsub(/^[ \t`]+|[ \t`]+$/, "", val)
+    }
+    END { printf "%s\t%s\n", adopted ? 1 : 0, val }
+  ' "$SC_TEAM")
+  lane_source="babysit_loop_merge: $lane_rung"
+  if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
+    lane_rung="c2-mechanical"
+    lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
+  fi
+  case "$lane_rung" in
+  c2-mechanical | c3-autonomous | full-autonomy)
+    UNATTENDED_LANE="$lane_source in the team-tracked .claude/source-control.md declares an unattended-push lane"
+    ;;
+  *) ;;
+  esac
+fi
+ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under dontAsk, so it blocks an unattended lane's pushes"
+
 # --- Category B: permissions -------------------------------------------------
 
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
@@ -1158,15 +1208,23 @@ if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
       row B "baseline-$fam" ok none "$SURF_SETTINGS" "present-pattern:$pat" "$target carries $pat" -
       continue
     fi
+    lane_note=""
+    if [[ "$fam" == "ask-rules" ]]; then
+      lane_note="; $ASK_BLOCKS_LANES"
+      if [[ -n "$UNATTENDED_LANE" ]]; then
+        row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; narrowing 1 applies: $UNATTENDED_LANE$lane_note" "/permissions/$target"
+        continue
+      fi
+    fi
     if [[ -n "${COVERED_BY[$pat]:-}" ]]; then
       if [[ $HOOKS_LIVE -eq 1 ]]; then
         row B "baseline-$fam" finding info "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a live PreToolUse hook already blocks it: ${COVERED_BY[$pat]}. Coverage ends if that plugin is disabled or its levers narrow it" "/permissions/$target"
       else
-        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON" "/permissions/$target"
+        row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target; a hook declares coverage (${COVERED_BY[$pat]}) but $HOOKS_LIVE_REASON$lane_note" "/permissions/$target"
       fi
       continue
     fi
-    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check" "/permissions/$target"
+    row B "baseline-$fam" finding "$sev" "$SURF_SETTINGS" "missing-pattern:$pat" "not in permissions.$target and no coverage manifest names it; narrowings 1 and 2 (a documented exemption or hook convention) are the model's to check$lane_note" "/permissions/$target"
   done
   # Broad allow entries and the completeness rows, both informational.
   while IFS= read -r a; do
@@ -1361,8 +1419,22 @@ done < <(jqs -r '.hooks[]? | [.source, .event, .matcher, .command, ((.timeout //
 
 # Lever state is reported, never judged.
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
-  lv="$(jqs -r --arg k "$lever" '[.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value)") | join(", ")' <<<"$INVENTORY_JSON")"
-  if [[ -n "$lv" ]]; then
+  lv="$(jqs -r --arg k "$lever" '[.levers[]? | select(.key==$k)] | map("\(.scope)=\(.value|tostring)") | join(", ")' <<<"$INVENTORY_JSON")"
+  if [[ -n "$lv" && "$lever" == "strictPluginOnlyCustomization" ]]; then
+    detail="$(jqs -r --arg k "$lever" '
+      [.levers[]? | select(.key==$k)] | .[0].value as $v |
+      if $v == true or $v == "true" then
+        "strictPluginOnlyCustomization is true: skills, agents, hooks, and mcp are locked to plugins and managed settings, so every non-plugin hook is not coverage. The mcp surface blocks MCP servers from user and project settings; v2.1.257 closed the /mcp reconnect bypass."
+      elif ($v|type) == "array" then
+        (if (($v|index("hooks")) != null) then "hooks are locked, so user, project, and local settings hooks are not coverage. " else "hooks are not locked. " end)
+        + (if (($v|index("mcp")) != null) then "mcp blocks MCP servers from ~/.claude.json and .mcp.json; plugin servers, managed-mcp.json, and managedMcpServers still load. v2.1.257 closed the /mcp reconnect bypass. " else "" end)
+        + "set: " + ($v|tostring)
+      else
+        "strictPluginOnlyCustomization value was not true or a surface array: " + ($v|tostring)
+      end
+    ' <<<"$INVENTORY_JSON")"
+    row D hook-levers ok none "settings" "lever-set:$lever" "$detail" -
+  elif [[ -n "$lv" ]]; then
     row D hook-levers ok none "settings" "lever-set:$lever" "$lever set: $lv (every hook it switches off is not coverage)" -
   else
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -

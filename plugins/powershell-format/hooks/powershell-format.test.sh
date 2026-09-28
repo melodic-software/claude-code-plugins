@@ -1034,7 +1034,10 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^bash (\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/powershell-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/powershell-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
+  CMD_OFF="$(jq -r --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh' '
+    [.[] | select(
+      ((.command == "node") and ((.args // []) | index($script)))
+      | not) | (.command // "(none)")] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
     ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else
@@ -1042,6 +1045,31 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+
+# --- Gitignored path (#4671): neither rewritten nor analyzed by default ------
+# Invoke-Formatter would fix the casing; under an ignored directory it does not
+# run, unless powershell_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_IGN/.work/scratch.ps1"
+IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.ps1")"
+OUT=$(run_hook "$REPO_IGN/.work/scratch.ps1")
+if [[ -z "$OUT" ]]; then ok "gitignored: nothing reported"; else fail "gitignored: reported: $OUT"; fi
+if [[ "$(cat "$REPO_IGN/.work/scratch.ps1")" == "$IGN_BEFORE" ]]; then
+  ok "gitignored: file not rewritten"
+else
+  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.ps1")"
+fi
+run_hook_env "$REPO_IGN/.work/scratch.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_LINT_GITIGNORED=true >/dev/null
+if grep -q 'Get-ChildItem' "$REPO_IGN/.work/scratch.ps1"; then
+  ok "gitignored + powershell_format_lint_gitignored=true: casing fixed"
+else
+  fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.ps1")"
 fi
 
 echo

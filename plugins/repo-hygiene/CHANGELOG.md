@@ -3,6 +3,22 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.54] - 2026-09-28
+
+### Changed
+
+- **`clean` destructive guard launches as exec form** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). The skill-frontmatter hook is `"command": "node"` with `hooks/exec-bash.mjs` and `skills/clean/scripts/destructive-guard.sh` in `args`. `args` is a YAML sequence, one element per argument. The launcher finds Git Bash and never the System32 bash.exe relay.
+
+## [0.10.51] - 2026-09-28
+
+### Changed
+
+- **`clean` destructive guard: branch and remote-branch deletion stay out of
+  scope (#3852).** The net still does not match `git branch -D`/`-d` or
+  `git push --delete`. That is the settled coverage, not an open defect. Local
+  deletion remains `git-branch-delete.sh` after the confirmation gate. Recorded
+  in the guard header, the skill frontmatter and body, and the README.
+
 ## [0.10.50] - 2026-09-27
 
 ### Changed

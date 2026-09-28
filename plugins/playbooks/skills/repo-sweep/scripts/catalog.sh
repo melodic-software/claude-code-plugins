@@ -2,7 +2,7 @@
 # Parse a repo-sweep catalog (format: ../SKILL.md "Formats").
 #
 #   catalog.sh <catalog-file>                 one TSV row per entry, in file order:
-#                                             id, phase, skills, args, checked, issue, applies-when
+#                                             id, phase, skills, args, checked, issue, applies-when, prime
 #   catalog.sh --override <id> <catalog-file> that entry's "#### Override" block (empty if none)
 #   catalog.sh --notes <id> <catalog-file>    that entry's "#### Notes" block (empty if none)
 #
@@ -51,7 +51,8 @@ END {
   if (bad) exit 1
   if (block == "") {
     OFS = "\t"
-    for (i = 1; i <= n; i++) print ids[i], ph[i], v[i, "skill"], v[i, "args"], v[i, "checked"], v[i, "issue"], v[i, "applies-when"]
+    for (i = 1; i <= n; i++)
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", ids[i], ph[i], v[i, "skill"], v[i, "args"], v[i, "checked"], v[i, "issue"], v[i, "applies-when"], v[i, "prime"]
     exit 0
   }
   for (i = 1; i <= n && ids[i] != want; i++) ;

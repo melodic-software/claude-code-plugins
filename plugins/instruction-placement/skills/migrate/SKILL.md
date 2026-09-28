@@ -1,5 +1,5 @@
 ---
-description: "Move a repository's instruction content to AGENTS.md as the one content home, keeping a one-line `@AGENTS.md` CLAUDE.md shim while a shim is what makes it load. Plans first with a read-only script: one state per directory, Codex's byte budget, code that locates a path by CLAUDE.md, and every claude-code-action pin. Then splits content by where each kind belongs: every-conversation text in the root AGENTS.md, sometimes-relevant text in the repo's own docs home behind a pointer, Claude-specific text in `.claude/rules/` with a `paths:` glob. `cutover-check` grades every shim-removal condition with its evidence; `remove-shims` takes root and nested shims out together once they all hold. Every write is operator-gated; load is verified, never assumed. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'."
+description: "Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load. Plans first; every write is operator-gated. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not the placement sweep (audit) or applying findings (realign)."
 argument-hint: "[plan | apply | cutover-check | remove-shims] [path ...]. Default: plan the repository at the current root"
 user-invocable: true
 disable-model-invocation: false
@@ -337,22 +337,29 @@ directly at all.
 
 - **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
-  attaches a subdirectory's `AGENTS.md` on a Read there under the same condition. Reading it
-  directly needs v2.1.277 or later and is unavailable in some sessions (some providers, telemetry
-  disabled, `disableAllHooks` or `allowManagedHooksOnly` set, the built-in `agents-md` plugin
-  disabled in `/plugin`, the first session after an install or upgrade). A `CLAUDE.md` containing
-  `@AGENTS.md` never makes Claude read the file twice.
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code reads
-  AGENTS.md", "When AGENTS.md support is unavailable", "Remove an earlier AGENTS.md workaround";
-  confirmed by canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-19.
+  attaches a subdirectory's `AGENTS.md` when a Read opens a file there and that subdirectory has
+  none of those three names of its own. Reading it directly needs v2.1.277 or later. The memory
+  page's "When AGENTS.md support is unavailable" list is: a CLI before v2.1.277, the built-in
+  `agents-md` plugin disabled in `/plugin`, and in some cases the first session after an upgrade
+  from v2.1.276 or earlier. The same page says that before v2.1.281, some sessions, such as those
+  on Amazon Bedrock or with telemetry disabled, read `CLAUDE.md` files only, and that on those
+  versions you update Claude Code. A `CLAUDE.md` containing `@AGENTS.md` never makes Claude read
+  the file twice.
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-28 (54,922 bytes;
+  slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
+  "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
+  earlier AGENTS.md workaround". Canary runs on Claude Code 2.1.278 confirmed the displacement
+  rule; this 2026-09-28 pass did not repeat those runs (`claude` on this host is not logged in).
+- **As of**: 2026-09-28.
 - **Recheck trigger**: that page changes which file names count for the check or which sessions lack
   support, or a release note names `AGENTS.md` or instruction-file loading.
 
-It is priced, not free. A directly read `AGENTS.md` is absent from `/memory` and the `/context`
-Memory files, and fires no `InstructionsLoaded` hook; one reached through a shim behaves like part
-of its `CLAUDE.md` and keeps both. That is a reason the shim is worth its ~55 tokens, and a reason
-removing it later is a decision rather than tidying.
+It is priced, not free. From v2.1.280, `/memory` lists a directly read `AGENTS.md`; before that,
+`/memory` and `/context` did not. `InstructionsLoaded` still does not fire for an `AGENTS.md` read
+through the Project instructions setting, and does fire when a `CLAUDE.md` imports it or is a
+symlink to it. One reached through a shim behaves like part of its `CLAUDE.md` and keeps the hook.
+That is a reason the shim is worth its ~55 tokens, and a reason removing it later is a decision
+rather than tidying. The dated quotes are in `reference/sources.md`, "What shim removal costs".
 
 Every upstream fact the cutover turns on lives as a four-part dated record in
 [`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
@@ -372,7 +379,7 @@ is a false positive for that operator. The import stays harmless there: "Claude 
 twice". The value is a user, `--settings` or managed setting, ignored in project and local settings,
 so a repository cannot rely on it and the gates keep the default's answer
 ([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
-2026-09-19; recheck when that table changes or a release note names the setting).
+2026-09-28, quotes unchanged; recheck when that table changes or a release note names the setting).
 
 ## Hard rules
 

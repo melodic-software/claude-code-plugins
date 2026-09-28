@@ -267,6 +267,37 @@ assert_eq "case 4: severity stays error" "error" "$(jq -r '.findings[] | select(
 assert_contains "case 4: lever named in the detail" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "lever is set"
 assert_contains "case 4: lever row reports it set" "$(jq -r '.rows[] | select(.claim=="lever-set:disableAllHooks") | .detail' <<<"$out")" "project=true"
 
+# strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
+# "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
+write_surface_lock() {
+  local value="$1"
+  m="$(make_machine "surface-$value")"
+  mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+  jq -n --argjson lock "$value" '{
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    strictPluginOnlyCustomization: $lock,
+    permissions: {deny: ["Read(./.env)"], ask: ["Bash(git push *)"]},
+    enabledPlugins: {"guard@mkt": true},
+    extraKnownMarketplaces: {mkt: {source: {source: "directory", path: "../mkt"}}}
+  }' >"$m/project/.claude/settings.json"
+  printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/git.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+  printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
+}
+write_surface_lock '["mcp"]'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+# Other baseline denies are still absent, so the run exits 1. The force-push
+# row is the signal that the mcp-only lock did not switch hooks off.
+assert_eq "case 4b: force push stays info" "info" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+assert_contains "case 4b: the lever row says hooks are not locked" "$(jq -r '.rows[] | select(.claim=="lever-set:strictPluginOnlyCustomization") | .detail' <<<"$out")" "hooks are not locked"
+write_surface_lock '["hooks"]'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 4c: hooks lock keeps the error" 1 "$rc"
+assert_eq "case 4c: force push stays error" "error" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
+
 # --- Case 5: the suppression record retires a finding by identity --------------
 m="$(make_machine suppress)"
 printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git push --force *)","Bash(git reset --hard *)"]}}' >"$m/project/.claude/settings.json"
@@ -1183,6 +1214,70 @@ for ud in "$m/home/.claude" "${spellings[@]}"; do
   assert_eq "case 48 ($ud): one finding per settings.json key, on the user surface" "user:settings.json user:settings.json" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-plugin")) | select(.identity.claim | test("lint|fmt")) | .identity.sites[0].surface] | join(" ")' <<<"$out")"
   assert_eq "case 48 ($ud): the local file's plugin key is one finding" "1" "$(jq '[.findings[] | select(.identity.claim == "skill-override-plugin:tools:x")] | length' <<<"$out")"
   assert_eq "case 48 ($ud): one home-local info finding" "info" "$(jq -r '[.findings[] | select(.identity.check | endswith("/G/skill-override-home-local")) | .severity] | join(" ")' <<<"$out")"
+done
+
+# --- Case 49: a declared unattended-push lane narrows the push ask-gate only ----
+# Settings lack the push ask rule and the force-push deny. The team-tracked
+# source-control file decides whether the ask row is info (the lane's signal
+# named) or warning; the deny row keeps its severity either way, and every ask
+# row says an ask rule blocks an unattended lane.
+lane_settings='{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git reset --hard *)"]}}'
+ask_row() { jq -r --arg f "$2" '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .[$f]' <<<"$1"; }
+force_sev() { jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$1"; }
+for lane in c3-autonomous adopted human-only none; do
+  m="$(make_machine "lane-$lane")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  case "$lane" in
+  c3-autonomous | human-only)
+    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n\n## babysit_loop_merge\n\n%s\n' "$lane" >"$m/project/.claude/source-control.md"
+    ;;
+  adopted)
+    printf '# source-control configuration\n\n## babysit_loop_tier\n\nworker\n' >"$m/project/.claude/source-control.md"
+    ;;
+  *) ;;
+  esac
+  rc=0
+  out=$(run "$m" --json 2>&1) || rc=$?
+  assert_eq "case 49 ($lane): force-push deny stays error" "error" "$(force_sev "$out")"
+  assert_contains "case 49 ($lane): ask row says it blocks unattended lanes" "$(ask_row "$out" detail)" "auto-denied under dontAsk"
+  case "$lane" in
+  c3-autonomous)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the signal is named" "$(ask_row "$out" detail)" "babysit_loop_merge: c3-autonomous in the team-tracked .claude/source-control.md"
+    ;;
+  adopted)
+    assert_eq "case 49 ($lane): ask row is info" "info" "$(ask_row "$out" severity)"
+    assert_contains "case 49 ($lane): the baseline rung is named" "$(ask_row "$out" detail)" "baseline c2-mechanical"
+    ;;
+  *)
+    assert_eq "case 49 ($lane): ask row stays warning" "warning" "$(ask_row "$out" severity)"
+    ;;
+  esac
+done
+
+# CRLF + backticked rung (mawk-safe parse).
+m="$(make_machine "lane-crlf-bt")"
+printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+printf '# source-control configuration\r\n\r\n## babysit_loop_merge\r\n\r\n`full-autonomy`\r\n' >"$m/project/.claude/source-control.md"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 49 (crlf-bt): ask row is info" "info" "$(ask_row "$out" severity)"
+assert_contains "case 49 (crlf-bt): backticked rung is read" "$(ask_row "$out" detail)" "babysit_loop_merge: full-autonomy"
+assert_eq "case 49 (crlf-bt): force-push deny stays error" "error" "$(force_sev "$out")"
+
+# Explicit awk shim: first awk on PATH is the impl under test.
+for impl in gawk mawk; do
+  command -v "$impl" >/dev/null 2>&1 || { echo "skip case 49 ($impl): not installed"; continue; }
+  m="$(make_machine "lane-awk-$impl")"
+  printf '%s\n' "$lane_settings" >"$m/project/.claude/settings.json"
+  printf '## babysit_loop_merge\n\n  c2-mechanical  \n' >"$m/project/.claude/source-control.md"
+  shim="$m/bin"
+  mkdir -p "$shim"
+  ln -sf "$(command -v "$impl")" "$shim/awk"
+  rc=0
+  out=$(PATH="$shim:$PATH" run "$m" --json 2>&1) || rc=$?
+  assert_eq "case 49 ($impl): ask row is info" "info" "$(ask_row "$out" severity)"
+  assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
 done
 
 if [[ "$FAILED" -eq 0 ]]; then

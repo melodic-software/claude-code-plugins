@@ -834,8 +834,8 @@ Four-step task. Each step appends one line to `notes.md` and commits it:
 def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
     fixture = Path(tempfile.mkdtemp(prefix=f"ccp-hop-{run}-", dir=str(work_dir)))
     (fixture / ".work" / "handoffs").mkdir(parents=True, exist_ok=True)
-    # Pre-created: the skill's self-ignore guard appends through a shell
-    # redirect, which a guardrails-equipped child cannot run.
+    # Pre-created so the hop under test is the handoff itself, not the
+    # self-ignore guard's first write.
     (fixture / ".work" / ".gitignore").write_text("*\n", encoding="utf-8", newline="\n")
     (fixture / "README.md").write_text(TASK_README, encoding="utf-8", newline="\n")
     if pad_tokens > 0:
@@ -907,6 +907,53 @@ def kill_tree(process: subprocess.Popen) -> None:
             process.kill()
 
 
+_PERMISSION_PROMPTS_FLOOR = (2, 1, 259)
+_CLAUDE_VERSION_CACHE: tuple[int, int, int] | None | bool = False
+
+
+def parse_claude_version(text: str) -> tuple[int, int, int] | None:
+    """First X.Y.Z in `claude --version` output, or None."""
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", text)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def claude_version_at_least(claude: str, floor: tuple[int, int, int]) -> bool:
+    """True when `claude --version` is at least `floor`. Unknown versions are not."""
+    global _CLAUDE_VERSION_CACHE
+    if _CLAUDE_VERSION_CACHE is False:
+        try:
+            proc = subprocess.run(
+                [claude, "--version"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=30,
+                check=False,
+            )
+            _CLAUDE_VERSION_CACHE = parse_claude_version(
+                (proc.stdout or "") + (proc.stderr or "")
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            _CLAUDE_VERSION_CACHE = None
+    cached = _CLAUDE_VERSION_CACHE
+    if not isinstance(cached, tuple):
+        return False
+    return cached >= floor
+
+
+def permission_prompts_args(claude: str) -> list[str]:
+    """`--permission-prompts none` on Claude Code >= 2.1.259, else nothing.
+
+    The flag keeps the permission mode already on the command line and denies
+    only calls that would have prompted. Older CLIs reject it as an unknown option.
+    """
+    if claude_version_at_least(claude, _PERMISSION_PROMPTS_FLOOR):
+        return ["--permission-prompts", "none"]
+    return []
+
+
 def live_runner(cfg: argparse.Namespace):
     """Build the runner that spends money. Never called from --dry-run."""
     claude = shutil.which("claude")
@@ -921,8 +968,11 @@ def live_runner(cfg: argparse.Namespace):
             "json",
             # `dontAsk` plus an allow list denies every mutating tool from CLI 2.1.260.
             # The fixture is a throwaway repo, so bypass prompts and pin tools with `--tools`.
+            # From 2.1.259, --permission-prompts none denies only what would still
+            # prompt and leaves this mode in place. Older CLIs reject the flag.
             "--permission-mode",
             "bypassPermissions",
+            *permission_prompts_args(claude),
             "--tools",
             ALLOWED_TOOLS,
             "--setting-sources",
