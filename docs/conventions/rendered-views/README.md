@@ -53,8 +53,10 @@ Two sentences reconcile this with the local-first residence decision:
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
    `Artifact` rule) are the sanctioned day-one flip that turns every ladder local, with
    zero plugin changes.
-2. The existing emitting surfaces are grandfathered on the shipped ladder until the
-   priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
+2. The existing emitting surfaces stay grandfathered on the shipped ladder.
+   Fleet-wide migration is parked (#3603). A grandfathered surface adopts the
+   convention's tier ladder, dual-audience test, and eval reconciliation in
+   the same change that next touches its HTML lane (adopt-on-touch).
 
 Rendered views are untracked by default; publishing anywhere is optional and configured,
 never the default.
@@ -154,6 +156,28 @@ until the escape helper ships, the same carve-out `visualization:visualize` has.
 two bullets are registered as the `rendered-views-security-baseline` clause in
 `scripts/contract-clause-registry.json`, so `scripts/check-contract-clause-coverage.py`
 holds each inline copy to every one of them.
+
+## Grandfathered-surface fleet sweep (parked; adopt-on-touch)
+
+**Decision.** Do not run the priced fleet ladder sweep. Grandfathered emitters
+keep their shipped Artifact-first ladder and evals. The next change that
+touches a grandfathered surface's HTML lane adopts the convention's tier
+ladder (argument, then plugin dial, then cascade, then shipped default),
+dual-audience offer-not-emit, eval reconciliation, and version bookkeeping
+in that same change.
+
+- **Claim:** fleet ladder migration is parked. Adopt-on-touch is the
+  posture. `visualization:visualize` remains the wave-1 exemplar.
+- **Basis:** #3603 scope list still matches the grandfathered emitters
+  above. `adhd:clarify` eval 3 still encodes Artifact-first. #3609
+  retrofitted the security baseline on `adhd:clarify` and
+  `architecture:improve` without migrating their ladders. Native blocker:
+  #3604. Chrome second-adopter registration stays a same-change rule when
+  a surface adopts the shared reference.
+- **As of:** 2026-09-28.
+- **Recheck:** #3604 records a passing interactive smoke, or a
+  grandfathered surface's next HTML-lane change (that change is the
+  adoption).
 
 ## Security baseline (wave-1 skeleton)
 
@@ -355,8 +379,9 @@ which is another cost of copying.
 - It never makes HTML the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML-generating skill: each skill owns its genre's page shape, and
   `visualization:visualize` stays a router that owns no craft.
-- It does not migrate the grandfathered surfaces: that sweep is priced and tracked
-  separately, gated on the userConfig smoke test.
+- It does not migrate the grandfathered surfaces as a fleet sweep: that
+  sweep is parked (#3603), gated on the userConfig smoke test (#3604).
+  Adoption is on-touch. See Grandfathered-surface fleet sweep.
 - It does not run the interactive userConfig smoke test: see Interactive
   userConfig smoke test (parked).
 - It does not ship the wave-2 escape helper or the review-plugin HTML PR

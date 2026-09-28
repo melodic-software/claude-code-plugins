@@ -4,6 +4,13 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Grandfathered-surface fleet sweep, 2026-09-28
+
+- **Parked fleet ladder; adopt-on-touch (#3603).** Grandfathered emitters
+  keep the shipped Artifact-first ladder. A surface adopts the convention
+  ladder in the same change that next touches its HTML lane. Still gated
+  on #3604. No boundary-rule, genre, or cascade-key change.
+
 ## Reports and research genre lanes, 2026-09-28
 
 - **Parked genre expansion (#3606).** No new reports or research/learning
