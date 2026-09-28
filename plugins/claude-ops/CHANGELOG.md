@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.11] - 2026-09-28
+## [0.62.12] - 2026-09-28
 
 ### Changed
 
@@ -18,6 +18,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `scripts/skill-description-cap-baseline.txt`. No skill is renamed or merged.
 - The native-surfaces store's `/skill-doctor` evidence line names the front-loaded routing clause
   where it named a Not-for clause, and `docs/native-surfaces.md` is regenerated.
+
+## [0.62.11] - 2026-09-28
+
+### Changed
+
+- hook-utils.sh: `hook::shell_c_operand` reads a `wsl` / `wsl.exe` command word as a child shell. It hands back the command line wsl runs inside the Linux distribution (`hook::wsl_operand`), read the way wsl's own `WslClient.cpp` reads it: for the default shell, the remaining words rebuilt with the MSVCRT quoting Git Bash uses for a Windows command line; after `-e`, `--exec` or `--shell-type none`, re-quoted argv. A leading distro GUID and `~` are stripped, and wsl's `-d`, `-u`, `--cd`, `--distribution-id`, `--shell-type` and `--parent-console` operands are stepped over. A hook that re-parses a `sh -c` operand now reads past a `wsl` prefix too ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)).
 
 ## [0.62.10] - 2026-09-27
 

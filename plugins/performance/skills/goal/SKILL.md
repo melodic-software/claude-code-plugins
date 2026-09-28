@@ -31,6 +31,21 @@ If the user is unavailable, **stop and say what is blocked**. Do not pick a targ
 
 ## What a goal must contain
 
+### 0. Inputs: the ranked candidate
+
+Read the ranking `/performance:target` produced and quote the chosen candidate's row verbatim
+(rank, tier, what is known, the settling counter, the cheapest next instrument). That row is the
+object this goal is about, and its tier is the one the Output's `Target` line carries.
+
+- **The ranking says to instrument this candidate first** (its tier is E3 or E4, or its closing
+  line says the recommendation is to instrument, not to optimize): **STOP.** A goal cannot be
+  set on a cost nobody has measured. The next step is the named instrument, then
+  `/performance:target` again.
+- **No ranking exists** (the user came straight here with a chosen, measured target): record the
+  evidence the user names and the tier it earns under `/performance:target`'s tier table. Never
+  leave the tier blank or fill it with the baseline's tier, which answers a different question
+  about a different object.
+
 ### 1. The metric, and the exact command that produces it
 
 Not "latency". The literal command, its arguments, and the field of its output that is the number.
@@ -57,7 +72,12 @@ The irreducible cost this target cannot go below whatever the code does. Compute
 cheapest possible version of the operation: the empty hook, the no-op spawn, the single round trip,
 the query returning one row.
 
-`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly.
+`lib/spawn_noise.py`'s `spawn_probe()` gives the process-spawn floor for this host directly. Pass
+its summary to `is_measurable(summary)` and quote the returned reason verbatim before stating any
+wall-clock floor. Contention is a two-part predicate: a spread at or above 3.0x across identical
+no-op spawns AND a slow mode at or above 500 ms. A wide spread alone is a healthy cold-then-warm
+host, so never assert "this host drifts with load" from `spread_ratio` by itself. A False keeps
+the floor in counter terms (spawns per operation) rather than milliseconds.
 
 Then compare:
 
@@ -116,7 +136,7 @@ Floor:      <value> (measured by: <command>)
 Realistic:  <value>    Ideal: <value>
 Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
 Done when:  <criteria, including whether merge is in scope>
-Evidence tier of the target: <E1..E4 from /performance:target>
+Target (from /performance:target): <candidate> @ <E1..E4>
 ```
 
 ## Boundary

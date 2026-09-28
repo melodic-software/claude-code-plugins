@@ -623,6 +623,52 @@ else
   fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
 fi
 
+# The same last resort when the project dir is the user's HOME (#4246): a
+# session started in home has no working tree, and a personal home-level
+# markdownlint config must not opt in every .md below it. The reproduction ran
+# with git present, so git stays on PATH here. A config below home is still a
+# project's opt-in, so the control lints.
+FAKE_HOME="$WORK/fake-home"
+mkdir -p "$FAKE_HOME/.audit-scratch/deep/dir" "$FAKE_HOME/notes/sub"
+cat >"$FAKE_HOME/.markdownlint-cli2.jsonc" <<'JSON'
+{ "config": { "MD004": { "style": "dash" } } }
+JSON
+HOME_FIXTURE="$FAKE_HOME/.audit-scratch/deep/dir/note.md"
+printf '# Note\n\n* star item\n' >"$HOME_FIXTURE"
+OUT_HOMECFG="$(run_hook_env "$HOME_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMECFG=$?
+if [[ $RC_HOMECFG -eq 0 && -z "$OUT_HOMECFG" ]] && grep -q '^\* star item$' "$HOME_FIXTURE"; then
+  ok "project dir is HOME, no working tree: a home-level config does not open the gate"
+else
+  fail "home-level config opened the gate for a file in no repository (rc=$RC_HOMECFG out=$OUT_HOMECFG): $(cat "$HOME_FIXTURE")"
+fi
+
+HOME_ROOT_FIXTURE="$FAKE_HOME/top.md"
+printf '# Top\n\n* star item\n' >"$HOME_ROOT_FIXTURE"
+OUT_HOMETOP="$(run_hook_env "$HOME_ROOT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMETOP=$?
+if [[ $RC_HOMETOP -eq 0 ]] && grep -q '^\* star item$' "$HOME_ROOT_FIXTURE"; then
+  ok "project dir is HOME: a .md beside the home-level config is not opted in either"
+else
+  fail "home-level config opened the gate for a .md directly in home (rc=$RC_HOMETOP out=$OUT_HOMETOP)"
+fi
+
+cat >"$FAKE_HOME/notes/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+HOME_PROJECT_FIXTURE="$FAKE_HOME/notes/sub/kept.md"
+printf '# Kept\n\n* star item\n' >"$HOME_PROJECT_FIXTURE"
+OUT_HOMEPROJ="$(run_hook_env "$HOME_PROJECT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+RC_HOMEPROJ=$?
+if [[ $RC_HOMEPROJ -eq 0 ]] && grep -q '^- star item$' "$HOME_PROJECT_FIXTURE"; then
+  ok "control: under a HOME project dir, a config below home still opts its subtree in"
+else
+  fail "control: a config below home no longer opens the gate (rc=$RC_HOMEPROJ out=$OUT_HOMEPROJ)"
+fi
+
 # make_symlink <target> <link> → 0 only if a REAL symlink now exists at <link>.
 # Plain `ln -s` under Git Bash's default MSYS settings COPIES the file, which is
 # why the escape cases earlier in this file skip on Windows. nativestrict asks

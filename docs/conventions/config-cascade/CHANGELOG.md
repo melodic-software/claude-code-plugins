@@ -7,6 +7,16 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Deviations and Implementers table, 2026-09-28
+
+- **`source-control` `branch_issue_pattern` fail-closed stop declared (#4673).** The Declared list
+  gains the surface's divergence from rule 4 (degrade soft on a malformed layer): a layer whose
+  `## branch_issue_pattern` section exists but yields no usable pattern stops resolution with no
+  issue number, because the value feeds a `Closes #N` line and a lower source's number could close
+  the wrong issue. The row's conformance cell names the exception. The near-miss-heading stop that
+  shipped in #4581 was that divergence already, undeclared. No contract rule change, so no version
+  bump.
+
 ## Implementers table, 2026-09-08
 
 - **`architecture` and `authoring-formats` C4 dialect surfaces (#3910).** The two rows no longer
