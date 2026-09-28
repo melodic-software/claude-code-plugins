@@ -3,6 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-28
+
+### Added
+
+- `map-events` writes `events.json` (schema_version 1) for C# `Publish<T>`, `Send<T>`, and
+  `IConsumer<T>` / `AddConsumer<T>` sites. Each edge cites a file and a line. Identity is the
+  namespace-qualified type, so the same short name in two namespaces is two messages. Orphan
+  publishers, orphan consumers, fan-out past 3, and competing consumers are findings. A `Publish(`
+  or `Send(` with no type argument is unresolved and is never dropped. Mermaid writes `events.md`
+  (dotted broadcast, solid point-to-point). Structurizr writes `events.dsl`. The skill reads
+  `landscape_dialect` and does not add a dialect key. The Handoff section is the form
+  `map-flow` consumes. `render-events.sh` exits 1 on a reformatted record and writes nothing.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed

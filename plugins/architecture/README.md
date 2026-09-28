@@ -77,6 +77,15 @@ outside your own owner is read-only reference in every mode: it is drawn and
 recorded, never written to, and having a clone of it on disk does not move it
 inside your enterprise boundary.
 
+## Message topology
+
+`/architecture:map-events` charts who publishes which message and who consumes it. The shipped
+adapter is C# in the MassTransit shape. `Publish<T>` is broadcast and `Send<T>` is point-to-point.
+Identity is the namespace-qualified type. Orphan publishers and consumers are findings even when
+you pass `--unrouted-only`. A publish with no resolvable type is listed, not dropped. The picture
+reuses `landscape_dialect`. Cross-process hops are written in a form `/architecture:map-flow` can
+read.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository
@@ -98,6 +107,7 @@ your records.
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
 /architecture:map-landscape --root /path/to/code-root
+/architecture:map-events [--unrouted-only]
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -107,17 +117,17 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories".
+portfolio", "who owns which repo", "chart our repositories", "map events", "message topology", "orphan consumer".
 
 ## Consumer configuration
 
-`map-landscape` reads two keys from a topic doc at your repository's convention
+`map-landscape` and `map-events` read two keys from a topic doc at your repository's convention
 home, `<home>/architecture/README.md`: `architecture_dir` (repo-relative, no
 default) and `landscape_dialect` (`structurizr` or `mermaid`, default
 `mermaid`). The contract lives in [`reference/config.md`](reference/config.md).
 `/architecture:setup` owns the declaration: `check` reports the state read-only,
 `apply` converges the pointer region and the topic doc. With no
-`architecture_dir` declared and none confirmed, `map-landscape` stops and points
+`architecture_dir` declared and none confirmed, `map-landscape` and `map-events` stop and point
 at setup rather than choosing a directory for you.
 
 ## Persistence

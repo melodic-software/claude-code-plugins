@@ -35,7 +35,7 @@ into it and no dual-read window exists.
 4. Otherwise the skill asks once.
 5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
    `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
-   run, `map-landscape` stops and points at `/architecture:setup`.
+   run, `map-landscape` and `map-events` stop and point at `/architecture:setup`.
 
 ## Topic-doc format
 
@@ -54,8 +54,8 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
-| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. The same directory is where `map-events` writes `events.json` and `events.md` / `events.dsl`. No default: an undeclared, unconfirmed value stops either skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which C4 artifact `map-landscape` and `map-events` emit. `structurizr` emits `landscape.dsl` (`systemLandscape`) and `events.dsl`. `mermaid` emits `landscape.md` (`C4Context`) and `events.md` (a flowchart of publish and send). |
 
 An unknown key, or a `landscape_dialect` value outside the two above, is reported by
 `/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
@@ -70,11 +70,12 @@ not because they disagree about mermaid.
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
 | C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| Async message topology | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-events` |
 | C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
-`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
-already emits; it does not add a new deliverable.
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits, and the async
+topology `/architecture:map-events` emits, once `architecture_dir` is set. Its mermaid default is
+a format choice for artifacts this plugin already emits. Events does not add a dialect key.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
@@ -95,5 +96,5 @@ and record the outcomes in this plugin's `CHANGELOG.md`.
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` reads this
-surface and never writes it; neither skill writes any other file in the consumer's root.
+region in the root instruction file, and `<home>/architecture/README.md`. `map-landscape` and `map-events` read this
+surface and never write it. Neither skill writes any other file in the consumer's root.
