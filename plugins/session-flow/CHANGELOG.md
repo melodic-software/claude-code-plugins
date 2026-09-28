@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.38.17] - 2026-09-28
+## [0.38.20] - 2026-09-28
 
 ### Changed
 
