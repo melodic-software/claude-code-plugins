@@ -121,6 +121,11 @@ Parse `$ARGUMENTS`:
 - Anything else, a free-text focus hint (a path, a mechanism name). Narrow attention with it; it
   does not change the layer scope, and a hint that matches nothing is reported, not silently dropped.
 
+The inline report groups by custody: in-repo findings first and in full; out-of-repo findings
+(user- and machine-scope settings, plugin hook manifests owned upstream) as one summary row per
+owner. The findings artifact is unchanged. See
+[context/report-template.md](context/report-template.md) "Custody grouping".
+
 ## Before the walk
 
 1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
