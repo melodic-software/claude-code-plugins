@@ -866,6 +866,7 @@ assert_exit "lazy index: no-reference write exits 0" 0 "$?"
 assert_silent "lazy index: no-reference write stays quiet" "$OUT"
 assert_eq "lazy index: no-reference write reads no manifest" 0 "$(wc -l <"$JQ_LOG" | tr -d ' ')"
 
+rm -f "$REPO/.git/guardrails-skill-index"
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Run `/alpha:nonexistent`.')" 2>&1)
@@ -880,6 +881,7 @@ fi
 # ONE process: every manifest in the fixture is handed to a single jq. The
 # pre-batch shape logged two invocations per manifest (12 here); this case
 # fails against it.
+rm -f "$REPO/.git/guardrails-skill-index"
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
@@ -894,6 +896,12 @@ INVOKE_COUNT=$(grep -c 'INVOKE' "$JQ_LOG")
 assert_eq "lazy index: one jq invocation builds the whole index" 1 "$INVOKE_COUNT"
 assert_eq "lazy index: that invocation is handed every manifest once" \
   "$FIXTURE_MANIFESTS" "$MANIFEST_ARGS"
+: >"$JQ_LOG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
+assert_contains "index cache: a repeat reference still reports" "$OUT" "/alpha:nonexistent"
+assert_eq "index cache: a repeat at the same manifests starts no jq" \
+  0 "$(grep -c 'INVOKE' "$JQ_LOG" || true)"
 
 # On Windows Git Bash a native jq is handed the MSYS-converted argument, so
 # `input_filename` echoes `C:\...\plugin.json` rather than the string the hook
@@ -925,6 +933,7 @@ exit "${PIPESTATUS[0]}"
 SHIM
 chmod +x "$CONV_SHIM_DIR/jq"
 
+rm -f "$REPO/.git/guardrails-skill-index"
 : >"$JQ_LOG"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$CONV_SHIM_DIR:$PATH" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/beta:check`.')" 2>&1)
