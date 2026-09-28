@@ -43,10 +43,9 @@ the escaped row.
 
 Claim: this one grammar is the export contract, and every reader for a grammar that already
 shipped on main stays. Basis: the register gate (scripts/check-open-questions.sh) grades the
-status column and does not parse the resolution, and SemVer 2.0.0 (https://semver.org/) treats a
-backward-compatible addition under 0.y as a minor bump while old ledgers still import. As of:
-2026-09-28, planning 0.46.0, exporters.py on this branch. Recheck: a ledger exported before v1 fails
-import, or check-open-questions.sh starts grading resolution fields.
+status column and does not parse the resolution, and old ledgers still import. As of:
+2026-09-28, planning 0.45.6. Recheck: a ledger exported before v1 fails import, or
+check-open-questions.sh starts grading resolution fields.
 
 Rows written before v1 still import, and are not rewritten except by a later export. A held row
 was `[plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)` with `waits on` or
