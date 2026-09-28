@@ -3446,14 +3446,14 @@ PHYS_PROBE=$(
     # shellcheck source=hook-utils.sh
     source "$1"
     _out=""
-    hook::physical_path_to _out "/c/Users/RUNNER~1/AppData/Local/Temp" || exit 1
+    hook::physical_path_to _out "/c/runner-temp/long-name" || exit 1
     printf "%s\n%s\n" "$HOOK_PHYSICAL_PATH_UNRESOLVED" "$_out"
   ' _ "$HOOK_DIR/hook-utils.sh"
 )
 PHYS_RC=$?
 PHYS_FLAG="${PHYS_PROBE%%$'\n'*}"
 PHYS_OUT="${PHYS_PROBE#*$'\n'}"
-if ((PHYS_RC == 0)) && [[ "$PHYS_FLAG" == 0 && "$PHYS_OUT" == "C:/Users/RUNNER~1/AppData/Local/Temp" ]]; then
+if ((PHYS_RC == 0)) && [[ "$PHYS_FLAG" == 0 && "$PHYS_OUT" == "C:/runner-temp/long-name" ]]; then
   ok "physical_path_to: Windows uses cygpath -l -m when realpath is absent"
 else
   fail "physical_path_to windows cygpath: rc=$PHYS_RC flag=$PHYS_FLAG out=$PHYS_OUT"
