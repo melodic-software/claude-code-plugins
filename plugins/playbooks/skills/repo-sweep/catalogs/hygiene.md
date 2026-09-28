@@ -84,6 +84,12 @@ resolve `args` to a comma-separated lane list or `all` (every lane in the union 
 commit covers all lanes. Ad hoc globs with no lane file still need a project lane definition or a
 separate manual tidy outside repo-sweep.
 
+Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
+bundled lanes, and `self-update` is maintainer-only. Basis: `code-tidying` 0.23.11
+`skills/tidy/SKILL.md` (argument-hint, lane resolution, `self-update` row). As of: 2026-09-28.
+Recheck: tidy accepts several lanes in one call, or changes where it reads lanes from; prefer the
+lane list tidy's own `help` prints over this note when they differ.
+
 #### Override
 
 Stay on the current branch. Do not create a branch or a pull request, and do not commit per
