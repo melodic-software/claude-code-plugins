@@ -420,9 +420,11 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
   // a caveat names every synthesized zero so a raw consumer can tell a real
   // reported 0 from a filled-in omission.
   const caveats = [];
+  const synthesizedZeroBuckets = [];
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
     if (!(bucket in categories)) {
       categories[bucket] = 0;
+      synthesizedZeroBuckets.push(bucket);
       caveats.push(
         `sdk omitted "${bucket}"; recorded as measured 0 (sdk category vocabulary is known; numbers are exact)`,
       );
@@ -447,6 +449,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
     cwd: process.cwd(),
     deny,
     categories,
+    synthesizedZeroBuckets,
     totalTokens: usage.totalTokens ?? null,
     maxTokens: usage.maxTokens ?? null,
     tools: init.tools ?? [],
@@ -480,6 +483,11 @@ function cliSnapshot({ bin, deny, label }) {
       + `${(r.stderr || String(r.error || '')).trim().slice(0, 300)}`);
   }
   const parsed = parseContextMarkdown(r.stdout);
+  const synthesizedZeroBuckets = [];
+  for (const match of r.stdout.matchAll(/<!--\s*synthesized-zero:\s*([^>]+?)\s*-->/g)) {
+    const name = match[1].trim();
+    if (name && !synthesizedZeroBuckets.includes(name)) synthesizedZeroBuckets.push(name);
+  }
   // Match the SDK/renderer headline semantics: deferred pools (any
   // "... (deferred)" category — built-in and MCP alike) are excluded from the
   // context-usage total (they ship in the request but sit outside the context
@@ -500,6 +508,7 @@ function cliSnapshot({ bin, deny, label }) {
     cwd: process.cwd(),
     deny,
     categories: parsed.categories,
+    synthesizedZeroBuckets,
     totalTokens: payloadTotal,
     maxTokens: null,
     tools: [],
@@ -688,10 +697,18 @@ const BUCKET_ROW_FIELD = {
   'System tools (deferred)': 'deferredDelta',
 };
 
+// Off-by-one is not a verdict. Larger gaps, including a prefix side that
+// double-counts, stay false.
+const ADDITIVITY_EPSILON = 1;
+
+function withinAdditivityEpsilon(combinedSaved, sumOfParts) {
+  return Math.abs(combinedSaved - sumOfParts) <= ADDITIVITY_EPSILON;
+}
+
 // A verdict is `true`/`false` only when the bucket was measured on both sides
 // of the comparison; anything unmeasured is `null` — "not measurable" is not
 // the same answer as "measured, and not additive".
-function bucketAdditivity(rows, cmp) {
+function bucketAdditivity(rows, cmp, synthesized) {
   const perBucket = {};
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
     // A bucket absent from BOTH runs is outside this binary's category
@@ -708,8 +725,13 @@ function bucketAdditivity(rows, cmp) {
     const runComparable = bucket === 'System tools'
       ? cmp.comparability.systemToolsComparable
       : cmp.comparability.modeBinaryComparable;
-    const measured = runComparable && sumOfParts !== null && combinedSaved !== null;
+    const saturated = synthesized.has(bucket);
+    const measured = runComparable && sumOfParts !== null && combinedSaved !== null && !saturated;
     const reasons = [];
+    if (saturated) {
+      reasons.push(`${bucket} is a synthesized zero on the combined run (the SDK omitted the `
+        + 'bucket and the engine filled 0), so additivity is not measurable');
+    }
     if (!runComparable) {
       const gateReasons = bucket === 'System tools'
         ? cmp.comparability.reasons
@@ -724,7 +746,7 @@ function bucketAdditivity(rows, cmp) {
     perBucket[bucket] = {
       sumOfParts,
       combinedSaved,
-      additive: measured ? combinedSaved === sumOfParts : null,
+      additive: measured ? withinAdditivityEpsilon(combinedSaved, sumOfParts) : null,
       reasons,
     };
   }
@@ -810,19 +832,28 @@ async function runAttribute(args) {
       // Denying every saver at once can empty a bucket out of the combined
       // snapshot; its delta is then null and the combined saving is
       // unmeasured — published as incomparable, never coerced to zero.
-      const { saved: combinedSaved, comparable, reasons } = systemBucketSaving(cmp);
+      const { saved: combinedSaved, comparable, reasons: savingReasons } = systemBucketSaving(cmp);
       const saverRows = perTool.filter((t) => savers.includes(t.tool));
       const sumOfParts = saverRows.reduce((s, t) => s + t.savedTokens, 0);
+      const synthesized = new Set(combined.synthesizedZeroBuckets || []);
+      const saturated = SYSTEM_TOOL_BUCKETS.some((bucket) => synthesized.has(bucket));
+      const reasons = [...savingReasons];
+      if (saturated) {
+        reasons.push('a combined-run bucket is a synthesized zero, so the summed additivity '
+          + 'verdict is not measurable');
+      }
       additivity = {
         tools: savers,
         sumOfParts,
         combinedSaved,
         // Tri-state: true/false are measured verdicts, null means the run
         // could not be measured. A boolean here would publish an unmeasured
-        // reading as a definite "not additive".
-        additive: comparable ? combinedSaved === sumOfParts : null,
-        comparable,
-        perBucket: bucketAdditivity(saverRows, cmp),
+        // reading as a definite "not additive". A synthesized zero is the
+        // saturated case: the numeric comparison is not a verdict.
+        additive: comparable && !saturated && typeof combinedSaved === 'number'
+          ? withinAdditivityEpsilon(combinedSaved, sumOfParts) : null,
+        comparable: comparable && !saturated,
+        perBucket: bucketAdditivity(saverRows, cmp, synthesized),
         reasons,
       };
     }

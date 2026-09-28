@@ -88,7 +88,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   checks gate both, so a combined-run listing mismatch leaves a measurable deferred verdict in
   place. Every `additive` field, top level and per bucket, is tri-state: `true` and `false` are
   measured verdicts, `null` means the reading could not be measured, so an incomparable run is
-  never published as a definite negative. The two buckets are reported separately because they
+  never published as a definite negative. A combined run whose bucket is a synthesized
+  zero (sdk omitted it and the engine filled 0) publishes `additive: null` for that bucket
+  and for the summed verdict, with the reason on the record; the numeric comparison is not
+  used. A measured pair within 1 token counts as additive. The two buckets are reported separately because they
   do not compose alike: the deferred side adds, the prefix side double-counts.
   `knownUncovered` (interactive-only product tools from
   [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this

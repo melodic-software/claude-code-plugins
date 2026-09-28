@@ -151,17 +151,17 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=<value>
+   claude plugin install context-budget@<marketplace> -s user --config settings_write_ask_enabled=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
    `already installed` and still writes the value. The short-circuit message is
    about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. When the working directory
-   is the home directory, that list can label one settings file as both `user` and `project`;
-   pass `user`. The verified-version
+   resetting every option in the table above to its default. Pass `-s user`. `-s` places
+   enablement; the option value lands in user settings. Do not copy a scope from
+   `claude plugin list`: when the working directory is the home directory, that list can label
+   one settings file as both `user` and `project`. The verified-version
    record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are

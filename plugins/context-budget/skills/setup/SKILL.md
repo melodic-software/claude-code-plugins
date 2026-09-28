@@ -116,16 +116,16 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
   `/plugin configure context-budget@<marketplace>` any time, or headless
-  `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed`
+  `claude plugin install context-budget@<marketplace> -s user --config settings_write_ask_enabled=true`
+  (repeatable per key). Print that command for the operator. This skill never runs it: it writes
+  `pluginConfigs`. Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
-  for this plugin, and run from that project's directory for a `project`/`local` scope, or the
-  rerun adds a second install record at the scope passed and enables the plugin there; the
-  value itself always lands in user settings. When the working directory is the home directory,
-  project scope and user scope are the same settings file, so `claude plugin list` can label
-  that one file as both `user` and `project`; pass `user`. A rejected value prints a warning yet exits 0,
+  to its manifest default. Pass `-s user`. `-s` places `enabledPlugins`; the option value
+  lands in user settings either way. Do not copy a scope from `claude plugin list`. When the
+  working directory is the home directory, project scope and user scope are the same settings
+  file, so the list can label that one file as both `user` and `project`, and a project-scoped
+  install from there writes a second enablement record. A rejected value prints a warning yet exits 0,
   so read the output. This skill never writes user settings or
   `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered token is
   injected at skill load, so a same-session `check` still reports the OLD value; report the

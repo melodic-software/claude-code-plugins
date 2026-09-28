@@ -294,6 +294,9 @@ const deferredSaved = { AlphaTool: 400, BetaTool: 100, GammaTool: 0, 'AlphaTool+
 // sums to the token. Every bucket is present in every run, so the reading is
 // comparable and the negative verdict is measured, not unmeasured.
 if (mode === 'nonadd') prefixSaved['AlphaTool+BetaTool'] = 1200;
+// saturate — combined prefix numbers would add, but the run is marked a
+// synthesized zero. The verdict must be unmeasured, not the true the
+// arithmetic would publish.
 const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
 // The deferred bucket is dropped (omitted, not reported as 0) when:
 //   novocab      — this fake "version" has no deferred bucket in any run;
@@ -320,6 +323,9 @@ if (mode === 'skillsig' && key === 'AlphaTool+BetaTool') {
 }
 // A deny run can raise a disclosure the baseline does not. The attribution
 // record must keep it (#3356 H3).
+if (mode === 'saturate' && key === 'AlphaTool+BetaTool') {
+  lines.push('', '<!-- synthesized-zero: System tools -->');
+}
 if (key) lines.push('', `Caveat: deny-run disclosure for ${key}`);
 process.stdout.write(lines.join('\n') + '\n');
 EOF
@@ -449,6 +455,27 @@ if attr control "$adeny" --tools AlphaTool,BetaTool --operator-deny AskUserQuest
     "an interactive tool the operator did not deny stays known-uncovered" "Artifact dropped without a deny"
 else
   fail "attribute --operator-deny exited nonzero"
+fi
+
+# Synthesized zero: the combined prefix arithmetic adds, and the guard must
+# still refuse a verdict.
+asat="$WORK/attr-saturate.json"
+if attr saturate "$asat" --tools AlphaTool,BetaTool --verify-additivity; then
+  assert_eq "$(jsonget "$asat" 'j.additivity.additive')" "null" \
+    "a synthesized zero publishes no summed additivity verdict" "saturated additivity published a boolean"
+  assert_eq "$(jsonget "$asat" 'j.additivity.comparable')" "false" \
+    "a synthesized zero marks the summed record unmeasured" "saturated additivity stayed comparable"
+  assert_eq "$(jsonget "$asat" 'j.additivity.perBucket["System tools"].additive')" "null" \
+    "the synthesized prefix bucket has no verdict" "saturated prefix verdict published a boolean"
+  assert_eq "$(jsonget "$asat" 'j.additivity.perBucket["System tools (deferred)"].additive')" "true" \
+    "a real deferred bucket still gets its verdict" "saturated run dropped the deferred verdict"
+  if [[ "$(jsonget "$asat" 'j.additivity.reasons.join(" ")')" == *"synthesized zero"* ]]; then
+    ok "additivity record names the synthesized zero"
+  else
+    fail "synthesized-zero reason missing from additivity record"
+  fi
+else
+  fail "attribute --verify-additivity (saturate scenario) exited nonzero"
 fi
 
 # A product interactive-only name that WAS a candidate this run is not

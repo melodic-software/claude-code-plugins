@@ -38,6 +38,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that `plugin list` can label one home-directory settings file as both `user` and `project`,
   and that the uninstall-drops-`pluginConfigs` caveat was not part of the 2.1.283 probe. The
   hook comment matches the headless stamp already in the audit skill (2.1.263).
+- **Additivity refuses a synthesized zero.** `--verify-additivity` publishes `additive: null`
+  when the combined run's bucket was filled in because the SDK omitted it, including the
+  summed verdict. A measured pair within 1 token still counts as additive. `setup` tells the
+  operator to pass `-s user` for this plugin: `-s` places enablement, the option value lands
+  in user settings, and `claude plugin list` is not a scope to copy when one file has two
+  labels. The headless `claude plugin install` line is for the operator to run.
 
 ## [0.6.35] - 2026-09-28
 

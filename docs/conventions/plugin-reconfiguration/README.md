@@ -59,10 +59,12 @@ conditions, and update this section (only here) when a newer release is verified
 1. **Never uninstall to reconfigure.** Uninstalling drops the plugin's entire stored
    `pluginConfigs` entry, resetting every option in its README Options reference to its manifest
    default. Customized values are simply gone, with nothing left to read the old values from.
-2. **Scope.** `-s` defaults to `user`; pass the scope `claude plugin list` reports for the plugin,
-   and run from that project's directory for a `project`/`local` scope. A rerun at another scope
-   adds an install record at that scope and enables the plugin there (measured in both directions,
-   user over project/local and project over user); the value itself always lands in user settings.
+2. **Scope.** Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option
+   value always lands in user settings. Do not copy a scope from `claude plugin list`. A rerun at
+   another scope adds an install record at that scope and enables the plugin there (measured in
+   both directions, user over project/local and project over user). When the working directory is
+   the home directory, project scope and user scope are the same settings file, so the list can
+   label that one file as both `user` and `project`.
 3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
    each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
    a same-session `check` still reports the OLD value. That is not a failed write. Verify the

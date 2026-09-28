@@ -11,9 +11,9 @@
 // bypassPermissions, surfacing as a tool error carrying the
 // permissionDecisionReason. Headless "ask" degrades to block-with-reason
 // since nothing can prompt. Interactive behavior remains unmeasured; do not
-// extrapolate. The checkpoint's value is that the
-// ordinary auto-mode path cannot rewrite settings silently while this
-// plugin is enabled.
+// extrapolate. The checkpoint's value is that a matched file-editing tool
+// cannot rewrite a settings file silently while this plugin is enabled.
+// A shell write is outside that claim.
 //
 // Fail-open: on any internal error or unrecognized payload, exit 0 with no
 // output — a broken checkpoint must not block unrelated writes. Kill switch:
