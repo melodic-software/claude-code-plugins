@@ -27,9 +27,9 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   value the guard can only judge with context it alone holds names an
   ``external_check``; the guard supplies that callable to ``match_invocation``.
   ``--data-root`` is the one such flag, and the guard also requires it to be
-  present: the parser keeps it optional, but an invocation without it is not
-  admitted, because the engine would then read the data root from the
-  environment instead of the value the guard authorized.
+  present: the parser keeps it optional so a state-writing subcommand can refuse
+  its absence with the engine's own diagnostic, and an invocation without it is
+  not admitted.
 * ``requires`` names another flag that must also be present.
 * A subcommand's ``one_of`` groups name optional flags of which exactly one
   must be present. The parser declares each group as a required mutually
