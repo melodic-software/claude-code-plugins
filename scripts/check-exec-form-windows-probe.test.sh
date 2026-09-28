@@ -109,6 +109,7 @@ rm -rf "$f"
 
 # --- an absolute bash.exe path is a shell image, not a fleet row ------------
 new_fixture f
+# portability-ok: Windows path fixture; \b is the bin and bash segments, not a GNU grep word boundary
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"C:\\\\Program Files\\\\Git\\\\usr\\\\bin\\\\bash.exe","args":["x.sh"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
   fail "bash.exe path should fail, got: $out"
