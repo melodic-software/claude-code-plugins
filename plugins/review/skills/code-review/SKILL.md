@@ -1,5 +1,5 @@
 ---
-description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
+description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. When the bundled code-review skill resolves in your session, prefer it for a session-driven review of the current diff or a named PR; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]

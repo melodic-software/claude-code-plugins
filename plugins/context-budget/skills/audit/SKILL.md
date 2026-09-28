@@ -227,9 +227,13 @@ everything else stays report material even here.
 Write posture splits by scope, and the split is not negotiable:
 
 - **Project scope** (`.claude/settings.json`, `.claude/settings.local.json`): may be edited, one
-  lever at a time, after the operator approves the exact diff shown in advance. The plugin's
-  PreToolUse checkpoint returns `permissionDecision: "ask"` for any settings-surface write, so
-  even in auto mode the write prompts rather than sliding through. **A checkpoint, not a
+  lever at a time, after the operator approves the exact diff shown in advance. Make that edit
+  with a file-editing tool (`Edit` or `Write`), never through the shell. The plugin's PreToolUse
+  checkpoint returns `permissionDecision: "ask"` for a file-editing tool call that targets a
+  settings file, so even in auto mode the write prompts rather than sliding through. It does not
+  see a settings write made through `Bash` or `PowerShell`, or one rendered into place by another
+  program such as a dotfile manager (README "Hook" names each route and records why the hook is
+  not widened). **A checkpoint, not a
   guarantee**: a `PermissionRequest` hook can still answer the prompt, and `disableAllHooks` set
   outside managed settings turns off user, project, local, and plugin hooks. The checkpoint
   survives `bypassPermissions`, because hooks are evaluated before the mode check and can still

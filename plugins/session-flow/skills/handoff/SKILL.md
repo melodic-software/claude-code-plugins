@@ -236,7 +236,10 @@ ticked. Emit the rails block before ending the turn, always.
   and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
-  (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
+  (`--no-previous`), including when the directory holds only unrelated-task handoffs. The
+  `chain:` list `new` writes holds every hop the `previous_handoff` pointers reach, oldest first
+  and ending with this file, so a consumer reads the whole chain without walking files; a legacy
+  predecessor with no `chain:` of its own has its pointers walked for it. When
   present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
   amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
   the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was

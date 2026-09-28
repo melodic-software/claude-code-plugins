@@ -3,6 +3,30 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.5] - 2026-09-28
+
+### Fixed
+
+- **`snapshot` reports and controls which code path each arm took**
+  ([#4437](https://github.com/melodic-software/claude-code-plugins/issues/4437)). Before each arm,
+  reset or record state that selects the path; report intended versus observed path with evidence;
+  flag arms that do not match the goal's named path. New eval 10.
+
+## [0.2.3] - 2026-09-28
+
+### Fixed
+
+- **`goal` reads its inputs and states the contention predicate** ([#4270](https://github.com/melodic-software/claude-code-plugins/issues/4270)).
+  A new section 0 quotes the chosen candidate's `/performance:target` row verbatim and stops when
+  the ranking says to instrument that candidate first; with no ranking, it records the tier the
+  user's evidence earns rather than the baseline's tier. Section 2 passes the spawn probe's
+  summary to `is_measurable()` and quotes its reason, stating the two-part signature (spread at
+  or above 3.0x AND a slow mode at or above 500 ms). The Output line reads
+  `Target (from /performance:target): <candidate> @ <E1..E4>`. New eval 10 for the
+  instrument-first stop.
+- **`snapshot` states the paired-ratio median's 20-pair floor** beside the percentile floor,
+  mirroring `scripts/ratio.py`; below it the raw per-pair ratios are reported and no median.
+
 ## [0.2.2] - 2026-09-28
 
 ### Fixed
