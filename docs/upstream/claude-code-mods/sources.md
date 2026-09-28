@@ -182,7 +182,7 @@ first-party source disagreed, the first-party source won.
 | <https://threadreaderapp.com/thread/2099551291601248485.html> | Attempted unroll of the bcherny seed. **Failed**: HTTP 200 landing page, no post content. | 2026-09-19 | `research-roadmap-and-staff-statements.md` |
 | <https://threadreaderapp.com/thread/2100245908893868522.html> | Attempted unroll of the dani_avila7 seed. **Failed**, same shape. | 2026-09-19 | `research-roadmap-and-staff-statements.md` |
 | <https://threadreaderapp.com/thread/2101009393731223817.html> | Attempted unroll of the trq212 seed. **Failed**, same shape. | 2026-09-19 | `research-roadmap-and-staff-statements.md` |
-| <https://www.practicalsystems.io/blog/claude-code-function-hooks-mods-layer> | The substantial independent migration report (2026-09-17, Windows, 2.1.273/2.1.274): "Claude Code never calls `register()`" — the silent-inert failure mode, and the version-canary and denial-test lessons. | 2026-09-19 | `research-enablement-and-distribution.md` |
+| <https://www.practicalsystems.io/blog/claude-code-function-hooks-mods-layer> | The substantial independent migration report (2026-09-17, Windows, 2.1.273/2.1.274): "Claude Code never calls `register()`", which is the silent-inert failure mode, and the version-canary and denial-test lessons. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://wavect.io/blog/claude-mods-function-hooks/> | A third-party write-up; names 2.1.273 as the version its inspected declarations identify, which is not a floor. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://claudefa.st/blog/tools/hooks/function-hooks> | A third-party write-up stating no version floor. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://www.aitmpl.com/mods/> | A mods component library; claims a `>= 2.1.259` floor, uncorroborated. | 2026-09-19 | `research-enablement-and-distribution.md` |
@@ -204,14 +204,14 @@ first-party source disagreed, the first-party source won.
 
 ## Not indexed, and why
 
-- `http://aitmpl.com` — the bare host, duplicated by the `/mods/` page above.
-- `https://old.reddit.com/` — the fallback host for a sweep that was network-blocked; the search URL
+- `http://aitmpl.com`: the bare host, duplicated by the `/mods/` page above.
+- `https://old.reddit.com/`: the fallback host for a sweep that was network-blocked; the search URL
   above is the one that records the gap.
-- `https://api.anthropic.com/api/event_logging/v2/batch` — an endpoint read out of the binary, not a
+- `https://api.anthropic.com/api/event_logging/v2/batch`: an endpoint read out of the binary, not a
   source anyone fetched.
 - `https://github.com/anthropics/claude-code/issues/91870#issuecomment` and
-  `...#issuecomment-` — truncated prose fragments, not links.
-- `https://threadreaderapp.com/thread/{2099551291601248485` — a template artifact; the resolved form
+  `...#issuecomment-`: truncated prose fragments, not links.
+- `https://threadreaderapp.com/thread/{2099551291601248485`: a template artifact; the resolved form
   is indexed above.
-- `https://hn.algolia.com/api/v1/search?query=%22claude+mods%22&tags=story` — the same query as the
+- `https://hn.algolia.com/api/v1/search?query=%22claude+mods%22&tags=story`: the same query as the
   space-encoded form above.

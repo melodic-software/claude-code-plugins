@@ -1,5 +1,5 @@
 ---
-description: "Auto-select one development work item from the tracker frontier and execute it end-to-end through the project's development workflow. Use when the user asks to pick, grab, or work the next item, ticket, or issue from the backlog, or asks what to work on next. Selects exactly ONE item by priority tiers (due recurring, guardrails, highest-impact, then not-yet-due recurring), claims it race-safe via the seam (assignee + lease), then runs the full workflow. Sibling skills: /work-items:track (backlog CRUD, add, start, done, list, stats, search, due, recheck, audit), /work-items:triage (raw intake), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO sweep)."
+description: "Pick exactly one work item from the tracker frontier by priority tier (due recurring, guardrails, highest impact, then not-yet-due recurring), claim it race-safe, and execute it end-to-end through the project's workflow. Use when the user asks to pick, grab, or work the next item, ticket, or issue, or asks what to work on next. Backlog CRUD is /work-items:track; draining the backlog in a loop is /work-items:work-loop."
 argument-hint: "(no arguments, auto-selects and claims one frontier item)"
 user-invocable: true
 disable-model-invocation: false

@@ -181,13 +181,16 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   The skill parses the text output into a structured list: `Name`, `Id`, `CurrentVersion`, `AvailableVersion`, `Source`.
 
 - **Severity rubric:**
-  - `CRIT`: any app whose `Id` or `Name` matches an entry in `catalog/cisa-kev.json`. Matching is
-    a case-insensitive substring test on vendor and product, which favors recall: a false match is
-    a CRIT the human dismisses, a missed match is an exploited vulnerability the report never
-    surfaces.
-  - `WARN`: >10 apps behind.
+  - `WARN`: any upgradable app whose winget `Id`, or a shorter `.`-prefix of it, equals a KEV
+    entry's `<vendorProject>.<product>` (case-insensitive), or >10 apps behind. A KEV match is a
+    name match only: the feed carries no affected-version range and the installed version is never
+    compared, so a match against a long-patched build is common. The summary names the CVEs, each
+    match records `match_basis: name-only`, and the appendix lists every match. The check never
+    reports `CRIT`; a CRIT tier needs version evidence the check does not have.
   - `INFO`: 1–10 apps behind, none on KEV.
   - `OK`: no upgrades available.
+  - The "upgrade(s)" figure in a KEV summary counts distinct upgrade ids (`kev_upgrade_count`);
+    one upgrade can match several KEV rows, counted separately as `kev_match_count`.
 
 - **Notes:** The full list goes in the report appendix. `catalog/cisa-kev.json` refreshed weekly by `scripts/windows/lib/Get-CisaKevCache.ps1` from `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`. Log the outbound URL every time. If feed fetch fails, keep the cached copy and record a `notes` entry.
 
@@ -233,12 +236,25 @@ All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/
   ```
 
 - **Severity rubric:**
-  - `WARN`: any unsigned driver present (`IsSigned -eq $false`).
-  - `INFO`: any signed driver older than 3 years.
+  - `CRIT`: never from the check itself. The trend engine raises the check's WARN to CRIT when
+    CodeIntegrity events appear in this run and in the last run where `drivers` ran, with an event
+    newer than that run's newest (`code_integrity_newest_event_unix`). Re-reading the same event
+    inside the 7-day window is not a repeat.
+  - `WARN`: any CodeIntegrity 3001/3004 event in the last 7 days after the exclusion below, any
+    unsigned driver in the driver store, or any device with a pnputil problem code.
+  - `INFO`: any signed driver older than 3 years, or pending driver updates.
   - `OK`: otherwise.
   - Aggregated severity = max across all drivers.
+  - **Defender platform exclusion:** an event is dropped before counting when every image path in
+    its message sits under the active Defender platform folder
+    (`...\Windows Defender\Platform\<version>\`, version read from the `WinDefend` service
+    `ImagePath`). A platform rollover produces that shape routinely. An event that also names an
+    image outside the folder (a Defender process loading a foreign DLL) is kept, and nothing is
+    excluded when the version cannot be read. The summary reports the excluded count, and
+    `code_integrity_platform_excluded_count` and `defender_platform_version` record it.
 
-- **Notes:** Full driver inventory goes in the report appendix. The finding body should show only drivers that moved severity (unsigned drivers by name, or the oldest 5 signed drivers).
+- **Notes:** Full driver inventory goes in the report appendix, alongside the CodeIntegrity events
+  that set the severity. The finding body should show only drivers that moved severity (unsigned drivers by name, or the oldest 5 signed drivers).
 
 ---
 

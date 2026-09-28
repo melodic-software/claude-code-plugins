@@ -73,6 +73,35 @@
         "Does not perform bounded-context discovery as part of preserving the term",
         "Continues the selected-candidate interview after the glossary update"
       ]
+    },
+    {
+      "id": 6,
+      "name": "multi-candidate-handoff-stops-before-implementation",
+      "prompt": "/architecture:improve deepening — the report is out. Take candidates 2, 5 and 7, agree their shapes with me, then hand them off together. Candidate 5 renames the public helper load_config to read_config.",
+      "expected_output": "Interviews each selected candidate to its own agreed shape and implements none of them. Before the handoff it re-runs the base-freshness check and reports the behind count. The handoff records the landing order and why, the files two or more candidates touch, and which candidates depend on another landing first, leaving commit granularity and PR shape to the implementing lane. It states that a suite skipped for a missing tool is not a pass and a stub is not the tool, and that retiring load_config sweeps call sites, comments, and test assertions, keeping changelog history entries that record the old name.",
+      "files": [],
+      "expectations": [
+        "Interviews candidates 2, 5 and 7 one at a time, each to its own agreed shape",
+        "Does NOT implement any candidate or offer an implement-all mode; stops at the handoff",
+        "Re-checks the branch's freshness against its base before handing off and reports the behind count",
+        "The handoff names landing order with rationale, file overlaps between the candidates, and inter-candidate dependencies",
+        "The handoff states that a skipped suite is not a pass and a stub is not the tool",
+        "The handoff's rename step for load_config covers comments and test assertions as well as call sites, and exempts changelog history passages"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "report-bands-by-badge-and-artifact-records-verification",
+      "prompt": "/architecture:improve deepening — scope is the whole repository, which splits into four top-level packages. Run the scan through to the report.",
+      "expected_output": "Before scanning, checks the branch against its base with separate git calls and reports the behind count. It names four scan subagents, one per package, before dispatching, and notes that scan cost rises with the count; no fixed default width is asserted. The HTML report groups cards into Strong, Worth exploring, and Speculative bands in that order, with no cap, pagination, or collapsed card. The candidate artifact ends with a phase-1.5 line carrying downgraded, dropped, and corrected counts, then the top-recommendation line, and leaves agreed-shape and graft-record out of entries that have not reached Phase 3.",
+      "files": [],
+      "expectations": [
+        "Runs the base-freshness check as separate git calls before the scan and reports the behind count or an unknown freshness",
+        "Dispatches one scan subagent per package and names the count and areas before dispatching, without citing a fixed default fan-out number",
+        "Renders cards in badge bands ordered Strong, Worth exploring, Speculative, with no cap, pagination, or collapsed disclosure",
+        "The candidate artifact carries a phase-1.5 line with downgraded, dropped, and corrected counts, even when all are zero",
+        "Does not leave empty agreed-shape or graft-record fields on entries that have not reached Phase 3"
+      ]
     }
   ]
 }

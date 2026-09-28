@@ -78,3 +78,9 @@ precedented move, revisited then rather than spread across all five plugins now.
 Each copy site above carries a one-line pointer back to this doc. A new plugin adding its own
 `*.test.sh` assertion helper is not required to register anything here. Duplication of this shape is
 the accepted default, not an opt-in.
+
+A whole-tree `/code-metrics:audit-duplication --all` run with this repo's registry reports these
+helpers, counters, and result footers as its largest surviving clone classes, because no sync
+script declares them and a registry cluster line has to mirror one. Those rows are this decision
+made visible, not debt to fix; [`.claude/code-metrics.yaml`](../../../.claude/code-metrics.yaml)
+carries the same note beside the registry setting.
