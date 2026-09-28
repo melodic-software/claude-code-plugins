@@ -415,6 +415,12 @@ the gate has to *run*, including an inline research run that still owes criterio
 verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
 `--help` probe.
 
+The gate is owed by whatever dispatched the agent, including a direct dispatch of
+`discovery:researcher` that never loaded `/discovery:research` to keep its own context small. That
+dispatcher Reads the skill's "Post-dispatch acceptance gate" section before believing the payload;
+the researcher's payload names the section in `gate_owed:` so the obligation arrives even when the
+skill body did not.
+
 ### Pre-flight, before a route that owes a gate
 
 Probe only the scripts the **chosen** route will need. Each script's `--help` is side-effect-free

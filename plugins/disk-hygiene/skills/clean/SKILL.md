@@ -341,6 +341,13 @@ handles from current state rather than trusting snapshot annotations. It also pr
 directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
+`outcome` names where the preview routes you, and the exit code follows it: `explicit-approval`
+(status `ready-for-explicit-approval`, exit 0); `manual-handoff-lane` (status `blocked`, exit 0),
+when every blocker on every candidate is `execution-platform-unsupported`, a fact about the host
+rather than any path; and `blocked` (exit 3), when any other blocker is present, including beside
+the platform one. Invalid input exits 2. `manual-handoff-lane` issues no approval token, and
+`apply` still refuses it.
+
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
 it is, why removable, risk, whether it is an empty directory, the single tier, and only then logical
 / reclaimable bytes, plus the preview's approval token, then pass the

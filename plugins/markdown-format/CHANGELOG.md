@@ -3,6 +3,19 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.69] - 2026-09-28
+
+### Security
+
+- **A home-level markdownlint config no longer opts in every `.md` under home.** For a file under
+  no git working tree, the hook falls back to `CLAUDE_PROJECT_DIR` as the ceiling of its config
+  walk. A session started in the home directory made that ceiling `~`, so a personal
+  `~/.markdownlint-cli2.jsonc` opened the gate for scratch notes, evidence packets and `~/.claude`
+  files, and `--fix` would rewrite them. On that fallback root only, a config at the home directory
+  or above it no longer counts as an opt-in. A config below home still does, which keeps the
+  unpacked-archive and vendored-copy case the fallback exists for, and a root found by git or the
+  `.git` walk is unchanged ([#4246](https://github.com/melodic-software/claude-code-plugins/issues/4246)).
+
 ## [0.11.68] - 2026-09-27
 
 ### Changed
