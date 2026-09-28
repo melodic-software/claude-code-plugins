@@ -3,6 +3,16 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- `scripts/capture.py`: one command serves a scene, seeks `window.__pixelScene` to the given
+  timeline points, and writes PNG shots. `--record` asks the page to record a WebM with
+  `MediaRecorder` when the scene has a canvas stream. Exit 3 means no browser tool was present,
+  so the scene stays visually unreviewed (#4403).
+- The campfire example exposes `seek`, `frameDataURL`, and `play` for that command.
+
 ## [0.3.0]
 
 ### Added
