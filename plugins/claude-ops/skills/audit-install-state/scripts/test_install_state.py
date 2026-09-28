@@ -311,6 +311,18 @@ class TestRetention(unittest.TestCase):
             self.assertIn("settings-unparsable-pauses-sweep", ids)
             self.assertEqual(retention["effective_days"], 30)
 
+    def test_unparsable_managed_settings_refuse_startup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_text("{}", encoding="utf-8")
+            managed = root / "managed-settings.json"
+            managed.write_text("{ not json", encoding="utf-8")
+            with _managed_paths([managed]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("managed-settings-unparsable-refuses-start", ids)
+            self.assertNotIn("settings-unparsable-pauses-sweep", ids)
+
     def test_a_retention_value_below_the_documented_minimum_is_rejected(self) -> None:
         """`bool` is an `int` in Python and a negative window puts the cutoff in the
         FUTURE, marking effectively every swept file as past retention."""

@@ -122,9 +122,11 @@ possible **sole copy** of somebody's revert path: propose nothing for it, check 
 
 Read `retention`. Report `effective_days` with its `effective_evidence`: `measured` when a file
 supplied it, `documented-default` when upstream's 30-day default applies. The highest-severity
-finding lives here: **an unparsable `settings.json` pauses the retention sweep**. If
-`settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it and treat every
-staleness reading below as suspect.
+finding lives here: **an unparsable user `settings.json` pauses the retention sweep and warns in
+`/status`**. If `settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it
+and treat every staleness reading below as suspect. If
+`managed-settings-unparsable-refuses-start` appears, Claude Code refuses to start (exit 1) and
+names the managed source; that is not a paused sweep.
 
 `.last-cleanup` is read by the engine and its timestamp is observed to advance when the sweep runs,
 but no upstream page names the file, so `sentinels` carries it as `observed-undocumented` with an
