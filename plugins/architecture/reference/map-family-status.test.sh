@@ -42,9 +42,11 @@ fi
 if ! grep -q 'landscape_dialect' "$PAGE"; then
   fail "status page does not point at the landscape_dialect decision"
 fi
+# shellcheck disable=SC2016 # backticks are the markdown span being matched
 if ! grep -q '`map-containers` reads `diagram_dialect.system`' "$PAGE"; then
   fail "status page does not record that map-containers reads diagram_dialect.system"
 fi
+# shellcheck disable=SC2016 # backticks are the markdown span being matched
 if ! grep -q '`map-containers` reads `diagram_dialect.system`' "$CONFIG"; then
   fail "config.md does not record that map-containers reads diagram_dialect.system"
 fi
