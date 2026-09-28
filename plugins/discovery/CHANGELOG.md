@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [0.24.8] - 2026-09-28
+
+### Changed
+
+- **Dispatched agents read each file once.** `explorer`, `researcher`, and `intent-tracer` now
+  state in "Write early; reserve your last turns" that a file already read this run is in context
+  and is re-read only to see a change the agent made. A scan followed by a later full read of the
+  same file becomes one read, and file contents go through `Read` and `Grep` rather than Bash
+  `cat`, `sed -n`, or `grep`. The researcher applies the same rule to fetched pages. One measured
+  explorer run spent 8 redundant full reads and 2 scan-then-read pairs, roughly a quarter of its
+  turns, re-reading files it already held. `contract.test.sh` section 13 asserts the rule in all
+  three agents (#4258).
+
 ## [0.24.7] - 2026-09-27
 
 ### Added
