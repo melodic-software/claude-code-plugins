@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.4] - 2026-09-28
+
+### Fixed
+
+- **`audit-noise`'s pre-computed sample keeps the `status: no-targets` line.** The sample filter dropped it, so a clean tree read `Summary total: files=0` with nothing marking it as a run that scanned nothing, contradicting the output-schema section. An agent could report a clean audit instead of making the repo-wide offer.
+- **`audit-noise`'s repo-wide run sizes the judgment pass to the corpus.** A corpus small enough for one inline reading is read in full in the main session, with no subagent fan-out and no separate verification pass. The fan-out stays for corpora large enough to pay for it.
+- **`extract-ssot identify` surveys a small corpus inline.** Step 2 reads a small corpus in the main session and greps each candidate, so every lead is Tier 0 on arrival instead of a subagent roster that has to be re-grepped. A new `--inline` flag forces that route at any size, and a new anti-pattern names the subagent survey over a corpus smaller than its verification cost.
+- **`extract-ssot identify` persists a roster only when a candidate is actionable.** An all-refused run records its refusals as one `status: closed` line in the working notes and routes new refusal patterns to `context/lessons.md`. "Active candidate roster" is now defined once in `SKILL.md`, and the three resume gates cite it, so a closed record no longer makes a later bare invocation resume. Notes stay out of the tracked tree when the caller forbids commits.
+- Evals cover the small-corpus route for both skills, the all-refused roster, and the `status: no-targets` sample.
+
 ## [0.23.3] - 2026-09-27
 
 ### Changed
