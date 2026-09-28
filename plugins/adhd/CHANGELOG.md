@@ -10,6 +10,9 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 - **`clarify` carries the source recommendation's `Basis:` through.** The decision table gains a
   Basis column, copied verbatim, or "none stated" when the source gave none, per the
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- The skill states the label's three outcomes inline (an installed plugin cannot read the
+  repository's `docs/`) and renders a withheld item as withheld, never with an invented
+  recommendation.
 
 ## [0.5.0] - 2026-09-23
 

@@ -11,6 +11,9 @@ All notable changes to the `naming` plugin are documented here. Format follows
   already has a name, the shortlist names the references a rename would touch, and the RECOMMENDED
   pick carries a `Basis:`, per the
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential rename withholds the RECOMMENDED mark.
 
 ## [0.5.6] - 2026-09-21
 

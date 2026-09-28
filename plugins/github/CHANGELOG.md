@@ -12,6 +12,9 @@ All notable changes to the `github` plugin are documented here. Format follows
   variables, custom properties) first lists the repositories it reaches with GET-only reads, and
   every recommendation carries a `Basis:`, per the
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld as a decision point.
 
 ## [0.3.18] - 2026-09-25
 

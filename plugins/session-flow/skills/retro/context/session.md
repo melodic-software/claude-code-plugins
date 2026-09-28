@@ -201,8 +201,12 @@ Present as a GFM table with a **Scope** column distinguishing:
 | --- | --- | --- | --- | --- | --- | --- |
 
 Each Justification cell opens with a `Basis:`: `verified` with the transcript line, `file:line`,
-tool output, or doc URL it rests on, or `judgment`
-([recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)).
+tool output, or doc URL it rests on, or `judgment` (never for a consequential recommendation:
+cross-repo, shared infrastructure, irreversible, or security). A consequential one research cannot
+settle is withheld: list it under "Queue for follow-up" as an open question naming the evidence
+that would settle it. Contract:
+[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../../context/recommendation-basis.md);
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 
 ### Skill candidate analysis (REQUIRED, always include)
 

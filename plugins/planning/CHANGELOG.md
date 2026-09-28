@@ -17,6 +17,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
   recommendation is restated as old, new, why. `design`, `prd`, and `brainstorm` gain the same
   rule. `interview-defenses.test.sh` re-pins the Stance and loop.md Step 2 digests; the edits add a
   requirement and resolve nothing new.
+- **Ships `context/recommendation-basis.md`**, the convention's essentials (grounding bar,
+  consequential threshold, the verified, judgment, and withheld outcomes, old → new → why), a
+  byte-identical copy of the `discipline` contract, since an installed plugin cannot read the
+  repository's `docs/`. Each skill's Basis rule points to it and handles the withheld outcome;
+  interview asks an unsettled consequential question open with a `Withheld:` line.
 
 ## [0.45.3] - 2026-09-28
 

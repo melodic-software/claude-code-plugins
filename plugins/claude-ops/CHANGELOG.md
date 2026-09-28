@@ -10,6 +10,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`known-issues search` states the `Basis:` of its SAFE / CAUTION / DO NOT USE verdict**: the
   issue URLs, status-page read, or version output it rests on, or `judgment`, per the
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential verdict is withheld as an open question.
 
 ## [0.63.24] - 2026-09-28
 

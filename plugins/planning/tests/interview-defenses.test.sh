@@ -464,12 +464,14 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # the option; it changes presentation only and weakens no defense. The recommendation-basis
 # rules add a `Basis:` line per recommendation, make grounding mandatory for a consequential
 # recommendation, and restrict convention-only recommending to non-consequential questions.
-# Each adds a requirement on the recommendation; none resolves a row or relaxes a defense.
+# Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
+# withheld question drops its recommendation but is still asked and registered, so it too
+# resolves nothing.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "58c5b5048e8112b88ec5404511598143b6e2d9c650af6f1229b8b50b77509451"
+  "25bc59e5856507cf21e64b8139a76956e07eb55774122ac246afaed4994ca442"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -571,12 +573,13 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "### Step 3. Recognize the stop condition" \
   "af20ba3ac95bc0c7548476b50496d92dc8c477641bf9b0e8d8bda77919e72136"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
-# to non-consequential questions. It adds a requirement and resolves nothing new.
+# to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
+# a requirement and resolves nothing new.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "94f612e4d67af6e14347d786e894b6bd36bb2c751cb211d90698fa43c84f961e"
+  "0850ba314fc513e1f8ae0f0e749836f57a287fb0b265b6a8db356e29983714fc"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \

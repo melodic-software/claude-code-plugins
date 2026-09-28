@@ -52,7 +52,11 @@ org or enterprise ruleset, a required or reusable workflow, an org Actions polic
 or variable, a custom property), list the repositories it reaches, with the same GET-only reads,
 and name what the change does to each before recommending it. Every recommendation carries a
 `Basis:`: `verified` with the fetched doc URL, `gh` output, or `file:line`, or `judgment`
-([recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)).
+(never for a cross-repo, shared-infrastructure, irreversible, or security change). One the reads
+and docs cannot settle is withheld: present it as a decision point naming the evidence that would
+settle it, not as a recommendation. A changed recommendation is restated as old → new → why.
+Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 
 ## 4. Advise
 

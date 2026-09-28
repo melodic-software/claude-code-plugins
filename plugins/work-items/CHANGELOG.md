@@ -13,6 +13,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   a `Basis:` on the line after the `Decision defaulted` comment's prefix line (the brief keeps its
   no-file-paths rule, and the prefix the babysit merge gate matches is unchanged). A consequential item whose basis is
   `judgment` routes to human-gated. `decompose` states a `Basis:` for each HITL/AFK call.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  A withheld consequential answer gets no `Decision defaulted` comment and routes to human-gated;
+  an unsettled HITL/AFK call becomes an investigation ticket.
 
 ## [0.41.4] - 2026-09-28
 

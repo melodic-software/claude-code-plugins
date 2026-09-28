@@ -10,6 +10,9 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 - **`debug`'s Phase 6 architectural recommendation carries a `Basis:`** and, when it touches
   shared code, is grounded in its consumers first, per the
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld and filed as an open question.
 
 ## [0.7.6] - 2026-09-21
 

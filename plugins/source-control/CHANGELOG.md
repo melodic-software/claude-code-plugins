@@ -14,6 +14,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
   `pull-request` mirrors it in its D3, D4, and readiness gate; `babysit-prs` states it for every
   tier.
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  D4 points to it, and a consequential verdict the evidence cannot settle is withheld as
+  UNCERTAIN, naming the evidence that would settle it.
 
 ## [0.62.8] - 2026-09-28
 
