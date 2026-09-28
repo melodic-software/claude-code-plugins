@@ -119,6 +119,28 @@ WINDOWS_OS_ROOT_EXTRA_NAMES = {
     "XboxGames",
     "Windows.old",
 }
+# Volume-root FILE names that are OS-owned even when attributes look ordinary.
+# Directory sets above stay directory-only; these names never share that table
+# so a regular file like `/swapfile` cannot be admitted on attributes alone.
+WINDOWS_OS_ROOT_FILE_NAMES = {
+    "bootmgr",
+    "bootnxt",
+    "hiberfil.sys",
+    "pagefile.sys",
+    "swapfile.sys",
+    "dumpstack.log.tmp",
+}
+LINUX_OS_ROOT_FILE_NAMES = {
+    "swapfile",
+}
+LINUX_OS_ROOT_FILE_GLOBS = (
+    "vmlinuz*",
+    "initrd.img*",
+)
+MACOS_OS_ROOT_FILE_NAMES = {
+    ".file",
+    ".volumeicon.icns",
+}
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_POLICY = (
     Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
@@ -152,7 +174,7 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     'snapshot file named by "snapshot" carries every row and every truncated '
     "path in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
-    "immediate directories, so the volume root itself and every skipped "
+    "immediate children, so the volume root itself and every skipped "
     "OS-owned/hidden/system/reparse entry were never walked, and "
     "children_rollup covers the selected children only. The skipped entries "
     'are listed as "root_children_skipped" in the snapshot and are not '
@@ -194,6 +216,7 @@ def scan_complete_payload(
         "hinted_entries": hinted,
         "unhinted_entries": len(entries) - hinted,
         "empty_directory_count": snapshot["empty_directory_count"],
+        "empty_file_count": snapshot["empty_file_count"],
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
@@ -1129,6 +1152,17 @@ def empty_directory_count(
     )
 
 
+def empty_file_count(entries: list[dict[str, Any]]) -> int:
+    """Count inventoried regular files whose recorded logical size is 0."""
+    return sum(
+        1
+        for entry in entries
+        if isinstance(entry, dict)
+        and entry.get("kind") == "file"
+        and entry.get("logical_size") == 0
+    )
+
+
 def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
     marker_root = next(
         (
@@ -1381,6 +1415,79 @@ def volume_root_os_owned_names(
     }
 
 
+def volume_root_os_owned_file_name_matches(
+    name: str,
+    platform_key: str | None = None,
+) -> bool:
+    """Whether a volume-root FILE basename is OS-owned on this platform."""
+    current = platform_key or os_key()
+    folded = name.casefold()
+    if current == "windows":
+        return folded in WINDOWS_OS_ROOT_FILE_NAMES
+    if current == "macos":
+        return folded in MACOS_OS_ROOT_FILE_NAMES
+    if folded in LINUX_OS_ROOT_FILE_NAMES:
+        return True
+    return any(fnmatch.fnmatch(folded, pattern) for pattern in LINUX_OS_ROOT_FILE_GLOBS)
+
+
+def volume_root_home_container_name(platform_key: str | None = None) -> str:
+    """The volume-root directory that holds user homes on this platform."""
+    current = platform_key or os_key()
+    return "home" if current == "linux" else "Users"
+
+
+def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
+    """Additive listing facts for an admitted or skipped root child."""
+    if info is None:
+        return {}
+    if stat.S_ISDIR(info.st_mode):
+        kind = "directory"
+    elif stat.S_ISREG(info.st_mode):
+        kind = "file"
+    else:
+        kind = "other"
+    fields: dict[str, Any] = {
+        "kind": kind,
+        "logical_size": int(info.st_size),
+        "mtime": int(info.st_mtime_ns),
+    }
+    if os_key() == "windows":
+        fields["attributes"] = int(getattr(info, "st_file_attributes", 0) or 0)
+    return fields
+
+
+def root_children_skipped_reason_counts(
+    skipped: list[dict[str, Any]],
+) -> dict[str, int]:
+    """Stdout grouping of withheld root children, reason → count."""
+    counts: dict[str, int] = {}
+    for item in skipped:
+        reason = item.get("reason")
+        if not isinstance(reason, str) or not reason:
+            continue
+        counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def withheld_home_container_note(skipped: list[dict[str, Any]]) -> str:
+    """Sentence naming the current user's home when its container is withheld."""
+    container = volume_root_home_container_name()
+    names = {
+        item["name"].casefold()
+        for item in skipped
+        if isinstance(item.get("name"), str)
+    }
+    if container.casefold() not in names:
+        return ""
+    home = user_home()
+    home_text = str(home) if home is not None else "the current user's home directory"
+    return (
+        f" {container} is withheld as OS-owned; the current user's home "
+        f"({home_text}) is a separate target."
+    )
+
+
 def root_child_skip_reason(
     path: Path,
     *,
@@ -1391,8 +1498,9 @@ def root_child_skip_reason(
     """Why an immediate volume-root entry must not be offered or audited.
 
     Mirrors the volume-root guard's exclusion spirit (OS-owned / hidden /
-    system / reparse) and fails closed on anything ambiguous (#2588). Root
-    files are never candidates — only directories can be selected.
+    system / reparse) and fails closed on anything ambiguous (#2588). Regular
+    files use the same admission ladder as directories; non-regular types are
+    withheld as ``not-regular-file-or-directory``.
     """
     try:
         info = path.lstat()
@@ -1402,18 +1510,20 @@ def root_child_skip_reason(
         return "symlink-junction-or-reparse-point"
     if is_cloud_placeholder_stat(info):
         return "cloud-placeholder"
-    if not stat.S_ISDIR(info.st_mode):
-        return "not-a-directory"
     name = path.name
     if name in {".", ".."} or not name:
         return "invalid-name"
     if name.startswith("."):
         return "hidden"
     folded = name.casefold()
+    is_dir = stat.S_ISDIR(info.st_mode)
+    is_reg = stat.S_ISREG(info.st_mode)
     owned = (
         os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
     )
-    if folded in owned:
+    if is_dir and folded in owned:
+        return "os-owned"
+    if is_reg and volume_root_os_owned_file_name_matches(name):
         return "os-owned"
     # Windows metadata / upgrade residue often uses a $-prefix outside the
     # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
@@ -1436,6 +1546,8 @@ def root_child_skip_reason(
             path.absolute(), root.absolute()
         ):
             return "os-owned"
+    if not is_dir and not is_reg:
+        return "not-regular-file-or-directory"
     return None
 
 
@@ -1443,17 +1555,17 @@ def enumerate_root_children(
     target: Path,
     policy: dict[str, Any],
     known_linux_mounts: set[Path] | None = None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """List immediate volume-root entries into admitted vs skipped buckets.
 
     Enumerates the root once and never recurses. Admitted entries are
-    directories that cleared every root-children exclusion; skipped entries
-    carry the reason they were withheld.
+    regular files or directories that cleared every root-children exclusion;
+    skipped entries carry the reason they were withheld.
     """
     exact_names = set(policy["protected_exact_names"])
     os_owned = volume_root_os_owned_names()
-    admitted: list[dict[str, str]] = []
-    skipped: list[dict[str, str]] = []
+    admitted: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     try:
         with os.scandir(target) as iterator:
             children = sorted(iterator, key=lambda entry: entry.name.casefold())
@@ -1461,16 +1573,25 @@ def enumerate_root_children(
         raise HygieneError(f"cannot enumerate volume root: {exc}") from exc
     for child in children:
         path = Path(child.path)
+        try:
+            info: os.stat_result | None = path.lstat()
+        except OSError:
+            info = None
         reason = root_child_skip_reason(
             path,
             exact_names=exact_names,
             known_linux_mounts=known_linux_mounts,
             os_owned_names=os_owned,
         )
+        listing = {
+            "name": child.name,
+            "path": str(path),
+            **root_child_listing_fields(info),
+        }
         if reason is None:
-            admitted.append({"name": child.name, "path": str(path)})
+            admitted.append(listing)
         else:
-            skipped.append({"name": child.name, "path": str(path), "reason": reason})
+            skipped.append({**listing, "reason": reason})
     return admitted, skipped
 
 
@@ -1488,8 +1609,9 @@ def root_child_names_case_sensitive(platform_key: str | None = None) -> bool:
 
 def normalize_root_child_selection(
     selected: list[str],
-    admitted: list[dict[str, str]],
+    admitted: list[dict[str, Any]],
     *,
+    skipped: list[dict[str, Any]] | None = None,
     case_sensitive: bool | None = None,
 ) -> list[str]:
     """Map a human selection onto admitted basenames; reject anything else."""
@@ -1505,6 +1627,14 @@ def normalize_root_child_selection(
         by_name = {item["name"]: item["name"] for item in admitted}
     else:
         by_name = {item["name"].casefold(): item["name"] for item in admitted}
+    skipped_by_key: dict[str, str] = {}
+    for item in skipped or ():
+        raw_name = item.get("name")
+        reason = item.get("reason")
+        if not isinstance(raw_name, str) or not isinstance(reason, str):
+            continue
+        key = raw_name if sensitive else raw_name.casefold()
+        skipped_by_key.setdefault(key, reason)
     resolved: list[str] = []
     seen: set[str] = set()
     for raw in selected:
@@ -1514,8 +1644,13 @@ def normalize_root_child_selection(
             )
         key = raw if sensitive else raw.casefold()
         if key not in by_name:
+            withheld = skipped_by_key.get(key)
+            if withheld:
+                raise HygieneError(
+                    f"--root-child {raw!r} is withheld ({withheld})"
+                )
             raise HygieneError(
-                f"--root-child {raw!r} is not an admitted immediate child directory "
+                f"--root-child {raw!r} is not an admitted immediate child "
                 "of the OS-managed volume root"
             )
         canonical = by_name[key]
@@ -1567,8 +1702,8 @@ def scan_tree(
         for child in children:
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
-            # explicitly selected immediate directories are entered, and the
-            # root's own files / excluded siblings are never inventoried.
+            # explicitly selected immediate children are entered, and
+            # unselected siblings are never inventoried.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -1709,6 +1844,7 @@ def scan_tree(
         "empty_directory_count": empty_directory_count(
             entries, error_paths=error_paths
         ),
+        "empty_file_count": empty_file_count(entries),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -3798,25 +3934,30 @@ def main(argv: list[str] | None = None) -> int:
                 # documented next step, so they exit 0 and `status` carries the
                 # distinction; non-zero exits stay reserved for failures.
                 if not selected_root_children:
+                    home_note = withheld_home_container_note(skipped)
                     return emit(
                         {
                             "status": "root-children-selection-required",
                             "target": str(target),
                             "admitted_children": admitted,
                             "skipped_children": skipped,
+                            "root_children_skipped": root_children_skipped_reason_counts(
+                                skipped
+                            ),
                             "os_autoclean": advisory,
                             "note": (
                                 "OS-managed volume roots are never walked as a "
                                 "whole. Re-run with --root-children and one or "
                                 "more explicit --root-child NAME flags naming "
-                                "admitted immediate directories; a general "
+                                "admitted immediate children; a general "
                                 "'clean everything' is not selection."
+                                + home_note
                             ),
                         },
                         0,
                     )
                 resolved_children = normalize_root_child_selection(
-                    selected_root_children, admitted
+                    selected_root_children, admitted, skipped=skipped
                 )
                 # Each selected child is its own audit target for large-scan
                 # gating: a home directory selected under the volume root still
@@ -3867,34 +4008,39 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 snapshot["root_children_skipped"] = skipped
                 write_json(output_path, snapshot)
-                return emit(
-                    scan_stdout_payload(
-                        scan_complete_payload(
-                            target,
-                            output_path,
-                            snapshot,
-                            policy,
-                            advisory,
-                            (
-                                "Root-children mode inventoried only the "
-                                "selected immediate directories; the volume "
-                                "root itself and every skipped "
-                                "OS-owned/hidden/system/reparse entry were "
-                                "never walked — so children_rollup covers the "
-                                "selected children only. unhinted_entries is "
-                                "entries minus hinted_entries: every "
-                                "inventoried entry no hint judged, left to "
-                                "positional review. Hints are discovery "
-                                "signals, never cleanup verdicts."
-                            ),
-                            {
-                                "root_children_mode": True,
-                                "root_children_selected": resolved_children,
-                            },
+                skipped_counts = root_children_skipped_reason_counts(skipped)
+                home_note = withheld_home_container_note(skipped)
+                payload = scan_stdout_payload(
+                    scan_complete_payload(
+                        target,
+                        output_path,
+                        snapshot,
+                        policy,
+                        advisory,
+                        (
+                            "Root-children mode inventoried only the "
+                            "selected immediate children; the volume "
+                            "root itself and every skipped "
+                            "OS-owned/hidden/system/reparse entry were "
+                            "never walked — so children_rollup covers the "
+                            "selected children only. unhinted_entries is "
+                            "entries minus hinted_entries: every "
+                            "inventoried entry no hint judged, left to "
+                            "positional review. Hints are discovery "
+                            "signals, never cleanup verdicts."
+                            + home_note
                         ),
-                        args.quiet,
-                    )
+                        {
+                            "root_children_mode": True,
+                            "root_children_selected": resolved_children,
+                            "root_children_skipped": skipped_counts,
+                        },
+                    ),
+                    args.quiet,
                 )
+                if home_note and home_note.strip() not in payload["note"]:
+                    payload["note"] = str(payload["note"]) + home_note
+                return emit(payload)
             large_reasons = large_scan_reasons(target)
             if (
                 large_reasons
@@ -3946,6 +4092,8 @@ def main(argv: list[str] | None = None) -> int:
                             "empty_directory_count names walked empty "
                             "directories (logical_size 0, not truncated) so "
                             "zero-byte residue stays visible. "
+                            "empty_file_count names inventoried zero-byte "
+                            "files the same way. "
                             "unhinted_entries is entries minus "
                             "hinted_entries — every inventoried entry no hint "
                             "judged, left to positional review — so hint "

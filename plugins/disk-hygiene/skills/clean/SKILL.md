@@ -69,8 +69,9 @@ scan to depth N (preferred for large targets); `--confirmed-large-scan` opts int
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
 it never walks that root recursively. Without `--root-child` names the engine returns
-`root-children-selection-required` listing admitted immediate directories (OS-owned, hidden,
-system, reparse, mount, protected-shell-folder, and non-directory entries are withheld). With one
+`root-children-selection-required` listing admitted immediate children (OS-owned, hidden,
+system, reparse, mount, protected-shell-folder, and non-regular types are withheld; regular files
+use the same admission ladder as directories). With one
 or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
@@ -152,7 +153,7 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the volume root itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate child entries just listed, never "everything" or the volume root itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -210,7 +211,8 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
-A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
+A hint annotation is not the only trigger for triage: at a user-home target or an OS-managed
+volume root addressed through `--root-children`, treat any loose
 root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too, the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.

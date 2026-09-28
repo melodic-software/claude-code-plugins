@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2] - 2026-09-28
+
+### Changed
+
+- **`--root-children` admits regular files through the same ladder as directories**
+  ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). This supersedes
+  #2588 criterion 2 ("the volume root's own files are never inventoried"). `not-a-directory` is
+  retired; non-regular types fall to `not-regular-file-or-directory`. A per-platform OS-owned file
+  name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
+  `root_children_skipped` by reason with counts; `empty_file_count` sits beside
+  `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
+  current user's home as a separate target.
+
 ## [0.26.0] - 2026-09-28
 
 ### Changed

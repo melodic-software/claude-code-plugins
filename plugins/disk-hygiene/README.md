@@ -248,7 +248,24 @@ advisory naming the OS mechanism that should own it (Windows Storage Sense, syst
 when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
 hand-cleaning the zone.
 
-## Relationship to other tools
+## Volume-root coverage
+
+`--root-children` on an OS-managed volume root never walks the root itself. Immediate children are
+admitted or withheld one `scandir` deep. This supersedes #2588 criterion 2 (the volume root's own
+files are never inventoried): regular files now use the same admission ladder as directories.
+
+| Never covered | Why |
+|---|---|
+| The volume root itself | Whole-root recursive walk is refused |
+| OS-owned directory names (`Windows`, `/usr`, `Users`/`home`, …) | Per-platform directory set |
+| OS-owned file names (`pagefile.sys`, `/swapfile`, `vmlinuz*`, `.file`, …) | Per-platform file set |
+| Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
+| Symlinks, reparse points, cloud placeholders | Ambiguous identity |
+| Nested mounts and baseline-protected shell-folder names | Existing hard stops |
+| Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
+
+User residue that clears that ladder (`C:\log.txt`, `/opt` is still OS-owned, but
+`C:\vc_redist.x64.exe` is not) can be selected with `--root-child NAME` and inventoried as a file.
 
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.

@@ -189,7 +189,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 takes_value=False,
                 help=(
                     "admit an OS-managed volume root only as a listing of "
-                    "immediate non-OS child directories; requires explicit "
+                    "immediate non-OS child entries; requires explicit "
                     "--root-child selection before any subtree is audited"
                 ),
             ),
@@ -201,7 +201,7 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 metavar="NAME",
                 example="Projects",
                 help=(
-                    "immediate child directory basename to audit under "
+                    "immediate child basename to audit under "
                     "--root-children; repeatable; never inferred"
                 ),
             ),
