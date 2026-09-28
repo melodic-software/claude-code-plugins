@@ -235,7 +235,7 @@ Code 2.1.282. The other nine in-scope repositories were not in this checkout. No
   [The CI canary](#the-ci-canary) names, as of 2026-09-19. The check also printed that a fleet
   verdict needs every in-scope repository named, and that a lane delegating to a reusable
   workflow is not an `ACTION` row. Condition 3 is `[UNREACH]`. Both legs ran. The home scratch
-  root was `/home/ubuntu/.cache` and the second path was `/tmp` (this host has no `/d` drive, so
+  root was `<user>/.cache` and the second path was `/tmp` (this host has no `/d` drive, so
   the script's own fallback applied). Each `claude -p` exited 1. A separate probe,
   `claude -p "say hi" --model haiku --tools ""`, printed `Not logged in · Please run /login` and
   exited 1. `claude auth status` reported `loggedIn` false and `authMethod` none.   An unmeasured
