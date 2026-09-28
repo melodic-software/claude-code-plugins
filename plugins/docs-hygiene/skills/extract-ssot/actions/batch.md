@@ -39,6 +39,7 @@ This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` orchestrate
 ```text
 /docs-hygiene:extract-ssot batch <candidate-1> [<candidate-2> ... <candidate-N>]
   [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes] [--parallel-waves]
+  [--commit-mode=<per-wave|single|none>]
 ```
 
 OR resume from working notes if a `batch` phase is mid-flight.
@@ -48,7 +49,8 @@ Candidate names match `/docs-hygiene:extract-ssot identify` output's cluster nam
 `--min-instances`, `--buckets`, `--fix`, `--dry-run`, and `--yes` pass through to the batch surface
 with the semantics defined in `actions/identify.md` "Flags": `--min-instances` / `--buckets` filter
 which buckets enter the dispatch list, and `--fix` / `--dry-run` / `--yes` govern the
-non-abstracting remedy sweep. `--fix` never creates an artifact in any wave.
+non-abstracting remedy sweep. `--fix` never creates an artifact in any wave. `--commit-mode` sets
+how many commits the batch lands (`context/orchestrated-mode.md` "Cadence and commits").
 
 ## Steps
 
