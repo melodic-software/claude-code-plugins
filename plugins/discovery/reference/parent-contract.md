@@ -255,7 +255,7 @@ steers the agent into a credential read also has an egress channel.
   tool from the subagent, not only the matching commands." and "To keep Bash and block specific
   commands, add a Bash deny rule such as `Bash(git push *)` to `permissions.deny` in your
   settings. The rule applies to the main conversation and to subagents."
-- *As of.* Fetched 2026-09-19 (Claude Code 2.1.278).
+- *As of.* Fetched 2026-09-19 (Claude Code 2.1.278); both spans re-verified on the page 2026-09-28.
 - *Recheck trigger.* The page stops carrying either quoted span, or a release note names
   `disallowedTools` specifier matching or subagent permission inheritance.
 
