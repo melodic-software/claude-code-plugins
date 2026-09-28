@@ -24,9 +24,9 @@ set -uo pipefail
 # separator, where the strip is a no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
-# Kill switch before any source. The hooks.json row runs the same switch in
-# shell form, so a disabled hook never starts this script; a direct invocation
-# reads this line. scripts/check-killswitch-hoist.sh pins it to hook::is_enabled.
+# Kill switch before any source. The hooks.json row asks exec-bash.mjs to apply
+# the same switch before it spawns bash; a direct invocation reads this line.
+# scripts/check-killswitch-hoist.sh pins it to hook::is_enabled.
 [[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
