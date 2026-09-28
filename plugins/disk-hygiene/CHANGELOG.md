@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-09-28
+
+### Added
+
+- **`scan --sizes-only` for exact subtree sizing**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). Full walk with no
+  per-entry inventory, no inventory entry cap, and `rollup_precision` marking exact vs partial output.
+- **Fan-out worker brief** at `skills/clean/reference/fan-out-worker-brief.md` (Bash contract, scan
+  templates, evidence-only rules).
+
 ## [0.27.1] - 2026-09-28
 
 ### Added
