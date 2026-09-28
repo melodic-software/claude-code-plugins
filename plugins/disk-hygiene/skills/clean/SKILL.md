@@ -149,7 +149,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on an OS-managed volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown. When the hook `ask` for `batch-recycle` or `apply` already lists that tier, the count, and every path, that prompt is the approval: do not also ask `AskUserQuestion` for the same tier |
 
 ## 1. Create a read-only snapshot
 
@@ -447,6 +447,14 @@ and what the guard does when no Python resolves → "Hook launch form".
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority.
+- Settings allow rules cannot remove the deletion prompts. The deletion gate stays hook
+  `ask`, never `allow`. **Claim:** a settings `allow` does not take the place of that prompt, and
+  auto mode still shows a prompt a hook forces. **Basis:** Claude Code hooks
+  (`ask` prompts the user; the classifier can still deny but cannot silently approve) and
+  permission modes (auto mode keeps a hook-forced prompt), fetched for #4224 on 2026-09-19 from
+  `https://code.claude.com/docs/en/hooks` and `https://code.claude.com/docs/en/permission-modes`.
+  **As of:** 2026-09-19. **Recheck:** when either page stops saying a hook can force a prompt, or
+  a release note says a settings allow suppresses hook `ask`.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

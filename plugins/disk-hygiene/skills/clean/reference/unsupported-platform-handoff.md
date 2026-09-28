@@ -27,20 +27,17 @@ narrow it to a single tier and show that tier's paths before asking, the
 lane clears; a general "clean it up" is still not approval), removal is a manual handoff, not an
 engine plan:
 
-1. Each approved path is snapshot-relative and exact, never a glob. For an ordinary path, run the
-   engine's deterministic revalidation on that one path immediately before deleting it, passing
-   the path inline so no file write sits between the check and the deletion:
+1. Each approved path is snapshot-relative and exact, never a glob. Revalidate the whole tier
+   in one call. Repeat `--path` once per path (at most 32, and skip a directory whose recorded
+   descendant count is over 64). `--paths <file>` stays the reporting form. The engine takes
+   exactly one of the two:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
-     --snapshot "<run-dir>/snapshot.json" --path "relative/exact.tmp" \
+     --snapshot "<run-dir>/snapshot.json" \
+     --path "relative/a.tmp" --path "relative/b.tmp" \
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
-
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
-   approved list to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
-   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
@@ -101,12 +98,21 @@ engine plan:
    stashes duplicated elsewhere (or none); and the exact approved path supplied by the existing
    operator-confirmation lane.
 
-   **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
-   path's check ages while every later path is still being walked and probed, so its `clear`
-   is already stale at emission, and staler after each intervening deletion. Pair each
-   deletion with its own fresh `--path` handoff-verify run (verify one → delete that one →
-   next); reserve the `--paths` file form for reporting. A clear verdict is valid only at emission
-   time: delete immediately, and re-run handoff-verify after any delay or interruption.
+   **One batch recycle per tier, not one deletion per path.** `handoff-verify` is read-only and
+   its verdict is stale as soon as the human spends time on a prompt, so it is not the deletion
+   authority. After it, run one `batch-recycle` for that tier. The hook `ask` on that command
+   lists the tier, the count, and every path; that prompt is the approval. Do not also ask
+   `AskUserQuestion` for the same tier. Inside the approved process the engine re-checks each
+   path's existence and type immediately before recycling it, and refuses rather than permanently
+   deleting. A declined or interrupted prompt deletes nothing. The next attempt is a new
+   `batch-recycle`, which re-checks from scratch. Cap a batch at 32 paths.
+
+   ```text
+   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" batch-recycle \
+     --snapshot "<run-dir>/snapshot.json" --tier "<tier>" \
+     --path "relative/a.tmp" --path "relative/b.tmp" \
+     --data-root "${CLAUDE_PLUGIN_DATA}"
+   ```
 
    When settled removals empty inventoried directories, `handoff-verify` names those containers
    in the same round under `emptied_containers`, deepest first. They are not in the approved

@@ -2311,6 +2311,80 @@ def _settle(
     return 0
 
 
+def _flag_values(command: str, flag: str) -> list[str]:
+    tokens = _literal_shell_words(command) or []
+    values: list[str] = []
+    index = 0
+    while index < len(tokens) - 1:
+        if tokens[index] == flag:
+            values.append(tokens[index + 1])
+            index += 2
+            continue
+        index += 1
+    return values
+
+
+def batch_recycle_ask_reason(command: str) -> str:
+    """Tier, count, and every path, so the hook ask is the approval."""
+    tiers = _flag_values(command, "--tier")
+    paths = _flag_values(command, "--path")
+    tier = tiers[0] if tiers else "unknown"
+    listing = ", ".join(paths) if paths else "(none)"
+    return (
+        f"disk-hygiene batch-recycle tier {tier}: {len(paths)} path(s): {listing}. "
+        "This prompt is the approval. The process re-checks existence and type "
+        "after you confirm and only then recycles. A declined or interrupted "
+        "prompt deletes nothing; the next attempt re-checks from scratch."
+    )
+
+
+def _plan_paths(plan: str, authority: str | None) -> list[str] | None:
+    if not authority:
+        return None
+    try:
+        root = Path(authority).expanduser().resolve(strict=False)
+        candidate = Path(plan).expanduser().resolve(strict=False)
+        candidate.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    try:
+        if candidate.stat().st_size > 1_000_000:
+            return None
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    raw = payload.get("candidates")
+    if not isinstance(raw, list):
+        return None
+    paths: list[str] = []
+    for item in raw:
+        if isinstance(item, dict) and isinstance(item.get("path"), str):
+            paths.append(item["path"])
+    return paths
+
+
+def apply_ask_reason(command: str, authority: str | None) -> str:
+    """Same prompt shape as batch-recycle: tier, count, and every plan path."""
+    tiers = _flag_values(command, "--confirm-tier")
+    plans = _flag_values(command, "--plan")
+    tier = tiers[0] if tiers else "unknown"
+    paths = _plan_paths(plans[0], authority) if plans else None
+    if paths is None:
+        return (
+            f"disk-hygiene apply tier {tier}: paths could not be read from the plan. "
+            "Confirm this final mutation prompt only if it matches the tier and "
+            "paths you just approved."
+        )
+    listing = ", ".join(paths) if paths else "(none)"
+    return (
+        f"disk-hygiene apply tier {tier}: {len(paths)} path(s): {listing}. "
+        "Confirm this final mutation prompt only if it matches the tier and "
+        "paths you just approved."
+    )
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2390,6 +2464,15 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
+    if command_kind == "batch-recycle" and enabled:
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "ask",
+            "exact-engine-batch-recycle",
+            batch_recycle_ask_reason(command),
+        )
     if command_kind == "apply" and enabled:
         return _settle(
             command,
@@ -2397,9 +2480,9 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             start,
             "ask",
             "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+            apply_ask_reason(command, authority),
         )
-    denied_by_kill_switch = command_kind == "apply"
+    denied_by_kill_switch = command_kind in {"apply", "batch-recycle"}
     return _settle(
         command,
         tool_name,

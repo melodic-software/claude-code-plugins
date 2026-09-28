@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-28
+
+### Added
+
+- **Batch verify-and-recycle** ([#4224](https://github.com/melodic-software/claude-code-plugins/issues/4224)).
+  `handoff-verify --path` repeats, so one call covers a tier. `batch-recycle` is one hook `ask`
+  whose reason lists the tier, the count, and every path. After that approval the same process
+  re-checks existence and type and recycles, refusing instead of permanently deleting. A declined
+  prompt deletes nothing; the next attempt re-checks. The skill does not add a second
+  `AskUserQuestion` when that ask already lists the paths. Settings allow rules do not remove the
+  deletion prompt.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed

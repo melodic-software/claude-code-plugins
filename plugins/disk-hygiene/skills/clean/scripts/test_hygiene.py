@@ -10441,6 +10441,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "batch-recycle": "batch-recycle --snapshot s --tier high",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -10865,6 +10866,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "batch-recycle": "ask",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
@@ -11100,7 +11102,11 @@ class EngineGrammarTests(unittest.TestCase):
                     for flag in spec.flags:
                         if not flag.takes_value and (flag.required or optionals):
                             self.assertTrue(getattr(namespace, flag.dest), flag.name)
-                        if flag.repeatable and optionals:
+                        if (
+                            flag.repeatable
+                            and optionals
+                            and flag.name not in self.grouped(spec)
+                        ):
                             self.assertEqual(
                                 [self.value(flag), self.value(flag)],
                                 getattr(namespace, flag.dest),
@@ -11255,13 +11261,20 @@ class EngineGrammarTests(unittest.TestCase):
                     words = self.words(spec, optionals=False, chosen=flag)
                     with self.subTest(subcommand=spec.name, flag=name):
                         namespace = self.parse(spec.name, words)
-                        self.assertEqual(
-                            self.value(flag), getattr(namespace, flag.dest)
+                        expected = (
+                            [self.value(flag)]
+                            if flag.repeatable
+                            else self.value(flag)
                         )
+                        self.assertEqual(expected, getattr(namespace, flag.dest))
                         for other in group:
                             if other != name:
                                 other_flag = spec.flag(other)
-                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                                actual = getattr(namespace, other_flag.dest)
+                                if other_flag.repeatable:
+                                    self.assertEqual([], actual)
+                                else:
+                                    self.assertIsNone(actual)
                         self.assertEqual(spec.name, self.classify(spec.name, words))
 
     def test_neither_consumer_takes_two_members_of_one_group(self) -> None:

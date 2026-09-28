@@ -236,14 +236,15 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
+            # Repeatable: one call checks every path in the batch. The recycle
+            # that follows re-checks each path again inside the approved process.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeat for a batch"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
@@ -251,6 +252,28 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
         one_of=(("--paths", "--path"),),
+    ),
+    Subcommand(
+        "batch-recycle",
+        (
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag("--tier", required=True, choices=TIERS, example="high"),
+            Flag(
+                "--path",
+                repeatable=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help=(
+                    "snapshot-relative path to re-check and recycle; "
+                    "repeatable, at most 32"
+                ),
+            ),
+            _data_root_flag(),
+        ),
+        help=(
+            "re-check a tier's paths and recycle the clear ones; "
+            "hook ask, never a permanent delete"
+        ),
     ),
     Subcommand(
         "apply",

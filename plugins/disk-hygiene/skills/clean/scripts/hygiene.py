@@ -28,6 +28,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import batch_recycle  # noqa: E402  (sibling module; manual-lane recycle)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -4184,8 +4185,8 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}
-                if args.path is not None
+                {"version": SCHEMA_VERSION, "paths": list(args.path)}
+                if args.path
                 else load_json(Path(args.paths)),
                 entry_map(snapshot),
             )
@@ -4196,6 +4197,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if handoff_verify_blocks(result) else 0)
+        if args.command == "batch-recycle":
+            paths = list(args.path or [])
+            if not paths:
+                raise HygieneError("batch-recycle requires at least one --path")
+            if len(paths) > batch_recycle.MAX_PATHS:
+                raise HygieneError(
+                    f"batch-recycle accepts at most {batch_recycle.MAX_PATHS} paths"
+                )
+            if args.tier not in TIERS:
+                raise HygieneError("batch-recycle tier must be high, medium, or low")
+            report = batch_recycle.batch_recycle(
+                snapshot,
+                paths,
+                args.tier,
+                handoff_verify=handoff_verify,
+                validate_paths=lambda payload: validate_handoff_paths(
+                    payload, entry_map(snapshot)
+                ),
+                schema_version=SCHEMA_VERSION,
+            )
+            return emit(report)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
