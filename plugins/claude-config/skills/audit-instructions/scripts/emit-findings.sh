@@ -589,8 +589,10 @@ LC_ALL=C awk \
     if (id == "I30") return "shape=\"stamp-without-recheck-trigger\""
     if (id == "I31") return "shape=\"migration-relative-phrasing\""
     if (id == "I32") {
-      if (match(text, /\/[a-z0-9-]+:[a-z0-9-]+/) || match(text, /[a-z0-9-]+:[a-z0-9-]+/))
+      if (match(text, /\/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*/))
         return "target=\"" substr(text, RSTART, RLENGTH) "\""
+      if (match(text, /`[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`/))
+        return "target=\"" substr(text, RSTART + 1, RLENGTH - 2) "\""
       return "shape=\"route-to-absent-skill\""
     }
     if (id == "I33") return "shape=\"spoke-self-description\""
@@ -658,6 +660,12 @@ LC_ALL=C awk \
 
     if (!($0 in fid)) { declined_identity[id]++; next }
 
+    # Identical sentences under one heading path share an anchor, hence an id:
+    # the finding is reported once and the collision is named with its count.
+    f = fid[$0]
+    if (f in nfid) { if (nfid[f]++ == 1) collided[++ncoll] = f; next }
+    nfid[f] = 1
+
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
 
@@ -709,6 +717,8 @@ LC_ALL=C awk \
     printf "Scan rows read: %d. Emitted: %d.\n", nrows, nemit
     if (lane_file != "")
       printf "Lane rows read: %d. Emitted from lanes: %d.\n", nlane, nemit_lane
+    for (i = 1; i <= ncoll; i++)
+      printf "Identity collisions: finding_id=%s count=%d (reported once; no suppression carries forward)\n", collided[i], nfid[collided[i]]
     report_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
     report_declined(declined_scanner_fed, "scanner-fed-rule (admitted only through --from)")
     report_declined(declined_lane_fed, "lane-fed-rule (admitted only through --from-lane)")

@@ -55,6 +55,13 @@ State each breaking change first.
 ## not a heading
 Always run the tests before committing.
 ```
+
+Always run the tests before committing.
+EOF
+cat >"$REPO/skills/demo/reference/plain.md" <<'EOF'
+# Spoke
+
+Always run the tests before committing.
 EOF
 
 ids() { (cd "$REPO" && bash "$IDS" "$@"); }
@@ -127,6 +134,10 @@ else
   fail "the same sentence under a different heading path, inside a fence, anchors differently" \
     "both anchors are ${anchor_a#*=}"
 fi
+AFTER_FENCE="$(field "$(printf '%s\n' 'skills/demo/reference/spoke.md:12:I6' | ids)" 4)"
+PLAIN="$(field "$(printf '%s\n' 'skills/demo/reference/plain.md:3:I6' | ids)" 4)"
+assert_eq "a body line after the fence is anchored under # Spoke alone, not the fenced ## line" \
+  "${PLAIN#*=}" "${AFTER_FENCE#*=}"
 FM_A="$(printf '%s\n' 'skills/demo/SKILL.md:10:I6' | ids)"
 sed -i.bak 's/^description: Demo skill\.$/description: Demo skill, reworded./' \
   "$REPO/skills/demo/SKILL.md"

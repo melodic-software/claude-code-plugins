@@ -166,7 +166,9 @@ pipe-escaped the same way Finding and Action are.
 ## Surfaces, and when the file is written at all
 
 `## Surfaces` names `claude-config:audit-instructions` once, states what was scanned, and carries
-the declined counts per family and reason. Omit `tier:`, `## By dimension`, and `## Unparsed`.
+the declined counts per family and reason. Rows sharing a `finding_id` (identical sentences under
+one heading path) are emitted once, and an `Identity collisions: finding_id=<id> count=<n>` line
+names each such id. Omit `tier:`, `## By dimension`, and `## Unparsed`.
 
 - Findings to emit → write.
 - Files scanned, zero emittable findings → write anyway with the empty `## Findings` header:

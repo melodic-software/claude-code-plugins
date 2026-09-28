@@ -13,7 +13,8 @@ IMPORTANT, off-site to the owning `CHANGELOG.md` for any history kept), `rule-ro
 off-site to the hub's index row). Each states its withholding boundaries as evidence that must be
 present, so an unresolved lane judgment falls toward emitting, and none is auto-applicable. The
 producer's adopter row records the second intake path, the omitted `Confidence` on lane-fed rows,
-and the `finding_id` each row now carries. No producer-owned field's rule changes.
+and the `finding_id` each row now carries, and limits its downgrade-not-deletion sentence to the I28
+rows, since I33's remedy is a deletion. No producer-owned field's rule changes.
 
 ## [3.1.3] - 2026-09-27
 
