@@ -14,11 +14,7 @@ Local counterpart to `/discovery:research` (external sources). Together: `/disco
 
 ## Scope
 
-Explore the following: $ARGUMENTS
-
-**A dispatched run does not read that line.** The scope does not reach a preloaded body by argument substitution, and a non-fork subagent has no view of the conversation to fall back on, so **do not rely on seeing an unfilled slot**: for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs, whatever the line above renders as. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. What is documented about that path, and what is not, in either direction, is recorded once in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no scope supplied above, infer it from the current conversation context. Identify what area of the codebase is relevant to the task at hand and explore that.
-
-**Caveat, a `${CLAUDE_…}`-shaped token in a scope may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `scope_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
+The scope is `SKILL.md`'s `## Scope` section, where the invocation argument is substituted. This file is Read from disk, so it carries no substituted argument.
 
 ## Exploration dimensions
 
@@ -84,7 +80,7 @@ When the task involves tooling, MCP servers, or infrastructure:
 
 ## Exploration modes
 
-The resolved scope shapes the exploration focus. Read from `$ARGUMENTS` inline, and from the dispatch prompt under dispatch, which is the only place a dispatched run gets it:
+The resolved scope shapes the exploration focus. Read from `SKILL.md`'s `## Scope` line inline, and from the dispatch prompt under dispatch, which is the only place a dispatched run gets it:
 
 | Argument | Focus | Key actions |
 |----------|-------|-------------|

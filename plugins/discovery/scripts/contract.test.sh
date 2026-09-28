@@ -330,6 +330,14 @@ if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
 else
   fail 'explore and research worker procedures live in the spokes'
 fi
+# $ARGUMENTS is substituted only in the rendered SKILL.md, never in a spoke read from disk.
+# shellcheck disable=SC2016  # literal $ARGUMENTS
+if grep -qF 'Explore the following: $ARGUMENTS' "$PLUGIN_ROOT/skills/explore/SKILL.md" \
+  && ! grep -qF '$ARGUMENTS' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore scope substitution stays in SKILL.md'
+else
+  fail 'explore scope substitution stays in SKILL.md'
+fi
 
 # ---------------------------------------------------------------------------
 # 9. The research description routes away from research-deep (#2271 D-F9)
@@ -699,6 +707,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# The credential read boundary is stated once and pointed at
+#
+# A researcher's capability probe ran `git credential fill` and captured a live
+# token. No frontmatter key can block one shell command, so the rule is
+# instruction held in one place, with every agent pointing at it.
+# ---------------------------------------------------------------------------
+cred_heading='^## Credentials stay unread, stated once$'
+assert_present 'the parent contract owns the credential read boundary' \
+  'reference/parent-contract.md' "$cred_heading"
+cred_owners="$(surface | xargs grep -lE -- "$cred_heading" 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$cred_owners" -eq 1 ]]; then
+  pass 'the credential read boundary has exactly one owner'
+else
+  fail "the credential read boundary has exactly one owner — $cred_owners files carry the heading"
+fi
+assert_present 'the credential boundary names git credential fill' \
+  'reference/parent-contract.md' '`git credential fill`'
+assert_present 'the credential boundary names the operator deny rules' \
+  'reference/parent-contract.md' '`Bash\(git credential \*\)`'
+for agent in explorer researcher intent-tracer; do
+  assert_present "agents/$agent.md points at the credential read boundary" \
+    "agents/$agent.md" '"Credentials stay unread, stated once"'
+  assert_absent_in "agents/$agent.md does not restate the credential command list" \
+    "agents/$agent.md" 'gh auth token'
+done
+
 # 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
 #
 # The post-dispatch gate's steps live in the research skill body. A parent that

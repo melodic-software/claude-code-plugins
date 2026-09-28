@@ -98,7 +98,7 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Worker procedure
 
-Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, scope, the six dimensions, exploration modes, and the output format. The parent does not load it in order to dispatch. The outcome gate below still applies.
+Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it in order to dispatch. The outcome gate below still applies.
 
 ## Outcome gate (before EXPLORE.md handoff)
 
@@ -109,6 +109,14 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit**. Anything a downstream decision rests on came from reading the file or code.
 - **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the project root gathered above); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
 - **Open questions handed off, never dropped**. Surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
+
+## Scope
+
+Explore the following: $ARGUMENTS
+
+**A dispatched run does not read that line.** The scope does not reach a preloaded body by argument substitution, and a non-fork subagent has no view of the conversation to fall back on, so **do not rely on seeing an unfilled slot**: for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs, whatever the line above renders as. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. What is documented about that path, and what is not, in either direction, is recorded once in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no scope supplied above, infer it from the current conversation context. Identify what area of the codebase is relevant to the task at hand and explore that.
+
+**Caveat, a `${CLAUDE_…}`-shaped token in a scope may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `scope_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
 
 ## Final step: persist artifact for handoff
 
