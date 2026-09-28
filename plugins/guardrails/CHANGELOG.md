@@ -3,13 +3,23 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.5] - 2026-09-27
+## [0.38.6] - 2026-09-27
 
 ### Fixed
 
 - **`block-hook-bypass` exempts an 8.3 short-name spelling of a temp path on Windows.** On a volume that generates short names, `TEMP`, and so the harness scratchpad, is spelled `C:/Users/<user>~1/...`, and the guard refused every `~` before the temp compare ran, so the temp default never fired for the path agents receive. A `~` is now accepted in a component of the 8.3 shape (`NAME~N`, `NAME~N.EXT`) on msys, cygwin and win32 hosts, at the temp default only. The target must match a temp candidate's raw spelling, normalized the same way and case-folded, so a miss spends no resolver process. It must then resolve to a path that passes the strict normalizer and sits under a resolved temp root. Still blocked: a short component nothing backs (a nonexistent `name~9` keeps its `~` after resolution), an 8.3 alias of a junction out of temp, a temp-rooted project, no project root, a leading `~`, `~user` and `~+`, `x~` and `a~b` components, an 8.3 path outside temp, and a `~` target that only a configured scratch root would match. Quoted, escaped and opaque operands stay refused, and on POSIX nothing changes. Resolves [#4678](https://github.com/melodic-software/claude-code-plugins/issues/4678).
 - **The staged-move detector treats a short and a long spelling of one file as one path.** Once an 8.3 redirect is exempt, `jq . a > <8.3 temp>/x && mv <long temp>/x src/a.py` names one file two ways. The reverse spelling was already open. On Windows, when the lexical compare misses and either side carries a `~`, both are compared on their resolved forms. Both directions block.
 - **`secret-pattern-detection`'s temp decline widens on the same spelling.** A `Write` to an 8.3 temp path is declined when the Bash redirect is exempt: the target must match a temp candidate's own spelling, and its resolved form must be fully expanded and under temp. Everything else about the decline is unchanged.
+
+## [0.38.5] - 2026-09-27
+
+### Fixed
+
+- **setup:** the reconfigure scope caveat now gives the measured reason to pass the scope
+  `claude plugin list` reports: a rerun at another scope adds a second install record there and
+  enables the plugin at that scope, while the value itself always lands in user settings. It no
+  longer says the write lands at a scope that does not load. The advice is unchanged.
+  It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
 
 ## [0.38.4] - 2026-09-27
 
