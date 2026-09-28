@@ -107,6 +107,10 @@ rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's tran
 installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
 recorded in the hook-performance program's DEVIATIONS log.
 
+## Exec-form fleet sweep
+
+Converting shell-form `.sh` rows to exec form is gated by `scripts/check-exec-form-windows-probe.sh` ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). A passing run on a host that skipped the Windows spawn does not authorize that conversion. If the spawn reports args dropped, the script exits 1 and the sweep stops. The Windows rule and its four-part record are [Windows exec-form probe](../../plugin-philosophy.md#windows-exec-form-probe). Bare `bash` with the script in `args` stays rejected by `scripts/check-hook-exec-form.sh`.
+
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its k and its measured cost in S** in its

@@ -231,3 +231,10 @@ jobs:
       # exit code is its failure count.
       - name: Run the gaming DLSS 5 selftest on Windows
         run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      # Exec form on Windows is a real .exe plus an args array, with no shell.
+      # REQUIRE_SPAWN makes a missing node.exe a failure here. A non-Windows
+      # run of the same script skips that half and does not clear #90495.
+      - name: Probe Windows exec-form args delivery
+        env:
+          EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN: "1"
+        run: bash scripts/check-exec-form-windows-probe.sh

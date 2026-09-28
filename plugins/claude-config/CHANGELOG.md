@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.7] - 2026-09-28
+
+### Changed
+
+- **`audit` Category D records the Windows exec-form rule as a four-part verification.** The checklist row quotes the hooks page ("`command` must resolve to a real executable such as a `.exe`"), dated 2026-09-28, and points at `scripts/check-exec-form-windows-probe.sh`. A `.sh` path or bare `bash` is not an exec-form fix. Phase 2 names that checklist row as the record. No scanner change.
+
 ## [0.51.6] - 2026-09-28
 
 ### Changed
