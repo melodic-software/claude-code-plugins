@@ -4,6 +4,14 @@ Notable changes to the rendered-views contract. The contract is not SemVer-
 versioned; this log records posture rulings that do not change the boundary
 rule, genre rubric, or cascade keys.
 
+## Interactive userConfig smoke test, 2026-09-28
+
+- **Parked until a CLI host funds the interactive smoke (#3604).** The
+  visualization `medium` dial's set / persist / clear path stays unrun. The
+  unset path remains the documented literal-token behavior. This park keeps
+  gating the grandfathered-surface fleet sweep (#3603). No boundary-rule,
+  genre, or cascade-key change.
+
 ## Template vendoring, 2026-09-28
 
 - **Whole-page vendoring of the 31 html-effectiveness corpus templates is
