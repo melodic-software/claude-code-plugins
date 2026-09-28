@@ -233,7 +233,7 @@ Fields: `Q<N> | status | round | question | resolution`. Statuses:
 | `deferred` | deferred-fully; recorded in the Brief's `### Deferred questions` | yes |
 | `withdrawn` | the tree changed and the question no longer applies; say what pruned it | yes |
 | `blocked` | no answer is reachable (see "Unattended path"); a named blocker in the Brief | yes |
-| `superseded-by-plan` | a `/planning:plan` change after the Brief displaced the user's answer; resolution reads `plan proposes: <new>; was: <old>` | no, it blocks the gate like `open` |
+| `superseded-by-plan` | a `/planning:plan` change after the Brief displaced the user's answer. `export-ledger` writes grammar v1 (`proposal::`, `was::`, and `answer::` when a later accept or defer counts). A hand-written `plan proposes: <new>; was: <old>` still imports. The Brief shows that pair as plain text | no, it blocks the gate like `open` |
 
 **Superseded by plan.** `/planning:plan` moves an `answered` row here when a plan change made after the Brief (a reviewer fix, a research update, a stress-test mitigation) replaces the user's answer. Only an explicit reply naming that row moves it out; a blanket "approve" of the plan does not. Reconfirm: `answered` with `reconfirmed at plan approval: <new>; was: <old>`. Reject: the row returns to its original `answered` text and the plan drops the change. This is neither the page's `supersededBy` (a question replaced by a newer one, exported as `withdrawn`) nor the superseded recommendation of "Out-of-band drift" (an interview recommendation replaced before the user answered).
 

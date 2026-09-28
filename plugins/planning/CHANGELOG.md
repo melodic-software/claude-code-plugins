@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-09-28
+
+### Fixed
+
+- **Ledger rows round-trip every commitment and a decision on a superseded row
+  ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).**
+  `export-ledger` writes one grammar, `v:: 1`, with named fields (`hold`, `proposal`,
+  `was`, `answer`, `note`, `aside`, `text`, `commitments`). `commitments` lists every
+  commitment in order, `+` confirmed and `-` unconfirmed. `answer` carries the decision
+  that counts on any status, including an accept or a defer on a superseded-by-plan row.
+  Import reads the fields by name and refuses an unknown field or a contradictory one.
+  Rows written before v1 still import. The Brief and the report show the fields as plain
+  text. A property test compares the imported state for every status, hold, decision, and
+  commitment combination.
+
+  Claim: v1 is the export contract, and readers for grammars already on main stay. Basis: the
+  register gate grades the status column and does not parse the resolution
+  (`plugins/planning/scripts/check-open-questions.sh`), and SemVer 2.0.0
+  (https://semver.org/) treats this as a minor addition while old ledgers still import. As of:
+  2026-09-28, planning 0.45.3. Recheck: a ledger exported before v1 fails import, or the register
+  gate starts grading resolution fields.
+
 ## [0.45.3] - 2026-09-28
 
 ### Changed

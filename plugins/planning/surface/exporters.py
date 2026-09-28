@@ -13,42 +13,47 @@ Register ids: surface ids that are already Q1..Qn stay as they are; any other se
 Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
 which import_ledger reads back so a re-export numbers the same way.
 
-A held row's resolution escapes each field on its own (esc_field) and joins the fields with `; `:
-  [plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)[; answer: E(answer)|; aside: E(aside)]
-  [; note: E(note)][; confirmed: E(c1)[; E(c2)...]]
-The label is `waits on` (a Claude hold) or `awaiting user` (a user hold); its double colon marks
-the row as escaped, so an older row (`waits on: ...`) is read as before and never unescaped. The
-proposal leads only on a superseded-by-plan row, which keeps that status; import keeps it as the
-seeded row's `proposal` pair, so a re-export never parses it again. The answer is the decision
-that counts, in the resolution vocabulary (`accepted: <recommendation>`, `alt <key>: <text>`,
-`free-text: <text>`, `deferred[: <text>]`); when none counts, aside is the newest decision a user
-hold set aside, which import restores still set aside; note is the note of an accept or an
-alternative in answer or aside; confirmed lists the confirmed commitments, one field each.
+Grammar v1, every row export-ledger writes. One escaped resolution, fields in this order,
+each value passed through esc_field, joined with `; `. Empty fields are omitted:
 
-Unheld rows use the same escaping, marked the same way by a double colon:
-  confirmed:: E(c1)[; E(c2)...]        an open row with confirmed commitments
-  plan proposes:: E(new); was: E(old)[; confirmed: E(c1)[; E(c2)...]]
-                                       a superseded-by-plan row with confirmed commitments, or
-                                       whose proposal the plain
-                                       `plan proposes: <new>; was: <old>` would not read back
-  answer:: E(answer)[; note: E(note)][; arbiter: USER-RESERVED]
-                                       an answered or deferred row (the arbiter on a deferred
-                                       row only) whose plain resolution would not read back the
-                                       same decision, text and answer; answer and note are a
-                                       held row's
-  <resolution>; confirmed:: C(c1)[; C(c2)...]
-                                       an answered, deferred, withdrawn or blocked row, or a
-                                       superseded-by-plan row whose resolution is not a
-                                       proposal, with confirmed commitments; the resolution
-                                       before it is plain or the escaped answer
-C() is E() with the `c` of each `confirmed::` written \\u0063 and the `w` of each `was:` (any
-case) written \\u0077 or \\u0057, so the tail holds no other `confirmed::`, the last
-`; confirmed::` of the row (followed by a space, a `;` or the row's end) starts it, and the tail
-never makes a row read as a plain proposal. A plain resolution holding that mark and no
-confirmed commitment gets the empty tail `; confirmed::;`; a superseded-by-plan row that reads
-as a plain proposal has no tail.
-An older `confirmed: ...` or `; confirmed: ...` row still imports, split on `; ` unescaped, and an
-older settled row's `; confirmed: ...` stays part of its resolution.
+  v:: 1
+  hold:: user|claude <waitsOn>
+  proposal:: <new>
+  was:: <old>
+  answer:: <decision vocabulary>
+  note:: <note>
+  aside:: <decision a user hold set aside>
+  text:: <unstructured resolution>
+  commitments:: +|-<text>[; +|-<text>...]
+
+`+` is confirmed and `-` is unconfirmed, in commitment order, including the unconfirmed ones.
+`answer` is the decision that counts on any status (`accepted: ...`, `alt <key>: ...`,
+`free-text: ...`, `deferred[: ...]`, and for a withdrawn row `archived: ...` or
+`superseded by <id>`). A defer on a superseded-by-plan row stays that status and carries the
+defer in `answer`, so the status column stays the lifecycle and the answer carries the decision.
+`hold` is `user` or `claude` plus the waits-on text. `proposal` and `was` are a pair. `aside`
+is only present while the question is held. `text` is an open or superseded resolution that is
+not itself a decision, such as a seeded leaning.
+
+Import reads v1 fields by name. An unknown field, a field out of order, a duplicate, an unmarked
+commitment, `answer` together with `aside`, `proposal` without `was` (or the reverse), a `hold`
+on a settled status, or an answer that contradicts the status is refused with `unknown-field` or
+`contradictory-fields`. The Brief and the report show the fields as plain text; the ledger keeps
+the escaped row.
+
+Claim: this one grammar is the export contract, and every reader for a grammar that already
+shipped on main stays. Basis: the register gate (scripts/check-open-questions.sh) grades the
+status column and does not parse the resolution, and SemVer 2.0.0 (https://semver.org/) treats a
+backward-compatible addition under 0.y as a minor bump while old ledgers still import. As of:
+2026-09-28, planning 0.46.0, exporters.py on this branch. Recheck: a ledger exported before v1 fails
+import, or check-open-questions.sh starts grading resolution fields.
+
+Rows written before v1 still import, and are not rewritten except by a later export. A held row
+was `[plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)` with `waits on` or
+`awaiting user`, then optional `answer`, `aside`, `note` and `confirmed`. Unheld rows used
+`confirmed::`, `plan proposes::`, `answer::`, or a plain resolution plus a `; confirmed::` tail.
+An older single-colon `waits on:` or `confirmed:` row is read without unescaping, and an older
+settled row's `; confirmed:` stays part of its resolution.
 """
 
 import base64
@@ -372,6 +377,42 @@ def readable(status, res):
     """An escaped row's resolution as a reader sees it: the plain vocabulary on one line, its
     marks dropped and its fields unescaped, read in import_ledger's order. The Brief and the
     report show it; the ledger keeps the escaped row."""
+    if str(res).startswith("v:: "):
+        fields, commits = decode_v1(res, "the register")
+        parts = []
+        if "hold" in fields:
+            who, waits = decode_hold(fields["hold"])
+            label = "awaiting user" if who == "user" else "waits on"
+            parts.append(f"{label}: {waits}")
+        if "proposal" in fields or "was" in fields:
+            parts += [
+                f"plan proposes: {fields.get('proposal', '')}",
+                f"was: {fields.get('was', '')}",
+            ]
+        if "answer" in fields:
+            parts.append(fields["answer"])
+        if "note" in fields:
+            parts.append(f"note: {fields['note']}")
+        if "aside" in fields:
+            parts.append(f"aside: {fields['aside']}")
+        if "text" in fields:
+            parts.append(fields["text"])
+        if status == "deferred":
+            parts.append("arbiter: USER-RESERVED")
+        # An alternative withdraws the recommendation's parts, and a defer's open row covers
+        # them, so the plain rendering leaves them out of the Brief. The ledger row keeps them.
+        answer = fields.get("answer") or ""
+        withdrawn = answer.startswith("alt ") or answer == "deferred" or answer.startswith(
+            "deferred: "
+        )
+        if commits and not withdrawn:
+            parts.append(
+                "; ".join(
+                    f"{'confirmed' if ok else 'unconfirmed'}: {text}"
+                    for ok, text in commits
+                )
+            )
+        return clean("; ".join(parts))
     where = "the register"
     hold = parse_hold(res, where) if status in UNSETTLED else None
     parts, confirmed = [], None
@@ -491,57 +532,260 @@ def commitments(q, events):
     return confirmed, [c for i, c in enumerate(commits) if i not in ticked]
 
 
+V1_ORDER = ("hold", "proposal", "was", "answer", "note", "aside", "text")
+V1_NAMES = (*V1_ORDER, "commitments")
+V1_FIELD = re.compile(
+    r"^(hold|proposal|was|answer|note|aside|text|commitments)::(?: |$)(.*)$",
+    re.DOTALL,
+)
+V1_MARK = re.compile(r"^([+-])(.*)$", re.DOTALL)
+
+
+def marked_commits(q, events):
+    """Every commitment in order as (confirmed, text). A live confirm event ticks by index, and
+    so does a commitsConfirmed record."""
+    commits = q.get("commits") or []
+    ticked = {c.get("index") for c in q.get("commitsConfirmed") or []}
+    for e in events:
+        if (
+            e.get("id") == q["id"]
+            and e.get("kind") == "confirm"
+            and not e.get("withdrawn")
+        ):
+            try:
+                ticked.add(int(e.get("alt")))
+            except (TypeError, ValueError):
+                continue
+    return [(i in ticked, c) for i, c in enumerate(commits)]
+
+
+def encode_v1(fields, commits):
+    """One grammar-v1 resolution. fields is a name to value map; commits is (confirmed, text).
+
+    proposal and was are a pair, so an empty side is still written. Other empty fields are omitted.
+    """
+    parts = ["v:: 1"]
+    present = dict(fields)
+    if "proposal" in present or "was" in present:
+        present.setdefault("proposal", "")
+        present.setdefault("was", "")
+    for name in V1_ORDER:
+        if name not in present:
+            continue
+        value = present[name]
+        if value is None:
+            value = ""
+        if value == "" and name not in ("proposal", "was"):
+            continue
+        parts.append(f"{name}:: {esc_field(value)}" if value else f"{name}::")
+    if commits:
+        for i, (ok, item) in enumerate(commits):
+            bit = ("+" if ok else "-") + esc_field(item)
+            parts.append(("commitments:: " if i == 0 else "") + bit)
+    return Escaped("; ".join(parts))
+
+
+def decode_hold(value):
+    """(who, waitsOn) of a hold field, or None when the field is not `user` or `claude`."""
+    who, sep, waits = str(value).partition(" ")
+    if sep and who in ("user", "claude") and waits != "":
+        return who, waits
+    return None
+
+
+def _v1_refuse(kind, detail, where):
+    raise SystemExit(f"refused: {kind}: {detail} in {where}")
+
+
+def decode_v1(res, where):
+    """(fields, commits) of a grammar-v1 resolution, or None when res is an older row.
+    Raises SystemExit naming unknown-field or contradictory-fields."""
+    if not str(res).startswith("v:: "):
+        return None
+    parts = split_fields(str(res))
+    if parts[0] != "v:: 1":
+        _v1_refuse("unknown-field", f"grammar {parts[0]!r} is not v:: 1", where)
+    fields, commits, seen = {}, None, -1
+    for part in parts[1:]:
+        if commits is not None and V1_MARK.match(part):
+            mark, body = V1_MARK.match(part).groups()
+            commits.append((mark == "+", unesc_field(body)))
+            continue
+        match = V1_FIELD.match(part)
+        if not match:
+            _v1_refuse("unknown-field", repr(part), where)
+        name, body = match.group(1), match.group(2)
+        index = V1_NAMES.index(name)
+        if name in fields or (name == "commitments" and commits is not None):
+            _v1_refuse("contradictory-fields", f"duplicate {name}", where)
+        if index < seen:
+            _v1_refuse("contradictory-fields", f"{name} out of order", where)
+        seen = index
+        if name == "commitments":
+            bit = V1_MARK.match(body)
+            if not bit:
+                _v1_refuse("contradictory-fields", f"unmarked commitment {part!r}", where)
+            commits = [(bit.group(1) == "+", unesc_field(bit.group(2)))]
+            continue
+        if commits is not None:
+            _v1_refuse("contradictory-fields", f"{name} after commitments", where)
+        if body == "" and name not in ("proposal", "was"):
+            _v1_refuse("unknown-field", f"empty {name}", where)
+        fields[name] = unesc_field(body)
+    return fields, commits or []
+
+
+def validate_v1(fields, status, where):
+    """Refuse a v1 row whose fields contradict each other or the status column."""
+    if "answer" in fields and "aside" in fields:
+        _v1_refuse("contradictory-fields", "answer and aside", where)
+    if ("proposal" in fields) != ("was" in fields):
+        _v1_refuse("contradictory-fields", "proposal and was", where)
+    if "hold" in fields and status not in UNSETTLED:
+        _v1_refuse("contradictory-fields", f"hold on {status}", where)
+    if "aside" in fields and "hold" not in fields:
+        _v1_refuse("contradictory-fields", "aside without hold", where)
+    if "hold" in fields and decode_hold(fields["hold"]) is None:
+        _v1_refuse("unknown-field", f"hold {fields['hold']!r}", where)
+    answer = fields.get("answer")
+    deferred = bool(answer) and (answer == "deferred" or answer.startswith("deferred: "))
+    if status == "deferred" and not deferred:
+        _v1_refuse("contradictory-fields", "deferred row without a deferred answer", where)
+    if status == "answered" and deferred:
+        _v1_refuse("contradictory-fields", "deferred answer on an answered row", where)
+    if status == "open" and answer and "hold" not in fields:
+        _v1_refuse("contradictory-fields", "answer on an open row", where)
+    if (
+        status == "superseded-by-plan"
+        and answer
+        and not deferred
+        and "hold" not in fields
+    ):
+        _v1_refuse(
+            "contradictory-fields",
+            "answer on a superseded-by-plan row",
+            where,
+        )
+    if status == "withdrawn" and not (
+        answer
+        and (answer.startswith("archived: ") or answer.startswith("superseded by "))
+    ):
+        _v1_refuse("contradictory-fields", "withdrawn row without an answer", where)
+    if status == "blocked" and answer:
+        _v1_refuse("contradictory-fields", "answer on a blocked row", where)
+
+
+def seed_residual(seed, proposal):
+    """Unstructured seed resolution text that the named fields do not already carry."""
+    if not seed:
+        return None
+    res = seed.get("resolution") or ""
+    if not res or res.startswith("v:: "):
+        return None
+    if proposal:
+        plain = f"plan proposes: {proposal[0]}; was: {proposal[1]}"
+        if res == plain or PROPOSES.match(res) or res.startswith("plan proposes::"):
+            return None
+    if res.startswith(
+        (
+            "confirmed::",
+            "confirmed:",
+            "answer::",
+            "waits on::",
+            "awaiting user::",
+            "waits on:",
+            "awaiting user:",
+        )
+    ):
+        return None
+    if seed.get("status") in ("answered", "deferred", "withdrawn"):
+        return None
+    return res
+
+
 def settle(q, responses, events, seed_rows):
-    """(status, resolution, note, user_deferred) for one question."""
+    """(status, resolution, note, user_deferred) for one question, in grammar v1."""
     seed = seed_rows.get(q["id"])
     page = responses.get(q["id"])
-    # A hold, or a user hold's set-aside stamp, outranks a seeded row; a superseded-by-plan
-    # one keeps the plan's proposal as its resolution once the hold is cleared.
-    held = q.get("waiting") or any(k.startswith("setAside") for k in q)
-    live = q.get("waiting") or (
-        held and seed and seed["status"] != "superseded-by-plan"
-    )
-    confirmed, _ = commitments(q, events)
-    if seed and not page and not live:
-        term, arch = q.get("terminal") or {}, q.get("archived") or {}
-        untouched = seed["status"] in UNSETTLED and not term and not arch
-        if untouched or term.get("seeded") or arch.get("seeded"):
-            res = seed_resolution(seed, confirmed)
-            reserved = seed["status"] == "blocked" or "USER-RESERVED" in res
-            if seed["status"] not in UNSETTLED:
-                res = with_tail(res, confirmed)
-            return seed["status"], res, "", reserved
-    if q.get("archived"):
-        why = q["archived"].get("why", "")
-        return "withdrawn", with_tail(f"archived: {why}", confirmed), "", False
-    if q.get("supersededBy"):
-        res = with_tail(f"superseded by {q['supersededBy']}", confirmed)
-        return "withdrawn", res, "", False
-    if q.get("waiting"):
-        status, res = hold_row(q, responses, events, seed)
-        return status, res, "", False
+    marked = marked_commits(q, events)
+    proposal = seed_proposal(seed)
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
-    text = clean((rec or {}).get("text"))
-    note = f"; note: {text}" if text else ""
-    superseded = seed and seed["status"] == "superseded-by-plan"
-    proposal = seed_proposal(seed)
+    raw = (rec or {}).get("text") or ""
+    shown = clean(raw)
+
+    def finish(status, out_note, reserved, **extra):
+        fields = {}
+        if proposal:
+            fields["proposal"], fields["was"] = proposal
+        fields.update({k: v for k, v in extra.items() if v not in (None, "")})
+        if "hold" not in fields and "text" not in fields:
+            residual = seed_residual(seed, proposal)
+            if residual and status in (*UNSETTLED, "blocked"):
+                fields["text"] = residual
+        return status, encode_v1(fields, marked), out_note, reserved
+
+    blocked = (
+        seed
+        and seed.get("status") == "blocked"
+        and not q.get("waiting")
+        and not q.get("archived")
+        and not q.get("supersededBy")
+        and not page
+        and (not rec or rec.get("seeded"))
+    )
+    if blocked:
+        return finish(
+            "blocked",
+            "",
+            True,
+            text=seed.get("resolution") or raw,
+        )
+    if q.get("archived"):
+        why = q["archived"].get("why", "")
+        return finish("withdrawn", "", False, answer=f"archived: {why}")
+    if q.get("supersededBy"):
+        return finish(
+            "withdrawn",
+            "",
+            False,
+            answer=f"superseded by {q['supersededBy']}",
+        )
+    if q.get("waiting"):
+        who = "user" if q.get("waitingBy") == "user" else "claude"
+        extra = {"hold": f"{who} {q.get('waitsOn') or 'a lookup'}"}
+        aside = None if rec else newest_decision(q, responses, aside=True)
+        use = rec or aside
+        if use and use.get("decision"):
+            answer, note = decision_fields(q, use)
+            extra["answer" if rec else "aside"] = answer
+            if note:
+                extra["note"] = note
+        status = "superseded-by-plan" if proposal else "open"
+        return finish(status, "", False, **extra)
+    superseded = seed and seed.get("status") == "superseded-by-plan"
+    if decision == "defer" and (proposal or superseded):
+        answer, note = decision_fields(q, rec)
+        extra = {"answer": answer}
+        if note:
+            extra["note"] = note
+        return finish("superseded-by-plan", shown, False, **extra)
     if decision == "accept" and proposal:
-        new, old = proposal
-        res = f"reconfirmed at plan approval: {new}; was: {old}{note}"
-        return "answered", with_tail(res, confirmed), text, False
-    if decision == "defer" and superseded:
-        # The resolution stays the seed's own, so a re-import reads the same proposal back.
-        return "superseded-by-plan", seed_resolution(seed, confirmed), text, False
+        extra = {"answer": f"accepted: {proposal[0]}"}
+        if raw:
+            extra["note"] = raw
+        return finish("answered", shown, False, **extra)
     if decision in ("accept", "alt", "own", "defer"):
-        return (*answer_row(q, rec, confirmed), text, decision == "defer")
-    if superseded:
-        # A set-aside decision leaves the plan's proposal waiting on the user again.
-        return "superseded-by-plan", seed_resolution(seed, confirmed), "", False
-    if confirmed:
-        listed = "; ".join(esc_field(c) for c in confirmed)
-        return "open", Escaped(f"confirmed:: {listed}"), "", False
-    return "open", "", "", False
+        answer, note = decision_fields(q, rec)
+        extra = {"answer": answer}
+        if note:
+            extra["note"] = note
+        status = "deferred" if decision == "defer" else "answered"
+        return finish(status, shown, decision == "defer", **extra)
+    if proposal or superseded:
+        return finish("superseded-by-plan", "", False)
+    return finish("open", "", False)
+
 
 
 def register(doc, resp):
@@ -959,6 +1203,87 @@ def import_hold(qid, title, rnd, hold, seeded, at, rev):
     return q
 
 
+
+def import_v1(qid, title, rnd, status, fields, commits, seeded, at, rev, where):
+    """The question a grammar-v1 row restores, including unconfirmed commitments."""
+    validate_v1(fields, status, where)
+    q = {
+        "id": qid,
+        "short": title if len(title) <= 60 else title[:57] + "...",
+        "title": title,
+        "round": rnd,
+        "stage": "interview",
+        "commits": [item for _, item in commits],
+        "alternatives": [],
+    }
+    confirmed = [i for i, (ok, _) in enumerate(commits) if ok]
+    if confirmed:
+        q["commitsConfirmed"] = [
+            {"index": i, "reason": SEED_NOTE, "at": at} for i in confirmed
+        ]
+    if "hold" in fields:
+        who, waits = decode_hold(fields["hold"])
+        q["waiting"] = True
+        q["waitsOn"] = waits
+        if who == "user":
+            q["waitingBy"] = "user"
+    if "proposal" in fields:
+        new, old = fields["proposal"], fields["was"]
+        q["recommendation"] = new
+        q["alternatives"] = [{"key": "was", "text": old}]
+        seeded[qid] = {
+            "status": "superseded-by-plan",
+            "round": rnd,
+            "resolution": f"plan proposes: {new}; was: {old}",
+            "proposal": [new, old],
+        }
+    answer = fields.get("answer")
+    if status == "withdrawn" and answer and answer.startswith("archived: "):
+        q["archived"] = {
+            "why": answer[len("archived: ") :],
+            "at": at,
+            "seeded": True,
+        }
+    elif status == "withdrawn" and answer and answer.startswith("superseded by "):
+        q["supersededBy"] = answer[len("superseded by ") :]
+    elif answer:
+        q["terminal"] = held_terminal(q, answer, fields.get("note", ""), at)
+        if not q.get("waiting") and status in ("answered", "deferred", "blocked"):
+            q["terminal"]["seeded"] = True
+    if "aside" in fields:
+        q["terminal"] = held_terminal(q, fields["aside"], fields.get("note", ""), at)
+        q.update(setAsideAt=at, setAsideSeq=0, setAsideRev=rev)
+    if "text" in fields:
+        row = seeded.setdefault(
+            qid, {"status": status, "round": rnd, "resolution": fields["text"]}
+        )
+        row["resolution"] = fields["text"]
+        if "proposal" not in fields:
+            row["status"] = status
+    if status == "blocked":
+        row = seeded.setdefault(
+            qid,
+            {"status": "blocked", "round": rnd, "resolution": fields.get("text", "")},
+        )
+        row["status"] = "blocked"
+        if "terminal" not in q:
+            q["terminal"] = {
+                "decision": "defer",
+                "alt": None,
+                "text": fields.get("text", ""),
+                "updatedAt": at,
+                "seeded": True,
+            }
+    by = "claude" if status in UNSETTLED else "user-terminal"
+    note = f"{SEED_NOTE}: {status}."
+    if status == "superseded-by-plan" and "proposal" in fields:
+        note += f" plan proposes: {fields['proposal']}; was: {fields['was']}"
+    elif status == "superseded-by-plan" and "text" in fields:
+        note += f" {fields['text']}"
+    q["history"] = [{"at": at, "by": by, "kind": "seed", "text": note}]
+    return q
+
+
 def import_ledger(doc, text, ledger, at):
     """Fill an empty questions document from a ledger: settled rows keep their decision, open rows stay open."""
     rows = parse_register(text)
@@ -973,6 +1298,16 @@ def import_ledger(doc, text, ledger, at):
         seen.add(qid)
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
+        decoded = decode_v1(res, ledger)
+        if decoded is not None:
+            fields, commits = decoded
+            rev = doc.get("rev", 0) + 1
+            doc["questions"].append(
+                import_v1(
+                    qid, title, rnd, status, fields, commits, seeded, at, rev, ledger
+                )
+            )
+            continue
         hold = parse_hold(res, ledger) if status in UNSETTLED else None
         if hold:
             rev = doc.get("rev", 0) + 1
