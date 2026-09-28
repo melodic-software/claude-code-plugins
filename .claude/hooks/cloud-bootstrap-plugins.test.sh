@@ -90,7 +90,14 @@ host_executes_extensionless_claude_stub() {
   rm -rf "$d"
   [[ "$out" == "stub-ok" ]]
 }
-if ! host_executes_extensionless_claude_stub; then
+# Status captured outside `if`/`!` so SC2310 stays quiet. Errexit would exit
+# on a non-zero predicate before the skip, so it is off for this call only —
+# the same suppression an `if` test applies inside the function.
+set +e
+host_executes_extensionless_claude_stub
+stub_rc=$?
+set -e
+if [[ "$stub_rc" -ne 0 ]]; then
   echo "SKIP (host: extensionless node_modules/.bin/claude stub does not run): cloud-bootstrap plugin accounting"
   echo "PASS=0 FAIL=0 SKIPPED=1"
   exit 0

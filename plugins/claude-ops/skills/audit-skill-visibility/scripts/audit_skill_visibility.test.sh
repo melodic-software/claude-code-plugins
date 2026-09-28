@@ -63,7 +63,14 @@ host_cygpath_rewrites_posix_path() {
   rm -rf "$p"
   [[ -n "$mixed" && "$mixed" != "$p" ]]
 }
-if host_cygpath_rewrites_posix_path; then
+# Status captured outside `if` so SC2310 stays quiet. Errexit would exit on a
+# non-zero predicate before the skip decision, so it is off for this call only —
+# the same suppression an `if` test applies inside the function.
+set +e
+host_cygpath_rewrites_posix_path
+host_rc=$?
+set -e
+if [[ "$host_rc" -eq 0 ]]; then
   printf 'SKIP (host: %s): %s\n' \
     "cygpath rewrites the POSIX mktemp cfg the --installed contract embeds" \
     "--installed collapsed two install records to one plugin"

@@ -338,6 +338,53 @@ run_win "single-quoted prose redirect (allowed)" "printf '%s' 'echo > /tmp/x'" 0
 run_win "cp from /tmp (allowed)" 'cp /tmp/source ./dest' 0
 run_win "compound mkdir then cat /tmp (allowed)" 'mkdir ./out && cat /tmp/source' 0
 
+# --- Downloaders: curl -o / wget -O destinations (#4251) ---------------------
+# These were allowed while mkdir/cp/redirect of the same path blocked.
+run_win "curl -o /tmp/x (blocked)" 'curl -sS -o /tmp/x https://example.com' 2
+run_win "curl --output /tmp/x (blocked)" 'curl --output /tmp/x https://example.com' 2
+run_win "curl --output=/tmp/x (blocked)" 'curl --output=/tmp/x https://example.com' 2
+run_win "curl glued -o/tmp/x (blocked)" 'curl -o/tmp/x https://example.com' 2
+run_win "wget -O /tmp/a.html (blocked)" 'wget -O /tmp/a.html https://example.com' 2
+run_win "wget --output-document /tmp/a.html (blocked)" \
+  'wget --output-document /tmp/a.html https://example.com' 2
+run_win "curl -o /c/tmp/x (blocked)" 'curl -o /c/tmp/x https://example.com' 2
+run_win "curl https://example.com (allowed — no dest flag)" 'curl -sS https://example.com' 0
+run_win "curl -o ./out.html (allowed)" 'curl -o ./out.html https://example.com' 0
+run_win "curl URL containing /tmp (allowed — URL is not dest)" \
+  'curl -sS https://example.com/tmp/hooks.md' 0
+
+# --- Git for Windows usertemp /tmp is the platform temp (#4251) --------------
+# Stub cygpath so POSIX /tmp compares equal to %TEMP%, the stock Git for
+# Windows mount. Linux CI's real /tmp is tmpfs without usertemp, so without
+# the stub the existing rows above still block.
+USERTEMP_STUB="$TEST_TMPDIR/cygpath-stub"
+mkdir -p "$USERTEMP_STUB"
+cat >"$USERTEMP_STUB/cygpath" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "-w" ]]; then
+  shift
+  if [[ "$1" == "/tmp" ]]; then
+    # portability-ok: placeholder Windows profile in the cygpath stub, not a redirection
+    printf '%s\n' "${TEMP:-C:\\Users\\<user>\\AppData\\Local\\Temp}"
+  else
+    printf '%s\n' "$1"
+  fi
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$USERTEMP_STUB/cygpath"
+USERTEMP_ENV=(PATH="$USERTEMP_STUB:$PATH" TEMP='C:\Users\<user>\AppData\Local\Temp') # portability-ok: placeholder Windows profile, not a redirection
+run_win "usertemp: mkdir /tmp/x (allowed)" 'mkdir -p /tmp/x' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: redirect >/tmp/x (allowed)" 'echo x > /tmp/x' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: curl -o /tmp/x (allowed)" \
+  'curl -sS -o /tmp/x https://example.com' 0 "${USERTEMP_ENV[@]}"
+run_win "usertemp: mkdir /c/tmp/x still blocked" 'mkdir -p /c/tmp/x' 2 "${USERTEMP_ENV[@]}"
+run_win "usertemp: mkdir C:\\tmp\\x still blocked" 'mkdir -p C:\tmp\x' 2 "${USERTEMP_ENV[@]}"
+run_win_pwsh "usertemp: PS /tmp still blocked" "'hi' > /tmp/x" 2 "${USERTEMP_ENV[@]}"
+run_win_payload "usertemp: Write /tmp/x still blocked" "$(write_json '/tmp/x' 'x')" 2 \
+  "${USERTEMP_ENV[@]}"
+
 # --- PowerShell copy/move destinations (blocked) -----------------------------
 run_win_pwsh "PS: Copy-Item to C:\\tmp (blocked)" 'Copy-Item .\a C:\tmp\a' 2
 run_win_pwsh "PS: Move-Item to C:\\tmp (blocked)" 'Move-Item .\a C:\tmp\a' 2

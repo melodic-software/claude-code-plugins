@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.13] - 2026-09-28
+## [0.62.16] - 2026-09-28
 
 ### Changed
 
@@ -12,6 +12,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Python unit tests pass, the contract that a two-scope install collapses to one plugin
   embeds a POSIX mktemp cfg; when `cygpath` rewrites that spelling the fixture prints a
   counted `SKIP (host: ...)` and exits 0. Linux CI is unchanged.
+
+## [0.62.15] - 2026-09-28
+
+### Changed
+
+- **`audit-performance` composes `/doctor` after the capture, not before**
+  ([#3533](https://github.com/melodic-software/claude-code-plugins/issues/3533)). The overlap
+  verdict stays `complementary`. A Scope-boundary row and a Reading-the-report line name the
+  transcript half this engine never reads. No description change.
+
+## [0.62.14] - 2026-09-28
+
+### Fixed
+
+- **`hook-failure-audit` no longer exits 1 with empty stderr** ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)). An advisory Stop hook that dies of a hard error (unbound variable, a sourced library `exit`) used to leave Claude Code a `hook_non_blocking_error` with no hook text. An EXIT trap now writes one stderr line (`claude-ops hook-failure-audit: did not run (status N); fail-open`) and exits 0. Chosen status is 0 only; the kill switch still returns before the trap is installed. The injected-abort case feeds stdin from a file so a closed pipe cannot turn `pipefail` into SIGPIPE 141 (#4458).
 
 ## [0.62.12] - 2026-09-28
 

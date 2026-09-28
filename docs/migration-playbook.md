@@ -519,6 +519,19 @@ deprecation state of its own
 checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
 the shim like any retirement. `provenance` → `attribution` (#4589) is the first.
 
+**In-repo consumer migration after that rename (#4668).** This repository's `enabledPlugins` names
+`attribution@melodic-software`, not `provenance@melodic-software`. No `.claude/provenance*.json`
+remains. The frozen `renames` map does not gain a `provenance` → `attribution` entry: the shim
+covers the one-release window without it. Out-of-repo consumers (the fleet list, dotfiles, each
+machine's user-scope `enabledPlugins`) are not edited from this checkout.
+
+Claim: this repository's provenance consumers are migrated; `renames` stays frozen; the shim stays
+until a later retirement PR. Basis: `.claude/settings.json` `enabledPlugins` on this tree; the
+frozen-map rule in this section; #4668's constraint that writes to standards and dotfiles belong
+to those repositories. As of: 2026-09-28. Recheck: when `melodic-software/standards`
+`components/cloud-environment/fleet-plugins.json` names `attribution@melodic-software`, or when
+the next attribution release removes the `provenance` shim.
+
 ### Same-version commit drift (directory-source marketplaces)
 
 For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
