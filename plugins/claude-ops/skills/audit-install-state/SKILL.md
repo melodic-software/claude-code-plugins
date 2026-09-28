@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in this session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
-argument-hint: "[root]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
+argument-hint: "[root] [unattended]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -59,11 +59,7 @@ routinely conflated:
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
   before anything is called stale.
 
-**Routing.** When `doctor` resolves in this session, prefer it for the quick health pass and for
-anything you want fixed in place. Prefer this skill when the question is *what is actually in this
-tree, and what does nothing manage*, the classification, the evidence tags, and the per-file CSV
-have no native counterpart. Its sibling `/claude-ops:audit-performance` owns the timed
-slowness-capture lane against the same native surface; that description is not repeated here.
+**Routing.** Person-invoked `/doctor` is offered at session end (Phase 6); this section records surface facts only. Its sibling `/claude-ops:audit-performance` owns the timed slowness-capture lane against the same native surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only, so
 never chain into a `doctor` fix on this skill's behalf. Surface the finding, and let the user
