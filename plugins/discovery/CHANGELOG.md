@@ -1,5 +1,27 @@
 # Changelog: discovery plugin
 
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **`discovery:research-verifier`**, a read-only agent (`Read, Grep, Glob, WebFetch, WebSearch`,
+  `model: sonnet`) that grades a research artifact's verifier-owned outcome-gate rows (currently
+  4, 7 and 12) in a fresh context and returns the literal `verification:` line the parent writes
+  into `RESEARCH.md`. The research skill carries a copyable dispatch block for it right after the
+  acceptance gate (#4231).
+
+### Changed
+
+- **The research index records verification state, and a skip is recorded.** `RESEARCH.md`
+  frontmatter carries `verification:`: the researcher writes `pending` in its first write, and the
+  parent replaces it with the verifier's line or, on the cost path, with `skipped (cost)`. `pending`
+  left after the post-dispatch boundary closes is the one wrong value (#4231).
+- **`check-dispatch-artifact.sh` prints `verification=<value>`** on its own line after a usable
+  verdict, read from the index frontmatter (`unrecorded` when absent). It never changes the exit
+  status (#4231).
+- `agents/tool-honesty.test.sh` owes a `persistence:` axis only from agents whose allowlist holds
+  `Write`, and accepts `target_as_received:` as the echo-back field.
+
 ## [0.24.8] - 2026-09-28
 
 ### Changed

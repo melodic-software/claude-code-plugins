@@ -73,7 +73,8 @@ load-time machinery, no user turn, no unresolved scope.
   "Harness facts the dispatch design rests on".
 - **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
   session. Copy it into the `RESEARCH.md` frontmatter as `evidence_use:` in your first write, since
-  the verifier never sees this prompt. If the line is absent, write `internal`, say in the index
+  the verifier never sees this prompt. The same first write carries `verification: pending`, which
+  only the parent replaces. If the line is absent, write `internal`, say in the index
   that the default was taken, and mention the omission in `open_questions`. Under `publish` the
   research skill's discipline file tightens two rules ("Evidence the user will publish").
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
