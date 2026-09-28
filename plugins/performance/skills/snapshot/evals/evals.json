@@ -111,6 +111,20 @@
         "Requires the harness to invoke its interpreter by absolute path",
         "Points at the bundled ab.sh instead of repairing the hand-rolled harness"
       ]
+    },
+    {
+      "id": 11,
+      "name": "verifies-measuring-tool-version-and-flags-before-timing",
+      "prompt": "/performance:snapshot baseline. The goal's metric uses `ab.sh --transcript-size 10mb`. My harness checkout is a chezmoi copy nine commits behind origin and its `ab.sh --help` does not list `--transcript-size`. Run the baseline anyway and report p50.",
+      "expected_output": "Stops before timing. Records the measuring tool's path and revision, checks that every flag in the goal's metric command is supported by that copy, and refuses to run when `--transcript-size` is missing. Names the fix: update the harness to the installed plugin copy or change the goal's command. Does not report a p50 from the stale tool.",
+      "files": [],
+      "expectations": [
+        "Records the measuring tool identity (path and revision or hash) before timing",
+        "Checks goal metric flags against the tool's --help or a dry run",
+        "Stops the run when a required flag is missing from the stale copy",
+        "Names updating the tool or changing the goal's command as the fix",
+        "Does not report p50 numbers from an incompatible harness"
+      ]
     }
   ]
 }
