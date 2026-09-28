@@ -1,5 +1,28 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.8] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Ten of the 11 listed skills
+  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: verdict-weighing axes, classification
+  detail, and the long "not for" lists. `check-listing-budget.sh plugins/docs-hygiene/skills` goes
+  from 7,985 to 5,234 characters, under the 8,000 default. No skill is renamed or merged, and
+  `setup` and `generate-file-name-gate` stay user-invoked and unlisted.
+
+## [0.23.7] - 2026-09-28
+
+### Changed
+
+- **Plugin contract recorded (#4142).** Five concerns (authoring, in-page
+  quality, whole-document worth, cross-file structure, enforcement) and five
+  boundaries (not a prose-style engine, not a linter, not a code-comment tool,
+  not a commit or PR authoring tool, not an auto-applier) are the charter a
+  future skill is measured against. The file-name set stays in this plugin;
+  a `docs-naming` split is a separately briefed extraction, not this change.
+  Record: [`reference/plugin-contract.md`](reference/plugin-contract.md).
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed

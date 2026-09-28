@@ -580,6 +580,25 @@ assert_contains "origin-note reports the branch-bearing line" "$origin_both_out"
 assert_contains "ticket-pr-residue reports the same line" "$origin_both_out" "Finding shape: ticket-pr-residue"
 assert_contains "double-fire is one T1 and one T2" "$origin_both_out" "T1=1 T2=1 T3=0"
 
+# --- 9. Ticket-pr negatives: plain prose must not fire (#4530) -----------------------
+
+PROSE_NEG="$TEST_TMPDIR/prose-neg.yml"
+cat >"$PROSE_NEG" <<'EOF'
+# runs on every pull request before merge
+steps:
+  - run: true  # in this committed configuration we pin the toolchain
+EOF
+prose_neg_out="$(bash "$DETECT" "$PROSE_NEG")"
+assert_not_contains "plain pull request prose is not ticket-pr-residue" "$prose_neg_out" "Finding shape: ticket-pr-residue"
+assert_not_contains "in this committed is not plan-reference" "$prose_neg_out" "Finding shape: plan-reference"
+
+FEATURE_BRANCH="$TEST_TMPDIR/feature-branch.js"
+cat >"$FEATURE_BRANCH" <<'EOF'
+// from the feature branch
+EOF
+feature_branch_out="$(bash "$DETECT" "$FEATURE_BRANCH")"
+assert_contains "from the feature branch is ticket-pr-residue" "$feature_branch_out" "Finding shape: ticket-pr-residue"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

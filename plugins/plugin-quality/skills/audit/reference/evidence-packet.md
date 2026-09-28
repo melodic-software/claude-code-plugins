@@ -199,3 +199,16 @@ These escapes do not hold: a non-`.md` extension evades `markdown-format` but no
 `typos` allowlist / `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
 evasion.
+
+**Write-once is a discipline, not a filesystem guarantee (#3866).** The producing agent
+holds Write (and the main thread can Edit). Nothing makes a sealed file physically
+unwritable. `packet-seal.sh verify` reports CHANGED after the fact; `record` then refuses
+to reseal, so later files in that packet stay UNSEALED. That loss is unrecoverable for
+this packet. Mechanical chmod, or a write proxy that refuses sealed files, is unpaid.
+A sealed packet asserts bytes at seal time, not current world state (the snapshot
+question on #3867). Corrections go in a new file (`audit-notes-2.md`, `evidence-<n>.md`),
+never an edit of a file already on disk.
+
+| Claim | Basis | As of | Recheck |
+|---|---|---|---|
+| Write-once is an agent discipline with after-the-fact verify. The system does not make sealed files unwritable. Breaking it is terminal for that packet. | `packet-seal.sh` record/verify (reseal refuses over a CHANGED entry); this section's three rules; `agents/auditor.md` Write grant. | 2026-09-28 | A paid slice that makes sealed packet files physically unwritable on the platforms this plugin supports without breaking the documented re-seal of `packet.sha256`, or `packet-seal.sh` gaining an `--acknowledge-divergence` path. |
