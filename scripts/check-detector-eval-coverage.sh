@@ -110,190 +110,53 @@
 #
 # ACCOUNTING FOR EVERY EMIT CALL SITE, and why a partial loss is exit 2. The
 # emitted-id set comes from `emit <severity> <id>` call sites. An earlier
-# revision extracted them with one greedy sed and guarded only the case where
-# extraction yielded exactly ZERO, so every PARTIAL loss passed silently:
-# `emit "$sev" P4` (variable severity), `emit error "$id"` (variable id), two
-# emits on one line (the greedy `.*` kept only the last), a partially renamed
-# emitter, and an id outside the row's pattern (`P2ab` under `P[0-9]+[a-z]?`)
-# each dropped an id while the rest of the file kept the count non-zero.
+# revision extracted them with a line-based awk walk. A partial loss -- a
+# literal call that produced neither an ID nor an UNRESOLVED line -- passed
+# silently, and each round of extra line-state rules introduced the next loss.
+# claude-code-plugins#4222 replaces that walk with shfmt's typed syntax tree
+# (`shfmt --to-json`, the utility the shfmt man page documents). Dialect is
+# `--language-dialect bash`: the man page default `auto` can fall through to
+# posix for a file whose name does not say which shell it is.
 #
-# So the scanner COUNTS candidate call sites and compares that count against the
-# ids it actually resolved. Any mismatch is exit 2 -- cannot determine -- and
-# names the unparsed sites. A gate that cannot see its inputs must never pass,
-# and an emitter shape this scanner cannot read is exactly that.
+# Pin: mvdan/sh v3.14.1 (SHA-256 in .claude/cloud-bootstrap.sh and the lint-2
+# install step). v3.12.0, the previous pin, parses `$(printf a)#tag; emit ...`
+# as one statement and drops the call, which is the silent loss this gate
+# exists to stop. v3.13.0 is the first release that keeps both calls. shfmt
+# missing, or a non-zero parse, is exit 2. A file this gate cannot read is
+# not a pass. Discovery is the exception already stated in the stopping-rule
+# residue: a stranger's unreadable script contributes no id and does not fail
+# the run.
 #
-# The scanner reads shell rather than grepping it: heredoc bodies and quoted
-# string contents are removed before any call site is looked for, so an
-# `emit error P9` inside the detector's own help text or prose is not a call
-# site (which the greedy sed counted, yielding a permanent false failure), and a
-# `#` comment after real code is dropped once quoting is resolved.
+# A call site is a CallExpr whose command word is `emit` or `emit<suffix>`
+# (`emit_finding`). That includes a quoted command word (`"emit" error P1`)
+# and a call nested in a command substitution, including one inside double
+# quotes (`x="$(emit error P1)"`, the round-6 shape). `time` and `coproc`
+# wrap the real command; the walk follows the inner statement. `command`,
+# `builtin`, `exec`, `nohup`, and bare `eval` are ordinary words in front of
+# the real command, so the walk shifts them when the next word is the
+# emitter. An assignment prefix (`FOO=1 emit`, `x+=1 emit`) and a leading
+# redirection stay on the statement and do not hide the call.
 #
-# A HEREDOC OPENING IS READ OFF THE QUOTE-RESOLVED LINE, AND ITS DELIMITER IS
-# READ WHOLE. Two halves, because getting only the first right reopened the
-# defect from the other side.
+# A call with no arguments is not a site. A forwarder (`emit error "$@"`,
+# `$*`, `$@`, or the `${@}` / `${*}` spellings) is not a site: the ids enter
+# at the wrapper's own calls. A site whose severity or id is not one static
+# literal, or whose id does not match the row pattern, is UNRESOLVED. The
+# candidate count is compared with the ids actually resolved. Any mismatch
+# is exit 2, and the unparsed sites are named. The row pattern is applied as
+# a full-string match. jq's engine is RE2; the patterns this gate accepts are
+# the same subset the eval-side awk ERE already uses.
 #
-# THE ORDERING. An earlier revision resolved quoting for the CALL SITES but
-# looked for the heredoc OPENING on the raw line, one step earlier, so a `<<`
-# that was never a redirection operator -- inside a string, inside arithmetic,
-# inside a trailing comment -- armed a body whose delimiter no later line could
-# close. The skip then ran to EOF and every call site below that line left the
-# extraction AND the candidate count together, so the count-vs-resolved
-# accounting below, which exists precisely to turn a partial loss into exit 2,
-# had nothing left to disagree about. One ordinary line of shell turned real
-# UNCOVERED findings into exit 0 with no advisory.
+# What the tree does not re-parse, on purpose: a quoted string, a heredoc
+# body, `trap '...'`, or `eval '...'`. Those are data until runtime. An
+# `emit error P9` in help text is not a call. An emitter that exists only
+# inside `eval '...'` or `trap '...'` is invisible, the same class as an
+# emitter renamed so it does not begin with `emit`, or reached through a
+# variable (`$emitter error P1`). Computed ids (`emit "$sev" P4`,
+# `emit error ${id}`) stay unresolved, which is the safe side.
 #
-# THE DELIMITER. Fixing only the ordering narrowed the delimiter matcher, and a
-# delimiter read WRONG is worse than a `<<` read wrong: it arms a word no line
-# can match, which is the same swallow. Four spellings broke that way, two of
-# them plain POSIX heredocs the revision before had read correctly:
-#   - `cat <<\EOF`. The walk dropped an escaped character along with its
-#     backslash, so the scan saw `cat <<OF` and armed `OF`. `\X` outside quotes
-#     is a literal X, so the walk now KEEPS the X -- which also fixes `\emit
-#     error P1`, a real call that had been read as `mit`.
-#   - `cat <<-\EOF`, the same.
-#   - `cat <<'PY.END'` and `cat <<EOF-1`. A quoted delimiter survives the walk
-#     as `@L@<word>`, but matching it with `[A-Za-z_][A-Za-z0-9_]*` truncated
-#     it at the punctuation and armed `PY` / `EOF`. The matcher now uses the
-#     walk's OWN literal-word class, so the delimiter arrives whole.
-#
-# THE DELIMITER MUST BE READ WHOLE OR NOT AT ALL. Widening the matcher's
-# character class was itself only half an answer: `match()` does not require
-# its match to END anywhere in particular, so the next delimiter carrying a
-# character outside the class (`<<EOF@1`, `<<EOF=1`, `<<EOF!`) armed the prefix
-# and swallowed exactly as before. The rule is therefore the BOUNDARY, not the
-# class: a partial match arms nothing, and the body is read as code instead,
-# which over-counts or exits 2 but never passes silently.
-#
-# AN UNCLOSED HEREDOC AT EOF IS EXIT 2. A body skip that never closes is the
-# end state of most of the defects above, it is checkable without knowing which
-# shape of shell produced it, and the END rule reports it -- with a dangling
-# line continuation -- as an unresolved candidate, so the count-vs-resolved
-# accounting answers "cannot determine".
-#
-# IT IS NOT THE GENERAL GUARD an earlier revision of this comment claimed, that
-# every heredoc defect known or unknown ends in that one state. A skip that
-# closes EARLY, on a line bash reads as body, desyncs just as badly and then
-# RE-SYNCS on a later line: the call sites in between are swallowed and nothing
-# is outstanding at EOF, so this rule sees a clean finish and the accounting
-# agrees with itself. Two spellings reached it, a terminator carrying a
-# trailing space and a space-indented `<<-` terminator, and what prevents that
-# direction is not this rule but matching the terminator the way bash matches
-# it -- exactly, and with tabs -- which is what the body-skip rule now does.
-#
-# The guards are the P3b block of the self-test, and they fail against every
-# revision that preceded them. MEASURED at b229834ae by swapping each revision
-# in and running the current suite:
-#
-#   49698a830 the original                              29
-#   bd088bcb4 ordering only                             25
-#   fd633d3af delimiter class                           20
-#   46f80f666 terminator and word                       15
-#   23a90711d / 48065f840 / 134e2dca9 / fe38f250a        6
-#
-# The last four share a count because they differ only in HOW they guessed at
-# an unterminated span, and the current suite asserts that guessing at all is
-# wrong. The revision each count is measured at is named because these go stale
-# on any commit that adds a guard. Every ARMING
-# case asserts arm-AND-CLOSE -- a call site after the terminator must still be
-# SEEN. That is the lesson worth keeping. The first round of guards asserted
-# only that the body's own emit was not counted, which a swallow-to-EOF satisfies
-# perfectly: they passed while the gate was at its most broken, and that is how
-# four regressions reached a green run.
-#
-# ORDINARY SHELL IS NOT A PARTIAL LOSS. The first version of that scanner was
-# too literal and too loose at once, and exit 2 means "cannot determine", so
-# every shape it misread failed CLOSED on a detector that was perfectly well
-# formed. Five reproduced shapes, and what reads them now:
-#   - `emit "error" P1` and `emit error "P1"`. A quoted run whose whole content
-#     is one bare literal word is now that word, tagged as having been quoted;
-#     only a multi-word or expanding run stays the opaque `@Q@`. The tag is what
-#     keeps prose safe: an emitter NAME must be unquoted, so `echo "emit"` is
-#     still not a call site while `emit "error" P1` resolves.
-#   - `emit \` + newline + `warning P4`. Backslash-newline is joined first, so a
-#     continued call is ONE logical site rather than a truncated one plus an
-#     orphan fragment.
-#   - `emit_x() { emit error "$@"; }`. The definition header was already
-#     removed; what tripped it was the forwarding body. A call whose severity or
-#     id is `"$@"`/`$@`/`$*` carries no literal id to lose -- the ids enter at
-#     the WRAPPER's own call sites, which are counted like any other -- so a
-#     forwarder is not a call site.
-#   - `local emit_count`. An emitter token now has to stand in COMMAND POSITION
-#     (first word of a command, after `;`/`&&`/`|`/`(`/`{`, after a keyword such
-#     as `if`/`then`/`do`, or after a `VAR=value` prefix) and have at least one
-#     argument. A bare identifier that merely begins with `emit` is a variable,
-#     not a call.
-#
-# The property the accounting exists for is unchanged: a call site that DOES
-# carry a literal id this scanner cannot read is still exit 2. `emit "$sev" P4`,
-# `emit error "$id"`, `emit error P2ab` under /P[0-9]+[a-z]?/ and a half-renamed
-# `emitx` with unreadable arguments all still refuse to produce a verdict.
-#
-# RESIDUE of the scanner, both directions:
-#   - MISSED (false pass): an emitter renamed to something that does not begin
-#     with `emit` is invisible to both the count and the extraction -- a total
-#     rename still trips the zero-ids guard, a partial one to such a name does
-#     not. An emit reached only through a variable or an alias
-#     (`$emitter error P1`) is likewise invisible. A forwarder that rewrites its
-#     id rather than passing it through (`emit error "P${n}"`) is skipped as a
-#     forwarder only if its id token is literally `"$@"`/`$*`; otherwise it is
-#     unresolved and exits 2, which is the safe side.
-#   - SPURIOUS (false failure, exit 2): a call site whose severity or id is
-#     computed rather than written -- a lookup table of ids, a loop over a list
-#     -- cannot be read and stops the gate. That is deliberate (the gate must
-#     not pass on inputs it cannot see) but it IS a false failure for a detector
-#     written that way, and the remedy is a registry-row conversation, not a
-#     silent pass. A quoted literal carrying a space or an expansion
-#     (`emit "$sev" P4`) is the same answer.
-#   - MISSED, USUALLY SAFE: a heredoc whose delimiter is not a single word
-#     after the walk -- `<<"E O F"`, or the braced `<<${DELIM}` that strip_pexp
-#     removes -- arms nothing, so its BODY is read as code. An `emit` in prose
-#     there usually resolves to an id, which over-counts and demands coverage,
-#     or does not, which is exit 2. It is NOT unconditionally safe: if that
-#     body carries a `<<WORD` of its own, the skip it arms closes on a later
-#     WORD line and swallows what lies between, silently. Arming on a delimiter
-#     that cannot be matched has the same shape, which is why the matcher above
-#     reads the delimiter whole rather than accepting a prefix of it.
-#
-#     `<<$DELIM` is not such a case: bash does NOT expand a heredoc delimiter
-#     (`<<$DELIM` is closed by a literal `$DELIM` line), and this scanner arms
-#     the literal `$DELIM` and closes correctly. Only the BRACED spelling
-#     reaches the bullet above, because strip_pexp removed it before the scan.
-#   - MISSED, SILENT. THE WALK HAS NO NESTED QUOTING CONTEXT, and that is the
-#     largest hole in this scanner. The unclosed-at-EOF rule does NOT catch
-#     these shapes: the skip re-syncs on the file's own next real terminator,
-#     so nothing is outstanding at EOF and the gate exits 0.
-#
-#     The shapes, each verified to EXECUTE under bash while producing no `ID`
-#     and no `UNRESOLVED` here:
-#       * `x="$(emit error P1)"`. A command substitution INSIDE double quotes
-#         collapses to one `@Q@` token, so its call sites never reach the
-#         tokenizer at all. This is one line of ordinary shell -- a detector
-#         that captures its emitter's output is wholly invisible to the gate.
-#       * the CLOSING line of a multi-line quoted string, when it carries a
-#         call after the quote (`' ... )" || emit error P2`). Per-line
-#         resolution inverts the quote state there.
-#       * `$'...'` with an escaped apostrophe, whose tail arms a delimiter that
-#         a later genuine heredoc then closes.
-#       * a `)#` comment carrying a `<<WORD`, which swallows to the next WORD.
-#       * command positions the walk does not model: `coproc`, `time -p`, a
-#         leading redirection, a `+=` or escaped-space assignment prefix, and a
-#         quoted command name (`"emit" error P8`, which bash runs).
-#       * `trap 'emit error P9' EXIT` and `eval 'emit error P10'`, which look
-#         like command-position gaps and are not: `cmd_position()` names `eval`
-#         and BARE `eval emit error P10` resolves. What is lost is the QUOTED
-#         body, so both belong to the quoting hole above; the two have
-#         different fixes.
-#       * `x=$[ 1 << EOF ]` before a genuine `cat <<EOF` block: deprecated
-#         arithmetic arms `EOF`, and the real block's terminator closes it.
-#       * `cat <<A <<B` on one line: only A arms, so B's body is read as code
-#         and a `<<WORD` in it cascades.
-#
-#     All of them need parser state this scanner does not have. None appears in
-#     the registered detector, which is why the gate is correct today rather
-#     than by construction. claude-code-plugins#4222 tracks replacing the
-#     extraction with a real parser, which is the only fix for this class.
-#
-#     This list is what is KNOWN to be misread, never what remains.
+# The self-test keeps arm-and-close: a call after a heredoc terminator must
+# still be seen. "The body's own emit is hidden" is also true of a skip that
+# runs to EOF, so that assertion alone passed while the gate was most broken.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -404,374 +267,123 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "check-detector-eval-coverage: jq not found; cannot read any eval suite" >&2
   exit 2
 fi
+# Same pin as .claude/cloud-bootstrap.sh and the lint-2 install step.
+# shfmt --to-json is how emit call sites are read; without it the gate cannot
+# see its input. Older than v3.13.0 drops a call after `#` following a
+# command substitution or a backtick, and that drop is a silent pass.
+if ! command -v shfmt >/dev/null 2>&1; then
+  echo "check-detector-eval-coverage: shfmt not found; cannot read emit call sites (pin mvdan/sh v3.14.1, shfmt --to-json --language-dialect bash)" >&2
+  exit 2
+fi
+shfmt_version="$(shfmt --version 2>/dev/null || true)"
+shfmt_norm="${shfmt_version#v}"
+IFS=. read -r shfmt_maj shfmt_min _ <<<"${shfmt_norm%%[^0-9.]*}"
+if [[ -z "${shfmt_maj:-}" || -z "${shfmt_min:-}" ]] || ((shfmt_maj < 3 || (shfmt_maj == 3 && shfmt_min < 13))); then
+  echo "check-detector-eval-coverage: shfmt ${shfmt_version:-unknown} is older than v3.13.0 and drops a call after a # that bash keeps; CI pins mvdan/sh v3.14.1" >&2
+  exit 2
+fi
 
 # --- the emit-call-site scanner ----------------------------------------------
-# Removes heredoc bodies and quoted contents, then resolves each candidate call
-# site to an id or reports it unresolved. Emits `ID <id>` lines, `UNRESOLVED
-# <site>` lines, and a final `CANDIDATES <n>`.
-EMIT_SCAN_AWK=""
-read -r -d '' EMIT_SCAN_AWK <<'AWK'
-function cmd_position(p) {
-  # The first word of a command, or the first word after something that ends
-  # one. Everything else that merely BEGINS with `emit` -- `local emit_count`,
-  # `declare -i emit_total` -- is an identifier, not a call.
-  if (p == "" || p == "@SEP@") return 1
-  if (p ~ /^(if|then|else|elif|do|while|until|!|time|exec|command|builtin|eval|nohup)$/) return 1
-  if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return 1
+# shfmt --to-json, then a walk of CallExpr nodes. Writes `ID <id>` lines,
+# `UNRESOLVED <site>` lines, and a final `CANDIDATES <n>`.
+EMIT_SCAN_JQ=""
+read -r -d '' EMIT_SCAN_JQ <<'JQ'
+def static:
+  if type != "object" or ((.Parts // null) | type) != "array" or (.Parts | length) != 1 then null
+  else
+    .Parts[0] as $p
+    | if $p.Type == "Lit" then $p.Value
+      elif ($p.Type == "DblQuoted" or $p.Type == "SglQuoted")
+        and (($p.Parts // []) | length) == 1
+        and ($p.Parts[0].Type == "Lit")
+      then $p.Parts[0].Value
+      else null
+      end
+  end;
+
+def pure_param_at_star:
+  type == "object"
+  and .Type == "ParamExp"
+  and (.Param.Value == "@" or .Param.Value == "*")
+  and (.Exp == null)
+  and (.Repl == null)
+  and (.Length == null)
+  and (.Index == null)
+  and (.Slice == null)
+  and (.Indirect != true);
+
+def is_forward:
+  ((.Parts // null) | type) == "array" and (.Parts | length) == 1 and (
+    (.Parts[0] | pure_param_at_star)
+    or (
+      (.Parts[0].Type == "DblQuoted" or .Parts[0].Type == "SglQuoted")
+      and ((.Parts[0].Parts // []) | length) == 1
+      and (.Parts[0].Parts[0] | pure_param_at_star)
+    )
+  );
+
+def emit_words:
+  . as $c
+  | ($c.Args[0] | static) as $w0
+  | ($c.Args[1] | static) as $w1
+  | if (($w0 == "command") or ($w0 == "builtin") or ($w0 == "exec") or ($w0 == "nohup") or ($w0 == "eval"))
+      and ($w1 != null)
+      and ($w1 | test("^emit[A-Za-z0-9_]*$"))
+    then $c.Args[1:]
+    else $c.Args
+    end;
+
+[
+  .. | objects | select(.Type == "CallExpr" and ((.Args // []) | length) > 0)
+] as $calls
+| reduce $calls[] as $c (
+    {candidates: 0, lines: []};
+    ($c | emit_words) as $args
+    | ($args[0] | static) as $cmd
+    | if ($cmd == null) or (($cmd | test("^emit[A-Za-z0-9_]*$")) | not) then .
+      else
+        ($args[1:] | map(select(. != null))) as $rest
+        | if ($rest | length) == 0 then .
+          elif (($rest[0] | is_forward) // false) or (($rest[1] // null | is_forward) // false) then .
+          else
+            .candidates += 1
+            | ($rest[0] | static) as $sev
+            | ($rest[1] // null | static) as $id
+            | if ($sev != null and $id != null
+                  and ($sev | test("^[A-Za-z][A-Za-z0-9_]*$"))
+                  and ($id | test("^(" + $idre + ")$")))
+              then .lines += ["ID " + $id]
+              else .lines += ["UNRESOLVED line " + ($c.Pos.Line | tostring) + ": " + $cmd]
+              end
+          end
+      end
+  )
+| .lines[], "CANDIDATES \(.candidates)"
+JQ
+
+# scan_emits <file> <id-ere> <outfile>
+# Returns 1 when shfmt cannot parse the file or jq cannot read the tree.
+# A registered detector turns that into exit 2. Discovery under-counts.
+scan_emits() {
+  local file="$1" idre="$2" outfile="$3"
+  local json errf
+  json="$(mktemp)" || return 1
+  errf="$(mktemp)" || {
+    rm -f "$json"
+    return 1
+  }
+  # shellcheck disable=SC2094  # "$file" is only read; "$json" and "$errf" are separate temp files
+  if ! shfmt --language-dialect bash --filename "$(basename -- "$file")" --to-json <"$file" >"$json" 2>"$errf"; then
+    rm -f "$json" "$errf"
+    return 1
+  fi
+  if ! jq -r --arg idre "$idre" "$EMIT_SCAN_JQ" "$json" >"$outfile"; then
+    rm -f "$json" "$errf"
+    return 1
+  fi
+  rm -f "$json" "$errf"
   return 0
 }
-function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
-function strip_arith(s,   r, j, n, depth, c, head) {
-  # Arithmetic removed, because `<<` inside it is the left-shift OPERATOR.
-  # BOTH spellings: the `$(( ... ))` expansion and bash's bare `(( ... ))`
-  # arithmetic COMMAND, which this repo writes constantly (`if ((rc == 0))`).
-  # Stripping only the first left `(( n << bits ))` armed and swallowed to EOF,
-  # the same silent pass one spelling over.
-  #
-  # A `<<` inside a COMMAND substitution (`$(cat <<EOF)`) is untouched and
-  # really does open a body: `$((` and `((` are matched, `$(` is not. An
-  # unterminated span drops its tail, which is the safe direction here: an
-  # unreadable arithmetic expression arms nothing rather than arming on its
-  # operator.
-  while ((r = index(s, "((")) > 0) {
-    n = length(s)
-    depth = 0
-    j = r
-    while (j <= n) {
-      c = substr(s, j, 1)
-      if (c == "(") depth++
-      else if (c == ")") { depth--; if (depth == 0) break }
-      j++
-    }
-    head = substr(s, 1, r - 1)
-    # UNTERMINATED: undecidable ONLY if the tail carries a `<<`. See below.
-    if (j > n) { if (index(substr(s, r + 2), "<<") > 0) unreadable = 1; return head }
-    s = head " " substr(s, j + 1)
-  }
-  return s
-}
-function strip_pexp(s,   r, j, n, depth, c, head) {
-  # `${ ... }` removed for the same reason: a `<<` inside a parameter
-  # expansion (`x=${v//y/<<EOF}`) is data, never a redirection operator. This
-  # runs on the heredoc scan's OWN copy, so nothing here reaches the call-site
-  # tokenizer, where an unreadable `${...}` argument must still land as
-  # UNRESOLVED rather than quietly vanish.
-  while ((r = index(s, "${")) > 0) {
-    n = length(s)
-    depth = 0
-    j = r + 1
-    while (j <= n) {
-      c = substr(s, j, 1)
-      if (c == "{") depth++
-      else if (c == "}") { depth--; if (depth == 0) break }
-      j++
-    }
-    head = substr(s, 1, r - 1)
-    # UNTERMINATED: undecidable ONLY if the tail carries a `<<`. See below.
-    if (j > n) { if (index(substr(s, r + 2), "<<") > 0) unreadable = 1; return head }
-    s = head " " substr(s, j + 1)
-  }
-  return s
-}
-function unquoted_value(t) { return (substr(t, 1, 3) == "@L@") ? substr(t, 4) : t }
-BEGIN {
-  hd = ""; hdtab = 0; hdline = 0
-  candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0
-  unreadable = 0
-}
-{
-  line = $0
-
-  # Inside a heredoc body: prose, usage text, or a template. Never a call site.
-  #
-  # Leading whitespace is stripped from the terminator ONLY for `<<-`, which is
-  # the whole of what the dash means. Stripping it unconditionally closed a
-  # plain `<<USAGE` on an INDENTED `USAGE` that bash reads as body text, and the
-  # lines after it were then read as code -- so a `<<FOO` among them armed and
-  # swallowed the real terminator and everything past it.
-  # The terminator is matched the way BASH matches it, which is exactly and
-  # with tabs, because closing EARLY is as silent as never closing and the END
-  # rule below cannot see it. A scanner that closes a skip bash keeps open
-  # re-syncs on some later line, so it swallows the real call sites in between
-  # and still finishes with nothing outstanding to report.
-  #   - No trailing-whitespace strip. `EOF ` with a trailing space is BODY to
-  #     bash, verified; stripping it closed the skip, and the next `<<` in the
-  #     body then armed and ate the real terminator and the code after it.
-  #   - `<<-` strips TABS only, which is the whole of what the dash does. Using
-  #     `[[:space:]]` also closed on a SPACE-indented terminator, which bash
-  #     reads as body, with the same cascade.
-  # A trailing `\r` is dropped as a line-ending artifact rather than as
-  # whitespace, so a CRLF file still closes.
-  if (hd != "") {
-    t = line
-    sub(/\r$/, "", t)
-    if (hdtab) sub(/^\t*/, "", t)
-    if (t == hd) { hd = ""; hdtab = 0 }
-    next
-  }
-
-  if (pending == "" && line ~ /^[[:space:]]*#/) next
-
-  # BACKSLASH-NEWLINE is joined before anything else looks at the line, so a
-  # continued call (`emit \` / `warning P4`) is one logical site rather than a
-  # truncated site plus an orphan fragment. An odd number of trailing
-  # backslashes continues; an even number is an escaped backslash.
-  tb = 0
-  j = length(line)
-  while (j >= 1 && substr(line, j, 1) == "\\") { tb++; j-- }
-  if (tb % 2 == 1) {
-    if (startfnr == 0) startfnr = FNR
-    pending = pending substr(line, 1, length(line) - 1)
-    next
-  }
-  line = pending line
-  pending = ""
-  if (startfnr == 0) startfnr = FNR
-
-  # Each quoted run collapses to ONE token, which preserves every call site's
-  # ARITY (so `emit "$sev" P4` stays three words and is seen as unresolved)
-  # while making prose inside a string unreadable as code. Three outcomes:
-  # `@FWD@` for pure argument forwarding, `@L@<word>` for a run that is one
-  # bare literal word (so `emit "error" "P1"` resolves), and the opaque `@Q@`
-  # for everything else -- multi-word prose, and any run carrying an expansion.
-  # The `@L@` tag survives into the token, so a quoted word can be a VALUE but
-  # never an emitter NAME: `echo "emit"` stays prose. A `#` that survives the
-  # walk is a real comment: drop the rest of the line.
-  out = ""
-  n = length(line)
-  i = 1
-  q = ""
-  qbuf = ""
-  while (i <= n) {
-    c = substr(line, i, 1)
-    if (q == "") {
-      # `\X` outside quotes is a LITERAL X. A WORD character is kept, because
-      # dropping the pair lost it: `cat <<\EOF` reached the opening scan as
-      # `cat <<OF`, which armed `OF` and swallowed to EOF, and `\emit error P1`
-      # -- a real call, since a backslash only suppresses alias expansion --
-      # became `mit` and was never counted.
-      #
-      # Anything else becomes a SPACE rather than itself. Emitting the literal
-      # character un-escaped a metacharacter back into an operator: `printf
-      # '%s' \<\<EOF`, which prints the text `<<EOF` and opens nothing, was
-      # read as a heredoc and swallowed the rest of the file. A space carries
-      # the one property that matters downstream, that the character is a
-      # literal and not an operator, and it separates words exactly as an
-      # escaped character cannot join them into one.
-      if (c == "\\") {
-        e = substr(line, i + 1, 1)
-        out = out ((e ~ /[A-Za-z0-9_]/) ? e : " ")
-        i += 2
-        continue
-      }
-      if (c == "\"" || c == "'") { q = c; qbuf = ""; i++; continue }
-      if (c == "#") {
-        # A comment opens at the start of a WORD, which is after whitespace or
-        # after something that ended a command. `foo;#<<EOF` and `f() (#<<EOF`
-        # are both comments to bash, and reading either as code armed a heredoc
-        # off its text.
-        #
-        # Only characters that SETTLE it are here. `{`, `}`, `)` and a backtick
-        # are all ambiguous, and the ambiguity is not symmetric: reading code
-        # as a comment TRUNCATES the line and loses whatever followed, while
-        # reading a comment as code usually over-counts or exits 2. So an
-        # ambiguous character is left out.
-        #
-        # "Usually" is doing real work in that sentence and an earlier revision
-        # omitted it, claiming the over-count direction was always safe. It is
-        # not: a comment carrying a `<<WORD` (`a)# see the <<EOF block below`)
-        # arms a skip off comment prose, and a later genuine WORD line closes
-        # it, so the sites in between vanish with nothing outstanding at EOF.
-        # Read as code is the BETTER direction, not a safe one, and the class
-        # is only closed by a parser that knows which construct opened the `)`.
-        #   - `${#arr}`: the `#` follows a `{` and is not a comment.
-        #   - `$(printf a)#tag`: bash prints `a#tag`, so the `#` after that `)`
-        #     is not a comment -- while `(echo a)#tag` IS one. The same
-        #     character, decided by which construct opened it, which this walk
-        #     does not track.
-        #   - `` `cmd`#tag ``: the same, one construct over.
-        p = (out == "") ? "" : substr(out, length(out), 1)
-        if (p == "" || p ~ /[[:space:]]/ || p ~ /[;&|(]/) break
-      }
-      out = out c
-      i++
-    } else {
-      if (q == "\"" && c == "\\") { qbuf = qbuf substr(line, i + 1, 1); i += 2; continue }
-      if (c == q) {
-        q = ""
-        if (qbuf ~ /^\$[@*]$/) out = out "@FWD@"
-        else if (qbuf ~ /^[A-Za-z0-9_][A-Za-z0-9_.:\/+-]*$/) out = out "@L@" qbuf
-        else out = out "@Q@"
-        i++
-        continue
-      }
-      qbuf = qbuf c
-      i++
-    }
-  }
-  if (q != "") out = out "@Q@"
-
-  # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
-  # is a here-string and opens no body.
-  #
-  # Read off the QUOTE-RESOLVED line, and with arithmetic removed, because a
-  # `<<` is a redirection operator in neither of those places. Scanning the raw
-  # line armed a body on `v=$((x << n))` and on any `<<` inside a string, and
-  # since no line after it can close a delimiter that was never a delimiter, the
-  # arm ran to EOF: every later call site vanished from the extraction AND from
-  # the candidate count together, so the count-vs-resolved accounting that
-  # exists to turn a partial loss into exit 2 saw nothing to compare. One
-  # ordinary line of shell could therefore turn real UNCOVERED findings into a
-  # silent pass. The delimiter survives the walk as `@L@<word>` when it was
-  # quoted (`<<'EOF'`), so both spellings still arm.
-  s2 = strip_pexp(strip_arith(out))
-
-  # AN UNTERMINATED `${` OR `((` WHOSE TAIL CARRIES A `<<` IS EXIT 2, NOT A
-  # GUESS.
-  #
-  # Such a line continues onto the next, and this scanner is line-based, so it
-  # cannot tell which of the text after the opener is shell and which is data.
-  # Three revisions tried to decide it anyway and every one of them was wrong
-  # in a way that lost call sites SILENTLY:
-  #   - return the head: threw away a real opener inside a command
-  #     substitution (`x=${unset:-$(cat <<EOF`).
-  #   - return the whole tail: armed on data and on a left shift
-  #     (`hint=${HINT:-<<EOF ...`, `mask=$(( (1 << SHIFT) -`).
-  #   - return the tail after the last unclosed `$(`: popped that `$(` on any
-  #     `)` -- a subshell, a `case` label, a function definition -- and threw
-  #     the opener away again; also could not see a backtick substitution, and
-  #     composed wrongly when `strip_arith` handed its splice to `strip_pexp`.
-  # Each of those was a silent loss found by the round after the one that
-  # introduced it. The shape of the mistake never changed: guess, be wrong,
-  # and be wrong invisibly.
-  #
-  # So this stops guessing. The line is reported as an unresolved candidate,
-  # which puts the count-vs-resolved accounting into disagreement and answers
-  # exit 2, "cannot determine" -- the answer this gate's own contract already
-  # requires of an input it cannot read. The remedy is in the operator's hands
-  # and is cheap: keep the construct on one line, or take it out of a detector.
-  # A verdict withheld is recoverable; a silent pass is not.
-  #
-  # NARROWED TO TAILS CARRYING A `<<`, because that is the whole of what is
-  # undecidable here: with no `<<` there is no arming decision to get wrong.
-  # The distinction is not cosmetic. An unterminated span is ORDINARY in this
-  # repo -- 61 hits across 34 tracked files, nearly all of them a jq filter
-  # with an unbalanced `)` or a `${var%%...}` pattern (a line-wrapped `(( ... ||`
-  # is one of the exceptions), and NONE of them carrying a `<<`
-  # -- so refusing on all of them would have turned three real scripts inside
-  # the discovery glob un-gateable to buy nothing. Refusing on the `<<` subset
-  # costs nothing today and closes the class.
-  if (unreadable) {
-    unreadable = 0
-    candidates++
-    site = line
-    sub(/^[[:space:]]*/, "", site)
-    print "UNRESOLVED line " startfnr ": unterminated ${ or (( -- this line spans a continuation this scanner cannot read: " site
-    next
-  }
-
-  while ((r = index(s2, "<<")) > 0) {
-    tail = substr(s2, r + 2)
-    if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
-    dash = 0
-    if (substr(tail, 1, 1) == "-") { tail = substr(tail, 2); dash = 1 }
-    sub(/^[[:space:]]*/, "", tail)
-    if (substr(tail, 1, 3) == "@Q@") break
-    if (substr(tail, 1, 3) == "@L@") tail = substr(tail, 4)
-    # THE DELIMITER IS A WORD, spelled the way bash spells one: everything up
-    # to whitespace or an unquoted metacharacter. Successive narrower guesses
-    # each truncated the next delimiter outside them -- `[A-Za-z_][A-Za-z0-9_]*`
-    # cut `<<'PY.END'` to `PY`, a wider class still cut `<<EOF@1` to `EOF` --
-    # and requiring the match to reach a boundary only converted those into a
-    # REFUSAL to arm, on every spelling bash accepts whose delimiter carries a
-    # printable character outside that class (`<<EOF{`, `<<EOF#`, `<<EOF%` and
-    # so on). An earlier revision said "sixteen", which counted an enumeration
-    # nothing in the tree measures; the suite pins seven of them.
-    #
-    # Refusing looked like the safe direction and is not, quite. The body is
-    # then read as code, and a `<<` INSIDE that body arms on a delimiter of its
-    # own, swallows the real terminator and the code after it, and closes on
-    # some later line -- silent, and invisible to the END rule because nothing
-    # is left open. Reading the delimiter correctly in the first place is what
-    # avoids the cascade, so the class is bash's rather than a guess at it.
-    #
-    # A leading digit still refuses, because `<<3` is not a delimiter anyone
-    # writes while `1 << 3` outside the arithmetic forms stripped above --
-    # `a[1<<3]=5`, `$[ 1 << 3 ]` -- is ordinary shell that armed `3`. That
-    # refusal keeps its cascade risk, and it is the narrower bet of the two.
-    if (match(tail, /^[^[:space:];&|<>()]+/)) {
-      d = substr(tail, RSTART, RLENGTH)
-      if (d !~ /^[0-9]/) { hd = d; hdtab = dash; hdline = startfnr }
-    }
-    break
-  }
-
-  # A definition (`emit() {`) is not a call. Separators become an explicit
-  # @SEP@ so that two call sites on one line are two sites, not one, AND so
-  # that command position is still readable after tokenizing.
-  gsub(/[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)/, " @SEP@ ", out)
-  gsub(/[;&|(){}`<>]/, " @SEP@ ", out)
-
-  nt = split(out, tok, /[[:space:]]+/)
-  for (k = 1; k <= nt; k++) {
-    if (tok[k] !~ /^emit[A-Za-z0-9_]*$/) continue
-    if (!cmd_position((k > 1) ? tok[k - 1] : "")) continue
-
-    na = 0
-    a1 = ""
-    a2 = ""
-    for (m = k + 1; m <= nt; m++) {
-      if (tok[m] == "@SEP@") break
-      if (tok[m] == "") continue
-      na++
-      if (na == 1) a1 = tok[m]
-      else if (na == 2) a2 = tok[m]
-    }
-
-    # No arguments at all: a bare word, so there is no literal id to lose.
-    if (na == 0) continue
-    # A FORWARDER (`emit error "$@"`) passes its caller's arguments through. The
-    # ids enter at the wrapper's own call sites, which are counted like any
-    # other, so nothing is lost here.
-    if (forwarded(a1) || forwarded(a2)) continue
-
-    candidates++
-    sev = unquoted_value(a1)
-    id = unquoted_value(a2)
-    if (sev ~ /^[A-Za-z][A-Za-z0-9_]*$/ && id ~ anchored) {
-      print "ID " id
-    } else {
-      site = line
-      sub(/^[[:space:]]*/, "", site)
-      print "UNRESOLVED line " startfnr ": " site
-    }
-  }
-  startfnr = 0
-}
-END {
-  # AN UNCLOSED STATE AT EOF IS A CANDIDATE THIS SCAN COULD NOT READ, never a
-  # clean finish. Every heredoc defect this scanner has had -- a `<<` that was
-  # not an operator, a delimiter read truncated, an escaped `<` resurrected, a
-  # terminator closed early -- ends in exactly one observable state: a body skip
-  # that never closes, running to EOF and taking every later call site out of
-  # the extraction AND the candidate count together. Reporting it here puts an
-  # unresolved candidate back on the books, so the count-vs-resolved accounting
-  # sees the disagreement and answers exit 2, "cannot determine".
-  #
-  # That is the structural guard the individual fixes above cannot be: it does
-  # not depend on this scanner having correctly enumerated the shapes of shell
-  # that fool it. The next shape it has not met fails closed.
-  if (pending != "") {
-    candidates++
-    print "UNRESOLVED line " startfnr ": line continuation dangling at end of file"
-  }
-  if (hd != "") {
-    candidates++
-    print "UNRESOLVED line " hdline ": heredoc <<" hd " opened here is never closed"
-  }
-  print "CANDIDATES " candidates
-}
-AWK
 
 # --- the coverage-bearing-string reader --------------------------------------
 # Reads one JSON-encoded string per line and prints, per whole-token id
@@ -858,15 +470,15 @@ advisories=0
 
 # qualifying_detectors -- every non-test skill script that carries a check-id
 # vocabulary next to an eval suite. It runs THE SAME scanner the verdict path
-# runs (EMIT_SCAN_AWK, under the wider QUALIFYING_ID_ERE rather than a row's
-# own pattern), so a spelling one half of this gate can read is a spelling the
+# runs (scan_emits, under the wider QUALIFYING_ID_ERE rather than a row's own
+# pattern), so a spelling one half of this gate can read is a spelling the
 # other half can read.
 #
 # Discovery reads the scanner's `ID` lines and NOTHING else. Its UNRESOLVED
 # lines and its candidate count belong to the verdict path: an unreadable call
 # site in a script nobody registered is not this run's environment answer, so
 # discovery under-counts (see the stopping rule's residue in the header) rather
-# than exiting 2 over a stranger's shell. An awk that cannot run at all is the
+# than exiting 2 over a stranger's shell. A file shfmt cannot parse is the
 # same answer -- no ids, no candidate, no exit code of its own.
 qualifying_detectors() {
   local evals_path skill script count
@@ -880,8 +492,11 @@ qualifying_detectors() {
       *.test.sh) continue ;;
       *) ;;
       esac
-      count="$(awk -v idre="$QUALIFYING_ID_ERE" "$EMIT_SCAN_AWK" "$script" 2>/dev/null |
-        sed -n 's/^ID //p' | sort -u | grep -c .)" || count=0
+      if scan_emits "$script" "$QUALIFYING_ID_ERE" "$scan_tmp"; then
+        count="$(sed -n 's/^ID //p' "$scan_tmp" | sort -u | grep -c .)" || count=0
+      else
+        count=0
+      fi
       [[ "$count" -ge 2 ]] && printf '%s\n' "$script"
     done
   done
@@ -920,8 +535,8 @@ for row in "${pairs[@]}"; do
   fi
 
   # Emitted ids, with every candidate call site accounted for.
-  if ! awk -v idre="$id_re" "$EMIT_SCAN_AWK" "$detector" >"$scan_tmp" 2>/dev/null; then
-    echo "check-detector-eval-coverage: the emit-call-site scan of $detector failed; the emitted id set cannot be read" >&2
+  if ! scan_emits "$detector" "$id_re" "$scan_tmp"; then
+    echo "check-detector-eval-coverage: $detector has an emit call site shfmt could not parse; the emitted id set cannot be read" >&2
     exit 2
   fi
   sed -n 's/^ID //p' "$scan_tmp" | sort -u >"$emitted_tmp"

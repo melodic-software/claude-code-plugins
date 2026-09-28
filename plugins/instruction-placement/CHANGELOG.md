@@ -3,6 +3,23 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.12] - 2026-09-28
+
+### Changed
+
+- **Cutover sources rechecked on Claude Code 2.1.282 (#4281).** The bundle's code default for
+  `tengu_agents_md_mod` is true (`var W=!0` at offset 225456771). The env-vars feature-flag list
+  no longer mentions `AGENTS.md`. The memory page still floors direct reading at v2.1.277, says
+  Bedrock and telemetry-disabled sessions failed only before v2.1.281, and says `/memory` lists a
+  directly read `AGENTS.md` from v2.1.280. `InstructionsLoaded` still does not fire for that
+  direct read. Recorded in `skills/migrate/reference/sources.md` and in "Why the shim stays".
+- **This-repo cutover-check, canary attempted.** `cutover-check.sh --repo` this checkout, without
+  `--skip-canary`. Conditions 1 and 2 are `[MET]` for this repo. Condition 3 is `[UNREACH]`:
+  `claude auth status` is logged out, and both canary legs exited 1 (`Not logged in`). Condition
+  4 is `[MET]` after acknowledging `user-scope.sh`'s user-scope `CLAUDE.md` inventory line. The
+  other nine repos were not in this checkout. The recurring issue stays open. `last_checked` on
+  `agents-md-cutover-check` stays 2026-09-20.
+
 ## [0.15.11] - 2026-09-28
 
 ### Changed

@@ -296,7 +296,7 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No published default auto-compaction threshold grounds the bands.** Verified 2026-09-23
+**No published default auto-compaction threshold grounds the bands.** Verified 2026-09-28
 (model-config, "Default auto-compact thresholds"; the how-Claude-Code-works, context-window,
 settings `autoCompactEnabled`, costs, and statusline pages, checked 2026-07-23 and 2026-08-10,
 say only that compaction triggers "when approaching context limits"). With no window configured,
@@ -317,7 +317,21 @@ session ran to 308k total input tokens uncompacted on a 1M-class window. So the 
 the provenance stated under "Band provenance" above, with a declared margin: if compaction triggers
 at 90% or above, as its phrasing implies, the dumb band leads it by 15 points or more. The trigger
 is **model- and environment-dependent**, so no single band set is correct everywhere; `zones.json`
-is the correction path if compaction is ever observed earlier.
+is the correction path if compaction is ever observed earlier. Claude Code 2.1.260's
+"shortly before the 1M-token limit" for Opus and Fable is this page's "about 967K tokens by
+default" for native 1M models, re-fetched 2026-09-28 from model-config "Default auto-compact
+thresholds".
+
+## Prompt-cache miss cause
+
+The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
+`plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
+payload and prints the cause names. The tee snapshot still copies `context_window` and does not
+copy `prompt_cache`; pass the live payload to the script. Claim: `last_miss_cause.causes` holds
+names such as `tools_changed`, `system_prompt_changed`, `ttl_expired_5m`, and
+`likely_server_side`, and the object is null when no cause was identified. Basis:
+<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck: that
+section renames the object or its cause names.
 
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated", so the value is as-of the last API response, not
