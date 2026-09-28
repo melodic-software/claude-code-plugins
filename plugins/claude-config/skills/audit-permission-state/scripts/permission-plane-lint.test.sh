@@ -201,7 +201,7 @@ OUT=$(lint "$C6")
 assert_contains "every finding carries a severity" "$OUT" "finding error ["
 assert_eq "every finding line has a bracketed check id" \
   "$(count_matching "$OUT" '^finding ')" "$(count_matching "$OUT" '^finding [a-z]+ \[C[0-9]')"
-assert_contains "the summary states how many checks ran" "$OUT" "checks_run=9"
+assert_contains "the summary states how many checks ran" "$OUT" "checks_run=11"
 
 # A clean plane is reported as clean, with the check count, not as silence.
 OUT=$(lint "$SURFACES")
@@ -530,5 +530,24 @@ EOF
 OUT_ANSWERED=$(printf '%s\n' "$ALL_ANSWERED" | bash "$SCRIPT")
 assert_contains "absent and not-applicable surfaces keep the plane read" "$OUT_ANSWERED" "status=read"
 assert_not_contains "and emit no unread note" "$OUT_ANSWERED" "LINT-NOTE:"
+
+# Parentheses inside a specifier are literal. Text after the closing parenthesis
+# is a malformed Tool(content) rule. An unclosed '[' on a deny guards the literal
+# path and does not fail every edit.
+MALFORMED=$(
+  printf '%s\n' "$SURFACES"
+  printf '%s\n' \
+    'rule user settings deny Bash(ls) x' \
+    'rule user settings deny Edit(./Finance (2024)/**)' \
+    'rule user settings deny Read(./secrets/[)' \
+    'rule user settings allow Read(./secrets/[)'
+)
+OUT=$(lint "$MALFORMED")
+assert_eq "trailing text is one malformed finding" 1 "$(count_matching "$OUT" '\[C6-malformed\]')"
+assert_contains "the malformed finding names the rule" "$OUT" "Bash(ls) x"
+assert_eq "a path parenthesis is not malformed" 0 "$(count_matching "$OUT" 'Finance')"
+assert_eq "uncompilable deny and allow each fire literal-path" 2 "$(count_matching "$OUT" '\[C6-literalPath\]')"
+assert_contains "the deny guards the literal path" "$OUT" "guards that exact literal path"
+assert_contains "the allow approves nothing" "$OUT" "approves nothing"
 
 report_and_exit
