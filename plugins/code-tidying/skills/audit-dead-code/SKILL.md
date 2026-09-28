@@ -35,7 +35,13 @@ detector, or a change to the fixture corpus. Re-measure before quoting one to a 
 
 Orphaned-**file** coverage is **TS/JS only**. Rust and .NET are permanently out of scope: their
 detectors build the project. Per-lane invocation, flags, and degradation detail live in
-[context/lanes.md](context/lanes.md) "Lane reference".
+[context/lanes.md](context/lanes.md) "Lane reference". A language-agnostic `unreferenced-file`
+shape (basename/path reference search across workflows and settings) is **deferred**
+([#4523](https://github.com/melodic-software/claude-code-plugins/issues/4523)).
+**Claim:** unreferenced scripts in any language are not mechanically flagged; alive-by-path evidence
+from CI and settings is adjudication work, not scan output. **Basis:** #4523; orphan scope limited in
+#4525. **As of:** 2026-09-28. **Recheck:** `unreferenced-file` candidates ship with fixture-backed
+precision, or #4523 unpark.
 
 ## Candidate shapes and default tiers
 
