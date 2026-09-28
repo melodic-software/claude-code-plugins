@@ -3,6 +3,15 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.7] - 2026-09-28
+
+### Fixed
+
+- **`audit-comment-residue` ticket-pr cue (#4530).** Drop the bare `pull request` prose match; require
+  a concrete back-reference (PR/issue number, tracker key, repo#issue, GitHub URL, or `from …
+  branch`). Tighten the `in this commit` plan-reference cue with a word boundary so `committed`
+  does not false-positive.
+
 ## [0.23.6] - 2026-09-28
 
 ### Changed
