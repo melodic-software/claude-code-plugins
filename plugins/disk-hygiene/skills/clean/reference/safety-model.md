@@ -116,6 +116,18 @@ be a large new trust surface, while the manual lane's per-item revalidation rule
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
 
+An engine-native Windows Recycle Bin apply (`IFileOperation` with the recycle flag) stays parked.
+#1116 declined a Windows deletion lane pending a full security review; #4007 is that concrete
+proposal, and the review is unpaid.
+
+**Claim:** keep `execution-platform-unsupported` on Windows; do not ship an engine-native Recycle
+Bin apply. Model-composed Recycle Bin handoff in the manual lane stays the deletion path until a
+maintainer records the #1116 security review. **Basis:** #4007 (`work-class: structural`,
+`needs-human`); #1116's stated reversal trigger required that review before a Windows apply lane;
+this file already records Windows and macOS execution as declined by design. Option A parks because
+the security review is unpaid. **As of:** 2026-09-28. **Recheck:** a maintainer completes and
+records the #1116 security review, or unparks #4007.
+
 ## Manual-handoff revalidation (`handoff-verify`)
 
 `handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without

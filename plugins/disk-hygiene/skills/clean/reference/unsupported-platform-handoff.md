@@ -120,6 +120,9 @@ engine plan:
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
+   That preference is a manual-lane instruction, not an engine apply. An engine-native Recycle Bin
+   lane is parked (#4007 Option A) until the #1116 security review is recorded. The decision lives
+   in [the safety model](safety-model.md#handle-semantics-and-honest-scope).
 
    **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
    caveats all describe a reversible operation quietly turning permanent. A path longer than the

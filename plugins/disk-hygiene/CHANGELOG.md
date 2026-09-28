@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.6] - 2026-09-28
+
+### Changed
+
+- **Engine-native Windows Recycle Bin apply stays parked pending unpaid security review**
+  ([#4007](https://github.com/melodic-software/claude-code-plugins/issues/4007)). Option A:
+  keep `execution-platform-unsupported` on Windows. Do not ship `IFileOperation` recycle apply.
+  #1116's reversal trigger still requires that review. Serializes after #4006 (0.27.5) and
+  #4227 (0.27.4).
+
 ## [0.27.0] - 2026-09-28
 
 ### Added

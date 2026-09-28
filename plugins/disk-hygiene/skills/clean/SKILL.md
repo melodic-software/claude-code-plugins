@@ -413,7 +413,9 @@ and what the guard does when no Python resolves → "Hook launch form".
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
 - Python 3.11 has no `os.path.isjunction`; the engine reads the Windows reparse attribute from `lstat`
-  and treats every reparse point as protected. Windows execution remains disabled.
+  and treats every reparse point as protected. Windows execution remains disabled. An engine-native
+  Recycle Bin apply is parked (#4007 Option A) until the #1116 security review is recorded; see
+  [the safety model](reference/safety-model.md#handle-semantics-and-honest-scope).
 - `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
   parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
 - Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,
