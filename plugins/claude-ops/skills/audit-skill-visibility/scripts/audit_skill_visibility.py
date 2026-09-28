@@ -54,7 +54,8 @@ MIN_PYTHON = (3, 11)
 # top-level numbers nulled. Every 1.0.0 field is still present.
 # 1.3.0: reachability gains `not-enabled` (cause `plugin-never-enabled`);
 # consumers keyed on `hidden` for "plugin off" must also accept it.
-SCHEMA_VERSION = "1.3.0"
+# 1.4.0: `hidden` gains cause `settings-file-rejected`.
+SCHEMA_VERSION = "1.4.0"
 
 
 @dataclass(frozen=True)
@@ -918,17 +919,35 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
     that supplied it), `unreadable` (settings FILES that exist but could not
     be read or parsed), `unread` (scope names that carry no file to read: the
     in-session flag scope always, and the managed scope when it could not be
-    enumerated) and `ignored` (non-Boolean values left out, named). An
+    enumerated), `ignored` (blocks left out, each naming the offending key)
+    and `rejected` (per key a rejected file named, the evidence for it). An
     unreadable file could have set any key at its own precedence, so a key
     whose winning value comes from below one resolves to `None` with the
     unreadable file as evidence. An unread scope does not poison the merge,
     as with the listing keys; it is named in the evidence of a key no scope
     carries.
+
+    One non-Boolean value leaves out the file's whole block, Boolean siblings
+    included, and the other scopes still decide every key it named. Claim:
+    Claude Code rejects a settings file whose `enabledPlugins` holds any
+    non-Boolean value and reads its keys as if that file set none. Basis: a
+    fixture probe on Claude Code 2.1.280 with `CLAUDE_CONFIG_DIR` pointed at
+    a scratch directory: `claude plugin list --json` read `true` disabled
+    beside a `"yes"` (or `1`) in the same user file, a project file holding
+    one lost its `false` to the user file's `true`, and `claude doctor`
+    listed the value under "Invalid settings". The settings reference types
+    the key as an object of Booleans and says a value the schema rejects
+    skips the file (https://code.claude.com/docs/en/settings#fix-a-broken-settings-file),
+    without naming this key. Verified 2026-09-28. Recheck trigger: a release
+    that changes `claude plugin list`'s answer for a `true` beside a
+    non-Boolean value, or that doc section naming per-entry handling for
+    `enabledPlugins`.
     """
     plugins: dict[str, dict] = {}
     unreadable: list[tuple[int, str]] = []
     unread: list[str] = []
     ignored: list[str] = []
+    rejected: dict[str, str] = {}
     for index, layer in enumerate(layers):
         path = layer.get("path")
         status = layer.get("status")
@@ -952,13 +971,21 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
                 "the merge"
             )
             continue
+        offending = [
+            f"{key!r} is {value!r}"
+            for key, value in block.items()
+            if not isinstance(value, bool)
+        ]
+        if offending:
+            note = f"{path}, where {', '.join(offending)}"
+            ignored.append(
+                f"{ENABLED_PLUGINS_KEY} in {path} holds a non-Boolean value "
+                f"({', '.join(offending)}); every key in it left out of the merge"
+            )
+            for key in block:
+                rejected[key] = REJECTED_FILE + note
+            continue
         for key, value in block.items():
-            if not isinstance(value, bool):
-                ignored.append(
-                    f"{ENABLED_PLUGINS_KEY}[{key!r}] in {path} is {value!r}, not "
-                    "a Boolean; left out of the merge"
-                )
-                continue
             plugins[key] = {"value": value, "evidence": path, "rank": index}
     resolved: dict[str, dict] = {}
     for key, row in plugins.items():
@@ -972,6 +999,7 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
         "unreadable": [path for _, path in unreadable],
         "unread": unread,
         "ignored": ignored,
+        "rejected": rejected,
     }
 
 
@@ -984,6 +1012,11 @@ NEVER_ENABLED_PROVENANCE = (
     "the docs state otherwise"
 )
 UNREAD_MARKER = "; scopes not read: "
+REJECTED_FILE = "named only in a settings file Claude Code rejects: "
+REJECTED_FILE_PROVENANCE = (
+    "observed: claude plugin list --json fixture probe, Claude Code 2.1.280; "
+    "the docs do not name this key's handling"
+)
 SAFE_PLUGIN_KEY = re.compile(r"[A-Za-z0-9._-]+@[A-Za-z0-9._-]+")
 
 
@@ -1002,16 +1035,21 @@ def enablement_for(merged: dict, key: str) -> dict:
     2.1.280 reported disabled every installed plugin no scope named, including
     one whose marketplace entry and one whose `plugin.json` set
     `defaultEnabled: true`; the settings reference `#enabledplugins` and the
-    plugins reference `#default-enablement` state the opposite. Verified
-    2026-09-23. Recheck trigger: a release that changes `claude plugin list`'s
+    plugins reference `#defaultenabled` state the opposite. Verified
+    2026-09-23, re-measured 2026-09-28. Recheck trigger: a release that changes `claude plugin list`'s
     `enabled` answer for an absent key, or either doc section changing. The
     evidence names any scope that could not be read at all.
+
+    A key only a rejected file named is not enabled either, and its evidence
+    names that file and the non-Boolean value that got it rejected.
     """
     row = merged["plugins"].get(key)
     if row is not None:
         return dict(row)
     if merged["unreadable"]:
         return {"value": None, "evidence": ", ".join(merged["unreadable"])}
+    if key in merged.get("rejected", {}):
+        return {"value": False, "evidence": merged["rejected"][key]}
     evidence = NEVER_ENABLED
     if merged.get("unread"):
         evidence += UNREAD_MARKER + ", ".join(merged["unread"])
@@ -1752,9 +1790,23 @@ MISCONFIGURED_REMEDIES = {
 def _not_loaded(entry: dict, evidence: str) -> dict:
     """Reachability of a skill whose owning plugin settles to not loading.
 
-    Two causes with different remedies: an `enabledPlugins` entry set the
-    plugin false (`hidden`), or no scope names it at all (`not-enabled`).
+    Three causes with different remedies: an `enabledPlugins` entry set the
+    plugin false (`hidden`), only a settings file Claude Code rejects names
+    it (`hidden`), or no scope names it at all (`not-enabled`).
     """
+    if evidence.startswith(REJECTED_FILE):
+        return {
+            "value": "hidden",
+            "causes": ["settings-file-rejected"],
+            "remedy": (
+                "The owning plugin is named only in a settings file whose "
+                "`enabledPlugins` holds a non-Boolean value, and Claude Code "
+                "skips every `enabledPlugins` entry in that file, so none of "
+                "its skills load. Make each value in that block true or false."
+            ),
+            "evidence": evidence,
+            "provenance": REJECTED_FILE_PROVENANCE,
+        }
     if evidence.startswith(NEVER_ENABLED):
         key = entry.get("plugin_key") or ""
         if not SAFE_PLUGIN_KEY.fullmatch(key):
