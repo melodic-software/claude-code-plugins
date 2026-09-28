@@ -881,15 +881,27 @@ class HygieneTests(unittest.TestCase):
             base = Path(temporary)
             data_root = base / "plugin-data"
             data_root.mkdir()
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-            ):
+            with mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", str(data_root)):
                 self.assertEqual(
                     (data_root / "run" / "snapshot.json").resolve(),
                     hygiene.state_output_path(data_root / "run" / "snapshot.json"),
                 )
                 with self.assertRaisesRegex(hygiene.HygieneError, "must stay inside"):
                     hygiene.state_output_path(base / "target" / "snapshot.json")
+
+    def test_generated_state_never_reads_the_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data_root = Path(temporary) / "plugin-data"
+            data_root.mkdir()
+            with (
+                mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", None),
+                mock.patch.dict(
+                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+                ),
+                self.assertRaisesRegex(hygiene.HygieneError, "pass --data-root"),
+            ):
+                hygiene.state_output_path(data_root / "run" / "snapshot.json")
+            self.assertEqual([], list(data_root.iterdir()))
 
     def test_protected_shell_folder_is_rejected_as_target(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -899,12 +911,7 @@ class HygieneTests(unittest.TestCase):
             target.mkdir(parents=True)
             data_root.mkdir()
             output = io.StringIO()
-            with (
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
-                redirect_stdout(output),
-            ):
+            with redirect_stdout(output):
                 code = hygiene.main(
                     [
                         "scan",
@@ -912,6 +919,8 @@ class HygieneTests(unittest.TestCase):
                         str(target),
                         "--output",
                         str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -926,12 +935,7 @@ class HygieneTests(unittest.TestCase):
         extra_args: list[str] | None = None,
     ) -> tuple[int, dict[str, object]]:
         output = io.StringIO()
-        with (
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-            ),
-            redirect_stdout(output),
-        ):
+        with redirect_stdout(output):
             for patch in patches:
                 self.enterContext(patch)
             code = hygiene.main(
@@ -941,6 +945,8 @@ class HygieneTests(unittest.TestCase):
                     str(target),
                     "--output",
                     str(data_root / "snapshot.json"),
+                    "--data-root",
+                    str(data_root),
                     *(extra_args or []),
                 ]
             )
@@ -2250,9 +2256,6 @@ class HygieneTests(unittest.TestCase):
             plan_path.write_text('{"tier": "high"}', encoding="utf-8")
             output = io.StringIO()
             with (
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
                 mock.patch.object(
                     hygiene,
                     "preview",
@@ -2278,6 +2281,8 @@ class HygieneTests(unittest.TestCase):
                         "a" * 24,
                         "--report",
                         str(base / "outside" / "report.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -2815,9 +2820,6 @@ class HygieneTests(unittest.TestCase):
             stdout_io = io.StringIO()
             with (
                 mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1),
-                mock.patch.dict(
-                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
-                ),
                 redirect_stdout(stdout_io),
             ):
                 code = hygiene.main(
@@ -2827,6 +2829,8 @@ class HygieneTests(unittest.TestCase):
                         str(root),
                         "--output",
                         str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
                     ]
                 )
             self.assertEqual(2, code)
@@ -5671,6 +5675,7 @@ class GuardTests(unittest.TestCase):
         # litter the checkout, and an inherited CLAUDE_PLUGIN_DATA would write
         # into the developer's real plugin data directory.
         self._data_root = cfg / "plugin-data"
+        self._authorized_data_root: str | None = None
         # Hermetic watchdog deadline for the same reason. The guard's own deny
         # diagnostic tells operators to raise
         # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
@@ -5725,6 +5730,8 @@ class GuardTests(unittest.TestCase):
     ) -> dict[str, object] | None:
         self._set_kill_switch(enabled)
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        if self._authorized_data_root:
+            argv += ["--authorized-data-root", self._authorized_data_root]
         payload: dict[str, object] = {"tool_input": {"command": command}}
         if tool_name:
             payload["tool_name"] = tool_name
@@ -5766,7 +5773,7 @@ class GuardTests(unittest.TestCase):
         authorized ``--data-root``, so every case that expects one admitted
         appends these words.
         """
-        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self._data_root)
+        self._authorized_data_root = os.fspath(self._data_root)
         return f' --data-root "{self._data_root.resolve().as_posix()}"'
 
     def run_guard_tool(
@@ -7678,23 +7685,32 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             # resolve() yields the long-form path: the guard rejects the "~" in
             # Windows 8.3 short names as a shell-expansion character.
-            authorized = str(Path(temporary).resolve() / "plugin-data")
             other = str(Path(temporary).resolve() / "elsewhere")
+            env_root = str(Path(temporary).resolve() / "from-env")
             base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            authorized = self.authorize_data_root()
+            self.assertEqual(
+                "allow",
+                self.run_guard(f"{base}{authorized}")["hookSpecificOutput"][
+                    "permissionDecision"
+                ],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard(f'{base} --data-root "{other}"')["hookSpecificOutput"][
+                    "permissionDecision"
+                ],
+            )
+            self._authorized_data_root = None
             with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_DATA": env_root}, clear=False
             ):
                 self.assertEqual(
-                    "allow",
-                    self.run_guard(f'{base} --data-root "{authorized}"')[
-                        "hookSpecificOutput"
-                    ]["permissionDecision"],
-                )
-                self.assertEqual(
                     "deny",
-                    self.run_guard(f'{base} --data-root "{other}"')[
+                    self.run_guard(f'{base} --data-root "{env_root}"')[
                         "hookSpecificOutput"
                     ]["permissionDecision"],
+                    "CLAUDE_PLUGIN_DATA is never a data-root channel",
                 )
 
     def test_guard_denies_data_root_without_hook_authority(self) -> None:
@@ -7897,16 +7913,18 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual("/from-argv", guard.resolve_authorized_data_root())
             with mock.patch.object(guard.sys, "argv", [script]):
-                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+                self.assertIsNone(
+                    guard.resolve_authorized_data_root(),
+                    "CLAUDE_PLUGIN_DATA is never a data-root channel",
+                )
             with mock.patch.object(
                 guard.sys,
                 "argv",
                 [script, "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"],
             ):
-                self.assertEqual(
-                    "/from-env",
+                self.assertIsNone(
                     guard.resolve_authorized_data_root(),
-                    "an unsubstituted placeholder must fall back to the environment",
+                    "an unsubstituted placeholder is absent; env does not fill it",
                 )
             with mock.patch.object(
                 guard.sys,
@@ -7947,7 +7965,7 @@ class GuardTests(unittest.TestCase):
                 ],
             ):
                 self.assertEqual("/direct", guard.resolve_authorized_data_root())
-            # An unresolvable plugin-root layout yields no authority, then env.
+            # An unresolvable plugin-root layout yields no authority.
             with mock.patch.object(
                 guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
             ):
@@ -7958,7 +7976,10 @@ class GuardTests(unittest.TestCase):
             with mock.patch.object(
                 guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
             ):
-                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+                self.assertIsNone(
+                    guard.resolve_authorized_data_root(),
+                    "env never supplies a data root, even with no other channel",
+                )
 
     def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
         # Real marketplace install: the install root is the VERSION leaf under
@@ -8593,36 +8614,26 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        with tempfile.TemporaryDirectory() as temporary:
-            authorized = str(Path(temporary).resolve() / "plugin-data")
-            command = (
-                f'"{self.python_command()}" "{script}" preview --snapshot s --plan p '
-                f'--data-root "{authorized}"'
-            )
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
-            ):
-                self.assertEqual(
-                    "allow",
-                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
-                )
+        command = (
+            f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+            f"{self.authorize_data_root()}"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
 
     def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        with tempfile.TemporaryDirectory() as temporary:
-            authorized = str(Path(temporary).resolve() / "plugin-data")
-            command = (
-                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
-                f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r "
-                f'--data-root "{authorized}"'
-            )
-            with mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
-            ):
-                self.assertEqual(
-                    "ask",
-                    self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
-                )
+        command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+            f"{self.authorize_data_root()}"
+        )
+        self.assertEqual(
+            "ask",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
 
     def test_powershell_engine_invocation_is_denied(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -10747,7 +10758,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         os.environ["CLAUDE_CONFIG_DIR"] = os.fspath(attacker / ".claude")
         self.assertEqual(os.fspath(self.expected), self.resolve())
 
-    def test_precedence_argv_then_cache_then_directory_then_env(self) -> None:
+    def test_precedence_argv_then_cache_then_directory_never_env(self) -> None:
         os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self.base / "from-env")
         self.assertEqual(os.fspath(self.expected), self.resolve())
         self.assertEqual(
@@ -10770,9 +10781,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 os.fspath(self.checkout / "plugins" / "data" / "disk-hygiene-mk"),
                 guard.resolve_authorized_data_root(),
             )
-        # Without any trusted channel, the environment is the last resort.
+        # Without any trusted channel, env is not a last resort.
         (self.config / "plugins" / "known_marketplaces.json").unlink()
-        self.assertEqual(os.fspath(self.base / "from-env"), self.resolve())
+        self.assertIsNone(self.resolve())
 
     def test_data_root_is_built_only_from_trusted_config_and_sanitized_id(
         self,
@@ -10812,11 +10823,10 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         # The decision log follows the derived root, never the env root.
         self.assertEqual([], list(env_root.iterdir()))
         self.assertNotEqual([], list(self.expected.iterdir()))
-        # Control: without the directory proof the env value is the authority,
-        # so the env-root scan is admitted and the log lands there.
+        # Control: without the directory proof, env is still not authority.
         (self.config / "plugins" / "known_marketplaces.json").unlink()
-        self.assertEqual("allow", self.scan_verdict(env_root, self.argv()))
-        self.assertNotEqual([], list(env_root.iterdir()))
+        self.assertEqual("deny", self.scan_verdict(env_root, self.argv()))
+        self.assertEqual([], list(env_root.iterdir()))
 
     def test_belt_ignores_a_conflicting_env_data_root_on_a_cache_install(
         self,
@@ -10830,11 +10840,11 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual("allow", self.scan_verdict(derived, argv))
         self.assertEqual([], list(env_root.iterdir()))
         # Control: a root with neither a cache layout nor a directory proof
-        # falls through to the env value.
+        # has no authority; env does not fill it.
         elsewhere = self.base / "elsewhere"
         elsewhere.mkdir()
         argv = [self.SCRIPT, "--plugin-root", os.fspath(elsewhere)]
-        self.assertEqual("allow", self.scan_verdict(env_root, argv))
+        self.assertEqual("deny", self.scan_verdict(env_root, argv))
 
     def test_changed_known_marketplaces_shape_yields_no_directory_authority(
         self,
@@ -10850,10 +10860,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 self.write_known(known)
                 self.assert_fails_closed()
                 self.assertEqual("deny", self.scan_verdict(self.expected, self.argv()))
-                # With env set, an unreadable format falls through to the env
-                # channel; the env channel's authority does not widen.
-                env_root = self.set_env_data_root()
-                self.assertEqual(os.fspath(env_root), self.resolve())
+                # With env set, an unreadable format still yields no authority.
+                self.set_env_data_root()
+                self.assertIsNone(self.resolve())
 
     # --- an exact engine call must carry the authorized --data-root ----------
 
@@ -10869,8 +10878,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         ]
 
     def test_engine_call_without_data_root_is_denied(self) -> None:
-        # Without --data-root the engine would fall back to the raw env value,
-        # which here differs from the proven root.
+        # Without --data-root the guard refuses, even when env is set.
         self.set_env_data_root()
         self.assertEqual(os.fspath(self.expected), self.resolve())
         for subcommand in self.ENGINE_TAILS:
@@ -10912,11 +10920,13 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
 
     # --- AC7: the no-authority denial names a recovery ----------------------
 
-    def test_no_authority_denial_names_the_launch_env_recovery(self) -> None:
+    def test_no_authority_denial_names_the_marketplace_recovery(self) -> None:
         belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
         self.assertIn("known_marketplaces.json", belt)
         self.assertIn("CLAUDE_PLUGIN_DATA", belt)
-        self.assertIn("<config>/plugins/data/<name>-<marketplace>", belt)
+        self.assertIn("never trusted", belt)
+        self.assertIn("claude plugin marketplace add", belt)
+        self.assertNotIn("start Claude Code from a shell", belt)
         self.assertIn("persists until the session ends", belt)
         self.assertIn("start a new session", belt)
 
@@ -11267,8 +11277,8 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertFalse(self.grammar.match_invocation(spec.name, words))
 
     def test_guard_refuses_an_invocation_without_data_root(self) -> None:
-        """The engine parses it; the guard does not, since the engine would fall
-        back to the raw ``CLAUDE_PLUGIN_DATA`` value."""
+        """The engine parses it; the guard does not, so a missing --data-root
+        never reaches the engine."""
         for spec in self.grammar.SUBCOMMANDS:
             head = self.head(spec)
             with self.subTest(subcommand=spec.name):

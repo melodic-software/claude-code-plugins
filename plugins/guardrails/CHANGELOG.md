@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **Two hook suites no longer fail when run inside a Claude Code session.** `block-hook-bypass.test.sh` unsets an inherited `CLAUDE_PLUGIN_DATA`, whose skip-notice latch silenced the levers document the two-blocking-guards case counts. `run-guards.test.sh` unsets `HOOK_TELEMETRY_SINK`, whose extra output broke two post-verify jq counts. Test-only; hook behavior is unchanged.
+- **Hook suites no longer fail when run inside a Claude Code session.** `guardrails-test-helpers.sh` now unsets `CLAUDE_PLUGIN_DATA` and `HOOK_TELEMETRY_SINK` for every suite that sources it. An inherited `CLAUDE_PLUGIN_DATA` latched the levers notice that `block-hook-bypass.test.sh` counts, and the sink's extra output broke two jq counts in `run-guards.test.sh`. Test-only; hook behavior is unchanged.
 
 ## [0.41.3] - 2026-09-28
 
