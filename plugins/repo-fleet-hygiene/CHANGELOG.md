@@ -3,7 +3,7 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.0] - 2026-09-28
+## [0.23.42] - 2026-09-28
 
 ### Added
 
