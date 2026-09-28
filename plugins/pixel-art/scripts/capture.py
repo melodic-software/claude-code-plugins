@@ -305,17 +305,15 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
     # Serve a copy of the scene alone: scenes are self-contained, and serving scene.parent would
     # give the page same-origin read access to every sibling file.
     served = Path(tempfile.mkdtemp(prefix="pixel-capture-"))
-    shutil.copy2(scene, served / scene.name)
-    server = _serve(served)
     profile = out_dir / ".chrome-profile"
-    if profile.exists():
-        shutil.rmtree(profile)
-    profile.mkdir()
     log_path = out_dir / "browser.log"
-    proc = None
-    log = None
-    devtools = None
+    server = proc = log = devtools = None
     try:
+        shutil.copy2(scene, served / scene.name)
+        server = _serve(served)
+        if profile.exists():
+            shutil.rmtree(profile)
+        profile.mkdir()
         port = server.server_address[1]
         page = f"http://127.0.0.1:{port}/{urllib.parse.quote(scene.name)}"
         log = log_path.open("w")
@@ -373,13 +371,14 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         payload = evaluated.get("result", {}).get("value")
         if not isinstance(payload, dict):
             raise RuntimeError("capture script returned nothing")
-        if payload.get("error"):
-            raise RuntimeError(payload["error"])
         shots = []
-        for index, shot in enumerate(payload["shots"]):
+        for index, shot in enumerate(payload.get("shots") or []):
             name = f"shot-{index}.png"
             (out_dir / name).write_bytes(_decode_data_url(shot["png"]))
             shots.append({"t": shot["t"], "file": name})
+        if payload.get("error"):
+            # Shots taken before a recording failure are kept on disk; the run still fails.
+            raise RuntimeError(f"{payload['error']} ({len(shots)} shots written)")
         video = None
         if payload.get("webm"):
             (out_dir / "scene.webm").write_bytes(base64.b64decode(payload["webm"]["b64"]))
@@ -397,8 +396,9 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             devtools.ws.sock.close()
         if log is not None:
             log.close()
-        server.shutdown()
-        server.server_close()
+        if server is not None:
+            server.shutdown()
+            server.server_close()
         if proc and proc.poll() is None:
             # os.killpg is POSIX only; Windows has no process group to signal here.
             if hasattr(os, "killpg"):
