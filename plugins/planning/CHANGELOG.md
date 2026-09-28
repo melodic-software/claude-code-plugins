@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** Nine of the 11 listed skills
+  ran over 500. Each now leads with its use case, keeps its quoted trigger phrases, and names its
+  nearest sibling. What the bodies already carry is cut: artifact lists, gate mechanics, mode
+  detail, and the long skip clauses. `check-listing-budget.sh plugins/planning/skills` goes from
+  7,738 to 4,999 characters. `interview-defenses.test.sh`'s frontmatter digest is updated for the
+  new `interview` description, which states and qualifies neither pinned defense. No skill is
+  renamed or merged.
+
+## [0.45.0] - 2026-09-28
+
+### Fixed
+
+- **`plan` nested reviews carry brevity, effort, and cost disclosure**
+  ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)). New
+  `agents/plan-reviewer.md` with bounded `effort` and `maxTurns`; Step 3 dispatches it instead of a
+  generic sub-agent after surfacing cost. Step 4 surfaces cost before `/planning:devils-advocate`.
+  Reviewer prompt asks for brief reasoning and a findings table only.
+
 ## [0.44.11] - 2026-09-28
 
 ### Added

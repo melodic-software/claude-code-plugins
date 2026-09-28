@@ -3,6 +3,23 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
+## [0.40.0] - 2026-09-28
+
+### Changed
+
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+
 ## [0.39.2] - 2026-09-28
 
 ### Fixed

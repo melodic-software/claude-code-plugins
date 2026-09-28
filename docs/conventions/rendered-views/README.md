@@ -10,7 +10,8 @@ introduced this document.
 
 This directory is the source of truth for the concern. The shared chrome and token
 reference lives in the adopting plugins (canonical copy:
-`plugins/visualization/reference/html-chrome.html`).
+`plugins/visualization/reference/html-chrome.html`). Posture rulings that do not
+change the boundary rule live in `CHANGELOG.md`.
 
 ## The boundary rule
 
@@ -248,6 +249,40 @@ owner declaration.
   that exists, report which layer supplied each value, degrade soft and visibly on a
   malformed or absent layer).
 
+## Template vendoring posture
+
+**Decision.** Do not vendor the 31 html-effectiveness corpus templates (20 gallery +
+11 unknowns). The derived chrome and token reference
+(`plugins/visualization/reference/html-chrome.html`) is the sanctioned shared piece.
+Per-genre page-shape is served by pointers to the public gallery, not by copies in
+this tree.
+
+A future lane that must vendor a single page states which source it took and
+carries the matching notice:
+
+| Source | License signal |
+|---|---|
+| Live gallery pages | `Copyright 2026 Anthropic PBC / SPDX-License-Identifier: Apache-2.0` header comments |
+| `anthropics/html-effectiveness` | MIT, no per-file headers |
+
+Both are permissive; mixing them in one file without naming the source is the
+defect this posture prevents. The wave-1 chrome reference is a **derived** token
+system (not a copied page) and already carries that split in its header comment.
+
+`plugins/*/skills/*/vendor/**` is excluded from the ai-slop audit by rule. That
+exclusion is not a reason to vendor: a vendored page would escape style audit,
+which is another cost of copying.
+
+- **Claim:** whole-page vendoring of the 31 corpus templates is declined;
+  pointers plus the derived chrome reference are the posture.
+- **Basis:** #3608 (byte-verified license split; every demo is self-contained;
+  gallery uses fictional Acme data; wave-1 already carries derived tokens).
+  Public gallery: <https://thariqs.github.io/html-effectiveness>. Official
+  templates: <https://github.com/anthropics/html-effectiveness>.
+- **As of:** 2026-09-28.
+- **Recheck:** a lane that cannot cite a public page-shape and must ship a
+  checked-in HTML page of its own, or a license change on either source.
+
 ## What this convention does not do
 
 - It never makes HTML the record: the markdown record stays authoritative everywhere.
@@ -255,3 +290,4 @@ owner declaration.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces: that sweep is priced and tracked
   separately, gated on the userConfig smoke test.
+- It does not vendor the 31 corpus templates: see Template vendoring posture.
