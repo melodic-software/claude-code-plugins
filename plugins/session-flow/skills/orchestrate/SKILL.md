@@ -80,7 +80,10 @@ told:
    must wait on an external result polls it in the foreground with a bounded loop, or returns what
    it has and lets the parent re-dispatch. A background command or watch the worker started is not
    a wait: the runtime may stop it when the worker returns, a watch expires at its deadline, and no
-   sentinel file appears unless something the worker launched writes it.
+   sentinel file appears unless something the worker launched writes it. The runtime may also leave
+   it running: a hung background shell keeps a worker that already reported listed as active. So
+   retiring a finished worker includes checking for its still-running background tasks and
+   surfacing each one; stopping one is gated like any kill (`/session-flow:reconcile` step 3).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep
