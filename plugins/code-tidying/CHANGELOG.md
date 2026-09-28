@@ -3,14 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12] - 2026-09-28
+
+### Added
+
+- **`in-place` mode for `tidy` and `batch-simplify` repo mode** ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)).
+  Runs on the current branch with no new branch or PR; changes are left staged (`in-place`) or
+  as one commit (`in-place=commit`), and the report prints to the user.
+
 ## [0.23.11] - 2026-09-28
 
 ### Changed
 
-- **`tidy` and `batch-simplify` repo mode record caller-owned branch, PR, and commits as tracked**
-  ([#4503](https://github.com/melodic-software/claude-code-plugins/issues/4503)).
-  Both still open their own branch and PR. Orchestrated callers that already hold a branch
-  must override before invoking until an explicit on-branch mode lands.
+- **Recommendations carry a `Basis:`.** `tidy`'s findings-table rows and `batch-simplify`'s
+  reported deferrals state what each rests on, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential finding or disposition is withheld as an open question.
 
 ## [0.23.10] - 2026-09-28
 

@@ -1,5 +1,33 @@
 # Changelog: session-flow plugin
 
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential recommendation is withheld to "Queue for follow-up".
+
+## [0.38.22] - 2026-09-28
+
+### Changed
+
+- The shared exec-form launcher copy exits 0 before spawning bash when `--require-true` or `--run-if-unset-or-true` says the hook has nothing to do ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). This plugin's hook rows are unchanged.
+
+## [0.38.21] - 2026-09-28
+
+### Changed
+
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.38.20] - 2026-09-28
+
+### Changed
+
+- **`hop_chain.py` passes `--permission-prompts none` on Claude Code 2.1.259+** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). The harness keeps `bypassPermissions` and the pinned `--tools` list. The flag denies only what would still have prompted. Older CLIs omit it. Basis: the headless page, fetched 2026-09-28.
+
 ## [0.38.15] - 2026-09-28
 
 ### Changed

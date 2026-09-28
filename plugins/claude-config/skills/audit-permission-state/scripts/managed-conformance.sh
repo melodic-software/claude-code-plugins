@@ -109,7 +109,7 @@ $1 == "conf" {
 $1 == "NOTE:" { next }
 NF >= 3 {
   n_surfaces++
-  if ($1 == "managed") {
+  if ($1 == "managed" && $2 != "remote-cache") {
     status = $3
     if (status == "present") n_managed_present++
     # invalid-json belongs here, not with absent: a CORRUPT managed policy is a
@@ -129,7 +129,7 @@ END {
   for (i = 1; i <= n_unread; i++)
     print "MANAGED-NOTE: the managed surface " unread[i] " was NOT read, so this report is incomplete by that surface — it is not evidence that no policy is deployed there."
 
-  print "MANAGED-NOTE: server-managed settings are delivered remotely at sign-in and have no local path, so no local reader can see them. \"Managed\" here means the LOCAL managed surfaces only; an intent enforced remotely will not appear below. Run /status and read Setting sources plus the Organization policy line (policy-helper failures and a credential that is signed in but not in use show there); claude doctor shows the same Organization policy line."
+  print "MANAGED-NOTE: server-managed settings are fetched at sign-in and cached at ~/.claude/remote-settings.json. The cache is not the live policy and has no local path that this report treats as policy; it is not folded into this report. The failure read is the Organization policy line in /status. Run /status and read Setting sources plus the Organization policy line (policy-helper failures and a credential that is signed in but not in use show there); claude doctor shows the same Organization policy line. \"Managed\" here means the LOCAL managed surfaces only; an intent enforced only from the server will not appear below."
 
   # "No local policy" is claimed ONLY when every surface was actually looked at
   # and found empty. A surface that could not be read -- corrupt, skipped,
