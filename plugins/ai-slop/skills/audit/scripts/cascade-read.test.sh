@@ -52,11 +52,18 @@ write_layer "$A" '{ "items": ["one", "two words"] }'
 write_layer "$B" '{ "items": ["later"] }'
 cascade::list items items "$A" "$B"
 assert_eq "list: later layer replaces" "${items[*]}" "later"
+assert_eq "list: cascade_list_layer names the winning layer" "$cascade_list_layer" "$B"
 
 write_layer "$B" '{ "other": [] }'
 cascade::list items items "$A" "$B"
 assert_eq "list: a missing key keeps the inherited list" "${items[*]}" "one two words"
 assert_eq "list: elements keep internal spaces" "${items[1]}" "two words"
+assert_eq "list: cascade_list_layer skips a layer without the key" "$cascade_list_layer" "$A"
+
+# shellcheck disable=SC2034  # filled through a nameref
+none=()
+cascade::list none absent "$A" "$B"
+assert_eq "list: cascade_list_layer is empty when no layer defines the key" "$cascade_list_layer" ""
 
 write_layer "$B" '{ "items": [] }'
 cascade::list items items "$A" "$B"
