@@ -3,11 +3,92 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.1] - 2026-09-28
+## [0.41.4] - 2026-09-28
 
 ### Fixed
 
 - **`block-no-verify` honors the PowerShell sink tokens `block_dangerous_git_allow` already names** ([#4252](https://github.com/melodic-software/claude-code-plugins/issues/4252)). The fail-closed sink message told the operator to add `ps-unparsable-<trigger>` to that list. That cleared `block-dangerous-git` and left `block-no-verify` still blocking a mutating shape (`Invoke-Command -ScriptBlock { git reset --hard }`), so the next lever an operator reached for was `block_no_verify_enabled=false`. The same token now blanks the unreadable region in both guards; a visible `--no-verify` beside it still blocks. `herestring-comment-char` still has no token.
+
+## [0.41.3] - 2026-09-28
+
+### Changed
+
+- **The dispatcher rows are exec form on `node`** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Each `run-guards.sh` registration is `"command": "node"` with `hooks/exec-bash.mjs`, the dispatcher script, and that script's arguments in `args`. `exec-bash.mjs` spawns a real bash and forwards stdin and the exit code. On Windows it uses `CLAUDE_CODE_GIT_BASH_PATH` when that file is named `bash.exe`, `sh.exe`, `bash`, or `sh`, otherwise `Git\bin\bash.exe` or `Git\usr\bin\bash.exe`. It does not use `System32\bash.exe`. Bare `bash` with the script in `args` stays illegal. `workflow-resilience-check.sh` is the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the default-off checker exits in node before bash starts. Node is the hook parent; bash still sources every guard in one process.
+
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **PostToolUse path adjudication no longer starts awk, tr, or cut** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). A non-word anchor, including a path that contains `/`, is counted in-process, overlapping starts included. The skip-worktree tag is the first character of `git ls-files -v` after carriage returns are stripped in the shell. A cold finding fire fell from 25 to 19 process creations and execs, and the same fire at that HEAD from 19 to 13. The seven successful execs on the cold finding fire are the shell, the dispatcher, and five git processes. Those five are the check: repo root, the tracked list, HEAD, the deleted-path walk, and the skip-worktree tag. Verdicts are unchanged. The k × S goal is recorded in `reference/edit-write-guards/PLAN.md`.
+
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, the same fire at that HEAD fell to 19, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as typos-format #4677). Blocking guards stay synchronous. The k × S targets are not set here.
+
+## [0.41.0] - 2026-09-28
+
+### Added
+
+- **`block-root-delete-target` refuses a PowerShell recursive delete of the same
+  target classes Bash already refuses**
+  ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)).
+  `Remove-Item -Recurse -Force C:\`, `ri -r $X`, `Remove-Item -Recurse ''`, and
+  `cmd /c rd /s /q C:\` on the PowerShell tool used to exit 0 because the guard
+  left on any tool_name other than Bash. It now refuses root, empty, bare-variable,
+  and outside-tree targets for `Remove-Item` (aliases `ri`, `rm`, `del`, `erase`,
+  `rd`, `rmdir`) with `-Recurse` on any unambiguous prefix (`-r`, `-rec`) or the
+  bash-in-PS cluster `-rf`, for `cmd /c` / `cmd /k` `rd /s` and `rmdir /s`, and
+  for a pipeline into `Remove-Item -Recurse` with no path. The PowerShell lane
+  uses its own tokenizer (backtick escape, backslash literal) and does not load
+  `lib/powershell/ps-command.sh`, so it stays off the classifier's sink-attempt
+  budget. Existing Bash decisions are unchanged.
+
+## [0.40.2] - 2026-09-28
+
+### Fixed
+
+- **PowerShell here-string reduction refuses five no-token shapes** ([#4683](https://github.com/melodic-software/claude-code-plugins/issues/4683)). A confirmed opener whose prefix carries `'`, `"`, `\`, or a backtick, a `<#` earlier in the command, a column-zero `'@` / `"@` with no confirmed opener, and a CR that is not part of a CRLF pair join `herestring-comment-char` under one reduction-untrusted flag. None of them has an allow token. `classify_git_command` returns 2 when the flag is up even if another sink trigger already fired and git-freedom said no, so a `{` plus a commented opener no longer skips the FLAG-keyed readers. `hook::jq_fields` strips every CR from COMMAND, so bare CR is read from INPUT. A CRLF here-string commit still passes. A verbatim here-string whose body merely names `git` stays data. `block-convention-violation`'s subject scan uses the library opener predicate.
+
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
+## [0.40.0] - 2026-09-28
+
+### Changed
+
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+
+## [0.39.2] - 2026-09-28
+
+### Fixed
+
+- **`block-windows-drive-tmp` no longer blocks a Bash-tool `/tmp` that already is `%TEMP%`** ([#4251](https://github.com/melodic-software/claude-code-plugins/issues/4251)). On a stock Git for Windows install `/tmp` is a `usertemp` mount of the platform temp (`cygpath -w /tmp` equals `%TEMP%`), so `mkdir -p /tmp/x` was a false positive. One cached probe per hook process: when `cygpath -w /tmp` matches `%TEMP%`/`%TMP%`, or the `mount` line for `/tmp` carries `usertemp`, the Bash command lane skips the POSIX `/tmp` arm. `/c/tmp`, `C:\tmp`, drive-root `\tmp`, PowerShell `/tmp`, and the Write/Edit file-path lane stay blocked. Linux CI's `/tmp` tmpfs has no `usertemp` flag, so the existing OSTYPE=msys fixtures still deny.
+- **`curl -o` / `wget -O` destinations are judged.** `curl -sS -o /tmp/x https://example.com` and `wget -O /tmp/a.html https://example.com` exited 0 while `mkdir` and `cp` of the same path exited 2. A dest-flag walker reads `-o`/`--output` and `-O`/`--output-document` (space, `=`, and glued `-oFILE` forms); a URL that merely contains `/tmp` is not a write target.
+
+## [0.38.13] - 2026-09-28
+
+### Changed
+
+- **`block-root-delete-target` records why three launcher lines stay refused** ([#4681](https://github.com/melodic-software/claude-code-plugins/issues/4681)). No verdict moves; the guard header and a pinned test table now carry the decision. Measured on util-linux 2.39.3 and GNU coreutils 9.4, and read against util-linux master:
+  - `chrt -r rm -rf /`, `chrt -f rm -rf /` and `chrt rm -rf /`: chrt rejects a non-digit word after a realtime policy before exec ("invalid priority argument" through 2.41, "policy <name> requires a priority argument" from 2.42). They stay refused because the same line under `-o`, `-b`, `-i`, `-d` or `-e` runs `rm` from 2.42, where the priority is optional.
+  - `runuser -u bob rm -rf /` without `--`: runuser's permuting getopt reads `-rf` as its own option and exits 1. It stays refused because under an inherited `POSIXLY_CORRECT` options end at `rm` and the delete runs.
+  - `chroot <dir> rm -rf /`: chroot's `/` is host `<dir>`, so the delete empties `<dir>` and every host directory bind-mounted inside it (a bind-mounted host file was deleted in the measurement). GNU rm's default `--preserve-root` stops only the bare `/` spelling, not `/*` or `--no-preserve-root`.
+
+## [0.38.12] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` says which target spelling the scratch exemption takes** ([#4118](https://github.com/melodic-software/claude-code-plugins/issues/4118)). On the `cat`, `echo`/`printf` and staged-move lanes the roots line read "A bare target under these roots is exempt", which never said the target must be written out literally. An agent blocked on a project path was offered the temp tree without being told that `$TMPDIR/x` or a quoted path would be blocked too. The line now reads "An unquoted literal target under these roots is exempt: ..., the OS temp directory; a quoted or variable-carried one never is." When the reason line above it already says so (a quoted target, or one holding `$`, a backtick or `~`), the second half is left off. The temp tree is still listed only when the project root is outside it. The exemption itself is unchanged: following a shell variable would mean neutralizing quoting, which would re-block inert prose.
 
 ## [0.38.11] - 2026-09-28
 
