@@ -15,7 +15,9 @@ out the way the target engine expects, and show them moving.
 
 ## 1. Brief
 
-Everything in `/pixel-art:sprite` step 1, plus:
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) the same way `/pixel-art:sprite`
+does, including the `brief.md` file, the one-line defaults, and the presence-gated
+`/planning:interview` offer. Then add:
 
 - **Cycles** and their purpose: player-controlled actions need responsiveness; enemies and
   cutscene actors can afford anticipation.
@@ -23,6 +25,10 @@ Everything in `/pixel-art:sprite` step 1, plus:
 - **Target layout**: sets frame size, frame count per cycle, direction order, and sheet columns.
   RPG Maker MZ characters, for example, fix 3 patterns x 4 directions at 48x48. Read
   [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md).
+
+When the character is an existing spec that already has `brief.md` beside it, read that file and
+extend it with cycles, directions, and layout. Do not re-ask fields it already answers. Write the
+extended brief beside this spec before the first render.
 
 ## 2. Plan the cycles
 
@@ -59,7 +65,8 @@ Output location resolves as in `/pixel-art:sprite`. `render.py` writes one GIF p
 ## 5. Review loop
 
 Read `preview.png` (every frame side by side) and each animation GIF (the Read tool shows the first
-frame, so judge motion from the sheet). Check against the cycle plan:
+frame, so judge motion from the sheet). Every round, list each done criterion in `brief.md` as
+pass or fail with a one-line reason. Also check the cycle plan:
 
 - contact and passing poses are distinct and the stride reads in every direction;
 - body bob is present and consistent;
@@ -67,7 +74,8 @@ frame, so judge motion from the sheet). Check against the cycle plan:
 - volumes stay constant between frames (no swelling heads or shrinking feet);
 - timing: hold impact frames, keep player attacks free of long anticipation.
 
-Fix the generator, re-render, re-read; typically 2 to 4 rounds.
+Fix the generator, re-render, re-read. Stop when every done criterion passes, or after the round
+budget (typically 2 to 4) with the failing criteria named.
 
 ## 6. Deliver
 

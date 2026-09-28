@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.2] - 2026-09-28
+
+### Fixed
+
+- **Interview page mirrors a session-recorded decision, not only a terminal answer
+  (#5009).** `record-terminal` already writes the page's decision. The page
+  protocol told the session to emit it only for text the user typed in the
+  terminal (R-H), so a decision the session resolved into the ledger never
+  reached the page. R-K requires that same op in the same wake whenever this
+  session records or revises a ledger decision. The op table, the page-surface
+  paragraph in `SKILL.md`, and the answer-path line in `loop.md` say so too.
+
 ## [0.45.1] - 2026-09-28
 
 ### Changed
