@@ -16,6 +16,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"` where only Bash is available, with
   why `pwsh -File` from another directory fails its relative `Import-Module`, and the declared
   gap that the Bash lane does not parse inside a `-Command` string (#4261).
+
 ## [0.38.9] - 2026-09-28
 
 ### Fixed
