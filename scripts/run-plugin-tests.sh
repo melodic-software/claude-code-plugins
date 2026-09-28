@@ -117,7 +117,10 @@ if [[ "${1:-}" == "--worker" ]]; then
   rc=0
   bash "$suite" >"$log.out" 2>&1 || rc=$?
   printf '%s\n' "$rc" >"$log.rc"
-  until mkdir "$log_dir/.print-lock" 2>/dev/null; do sleep 0.02; done
+  # noclobber opens the lock with O_EXCL inside bash itself. `mkdir` is not a
+  # safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both
+  # succeed.
+  until (set -o noclobber && : >"$log_dir/.print-lock") 2>/dev/null; do sleep 0.02; done
   echo "=== $suite ==="
   cat "$log.out"
   if ((rc == 0)); then
@@ -125,7 +128,7 @@ if [[ "${1:-}" == "--worker" ]]; then
   else
     echo "FAIL: $suite" >&2
   fi
-  rmdir "$log_dir/.print-lock"
+  rm -f "$log_dir/.print-lock"
   exit 0
 fi
 
