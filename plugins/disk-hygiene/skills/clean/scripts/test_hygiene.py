@@ -7497,6 +7497,99 @@ class GuardTests(unittest.TestCase):
                         command,
                     )
 
+    def test_marker_free_samefile_runs_only_on_separator_and_engine_aliases(
+        self,
+    ) -> None:
+        """#3527: an ordinary command must not samefile every token.
+
+        Measured on ``git log --oneline --graph --decorate origin/main``.
+        Before the filter every relative whitespace token was identity-checked
+        (two ``samefile`` calls each: the word, then the engine directory).
+        After it, only ``origin/main`` is a separator-carrying word.
+        """
+        command = "git log --oneline --graph --decorate origin/main"
+        calls: list[str] = []
+        real = guard.os.path.samefile
+
+        def counting(left, right):
+            calls.append(os.fspath(left))
+            return real(left, right)
+
+        with mock.patch.object(guard.os.path, "samefile", side_effect=counting):
+            self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
+        self.assertGreater(len(command.split()), 1)
+        self.assertTrue(calls)
+        for path in calls:
+            self.assertRegex(path.replace("\\", "/"), r"origin/main")
+        # Two calls per candidate (the word, then the engine directory) and the
+        # word is also a path-legal token, so the candidate list holds it twice.
+        self.assertLess(len(calls), 2 * len(command.split()))
+
+    def test_marker_free_corpus_keeps_non_alias_verdicts(self) -> None:
+        """Allow/ask/deny parity for shapes that are not a linked engine alias.
+
+        These commands never name the bundled engine. The separator filter must
+        not flip them into the gate, and must not let a separator-free token
+        become one.
+        """
+        corpus = (
+            "git status --porcelain",
+            "git log --oneline --graph --decorate origin/main",
+            "ls -la /tmp",
+            "echo hello",
+            "rg hygiene README.md",
+            "python3 -c 'print(1)'",
+            "cd /tmp && pwd",
+            "git diff -- hygiene.py.bak",
+        )
+        for command in corpus:
+            with self.subTest(command=command):
+                self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
+                self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+
+    def test_engine_gate_hard_link_separator_versus_bare_name(self) -> None:
+        """A hard link gates with a separator and not as a bare name (#3527).
+
+        The bare name is the accepted PATH-installed residual. A byte copy
+        under a separator path is a different file and stays deferred, so a
+        host where ``os.link`` fails closed into a copy does not report a
+        false gap.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix = str(alias).replace("\\", "/")
+            self.assertTrue(guard._engine_gate_relevant(f"{posix} apply", "Bash"))
+            self.assertTrue(
+                guard._engine_gate_relevant(f'"{posix}" apply && echo done', "Bash")
+            )
+            self.assertFalse(guard._marker_free_identity_candidate(alias.name))
+            self.assertFalse(guard._engine_gate_relevant(f"{alias.name} apply", "Bash"))
+            copy = Path(tmp) / "clean-engine-copy"
+            shutil.copy2(script, copy)
+            copy_posix = str(copy).replace("\\", "/")
+            self.assertFalse(
+                guard._engine_gate_relevant(f"{copy_posix} apply", "Bash"),
+                "a copy is a different file and stays outside the gate",
+            )
+
+    def test_marker_free_identity_candidate_keeps_windows_engine_aliases(
+        self,
+    ) -> None:
+        """Trailing-dot spellings have no separator and must still be checked."""
+        self.assertTrue(guard._marker_free_identity_candidate("hygiene.py."))
+        self.assertTrue(guard._marker_free_identity_candidate("hygiene.py..."))
+        self.assertTrue(guard._marker_free_identity_candidate("hygiene.py::$DATA"))
+        self.assertTrue(guard._marker_free_identity_candidate("/tmp/clean-engine"))
+        self.assertFalse(guard._marker_free_identity_candidate("git"))
+        self.assertFalse(guard._marker_free_identity_candidate("--oneline"))
+        self.assertFalse(guard._marker_free_identity_candidate("clean-engine"))
+        self.assertFalse(guard._marker_free_identity_candidate("test_hygiene.py"))
+
     def test_engine_gate_marker_token_cannot_borrow_proof_from_another_word(
         self,
     ) -> None:

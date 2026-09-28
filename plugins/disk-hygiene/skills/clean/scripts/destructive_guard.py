@@ -19,13 +19,15 @@ every filesystem call already reachable from this module's own logic
 in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
 stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
-follow: (1) the strongest identified candidate for the 17s itself is
-``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every separator-containing word of *every* Bash/
-PowerShell command in *every* session (not only disk-hygiene commands) when
-resolving the plugin-level engine gate — a slow or unreachable path argument
-in an unrelated command is a real, user-reachable way to stall this hook for
-longer than milliseconds; (2) empty stderr is not what an uncaught Python
+follow: (1) the strongest identified candidate for the 17s itself was
+``_engine_gate_relevant``'s marker-free fallback, which called
+``os.path.samefile`` on every whitespace token of *every* Bash/PowerShell
+command in *every* session (not only disk-hygiene commands) when resolving
+the plugin-level engine gate — a slow or unreachable path argument in an
+unrelated command is a real, user-reachable way to stall this hook for longer
+than milliseconds. #3527 narrows that fallback to separator-carrying words
+plus Win32 filename aliases of the engine basename, which is the set the
+function's contract already described; (2) empty stderr is not what an uncaught Python
 exception normally produces (the default handler writes a traceback), so an
 external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
 resource issue) remains an open, unconfirmed possibility this module cannot
@@ -685,6 +687,29 @@ def _carries_marker(word: str) -> bool:
     return name == _ENGINE_MARKER
 
 
+def _marker_free_identity_candidate(word: str) -> bool:
+    """Whether a marker-free token is worth an ``os.path.samefile`` call.
+
+    A word that contains a path separator (``/``, ``\\``, or a drive-letter
+    colon) can name a link to the bundled engine under any filename, so it is
+    identity-checked. A word with no separator cannot, except a Win32 filename
+    alias of the engine itself: the OS discards trailing dots and spaces before
+    opening the file, and those spellings have no directory separator. A bare
+    name that is not that alias is the accepted PATH-installed residual and is
+    not identity-checked (#3527).
+    """
+    stripped = word.strip("'\"")
+    if not stripped:
+        return False
+    if _PATH_SEPARATOR.search(stripped):
+        return True
+    folded = stripped.casefold().rstrip(" .")
+    stream = "::$data"
+    if folded.endswith(stream):
+        folded = folded[: -len(stream)].rstrip(" .")
+    return _PATH_SEPARATOR.split(folded)[-1] == _ENGINE_MARKER
+
+
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
@@ -781,7 +806,9 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # (`/tmp/test_hygiene.py;echo done`) leaves `command.split()` holding
         # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
         # would miss the engine under a name that is not the marker. Adding
-        # candidates can only ever gate more, never less.
+        # candidates can only ever gate more, never less. The samefile call
+        # itself is limited to separator-carrying words and Win32 filename
+        # aliases of the engine (#3527): a bare `git` token is not a path.
         candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
         candidates += (
@@ -789,7 +816,11 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        return any(_same_file_as_bundled(candidate) for candidate in candidates)
+        return any(
+            _same_file_as_bundled(candidate)
+            for candidate in candidates
+            if _marker_free_identity_candidate(candidate)
+        )
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).

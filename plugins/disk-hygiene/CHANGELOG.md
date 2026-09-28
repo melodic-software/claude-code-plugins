@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-09-28
+
+### Security
+
+- **The engine gate no longer `samefile`-scans every token of every command (#3527).**
+  The marker-free fallback identity-checks separator-carrying words, plus Win32
+  filename aliases of `hygiene.py` (trailing dots and spaces, `::$DATA`). A bare
+  name with no separator stays the accepted PATH-installed residual. Marker-carrying
+  branches are unchanged. On `git log --oneline --graph --decorate origin/main`
+  (6 whitespace tokens) `os.path.samefile` runs 4 times, all against `origin/main`,
+  instead of once per token.
+
 ## [0.28.6] - 2026-09-28
 
 ### Fixed
