@@ -31,6 +31,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+# shellcheck source=lib/cascade-read.sh
+source "$SCRIPT_DIR/lib/cascade-read.sh"
 
 # All text processing runs in the C locale: the byte-sequence rules require it,
 # and word counts diverge between UTF-8 and C locales (caught by the CI
@@ -229,71 +231,26 @@ DISABLED_RULES=""
 # silences exactly one rule on exactly the named paths.
 declare -A RULE_ALLOWED_GLOBS
 
-# Every reader below strips carriage returns from jq's output, because the
-# Windows build of jq terminates its lines with CRLF (#3343). `cfg_array`
-# translates the line feed to a space, which leaves the CR attached to the
-# element itself: every configured glob and rule slug arrived as
-# `plugins/*/skills/*/vendor/**<CR>`, matched nothing, and `excluded_paths`,
-# `em_dash_allowed_paths` and `disabled_rules` silently stopped applying on a
-# Windows workstation while CI, which runs on Linux and sees LF, agreed with the
-# config. `cfg_scalar` reads the same CRLF but is masked under Git Bash, whose
-# command substitution strips one trailing CRLF pair; a bash that strips only
-# the line feed carries the CR into the emitted threshold text, in
-# `--show-config` and in the density finding's label. (gawk and mawk both read a
-# CR-suffixed threshold as a strnum, so the numeric comparison itself was
-# measured unaffected on the awks CI and Git Bash use; BusyBox awk is where it
-# would diverge.) The `rule_allowed_paths` reader below has the same exposure
-# through `read`. The CR originates in the detector's own jq invocation, so no
-# caller can normalize it away from the config file it supplies — it is
-# stripped here.
-
-# cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
-cfg_scalar() {
-  local path="$1" layer v out=""
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    # Capture, then strip: a `| tr -d '\r'` inside the substitution would hand
-    # this guard tr's exit status instead of jq's, and a layer that parses to a value
-    # and then meets malformed trailing bytes emits that value while exiting nonzero.
-    # That partial read must not become the effective setting.
-    v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
-    v="${v//$'\r'/}"
-    [[ -n "$v" ]] && out="$v"
-  done
-  printf '%s' "$out"
-}
-
-cfg_array() {
-  local path="$1" layer v out=""
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "($path // empty) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
-    [[ -n "${v// /}" ]] && out="$v"
-  done
-  printf '%s' "$out"
-}
-
 # threshold_for <threshold key> <default>: .thresholds.<key> from config, else default.
 threshold_for() {
   local key="$1" default="$2" v
-  v="$(cfg_scalar ".thresholds.${key}")"
+  cascade::scalar v ".thresholds.${key}" ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   printf '%s' "${v:-$default}"
 }
 
 if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
-  read -r -a EXCLUDED_GLOBS <<<"$(cfg_array '.excluded_paths')"
-  read -r -a EM_DASH_ALLOWED_GLOBS <<<"$(cfg_array '.em_dash_allowed_paths')"
-  DISABLED_RULES="$(cfg_array '.disabled_rules')"
-  # rule_allowed_paths: object of slug -> glob array; later layer wins per slug.
-  # tr -d '\r' for the same reason as the two readers above, reached differently:
-  # `read` splits on the line feed, so a CRLF leaves the CR on the last glob of
-  # every entry. @tsv escapes a CR inside a value as the two characters \ and r,
-  # so the only raw CR byte here is jq's own line terminator.
-  for layer in "${CFG_LAYERS[@]}"; do
-    while IFS=$'\t' read -r slug globs; do
-      [[ -n "$slug" && -n "${globs// /}" ]] && RULE_ALLOWED_GLOBS[$slug]="$globs"
-    done < <(jq -r '(.rule_allowed_paths // {}) | to_entries[] | [.key, (.value | join(" "))] | @tsv' "$layer" 2>/dev/null | tr -d '\r')
-  done
-  add="$(cfg_array '.vocab_add')"
-  remove="$(cfg_array '.vocab_remove')"
+  cascade::list EXCLUDED_GLOBS excluded_paths "${CFG_LAYERS[@]}"
+  cascade::list EM_DASH_ALLOWED_GLOBS em_dash_allowed_paths "${CFG_LAYERS[@]}"
+  _disabled=()
+  cascade::list _disabled disabled_rules "${CFG_LAYERS[@]}"
+  DISABLED_RULES="${_disabled[*]-}"
+  cascade::slug_map RULE_ALLOWED_GLOBS rule_allowed_paths "${CFG_LAYERS[@]}"
+  _add=()
+  _remove=()
+  cascade::list _add vocab_add "${CFG_LAYERS[@]}"
+  cascade::list _remove vocab_remove "${CFG_LAYERS[@]}"
+  add="${_add[*]-}"
+  remove="${_remove[*]-}"
   [[ -n "${add// /}" ]] && VOCAB="$VOCAB $add"
   if [[ -n "${remove// /}" ]]; then
     filtered=""
@@ -305,37 +262,9 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
     done
     VOCAB="${filtered# }"
   fi
-  # phrase_add / phrase_remove: whole ERE fragments, one array element each.
-  # NOT cfg_array — its space-join would split "honest take" into two dead
-  # words. Per-layer wholesale replacement keyed on the KEY BEING PRESENT
-  # (jq has()), so an explicit `"phrase_add": []` in a later layer clears an
-  # inherited list instead of reading as absent. jq's own exit status guards
-  # both reads — a layer caught mid-write (valid object then truncated bytes)
-  # is refused whole, the cfg_scalar posture, which the tr pipe of an earlier
-  # revision silently overrode. CR stripped by expansion, not a pipe, for the
-  # same reason. The winning layer is kept so hygiene warnings below can name
-  # where a bad fragment came from.
-  #
-  # read_phrase_list <layer> <key> <dest array>: nonzero when the layer does not
-  # define the key or jq refused it, so the caller leaves the inherited list
-  # (and the recorded layer) standing.
-  read_phrase_list() {
-    local layer="$1" key="$2" dest="$3" v
-    jq -e "has(\"$key\")" "$layer" >/dev/null 2>&1 || return 1
-    v="$(jq -r ".$key | .[]" "$layer" 2>/dev/null)" || return 1
-    v="${v//$'\r'/}"
-    if [[ -n "${v//[[:space:]]/}" ]]; then
-      mapfile -t "$dest" <<<"$v"
-    else
-      local -n dest_ref="$dest"
-      # shellcheck disable=SC2034  # nameref: this assignment clears the caller's array without a null device
-      dest_ref=()
-    fi
-  }
-  for layer in "${CFG_LAYERS[@]}"; do
-    read_phrase_list "$layer" phrase_add PHRASE_ADD && PHRASE_ADD_LAYER="$layer"
-    read_phrase_list "$layer" phrase_remove PHRASE_REMOVE
-  done
+  cascade::list PHRASE_ADD phrase_add "${CFG_LAYERS[@]}"
+  PHRASE_ADD_LAYER="$cascade_list_layer"
+  cascade::list PHRASE_REMOVE phrase_remove "${CFG_LAYERS[@]}"
 elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   echo "Note: jq not found; config layers present but unread, using defaults" >&2
 fi
