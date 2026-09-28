@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.11] - 2026-09-28
+
+### Fixed
+
+- **`repo-sweep` next** re-checks each entry's `applies-when` before running the step; when it
+  fails, ticks `not applicable: <evidence>` instead of running the skill (`tick.sh`, `history.sh`
+  ignores those lines for version history).
+
 ## [0.13.8] - 2026-09-28
 
 ### Fixed
