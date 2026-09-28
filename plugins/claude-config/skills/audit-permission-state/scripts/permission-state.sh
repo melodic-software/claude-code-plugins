@@ -328,7 +328,7 @@ emit_file_rules() {
 #   autoModePresent    whether an autoMode section exists at all — the classifier
 #                      does not read it from project or local settings, so its
 #                      mere presence there is a dead-config finding
-#   defaultMode        `auto` is ignored in project and local settings
+#   defaultMode        `auto` and `bypassPermissions` are ignored in project and local settings
 #   useAutoModeDuringPlan   not read from shared project settings
 #   disableAutoMode / permissions.disableAutoMode
 #                      accepted at BOTH key paths, and must be the STRING
@@ -481,7 +481,7 @@ fi
 # Server-managed settings arrive remotely at sign-in and have no local path, so
 # no local reader can see them. Saying so is the difference between an honest
 # managed report and one that implies completeness it cannot have.
-note "Server-managed settings (delivered at sign-in via the claude.ai admin console or a self-hosted gateway) have no local path and are not visible to any local reader. 'managed' above means the local managed surfaces only."
+note "Server-managed settings (delivered at sign-in via the claude.ai admin console or a self-hosted gateway) have no local path and are not visible to any local reader. 'managed' above means the local managed surfaces only. Run /status and read Setting sources plus the Organization policy line for why a policy did not load and which credential is in use; claude doctor shows the same Organization policy line."
 
 # --- The four file scopes -----------------------------------------------------
 

@@ -119,6 +119,16 @@ be a large new trust surface, while the manual lane's per-item revalidation rule
 `handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
 recurrence in the manual lane reopens this as a design question with full security review.
 
+**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
+execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
+question, not this trigger firing. **Basis:** the trigger quoted from the
+[#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
+affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
+near-miss recurrence), reopen as a design issue with full security review." No post-#1109
+near-miss recurrence is on the record in this checkout; #3855 remains the open related
+design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
+manual lane, or #3855 closing with a per-primitive design.
+
 ## Manual-handoff revalidation (`handoff-verify`)
 
 `handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without

@@ -11,7 +11,8 @@
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
 # --settings re-verified against the CLI reference, 2026-07-25):
-#   claude --bg -n <name> --permission-mode auto [--model M] [--effort E]
+#   claude --bg -n <name> --permission-mode auto --permission-prompts none
+#     [--model M] [--effort E]
 #     [--settings JSON] "<prompt>"                              launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
@@ -829,8 +830,13 @@ launch_lane() {
   fi
 
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
-  # first prompt. Never bypassPermissions.
-  local -a cmd=(claude --bg -n "$name" --permission-mode auto)
+  # first prompt. --permission-prompts none denies whatever would still prompt
+  # (AskUserQuestion, an elicitation nobody answered) while auto mode keeps
+  # deciding. Never bypassPermissions. Probed 2026-09-28 on Claude Code 2.1.282:
+  # `claude --bg --permission-mode auto --permission-prompts none` backgrounded
+  # and was stopped. The flag is documented for print mode; this --bg form
+  # accepted it.
+  local -a cmd=(claude --bg -n "$name" --permission-mode auto --permission-prompts none)
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")
