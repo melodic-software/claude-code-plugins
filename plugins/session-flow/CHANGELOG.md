@@ -1,5 +1,25 @@
 # Changelog: session-flow plugin
 
+## [0.38.10] - 2026-09-28
+
+### Changed
+
+- **`keep-going` does not trust a captured usage-limit message across an account
+  switch (#3915).** A still-blocked verdict requires a live re-check of the
+  current account (`/usage`, or statusline `rate_limits` when present). The
+  date-bearing `resets Sep 8, 6pm` form stays unparsed (checker exit 2), pinned
+  by a test. Mechanical account-identity plumbing is unpaid.
+
+## [0.38.9] - 2026-09-28
+
+### Changed
+
+- **`handoff` verified is not CI-green
+  ([#3953](https://github.com/melodic-software/claude-code-plugins/issues/3953)).**
+  Claim provenance now marks a pending CI, merge, or unreturned check
+  `UNVERIFIED (<check>)`. A pending-verification field in the shape is parked in
+  `skills/handoff/reference/pending-ci-caveat.md`.
+
 ## [0.38.8] - 2026-09-28
 
 ### Changed

@@ -131,19 +131,31 @@ never stands in for the gate.
 
 | Hook | Acts on the file by | Gate | Verdict |
 |---|---|---|---|
-| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | its own `file_is_gitignored`, `markdown_format_lint_gitignored` | conforms; the local copy predates the shared helper |
+| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed |
 | `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671) |
 | `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671) |
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
 | `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
-| `typos-format` | reporting, and rewriting when write mode is on | none | **does not conform yet** (#4671); registers with no `if` filter |
-| `actionlint` (`actionlint-check`) | reporting only | none; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | **does not conform yet** (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
+| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
+| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
 
-`typos-format`, `actionlint`, and `markdown-format` do not carry `rewrite-guard.sh`, so bringing the first
-two in, and moving `markdown-format` onto the shared helper, means either carrying that lib or lifting
-the helper into `hook-utils.sh`. That choice stays open under #4671.
+All nine carry `rewrite-guard.sh` for `hook::gitignored_out_of_scope`. That file is the
+sanctioned home for the gate. Lifting the helper into `lib/hook-utils.sh` (acceptance item 2
+of #4671) is unpaid and out of scope.
+
+- **Claim:** a `hook-utils.sh` lift would bump all 17 carrying plugins and collide with
+  in-flight hook-utils PRs, for a helper only these nine format and lint hooks need.
+  `rewrite-guard.sh` is already the synced home (`scripts/sync-rewrite-guard.sh`). Step 4
+  `if` filters stay off for `typos-format` (language-agnostic) and `eol-normalizer` (every
+  write); a harness `if` cannot express "gitignored" anyway.
+- **Basis:** #4671 acceptance item 2. Re-measured 2026-09-28 on `origin/main`: 17
+  `plugins/*/hooks/hook-utils.sh` copies; six rewrite-guard carriers before this change,
+  nine after.
+- **As of:** 2026-09-28.
+- **Recheck:** a maintainer funds the 17-plugin hook-utils bump, or rewrite-guard and
+  hook-utils merge for another reason.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
 guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different
