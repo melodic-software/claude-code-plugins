@@ -62,6 +62,19 @@
         "Verifies each against an authoritative source or the live environment this turn, or flags it unverifiable",
         "Stays inline for a small fact-check rather than escalating to do-your-research-deep"
       ]
+    },
+    {
+      "id": 6,
+      "name": "pending-recommendations-grounded-and-restated",
+      "prompt": "Earlier you recommended pinning the shared lint action to v3 across our repos and making the new cache step the default. Go research and update your recommendations.",
+      "expected_output": "Treats both unsettled recommendations as audit units. For each it reads the affected code and lists its consumers (every repo that uses the shared action), checks current official docs and other tiered sources for consensus and recency, and reports it as old → new → why when the evidence moved it or unchanged with why, each carrying a Basis: label that is verified with a file:line, tool output, or URL fetched this session, or labeled judgment.",
+      "files": [],
+      "expectations": [
+        "Audits each pending recommendation, not only factual claims",
+        "Grounds the cross-repo recommendation in its consumers or blast radius before re-stating it",
+        "Reports each recommendation as old → new → why, or unchanged with why",
+        "Each re-stated recommendation carries a Basis: label, verified with a cited source or labeled judgment"
+      ]
     }
   ]
 }

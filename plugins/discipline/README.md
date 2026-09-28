@@ -79,6 +79,9 @@ source, verify every concrete specific against the live environment or an
 authoritative source, frame the problem before the solution, never act on
 ambiguity, and treat training-data recall as unverified. Audits recent
 turns for unbacked claims and skipped verification, then corrects forward.
+Pending recommendations are audited too: each is grounded per the
+[recommendation-basis convention](../../docs/conventions/recommendation-basis/README.md)
+and reported old → new → why, or unchanged with why.
 
 ```shell
 /discipline:do-your-research        # re-anchor + audit + correct
@@ -88,8 +91,8 @@ turns for unbacked claims and skipped verification, then corrects forward.
 
 The verification-fan-out tier of `do-your-research`. Same research
 discipline, heavier execution. Enumerates a **typed full inventory** of the
-session's claims: assumptions, asserted facts, concrete specifics, and
-load-bearing premises, as a checklist so coverage is provable, and verifies
+session's claims: assumptions, asserted facts, concrete specifics,
+load-bearing premises, and pending recommendations, as a checklist so coverage is provable, and verifies
 each against a primary source, throttled in bounded waves so a claim-heavy
 session does not trip a burst overload. Reports one ledger row per inventory
 item (no silent drops), each carrying verdict, source, source tier, consensus

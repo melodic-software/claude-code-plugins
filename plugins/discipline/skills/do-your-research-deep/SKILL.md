@@ -1,5 +1,5 @@
 ---
-description: "Fan out verification over a typed full inventory of the session's claims (assumptions, facts, specifics, premises) against primary sources at a configurable depth, with a per-item ledger. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or the session's judgment is the suspected bias. For one fact-check ('fact-check that'), use do-your-research."
+description: "Fan out verification over a typed full inventory of the session's claims (assumptions, facts, specifics, premises, recommendations) against primary sources at a configurable depth, with a per-item ledger. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or the session's judgment is the suspected bias. For one fact-check ('fact-check that'), use do-your-research."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
@@ -70,7 +70,11 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    - **concrete specifics**. Paths, filenames, defaults, flags, signatures,
      versions, any "standard/conventional X";
    - **load-bearing premises**, the conclusions the rest of the work now
-     depends on.
+     depends on;
+   - **recommendations**. Each option, verdict, default, or next step put to
+     the user and not yet settled, verified against the grounding bar in
+     `docs/conventions/recommendation-basis/README.md` in the marketplace
+     repository (affected code and blast radius, plus current consensus).
    The typing makes the inventory auditable: each item carries its type, and
    step 5's ledger has exactly one row per item. Do not spot-check one, and do
    not silently drop an item as "obvious", an obvious item is a `verified`
@@ -108,6 +112,9 @@ Run this in place of the base skill's inline audit and correct-forward steps:
      a lone source is weaker than a consensus, so note when only one was found;
    - **recency**. For a fact that can go stale (versions, pricing, APIs,
      defaults), the date or version the source reflects.
+   A **recommendation** row also carries its `Basis:` label and, when the
+   verdict is corrected, the re-statement as old → new → why; a verified one
+   says unchanged and why.
 
 ## What this skill does NOT do
 
