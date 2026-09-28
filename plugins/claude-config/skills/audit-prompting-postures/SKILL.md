@@ -1,6 +1,6 @@
 ---
 description: "Find posture guidance an instruction component lacks that the official prompting guide says its purpose needs: delegation, guardrails, stop rules, destructive-action confirmation. Report-only. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'does my CLAUDE.md say when to stop', 'align my components with the prompting guide'. Text present and wrong: audit-instructions."
-argument-hint: "[scope]: skills|agents|hooks|output-styles|claude-md|rules|all (default: all)"
+argument-hint: "[skills|agents|hooks|output-styles|claude-md|rules|all]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: anytime
   summary: Find posture guidance the prompting guide says a component needs but does not carry
 ---
+
+**Arguments.** `[skills|agents|hooks|output-styles|claude-md|rules|all]`. default: all
 
 ## Purpose
 

@@ -1,6 +1,6 @@
 ---
 description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
-argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root; give check one or more roots to gate several trees in one run"
+argument-hint: "[check|validate-evals|listing-budget] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: review
   summary: Static QA gate for skill frontmatter, caps, and evals
 ---
+
+**Arguments.** `[check|validate-evals|listing-budget] [<skill-or-root> ...]`. Full form: [check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root; give check one or more roots to gate several trees in one run
 
 ## Purpose
 

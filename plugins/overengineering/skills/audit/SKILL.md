@@ -1,12 +1,14 @@
 ---
 description: "Audit an existing enforcement surface under evidence-earned-keep: every incumbent is a retirement candidate until evidence earns its keep; security-class items cap at flag-for-human. Read-only: walks and reports; never mutates the surface. Use when: 'audit our enforcement surface', 'is our CI overengineered', 'are these hooks still earning their keep', 'do we still need this gate', or to name enforcement clutter. Not for proposing NEW automation. Sibling realign executes accepted findings."
-argument-hint: "[layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)"
+argument-hint: "[layer ...] [unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
+
+**Arguments.** `[layer ...] [unattended]`. Full form: [layer ...] [unattended]. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 

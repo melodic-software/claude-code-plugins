@@ -1,6 +1,6 @@
 ---
 description: "Inspect and turn off Claude Code's auto memory, the notes Claude writes itself per repo under ~/.claude/projects/<project>/memory/. Use when: 'make Claude stateless', 'stop Claude remembering', 'disable auto memory', 'turn off auto-memory', 'purge/clear/delete auto memory', 'wipe what Claude saved about this repo', 'does Claude have saved memories'. Actions: status (default, memory + settings across all scopes), disable (autoMemoryEnabled:false + CLAUDE_CODE_DISABLE_AUTO_MEMORY), purge (destructive delete, confirm-gated). Auto-memory only, not CLAUDE.md/rules (use /claude-memory:audit) and not transcripts/history."
-argument-hint: "[status|disable|purge]. Default: status"
+argument-hint: "[status|disable|purge]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -8,6 +8,8 @@ metadata:
   workflow-stage: anytime
   summary: Inspect, disable, or purge Claude Code's per-repo auto memory
 ---
+
+**Arguments.** `[status|disable|purge]`. Default: status
 
 ## Auto-memory snapshot
 

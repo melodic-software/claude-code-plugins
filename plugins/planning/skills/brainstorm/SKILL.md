@@ -1,12 +1,14 @@
 ---
 description: "Diverge before scoping. Turn a rough engineering/product problem into codebase-grounded candidate approaches ordered cheapest→most ambitious, capture which resonate, and hand off scoped. Use when: 'brainstorm', 'what are my options', 'places we could intervene', 'how could we approach X', 'ideas for this', 'explore some approaches', 'what could we do here', or any rough technical problem with no locked scope; skip when scope is already locked or the options are visual variations."
-argument-hint: "<rough-problem> (e.g., /planning:brainstorm users churn after onboarding)"
+argument-hint: "<rough-problem>"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: contract
   summary: Diverge into codebase-grounded candidate approaches before scoping
 ---
+
+**Arguments.** `<rough-problem>`. e.g., /planning:brainstorm users churn after onboarding
 
 ## Purpose
 

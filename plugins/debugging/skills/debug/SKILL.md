@@ -1,12 +1,14 @@
 ---
 description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
-argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
+argument-hint: "[bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
   summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
+
+**Arguments.** `[bug description or observation]`. e.g., /debugging:debug checkout times out for orders over \$1k
 
 ## Repository context. Gather first
 

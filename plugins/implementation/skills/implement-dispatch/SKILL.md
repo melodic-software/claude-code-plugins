@@ -1,12 +1,14 @@
 ---
 description: "Orchestrate worker subagents to execute an approved plan. The main window composes scope-fenced briefs, dispatches workers, verifies their returns against direct evidence, and builds main-side instead of editing inline. Use when: 'dispatch this to workers', 'run this with subagents', 'execute the plan in parallel', 'fan the plan out', or the plan routes phases to worker surfaces or the session runs autonomously; for interactive all-inline execution use /implementation:implement instead."
-argument-hint: "[phase] [--wave-cap <N>] (e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2 --wave-cap 3)"
+argument-hint: "[phase] [--wave-cap <N>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
   summary: Orchestrate worker subagents to execute an approved plan
 ---
+
+**Arguments.** `[phase] [--wave-cap <N>]`. e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2 --wave-cap 3
 
 ## Purpose
 

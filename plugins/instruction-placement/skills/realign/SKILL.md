@@ -1,6 +1,6 @@
 ---
 description: "Apply an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the audit artifact; never re-judges. Each accepted finding is the whole move. Hard-denied safety content has no path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. No blanket-approve. Audit proposes; this applies."
-argument-hint: "[finding-id ...]. Default: every finding awaiting a decision, in ranked order"
+argument-hint: "[finding-id ...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -20,6 +20,8 @@ metadata:
   workflow-stage: implement
   summary: Apply accepted placement findings behind a per-item human gate
 ---
+
+**Arguments.** `[finding-id ...]`. Default: every finding awaiting a decision, in ranked order
 
 ## Pre-computed context
 

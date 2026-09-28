@@ -46,8 +46,10 @@ is additional; it does not replace that contract.
   failure names this doc.
 - **WARN** when the value is over the budget, is a YAML block scalar, contains an em dash, contains
   a parenthetical example, contains `Default:` prose, or uses an unspaced `|` outside brackets.
-  Each warning names this doc. A warning does not fail the gate: existing hints that predate the
-  budget stay until an author moves the extra prose into the body.
+  Each warning names this doc. A warning does not fail the validator process. The shipping fleet
+  conforms, and `scripts/validate-plugin-contracts.test.sh` asserts zero warnings on that tree. An
+  edit that drifts warns here and fails that test until the hint is grammar again, with the
+  displaced prose moved into the skill body rather than deleted.
 
 A skill that omits the key is silent under this check.
 
@@ -58,3 +60,9 @@ A skill that omits the key is silent under this check.
 - It does not declare `arguments:` or describe substitution. That is a separate concern.
 - It does not restate the setup `check` / `apply` contract. plugin-philosophy owns that, and the
   same validator already enforces the leading `check`.
+
+## Versioning
+
+This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). Changing the budget, the bracket
+grammar, or whether a violation warns or fails is a major bump. Adding a malformed shape the gate
+warns on is a minor bump. Docs-only clarification is a patch.

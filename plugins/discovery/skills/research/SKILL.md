@@ -1,12 +1,14 @@
 ---
 description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Dispatches a subagent by default. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say'. This is the right skill for a single topic, including a small one, and for a local folder outside any repository or machine state. For a multi-topic pass, use research-deep."
-argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
+argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: research
   summary: Multi-source external research with source tiers and a coverage ledger
 ---
+
+**Arguments.** `[topic]`. e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization
 
 ## Repository context. Gather first
 

@@ -1,12 +1,14 @@
 ---
 description: "Lock in a verified performance win: ratchet its counter in CI with a checked-in ceiling, so a regression fails the build and a lower count proposes a lower ceiling by PR. Proposes files; a human approves and merges. Use when: 'protect this win', 'ratchet this counter', 'stop this regressing', 'add a performance guardrail to CI'. Runs once after /performance:verify reports MET on a counter. Skip when the result is a duration only, or NOT MET."
 user-invocable: true
-argument-hint: "[<counter or claim>] (e.g. /performance:protect the 4-to-1 spawn reduction)"
+argument-hint: "[<counter or claim>]"
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
   summary: Hold a verified counter win with a CI ceiling a human merges
 ---
+
+**Arguments.** `[<counter or claim>]`. e.g. /performance:protect the 4-to-1 spawn reduction
 
 ## Purpose
 

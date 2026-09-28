@@ -1,12 +1,14 @@
 ---
 description: "Explore the local codebase before changes; a folder outside any repo, or machine state, is research's. Persists EXPLORE.md via a fresh-context subagent. Use when: 'explore the codebase', 'what exists for X', 'how does this work', 'trace the dependencies', 'what tests cover this', or as step 1 before a code change. Skip a bare locate ('where is X', 'what calls Y'): dispatch the built-in Explore agent. Skip why it was built that way: '/discovery:trace-intent'."
-argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
+argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: explore
   summary: Explore code, history, tests, and config before changing anything
 ---
+
+**Arguments.** `[scope]`. e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config
 
 ## Repository context. Gather first
 

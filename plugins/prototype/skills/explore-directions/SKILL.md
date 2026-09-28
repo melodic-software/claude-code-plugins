@@ -1,6 +1,6 @@
 ---
 description: "Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default (real header, data, and density) or as a self-contained HTML mockup; the user flips between variants, keeps one or bits of each, and discards the rest. When the bundled design skill resolves in your session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
-argument-hint: "[scope] (e.g., /prototype:explore-directions settings page)"
+argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -9,6 +9,8 @@ metadata:
   workflow-stage: plan
   summary: Throwaway UI variations answering what should this look like
 ---
+
+**Arguments.** `[scope]`. e.g., /prototype:explore-directions settings page
 
 ## Repository context. Gather first
 

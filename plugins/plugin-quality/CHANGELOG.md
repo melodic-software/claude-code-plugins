@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.30] - 2026-09-28
+
+### Changed
+
+- **Argument hints** on `audit` stay inside the 100-character house style
+  ([#3542](https://github.com/melodic-software/claude-code-plugins/issues/3542)).
+  Examples, defaults, and flag catalogs that exceeded the budget now live in the skill body.
+
 ## [0.7.29] - 2026-09-28
 
 ### Changed

@@ -1,12 +1,15 @@
 ---
 description: "When the bundled run skill resolves in your session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[unattended] [scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
+argument-hint: "[unattended] [scenario]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Start the app, drive real flows, capture evidence
 ---
+
+**Arguments.** `[unattended] [scenario]`. e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui
+
 ## Native step: run (bundled skill)
 
 When the bundled `run` skill resolves in your session, invoke it to launch the app, then layer

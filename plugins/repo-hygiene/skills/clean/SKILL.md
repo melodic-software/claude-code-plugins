@@ -2,7 +2,7 @@
 description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), stash (stash audit/triage), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all, and fleet batch forms of the selective tiers (caches-batch / build-batch / git-batch / all-batch over many repos behind one gate). Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when reclaiming disk space in a repo, clearing tool caches or build artifacts, pruning git metadata, auditing stale branches or stashes, or resetting a working tree to match origin, in one repository or across a fleet: 'clean', 'free up disk space', 'fresh pull', 'stale branches', 'repo hygiene'. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)"
+argument-hint: "[scan|caches|build|git|stash|tree|all|batch-modes|aliases…]"
 allowed-tools:
   # Read-only scripts only, one narrow rule each. The mutating scripts
   # (clean-caches / clean-build / git-prune / git-tree-reset[-batch] /
@@ -50,6 +50,8 @@ metadata:
   workflow-stage: anytime
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
+
+**Arguments.** `[scan|caches|build|git|stash|tree|all|batch-modes|aliases…]`. Full form: [scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)
 
 ## Repository context. Gather first
 

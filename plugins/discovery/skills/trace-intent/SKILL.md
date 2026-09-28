@@ -1,12 +1,14 @@
 ---
 description: "Reconstruct WHY something was built the way it was from evidence outside the code, and report what could not be found. Use when: 'why was this built this way', 'why did we pick X over Y', 'what were they thinking', 'design rationale', 'what problem was this solving', 'why does this still exist', 'archaeology on this decision'. Skip what the code does ('/discovery:explore'); whether a convention should still hold ('/discipline:reason-dont-recite'); a current external fact ('/discovery:research')."
-argument-hint: "<target> (e.g., /discovery:trace-intent the retry backoff in api/client.ts, /discovery:trace-intent why we chose the local-markdown adapter)"
+argument-hint: "<target>"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: explore
   summary: Reconstruct why a thing was built this way, from evidence outside the code
 ---
+
+**Arguments.** `<target>`. e.g., /discovery:trace-intent the retry backoff in api/client.ts, /discovery:trace-intent why we chose the local-markdown adapter
 
 ## Repository context. Gather first
 

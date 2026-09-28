@@ -1,6 +1,6 @@
 ---
 description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: <owner/repo>. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
-argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier"
+argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,8 @@ metadata:
   summary: Run one repo's PR queue as a standing merge lane
   cadence: continuous
 ---
+
+**Arguments.** `<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]`. Full form: <owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier
 
 ## Variables
 

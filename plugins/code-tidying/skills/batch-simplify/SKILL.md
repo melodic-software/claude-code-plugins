@@ -2,11 +2,13 @@
 description: "Batch-run simplification across changed files or a whole repository, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'forgot to run simplify', 'catch up on simplify', sweeping a branch, repo, or directory, or after a multi-session sprint. Skip for single-file cleanup. Use /simplify instead."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[time-window | branch | repo] [path...] [docs] [override] (e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h)"
+argument-hint: "[time-window | branch | repo] [path...] [docs] [override]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
 ---
+
+**Arguments.** `[time-window | branch | repo] [path...] [docs] [override]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
 
 ## Repository context. Gather first
 
