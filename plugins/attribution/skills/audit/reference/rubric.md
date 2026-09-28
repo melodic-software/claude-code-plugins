@@ -90,6 +90,18 @@ This is the in-flight discipline's own boundary, cited for provenance: `discipli
 in the marketplace repository owns "do not copy while writing"; this carve-out is its read at
 audit time.
 
+**Same-organization sibling repositories are not owned here.** A passage that restates what another
+repository in the same org documents, even when the same people maintain both, is **external** for
+this audit: each repository drifts on its own schedule, and the "could this have been written
+without the source in hand?" test is not enough to treat a sibling README as first-party. Judge it
+like any other upstream restatement (pointer, quote, or stamped record), or close it only when a
+breadcrumb or nomination already names the sibling repo as the source.
+
+**Claim:** sibling-org repos are external at audit time unless the passage cites that sibling as its
+source. **Basis:** measured closure gaps in org `.github` audits (#4577). **As of:** 2026-09-28.
+**Recheck trigger:** a consumer policy file declares same-org siblings owned, or a golden case is
+added that turns on this boundary.
+
 ### 5. Distilled-product architectures
 
 Surfaces whose entire product is a distillation of external material, where the distillation is

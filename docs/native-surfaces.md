@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
-| Built-in CLI commands | 3 | 2 | complementary 3 |
+| Built-in CLI commands | 5 | 2 | complementary 5 |
 | Bundled skills | 13 | 12 | complementary 12, defer 1 |
 | Plugin-backed built-ins | 1 | 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
@@ -35,6 +35,36 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - documented at code.claude.com/docs/en/commands.md: /export renders the current conversation as plain text to clipboard or a file (optional filename argument), no format or redaction flags
   - output written to user paths sits outside the cleanupPeriodDays retention sweep (path-scoped to ~/.claude), which is the durability property the suggestions exist for
   - suggestion sites: plugins/session-flow/skills/clean-stop/SKILL.md (durability sweep), handoff/SKILL.md (prompt-only close), retro/SKILL.md (post-chain-coverage offer); all body text, presence-gated with the canonical token, none baked into a description or Boundary section
+- **Observation:** live-roster: probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day (2026-08-24)
+- **Recheck trigger:** a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape (verified 2026-08-24)
+- **Baked:** description phrase no · Boundary section no
+
+### `export` → `session-flow:handoff`
+
+- **Verdict:** `complementary`: No component duplicates /export and none may invoke it: built-ins are user-invoked only, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
+- **Native surface:** `export` (built-in command; markers: none)
+- **Our component:** `session-flow:handoff` (skill)
+- **Evidence:**
+  - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
+  - documented at code.claude.com/docs/en/commands.md: /export renders the current conversation as plain text to clipboard or a file (optional filename argument), no format or redaction flags
+  - output written to user paths sits outside the cleanupPeriodDays retention sweep (path-scoped to ~/.claude), which is the durability property the suggestions exist for
+  - suggestion sites: plugins/session-flow/skills/clean-stop/SKILL.md (durability sweep), handoff/SKILL.md (prompt-only close), retro/SKILL.md (post-chain-coverage offer); all body text, presence-gated with the canonical token, none baked into a description or Boundary section
+  - suggest site: plugins/session-flow/skills/handoff/SKILL.md
+- **Observation:** live-roster: probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day (2026-08-24)
+- **Recheck trigger:** a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape (verified 2026-08-24)
+- **Baked:** description phrase no · Boundary section no
+
+### `export` → `session-flow:retro`
+
+- **Verdict:** `complementary`: No component duplicates /export and none may invoke it: built-ins are user-invoked only, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
+- **Native surface:** `export` (built-in command; markers: none)
+- **Our component:** `session-flow:retro` (skill)
+- **Evidence:**
+  - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
+  - documented at code.claude.com/docs/en/commands.md: /export renders the current conversation as plain text to clipboard or a file (optional filename argument), no format or redaction flags
+  - output written to user paths sits outside the cleanupPeriodDays retention sweep (path-scoped to ~/.claude), which is the durability property the suggestions exist for
+  - suggestion sites: plugins/session-flow/skills/clean-stop/SKILL.md (durability sweep), handoff/SKILL.md (prompt-only close), retro/SKILL.md (post-chain-coverage offer); all body text, presence-gated with the canonical token, none baked into a description or Boundary section
+  - suggest site: plugins/session-flow/skills/retro/SKILL.md
 - **Observation:** live-roster: probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day (2026-08-24)
 - **Recheck trigger:** a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape (verified 2026-08-24)
 - **Baked:** description phrase no · Boundary section no
@@ -141,17 +171,18 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description's presence phrasing predates the registry and carries no gate token.
+- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description carries the gated routing phrase.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
-  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
+  - our description: 'When the bundled design skill resolves in your session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
   - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)
   - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on
 - **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
 - **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `visualization:visualize`
 
@@ -167,7 +198,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on
 - **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
 - **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
-- **Baked:** description phrase no · Boundary section yes
+- **Baked:** description phrase yes · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design-sync` → `visualization:visualize`
 
@@ -201,7 +233,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `doctor` → `claude-ops:audit-performance`
 
-- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Registry-row only: the routing line for this pair lives on audit-install-state, which owns the shared surface description for the plugin.
+- **Verdict:** `complementary`: Same native surface, a different one of our lanes. audit-performance is a timed diagnostic capture taken at the moment something feels slow: CLI version, retention-sweep health, a timed stat-walk standing in for the product's own sweep cost, session and plugin-fleet counts, and a process census, all interpreted against a bundled known-issues reference. Bundled `doctor` reports health and offers fixes; it does not capture a timed slowness profile. Complementary by construction: this skill never reads transcripts, and `/doctor` does. Body-level compose row only (capture first, `/doctor` second); the routing line for the shared surface description still lives on audit-install-state.
 - **Native surface:** `doctor` (bundled skill; markers: gated)
 - **Our component:** `claude-ops:audit-performance` (skill)
 - **Evidence:**
@@ -210,7 +242,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-09-11)
+- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill, or this skill's Never-read rule starts covering transcripts (verified 2026-09-28)
 - **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

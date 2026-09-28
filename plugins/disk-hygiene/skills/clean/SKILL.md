@@ -266,6 +266,14 @@ walked directory whose `logical_size` is `0` with an empty `size_qualifiers` is 
 while a `logical_size` of `null` carrying the `not-walked` qualifier is an uninventoried coverage gap. Never
 fold the first into a byte-centric roll-up that drops it, and never read it as the second.
 
+Those ranking preferences stay a model instruction. The engine does not grow a ranking signal on
+the destructive surface.
+**Claim:** ranking by tier, location sensitivity, and provenance strength is not an engine
+primitive; the provenance mandate does not rest on a coded ranker. **Basis:** operator park
+2026-09-27 on #3858 (keep attended, stay parked): ranking on a deletion-adjacent surface is a
+design question, not a missing sort key. **As of:** 2026-09-28. **Recheck:** an operator unpark
+of #3858, or a documented case where byte-size ranking caused a wrong deletion offer.
+
 **Lead the frontier with `children_rollup`.** The snapshot carries one row per immediate child the run covered, whatever
 that child's coverage, and `walked` is the single discriminator: `true` means every aggregate is exact; `false` means
 they are all `null` with `unwalked_reasons` naming the cause, never `0`, never a partial subtree sum. Rank on

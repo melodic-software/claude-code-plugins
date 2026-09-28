@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.6] - 2026-09-28
+
+### Changed
+
+- **`audit-derivability` routing-only docs (#4573, F1).** Factor 1 and the spot-test protocol now
+  cover pointer-only agent docs (`convert-to-pointer (already satisfied)`), with a worked example
+  for routing-only root `CLAUDE.md`.
+
 ## [0.23.5] - 2026-09-28
 
 ### Changed
