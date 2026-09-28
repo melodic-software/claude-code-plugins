@@ -3617,15 +3617,19 @@ def run_handoff_apply(
     clear path is statted again immediately before its recycle. There is no
     remembered verdict from an earlier call: a declined prompt is a new call.
     """
-    verified = handoff_verify(snapshot, approved)
-    by_verdict = {item["path"]: item for item in verified["verdicts"]}
     target, _mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     path_set = set(entries)
     recycled: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
+    verdicts: list[dict[str, Any]] = []
     for relative in approved:
-        verdict = by_verdict.get(relative, {})
+        # After the human approved this process: one path, then its recycle.
+        # A later path is not judged by a verdict that aged while earlier
+        # paths were recycled.
+        verified = handoff_verify(snapshot, [relative])
+        verdict = verified["verdicts"][0]
+        verdicts.append(verdict)
         if verdict.get("verdict") != "clear":
             skipped.append(
                 {
@@ -3683,7 +3687,7 @@ def run_handoff_apply(
         "tier": tier,
         "recycled": recycled,
         "skipped": skipped,
-        "verdicts": verified["verdicts"],
+        "verdicts": verdicts,
         "paths_recycled": len(recycled),
     }
 

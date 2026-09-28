@@ -11059,8 +11059,20 @@ class EngineGrammarTests(unittest.TestCase):
         words = [*self.head(spec, chosen), *self.data_root_chunk(spec)]
         if not optionals:
             return words
+        chosen_names = {
+            (
+                chosen.name
+                if chosen is not None and chosen.name in group
+                else group[0]
+            )
+            for group in spec.one_of
+        }
         for flag in spec.optional:
-            if self.is_data_root(flag) or flag.name in self.grouped(spec):
+            if self.is_data_root(flag):
+                continue
+            if flag.name in self.grouped(spec):
+                if flag.repeatable and flag.name in chosen_names:
+                    words.extend(self.chunk(flag))
                 continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
@@ -11408,7 +11420,7 @@ class HandoffApplyTests(unittest.TestCase):
                 (root / "keep.tmp").write_text("changed", encoding="utf-8")
                 second = hygiene.run_handoff_apply(snapshot, ["keep.tmp"], "high")
             self.assertEqual(["keep.tmp", "drop.tmp"], calls[:2])
-            self.assertEqual(2, len(verifies))
+            self.assertEqual([["keep.tmp"], ["drop.tmp"], ["keep.tmp"]], verifies)
             self.assertEqual(["keep.tmp"], [item["path"] for item in first["recycled"]])
             self.assertEqual("recycle-refused", first["skipped"][0]["outcome"])
             self.assertTrue((root / "drop.tmp").exists())

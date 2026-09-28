@@ -37,7 +37,7 @@ engine plan:
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
+   `--path` may repeat, one flag per path in the tier. For the file form, write the
    approved list to `<run-dir>/handoff-paths.json` as
    `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
    `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
