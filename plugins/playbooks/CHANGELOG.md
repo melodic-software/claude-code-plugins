@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.10] - 2026-09-28
+
+### Added
+
+- `skill-authoring` documents the consumer gotchas cascade tier (#3547).
+
 ## [0.13.9] - 2026-09-28
 
 ### Fixed
