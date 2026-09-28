@@ -9,6 +9,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **The dispatcher rows are exec form on `node`** ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). Each `run-guards.sh` registration is `"command": "node"` with `hooks/exec-bash.mjs`, the dispatcher script, and that script's arguments in `args`. `exec-bash.mjs` spawns a real bash and forwards stdin and the exit code. On Windows it uses `CLAUDE_CODE_GIT_BASH_PATH` when that file is named `bash.exe`, `sh.exe`, `bash`, or `sh`, otherwise `Git\bin\bash.exe` or `Git\usr\bin\bash.exe`. It does not use `System32\bash.exe`. Bare `bash` with the script in `args` stays illegal. `workflow-resilience-check.sh` is the same exec form, with `--require-true WORKFLOW_RESILIENCE_CHECK_ENABLED` so the default-off checker exits in node before bash starts. Node is the hook parent; bash still sources every guard in one process.
 
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **PostToolUse path adjudication no longer starts awk, tr, or cut** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). A non-word anchor, including a path that contains `/`, is counted in-process, overlapping starts included. The skip-worktree tag is the first character of `git ls-files -v` after carriage returns are stripped in the shell. A cold finding fire fell from 25 to 19 process creations and execs, and the same fire at that HEAD from 19 to 13. The seven successful execs on the cold finding fire are the shell, the dispatcher, and five git processes. Those five are the check: repo root, the tracked list, HEAD, the deleted-path walk, and the skip-worktree tag. Verdicts are unchanged. The k × S goal is recorded in `reference/edit-write-guards/PLAN.md`.
+
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, the same fire at that HEAD fell to 19, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as typos-format #4677). Blocking guards stay synchronous. The k × S targets are not set here.
+
 ## [0.41.0] - 2026-09-28
 
 ### Added
