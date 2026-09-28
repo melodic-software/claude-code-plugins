@@ -1,10 +1,16 @@
 # Changelog: session-flow plugin
 
-## [0.38.12] - 2026-09-28
+## [0.38.13] - 2026-09-28
 
 ### Changed
 
-- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
+- Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\bash.exe`. A row that needs a shell stays shell form.
+
+## [0.38.12] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `setup` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
 
 ## [0.38.11] - 2026-09-28
 
