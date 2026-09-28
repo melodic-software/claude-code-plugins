@@ -166,12 +166,14 @@ builtin_hold() {
     printf '%s' "$base"
     return 0
     ;;
+  *) ;;
   esac
   case "$short" in
   fix/2648-tzdata-degradation | fix-2618-belt-run-scoped-lifetime | *-main)
     printf '%s' "$short"
     return 0
     ;;
+  *) ;;
   esac
   return 1
 }
