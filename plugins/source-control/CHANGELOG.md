@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.4] - 2026-09-28
+
+### Changed
+
+- **babysit-loop: settle the promotion-evidence implementation plan for [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).** New `promotion-evidence-implementation-plan.md` records Claim/Basis, exit criteria, and phased work before code wires `check-security-binding.mjs --evidence` through the trusted bootstrap. `promotion-evidence-resolution.md` links the plan; fail-closed behaviour is unchanged until Phase 2 ships.
+
 ## [0.62.2] - 2026-09-28
 
 ### Changed
