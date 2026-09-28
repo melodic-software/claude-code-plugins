@@ -101,14 +101,19 @@ complete set.
   needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
 - A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
   is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, so do not flag it
-- On a Windows-targeting repo, exec-form `command` resolves to a real executable. `bash` there
-  finds the WSL relay and the hook silently never launches
+- On a Windows-targeting repo, judge exec-form `command` resolution from the Category D
+  checklist row. That row carries the four-part record for the hooks-page Windows rule.
 - No duplicate hooks (same script registered twice for same event)
 - Hook events are valid (cross-reference against official docs)
 - **Hook-suppression levers are read and reported**, because a hook that cannot run is not a control:
   `disableAllHooks` in the settings-declared layer, and `allowManagedHooksOnly` /
-  `strictPluginOnlyCustomization` in the managed layer. Report each as set or unset, and say which
-  of the inventoried hooks each one switches off. This is a state reading, not a finding on its own.
+  `strictPluginOnlyCustomization` in the managed layer. `strictPluginOnlyCustomization` is `true`
+  or a per-surface array of `"skills"`, `"agents"`, `"hooks"`, and `"mcp"`. Only `true` or an array
+  that includes `"hooks"` switches hooks off. `"mcp"` blocks MCP servers from user and project
+  settings (`~/.claude.json` and `.mcp.json`) and does not switch hooks off; v2.1.257 closed the
+  `/mcp` reconnect bypass. Report each as set or unset, name the surfaces a customization array
+  locks, and say which of the inventoried hooks each one switches off. This is a state reading, not
+  a finding on its own.
   Category B's third baseline narrowing depends on this reading: it may not downgrade a missing deny
   rule on the strength of a hook any of these has already disabled
 

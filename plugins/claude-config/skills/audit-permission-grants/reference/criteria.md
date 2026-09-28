@@ -26,7 +26,7 @@ the config root. Frontmatter files under a `vendor/` path segment are skipped: t
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
 effect and a finding on them would be a false positive. Findings are advisory in the default report
 mode and under `--count`, which always exit 0 however many findings they print. They are gating under
-`--check`, which exits 1 on an error-tier finding (P2, P2b, P4), and under `--strict`, which adds the
+`--check`, which exits 1 on an error-tier finding (P2, P2b, P4, P5), and under `--strict`, which adds the
 warning tier (P1, P3); combining the flags applies the strictest. **An environment gap exits 2 instead
 of reporting a clean bill**: a missing `jq`, a missing shared pattern library, a scan root that
 resolves to neither a git toplevel nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not
@@ -47,7 +47,14 @@ Findings are printed as `<severity> [<check>] <source>: <detail>`.
 
 Every run ends with a **coverage block**: `allowed-tools` blocks parsed and candidate files walked,
 allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported distinctly, because
-an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant),
+an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant).
+A user, project, or local file that is not valid JSON is a Settings Error: after continue, `/status`
+names the file, and an unparsable user `settings.json` pauses the retention sweep and warns in
+`/status`. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses
+startup (exit 1) and names the source, from v2.1.259. Do not describe that managed failure as silent
+non-enforcement. Basis: [settings](https://code.claude.com/docs/en/settings) and
+[managed settings](https://code.claude.com/docs/en/managed-settings). Verified 2026-09-28. Recheck
+when either page changes what an unparsable settings document does at startup.
 plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
 an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
 denominator with every input readable; a run that parsed nothing prints `NOTHING TO AUDIT`, and a run
@@ -226,6 +233,23 @@ self-granted permission rule is inert; the operative rule must be added by the o
 **Recommend**: remove the inert block; document an operator-setup note for the bare-name rule instead.
 
 ---
+
+## P5: Malformed Tool(content) rule [error]
+
+**What**: A `permissions.allow` entry with text after the closing parenthesis, such as `Bash(ls) x`.
+Parentheses inside the specifier are literal (`Edit(./Finance (2024)/**)` is one rule). Text after
+the specifier is not.
+
+**How to check**: the detector walks each allow rule with the shared token grammar and reports a
+remainder that is not another rule.
+
+**Why**: Claude Code reports this shape as invalid settings. A scan that kept only the token would
+call `Bash(ls) x` a narrow `Bash(ls)` grant. Basis:
+[permissions](https://code.claude.com/docs/en/permissions) ("Parentheses inside the specifier are
+literal"). Verified 2026-09-28. Recheck when that page changes how a rule with trailing text is
+reported.
+
+**Recommend**: delete the trailing text, or rewrite the rule as one `Tool(specifier)`.
 
 ## Related but out of scope (route elsewhere)
 
