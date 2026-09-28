@@ -83,6 +83,7 @@ REGISTRY=(
   "check-fleet-finding-test-coverage.sh|-|-|-"
   "check-guardrails-ps-differential.sh|jq|-|-"
   "check-hook-exec-form.sh|jq|-|hook_exec_form"
+  "check-exec-form-windows-probe.sh|jq|-|exec_form_windows_probe"
   "check-hook-slow-shapes.sh|jq|-|hook_slow_shapes"
   "check-hook-userconfig-argv.sh|jq|-|hook_userconfig_argv"
   "check-hook-wiring-liveness.sh|jq|-|-"
@@ -245,6 +246,19 @@ recipe::hook_userconfig_argv() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-userconfig-argv.sh
 }
 
+recipe::exec_form_windows_probe() { # <clean|violation>
+  local body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["x.mjs"]}]}]}}'
+  # shellcheck disable=SC2016
+  [[ "$1" == violation ]] && body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","args":["a"]}]}]}}'
+  fixture_tree::build f \
+    --sut "$SELF_DIR/check-exec-form-windows-probe.sh" \
+    --sut "$SELF_DIR/check-hook-exec-form-frontmatter.py" --plugins || return 2
+  mkdir -p "$f/plugins/alpha/hooks" "$f/.github"
+  cp "$REPO_ROOT/.github/requirements-ci.txt" "$f/.github/requirements-ci.txt"
+  printf '%s\n' "$body" >"$f/plugins/alpha/hooks/hooks.json"
+  capture run_in "$f" bash scripts/check-exec-form-windows-probe.sh
+}
+
 recipe::hook_exec_form() { # <clean|violation>
   local body="$HOOKS_LABELED"
   [[ "$1" == violation ]] && body='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash","args":["x.sh"]}]}]}}'
@@ -383,6 +397,7 @@ declare -A VIOLATION_NEEDLE=(
   [hooks_description]='HOOKS DESCRIPTION:'
   [hook_userconfig_argv]='USERCONFIG ARGV:'
   [hook_exec_form]='EXEC-FORM HOOK:'
+  [exec_form_windows_probe]='EXEC-FORM WINDOWS:'
   [hook_slow_shapes]='ENV SHEBANG:'
   [killswitch_hoist]='VIOLATION:'
   [queue_front_matter]='VIOLATION:'
