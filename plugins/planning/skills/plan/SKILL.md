@@ -84,16 +84,13 @@ Before presenting at Step 5, persist the composed plan as a **draft** to `<contr
 
 This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
 
-
 **The gate does not vanish when no human is present.** On an unattended run (a routine, a dispatched worker, any session with nobody to answer), approval proceeds only under a standing mandate that covers this plan, and its basis is recorded in PLAN.md's `Approval:` line: the mandate, who granted it and where, and the review surface that stands in for the human (for example the PR). With no such mandate, stop here and report the plan as unapproved. Listed changes stay uncleared either way ("Plan changes after the Brief", its "Unattended run" bullet).
-
 
 ### Step 5: Present for Approval
 
 Present the final plan to the user. The plan is a proposal, not a commitment. The user approves, modifies, or rejects it before execution begins.
 
 Unattended approval is the Gates rule under Planning Process, above.
-
 
 **Include in the presentation:**
 

@@ -181,7 +181,6 @@ Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/166
 - **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
 - **Unconditional expiry.** **2.1.244, or 2026-11-07. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.
 
-
 ## What this skill does NOT do
 
 - **Does not push, create, merge, or close PRs**, `/source-control:pull-request` owns the back-half (prep, create, monitor, merge).
