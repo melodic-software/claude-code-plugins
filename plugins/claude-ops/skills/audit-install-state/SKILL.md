@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of `~/.claude` and `~/.claude.json`. When the bundled doctor skill resolves in your session, prefer it for a quick fix; this skill for the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
-argument-hint: "[root]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
+argument-hint: "[root] [unattended]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -59,11 +59,11 @@ routinely conflated:
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
   before anything is called stale.
 
-**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
-anything you want fixed in place. Prefer this skill when the question is *what is actually in this
-tree, and what does nothing manage*, the classification, the evidence tags, and the per-file CSV
-have no native counterpart. Its sibling `/claude-ops:audit-performance` owns the timed
-slowness-capture lane against the same native surface; that description is not repeated here.
+**Routing.** The person-invoked `/doctor` suggestion is at the end of Phase 6. Prefer this skill
+when the question is *what is actually in this tree, and what does nothing manage*, the
+classification, the evidence tags, and the per-file CSV have no native counterpart. Its sibling
+`/claude-ops:audit-performance` owns the timed slowness-capture lane against the same native
+surface; that description is not repeated here.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only, so
 never chain into a `doctor` fix on this skill's behalf. Surface the finding, and let the user
@@ -181,6 +181,12 @@ flag into the report. Check `csv.rows` against `totals.files` before claiming co
 CSV path and row count, and state that the tree was live (`quiesced: false`). Fan-out cross-review
 and the upstream-claim rule (raw markdown only; absence from a summary is not evidence of absence):
 [reference/evidence-discipline.md](reference/evidence-discipline.md).
+
+### Person-invoked `/doctor`
+
+If /doctor is available in your session (claim: `/doctor` is reserved for the person to run; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, recorded in the Boundary above; as of 2026-09-06; recheck: either page drops that gate), run it for the quick health-and-fix pass this read-only inventory does not perform.
+
+When the argument `unattended` is present, record that sentence in the report's final section and do not ask.
 
 ## Next
 

@@ -1,6 +1,6 @@
 ---
 description: "Slowness diagnostic that never 'fixes', run while Claude Code is slow, before restarting or deleting: version, retention sweep, install bloat, hook and subagent fan-out, and a Windows kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /claude-ops:known-issues."
-argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
+argument-hint: "[unattended] [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -46,15 +46,14 @@ conflated whenever a session feels slow:
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
-**Routing.** Capture first, `/doctor` second. This skill is capture-at-moment tooling: a report
-taken after the stall ends supports no conclusion about the incident, and prepending a
-prerequisite adds latency on a host that is already slow. `/doctor` reads transcripts, which
-this engine never does, and that half is not time-sensitive. When `doctor` resolves in your
-session, run it after this capture for the transcript-derived half and for anything the user
-wants fixed in place, and prefer `claude doctor` when a session will not start. Prefer this
-skill when the question is why it is slow right now: the timings, the fan-out layer, and the
-retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns the
-deep inventory of the tree against the same surface.
+**Routing.** Capture first. This skill is capture-at-moment tooling: a report taken after the
+stall ends supports no conclusion about the incident, and prepending a prerequisite adds latency
+on a host that is already slow. `/doctor` reads transcripts, which this engine never does, and
+that half is not time-sensitive. The person-invoked suggestion is at the end of this skill.
+Prefer `claude doctor` when a session will not start. Prefer this skill when the question is why
+it is slow right now: the timings, the fan-out layer, and the retention-sweep state have no
+native counterpart. Its sibling `audit-install-state` owns the deep inventory of the tree against
+the same surface.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
 it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
@@ -133,9 +132,9 @@ Lead with `sweep_health.findings`, then work the suspects in order. For each, st
 evidence supports and what it cannot distinguish. This report is one sample, not a longitudinal
 study.
 
-When `doctor` resolves in your session, run it after this capture for the transcript-derived
-half of a slowness diagnosis. This engine never reads `history.jsonl` or transcript files; `/doctor`
-does. That pass is not time-sensitive. Do not prepend it.
+This engine never reads `history.jsonl` or transcript files; `/doctor` does. That pass is not
+time-sensitive. Do not prepend it. The suggestion at the end of this skill is where that pass is
+offered.
 
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of
@@ -271,6 +270,12 @@ Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the
 per-keystroke render cost), and every entry in `timings_seconds` (a slow phase names a slow
 subsystem).
+
+## Run-end suggestion
+
+Shared `/doctor` surface facts live in audit-install-state's Boundary for the bundled `doctor` skill. If /doctor is available in your session (claim: `/doctor` is reserved for the person to run; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the commands and skills references recorded in that Boundary; as of 2026-09-06; recheck: those pages drop the gate), run it for the transcript-derived half of a slowness diagnosis after this capture, not before.
+
+When the argument `unattended` is present, record that sentence in the report's final section and do not ask.
 
 ## Gotchas
 

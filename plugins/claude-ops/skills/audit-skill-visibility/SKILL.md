@@ -1,6 +1,6 @@
 ---
 description: "When the built-in skill-doctor command resolves in your session, prefer it for cost; when the bundled doctor skill resolves in your session, for health; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
-argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
+argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,6 +8,12 @@ metadata:
   summary: Which skills the model can actually see, which are starved, and which are unobservable
   cadence: weekly
 ---
+
+## Run-start suggestion
+
+If /skill-doctor is available in your session (claim: `/skill-doctor` is a built-in command reserved for the person to run, present from Claude Code 2.1.252 when the session fetches feature flags; basis: the changelog entry that added it and the commands reference, recorded in reference/bundled-doctor.md; as of 2026-09-11; recheck: a later release note renames it or merges it into `/doctor`), run it for the one-shot unused-versus-context-cost list when that list is the whole ask.
+
+When the argument `unattended` is present, record this sentence in the report and do not ask.
 
 ## Purpose
 
@@ -366,10 +372,10 @@ conflated whenever a fleet looks unused:
   computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
   withholding every verdict the span cannot support. Read-only.
 
-**Routing.** When either native surface resolves in your session, prefer it for "which skills are
-unused versus their cost, right now". Prefer this skill when the answer has to survive a young
-usage store, when starved and unwanted must be told apart, or when the question is whether skill
-B fires where skill A ran.
+**Routing.** The run-start suggestion covers `/skill-doctor` when the unused-versus-cost list is
+the whole ask. The run-end suggestion covers `/doctor`. Prefer this skill when the answer has to
+survive a young usage store, when starved and unwanted must be told apart, or when the question is
+whether skill B fires where skill A ran.
 
 **Mutation gate.** `doctor` disables. This skill never disables, deletes, or edits a skill, so
 never chain into a `doctor` disable on this skill's behalf; report the classification and let the
@@ -379,6 +385,12 @@ user act.
 environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
 gate; this section states what to do when one resolves, never that it is present. The four-part
 records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+
+## Run-end suggestion
+
+If /doctor is available in your session (claim: `/doctor` is reserved for the person to run; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the bundled-skills section of the skills reference, recorded in reference/bundled-doctor.md; as of 2026-09-11; recheck: that page changes the exemption), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
+
+When the argument `unattended` is present, record this sentence in the report and do not ask.
 
 ## Gotchas
 
