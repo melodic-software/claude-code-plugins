@@ -25,6 +25,10 @@ Pin down, from the request or by asking (ask only for what changes the output):
 
 Vague request: pick defaults, state them in one line, proceed.
 
+Write `brief.md` beside the spec before the first render, with 2 to 6 done criteria, as
+[`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md) describes. A later run that finds it there
+reads it and does not ask again. Every review round lists each done criterion as pass or fail.
+
 MZ's native Effekseer format (`.efkefc`) is not a pixel sheet. Say so and offer this skill's cell
 sheet instead. Do not write an `.efkefc` file.
 

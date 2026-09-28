@@ -1,14 +1,26 @@
 """RPG Maker MZ A2 ground sheet: 8 columns of 96x144 blocks, 4 rows, 768x576.
 
-The block size and sheet size are the A2 row in reference/engine-layouts.md. Each cell is one
-quarter-tile ground block (grass, lip, dirt) so the sheet matches that grid.
+The block size and sheet size are the A2 row in reference/engine-layouts.md. Each block is the
+2x3-tile quarter source the engine composes floor shapes from: top-left tile is the preview,
+top-right tile carries the inner corners (lip where its four quarters meet), and the lower 96x96
+carries the outer edges and corners (a lip band around a grass interior). The lip is the same
+thickness everywhere so any quarter meets any partner quarter.
 """
 import json
 import pathlib
 
 W, H = 96, 144
+TILE, LIP = 48, 6
 COLUMNS = 8
 COUNT = 32  # 8 * (576 / 144)
+
+
+def is_lip(x, y):
+    if y < TILE:
+        # inner-corner tile: a lip square centered where its quarters meet
+        return x >= TILE and abs(x - (TILE + TILE // 2) + 0.5) < LIP and abs(y - TILE // 2 + 0.5) < LIP
+    # edge region: a lip band along its outer border
+    return x < LIP or x >= W - LIP or y < TILE + LIP or y >= H - LIP
 
 
 def block(index):
@@ -16,12 +28,10 @@ def block(index):
     for y in range(H):
         chars = []
         for x in range(W):
-            if y < 34:
-                chars.append("G" if (x * 3 + y + index) % 13 == 0 else "g")
-            elif y < 48:
-                chars.append("l")
+            if is_lip(x, y):
+                chars.append("L" if (x + y + index) % 7 == 0 else "l")
             else:
-                chars.append("D" if (x + index * 2 + y) % 9 == 0 else "d")
+                chars.append("G" if (x * 3 + y + index) % 13 == 0 else "g")
         rows.append("".join(chars))
     return rows
 
@@ -38,8 +48,7 @@ def build():
             "g": "#3a7a32",
             "G": "#6aaa48",
             "l": "#c2a15a",
-            "d": "#7a4e32",
-            "D": "#4a2e22",
+            "L": "#9a7a3a",
         },
         "frames": frames,
         "sheet": {"columns": COLUMNS, "order": order},
