@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.5] - 2026-09-28
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` refreshes the default branch before basing** ([#4249](https://github.com/melodic-software/claude-code-plugins/issues/4249)). It read the cached `<remote>/HEAD` and never fetched, so `fresh` meant "as of the last fetch" and a stale base was silent. It now works like Claude Code's native `fresh` (v2.1.208+): when `FETCH_HEAD` is missing or older than 24 hours, it fetches the resolved remote's default branch, capped at five seconds with credential prompts off. A failed or timed-out fetch keeps the cached ref and prints a warning that the base may be behind. `context/create.md` drops the "stale base" caveat and names the one remaining gap: an uncached `<remote>/HEAD` still warns rather than fetching.
+
 ## [0.61.4] - 2026-09-27
 
 ### Changed

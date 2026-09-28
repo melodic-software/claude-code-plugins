@@ -284,6 +284,14 @@ collect_segment() {
   cd | pushd | popd | chdir) _BBH_CWD_MOVED=1 ;;
   *) ;; # every other command word leaves the redirect origin where it was
   esac
+  # A child shell (`bash -c '…'`, `sh -lc "…"`) runs its operand as a full
+  # command, so that operand's segments are recorded too, after this one and
+  # in source order, exactly as block-dangerous-git re-parses it. This
+  # segment's own row is already written, so the nested parse rebuilding
+  # HOOK_SEG_* cannot disturb it.
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" collect_segment
+  fi
 }
 
 COMMAND_LC="${COMMAND,,}"

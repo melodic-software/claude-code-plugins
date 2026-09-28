@@ -99,19 +99,23 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
   the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
   value could not be read. The guard enforces the same toggle independently and denies both mutation
-  lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway, to state the
-  configured value accurately and stop before proposing work the guard would deny. The guard is the
-  backstop, not the sole enforcer. Every engine call and the probe need the guard's absolute Python
-  interpreter as `<hook-python>`, and every engine call needs its authorized `--data-root`; bare
-  `python`/`python3` is rejected because Bash aliases and functions can replace them. The expansion
-  of this command normally carries a `disk-hygiene guard values` note naming both as
-  `hook_python` and `data_root`, resolved by the guard's own code before the skill loads; use them
-  from the first call. Only when that note is absent, or says `data_root: none`, fall back to the
-  guard's denial guidance, which reports both: submit the otherwise exact scan shape once with
-  bare `python`, then retry with the reported values. If the reported interpreter is older than
-  the engine's declared floor (the `MIN_PYTHON` constant in `hygiene.py`, the floor's single
-  origin), stop with the declared prerequisite instead of improvising a different scanner or
-  deletion path.
+  lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway, as the first
+  engine-related call, to state the configured value accurately and stop before proposing work the
+  guard would deny. The guard is the backstop, not the sole enforcer. Every engine call and the
+  probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
+  needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
+  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard
+  values` note naming both as `hook_python` and `data_root`, resolved by the guard's own code
+  before the skill loads; use them from the first call. The probe's `hook_python` and `data_root`
+  fields are the same two values, computed by the same guard code; when the note is absent, take
+  both from the probe. The probe itself needs `<hook-python>`: if neither source has supplied it,
+  submit the probe once with bare `python`, and the guard denies that read-only call and names its
+  interpreter; rerun the probe with it. Never submit a scan to learn either value. A `data_root` of
+  `none` in the note or `null` from the probe means the install layout proved no data root: pass
+  `${CLAUDE_PLUGIN_DATA}` and let the guard judge, and a denial then is the coverage gap §1
+  describes. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
+  in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
+  improvising a different scanner or deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
 ## Confirmation gate

@@ -150,7 +150,12 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` inspects one command string, and only the write forms
   listed above.** It reads `.tool_input.command`; it does not read the contents
   of a script that command invokes, so `bash build.sh` runs whatever writes
-  `build.sh` performs. It is also producer-scoped by design, so a redirect whose
+  `build.sh` performs. The inline operand of a child shell is in that string,
+  so since **0.38.9** it is re-parsed and judged like the top level, nested
+  shells included: `bash -c 'echo x > f'` and `sh -c 'cat > f <<EOF …'` block.
+  `block-windows-drive-tmp` does not re-parse a `-c` operand, so
+  `bash -c 'echo x > /tmp/f'` still reaches a drive-root temp path on Windows.
+  It is also producer-scoped by design, so a redirect whose
   producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
   c`) is allowed. Only a content producer writing a real file
   (`cat > f` consuming stdin, `echo`/`printf > f`, inline python writes,
