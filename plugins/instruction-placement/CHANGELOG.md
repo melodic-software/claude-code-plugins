@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.18] - 2026-09-28
+
+### Changed
+
+- **Standing cutover-check refresh (#5163).** `cutover-check.sh` re-graded the nine
+  repositories this host can read, at 12:31 UTC, from origin/main
+  `5e6eade117ec3e6737840434602dbfb930f5ab3e` plus the eight other commits already
+  listed under "Accessible fleet graded 2026-09-28". `medley`, `songwriting`,
+  `claude-code-proxy`, `knowledge-corpus`, and `provisioning` still answer
+  repository-not-found. Condition 1 is `[MET]` (CLI 2.1.282, code default true at
+  offset 225456771). Condition 2 is `[MET]` (ci-workflows pins
+  `756cc22e19660d20e8cc9496b4f242475a7f7790`, CLI 2.1.283; CI canary run
+  `35475056935` unchanged). Condition 3 is `[UNREACH]`: `claude auth status`
+  reports `loggedIn: false`, and both canary legs exit 1 with `Not logged in ·
+  Please run /login`. Condition 4 is `[MET]` (68 acknowledged rows). Verdict NOT
+  MET. Shim removal stays blocked. `last_checked` on `agents-md-cutover-check`
+  stays 2026-09-20. Do not close #5163.
+
 ## [0.15.17] - 2026-09-28
 
 ### Changed
