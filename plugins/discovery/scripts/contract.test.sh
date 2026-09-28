@@ -594,6 +594,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
+#
+# The post-dispatch gate's steps live in the research skill body. A parent that
+# dispatches discovery:researcher without loading that skill never reads them,
+# so the agent points at them and its payload names them in band.
+# ---------------------------------------------------------------------------
+assert_present 'researcher states that whoever dispatched it owes the acceptance gate' \
+  'agents/researcher.md' '^## Whoever dispatched you owes the acceptance gate$'
+assert_present 'the researcher payload names the gate it is owed' \
+  'agents/researcher.md' '^gate_owed: "check-dispatch-artifact\.sh, check-coverage-complete\.sh, check-source-applicability\.py, per skills/research/SKILL\.md Post-dispatch acceptance gate"$'
+assert_present 'the parent contract says a direct dispatch owes the gate' \
+  'reference/parent-contract.md' 'including a direct dispatch of$'
+assert_present 'the research skill still carries the gate the pointer names' \
+  'skills/research/SKILL.md' '^\*\*Post-dispatch acceptance gate\. '
+
+# ---------------------------------------------------------------------------
 # 16. The research verifier is a named, read-only agent the parent dispatches
 #     from a copyable block, and a skip is recorded rather than left pending
 #     (#4231)
