@@ -354,6 +354,12 @@ run_win "python os.fdopen beside /tmp (blocked)" \
   "python3 -c \"import os; os.fdopen(os.open('/tmp/x', 1), 'w')\"" 2
 run_win "python os.open(/tmp, O_RDONLY) unproven (blocked)" \
   "python3 -c \"import os; os.open('/tmp/x', os.O_RDONLY)\"" 2
+run_win "python ')' inside the quoted path, write mode (blocked)" "python3 -c \"open('/tmp/x)y','w').write('a')\"" 2
+run_win "python ')' inside a comment, write mode (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\' # )\n, \'w\').write(\'a\')\nEOF' 2
+run_win "python triple-quoted path hiding ')' (blocked)" "python3 -c \"open('''/tmp/x')''', 'w')\"" 2
+run_win "python mixed-quote kwarg hiding mode='w' (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', encoding="a\')", mode=\'w\')\nEOF' 2
 run_win "python Path(/tmp).open() method read (allowed)" \
   "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open().read())\"" 0
 run_win "python Path(/tmp).open('rb') method read (allowed)" \

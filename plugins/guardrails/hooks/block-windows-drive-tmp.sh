@@ -519,16 +519,18 @@ segment_downloader_output_operand() {
 
 # True only when EVERY `open(` in the segment is a provable python read; any
 # other shape fails closed (#3951). Bare `open(` is a read when its call is one
-# comma-free, paren-free argument, an optional read-mode literal (only r/b/t),
-# optional literal encoding=/errors=/newline=, then `)`. So a variable mode
-# (`open(p, m)`), a nested call (`open(join(a, b), 'w')`) and a call the
+# argument (a single whole quoted literal, or an unquoted run free of , ( ) and
+# quotes and #), an optional read-mode literal (only r/b/t), optional literal
+# encoding=/errors=/newline=, then `)`. Quotes pair by type, so a `)` or `'`
+# hidden inside a string or comment cannot end the match early. So a variable
+# mode (`open(p, m)`), a nested call (`open(join(a, b), 'w')`) and a call the
 # segment splitter cut before its `)` all block. Method form `.open(` is a read
 # only with no argument or a lone read-mode literal (`Path(p).open('rb')`), so
 # `os.open(p, …)` / `io.open(p)` block. An identifier before `open(` (`popen(`,
 # `fdopen(`, `urlopen(`) always blocks.
-_PY_READ_MODE="[\"'][rbt]+[\"']"
-_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*[\"'][^\"']*[\"']"
-_PY_BARE_OPEN_READ="^[^,()]+([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
+_PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
+_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')"
+_PY_BARE_OPEN_READ="^[[:space:]]*([rbfu]*(\"[^\"]*\"|'[^']*')|[^,()\"'#]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_PY_READ_MODE})?(${_PY_READ_KWARG})*[[:space:]]*\)"
 _PY_METHOD_OPEN_READ="^[[:space:]]*(${_PY_READ_MODE}[[:space:]]*)?\)"
 segment_opens_only_for_read() {
   local rest="$1" before
