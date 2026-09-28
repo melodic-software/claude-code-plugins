@@ -151,3 +151,16 @@ writeFileSync(process.env.MARKER, JSON.stringify({ argv: process.argv.slice(1), 
   assert.equal(seen.execPath, process.execPath);
   assert.throws(() => readFileSync(shimRan, "utf8"));
 });
+
+test("relative PATH entries are ignored", () => {
+  const fs = winFs([["node_modules\\.bin\\typescript-language-server.exe", MZ]]);
+  const plan = planTypescriptLanguageServer({
+    platform: "win32",
+    env: { PATH: "node_modules\\.bin;.", APPDATA: "" },
+    execPath: null,
+    exists: fs.exists,
+    readHead: fs.readHead,
+    readText: fs.readText,
+  });
+  assert.equal(plan.status, "blocked");
+});

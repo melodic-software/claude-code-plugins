@@ -10,11 +10,12 @@ function pathApi(platform) {
   return platform === "win32" ? path.win32 : path.posix;
 }
 
+// Relative entries resolve against the workspace, which a cloned repository controls.
 function splitPath(pathValue, platform) {
   const sep = platform === "win32" ? ";" : ":";
   return String(pathValue ?? "")
     .split(sep)
-    .filter((part) => part.length > 0);
+    .filter((part) => part.length > 0 && pathApi(platform).isAbsolute(part));
 }
 
 export function isCmdShimName(file, platform) {
