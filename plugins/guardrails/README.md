@@ -9,6 +9,7 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 - [The guards](#the-guards)
   - [Enforceability tiers](#enforceability-tiers)
   - [Scope notes](#scope-notes)
+  - [Hook budget accounting](#hook-budget-accounting)
 - [Per-hook kill switches](#per-hook-kill-switches)
 - [Consumer seams](#consumer-seams)
 - [Telemetry (opt-in)](#telemetry-opt-in)
@@ -509,6 +510,27 @@ out of scope until such a signal exists.
   written there is not guarded: run git as its own Bash command.
 
 ### Hook budget accounting
+
+#### Edit/Write process diet (parked, #4390)
+
+Further cuts to the PreToolUse Write/Edit chain and the PostToolUse verify bundle stay parked.
+The shipped shape is unchanged. PreToolUse Write/Edit/MultiEdit/NotebookEdit runs
+`secret-pattern-detection`, `hardcoded-path-check`, and `block-windows-drive-tmp` through one
+dispatcher with no `if` gate. The PostToolUse verify bundle (`cli-flag-verify`,
+`skill-reference-verify`, `stale-path-verify`) is already `if`-gated to
+`Edit(*.md|*.sh|*.bash|*.ps1|*.psm1)`. Blocking guards stay synchronous. The Bash bundle (three
+processes per fire) is out of this park.
+
+**Claim:** do not ship an unpaid Edit/Write process diet (per-guard attribution, builtins in
+place of git probes, extra `if` gates, `async` on the report-only verify guards, a HEAD-keyed
+deleted-path cache). Verdicts and the current spawn shape stay as written. **Basis:** #4390
+(`needs-human`). `/performance:goal` is human-gated by design and the acceptance criteria require
+its k x S targets; the process counts come from the Windows job-object harness on melo-lap-001
+(melodic-software/dotfiles#873); moving a safety guard to `async` or changing how it gates
+changes the enforcement surface. The host Token leak is #4372; Stop-hook fan-out is #4373;
+neither is this park. Option A parks rather than shipping that diet unpaid. **As of:**
+2026-09-28. **Recheck:** a maintainer funds the diet after `/performance:goal` sets the four
+Write/Edit k x S targets, or unparks #4390.
 
 **0.37.3, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
 en_US.UTF-8. The Bash/PowerShell row on a heredoc of prose, wall time for the

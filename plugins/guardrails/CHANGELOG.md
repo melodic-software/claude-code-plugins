@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.2] - 2026-09-28
+
+### Changed
+
+- **Edit/Write process diet stays parked until funded**
+  ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). Option A:
+  PreToolUse Write/Edit still runs the three blocking guards with no extra `if` gate, and the
+  PostToolUse verify bundle stays synchronous and extension-gated. Do not ship per-guard
+  attribution, builtins for git probes, `async` on the report-only verifiers, or a HEAD-keyed
+  deleted-path cache until a maintainer funds that diet after `/performance:goal`.
+
 ## [0.40.1] - 2026-09-28
 
 ### Changed
