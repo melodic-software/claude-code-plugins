@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.24.8] - 2026-09-28
+## [0.24.10] - 2026-09-28
 
 ### Changed
 
@@ -12,6 +12,41 @@
   fixed `gate_owed:` line naming the three gate scripts and the section, so the obligation arrives
   in band. The parent contract says the same for a direct dispatcher. `contract.test.sh` section
   15 pins all three (#4275).
+
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **`discovery:research-verifier`**, a read-only agent (`Read, Grep, Glob, WebFetch, WebSearch`,
+  `model: sonnet`) that grades a research artifact's verifier-owned outcome-gate rows (currently
+  4, 7 and 12) in a fresh context and returns the literal `verification:` line the parent writes
+  into `RESEARCH.md`. The research skill carries a copyable dispatch block for it right after the
+  acceptance gate (#4231).
+
+### Changed
+
+- **The research index records verification state, and a skip is recorded.** `RESEARCH.md`
+  frontmatter carries `verification:`: the researcher writes `pending` in its first write, and the
+  parent replaces it with the verifier's line or, on the cost path, with `skipped (cost)`. `pending`
+  left after the post-dispatch boundary closes is the one wrong value (#4231).
+- **`check-dispatch-artifact.sh` prints `verification=<value>`** on its own line after a usable
+  verdict, read from the index frontmatter (`unrecorded` when absent). It never changes the exit
+  status (#4231).
+- `agents/tool-honesty.test.sh` owes a `persistence:` axis only from agents whose allowlist holds
+  `Write`, and accepts `target_as_received:` as the echo-back field.
+
+## [0.24.8] - 2026-09-28
+
+### Changed
+
+- **Dispatched agents read each file once.** `explorer`, `researcher`, and `intent-tracer` now
+  state in "Write early; reserve your last turns" that a file already read this run is in context
+  and is re-read only to see a change the agent made. A scan followed by a later full read of the
+  same file becomes one read, and file contents go through `Read` and `Grep` rather than Bash
+  `cat`, `sed -n`, or `grep`. The researcher applies the same rule to fetched pages. One measured
+  explorer run spent 8 redundant full reads and 2 scan-then-read pairs, roughly a quarter of its
+  turns, re-reading files it already held. `contract.test.sh` section 13 asserts the rule in all
+  three agents (#4258).
 
 ## [0.24.7] - 2026-09-27
 

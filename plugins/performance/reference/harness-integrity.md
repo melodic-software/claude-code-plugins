@@ -19,6 +19,7 @@ reliable than the thing it checks.
 | 3 | discrimination check (shell) | "NOT DISCRIMINATING" | A Windows path spelling handed to bash left both arms exiting 127, so neither arm ever reached the subject and the grep found nothing in either. Identical failure in both arms reads as "not discriminating". |
 | 4 | discrimination check (repeat) | "NOT DISCRIMINATING" | Same trap, a second harness. Fixing the path form immediately showed FAIL-without / PASS-with. |
 | 5 | discrimination check (python) | "NOT DISCRIMINATING" | Restored via `git checkout --` while the fix under test was **uncommitted**. The restore silently reverted the fix, so the "with fix" arm ran without it, and the work was destroyed. |
+| 6 | hand-rolled interleaving harness (python) | 63 ms per sample, every sample | A bare `bash` under `subprocess` resolved by `PATH` order, per that run's own notes to WSL's `bash.exe` in the Windows `System32` directory, which cannot see a drive-letter path. Every sample exited 127 and was timed as a fast, clean run. Caught only by checking exit codes. The bundled `scripts/ab.sh` would have refused it. |
 
 None of these are knowledge gaps. They are all "the measurement was wrong in a way that looked
 right". A workflow that measures without enforcing the rules below mostly generates confident
@@ -94,7 +95,7 @@ mitigation for rule 4 and costs nothing.
 
 ### 6. Windows drive-letter paths are a first-class hazard
 
-Path spelling is behind failures 3 and 4 in the table above.
+Path spelling is behind failures 3 and 4 in the table above, and path resolution behind failure 6.
 
 - Windows path spellings are not interchangeable, and which ones break is verified rather than
   assumed. A drive-letter path in forward-slash form (`D:/...`) does resolve when bash itself reads
@@ -108,6 +109,13 @@ Path spelling is behind failures 3 and 4 in the table above.
   after the drive letter is read as a separator.
 - `os.link` fails across volumes; `shutil.copyfile` does not, which is exactly what makes the
   fallback dangerous.
+- **Resolution is a hazard as well as spelling.** A bare interpreter name (`bash`, `python3`)
+  resolves by `PATH` order, and a mixed host can carry several candidates: `cmd /c where bash`
+  returned four on the host behind failure 6, one of them WSL's launcher, and the Windows `PATH` a
+  native `subprocess` searches is not the one the Bash tool's shell sees. Invoke every interpreter a
+  harness spawns from its own code by absolute path. `harness_require_python` in
+  `scripts/harness-lib.sh` pins the Python it finds by absolute path and runs it once before
+  trusting it; `scripts/pathfix.py` converts a path to the spelling a native Windows Python needs.
 
 On a mixed MSYS/native host this is not an edge case. It is the default hazard.
 
@@ -132,3 +140,9 @@ Before reporting any number:
 - [ ] The code under test was committed before the check ran.
 - [ ] Restores came from saved bytes, and the restore was verified.
 - [ ] Every path handed to a shell is in that shell's own path form.
+- [ ] Every interpreter a harness spawns from its own code (a `subprocess` call, a script) is
+      invoked by absolute path, never by bare name.
+- [ ] No sample exited 127 or 126. A timing that is fast and identical across every sample is
+      failure 6's signature until the exit codes say otherwise.
+- [ ] The bundled harness in `scripts/` ran where one exists for the job (`ab.sh`,
+      `run-spawn-census.sh`, `differential.py`, `discriminate.py`), rather than a reimplementation.

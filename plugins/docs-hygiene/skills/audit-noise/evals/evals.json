@@ -188,6 +188,30 @@
         "'Adapted from [the upstream guide](https://example.com/guide)' is NOT flagged: a pointer is the artifact /attribution:audit asks for, and a line carrying a link or a bare URL stands the origin cues down",
         "The copies under `## Sources` and `## History` are NOT flagged: both are exempt sections, and relocating there is the treatment"
       ]
+    },
+    {
+      "id": 15,
+      "name": "small-corpus-repo-wide-reads-inline",
+      "prompt": "The working tree is clean. Run /docs-hygiene:audit-noise and, yes, do the repo-wide audit. The repository has 11 tracked markdown files, about 430 lines in total.",
+      "expected_output": "Runs the repo-wide audit with the chunked detect.sh pass, then reads every one of the 11 files inline in the main session for the judgment pass. It does not fan out subagents and does not run a separate fresh-context verification pass, because a full inline reading of a corpus this small already covers the scanner-negative sample. Reports first and stays read-only.",
+      "files": [],
+      "expectations": [
+        "Output does NOT dispatch subagents for the 11-file corpus",
+        "Output does NOT run a separate fresh-context verification pass",
+        "Every one of the 11 files is judged, not only the scanner-flagged ones",
+        "Output applies no edits to any audited file"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "no-targets-sample-is-not-a-clean-audit",
+      "prompt": "Run /docs-hygiene:audit-noise with no argument. The working tree is clean, and the pre-computed sample reads 'status: no-targets' followed by 'Summary total: files=0 T1=0 T2=0 T3=0'.",
+      "expected_output": "Reads status: no-targets as a run that scanned nothing, not as a clean audit, and makes the repo-wide offer with its prescribed defaults instead of reporting the repository clean.",
+      "files": [],
+      "expectations": [
+        "Output does NOT report the repository as clean or noise-free",
+        "Output offers the repo-wide audit and waits for confirmation"
+      ]
     }
   ]
 }

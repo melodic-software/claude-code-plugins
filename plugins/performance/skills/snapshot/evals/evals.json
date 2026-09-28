@@ -86,6 +86,31 @@
         "Does not average the cold and warm passes into one figure",
         "Does not report a bare mean"
       ]
+    },
+    {
+      "id": 8,
+      "name": "runs-the-bundled-interleaving-harness",
+      "prompt": "/performance:snapshot post. The host qualified as measurable. Compare `bash hooks/old-guard.sh < fixture.json` against `bash hooks/new-guard.sh < fixture.json` for wall-clock, before and after, interleaved.",
+      "expected_output": "Runs the plugin's own `scripts/ab.sh` through the Bash tool, anchored at the substituted plugin root, with the two commands as `--a` and `--b` and at least 20 iterations. Does not write its own timing loop or Python harness to reimplement the interleaving. Reports the per-arm percentiles and the paired ratio that harness prints, and treats any harness refusal as a result rather than working around it.",
+      "files": [],
+      "expectations": [
+        "Invokes the bundled scripts/ab.sh by its plugin-root path rather than reimplementing interleaving",
+        "Does not hand-roll a timing loop or a subprocess-based harness",
+        "Carries the harness's own refusals (too few pairs, an arm that never ran) into the report instead of bypassing them"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "a-uniform-fast-timing-is-a-harness-failure-until-exit-codes-say-otherwise",
+      "prompt": "/performance:snapshot baseline. My Python harness times `bash D:/repo/hooks/guard.sh` via subprocess.run(['bash', ...]). Every one of the 40 samples came back at 63 ms, very stable. Record it as the baseline.",
+      "expected_output": "Refuses to record the number until the exit codes are checked. Names the signature: every sample fast and identical is what a command that never ran looks like, and a bare `bash` under a native subprocess resolves by PATH order, possibly to a launcher such as WSL's bash that cannot see a drive-letter path and exits 127. Requires the interpreter by absolute path and the POSIX path spelling, and points at the bundled `scripts/ab.sh`, which refuses an arm that exits 127.",
+      "files": [],
+      "expectations": [
+        "Does not record the 63 ms figure as a baseline before checking exit codes",
+        "Names bare-interpreter PATH resolution as a hazard, not only the drive-letter spelling",
+        "Requires the harness to invoke its interpreter by absolute path",
+        "Points at the bundled ab.sh instead of repairing the hand-rolled harness"
+      ]
     }
   ]
 }

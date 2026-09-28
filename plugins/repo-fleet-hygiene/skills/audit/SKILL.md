@@ -140,8 +140,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    `git ls-remote --heads <remote> refs/heads/<branch>`. A matching tip → `HIGH`
    `merged-remote-branch` (remote head still present after merge, unset or blocked
    `delete_branch_on_merge`). ls-remote failure → `MEDIUM` cached observation (may be stale after a
-   prune-less fetch). Empty ls-remote → no finding (head already gone upstream). Remote-only heads
-   (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
+   prune-less fetch). Empty ls-remote → no finding (head already gone upstream). Unlike every
+   other probe, ls-remote keeps global and system Git config, where the transport lives
+   (`core.sshCommand`, `credential.helper`, proxies). It runs only when the remote URL names the
+   same github.com repository with and without that config; otherwise it counts as a failure.
+   Remote-only heads (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
    accruing) and is **not** a substitute for this fleet visibility.

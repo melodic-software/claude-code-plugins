@@ -87,7 +87,8 @@ load-time machinery, no user turn, no unresolved scope.
   "Harness facts the dispatch design rests on".
 - **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
   session. Copy it into the `RESEARCH.md` frontmatter as `evidence_use:` in your first write, since
-  the verifier never sees this prompt. If the line is absent, write `internal`, say in the index
+  the verifier never sees this prompt. The same first write carries `verification: pending`, which
+  only the parent replaces. If the line is absent, write `internal`, say in the index
   that the default was taken, and mention the omission in `open_questions`. Under `publish` the
   research skill's discipline file tightens two rules ("Evidence the user will publish").
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
@@ -229,6 +230,15 @@ it stands, and whatever is not on disk by then is invisible to the parent's gate
 turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
+
+**Read each file once.** A file you have already read in this run is still in your context; read it
+again only to see a change you made to it. A scan followed by a full read of the same file on a
+later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you need
+the whole file, read it whole then. Read file contents with `Read` and search with `Grep` rather
+than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for you and for
+anyone auditing the run. The same holds for a page you have already fetched: its text is in your
+context, so fetch it again only when you need content the first fetch did not return. Every turn
+spent re-reading is a turn taken from gathering before your stop turn.
 
 Write the artifact in stages:
 
