@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.2] - 2026-09-28
+
+### Changed
+
+- **Park detecting restated upstream facts as a second finding class (#3525).**
+  The copy and fingerprint lane stays as written. `paraphrase` / `summary`
+  remain report-only. Recorded in
+  `docs/out-of-scope/attribution-restated-upstream-facts.md`.
+
 ## [0.6.1] - 2026-09-28
 
 ### Fixed

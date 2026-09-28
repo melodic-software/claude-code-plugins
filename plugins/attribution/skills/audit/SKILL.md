@@ -226,6 +226,13 @@ fired on an identifier, a test runner exiting non-zero without failing.
 - **Does not put judgment verdicts in the findings file.** `source-fetched-similar`,
   `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
   look a tier up from, and a relay row is an instruction to a remediation surface.
+- **Does not detect restated upstream facts as a fix-eligible class.** That design gap is
+  parked (#3525). The copy and fingerprint lane stays as written. Record:
+  `docs/out-of-scope/attribution-restated-upstream-facts.md`.
+  **Claim:** restated upstream facts stay a parked design gap; a paraphrase can never be
+  `fingerprint-confirmed`. **Basis:** #3525; `reference/rubric.md` "Tier mapping".
+  **As of:** 2026-09-28. **Recheck:** a maintainer funds the second-rubric / relay-row and
+  unparks #3525.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
   concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose
   `not-found` finding names no surface at all, but nothing verifies the listing is complete, so
