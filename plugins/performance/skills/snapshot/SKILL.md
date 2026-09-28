@@ -74,6 +74,11 @@ For a process-spawn count, run the bundled census rather than writing one:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-spawn-census.sh" --shim-dir <stable-dir> --before <cmd>
 --after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
 the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
+Report the census as **`spawns=` (PATH-shim accounting)** in the snapshot; when the goal instead
+tracks a Windows Job Object or other host counter, state that label explicitly and cite the MSYS
++2-per-external-command rule from
+[harness-integrity.md](../../reference/harness-integrity.md#process-counting-on-msyscygwin-git-bash)
+so a +2 delta is not chased as a mystery third process.
 
 ### 2b. Code path under test (before each arm)
 

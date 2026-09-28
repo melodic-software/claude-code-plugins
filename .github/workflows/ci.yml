@@ -1282,6 +1282,9 @@ jobs:
       - name: Test the changed-skill gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-changed-skills.test.sh
+      - name: Gate every skill on description/verb-contract polarity (check 25)
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
