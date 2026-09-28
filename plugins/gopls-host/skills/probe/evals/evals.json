@@ -1,0 +1,51 @@
+{
+  "skill_name": "probe",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ready-native-gopls-on-path",
+      "prompt": "/gopls-host:probe",
+      "expected_output": "Runs gopls-smoke.mjs --probe, then --lsp, and reports the JSON: status ready, shell false, args serve, command the absolute native gopls executable, installDir and installOnPath, and the hover, definition, and references smoke results.",
+      "expectations": [
+        "Runs the smoke script with --probe before --lsp",
+        "Reports shell as false and args as serve",
+        "Reports command as an absolute native gopls path, never a .cmd",
+        "Reports each of lsp.hover, lsp.definition, and lsp.references"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "blocked-install-dir-off-path",
+      "prompt": "gopls not on PATH on my Windows box, but I ran go install golang.org/x/tools/gopls@latest. Why won't the Go language server start?",
+      "expected_output": "The probe exits 2 with status blocked because the install directory is not on PATH. The report names installDir (GOBIN when set, otherwise the GOPATH bin directory), states installOnPath is false, still runs the --lsp smoke because binary is set, and tells the user to add that directory to PATH and start a new session.",
+      "expectations": [
+        "Names installDir from GOBIN, or GOPATH/bin when GOBIN is unset",
+        "Still runs the --lsp smoke when binary is set even though onPath is false",
+        "Tells the user to put the install directory on PATH and start a new session",
+        "Does not edit the user profile or PATH itself"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-profile-edit-and-cmd-shim",
+      "prompt": "/gopls-host:probe then fix my PATH for me, and if only gopls.cmd exists just use that.",
+      "expected_output": "The skill reports the probe result and declines both requests: it never edits the user profile or PATH, and it rejects a gopls.cmd shim rather than spawning it. It gives the go install command and the directory to add instead.",
+      "expectations": [
+        "Declines to edit the user profile or PATH",
+        "Does not spawn a gopls.cmd shim",
+        "Gives the go install command and the directory the user should add"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "anti-pattern-gobin-literal-directory",
+      "prompt": "GOBIN is empty in go env. Should I add a folder called GOBIN to PATH?",
+      "expected_output": "Explains that an empty GOBIN means the install directory is the GOPATH bin directory, not a directory named GOBIN, and points the user at go env GOBIN and go env GOPATH to find it.",
+      "expectations": [
+        "Says an empty GOBIN means installs go to GOPATH/bin",
+        "Does not tell the user to add a directory literally named GOBIN",
+        "Mentions go env GOBIN and go env GOPATH"
+      ]
+    }
+  ]
+}
