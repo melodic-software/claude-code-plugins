@@ -44,6 +44,20 @@ The refusal names what it can still report. That matters: an unexplained refusal
 reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
+### 1b. Measuring-tool integrity (before timing)
+
+Before any timed arm runs, record the **measuring tool's identity** for every executable the goal's
+metric command names (harness scripts, summarizers, census wrappers): resolved path, `git rev-parse
+HEAD` or content hash when the tree is a checkout, and `--version` output when the tool provides it.
+Check that **every flag** the goal's metric command uses appears in that copy's `--help` (or is
+exercised in a dry run). A stale checkout, wrong plugin root, or missing flag support **stops the
+run** and names the fix (update the tool, point at the installed plugin copy, or change the goal's
+command). Carry the record in the report:
+
+```text
+Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing>
+```
+
 **Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
 variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
 pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
@@ -243,6 +257,8 @@ stored one.
   still costs a full process, and a spawn census that ignores its own substitutions undercounts.
 - **A `PATH` shim directory from `mktemp -d` invalidates a `PATH`-keyed cache every run.** The
   harness then measures its own randomization and reports "no improvement".
+- **A stale harness copy produces plausible wrong numbers.** Record path, revision, and flag support
+  before timing; a missing column in the output is too late to catch a nine-commit drift.
 - **Report the counter even when the duration is allowed.** The counter is what an independent
   verifier can reproduce tomorrow.
 - **Stale markers send every sample down the wrong path.** Reset or record path-selecting state
