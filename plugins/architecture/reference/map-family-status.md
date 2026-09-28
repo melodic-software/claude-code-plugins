@@ -34,16 +34,23 @@ earns its place where state machines are explicit in source.
 ## Dialect
 
 The decision is recorded in [config.md](config.md) under "Map family dialect decision".
-C4-shaped views reuse `landscape_dialect`. `map-data` reads `diagram_dialect.data`.
-`map-states` and `map-dependencies` add no dialect key. This page does not add a second
-key beside that section.
+`map-components`, `map-context`, `map-flow`, `map-events`, and `map-deployment` reuse
+`landscape_dialect`. `map-containers` reads `diagram_dialect.system` and does not reuse
+`landscape_dialect` for its C4 file. `map-data` reads `diagram_dialect.data`.
+`map-states` and `map-dependencies` add no dialect key.
 
 ## What is still open on the epic
 
-- Each child closes on its own issue when that pull request merges. This page
-  is the index, not a substitute for those skills.
-- After `map-components` merges, `map-landscape`'s thin-result `## Next` should
-  name it. Until then the landscape skill must not route to a missing command.
+[#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639) stays open
+until each child issue is closed or explicitly dropped. The skills are implemented on
+the pull requests in the table. This page is the index and the dialect decision.
+
+`map-landscape`'s thin-result `## Next` names `/architecture:map-components` on the
+map-components pull request, where that skill exists. This checkout does not route
+to a command it cannot run.
+
+[#4554](https://github.com/melodic-software/claude-code-plugins/issues/4554), the
+single-line landscape record, is closed.
 
 Checked in this tree: `plugins/architecture/skills` contains `map-landscape` and no
 other `map-*` directory.

@@ -95,24 +95,27 @@ and record the outcomes in this plugin's `CHANGELOG.md`.
 ## Map family dialect decision
 
 Recorded 2026-09-28 for [#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639),
-before the view skills merge. The open child pull requests already follow it. This checkout still
-ships only `map-landscape`; the index of those pull requests is
-[map-family-status.md](map-family-status.md).
+from the child drafts, before those view skills merge. This checkout still ships only
+`map-landscape`. The pull-request index is [map-family-status.md](map-family-status.md).
 
-- C4-shaped pictures this plugin will emit (components, context, containers, flow, events,
-  deployment) reuse `landscape_dialect` (`structurizr` or `mermaid`, default `mermaid`). They do
-  not add `component_dialect`, `context_dialect`, or any other per-skill key, and they do not
-  read `diagram_dialect.system`. That key stays the opt-in planning container view: it refuses
-  mermaid and has no default.
-- `map-data` reads authoring-formats `diagram_dialect.data` (`mermaid` or `dbml`, default
-  `mermaid`). It does not read `landscape_dialect` and this document adds no ERD key.
-- `map-states` emits a mermaid `stateDiagram-v2` and adds no dialect key.
-- `map-dependencies` adds no dialect key. Its human view is a mermaid flowchart of the build
-  graph, which is not a C4 picture.
+| Skill | Dialect |
+| --- | --- |
+| map-components, map-context, map-flow, map-events, map-deployment | `landscape_dialect` (`structurizr` or `mermaid`, default `mermaid`) |
+| map-containers | `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default). Unset writes the fact report and no C4 file. Mermaid stays refused. |
+| map-data | `diagram_dialect.data` (`mermaid` or `dbml`, default `mermaid`) |
+| map-dependencies | no dialect key; a mermaid flowchart of the build graph |
+| map-states | no dialect key; a mermaid `stateDiagram-v2` |
 
-Recheck when a view needs an allowed set `landscape_dialect` does not have, or when the
-authoring-formats mermaid-C4 trigger above fires. On firing, record the outcome in this plugin's
-`CHANGELOG.md`.
+`map-containers` reads `diagram_dialect.system`. It does not reuse `landscape_dialect` for its
+C4 file. That is the same opt-in key `/planning:design` already uses, so an unset key does not
+start emitting a container diagram. The other C4-shaped pictures this plugin will emit reuse
+`landscape_dialect`. They do not add `component_dialect` or any other per-skill key.
+
+Authoring-formats gains a consumer row in the change that adds the skill which reads the key.
+This page does not add that row: `map-containers` and `map-data` are not in this tree.
+
+Recheck when a view needs an allowed set its key does not have, or when the authoring-formats
+mermaid-C4 trigger above fires. On firing, record the outcome in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface
 

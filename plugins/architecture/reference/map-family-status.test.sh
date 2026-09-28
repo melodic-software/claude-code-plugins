@@ -42,6 +42,15 @@ fi
 if ! grep -q 'landscape_dialect' "$PAGE"; then
   fail "status page does not point at the landscape_dialect decision"
 fi
+if ! grep -q '`map-containers` reads `diagram_dialect.system`' "$PAGE"; then
+  fail "status page does not record that map-containers reads diagram_dialect.system"
+fi
+if ! grep -q '`map-containers` reads `diagram_dialect.system`' "$CONFIG"; then
+  fail "config.md does not record that map-containers reads diagram_dialect.system"
+fi
+if ! grep -q 'map-family-status.md' "$ROOT/plugins/architecture/skills/map-landscape/SKILL.md"; then
+  fail "map-landscape does not point at the family status page"
+fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "map-family-status.test.sh: all passed"

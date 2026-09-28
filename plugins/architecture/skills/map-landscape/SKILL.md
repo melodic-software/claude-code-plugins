@@ -202,6 +202,9 @@ End every run with this block, in this order, filled from the record and the scr
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.
 - Container-level or component-level C4 views. This is the landscape altitude only.
+  Those rungs are indexed in `${CLAUDE_PLUGIN_ROOT}/reference/map-family-status.md`.
+  They are not commands in this checkout, so a thin result still names
+  `/architecture:improve` or `/discovery:explore`.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.

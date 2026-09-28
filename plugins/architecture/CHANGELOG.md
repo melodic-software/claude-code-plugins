@@ -3,6 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3] - 2026-09-28
+
+### Fixed
+
+- **map-* dialect decision (#4639).** `reference/config.md` no longer says every
+  C4-shaped view reuses `landscape_dialect`. `map-containers` reads
+  `diagram_dialect.system` (unset writes the fact report and no C4 file; mermaid
+  stays refused). Components, context, flow, events, and deployment reuse
+  `landscape_dialect`. `map-data` reads `diagram_dialect.data`. Dependencies and
+  states add no dialect key. The status page matches that table. `map-landscape`
+  points at the status page and still names `improve` / `discovery:explore` for
+  a thin result, because the lower rungs are not commands in this checkout.
+
 ## [0.12.2] - 2026-09-28
 
 ### Added

@@ -149,5 +149,5 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 skills below that rung, and the open pull requests that implement them, is
 [`plugins/architecture/reference/map-family-status.md`](../plugins/architecture/reference/map-family-status.md)
 ([#4639](https://github.com/melodic-software/claude-code-plugins/issues/4639)).
-The dialect decision those skills share is in
+The per-skill dialect decision is in
 [`plugins/architecture/reference/config.md`](../plugins/architecture/reference/config.md).
