@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.9] - 2026-09-28
+## [0.28.10] - 2026-09-28
 
 ### Added
 
@@ -23,6 +23,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Fixed
 
 - **Test wrappers convert the suite path with `cygpath -m` when that tool exists** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Under Git Bash a native Windows Python treated an MSYS path as a dotted module name (`ValueError: Empty module name`). `test_wrapper::python_file_to` in `scripts/test-wrapper-lib.sh` is the conversion.
+
+## [0.28.9] - 2026-09-28
+
+### Changed
+
+- **No disk-full emergency lane; every pass stays a cautious tidiness pass**
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
+  patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
+  signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
 
 ## [0.28.8] - 2026-09-28
 
