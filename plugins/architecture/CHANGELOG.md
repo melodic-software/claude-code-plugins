@@ -39,6 +39,18 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   containers, flow, events, and deployment reuse `landscape_dialect`. Data reads
   `diagram_dialect.data`. Dependencies and states add no dialect key.
 
+## [0.12.2] - 2026-09-28
+
+### Changed
+
+- **`improve` grounds a boundary-crossing interface externally.** Design-It-Twice's recommendation
+  researches the adopted pattern (official docs first) when the interface crosses a module,
+  service, or repository boundary or fixes a published contract, and states a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential winner is withheld.
+
 ## [0.12.1] - 2026-09-28
 
 ### Fixed
