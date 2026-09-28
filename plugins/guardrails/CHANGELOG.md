@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **PowerShell here-string reduction refuses four no-token shapes** ([#4683](https://github.com/melodic-software/claude-code-plugins/issues/4683)). A confirmed opener whose prefix carries `'`, `"`, `\`, or a backtick, a `<#` earlier in the command, and a CR that is not part of a CRLF pair join `herestring-comment-char` under one reduction-untrusted flag. None of them has an allow token. `classify_git_command` returns 2 when the flag is up even if another sink trigger already fired and git-freedom said no, so a `{` plus a commented opener no longer skips the FLAG-keyed readers. Git-freedom after a dropped body probes the raw command. `hook::jq_fields` strips every CR from COMMAND, so bare CR is read from INPUT. A CRLF here-string commit still passes.
+- **PowerShell here-string reduction refuses four no-token shapes** ([#4683](https://github.com/melodic-software/claude-code-plugins/issues/4683)). A confirmed opener whose prefix carries `'`, `"`, `\`, or a backtick, a `<#` earlier in the command, and a CR that is not part of a CRLF pair join `herestring-comment-char` under one reduction-untrusted flag. None of them has an allow token. `classify_git_command` returns 2 when the flag is up even if another sink trigger already fired and git-freedom said no, so a `{` plus a commented opener no longer skips the FLAG-keyed readers. `hook::jq_fields` strips every CR from COMMAND, so bare CR is read from INPUT. A CRLF here-string commit still passes. A verbatim here-string whose body merely names `git` stays data.
 
 ## [0.40.0] - 2026-09-28
 
