@@ -8,26 +8,18 @@
 # way — the detector could not observe the guard's fail-open. This launcher
 # resolves a real interpreter before exec'ing the target script.
 #
-# Every caller invokes this file in SHELL FORM — the `command` string names this
-# script by path and carries its arguments, with no `args` key. Claude Code
-# routes shell form through Git Bash on Windows, resolved by Claude Code itself.
-# hooks.json prefixes the path with `bash`, which saves the `env` process the
-# `#!/usr/bin/env bash` shebang would spend. That `bash` is looked up by the
-# Git Bash running the command string, on that shell's own PATH, the same
-# lookup the shebang's `env` already does, so it finds Git Bash, not the WSL
-# relay below.
-# It must NOT be registered in exec form: exec form is a bare PATH lookup, and on
-# Windows `"command": "bash"` resolves to the WSL relay `System32\bash.exe`
-# before Git Bash, failing with `execvpe(/bin/bash) failed` (#1006, regressed by
-# #1504), while `"command": "python3"` resolves to the zero-length WindowsApps
-# alias stub (#2568). A hook that fails to launch is a non-blocking error, so the
-# guard silently enforces nothing.
-# The skill-frontmatter belt reaches this launcher the same way, but its command
-# string may substitute ONLY `${CLAUDE_PLUGIN_ROOT}`: a skill hook receives no
-# `${CLAUDE_PLUGIN_DATA}` or `${user_config.*}`, and either makes Claude Code
-# refuse the launch outright (#1014).
-# Every path placeholder in the command string must stay double-quoted; the
-# shell re-tokenizes the string, and plugin roots contain spaces.
+# Every caller invokes this file through node exec form (#3686). `command` is
+# `node`. `args` is `hooks/exec-bash.mjs`, then this script and its arguments.
+# exec-bash.mjs finds Git Bash and never `System32\bash.exe`, then spawns this
+# file with those arguments and forwards stdin. Bare `"command": "bash"` is not
+# used: on Windows that name resolves to the WSL relay (#1006, regressed by
+# #1504). `"command": "python3"` is not used either: it resolves to the
+# zero-length WindowsApps alias stub (#2568). A hook that fails to launch is a
+# non-blocking error, so the guard would silently enforce nothing.
+# The skill-frontmatter belt uses the same entry, but its args may substitute
+# ONLY `${CLAUDE_PLUGIN_ROOT}`: a skill hook receives no `${CLAUDE_PLUGIN_DATA}`
+# or `${user_config.*}`, and either makes Claude Code refuse the launch
+# outright (#1014).
 #
 # When no interpreter resolves (#3861), a guard that could not run must never
 # look like a guard that ran and allowed. It answers the way its watchdog

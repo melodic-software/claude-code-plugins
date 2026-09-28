@@ -92,10 +92,12 @@ scope, covering managed policy, user-global, project, local, and any pre-v2.1.21
 session's start directory, then inventories each one's `allow` / `ask` / `deny` rules with its source named.
 
 The status vocabulary is the point: `absent` means looked and found nothing, `skipped` means could not
-look. The managed scope is four surfaces per OS, not one file; the Windows policy registry keys and
-the macOS managed-preferences domain are optional platform integrations that degrade visibly while the
+look. The managed scope is four admin surfaces per OS, not one file, plus the server-managed
+cache record; the Windows policy registry keys and the macOS managed-preferences domain are optional
+platform integrations that degrade visibly while the
 portable core (the JSON file and its `managed-settings.d/` drop-ins) still reads. Server-managed
-settings have no local path and are disclosed as invisible rather than assumed empty. Report-only:
+settings are cached at `~/.claude/remote-settings.json`; the cache is disclosed and not folded into
+the effective set. The failure read is the Organization policy line in `/status`. Report-only:
 it writes nothing in any scope, and managed policy is read-only by construction.
 
 ```shell

@@ -729,7 +729,7 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
 else
   note "A cloud session reads a different scope set than this one: it does not read local user settings or .claude/settings.local.json, and only server-managed settings reach it. An effective set measured here is not the effective set there."
 fi
-note "Server-managed settings, delivered remotely at sign-in, have no local path and are invisible to any local reader, including this one."
+note "Server-managed settings are fetched at sign-in and cached at ~/.claude/remote-settings.json. The cache is not the live policy; this inventory does not fold it in. The failure read is the Organization policy line in /status."
 
 printf '\nNotes\n'
 for n in "${notes[@]}"; do
