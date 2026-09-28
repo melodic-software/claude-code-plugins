@@ -241,6 +241,11 @@ which owns the model-invoked default, the three exception classes a `true` may c
 when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
 invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
 
+Write `argument-hint` against the
+[argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/argument-hint/README.md),
+which owns the budget, the bracket grammar, and the rule that a skill with no arguments omits the
+key. `scripts/validate-plugin-contracts.mjs` enforces it. Do not restate those rules here.
+
 ---
 
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)

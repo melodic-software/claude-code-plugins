@@ -1,1175 +1,448 @@
-#!/usr/bin/env node
+#!/usr/bin/env bash
+# Extract typed reference edges from ONE repository's tracked files, as JSON.
+#
+# WHY. A landscape drawn only from repositories that happen to be checked out
+# locally shows one node and no edges, because the related systems are named by
+# REFERENCE, not by adjacency on disk. This script reads what a repository says
+# about other repositories and types each reference by the surface that carries
+# it, so an edge means something specific instead of "these names co-occur".
+#
+# Extraction is per source type on purpose. A single `owner/repo` regex over all
+# tracked text is what makes a landscape untrustworthy: on a docs-heavy
+# repository it matches `sponsors/...` out of a funding URL, `en/...` out of a
+# documentation path, and every `acme/billing` in a fixture. Each rule below
+# either anchors on a syntax that only ever names a repository (`uses:`, a
+# module path, a marketplace source) or requires the owner to match this
+# repository's own.
+#
+# Usage:
+#   reference-edges.sh <repo-path> [--owner <owner>]
+#   reference-edges.sh <repo-path> [--owner <owner>] --print-owner
+#   reference-edges.sh --help
+#
+# --owner overrides the owner segment taken from the `origin` remote. It decides
+# which references are `internal` (same owner) and which are `external`, and it
+# is the only way a bare `owner/repo` token is trusted at all.
+#
+# --print-owner prints the owner this run resolved and extracts nothing, so a
+# caller can record which organization the graph was drawn from without
+# reimplementing the resolution. `unknown` when none resolves.
+#
+# Output: JSON Lines on stdout, one object per (target, type) pair, sorted:
+#
+#   {"from":…,"to":…,"type":…,"relation":…,"count":N,"files":[…]}
+#
+#   from      repository segment of a github.com origin, else the directory name
+#   to        `owner/repo`
+#   type      uses-workflow | installs-plugin | depends-on | cites
+#   relation  internal (owner matches this repository's) | external
+#   count     how many references of this type name that target
+#   files     up to FILE_CAP repo-relative files carrying them, sorted
+#
+# Edge types, and the syntax each one trusts:
+#
+#   uses-workflow   a `uses:` step in a workflow or composite action. Names a
+#                   reusable workflow or action this repository RUNS.
+#   installs-plugin a marketplace `source`, or a `/plugin marketplace add`
+#                   line. Names a repository this one INSTALLS FROM.
+#   depends-on      a Go module path, or a git dependency URL in a package
+#                   manifest. Names code this repository BUILDS AGAINST.
+#   cites           a github.com URL, or a bare `owner/repo` whose owner is this
+#                   repository's own, anywhere else in tracked text. The weakest
+#                   type: it means "mentioned", nothing more.
+#
+# Nothing here fetches, and nothing is inferred from a name's resemblance to
+# another. A repository referenced only by a name that looks like a sibling
+# produces no edge.
+#
+# Portability: bash plus POSIX awk/grep/sed, and git for the tracked-file scope.
+# No jq, no `grep -P`, no python.
+#
+# Exit: 0 = edges emitted (possibly none); 1 = the path is not a readable git
+# repository; 2 = usage.
+set -uo pipefail
 
-import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-import process from "node:process";
+# shellcheck source=checkout-identity.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/checkout-identity.sh"
 
-const root = process.cwd();
-const failures = [];
+FILE_CAP=5
 
-// Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt: one
-// data file, every site either reads it or is a documented extension (#3136).
-// The class set is closed: a typo (`fleet-keey`) must fail, not drop tokens.
-const ORG_AGNOSTICISM_CLASSES = Object.freeze([
-  "fleet-id",
-  "fleet-key",
-  "setup",
-  "autonomy",
-  "github",
-]);
-
-function loadOrgAgnosticismTokens() {
-  const byClass = Object.fromEntries(ORG_AGNOSTICISM_CLASSES.map((cls) => [cls, []]));
-  const path = join(root, "scripts", "org-agnosticism-tokens.txt");
-  if (!existsSync(path)) {
-    failures.push("scripts/org-agnosticism-tokens.txt: missing (org-agnosticism SSOT)");
-    return byClass;
-  }
-  for (const raw of read(path).split(/\r?\n/)) {
-    if (!raw || raw.startsWith("#")) continue;
-    const match = raw.match(/^(\S+)\s+(\S+)\s*$/);
-    if (!match) {
-      failures.push(`scripts/org-agnosticism-tokens.txt: malformed line: ${raw}`);
-      continue;
-    }
-    const [, cls, ere] = match;
-    if (!ORG_AGNOSTICISM_CLASSES.includes(cls)) {
-      failures.push(
-        `scripts/org-agnosticism-tokens.txt: unknown class ${cls} (want ${ORG_AGNOSTICISM_CLASSES.join(", ")})`,
-      );
-      continue;
-    }
-    byClass[cls].push(ere);
-  }
-  for (const cls of ORG_AGNOSTICISM_CLASSES) {
-    if (byClass[cls].length === 0) {
-      failures.push(`scripts/org-agnosticism-tokens.txt: no tokens for class ${cls}`);
-    }
-  }
-  return byClass;
+usage() {
+  # Print the header comment block only, selected by comment marker so --help
+  # stays correct as the block grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
-function orgAgnosticismRegex(pats) {
-  if (pats.length === 0) return null;
-  return new RegExp(pats.join("|"), "i");
-}
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
 
-const orgAgnosticismPats = loadOrgAgnosticismTokens();
-const orgTokens = {
-  fleetId: orgAgnosticismRegex(orgAgnosticismPats["fleet-id"]),
-  fleetKey: orgAgnosticismRegex(orgAgnosticismPats["fleet-key"]),
-  setup: orgAgnosticismRegex(orgAgnosticismPats.setup),
-  autonomy: orgAgnosticismRegex(orgAgnosticismPats.autonomy),
-  github: orgAgnosticismRegex(orgAgnosticismPats.github),
-};
-
-function filesUnder(directory) {
-  if (!existsSync(directory)) return [];
-  const files = [];
-  for (const entry of readdirSync(directory)) {
-    if (entry === "node_modules" || entry === ".git") continue;
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) files.push(...filesUnder(path));
-    else files.push(path);
-  }
-  return files;
-}
-
-function read(path) {
-  return readFileSync(path, "utf8");
-}
-
-function fail(path, message) {
-  failures.push(`${relative(root, path)}: ${message}`);
-}
-
-const pluginRoot = join(root, "plugins");
-const pluginFiles = filesUnder(pluginRoot);
-
-// Every plugin file under `directory`, taken from the single plugins/ walk
-// above rather than walking the subtree again: same set, same order, one
-// traversal instead of one per checked subtree.
-function filesIn(directory) {
-  return pluginFiles.filter((path) => path.startsWith(directory + sep));
-}
-
-// A plugin file's path segments below plugins/: [0] is the plugin directory.
-function pluginPathParts(path) {
-  return relative(pluginRoot, path).split(sep);
-}
-
-const setupSkills = pluginFiles.filter((path) =>
-  /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
-);
-
-// plugin-philosophy's check-only carve-out is a consequence of a plugin's
-// surface, not a claim it may assert: "A plugin with even one writable owned
-// artifact takes the narrow-write shape instead." Tracked consumer config is
-// the writable artifact class this repo already registers, in the Implementers
-// table of docs/conventions/config-cascade/README.md, a signal that lives
-// OUTSIDE the setup skill whose claim is being checked, which is the whole
-// point. Reading ownership out of the declaring skill's own prose would let a
-// plugin certify itself, and would misread the carve-out's own second surface,
-// whose conforming `check` prints the exact settings edit it may not write.
-const configCascadeRegistry = join(
-  root,
-  "docs",
-  "conventions",
-  "config-cascade",
-  "README.md",
-);
-
-// The plugin names in that table's first column, or null when the table cannot
-// be read. Null is a recorded failure, never a quiet pass: a check that
-// degrades to a no-op when its input moves is worse than no check at all.
-function readTrackedConfigOwners() {
-  if (!existsSync(configCascadeRegistry)) {
-    fail(
-      configCascadeRegistry,
-      "the consumer-config registry is required to validate the check-only carve-out",
-    );
-    return null;
-  }
-  const lines = read(configCascadeRegistry).split(/\r?\n/);
-  const heading = lines.findIndex((line) => /^##\s+Implementers\s*$/.test(line));
-  if (heading === -1) {
-    fail(
-      configCascadeRegistry,
-      'the consumer-config registry must carry an "## Implementers" section naming every surface that owns tracked consumer config',
-    );
-    return null;
-  }
-  const owners = new Set();
-  for (const line of lines.slice(heading + 1)) {
-    if (/^#{1,6}\s/.test(line)) break;
-    if (!line.startsWith("|")) continue;
-    // Column 1 names the surface, and where the surface name is not itself the
-    // owning plugin it names the plugins alongside it ("`standards`
-    // (`planning`, `review`)"), so every backticked token in the cell is taken
-    // as an owner. Tokens naming no plugin directory are inert.
-    for (const [, name] of (line.split("|")[1] ?? "").matchAll(/`([^`]+)`/g)) {
-      owners.add(name);
+repo_arg=""
+owner_override=""
+print_owner=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --owner)
+    shift
+    [[ $# -gt 0 ]] || {
+      printf 'reference-edges.sh: --owner needs a value\n' >&2
+      exit 2
     }
-  }
-  if (owners.size === 0) {
-    fail(
-      configCascadeRegistry,
-      "the consumer-config registry's Implementers table named no surfaces; the check-only carve-out cannot be validated against it",
-    );
-    return null;
-  }
-  return owners;
+    owner_override="$1"
+    ;;
+  --owner=*) owner_override="${1#--owner=}" ;;
+  --print-owner) print_owner=1 ;;
+  -*)
+    printf 'reference-edges.sh: unknown option: %s\n' "$1" >&2
+    exit 2
+    ;;
+  *)
+    [[ -z "$repo_arg" ]] || {
+      printf 'reference-edges.sh: one repository path only\n' >&2
+      exit 2
+    }
+    repo_arg="$1"
+    ;;
+  esac
+  shift
+done
+
+if [[ -z "$repo_arg" ]]; then
+  printf 'usage: reference-edges.sh <repo-path> [--owner <owner>]\n' >&2
+  exit 2
+fi
+
+if [[ ! -d "$repo_arg" ]]; then
+  printf 'reference-edges.sh: not a directory: %s\n' "$repo_arg" >&2
+  exit 1
+fi
+
+repo="$(cd "$repo_arg" 2>/dev/null && pwd)" || {
+  printf 'reference-edges.sh: unreadable: %s\n' "$repo_arg" >&2
+  exit 1
+}
+name="$(checkout_repository_name)"
+
+if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+  printf 'reference-edges.sh: not a git repository, no tracked files to read: %s\n' "$repo" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Owner
+# ---------------------------------------------------------------------------
+
+# The owner segment of a github.com remote. Only github.com is read here: this
+# owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
+# token on a host whose path shape we have not verified is how fixture names
+# become systems. The host rules live with `github_remote_path`.
+remote_owner_segment() {
+  local path
+  path="$(github_remote_path)" || return 1
+  case "$path" in
+  */*) printf '%s' "${path%%/*}" ;;
+  *) return 1 ;;
+  esac
 }
 
-const trackedConfigOwners = readTrackedConfigOwners();
+owner="$owner_override"
+[[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
 
-function claimsUserConfigSurface(body) {
-  const withoutNegation = body.replace(
-    /\b(?:no|not|without|never)\s+`?userConfig`?/gi,
-    "",
-  );
-  return /\buserConfig\b/.test(withoutNegation);
+# The `owner/repo` slug of a github.com origin remote. `--owner` moves the
+# subject organization, so `$owner/$name` is a different repository when the
+# override disagrees with the remote. The slug is the remote's own and stays
+# the self-reference either way.
+remote_slug() {
+  local path o r
+  path="$(github_remote_path)" || return 1
+  o="${path%%/*}"
+  r="${path#*/}"
+  r="${r%%/*}"
+  [[ -n "$o" && -n "$r" && "$o" != "$path" ]] || return 1
+  printf '%s/%s' "$o" "$r"
+}
+self_slug="$(remote_slug)" || self_slug=""
+
+# The owner this run resolved, for a caller that has to record which
+# organization the graph was drawn from. Reading it back from here keeps one
+# resolution: a second implementation elsewhere would drift from this one about
+# what counts as the subject, and then the edges and the nodes would disagree.
+if [[ "$print_owner" -eq 1 ]]; then
+  printf '%s\n' "${owner:-unknown}"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Reserved GitHub path prefixes
+# ---------------------------------------------------------------------------
+#
+# `github.com/<first>/<second>` is only an owner/repo pair when <first> is an
+# account. These first segments are GitHub's own product surfaces, so a funding
+# link (`github.com/sponsors/acme`) or a marketplace page is not a repository.
+# `user-attachments` is the attachment-delivery prefix GitHub issues, PRs and
+# comments embed uploads under (`github.com/user-attachments/assets/...`,
+# `.../files/...`); the segment after it is an opaque asset id, never a repo.
+is_reserved_owner() {
+  case "$1" in
+  sponsors | features | orgs | settings | apps | marketplace | topics | \
+    collections | about | pricing | security | login | join | new | notifications | \
+    explore | trending | events | site | contact | readme | pulls | issues | \
+    codespaces | enterprise | customer-stories | organizations | user-attachments)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
 }
 
-function declaresUserConfig(plugin) {
-  const manifest = join(pluginRoot, plugin, ".claude-plugin", "plugin.json");
-  if (!existsSync(manifest)) return false;
-  const userConfig = JSON.parse(read(manifest)).userConfig;
-  return (
-    typeof userConfig === "object" &&
-    userConfig !== null &&
-    Object.keys(userConfig).length > 0
-  );
+# A segment that can actually be a GitHub owner or repository name. This is the
+# backstop for every extractor: a regex tuned to one surface still catches
+# neighboring punctuation and documentation templates, so `<source>`,
+# ``acme-tools` ``, and `claude-code-plugins`;` are rejected here rather than by
+# making each pattern progressively more baroque.
+is_valid_segment() {
+  case "$1" in
+  "" | . | ..) return 1 ;;
+  *[!A-Za-z0-9_.-]*) return 1 ;;
+  *) return 0 ;;
+  esac
 }
 
-for (const path of setupSkills) {
-  const content = read(path);
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
-  if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
-    fail(path, "setup skills must set disable-model-invocation: true");
-  }
-  // Uniform contract shape (plugin-philosophy "Setup is explicit and repeatable"):
-  // check is the default read-only action; apply exists unless the skill declares the
-  // check-only carve-out the doctrine sanctions. The registry check below is the
-  // writable-artifact exclusion (tracked consumer config). Native userConfig is
-  // the one carve-out surface with a manifest-side counterpart; the other two
-  // doctrine surfaces (settings this contract forbids setup to mutate; external
-  // prerequisites) have no such signal and are covered by the check-only
-  // declaration plus the registry exclusion, not by a second existence probe.
-  if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
-    fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
-  }
-  const body = content.slice(content.indexOf("---", 3) + 3);
-  if (!/`check`/.test(body)) {
-    fail(path, "setup skills must document the read-only check action");
-  }
-  if (!/`apply`/.test(body) && !/check-only/i.test(body)) {
-    fail(path, "setup skills must document apply, or declare the check-only carve-out and the surface qualifying it");
-  }
-
-  // Which shape a setup skill takes is declared where a reader and a gate can
-  // both see it: the action list in argument-hint, already constrained above to
-  // lead with check. A skill offering no apply is taking the carve-out, whatever
-  // its prose says, so the carve-out's preconditions are checked there rather
-  // than on the presence of the words "check-only" anywhere in the body.
-  const offersApply = /^argument-hint:\s*"[^"]*\bapply\b/m.test(frontmatter);
-  if (offersApply && !/`apply`/.test(body)) {
-    fail(
-      path,
-      "a setup skill advertising apply in argument-hint must document the apply action",
-    );
-  }
-  if (!offersApply) {
-    const plugin = pluginPathParts(path)[0];
-    if (!/check-only/i.test(body)) {
-      fail(path, "a setup skill offering no apply must declare the check-only carve-out it relies on");
-    }
-    if (trackedConfigOwners?.has(plugin)) {
-      fail(
-        path,
-        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/conventions/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
-      );
-    }
-    // The one carve-out surface with a manifest-side counterpart. Any claim
-    // that names that surface, the doctrine's "native userConfig surface"
-    // wording included, requires the manifest to declare it. Matching only
-    // the phrase "userConfig-only carve-out" would let a different spelling
-    // of the same claim pass.
-    if (claimsUserConfigSurface(body) && !declaresUserConfig(plugin)) {
-      fail(path, "a check-only skill that names the userConfig surface requires the plugin manifest to declare userConfig, and this one declares none");
-    }
-  }
+# Documentation placeholders. `github.com/owner/repo` in a usage example names
+# the SHAPE of a reference, not a repository, and charting it invents a system
+# called `owner/repo` that every docs-heavy repository would appear to depend
+# on. `example` and `acme` are the conventional stand-in names.
+is_placeholder_owner() {
+  case "$1" in
+  owner | org | user | username | your-org | your-owner | myorg | my-org | \
+    example | example-org | acme | acme-corp | foo | bar | OWNER | ORG | USER)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
 }
 
-const setupContractFiles = pluginFiles.filter(
-  (path) =>
-    /[\\/]skills[\\/]setup[\\/]/.test(path) &&
-    /\.(?:md|json)$/.test(path),
-);
-for (const path of setupContractFiles) {
-  const content = read(path);
-  if (/pluginConfigs\s*\[\s*["'][^"']+@/i.test(content)) {
-    fail(path, "must not write marketplace-qualified pluginConfigs keys");
-  }
-  if (orgTokens.setup?.test(content)) {
-    fail(path, "must not bind setup behavior to a marketplace name");
-  }
+# ---------------------------------------------------------------------------
+# Emission
+# ---------------------------------------------------------------------------
+
+# A test, fixture, or eval file names repositories that do not exist: `acme/api`
+# and `Owner/Repo` are scaffolding for an assertion, not systems this repository
+# relates to. Charting them fills the landscape with invented nodes, so the
+# whole file is out of scope for every extractor.
+is_fixture_file() {
+  case "$1" in
+  *.test.sh | *.test.ts | *.test.js | *.spec.ts | *.spec.js) return 0 ;;
+  test_*.py | */test_*.py | *_test.py | *_test.go) return 0 ;;
+  */tests/* | tests/*) return 0 ;;
+  */evals/* | evals/*) return 0 ;;
+  */fixtures/* | fixtures/*) return 0 ;;
+  */testdata/* | testdata/*) return 0 ;;
+  *) is_own_artifact "$1" ;;
+  esac
 }
 
-for (const path of pluginFiles.filter((path) => /[\\/]skills[\\/].*\.md$/.test(path))) {
-  const content = read(path);
-  if (orgTokens.fleetId?.test(content)) {
-    fail(path, "reusable skill content must not require publisher-specific runtime identifiers");
+# This skill's own committed output names every repository it charted, so once
+# those artifacts are tracked the extractor would read them back as fresh
+# evidence: each run would raise every count by one and cite the record as its
+# own source, and a drift gate could never report clean again. The artifact
+# names are fixed by this skill's contract while only their directory varies,
+# so matching the basename is enough to keep derived output out of the input.
+is_own_artifact() {
+  case "${1##*/}" in
+  landscape.json | landscape.md | landscape.dsl | landscape-notes.md | portfolio.md)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# GitHub treats an owner and a repository name case-insensitively, so
+# `Melodic-Software/Claude-Code-Plugins` and `melodic-software/claude-code-plugins`
+# are one target, and one of them is this repository referring to itself. Folded
+# with `nocasematch` rather than a `tr` subshell: this runs once per hit, and a
+# fork per hit is the cost that dominated the sibling collector. The prior
+# setting is restored so the shopt never leaks into the extractors' own globs.
+is_self_reference() {
+  local result=1 had_nocase=0
+  [[ -n "$owner" || -n "$self_slug" ]] || return 1
+  shopt -q nocasematch && had_nocase=1
+  shopt -s nocasematch
+  [[ -n "$owner" && "$1" == "$owner/$name" ]] && result=0
+  [[ -n "$self_slug" && "$1" == "$self_slug" ]] && result=0
+  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
+  return "$result"
+}
+
+# Raw hits accumulate here as `type<TAB>owner/repo<TAB>file`, one per line, and
+# are aggregated once at the end. Collecting first and counting later keeps each
+# extractor a plain producer with no shared counter to get wrong.
+HITS=""
+add_hit() {
+  # $1 type, $2 owner/repo, $3 file
+  local target="$2" file="$3" o r
+  is_fixture_file "$file" && return 0
+  # A bare token with no slash names no repository. Without this guard the
+  # expansions below both return the whole token and it emits as `X/X`.
+  case "$target" in
+  */*) ;;
+  *) return 0 ;;
+  esac
+  o="${target%%/*}"
+  r="${target#*/}"
+  r="${r%%/*}"
+  # A `uses:` pin carries its ref; the repository is not named `checkout@<sha>`.
+  r="${r%%@*}"
+  # A clone URL carries the suffix; the repository is not named `repo.git`.
+  r="${r%.git}"
+  # Prose ends sentences. A dot is legal INSIDE a repository name (`docs.rs`)
+  # and never terminates one, so `owner/repo.` in running text is `owner/repo`
+  # plus the full stop that followed it.
+  while [[ "$r" == *. ]]; do r="${r%.}"; done
+  is_valid_segment "$o" || return 0
+  is_valid_segment "$r" || return 0
+  is_reserved_owner "$o" && return 0
+  is_placeholder_owner "$o" && return 0
+  # A reference to this repository itself is not an edge.
+  is_self_reference "$o/$r" && return 0
+  HITS="$HITS$1	$o/$r	$file"$'\n'
+}
+
+# ---------------------------------------------------------------------------
+# Extractors
+# ---------------------------------------------------------------------------
+
+# `git grep -I` skips binary files; `-o` prints each match on its own line
+# prefixed by the file, which is where the per-edge `files` list comes from.
+grep_tracked() {
+  local pattern="$1"
+  shift
+  git -C "$repo" grep -I -o -E -e "$pattern" -- "$@" 2>/dev/null
+}
+
+# 1. uses-workflow. A `uses:` step names a reusable workflow or action. Local
+#    (`./path`) and container (`docker://`) forms name no repository.
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  file="${line%%:*}"
+  match="${line#*:}"
+  ref="${match#*uses:}"
+  ref="${ref#"${ref%%[![:space:]]*}"}"
+  # A YAML scalar may be quoted either way. The quotes belong to the syntax and
+  # not to the repository, and the owner segment carrying one fails the segment
+  # check, so an ordinary quoted `uses:` would drop out of the graph in silence.
+  case "$ref" in
+  \"?*\")
+    ref="${ref#\"}"
+    ref="${ref%\"}"
+    ;;
+  \'?*\')
+    ref="${ref#\'}"
+    ref="${ref%\'}"
+    ;;
+  *) ;;
+  esac
+  case "$ref" in
+  ./* | docker://*) continue ;;
+  *) ;;
+  esac
+  add_hit uses-workflow "$ref" "$file"
+done < <(grep_tracked '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*[^[:space:]]+' \
+  '.github/workflows' '.github/actions' '*.yml' '*.yaml')
+
+# 2. installs-plugin. A marketplace source, or the documented install line. A
+#    LOCAL source (`./plugins/foo`) is this repository's own component, not
+#    another repository: a monorepo marketplace declares one per plugin, so
+#    reading them as references invents an edge per directory.
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  file="${line%%:*}"
+  match="${line#*:}"
+  ref="${match##*[ \"]}"
+  case "$ref" in
+  ./* | ../* | /* | "") continue ;;
+  *) ;;
+  esac
+  add_hit installs-plugin "$ref" "$file"
+done < <(grep_tracked '(plugin marketplace add[[:space:]]+|"source"[[:space:]]*:[[:space:]]*")[A-Za-z0-9_./-]+' \
+  '*.json' '*.md')
+
+# 3. depends-on. A Go module path names its repository directly.
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  file="${line%%:*}"
+  match="${line#*:}"
+  ref="${match#*github.com/}"
+  add_hit depends-on "$ref" "$file"
+done < <(grep_tracked '(^|[^A-Za-z0-9.-])github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' 'go.mod' '*/go.mod')
+
+# 4. cites, from a github.com URL. Any owner; the reserved-prefix filter in
+#    add_hit drops GitHub's own product pages.
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  file="${line%%:*}"
+  match="${line#*:}"
+  case "$file" in
+  go.mod | */go.mod) continue ;;
+  *) ;;
+  esac
+  ref="${match#*github.com/}"
+  add_hit cites "$ref" "$file"
+done < <(grep_tracked '(^|[^A-Za-z0-9.-])github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
+
+# 5. cites, from a BARE `owner/repo` token, and only when the owner is this
+#    repository's own. This is the rule that finds a sibling named in prose or
+#    in a rule file without a URL, and the owner requirement is what keeps
+#    `acme/billing` in a fixture from becoming a system.
+if [[ -n "$owner" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    file="${line%%:*}"
+    match="${line#*:}"
+    ref="${match#*"$owner/"}"
+    add_hit cites "$owner/$ref" "$file"
+  done < <(grep_tracked "(^|[^A-Za-z0-9_./-])${owner}/[A-Za-z0-9_.-]+")
+fi
+
+# ---------------------------------------------------------------------------
+# Aggregate and emit
+# ---------------------------------------------------------------------------
+#
+# One record per (target, type). A target reached by two surfaces earns two
+# records, because "runs its CI" and "is mentioned in a doc" are different
+# claims and collapsing them loses the stronger one.
+
+[[ -n "$HITS" ]] || exit 0
+
+printf '%s' "$HITS" | LC_ALL=C sort | awk -F'\t' \
+  -v from="$name" -v owner="$owner" -v cap="$FILE_CAP" '
+  function esc(s) {
+    gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s)
+    return s
   }
-  if (orgTokens.fleetKey?.test(content)) {
-    fail(path, "reusable skill content must not introduce publisher-prefixed configuration");
+  function flush(  i, rel, out) {
+    if (key == "") return
+    rel = (owner != "" && curowner == owner) ? "internal" : "external"
+    out = "{\"from\":\"" esc(from) "\",\"to\":\"" esc(curto) "\","
+    out = out "\"type\":\"" esc(curtype) "\",\"relation\":\"" rel "\","
+    out = out "\"count\":" count ",\"files\":["
+    for (i = 1; i <= nfiles && i <= cap; i++) {
+      if (i > 1) out = out ","
+      out = out "\"" esc(files[i]) "\""
+    }
+    out = out "]}"
+    print out
   }
-}
-
-for (const path of pluginFiles.filter(
-  (path) => /[\\/]hooks[\\/].*\.sh$/.test(path) && !path.endsWith(".test.sh"),
-)) {
-  const content = read(path);
-  if (/^\s*npx(?:\s|$)|^\s*[A-Z_][A-Z0-9_]*=\(\s*npx\b/m.test(content)) {
-    fail(path, "hooks must not invoke npx or download tools at runtime");
+  {
+    k = $2 SUBSEP $1
+    if (k != key) {
+      flush()
+      key = k; curtype = $1; curto = $2
+      split(curto, parts, "/"); curowner = parts[1]
+      count = 0; nfiles = 0; delete files; delete seen
+    }
+    count++
+    if (!($3 in seen)) { seen[$3] = 1; files[++nfiles] = $3 }
   }
-}
-
-for (const path of pluginFiles.filter((path) => path.endsWith(".schema.json"))) {
-  if (/melodic\.local/i.test(read(path))) {
-    fail(path, "schema identifiers must use a neutral absolute URI");
-  }
-}
-
-for (const plugin of ["discovery", "planning", "implementation"]) {
-  const manifest = join(pluginRoot, plugin, ".claude-plugin", "plugin.json");
-  if (existsSync(manifest) && /"notes_dir"\s*:/.test(read(manifest))) {
-    fail(manifest, "shared project artifact locations cannot use personal userConfig");
-  }
-  for (const path of filesIn(join(pluginRoot, plugin, "skills"))) {
-    if (path.endsWith(".md") && /\$\{user_config\.notes_dir\}/.test(read(path))) {
-      fail(path, "lifecycle skills must use the shared repository artifact protocol");
-    }
-  }
-}
-
-const canonicalLifecycleProtocol = join(root, "docs", "plugin-artifact-protocol.md");
-const canonicalLifecycleContent = existsSync(canonicalLifecycleProtocol)
-  ? read(canonicalLifecycleProtocol)
-  : null;
-if (canonicalLifecycleContent === null) {
-  failures.push("docs/plugin-artifact-protocol.md: shared lifecycle protocol is required");
-}
-
-const lifecycleProtocolCopies = [
-  "discovery",
-  "planning",
-  "implementation",
-  "verification",
-  "overengineering",
-  "instruction-placement",
-].map((plugin) =>
-  join(pluginRoot, plugin, "reference", "artifact-protocol.md"),
-);
-for (const path of lifecycleProtocolCopies) {
-  if (!existsSync(path)) {
-    fail(path, "every lifecycle plugin must ship the canonical artifact protocol");
-    continue;
-  }
-  if (canonicalLifecycleContent !== null && read(path) !== canonicalLifecycleContent) {
-    fail(path, "must remain byte-identical to docs/plugin-artifact-protocol.md");
-  }
-}
-
-const aiBriefingRoot = join(pluginRoot, "ai-briefing");
-// skills/generate/scripts once held the automated-X collectors and stays
-// tombstoned, with one carve-out: run-tests.sh, the skill's public test entry
-// facade over the private output/build package (encapsulation contract, #2701).
-// The automatedXTokens content scan below covers the carved-out file too, so a
-// collector cannot return under the allowed name.
-const legacyScriptsPath = join(aiBriefingRoot, "skills", "generate", "scripts");
-// filesUnder, not filesIn: this probes paths that must NOT exist, so it has
-// to look at the filesystem rather than at a walk that already excluded them.
-const legacyScriptsExtras = filesUnder(legacyScriptsPath).filter(
-  (path) => relative(legacyScriptsPath, path) !== "run-tests.sh",
-);
-if (legacyScriptsExtras.length > 0) {
-  fail(
-    legacyScriptsPath,
-    "legacy automated-X collectors must not be shipped (only the run-tests.sh entry facade may live here)",
-  );
-}
-const legacySeedPath = join(aiBriefingRoot, "skills", "generate", "seed");
-if (filesUnder(legacySeedPath).length > 0) {
-  fail(legacySeedPath, "legacy automated-X collectors must not be shipped");
-}
-
-const automatedXTokens =
-  /--refresh-following|--grok-preload|following-list\.json|chrome-extract|per-profile-runner|grok-capture|mcp__claude-in-chrome/i;
-for (const path of filesIn(aiBriefingRoot).filter((path) => /\.(?:js|json|md|sh)$/.test(path))) {
-  if (automatedXTokens.test(read(path))) {
-    fail(path, "must not expose or retain legacy automated-X collection paths");
-  }
-}
-
-const aiBriefingSkill = join(aiBriefingRoot, "skills", "generate", "SKILL.md");
-if (existsSync(aiBriefingSkill)) {
-  const content = read(aiBriefingSkill);
-  if (!content.includes("${user_config.active_profile}")) {
-    fail(aiBriefingSkill, "must render active_profile in skill content");
-  }
-  if (!/AI_BRIEFING_PROFILE=["']?\$PROFILE/.test(content)) {
-    fail(aiBriefingSkill, "must explicitly pass the resolved profile to build subprocesses");
-  }
-}
-
-const aiBriefingSetup = join(aiBriefingRoot, "skills", "setup", "SKILL.md");
-if (existsSync(aiBriefingSetup)) {
-  const content = read(aiBriefingSetup);
-  for (const marker of [
-    "mktemp -d",
-    "npm ci",
-    "playwright install --with-deps --only-shell chromium",
-    "chromium.launch()",
-  ]) {
-    if (!content.includes(marker)) {
-      fail(aiBriefingSetup, `transactional build setup must include ${marker}`);
-    }
-  }
-}
-
-const aiBriefingBuildRoot = join(
-  aiBriefingRoot,
-  "skills",
-  "generate",
-  "output",
-  "build",
-);
-for (const path of filesIn(aiBriefingBuildRoot).filter((path) => path.endsWith(".js"))) {
-  if (/fonts\.googleapis|fonts\.gstatic|cdn\.jsdelivr\.net|simple-icons@latest|networkidle/i.test(read(path))) {
-    fail(path, "deterministic local rendering must not depend on remote assets or networkidle");
-  }
-}
-
-const aiBriefingPaths = join(aiBriefingBuildRoot, "lib", "paths.js");
-if (existsSync(aiBriefingPaths)) {
-  const content = read(aiBriefingPaths);
-  if (!/validateProfileName/.test(content) || !/lowercase-kebab/.test(content) || !/com\[1-9\]/i.test(content)) {
-    fail(aiBriefingPaths, "must enforce portable profile slugs before joining state or project paths");
-  }
-}
-
-const aiBriefingBrandOverlay = join(aiBriefingBuildRoot, "lib", "brand-overlay.js");
-if (existsSync(aiBriefingBrandOverlay)) {
-  const content = read(aiBriefingBrandOverlay);
-  if (!content.includes('"brand.json"') || !content.includes("realpathSync") || !content.includes(".strict()")) {
-    fail(aiBriefingBrandOverlay, "must load schema-validated brand.json and confine logo real paths");
-  }
-  // A brand.js literal is allowed only for passive legacy-profile detection
-  // and migration errors. Keep rejecting the executable overlay paths used by
-  // earlier runtimes, including direct imports of profile-controlled files.
-  if (
-    /data:text\/javascript|import\s*\(\s*(?:dataUrl|overlayPath|legacyOverlayPath)\s*\)/.test(
-      content,
-    )
-  ) {
-    fail(aiBriefingBrandOverlay, "must not execute consumer-controlled brand configuration");
-  }
-}
-
-// The autonomy plugin's contract text is tool- and fleet-agnostic: the org
-// token and bare fleet repo names may not appear anywhere under it. Author
-// metadata in plugin.json is the single allowed occurrence. The normative
-// reference/ docs additionally ban vendor names outright: surface classes
-// replace them; tool-specific detail lives in SKILL.md/README.
-const autonomyRoot = join(pluginRoot, "autonomy");
-if (existsSync(autonomyRoot)) {
-  const fleetTokens = orgTokens.autonomy;
-  const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
-  const autonomyReference = join(autonomyRoot, "reference") + sep;
-  for (const path of filesIn(autonomyRoot)) {
-    let content = read(path);
-    if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
-      // Only the author block is exempt; description/keywords/etc. stay gated.
-      const manifest = JSON.parse(content);
-      delete manifest.author;
-      content = JSON.stringify(manifest);
-    }
-    if (fleetTokens?.test(content)) {
-      fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
-    }
-    if (path.startsWith(autonomyReference) && vendorTokens.test(content)) {
-      fail(path, "autonomy reference/ contracts must use surface classes, never vendor names");
-    }
-  }
-}
-
-// A manifest component field names hook files, skill directories, and the rest
-// at NON-default paths. Pointing one at the path Claude Code already discovers
-// re-registers a component the harness has loaded: for `hooks` that is a
-// duplicate-file load error that takes the whole hook file down with it, and it
-// is redundant for every other field. The failure is silent at load time, so a
-// gate catches it and a reviewer does not.
-const defaultComponentPaths = {
-  agents: ["agents", "agents/"],
-  commands: ["commands", "commands/"],
-  hooks: ["hooks/hooks.json"],
-  lspServers: [".lsp.json"],
-  mcpServers: [".mcp.json"],
-  skills: ["skills", "skills/"],
-};
-for (const path of pluginFiles) {
-  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
-  const manifest = JSON.parse(read(path));
-  for (const [field, defaults] of Object.entries(defaultComponentPaths)) {
-    const declared = [manifest[field] ?? []].flat();
-    for (const value of declared) {
-      if (typeof value !== "string") continue;
-      const normalized = value.replace(/\\/g, "/").replace(/^\.\//, "");
-      if (defaults.includes(normalized)) {
-        fail(path, `${field} must not name its auto-discovered default path (${value})`);
-      }
-    }
-  }
-}
-
-// An `archive` catalog entry installs a plugin from a zip fetched over HTTPS
-// (Claude Code v2.1.224+). The platform's floor is transport-level only: HTTPS,
-// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop,
-// and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
-// the same URL can serve different content on every install with nothing to detect
-// it, which is the mutable-remote-artifact surface the plugin-acceptance security
-// review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
-// required here so review never has to catch it by eye.
-const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
-if (existsSync(marketplacePath)) {
-  const catalog = JSON.parse(read(marketplacePath));
-  for (const entry of [catalog.plugins ?? []].flat()) {
-    if (!entry || typeof entry !== "object") continue;
-    const source = entry.source;
-    // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
-    if (typeof source !== "object" || source === null || source.source !== "archive") continue;
-    // The digest is 64 hex characters, uppercase or lowercase.
-    if (!/^[0-9a-fA-F]{64}$/.test(String(source.sha256 ?? ""))) {
-      fail(
-        marketplacePath,
-        `archive entry "${entry.name ?? "(unnamed)"}" must pin its download with a 64-hex sha256`,
-      );
-    }
-  }
-}
-
-// github.test.sh's agnostic-conformance regex is a documented extension of
-// this file's `github` class: same tokens, plugin-local reach. Drift here
-// would recreate the two-set problem #3136 closed. If the plugin exists, the
-// test file is required; a missing file must not skip the alignment check.
-{
-  const githubPlugin = join(pluginRoot, "github");
-  const githubTest = join(pluginRoot, "github", "github.test.sh");
-  if (existsSync(githubPlugin) && statSync(githubPlugin).isDirectory()) {
-    if (!existsSync(githubTest)) {
-      fail(
-        githubPlugin,
-        "github.test.sh is missing; keep the agnostic-conformance grep aligned with scripts/org-agnosticism-tokens.txt class github",
-      );
-    } else if (orgTokens.github) {
-      const source = read(githubTest);
-      const found = source.match(/grep -riEn "([^"]+)" "\$PLUGIN_DIR" --include='\*\.md'/);
-      const expected = orgTokens.github.source;
-      if (!found) {
-        fail(githubTest, "agnostic-conformance grep not found; keep it aligned with scripts/org-agnosticism-tokens.txt class github");
-      } else if (found[1] !== expected) {
-        fail(
-          githubTest,
-          `agnostic-conformance regex drifted from scripts/org-agnosticism-tokens.txt class github (file has ${found[1]}; tokens file has ${expected})`,
-        );
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Retired conventions: plugins/<plugin>/retirements.yaml
-// (docs/migration-playbook.md § Retired conventions; owner doc
-// docs/conventions/retired-conventions/README.md).
-//
-// A manifest is the append-only record of consumer-facing artifacts a plugin
-// has retired; the shared helper lib/check-retirements.sh (canonical in
-// claude-config, synced byte-identical) evaluates it in setup `check`. The
-// gate covers four things: the manifest parses and every record is
-// well-formed; records are never deleted or rewritten once merged; the helper
-// and the setup skill are wired both ways; and every record has an eval.
-// ---------------------------------------------------------------------------
-
-const RETIREMENTS_FILE = "retirements.yaml";
-const RETIREMENTS_HELPER = "check-retirements.sh";
-const canonicalRetirementsHelper = join(
-  pluginRoot,
-  "claude-config",
-  "lib",
-  RETIREMENTS_HELPER,
-);
-const RETIREMENT_KEYS = Object.freeze([
-  "id",
-  "retired",
-  "plugin_version",
-  "kind",
-  "path",
-  "match",
-  "heading",
-  "content_match",
-  "action",
-  "successor",
-  "note",
-  "status",
-]);
-const RETIREMENT_REQUIRED_KEYS = Object.freeze([
-  "id",
-  "retired",
-  "plugin_version",
-  "kind",
-  "path",
-  "action",
-  "note",
-]);
-const RETIREMENT_ENUMS = Object.freeze({
-  kind: ["file", "dir", "line"],
-  action: ["delete", "remove-line", "migrate"],
-  status: ["active", "report-only"],
-});
-// Fields an already-merged record may still change: a demotion, or a defect
-// fix to the prose. Everything else is frozen once the record ships.
-const RETIREMENT_MUTABLE_KEYS = Object.freeze(["status", "note", "successor"]);
-// semver.org's documented regex, without the leading anchors' `v` allowance.
-const SEMVER =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
-
-// The accepted grammar is a deliberately small subset of YAML, so the parser
-// is hand-written rather than a dependency. Records are separated by a line
-// that is exactly `---` (no trailing whitespace: the runtime helper is the
-// same); a record with no keys, such as the one before a leading `---`, is
-// skipped. Inside a record every line is either blank, a comment (first
-// non-blank character `#`), or `key: value` with the key at column 0. Values
-// are the rest of the line, trimmed; matching outer quotes are stripped and
-// nothing inside is escaped, matching the helper's `strip_quotes`. There are
-// no inline comments after a value, no multi-line values, no nesting, and no
-// lists. Anything else is a parse error so an author never ships a record the
-// helper reads differently.
-function parseRetirementsManifest(text) {
-  const records = [];
-  const errors = [];
-  let current = null;
-  const flush = () => {
-    if (current && Object.keys(current.fields).length > 0) records.push(current);
-    current = null;
-  };
-  text.split(/\r?\n/).forEach((raw, index) => {
-    const lineNo = index + 1;
-    if (raw === "---") {
-      flush();
-      return;
-    }
-    if (/^\s*$/.test(raw) || /^\s*#/.test(raw)) return;
-    if (!current) {
-      current = { line: lineNo, fields: {} };
-    }
-    if (/^\s/.test(raw)) {
-      errors.push(`line ${lineNo}: indented lines are not allowed (flat key: value records only)`);
-      return;
-    }
-    if (/^-\s/.test(raw) || raw === "-") {
-      errors.push(`line ${lineNo}: lists are not allowed (flat key: value records only)`);
-      return;
-    }
-    const match = raw.match(/^([A-Za-z_][A-Za-z0-9_]*):(?:\s+(.*))?$/);
-    if (!match) {
-      errors.push(`line ${lineNo}: not a "key: value" line`);
-      return;
-    }
-    const key = match[1];
-    let value = (match[2] ?? "").trim();
-    if (value === "") {
-      errors.push(`line ${lineNo}: empty value for "${key}"`);
-      return;
-    }
-    if (value.startsWith('"')) {
-      if (value.length < 2 || !value.endsWith('"')) {
-        errors.push(`line ${lineNo}: unterminated or malformed double-quoted value for "${key}"`);
-        return;
-      }
-      value = value.slice(1, -1);
-    } else if (value.startsWith("'")) {
-      if (value.length < 2 || !value.endsWith("'")) {
-        errors.push(`line ${lineNo}: unterminated or malformed single-quoted value for "${key}"`);
-        return;
-      }
-      value = value.slice(1, -1);
-    }
-    if (Object.hasOwn(current.fields, key)) {
-      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${current.line}`);
-      return;
-    }
-    current.fields[key] = value;
-  });
-  flush();
-  return { records, errors };
-}
-
-// A conservative usability check, not an ERE validator: it rejects an empty
-// pattern, an unterminated bracket expression, and unbalanced parentheses
-// outside bracket expressions. It does NOT check interval syntax, character
-// classes, anchors, or anything else grep -E would still reject; the helper's
-// own test suite is where a pattern's behavior is proven.
-function ereProblem(pattern) {
-  if (pattern.length === 0) return "empty pattern";
-  let depth = 0;
-  for (let i = 0; i < pattern.length; i += 1) {
-    const ch = pattern[i];
-    if (ch === "\\") {
-      i += 1;
-      continue;
-    }
-    if (ch === "[") {
-      // `]` right after `[` or `[^` is a literal member, not the terminator.
-      let j = i + 1;
-      if (pattern[j] === "^") j += 1;
-      if (pattern[j] === "]") j += 1;
-      while (j < pattern.length && pattern[j] !== "]") {
-        // POSIX classes such as [:alpha:] carry their own `]`.
-        if (pattern[j] === "[" && /[:.=]/.test(pattern[j + 1] ?? "")) {
-          const close = pattern.indexOf(`${pattern[j + 1]}]`, j + 2);
-          if (close === -1) return "unterminated bracket expression";
-          j = close + 2;
-          continue;
-        }
-        j += 1;
-      }
-      if (j >= pattern.length) return "unterminated bracket expression";
-      i = j;
-      continue;
-    }
-    if (ch === "(") depth += 1;
-    if (ch === ")") {
-      depth -= 1;
-      if (depth < 0) return "unbalanced parentheses";
-    }
-  }
-  return depth === 0 ? null : "unbalanced parentheses";
-}
-
-function isRealDate(value) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return false;
-  const [, y, m, d] = match.map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
-}
-
-function badRepoRelativePath(value) {
-  return (
-    value.length === 0 ||
-    value.startsWith("/") ||
-    /^[A-Za-z]:/.test(value) ||
-    value.startsWith("~") ||
-    value.includes("\\") ||
-    value.includes("\t") ||
-    value.split("/").includes("..") ||
-    value === "." ||
-    value === "./" ||
-    value === "./." ||
-    value.endsWith("/.") ||
-    value.endsWith("/./") ||
-    value.includes("//")
-  );
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function textCoversRetirementId(text, id) {
-  return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
-}
-
-// Validates one manifest's records; returns the ids it found so the
-// append-only and eval-coverage checks below can key on them.
-function validateRetirementRecords(manifestPath, plugin, records) {
-  const ids = [];
-  const seen = new Set();
-  const idPattern = new RegExp(`^${escapeRegExp(plugin)}-r\\d{3,}$`);
-  records.forEach((record, index) => {
-    const { fields } = record;
-    const label = `record ${fields.id ? `"${fields.id}"` : `#${index + 1} (line ${record.line})`}`;
-    const recordFail = (message) => fail(manifestPath, `${label}: ${message}`);
-
-    for (const key of Object.keys(fields)) {
-      if (!RETIREMENT_KEYS.includes(key)) recordFail(`unknown key "${key}"`);
-    }
-    for (const key of RETIREMENT_REQUIRED_KEYS) {
-      if (!Object.hasOwn(fields, key)) recordFail(`missing required key "${key}"`);
-    }
-    for (const [key, allowed] of Object.entries(RETIREMENT_ENUMS)) {
-      if (Object.hasOwn(fields, key) && !allowed.includes(fields[key])) {
-        recordFail(`"${key}" must be one of ${allowed.join(", ")} (got "${fields[key]}")`);
-      }
-    }
-    if (fields.id !== undefined) {
-      if (!idPattern.test(fields.id)) {
-        recordFail(`"id" must match ^${plugin}-r\\d{3,}$`);
-      } else if (seen.has(fields.id)) {
-        recordFail(`duplicate id "${fields.id}"`);
-      } else {
-        seen.add(fields.id);
-        ids.push(fields.id);
-      }
-    }
-    if (fields.retired !== undefined && !isRealDate(fields.retired)) {
-      recordFail(`"retired" must be a real YYYY-MM-DD date (got "${fields.retired}")`);
-    }
-    if (fields.plugin_version !== undefined && !SEMVER.test(fields.plugin_version)) {
-      recordFail(`"plugin_version" must be semver (got "${fields.plugin_version}")`);
-    }
-    if (fields.path !== undefined && badRepoRelativePath(fields.path)) {
-      recordFail(
-        `"path" must be repo-relative: no absolute paths, ".." segments, leading "~", backslashes, tabs, ".", "//", or a trailing "/." (got "${fields.path}")`,
-      );
-    }
-    const kind = fields.kind;
-    if (kind === "line" && fields.match === undefined) {
-      recordFail(`"match" is required when kind is line`);
-    }
-    if (kind !== undefined && kind !== "line" && fields.match !== undefined) {
-      recordFail(`"match" is only allowed when kind is line`);
-    }
-    if (kind !== undefined && kind !== "file" && fields.content_match !== undefined) {
-      recordFail(`"content_match" is only allowed when kind is file`);
-    }
-    if (fields.heading !== undefined) {
-      if (kind !== undefined && kind !== "line") {
-        recordFail(`"heading" is only allowed when kind is line`);
-      }
-      if (!/^#{1,6}[ \t]+\S/.test(fields.heading)) {
-        recordFail(
-          `"heading" must be an ATX heading (1-6 hashes, whitespace, title) (got "${fields.heading}")`,
-        );
-      }
-    }
-    const action = fields.action;
-    if (action === "remove-line" && kind !== undefined && kind !== "line") {
-      recordFail(`action remove-line requires kind line`);
-    }
-    if (action === "delete" && kind === "line") {
-      recordFail(`action delete requires kind file or dir`);
-    }
-    if (action === "migrate" && fields.successor === undefined) {
-      recordFail(`action migrate requires "successor"`);
-    }
-    for (const key of ["match", "content_match"]) {
-      if (fields[key] === undefined) continue;
-      const problem = ereProblem(fields[key]);
-      if (problem) recordFail(`"${key}" is not a usable ERE: ${problem}`);
-    }
-  });
-  return ids;
-}
-
-function gitText(args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-}
-
-// Append-only enforcement compares against the PR base. CI passes the base
-// ref in VALIDATE_CONTRACTS_BASE_REF; a local run without it says so on
-// stdout rather than silently passing a deletion.
-const retirementsBaseRef = process.env.VALIDATE_CONTRACTS_BASE_REF?.trim() || null;
-let retirementsAtBase = null; // Map<repo-relative manifest path, records[]>
-if (retirementsBaseRef === null) {
-  console.log(
-    `validate-plugin-contracts: VALIDATE_CONTRACTS_BASE_REF unset; retirements append-only check skipped`,
-  );
-} else {
-  let resolved = true;
-  try {
-    gitText(["rev-parse", "--verify", "--quiet", `${retirementsBaseRef}^{commit}`]);
-  } catch {
-    resolved = false;
-    failures.push(
-      `VALIDATE_CONTRACTS_BASE_REF=${retirementsBaseRef} does not resolve to a commit; the retirements append-only check cannot run`,
-    );
-  }
-  if (resolved) {
-    retirementsAtBase = new Map();
-    let listing = "";
-    try {
-      listing = gitText(["ls-tree", "-r", "--name-only", retirementsBaseRef, "--", "plugins"]);
-    } catch {
-      listing = "";
-    }
-    for (const line of listing.split(/\r?\n/)) {
-      if (!/^plugins\/[^/]+\/retirements\.yaml$/.test(line)) continue;
-      const { records, errors } = parseRetirementsManifest(
-        gitText(["show", `${retirementsBaseRef}:${line}`]),
-      );
-      if (errors.length > 0) {
-        failures.push(
-          `${line}: the version at ${retirementsBaseRef} does not parse (${errors[0]}); the append-only check cannot compare against it`,
-        );
-        continue;
-      }
-      retirementsAtBase.set(line, records);
-    }
-  }
-}
-
-const retirementManifests = pluginFiles.filter((path) => {
-  const parts = pluginPathParts(path);
-  return parts.length === 2 && parts[1] === RETIREMENTS_FILE;
-});
-const canonicalHelperContent = existsSync(canonicalRetirementsHelper)
-  ? read(canonicalRetirementsHelper)
-  : null;
-if (retirementManifests.length > 0 && canonicalHelperContent === null) {
-  fail(
-    canonicalRetirementsHelper,
-    "missing; it is the canonical helper every plugin shipping retirements.yaml syncs byte-identically",
-  );
-}
-
-const pluginsWithRetirements = new Set();
-for (const manifestPath of retirementManifests) {
-  const plugin = pluginPathParts(manifestPath)[0];
-  pluginsWithRetirements.add(plugin);
-  const { records, errors } = parseRetirementsManifest(read(manifestPath));
-  for (const error of errors) fail(manifestPath, error);
-  const ids = validateRetirementRecords(manifestPath, plugin, records);
-
-  if (retirementsAtBase !== null) {
-    const manifestKey = relative(root, manifestPath).split(sep).join("/");
-    const baseRecords = retirementsAtBase.get(manifestKey) ?? [];
-    const current = new Map(records.filter((r) => r.fields.id).map((r) => [r.fields.id, r.fields]));
-    for (const base of baseRecords) {
-      const id = base.fields.id;
-      if (!id) continue;
-      const head = current.get(id);
-      if (!head) {
-        fail(
-          manifestPath,
-          `record "${id}" was present at ${retirementsBaseRef}: records are append-only; demote with \`status: report-only\` instead`,
-        );
-        continue;
-      }
-      for (const key of new Set([...Object.keys(base.fields), ...Object.keys(head)])) {
-        if (RETIREMENT_MUTABLE_KEYS.includes(key)) continue;
-        if (base.fields[key] !== head[key]) {
-          fail(
-            manifestPath,
-            `record "${id}": "${key}" changed since ${retirementsBaseRef}; records are append-only (only ${RETIREMENT_MUTABLE_KEYS.join(", ")} may change on an existing id)`,
-          );
-        }
-      }
-    }
-  }
-
-  // Wiring, forward direction: the synced helper and the setup skill that
-  // runs it must both be present.
-  const helperCopy = join(pluginRoot, plugin, "lib", RETIREMENTS_HELPER);
-  if (!existsSync(helperCopy)) {
-    fail(helperCopy, "missing; a plugin shipping retirements.yaml must carry the synced helper");
-  } else if (canonicalHelperContent !== null && read(helperCopy) !== canonicalHelperContent) {
-    fail(helperCopy, "must remain byte-identical to plugins/claude-config/lib/check-retirements.sh");
-  }
-  const setupSkill = join(pluginRoot, plugin, "skills", "setup", "SKILL.md");
-  if (!existsSync(setupSkill) || !read(setupSkill).includes(RETIREMENTS_HELPER)) {
-    fail(setupSkill, "must reference check-retirements.sh when the plugin ships retirements.yaml");
-  }
-
-  // Every record is a behavior the setup skill now has (detect-hit and clean
-  // path), so every id needs an eval naming it (mechanism-validation, hybrid
-  // item 1). The id may sit in the case's name, prompt, expected_output, or
-  // expectations.
-  const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
-  if (!existsSync(evalsPath)) {
-    if (ids.length > 0) {
-      fail(evalsPath, `missing; every retirement record needs an eval covering it (${ids.join(", ")})`);
-    }
-  } else {
-    let cases = null;
-    try {
-      cases = [JSON.parse(read(evalsPath)).evals ?? []].flat();
-    } catch {
-      fail(evalsPath, "is not valid JSON; retirement eval coverage cannot be checked");
-    }
-    if (cases !== null) {
-      const haystacks = cases.map((c) =>
-        [c?.name, c?.prompt, c?.expected_output, ...[c?.expectations ?? []].flat()]
-          .filter((v) => typeof v === "string")
-          .join("\n"),
-      );
-      for (const id of ids) {
-        if (!haystacks.some((text) => textCoversRetirementId(text, id))) {
-          fail(evalsPath, `no eval covers retirement record "${id}"`);
-        }
-      }
-    }
-  }
-}
-
-// A manifest deleted outright is every one of its records deleted.
-if (retirementsAtBase !== null) {
-  for (const manifestKey of retirementsAtBase.keys()) {
-    if (!existsSync(join(root, ...manifestKey.split("/")))) {
-      failures.push(
-        `${manifestKey}: was present at ${retirementsBaseRef}: records are append-only; demote with \`status: report-only\` instead`,
-      );
-    }
-  }
-}
-
-// Wiring, inverse direction: a helper copy or a setup reference with no
-// manifest behind it is dead surface. claude-config is the canonical home of
-// the helper, so its copy and its setup reference stand without a manifest.
-for (const path of pluginFiles) {
-  const parts = pluginPathParts(path);
-  const plugin = parts[0];
-  if (plugin === "claude-config" || pluginsWithRetirements.has(plugin)) continue;
-  const rest = parts.slice(1).join("/");
-  if (rest === `lib/${RETIREMENTS_HELPER}`) {
-    fail(path, "lib/check-retirements.sh is carried but the plugin ships no retirements.yaml");
-  } else if (rest === "skills/setup/SKILL.md" && read(path).includes(RETIREMENTS_HELPER)) {
-    fail(path, "references check-retirements.sh but the plugin ships no retirements.yaml");
-  }
-}
-
-// An agent's `skills:` entry that does not resolve is skipped SILENTLY: the
-// harness logs a debug-line warning and starts the agent anyway, so an agent
-// that was supposed to carry a discipline runs without it and still returns a
-// well-formed artifact. Nothing downstream can tell that run from a good one,
-// which is why a typo here needs a gate rather than a reviewer.
-//
-// What this check does NOT cover: a skill that is missing or disabled at
-// RUNTIME, for example by an organization's policy (sub-agents.md:585). This
-// resolves names against the tree as committed only. The runtime case is
-// covered by each agent's disk-fallback rung and the parent-side warning on
-// `preload: fallback`, not here.
-//
-// Entry forms: the namespaced `<plugin>:<skill>` resolves to that plugin's
-// skills dir; a bare `<skill>` resolves inside the agent's own plugin.
-const SKILLS_ENTRY_MALFORMED = "`skills:` must be a YAML list of skill names";
-for (const path of pluginFiles) {
-  const parts = relative(pluginRoot, path).split(sep);
-  if (parts.length !== 3 || parts[1] !== "agents" || !parts[2].endsWith(".md")) continue;
-  const ownPlugin = parts[0];
-  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!frontmatter) continue;
-  const body = frontmatter[1];
-  const blockList = body.match(/^skills:[ \t]*\r?\n((?:[ \t]+-[ \t]*\S.*\r?\n?)+)/m);
-  const flowList = body.match(/^skills:[ \t]*\[([^\]]*)\]/m);
-  let entries = null;
-  if (blockList) {
-    entries = blockList[1]
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^[ \t]+-[ \t]*/, "").trim())
-      .filter((value) => value.length > 0);
-  } else if (flowList) {
-    entries = flowList[1]
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-  } else if (/^skills:/m.test(body)) {
-    // A `skills:` key in any other shape is a failure, never a skip: a check
-    // that degrades to a no-op when its input moves is worse than no check.
-    fail(path, SKILLS_ENTRY_MALFORMED);
-    continue;
-  }
-  for (const raw of entries ?? []) {
-    const entry = raw.replace(/^["']|["']$/g, "");
-    const colon = entry.indexOf(":");
-    const targetPlugin = colon === -1 ? ownPlugin : entry.slice(0, colon);
-    const targetSkill = colon === -1 ? entry : entry.slice(colon + 1);
-    const target = join(pluginRoot, targetPlugin, "skills", targetSkill, "SKILL.md");
-    if (!targetSkill || !existsSync(target)) {
-      fail(
-        path,
-        `\`skills:\` entry ${entry} resolves to no SKILL.md (looked for plugins/${targetPlugin}/skills/${targetSkill}/SKILL.md)`,
-      );
-      continue;
-    }
-    const targetFrontmatter = read(target).match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (targetFrontmatter && /^disable-model-invocation:[ \t]*true[ \t]*$/m.test(targetFrontmatter[1])) {
-      fail(
-        path,
-        `\`skills:\` entry ${entry} targets a \`disable-model-invocation: true\` skill, which cannot be preloaded`,
-      );
-    }
-  }
-}
-
-// The return contract is authored once and shipped as a byte-identical copy in
-// every plugin whose agents preload it. Same idiom as lifecycleProtocolCopies
-// above: one canonical file, the rest compared to it, drift is a failure rather
-// than something a reviewer has to diff by eye.
-const RETURN_CONTRACT_LEAF = "report";
-const returnContractFiles = ["SKILL.md", join("evals", "evals.json")];
-const returnContractCopies = ["implementation", "plugin-quality"];
-for (const file of returnContractFiles) {
-  const canonicalPath = join(pluginRoot, "discovery", "skills", RETURN_CONTRACT_LEAF, file);
-  const canonicalRel = `plugins/discovery/skills/${RETURN_CONTRACT_LEAF}/${file.replace(/\\/g, "/")}`;
-  if (!existsSync(canonicalPath)) {
-    fail(canonicalPath, "the canonical return contract is required");
-    continue;
-  }
-  const canonical = read(canonicalPath);
-  for (const plugin of returnContractCopies) {
-    const copyPath = join(pluginRoot, plugin, "skills", RETURN_CONTRACT_LEAF, file);
-    if (!existsSync(copyPath)) {
-      fail(copyPath, `every preloading plugin must ship the return contract (${canonicalRel})`);
-      continue;
-    }
-    if (read(copyPath) !== canonical) {
-      fail(copyPath, `must remain byte-identical to ${canonicalRel}`);
-    }
-  }
-}
-
-// Every agent definition names its model. A subagent's model resolves as the
-// per-call `model`, then the definition's `model`, then CLAUDE_CODE_SUBAGENT_MODEL,
-// then the main conversation's model, so an omitted field lands on the
-// orchestrator's model wherever the variable is unset. `inherit` picks that
-// model on purpose and outranks the variable, so it must carry a stated reason
-// on the same line. Basis: https://code.claude.com/docs/en/sub-agents#choose-a-model
-// Scope: every .md under plugins/<plugin>/agents/, nested directories included,
-// because plugin agents/ directories are scanned recursively. No plugin declares
-// a custom `agents` path in plugin.json, so that tree is every agent definition.
-// The value must be one plain single-line scalar: a YAML null, a block scalar,
-// a duplicate key, or a comment not set off by whitespace could hide `inherit`.
-const agentDefinitions = pluginFiles.filter((path) => {
-  const parts = pluginPathParts(path);
-  return parts.length >= 3 && parts[1] === "agents" && path.endsWith(".md");
-});
-for (const path of agentDefinitions) {
-  const lines = read(path).replace(/^﻿/, "").split(/\r?\n/);
-  const close = lines[0] === "---" ? lines.indexOf("---", 1) : -1;
-  const frontmatter = close === -1 ? [] : lines.slice(1, close);
-  const modelLines = frontmatter.filter((line) => line.startsWith("model:"));
-  if (modelLines.length > 1) {
-    fail(path, "model: appears more than once in frontmatter; keep one model line");
-    continue;
-  }
-  const rest = modelLines[0]?.slice("model:".length) ?? "";
-  const [, dq, sq, bare, comment = ""] =
-    /^[ \t]*(?:"([^"]*)"|'([^']*)'|(\S+))?(.*)$/.exec(rest);
-  const value = dq ?? sq ?? bare ?? "";
-  const malformed =
-    (rest !== "" && !/^[ \t]/.test(rest)) ||
-    (bare !== undefined && /^[|>"'[\]{}&*!%@`]|#/.test(bare)) ||
-    !/^(?:\s*|\s+#.*)$/.test(comment);
-  if (malformed) {
-    fail(
-      path,
-      "model: line is malformed; write `model: <value>` on one line, with whitespace after the colon and before any # comment",
-    );
-  } else if (!value || (bare !== undefined && /^(?:null|~)$/i.test(bare))) {
-    fail(path, "agent definitions must name a model in frontmatter (model: <alias or id>)");
-  } else if (value.toLowerCase() === "inherit" && !/#\s*reason:\s*\S/.test(comment)) {
-    fail(path, "model: inherit needs a trailing `# reason: <why>` comment on the same line");
-  }
-}
-
-// Unescaped $N in a skill that admits arguments. Official substitution expands
-// $0/$1 even inside fences on the 2.1.251 probe; a single preceding backslash
-// is the only escape, and a doubled backslash still expands. The message
-// points at the playbook section that records the rule.
-const ARGUMENTS_DOC =
-  "plugins/playbooks/skills/skill-authoring/SKILL.md (Arguments)";
-
-function backslashesBefore(text, index) {
-  let count = 0;
-  for (let i = index - 1; i >= 0 && text[i] === "\\"; i -= 1) count += 1;
-  return count;
-}
-
-function firstUnescaped(text, pattern) {
-  const re = new RegExp(pattern, "g");
-  let match;
-  while ((match = re.exec(text))) {
-    if (backslashesBefore(text, match.index) !== 1) return match[0];
-  }
-  return null;
-}
-
-function admitsArguments(frontmatter, body) {
-  if (/^arguments\s*:/m.test(frontmatter)) return true;
-  const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
-  if (hint) {
-    const raw = hint[1].trim();
-    if (raw !== "" && raw !== '""' && raw !== "''") return true;
-  }
-  return firstUnescaped(body, "\\$ARGUMENTS\\b") !== null;
-}
-
-const argumentSkills = pluginFiles.filter((path) =>
-  /[\\/]skills[\\/][^\\/]+[\\/]SKILL\.md$/.test(path),
-);
-for (const path of argumentSkills) {
-  const content = read(path);
-  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
-  const body = content.slice(content.indexOf("---", 3) + 3);
-  if (!admitsArguments(frontmatter, body)) continue;
-  const hit = firstUnescaped(body, "\\$[0-9]+");
-  if (hit) {
-    fail(
-      path,
-      `unescaped ${hit} in a skill that admits arguments; escape a literal with a single backslash (${ARGUMENTS_DOC})`,
-    );
-  }
-}
-
-if (failures.length > 0) {
-  console.error("Plugin contract validation failed:");
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
-
-console.log(
-  `Plugin contracts validated: ${setupSkills.length} setup skills, ${retirementManifests.length} retirement manifests, and ${pluginFiles.length} plugin files checked.`,
-);
+  END { flush() }
+'

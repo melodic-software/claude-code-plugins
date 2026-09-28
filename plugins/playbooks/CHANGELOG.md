@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.23] - 2026-09-28
+
+### Changed
+
+- **`skill-authoring`** points at the argument-hint house style
+  (`docs/conventions/argument-hint/README.md`) instead of restating it. The convention owns the
+  budget, the bracket grammar, and the empty-key rule; the fleet contract validator enforces them.
+
 ## [0.13.22] - 2026-09-28
 
 ### Added
