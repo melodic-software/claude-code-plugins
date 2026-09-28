@@ -88,10 +88,12 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the
   only exception, and it never applies to linked worktrees whose common Git directory is outside the
-  approved checkout. A checkout that cannot pass that evidence bundle stays `contested`. Never
-  delete it outside the engine, even when the operator asks; warn that unpushed and untracked
-  content would be lost, and stop (the #4227 Option A in
-  [the safety model](reference/safety-model.md#standalone-git-checkout-evidence)).
+  approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
+  remote, untracked files, no commits), never delete it outside the engine. Record
+  `accept_unpublished` with the operator's reason for that exact approved path in
+  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict: every other
+  contest reason must be gone. Before deleting, tell the operator plainly that unpushed commits and
+  untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -381,8 +383,7 @@ After an affirmative answer in this interactive session, run only:
   --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
-Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call,
-including for a `contested` throwaway Git checkout the operator wants gone. The
+Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
 skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
 (`permissionDecision: "ask"`) for the exact engine apply command, the same mechanism as the
 PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that

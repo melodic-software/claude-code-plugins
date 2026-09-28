@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.8] - 2026-09-28
+
+### Added
+
+- **`accept_unpublished` acknowledgement for throwaway Git checkouts**
+  ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)). A
+  `vcs-evidence.json` entry whose path is an exact approved path may carry
+  `"accept_unpublished": true` with a `reason`. `handoff-verify` then waives the empty-status and
+  heads-on-remote gates for that repository only, so a local repository with no remote and
+  untracked files can verify `clear`. The stash gate and every link, mount, handle, identity, and
+  descendant check still apply, and the verdict lists the acknowledgement and its reason. The skill
+  now requires `handoff-verify` before deleting a checkout the operator overrode, never an
+  out-of-engine deletion, and a warning that unpushed and untracked content will be lost.
+
 ## [0.28.7] - 2026-09-28
 
 ### Removed

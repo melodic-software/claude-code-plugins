@@ -181,22 +181,18 @@ unsupported providers, missing tools, timeouts, diagnostics, malformed output, s
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
 categorical reasons.
 
-A throwaway local checkout that cannot pass those four gates stays `contested`. There is no
-`accept_unpublished` (or equivalent) acknowledgement that relaxes gates 1–2. The model never
-deletes a `contested` VCS path outside the engine, even when the operator asks: that bypass is
-what #4227 recorded (the categorical refusal removed the checks, not the deletion). Warn that
-unpushed and untracked content would be lost, and stop. The operator who wants that tree gone
-removes it themselves, outside this skill.
-
-**Claim:** gates 1–2 stay categorical; a local Git repository with no remote, or with untracked
-or gitignored-present files, cannot reach `clear`; the model does not delete it outside the
-engine. **Basis:** #4227 (disk-hygiene 0.23.12, Windows 11, Claude Code 2.1.278): `cdtest` /
-`cdtest-cov` stayed `contested` with `vcs-metadata` plus `baseline-protected-name`, then the
-model deleted them outside the engine. Option A is the safer default (forbid the bypass)
-rather than an unpaid engine acknowledgement. **As of:** 2026-09-28. **Recheck:** the owner
-funds a per-path unpublished acknowledgement that still keeps link, mount, handle, and
-identity categorical, or a documented recurrence of the out-of-engine bypass after this
-instruction.
+An operator who wants a throwaway checkout gone even though it fails gates 1 or 2 records that on
+the evidence entry: `"accept_unpublished": true` with a non-empty `"reason"`. The engine accepts it
+only on an entry whose `path` is itself an exact approved path, so a nested repository or a pattern
+cannot carry it. For that repository, porcelain output and local heads that are not on a
+`github.com` remote (or have no remote) stop failing gates 1 and 2; those gates report
+`accepted-unpublished` and the evidence result lists each acknowledgement with its reason under
+`accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
+repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
+the acknowledgement the verdict is unchanged. The acknowledgement exists because a categorical
+refusal did not stop the deletion in #4227: the operator had the directories removed outside the
+engine with every check skipped. Before deleting under it, tell the operator that unpushed commits
+and untracked or ignored files in the checkout will be lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
