@@ -12,5 +12,3 @@ f8ae23769b2f0dd950fafcb547adcedb8a9726a1:plugins/architecture/skills/map-contain
 e0ab78c67a884a591182783e4ea2f91badb1f4cb:plugins/architecture/lib/redact-connection.test.sh:generic-api-key:60
 6a90cdc0b195101dc5a52f27b90f1feed0cdee63:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:94
 6a90cdc0b195101dc5a52f27b90f1feed0cdee63:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
-04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:94
-04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
