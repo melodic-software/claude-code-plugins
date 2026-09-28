@@ -1,0 +1,52 @@
+{
+  "skill_name": "ui",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-mz-window-skin",
+      "prompt": "make an RPG Maker MZ window skin, dark wood with a gold frame",
+      "expected_output": "Fires /pixel-art:ui. Reads the Window.png row in engine-layouts.md and draws those regions into one frame, because render.py keeps one frame size per spec. Renders with render.py, reads preview.png, and delivers sheet.png at 1x named Window.png.",
+      "files": [],
+      "expectations": [
+        "Invokes the ui skill, not sprite",
+        "Places Window.png regions from engine-layouts.md into one frame",
+        "Keeps 9-slice corners as a solid block",
+        "Delivers sheet.png at 1x as the asset"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "triggers-on-icon-set-and-font",
+      "prompt": "an MZ icon set of 16 item icons, plus a bitmap font of the digits 0-9",
+      "expected_output": "Fires /pixel-art:ui. Lays the icons on the IconSet.png grid from engine-layouts.md without skipping cell 0, and authors the digits as a glyph grid. States unspecified choices in one line.",
+      "files": [],
+      "expectations": [
+        "Uses the IconSet column count from engine-layouts.md",
+        "Does not shift the grid to skip icon 0",
+        "Authors the digits as a glyph grid rather than a system font"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "near-miss-single-icon-routes-to-sprite",
+      "prompt": "draw a 32x32 health potion icon",
+      "expected_output": "Does not fire /pixel-art:ui. A single item icon is /pixel-art:sprite.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the ui skill for one item icon",
+        "Routes to /pixel-art:sprite"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "near-miss-tileset-routes-to-tileset",
+      "prompt": "make a grass autotile sheet for RPG Maker MZ",
+      "expected_output": "Does not fire /pixel-art:ui. A terrain tileset is /pixel-art:tileset.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the ui skill for an autotile sheet",
+        "Routes to /pixel-art:tileset"
+      ]
+    }
+  ]
+}
