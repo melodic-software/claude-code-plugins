@@ -16,7 +16,7 @@
 - [Worked examples](#worked-examples)
 - [Output format](#output-format)
 
-Version: 1.6.0
+Version: 1.6.1
 Last updated: 2026-09-28
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
@@ -26,6 +26,12 @@ cases. None of that is restated here. This file owns the part a check entry has 
 candidate pair is adjudicated**. That covers whether the two surfaces can even co-load, what the
 official docs settle about precedence and what they refuse to, and the further must-not-flag cases
 the pre-scan and the lane each drop.
+
+**Shared-surface ownership is out of scope for I15.** This pass detects conflicting instruction
+*pairs*; it does not assign *ownership* when multiple contributors' preferences meet on one
+surface. That governance question is recorded as rejected for this repository in
+[`docs/out-of-scope/shared-surface-instruction-governance.md`](../../../../../../docs/out-of-scope/shared-surface-instruction-governance.md)
+(#3568). `instruction-exception-register` governs deletions only, not ownership.
 
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
