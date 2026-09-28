@@ -212,6 +212,29 @@ else
   echo "SKIP: node is not on PATH; spawn-delivery cases not exercised" >&2
 fi
 
+# --- a Windows backslash execPath still counts as node.exe ------------------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+winnode="$(mktemp -d)"
+cat >"$winnode/node" <<'EOF'
+#!/usr/bin/env bash
+payload=$(cat)
+jq -n --arg payload "$payload" --args \
+  '{execPath:"C:\\Program Files\\nodejs\\node.exe", argv:$ARGS.positional, stdinBytes:($payload|length)}' \
+  "$@"
+EOF
+chmod +x "$winnode/node"
+if out="$(cd "$f" && PATH="$winnode:$PATH" EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)"; then
+  if grep -q 'spawn probe delivered the args array to node.exe' <<<"$out"; then
+    ok "a backslash process.execPath counts as node.exe"
+  else
+    fail "backslash execPath should count as node.exe, got: $out"
+  fi
+else
+  fail "backslash execPath should pass, got: $out"
+fi
+rm -rf "$f" "$winnode"
+
 # --- a required spawn with node hidden fails closed -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"

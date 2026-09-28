@@ -107,6 +107,17 @@ flag() {
 # lower <string>
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
+# image_name <path>
+# Node's process.execPath on Windows is a backslash path. ${path##*/} leaves
+# C:\Program Files\nodejs\node.exe intact, so the spawn half reports that image
+# as not node.exe and stops the fleet sweep.
+image_name() {
+  local base="${1##*/}"
+  base="${base##*\\}"
+  base="${base//$'\r'/}"
+  lower "$base"
+}
+
 # consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
@@ -341,7 +352,7 @@ run_spawn() {
     echo "SPAWN-PROBE: node did not return a probe record. Fleet sweep stopped." >&2
     return 1
   fi
-  image="$(lower "${exec_path##*/}")"
+  image="$(image_name "$exec_path")"
   if [[ "$got" != "true" || "$image" == "bash" || "$image" == "bash.exe" || "$image" == "sh" || "$image" == "sh.exe" ]]; then
     echo "ARGS-DROP: Windows exec-form spawn dropped args or routed through bash.exe (anthropics/claude-code#90495). Fleet sweep stopped." >&2
     return 1
@@ -440,7 +451,7 @@ JS
     seen="$(jq -r '.sentinelSeen' "$marker" 2>/dev/null || true)"
     bytes="$(jq -r '.stdinBytes' "$marker" 2>/dev/null || true)"
     exec_path="$(jq -r '.execPath' "$marker" 2>/dev/null || true)"
-    image="$(lower "${exec_path##*/}")"
+    image="$(image_name "$exec_path")"
     if [[ "$seen" == "true" && "$bytes" != "0" && "$bytes" != "null" && "$image" != "bash" && "$image" != "bash.exe" && "$image" != "sh" && "$image" != "sh.exe" ]]; then
       rm -rf "$tmp"
       note "check-exec-form-windows-probe: live probe delivered args and stdin to ${image}. This host did not reproduce anthropics/claude-code#90495. No .sh row was converted."
