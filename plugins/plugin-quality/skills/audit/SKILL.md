@@ -228,7 +228,8 @@ name taken from `evidence.md`):
   confirmation a write was attempted and refused, so a later reader can weight them accordingly.
   **Seal once, last, after every write this step makes**, the findings, the provenance, and any
   rewrite record a read-back forced, per rule 3 of `reference/evidence-packet.md` ("when a step's
-  packet writes are complete").
+  packet writes are complete"). The seal is snapshot integrity, not currency of the audited world
+  (`reference/evidence-packet.md` "What a sealed packet asserts").
   Sealing straight after the findings instead leaves the provenance written past the last seal, so
   the Resume rule's mandatory verify reports it UNSEALED (exit 3) on *every* backstop-recovered
   packet: the one packet class whose provenance most needs to be trustworthy would be the one class
