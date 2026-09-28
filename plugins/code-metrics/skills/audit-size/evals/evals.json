@@ -37,6 +37,18 @@
         "Mentions /verification:measure only behind an if-installed gate with a stated fallback",
         "States that a report with status empty on either side makes the comparison inconclusive"
       ]
+    },
+    {
+      "id": 4,
+      "name": "skill-tool-render-has-no-placeholders",
+      "prompt": "Invoke /code-metrics:audit-size through the Skill tool with the plugin installed and read the rendered skill body before running the script.",
+      "expected_output": "The rendered body has Current branch as a branch name or unknown, not the git-branch probe source. CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT appear only as expanded absolute paths. No literal ${CLAUDE_ token and no unmatched bang-backtick probe remain. Then the skill runs audit-size.sh as the other cases require.",
+      "files": [],
+      "expectations": [
+        "Current branch is a resolved value, not the literal git-branch probe",
+        "CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT appear only as expanded absolute paths",
+        "No surviving ${CLAUDE_ token and no unmatched bang-backtick probe"
+      ]
     }
   ]
 }

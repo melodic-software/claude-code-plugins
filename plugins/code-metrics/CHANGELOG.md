@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.21] - 2026-09-28
+
+### Changed
+
+- **Skill-tool exercise record for the seven skills (#3848).**
+  `reference/skill-tool-exercise.md` records the 0.1.8 live Skill-tool pass of
+  `audit-type-debt` and `principles` in this repository, parks the other five as
+  unpaid (setup is slash-path only because it is model-hidden), and names
+  description triggering as unpaid. Eval id 4 on the five unpaid skills grades
+  a later live render for leftover placeholders. Serialized above in-flight
+  0.3.20 on #3847.
+
 ## [0.3.19] - 2026-09-28
 
 ### Fixed

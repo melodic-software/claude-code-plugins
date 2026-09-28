@@ -38,6 +38,18 @@
         "Reports zero duplicated lines for that cluster and shows the excluded entry naming hooks/hook-utils.sh",
         "Explains that the exclusion follows from the repository's own declaration and would report the duplicated lines without it"
       ]
+    },
+    {
+      "id": 4,
+      "name": "skill-tool-render-has-no-placeholders",
+      "prompt": "Invoke /code-metrics:audit-duplication through the Skill tool with the plugin installed and read the rendered skill body before running the script.",
+      "expected_output": "The rendered body has Current branch as a branch name or unknown, not the git-branch probe source. CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT appear only as expanded absolute paths. No literal ${CLAUDE_ token and no unmatched bang-backtick probe remain. Then the skill runs audit-duplication.sh as the other cases require.",
+      "files": [],
+      "expectations": [
+        "Current branch is a resolved value, not the literal git-branch probe",
+        "CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT appear only as expanded absolute paths",
+        "No surviving ${CLAUDE_ token and no unmatched bang-backtick probe"
+      ]
     }
   ]
 }

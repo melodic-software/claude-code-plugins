@@ -163,6 +163,12 @@ The aggregate is an upper-bound estimate against the documented 8,000-character 
 consumer who installs only this plugin sits well inside it, and `/doctor` reports the resolved
 figure for a live session.
 
+## Skill-tool exercise
+
+Whether each skill works when invoked through the Skill tool (or, for `setup`, the slash path)
+is recorded in [`reference/skill-tool-exercise.md`](reference/skill-tool-exercise.md). Two of
+seven have a live pass; description triggering is unpaid.
+
 ## Known gaps
 
 - The two convention adopter rows (the marketplace's per-plugin conventions registry) are deferred

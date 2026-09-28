@@ -39,6 +39,18 @@
         "Recommends the recursive .claude/**/*.local.* line rather than editing .gitignore",
         "Writes only .claude/code-metrics.yaml, never the user-global or local layers"
       ]
+    },
+    {
+      "id": 4,
+      "name": "slash-invoke-render-has-no-placeholders",
+      "prompt": "Invoke /code-metrics:setup check by the slash path (this skill is model-hidden) and read the rendered body before running setup-check.sh.",
+      "expected_output": "The rendered body has CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT as expanded absolute paths. There is no Pre-computed context section. No literal ${CLAUDE_ token remains. Then check runs as the other cases require.",
+      "files": [],
+      "expectations": [
+        "The skill is invoked by slash path, not the Skill tool, because it is model-hidden",
+        "CLAUDE_SKILL_DIR and CLAUDE_PLUGIN_ROOT appear only as expanded absolute paths",
+        "No surviving ${CLAUDE_ token"
+      ]
     }
   ]
 }
