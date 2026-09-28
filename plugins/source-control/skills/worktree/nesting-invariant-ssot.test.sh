@@ -139,9 +139,23 @@ stamp_marked_expired=false
 
 # nesting_invariant_version_passed <expiry-N.N.N> <installed-N.N.N> — return 0
 # when installed is at or past the expiry version.
+# `sort -V` is GNU-only (portability-ok: avoided, not suppressed) — both
+# arms are already shape-guarded to N.N.N, so a plain per-component numeric
+# compare covers it without depending on BSD-vs-GNU sort.
 nesting_invariant_version_passed() {
   local expiry="$1" installed="$2"
-  [[ "$(printf '%s\n%s\n' "$expiry" "$installed" | sort -V | head -n1)" == "$expiry" ]]
+  local e1 e2 e3 i1 i2 i3
+  IFS='.' read -r e1 e2 e3 <<<"$expiry"
+  IFS='.' read -r i1 i2 i3 <<<"$installed"
+  if ((i1 != e1)); then
+    ((i1 > e1))
+    return
+  fi
+  if ((i2 != e2)); then
+    ((i2 > e2))
+    return
+  fi
+  ((i3 >= e3))
 }
 
 # Version arm: enforce against the installed CLI when one is present. CI may
