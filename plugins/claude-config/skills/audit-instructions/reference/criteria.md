@@ -2009,7 +2009,8 @@ invocation or reads on demand other than its `SKILL.md`, such as `reference/`, `
 - **Remediate:** delete the self-description; keep the loading condition in the hub's index row.
 - **Reporting:** one finding per spoke, anchored by an excerpt (`e:`) over the opener sentence, with
   its heading path as the duplicate discriminator. A whole-surface (`s:`) anchor survives this row's
-  own remediation, so it never keys an I33 finding.
+  own remediation, so it never keys an I33 finding. I33 is lane-only (no pre-scan seed), and each
+  lane brief restates the Must NOT flag fences above.
 
 ---
 
