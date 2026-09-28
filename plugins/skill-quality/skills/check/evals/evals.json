@@ -109,6 +109,19 @@
         "Output explains the mismatch is between the description/verb contract (read-only vs mutate) and is a factual-consistency defect in the listing surface",
         "Output does NOT treat the WARN as a mandate to add a --fix path or rename the skill"
       ]
+    },
+    {
+      "id": 10,
+      "name": "measure-invocation-reports-both-splits",
+      "prompt": "measure-invocation",
+      "expected_output": "Routes to the measure-invocation action: validates the probe set, then scores it, and reports per skill a train trigger-rate and false-trigger-rate plus a validation trigger-rate and false-trigger-rate. Names listing-overlap as a lexical floor, not a model-graded auto-invocation rate. Does not rewrite any skill description.",
+      "files": [],
+      "expectations": [
+        "Output runs the measure-invocation harness (validate and/or score), not the static contract gate",
+        "Output reports trigger_rate and false_trigger_rate for both the train split and the validation split",
+        "Output states that listing-overlap is a floor, not a live auto-invocation rate",
+        "Output does not rewrite skill descriptions"
+      ]
     }
   ]
 }

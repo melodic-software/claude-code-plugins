@@ -1,0 +1,32 @@
+{
+  "skill": "skill-quality:check",
+  "plugin": "skill-quality",
+  "skill_dir": "plugins/skill-quality/skills/check",
+  "ranking_note": "Seed skill: high sibling-intent density (setup, skill-authoring, listing-budget). Fleet starvation ranking is a live-session input this CI harness does not have; replace the seed when an audit-skill-visibility report is in hand.",
+  "competitors": ["playbooks:skill-authoring"],
+  "competitor_dirs": {
+    "playbooks:skill-authoring": "plugins/playbooks/skills/skill-authoring"
+  },
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "check this skill before I publish it"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "is this SKILL.md valid"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "lint my skill frontmatter"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "validate skill quality on plugins/foo/skills/bar"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "check skill before publishing"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "validate evals.json for my new skill"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "is the skill listing overflowing"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "shared listing budget across every plugin"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "validate skill frontmatter before I ship"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "run the skill-quality contract gate on this skill"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "write me a brand-new skill for parsing CSV files"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "how should I structure a SKILL.md with several reference topics"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "create a skill from Anthropic's authoring playbook"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "what permissions are actually in effect on this machine"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "audit MCP tool descriptions against the spec"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "babysit this pull request until it merges"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "skill best practices for writing a description"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "configure where this repo's skills live for skill-quality"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "show unused skills in this session and why they starve"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "how to write SKILL.md progressive disclosure"}
+  ]
+}
