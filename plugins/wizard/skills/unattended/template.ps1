@@ -117,6 +117,20 @@ function Add-Preflight {
         })
 }
 
+# A native command's nonzero exit is not a terminating error under
+# $ErrorActionPreference = 'Stop', so every authored block is checked.
+function Invoke-Checked {
+    param(
+        [Parameter(Mandatory = $true)][string] $Label,
+        [Parameter(Mandatory = $true)][scriptblock] $Block
+    )
+    $global:LASTEXITCODE = 0
+    & $Block
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Label failed: native command exited $LASTEXITCODE"
+    }
+}
+
 function Invoke-IdempotentStep {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -131,13 +145,7 @@ function Invoke-IdempotentStep {
             })
         return
     }
-    # A native command's nonzero exit is not a terminating error under
-    # $ErrorActionPreference = 'Stop', so check it before recording success.
-    $global:LASTEXITCODE = 0
-    & $Action
-    if ($LASTEXITCODE -ne 0) {
-        throw "step $Name failed: native command exited $LASTEXITCODE"
-    }
+    Invoke-Checked "step $Name" $Action
     $script:Steps.Add([pscustomobject]@{
             name   = $Name
             status = 'ok'
@@ -154,9 +162,9 @@ function Use-GuardedResource {
     )
     # Listed before Take runs: a Take that fails partway may already hold the resource.
     $script:Held.Add($Name) | Out-Null
-    & $Take
-    & $Prove
-    & $Release
+    Invoke-Checked "take $Name" $Take
+    Invoke-Checked "prove $Name" $Prove
+    Invoke-Checked "release $Name" $Release
     $script:Held.Remove($Name) | Out-Null
 }
 

@@ -181,6 +181,20 @@ else
   fail "a native command's nonzero exit fails the step" "$msg"
 fi
 
+code="$(run_pwsh nativeprove "
+  \$dir = '$TEST_TMPDIR/nativeprove'
+  Initialize-UnattendedResult -ResultDirectory \$dir
+  try {
+    Use-GuardedResource -Name 'fleet' -Take { } -Prove { & pwsh -NoProfile -Command 'exit 3' } -Release { 'released' }
+  } catch { \$_.Exception.Message }
+")"
+msg="$(cat "$TEST_TMPDIR/nativeprove.out")"
+if [[ "$msg" == *'prove fleet failed'* && "$msg" != *released* ]]; then
+  pass "a native proof's nonzero exit keeps the resource unreleased"
+else
+  fail "a native proof's nonzero exit keeps the resource unreleased" "$msg"
+fi
+
 code="$(WIZARD_TEST_SECRET="$SECRET" run_pwsh jsonredact "
   \$dir = '$TEST_TMPDIR/jsonredact'
   Initialize-UnattendedResult -ResultDirectory \$dir
