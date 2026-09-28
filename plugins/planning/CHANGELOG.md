@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-09-28
+
+### Changed
+
+- **`interview` finalize action is build-later backlog
+  ([#3941](https://github.com/melodic-software/claude-code-plugins/issues/3941)).**
+  `skills/interview/reference/finalize-action-backlog.md` records Option A. No Action Router
+  row and no page code in this release.
+
 ## [0.45.0] - 2026-09-28
 
 ### Fixed
