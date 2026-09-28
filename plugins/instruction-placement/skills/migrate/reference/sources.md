@@ -192,3 +192,31 @@ This is the price of the cutover, and `remove-shims` prints it before it asks.
 - **Recheck trigger**: `InstructionsLoaded` starts firing for a directly read `AGENTS.md`, or
   `verify-load.sh` gains a detection path that does not depend on that hook. Either one puts the
   two instruments back together.
+
+## Cutover recheck, this repo only (#4281)
+
+`cutover-check.sh --repo <this checkout> --skip-canary` on 2026-09-28, Claude Code 2.1.280.
+The other nine in-scope repos were not in this checkout. Condition 3 was not run.
+
+- **Claim:** Condition 1 is met because the env-vars page no longer lists reading `AGENTS.md`
+  under "Features that need feature-flag fetching". The bundle code default is still false
+  (`tengu_agents_md_mod`, identifier `W`, `var W=!1`, offset 221711543 in
+  `node_modules/@anthropic-ai/claude-code/bin/claude.exe`). The check treats either the code
+  default or the missing bullet as enough. Condition 4 on this repo had one unacknowledged
+  row, `plugins/ai-slop/skills/audit/scripts/user-scope.sh` listing `$root/CLAUDE.md`; that
+  row is acknowledged in `.claude/cutover-pathdet-ack.txt` because the root is user scope
+  (`CLAUDE_CONFIG_DIR` or `$HOME/.claude`), the permanent `CLAUDE.md` this migration does not
+  remove. Condition 2 on this repo alone is met: no local `claude-code-action` pin, and the
+  recorded canary run `35475056935` is still the one `sources.md` names. A fleet verdict
+  still needs the other nine repositories. The next full run is the monthly row
+  `agents-md-cutover-check`, `next_due` 2026-10-20, or a Claude Code release whose changelog
+  touches `AGENTS.md` or instruction-file loading.
+- **Basis:** the check's own output on 2026-09-28;
+  [env-vars, Features that need feature-flag fetching](https://code.claude.com/docs/en/env-vars#features-that-need-feature-flag-fetching)
+  (fetched 2026-09-28; the "With fetching off, you can't" list has no `AGENTS.md` bullet);
+  `.github/recurring-schedule.json` item `agents-md-cutover-check`.
+- **As of:** 2026-09-28.
+- **Recheck trigger:** the monthly due date 2026-10-20, a changelog entry that touches
+  `AGENTS.md` or instruction-file loading, or the env-vars feature-flag list gaining an
+  `AGENTS.md` bullet again. Shim removal stays blocked until every graded condition is met
+  on all ten repos, including a condition-3 canary.

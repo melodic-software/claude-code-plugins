@@ -3,6 +3,19 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.12] - 2026-09-28
+
+### Changed
+
+- **Cutover check re-run on this repo (#4281).** CLI 2.1.280 still has
+  `tengu_agents_md_mod` code default false. The env-vars page no longer lists reading
+  `AGENTS.md` under "Features that need feature-flag fetching", which the check treats as
+  enough for condition 1. Condition 4 had one new row, `user-scope.sh` listing the user-scope
+  `CLAUDE.md`; that row is now acknowledged. Condition 3 was not run. The other nine repos
+  were not in this checkout. Next full fleet run is the monthly row on 2026-10-20, or a
+  later release that changes `AGENTS.md` loading. Recorded in
+  `skills/migrate/reference/sources.md`. The recurring issue stays open.
+
 ## [0.15.11] - 2026-09-28
 
 ### Changed
