@@ -950,21 +950,31 @@ fi
 assert_not_contains_file "all-fail run withholds per-branch merged-remote-branch MEDIUMs" \
   "Finding: merged-remote-branch" "$all_fail_out"
 # #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
-# rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote and demotes to MEDIUM.
+# rewrites the transport for the same repository still confirms HIGH. One that points the remote
+# at another repository fails every ls-remote in this one-repo run (URL-binding mismatch), so
+# the all-fail rollup emits fleet UNKNOWN rather than a MEDIUM per head.
 instead_of_out="$TMP/instead-of.txt"
-for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|MEDIUM'; do
-  FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
-    HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
-    bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
-  if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
-    grep -Fq "Confidence: ${rewrite#*|}"; then
-    printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
-  else
-    printf 'FAIL: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}" >&2
-    failures=$((failures + 1))
-  fi
-done
+FAKE_GLOBAL_INSTEADOF='git@github.com:acme/repo-a.git' REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
+if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
+  grep -Fq "Confidence: HIGH"; then
+  printf 'PASS: global insteadOf git@github.com:acme/repo-a.git gives merged-remote-branch HIGH\n'
+else
+  printf 'FAIL: global insteadOf git@github.com:acme/repo-a.git gives merged-remote-branch HIGH\n' >&2
+  failures=$((failures + 1))
+fi
+FAKE_GLOBAL_INSTEADOF='git@github.com:evil/elsewhere.git' REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$instead_of_out" 2>&1 || true
+if grep -Fq "Finding: remote-verification-unavailable" "$instead_of_out" &&
+  grep -A6 -F "Finding: remote-verification-unavailable" "$instead_of_out" | grep -Fq "Confidence: UNKNOWN" &&
+  ! grep -Fq "Finding: merged-remote-branch" "$instead_of_out"; then
+  printf 'PASS: global insteadOf git@github.com:evil/elsewhere.git rolls up to fleet UNKNOWN\n'
+else
+  printf 'FAIL: global insteadOf git@github.com:evil/elsewhere.git rolls up to fleet UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
