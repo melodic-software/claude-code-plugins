@@ -117,6 +117,19 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/probe-prerequisite.sh",
+            "shell": "bash",
+            "timeout": 10,
+            "statusMessage": "Checking biome..."
+          }
+        ]
+      }
     ]
   }
 }

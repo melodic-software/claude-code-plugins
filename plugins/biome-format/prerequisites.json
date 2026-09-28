@@ -1,0 +1,10 @@
+{
+  "tools": [
+    {
+      "name": "biome",
+      "local_bin": "node_modules/.bin/biome",
+      "check": "/biome-format:check",
+      "install": "npm i -D @biomejs/biome"
+    }
+  ]
+}

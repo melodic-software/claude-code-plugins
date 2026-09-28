@@ -1296,7 +1296,49 @@ if [[ "$kind_out" == "renew 8" ]]; then
 else
   fail "notice_once: 8th skip renew" "got '$kind_out'"
 fi
-rm -rf "$DATA16C" "$DATA16C2"
+DATA16P="$(mktemp -d)"
+if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite); then
+  ok "notice_once: prerequisite first call emits"
+else
+  fail "notice_once: prerequisite first call suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_B" prerequisite); then
+  fail "notice_once: prerequisite other agent emitted again"
+else
+  ok "notice_once: prerequisite latch is the session, not the agent"
+fi
+pre_marker="$DATA16P/skip-notices/k-pre.sess-1.session"
+if [[ -f "$pre_marker" ]]; then
+  ok "notice_once: prerequisite marker ignores agent id"
+else
+  fail "notice_once: prerequisite marker ignores agent id" "missing $pre_marker"
+fi
+DATA16R="$(mktemp -d)"
+pre_kind="$(
+  CLAUDE_PLUGIN_DATA="$DATA16R"
+  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true
+  for _i in 1 2 3 4 5 6; do hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true; done
+  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite
+  printf '%s %s %s' "$HOOK_NOTICE_KIND" "$HOOK_NOTICE_KEEP_BODY" "$HOOK_NOTICE_COUNT"
+)"
+if [[ "$pre_kind" == "renew 1 8" ]]; then
+  ok "notice_once: prerequisite renewal keeps the body"
+else
+  fail "notice_once: prerequisite renewal keeps the body" "got '$pre_kind'"
+fi
+HOOK_NOTICE_KIND=renew
+HOOK_NOTICE_KEEP_BODY=1
+HOOK_NOTICE_COUNT=8
+kept="$(hook::emit_skip_notice SessionStart $'plugin: tool missing. Install: npm i -D tool\nPATH probed: /usr/bin')"
+HOOK_NOTICE_KIND=full
+HOOK_NOTICE_KEEP_BODY=0
+HOOK_NOTICE_COUNT=0
+if [[ "$kept" == *'Install: npm i -D tool'* && "$kept" == *'8 skips this session'* ]]; then
+  ok "emit_skip_notice: prerequisite renewal keeps the install route"
+else
+  fail "emit_skip_notice: prerequisite renewal keeps the install route" "got '$kept'"
+fi
+rm -rf "$DATA16C" "$DATA16C2" "$DATA16P" "$DATA16R"
 
 probed="$(CLAUDE_PLUGIN_ROOT=/tmp/my-plugin hook::format_path_probed \
   "/usr/bin:/tmp/other/plugins/foo/bin:/tmp/my-plugin/bin:/opt/homebrew/bin")"

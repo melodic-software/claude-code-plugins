@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "ctx7",
+      "check": "/context7:setup check",
+      "install": "npm install -g ctx7@latest"
+    }
+  ]
+}

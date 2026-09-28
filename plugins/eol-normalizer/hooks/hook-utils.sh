@@ -159,12 +159,19 @@ hook::emit_skip_notice() {
     msg="${prefix}"$'\n'"PATH probed: $(hook::format_path_probed "$probed")"
   fi
   if [[ "${HOOK_NOTICE_KIND:-full}" == "renew" ]]; then
-    msg="${msg%%$'\n'*}"
-    if ((${#msg} > 240)); then
-      msg="${msg:0:237}..."
-    fi
-    if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
-      msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
+    if [[ "${HOOK_NOTICE_KEEP_BODY:-0}" == "1" ]]; then
+      # A prerequisite renewal keeps the install route (#4240).
+      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
+        msg="${msg}"$'\n'"[${HOOK_NOTICE_COUNT} skips this session]"
+      fi
+    else
+      msg="${msg%%$'\n'*}"
+      if ((${#msg} > 240)); then
+        msg="${msg:0:237}..."
+      fi
+      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
+        msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
+      fi
     fi
   fi
   hook::emit_channels "$event" "$msg" "$msg"
@@ -267,12 +274,16 @@ hook::emit_system_message() {
 #   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
 HOOK_NOTICE_KIND=full
 HOOK_NOTICE_COUNT=0
+HOOK_NOTICE_KEEP_BODY=0
 HOOK_NOTICE_RENEW_EVERY="${HOOK_NOTICE_RENEW_EVERY:-8}"
 
 hook::notice_once() {
-  local key="$1" input="${2:-}" session="no-session" agent="no-agent"
+  local key="$1" input="${2:-}" class="${3:-}" session="no-session" agent="no-agent"
+  local session_only=0
   HOOK_NOTICE_KIND=full
   HOOK_NOTICE_COUNT=0
+  HOOK_NOTICE_KEEP_BODY=0
+  [[ "$class" == "prerequisite" ]] && session_only=1
   if [[ "$input" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
     session="${BASH_REMATCH[1]}"
     session="${session//[^A-Za-z0-9_-]/-}"
@@ -286,6 +297,7 @@ hook::notice_once() {
   fi
   agent="${agent//[^A-Za-z0-9_-]/-}"
   [[ -n "$agent" ]] || agent="no-agent"
+  [[ "$session_only" -eq 1 ]] && agent="session"
   local dir="${CLAUDE_PLUGIN_DATA:-}"
   [[ -n "$dir" ]] || return 0
   dir="$dir/skip-notices"
@@ -323,6 +335,7 @@ hook::notice_once() {
   fi
   if ((count % every == 0)); then
     HOOK_NOTICE_KIND=renew
+    [[ "$session_only" -eq 1 ]] && HOOK_NOTICE_KEEP_BODY=1
     return 0
   fi
   HOOK_NOTICE_KIND=silent
