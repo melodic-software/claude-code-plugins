@@ -11,7 +11,7 @@
 - [The auto-mode entry diff](#the-auto-mode-entry-diff)
 - [The permission-plane lint](#the-permission-plane-lint)
 - [The `autoMode` block lane](#the-automode-block-lane)
-- [Open upstream discrepancy: carry this caveat on any `ask` finding](#open-upstream-discrepancy-carry-this-caveat-on-any-ask-finding)
+- [Ask rules under auto mode: carry this caveat on any `ask` finding](#ask-rules-under-auto-mode-carry-this-caveat-on-any-ask-finding)
 - [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
 
 Version: 1.1.0
@@ -81,10 +81,23 @@ The managed scope is four surfaces. Two are the **portable core**, read on every
 `managed-settings.json` and its `managed-settings.d/` drop-in directory. Their merge order is
 documented rather than guessed, so the reader implements it instead of reporting an inventory:
 
-> "Following the systemd convention, `managed-settings.json` is merged first as the base, then all
-> `*.json` files in the drop-in directory are sorted alphabetically and merged on top. Later files
-> override earlier ones for scalar values, arrays are concatenated and de-duplicated, and objects are
-> deep-merged. Hidden files starting with `.` are ignored."
+Drop-in files merge as their own rule, not as a blanket "arrays concatenated, objects deep-merged".
+`managed-settings.json` is the base; `*.json` files in the drop-in directory follow in alphabetical
+order. A later single value replaces an earlier one, lists combine with duplicates removed, nested
+blocks merge key by key, and `fallbackModel`, `modelPicker`, and a same-named
+`extraKnownMarketplaces` or `managedMcpServers` entry are replaced whole. Hidden files are ignored.
+Basis: [managed settings](https://code.claude.com/docs/en/managed-settings), "Split a file-based
+policy across teams". Verified 2026-09-28. Recheck when that section changes how two drop-in files
+combine a key.
+
+Cross-source combination under `managedSourcesBehavior: "merge"` is by key kind. Lists union. Locks
+take the strictest value. Restriction allowlists and values taken whole come from the highest source
+that sets them. `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are values taken whole since
+v2.1.257. Provided MCP server names union, and the higher source's entry wins on a name clash. A
+named set of keys is read from the highest source only. `env` merges per variable. Basis:
+[settings reference](https://code.claude.com/docs/en/settings-reference) `managedSourcesBehavior`,
+and [managed settings](https://code.claude.com/docs/en/managed-settings) "Compose every managed
+source". Verified 2026-09-28. Recheck when that table gains or drops a key kind.
 
 Two are **declared optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
 domain. Each is read where it is native and readable; where its tool is missing the surface reports
@@ -165,9 +178,16 @@ run of `inert` records.
 
 Neither is a limitation to apologize for; both change what a finding means.
 
-- **The command-line scope has no file.** `--settings`, `--allowedTools` and `--disallowedTools` rank
-  above local, project and user settings, and no file reader can see them. The merge is the effective
-  set the settings **files** define.
+- **The command-line scope has no file.** Without `allowManagedPermissionRulesOnly`, `--settings`,
+  `--allowedTools`, and `--disallowedTools` rank above local, project, and user settings, and no file
+  reader can see them. The merge is the effective set the settings **files** define. With the lock
+  set in managed settings, `--allowedTools` is ignored, and `allow`, `ask`, and `deny` rules in user,
+  project, local, and `--settings` files are ignored. `--disallowedTools` and the session's deny and
+  ask rules still apply, including after a settings reload (v2.1.257+; before that version those
+  command-line and session rules were dropped at the first reload). The merge applies the lock only
+  when a managed `conf` record carries `allowManagedPermissionRulesOnly true`. Basis:
+  [settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly).
+  Verified 2026-09-28. Recheck when that entry changes what the lock ignores.
 - **Rules are compared by exact text, and the error direction is known.** "A broad deny rule like
   `Bash(aws *)` blocks every matching call, including calls that also match a narrower allow rule like
   `Bash(aws s3 ls)`." This merge does not evaluate pattern subsumption, so a narrow allow that a
@@ -286,7 +306,7 @@ to share, so the diff driver tests them on the tool token instead.
 
 ## The permission-plane lint
 
-Nine checks over one question: the operator wrote something believing it takes effect, and it does
+Eleven checks over one question: the operator wrote something believing it takes effect, and it does
 not. Several also emit a startup warning upstream; the added value here is reading every scope at
 once, before a session, and naming the file the dead entry is in.
 
@@ -297,7 +317,7 @@ fixed all three.
 | Check | Mechanic it follows from |
 | --- | --- |
 | `C2-autoMode` | "The classifier doesn't read `autoMode` from project settings in `.claude/settings.json` or `.claude/settings.local.json`." Before v2.1.207 it also read local settings, so a local-scope finding says so rather than implying it never worked |
-| `C2-defaultMode` | "Claude Code v2.1.142 and later ignore `auto` from those files so a repository cannot grant itself auto mode." Only the value `auto` is dead. Other modes are read in project scope |
+| `C2-defaultMode` | Project and local settings ignore `defaultMode` `auto` (v2.1.142 and later) and `bypassPermissions` (v2.1.257 and later; the session starts in Manual). `acceptEdits`, `plan`, and `dontAsk` still apply. Re-read 2026-09-28 on the permission-modes page ("Sessions you start in a terminal honor every value except `auto` and `bypassPermissions`"). Recheck when that sentence drops either value |
 | `C2-planMode` | `useAutoModeDuringPlan` is "**Not read from shared project settings**". That names `.claude/settings.json` specifically, so a local-settings occurrence is **not** claimed dead, since doing so would assert a restriction no page states |
 | `C5-disableType` | "set `permissions.disableBypassPermissionsMode` or `permissions.disableAutoMode` to `\"disable\"` in any settings file", the **string**. Checked at both documented key paths, in every scope; it is not managed-only |
 | `C6-winPath` | "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes `/c/Users/alice`". Tested on the **shape**, a drive-letter or UNC prefix, never on the backslash character. Tested on the shape because a character test fails in both directions: the doubled JSON-source spelling is decoded away by `jq -r`, so a test on it is dead in the real pipeline, and a bare backslash is ordinary in shell rules (a regex, an escape, `\n`), so a test on it turns every rule into a severity-`error` finding and drowns the single true one. A UNC path gets its own message: the drive-letter remedy is wrong advice for it |
@@ -305,6 +325,10 @@ fixed all three.
 | `C6-allowParam` | "**Deny and ask rules** can match a top-level input parameter on any tool with `Tool(param:value)`… An allow rule for one parameter value wouldn't establish that the call is safe overall, so allow rules continue to use each tool's own specifier syntax." An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit` tool instead, Claude Code accepts the rule but never consults it, and warns at startup" (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception) |
 | `C6-colonStar` | "The `:*` form is only recognized at the end of a pattern. In a pattern like `Bash(git:* push)`, the colon is treated as a literal character". The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: "WebFetch rules use a `domain:` prefix… supports `*` wildcards", and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. **Known gap:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, is not reported. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: the page says parameter matching works "on any tool" for "any scalar parameter", so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
+| `C6-malformed` | A rule is `Tool` or `Tool(specifier)`. Parentheses inside the specifier are literal, so `Edit(./Finance (2024)/**)` is one rule. Text after the closing parenthesis, as in `Bash(ls) x`, is a malformed Tool(content) rule: Claude Code reports it as invalid settings instead of matching it. An unclosed specifier is the same check. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)` |
+| `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. A deny or ask rule guards that exact path. An allow rule approves nothing. One such deny used to fail every file edit; that is not the current behavior |
+| `C6-malformed` | A rule is `Tool` or `Tool(specifier)`. Parentheses inside the specifier are literal, so `Edit(./Finance (2024)/**)` is one rule. Text after the closing parenthesis, as in `Bash(ls) x`, is a malformed Tool(content) rule: Claude Code reports it as invalid settings instead of matching it. An unclosed specifier is the same check. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)` |
+| `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. A deny or ask rule guards that exact path. An allow rule approves nothing. One such deny used to fail every file edit; that is not the current behavior |
 
 **`C5-disableType` is the highest-consequence check here.** A boolean is valid JSON, is accepted, and
 does nothing, so the operator believes auto mode is locked out and it is not.
@@ -368,27 +392,33 @@ one feature.
 
 `claude auto-mode reset` is never run. It strips the `autoMode` section from user settings.
 
-## Open upstream discrepancy: carry this caveat on any `ask` finding
+## Ask rules under auto mode: carry this caveat on any `ask` finding
 
 Any finding that rests on an `ask` rule prompting under auto mode carries this, named:
 
-> The permissions page states that content-scoped `ask` rules "always force a permission prompt, even
-> in auto mode… The classifier cannot auto-approve a matching action."
+> Content-scoped ask rules are evaluated before the classifier and always force a permission prompt,
+> even in auto mode, because an explicit ask rule is your stated intent to be prompted for that
+> action. The classifier cannot auto-approve a matching action.
 
-Two upstream issues (**#83766** and **#42797**) report the opposite: `permissions.ask` patterns
-auto-approved under `defaultMode: "auto"`. Both cannot be true. This plugin follows the documented
-behavior, because that is the only source with a stated contract, but a reader acting on an `ask`
-finding should know the reported behavior contradicts it.
+The sentence is on the [auto mode config page](https://code.claude.com/docs/en/auto-mode-config), not
+the permissions page. The permissions page states the same mechanic for compound commands and
+subshells: an ask rule such as `Bash(git clean *)` still prompts for `cd /tmp && git clean -f` or
+`echo "$(git clean -f)"`, even in auto mode. That compound and subshell path was fixed in v2.1.257.
+It is not a claim that every ask-rule miss is fixed.
+
+Upstream issue **#42797** ("Auto-mode ignores permissions.ask") is closed. **#83766** remains open and
+still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This plugin
+follows the auto-mode config page, the source with a stated contract. A reader acting on an `ask`
+finding should know #83766 is still open.
 
 **What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
-surviving auto mode. If the issues are right, an `ask` rule is weaker in auto mode than this report
-implies, so treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use
-`permissions.deny` where the outcome must hold. This is not a defect in the reader: it reports the
-documented mechanic, and the discrepancy is upstream.
+surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use
+`permissions.deny` where the outcome must hold. This is not a defect in the reader.
 
-**Retires when** the permissions page and the issue reports agree: either the issues close as
-not-reproducible against a current version, or the page is corrected. Only a fresh read of both
-settles it; a version bump alone does not.
+**Basis:** [auto mode config](https://code.claude.com/docs/en/auto-mode-config) and
+[permissions](https://code.claude.com/docs/en/permissions) (compound commands and subshells). Verified
+2026-09-28. **Recheck when** #83766 closes or the auto-mode config page changes the "always force a
+permission prompt" sentence.
 
 ## Managed policy, and what it does not buy
 
@@ -421,7 +451,11 @@ every rule string it prints came from a file it read, a property the suite asser
 than by checking that some recommendation marker is absent. It ships no security floor of its own,
 which keeps it neutral by construction rather than by restraint.
 
-**Completeness bounds every claim.** Server-managed settings have no local path, so `managed` means
-the local surfaces; a `skipped` or `unreadable` surface gets its own note stating that it is not
-evidence no policy is deployed there. An administrator reading silence as "no policy" is the failure
-this report exists to prevent.
+**Completeness bounds every claim.** Server-managed settings are cached at
+`~/.claude/remote-settings.json`. The cache is user-writable and can be stale, so `managed` in this
+report means the local admin surfaces; the cache is not folded in. The failure read is the
+Organization policy line in `/status`. A `skipped` or `unreadable` surface gets its own note stating
+that it is not evidence no policy is deployed there. An administrator reading silence as "no policy"
+is the failure this report exists to prevent. Basis:
+[server-managed settings](https://code.claude.com/docs/en/server-managed-settings). Verified
+2026-09-28. Recheck when that page moves the cache path or the `/status` failure line.

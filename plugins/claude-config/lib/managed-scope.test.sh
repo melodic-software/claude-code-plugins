@@ -87,6 +87,15 @@ assert_eq "macOS preferences domain" "com.anthropic.claudecode" \
 assert_eq "no preferences domain off macOS" "" \
   "$(OSTYPE=linux-gnu bash -c "source '$LIB'; mscope::plist_domain")"
 
+assert_eq "remote cache sits under the config root" \
+  "/tmp/claude/remote-settings.json" \
+  "$(bash -c "source '$LIB'; mscope::remote_cache_file /tmp/claude")"
+assert_eq "remote cache strips a trailing slash" \
+  "/tmp/claude/remote-settings.json" \
+  "$(bash -c "source '$LIB'; mscope::remote_cache_file /tmp/claude/")"
+assert_eq "remote cache without a root is empty" "" \
+  "$(bash -c "source '$LIB'; mscope::remote_cache_file")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

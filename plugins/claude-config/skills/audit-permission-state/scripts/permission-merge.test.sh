@@ -362,4 +362,25 @@ OUT=$(merge "$COUNTED_ASK")
 assert_eq "the whole-tool ask branch emits one inert record" 1 "$(count_matching "$OUT" '^inert ')"
 assert_contains "and the summary counts that too" "$OUT" "beaten=1"
 
+# allowManagedPermissionRulesOnly ignores user/project/local rules and
+# --allowedTools. --disallowedTools and session deny/ask are not in the files;
+# the caveat names them.
+LOCKED=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+conf managed file allowManagedPermissionRulesOnly true
+rule managed file deny Read(./.env)
+rule user settings allow Bash(npm test)
+rule user settings deny Bash
+EOF
+)
+OUT=$(merge "$LOCKED")
+assert_contains "the lock caveat names --allowedTools as ignored" "$OUT" "--allowedTools is ignored"
+assert_contains "and keeps --disallowedTools" "$OUT" "--disallowedTools"
+assert_contains "the managed deny stays effective" "$OUT" "effective deny scopes=managed"
+assert_contains "the user allow is ignored" "$OUT" "ignored_by=allowManagedPermissionRulesOnly Bash(npm test)"
+assert_contains "a user whole-tool deny is ignored too" "$OUT" "ignored_by=allowManagedPermissionRulesOnly Bash"
+assert_not_contains "a user whole-tool deny does not remove the tool" "$OUT" "removes Bash from the model context"
+
 report_and_exit
