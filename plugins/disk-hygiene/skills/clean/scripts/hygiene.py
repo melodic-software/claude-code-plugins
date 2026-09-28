@@ -2646,10 +2646,13 @@ def evidence_adjusted_protections(
     return sorted(adjusted)
 
 
+PLATFORM_BLOCKER = "execution-platform-unsupported"
+
+
 def execution_blockers() -> list[str]:
     """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
-        return ["execution-platform-unsupported"]
+        return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
         return ["dirfd-anchoring-unavailable"]
@@ -2927,8 +2930,21 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
         blocked = blocked or bool(blockers)
+    # A blocker that is a fact about the platform, identical for every
+    # candidate, routes the operator to the manual handoff lane; only a
+    # blocker about a path means "do not proceed".
+    platform_only = {reason for item in results for reason in item["blockers"]} == {
+        PLATFORM_BLOCKER
+    }
+    if not blocked:
+        outcome = "explicit-approval"
+    elif platform_only:
+        outcome = "manual-handoff-lane"
+    else:
+        outcome = "blocked"
     payload = {
         "status": "blocked" if blocked else "ready-for-explicit-approval",
+        "outcome": outcome,
         "tier": plan["tier"],
         "target": str(target),
         "candidates": results,
@@ -3954,7 +3970,7 @@ def main(argv: list[str] | None = None) -> int:
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
-            return emit(checked, 3 if checked["status"] == "blocked" else 0)
+            return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
         if checked["status"] != "ready-for-explicit-approval":
