@@ -3,6 +3,14 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.7] - 2026-09-28
+
+### Changed
+
+- **`debug`'s Phase 6 architectural recommendation carries a `Basis:`** and, when it touches
+  shared code, is grounded in its consumers first, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+
 ## [0.7.6] - 2026-09-21
 
 ### Changed

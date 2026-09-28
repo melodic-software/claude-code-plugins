@@ -47,6 +47,13 @@ ruleset, current spend), read it through the user's own `gh` session first and a
 recommendation to it. Advice against an imagined baseline is noise. Reads follow the same
 read-only contract as `audit`.
 
+**Cross-repo blast radius.** When the advice changes something other repositories consume (an
+org or enterprise ruleset, a required or reusable workflow, an org Actions policy, an org secret
+or variable, a custom property), list the repositories it reaches, with the same GET-only reads,
+and name what the change does to each before recommending it. Every recommendation carries a
+`Basis:`: `verified` with the fetched doc URL, `gh` output, or `file:line`, or `judgment`
+([recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)).
+
 ## 4. Advise
 
 - **Recommendation with rationale**: what to configure and why, citing the fetched doc and the

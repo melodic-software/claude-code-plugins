@@ -175,6 +175,7 @@ Required before declaring done:
 - File the architectural finding with your issue tracker
 - If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 - Make the recommendation **after** the fix is in, not before. The post-fix view has more information than the pre-fix one
+- State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment`; one that touches shared code or other consumers is grounded in those consumers first, per the [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
 
 ## What this skill does NOT do
 

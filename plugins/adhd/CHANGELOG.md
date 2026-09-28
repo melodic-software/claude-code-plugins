@@ -3,6 +3,14 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1] - 2026-09-28
+
+### Changed
+
+- **`clarify` carries the source recommendation's `Basis:` through.** The decision table gains a
+  Basis column, copied verbatim, or "none stated" when the source gave none, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+
 ## [0.5.0] - 2026-09-23
 
 ### Changed

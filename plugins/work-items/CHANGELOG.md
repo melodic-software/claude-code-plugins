@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.5] - 2026-09-28
+
+### Changed
+
+- **`triage` defines a well-grounded RECOMMENDED answer** by the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md):
+  the affected code and its consumers read, plus external research for a consequential item, with
+  a `Basis:` on the brief and the `Decision defaulted` comment. A consequential item whose basis is
+  `judgment` routes to human-gated. `decompose` states a `Basis:` for each HITL/AFK call.
+
 ## [0.41.4] - 2026-09-28
 
 ### Added

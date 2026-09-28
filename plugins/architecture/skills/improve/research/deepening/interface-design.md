@@ -71,6 +71,8 @@ The subagents were pushed apart on purpose, so the shape of their disagreement i
 
 Close with your own read: which design wins, and why. If pieces of different designs combine into something stronger, propose the hybrid explicitly. Be opinionated. The user is here for a strong recommendation, not a menu of equally weighted options.
 
+**Ground the winner outside the repository too.** When the recommended interface crosses a module, service, or repository boundary, or fixes a published contract, research the pattern it adopts before recommending it: official docs for the platform or library first, then authoritative articles, with recency and dissent noted. State the recommendation's `Basis:`, `verified` with the `file:line`, tool output, or URL, or `judgment`, per the [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
+
 **A hybrid carries a graft record.** Name what was taken from which design. Then name the part worth
 more than the rest: what was considered and left behind, with the reason. A future reader learns most
 from the branch that was rejected and why, which is exactly what vanishes when only the winner

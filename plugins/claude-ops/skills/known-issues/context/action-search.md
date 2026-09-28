@@ -43,4 +43,4 @@ curl -s https://status.claude.com/ | head -200
 
 ## Output format
 
-Present Bug Report table (blocking, degraded, recently fixed, local doc status), recommendation (SAFE / CAUTION / DO NOT USE), and suggested actions. See `context/output-templates.md`.
+Present Bug Report table (blocking, degraded, recently fixed, local doc status), recommendation (SAFE / CAUTION / DO NOT USE), and suggested actions. The recommendation carries a `Basis:`: `verified` with the issue URLs, status-page read, or `claude --version` output it rests on, or `judgment` when no issue settles it ([recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)). See `context/output-templates.md`.

@@ -200,6 +200,10 @@ Present as a GFM table with a **Scope** column distinguishing:
 | # | Target | Scope | Type | Recommendation | Justification | Priority |
 | --- | --- | --- | --- | --- | --- | --- |
 
+Each Justification cell opens with a `Basis:`: `verified` with the transcript line, `file:line`,
+tool output, or doc URL it rests on, or `judgment`
+([recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)).
+
 ### Skill candidate analysis (REQUIRED, always include)
 
 Evaluate whether the session revealed a genuinely repeatable multi-step workflow worth

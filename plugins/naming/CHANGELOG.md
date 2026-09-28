@@ -3,6 +3,15 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7] - 2026-09-28
+
+### Changed
+
+- **`name-it-better` states call-site blast radius and a `Basis:` for its pick.** When the target
+  already has a name, the shortlist names the references a rename would touch, and the RECOMMENDED
+  pick carries a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+
 ## [0.5.6] - 2026-09-21
 
 ### Changed

@@ -1,5 +1,12 @@
 # Changelog: session-flow plugin
 
+## [0.38.23] - 2026-09-28
+
+### Changed
+
+- **`retro`'s Phase 3 recommendations open their Justification with a `Basis:`**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+
 ## [0.38.22] - 2026-09-28
 
 ### Changed

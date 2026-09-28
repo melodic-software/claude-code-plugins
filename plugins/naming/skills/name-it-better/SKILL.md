@@ -155,7 +155,12 @@ pre-scoring filters could not match.
    by their declared priority order.
 4. **Shortlist + recommend.** Present a short ranked list with a
    one-line rationale per candidate and a single RECOMMENDED pick, marked
-   and listed first.
+   and listed first. When the target already has a name, state its
+   call-site blast radius (the references a rename would touch, counted by
+   a search this session, including other repositories that consume it)
+   and give the pick a `Basis:`, `verified` with the `file:line` or tool
+   output, or `judgment`, per the [recommendation-basis
+   convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
 5. **Human picks.** Stop and let the user choose. Do not apply the name.
 
 ## Iterate on the rejection reason

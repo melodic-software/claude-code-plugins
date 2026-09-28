@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.9] - 2026-09-28
+
+### Changed
+
+- **Blast-radius check before a fix, verdict, or merge on a shared artifact.** When a change
+  touches a reusable workflow or action, shared config, or a published package, the review
+  discipline's D3 lists its consumers and checks the change against each, and D4 states the
+  classification with a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `pull-request` mirrors it in its D3, D4, and readiness gate; `babysit-prs` states it for every
+  tier.
+
 ## [0.62.8] - 2026-09-28
 
 ### Changed

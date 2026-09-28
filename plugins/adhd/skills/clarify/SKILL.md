@@ -115,6 +115,9 @@ at the same altitude.
 ### Surface what must be decided
 
 For each chunk, make the actual choice unmissable: the recommendation (verbatim),
+its `Basis:` carried through unchanged (verbatim; "none stated" when the source gave
+none, never an inferred one; the label is defined by the [recommendation-basis
+convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)),
 the alternative it was chosen over (verbatim, if the original named one), and, in
 one sentence, **what the reader is actually deciding**, the crux, not a
 restatement of the option. If the original only recommends with no alternative,
@@ -162,17 +165,17 @@ back-links, omissions, lens line, table or prose.
 
 Whichever medium, the decision table has numbered rows and these columns:
 
-| # | Item | Recommendation | Alternative | What you're deciding |
-|---|------|----------------|-------------|----------------------|
-| 1 | Q9 | *(verbatim operative terms)* | *(verbatim, or "none offered")* | the crux in one sentence |
-| 2 | Q10 | *(verbatim)* | *(verbatim)* | … |
+| # | Item | Recommendation | Basis | Alternative | What you're deciding |
+|---|------|----------------|-------|-------------|----------------------|
+| 1 | Q9 | *(verbatim operative terms)* | *(verbatim, or "none stated")* | *(verbatim, or "none offered")* | the crux in one sentence |
+| 2 | Q10 | *(verbatim)* | *(verbatim)* | *(verbatim)* | … |
 
 - The **`#` column is the table's own row number** (this skill's). Its job is
   answer-mapping, so the reader can reply "row 2: take the alternative" and you
   know exactly which original item that resolves.
 - The **`Item` column is the original identifier** (Q9, §3, Round 4 · P15b), the
   back-link to the source. Two numbering systems, kept distinct.
-- **Recommendation and Alternative cells carry the verbatim operative terms.** A
+- **Recommendation, Basis, and Alternative cells carry the verbatim operative terms.** A
   cell is where paraphrase and truncation creep in; resist both. If a
   recommendation is too long for a cell, quote its operative clause verbatim and
   link the row to the fuller original by its `Item` number. Never a lossy summary.
