@@ -25,6 +25,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   unchanged. Two evals with four fixtures cover the fenced openers and the per-plugin roll-up
   (#4115).
 
+## [0.51.21] - 2026-09-28
+
+### Changed
+
+- **`unhobble` keeps the experiment ledger in the repo** ([#4094](https://github.com/melodic-software/claude-code-plugins/issues/4094)). Phase 1 writes `manifest.json` and `stumbles.md` under `.claude/unhobble/<experiment-id>/` with the Write or Edit tool, and the strip commit carries them. Later ledger updates are committed on the experiment branch. `${CLAUDE_PLUGIN_DATA}` holds only `backups/`. Identity is `origin_url`, `branch`, and `base_commit`; a committed manifest records no absolute host path. A state path under the topic-docs contract dir is refused, because `scripts/check-contract-slice-prune.sh --check-diff` fails a pull request that leaves one there. Evals cover the repo state dir, the identity fields, the contract-dir refusal, and Write or Edit for state writes.
+
 ## [0.51.20] - 2026-09-28
 
 ### Changed
