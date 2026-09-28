@@ -1,5 +1,5 @@
 ---
-description: "Read-only session orientation from durable + off-thread state, synthesize where the session stands, what it is doing, and why, from the ledger files, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work-items, and git state, not just the conversation. Complements the built-in /recap (conversation-only, auto-fires) by adding the durable state recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Read-only: writes nothing, ends nothing, and does not verify freshness, recover off-thread work, or prescribe the next stage; it points at the sibling that does."
+description: "Read-only orientation from durable state: where the session stands and why, from ledgers, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work items, and git, which the built-in /recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Writes nothing; freshness checks, recovery, and the next stage belong to sibling skills."
 user-invocable: true
 disable-model-invocation: false
 metadata:

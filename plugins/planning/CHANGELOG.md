@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.44.5] - 2026-09-27
+## [0.44.7] - 2026-09-27
 
 ### Fixed
 
@@ -12,6 +12,28 @@ All notable changes to the `planning` plugin are documented here. Format follows
   enables the plugin at that scope, while the value itself always lands in user settings. It no
   longer says the write lands at a scope that does not load. The advice is unchanged.
   It also says a rejected `--config` value prints a warning yet exits 0, so read the output (#4651).
+
+## [0.44.6] - 2026-09-27
+
+### Fixed
+
+- **Interview surface: the lease, visual-file and Accept all lows from the V1 merge gate.**
+  - An expired lease now reads as no holder in `/api/state` and `round.sh lease` at once, not
+    only after another watcher claims it.
+  - `round.sh lease --release` ends a wait the old holder has in flight with 409
+    `{"error": "lease released"}` before it delivers anything, so the next event reaches the next
+    holder only; `watch.sh` exits 3 on it instead of retrying.
+  - `watch.sh` no longer forms a watcher id from a parent pid of 1, which every Claude Code Bash
+    shell on Windows reports: with no `WATCH_ID` or session id it exits 2 asking for `WATCH_ID`.
+  - `/api/visual-file` and `export-report` refuse a file with more than one hard link, so a link
+    inside the data dir to a session file is not served.
+  - Accept all sends the revision each question had when the user last opened it, so the server
+    refuses a question Claude revised in between and the toast names it.
+  - The planted-port case (`ensure-running` tries the port recorded in the data dir's session
+    file first) is recorded in the surface README as an accepted loopback-only residual.
+  - New tests: lease expiry, a release during a wait, the watcher-id fallback, hard links, the
+    burst cap, the ping-silence fallback (the page takes `?silentMs=` to shorten, never lengthen,
+    its 35 s window), and the header's round across two stages (#4652).
 
 ## [0.44.4] - 2026-09-27
 

@@ -1,0 +1,5 @@
+{
+  "questions": [
+    {"id": "E1", "group": "base", "stage": "design", "short": "First design", "title": "Should the design keep one store?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]}
+  ]
+}

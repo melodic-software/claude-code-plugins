@@ -1,0 +1,5 @@
+{
+  "questions": [
+    {"id": "D2", "group": "base", "stage": "interview", "short": "Later interview", "title": "Should the later step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]}
+  ]
+}

@@ -3,6 +3,30 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.0] - 2026-09-27
+
+### Added
+
+- **The audit engine reports `skillOverrides` entries that can never take effect.** Plugin skills
+  are not affected by `skillOverrides` (skills and settings-reference pages, verified 2026-09-27),
+  so an entry keyed for one is inert. Category G gains two rows:
+  - `G/skill-override-plugin` (`warning`), one per key in the user, project or local settings
+    file whose text before the first `:` names a plugin in the installed registry or in any
+    scope's `enabledPlugins` keys, `false` included. The anchor is the key's JSON pointer, and the
+    detail names the levers that do reach plugin skills. A colon key whose prefix names no known
+    plugin, such as `apps/web:deploy` or `anthropic-skills:pdf`, is a `skip` row, never a finding
+    and never clean. Keys only; no override value reaches a row.
+  - `G/skill-override-home-local` (`info`) when `<user dir>/settings.local.json` holds a non-empty
+    `skillOverrides` object. That file is the project-local file for sessions started in the home
+    directory, so its entries reach no other project. An unreadable or invalid file is
+    `not-inspectable`.
+  The engine's `scopes` block lists that file as `user-local`, so the read is disclosed even when
+  it is none of the audited scopes. A home-rooted run reads the shared settings file once, by file
+  identity. Not detected, by design: an alias key that names no skill at all, since bundled and
+  claude.ai-synced skill names are not enumerable from files and the check would flag working
+  keys such as `doctor`. The exemption quotes in the checklist, validation categories and the
+  audit-pass doctor handoff now match the live settings-reference wording (#4654).
+
 ## [0.49.3] - 2026-09-27
 
 ### Fixed
