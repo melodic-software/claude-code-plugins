@@ -3,11 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.6] - 2026-09-28
+## [0.45.7] - 2026-09-28
 
 ### Changed
 
 - **Rendered views use the argument, dial, cascade, then shipped-default ladder** ([#3603](https://github.com/melodic-software/claude-code-plugins/issues/3603)). `userConfig.medium` is the plugin dial (`auto`, `terminal`, `file`, `artifact`). `interview` keeps `${user_config.surface}`: `page` starts the local page, and the shipped default stays inline prose. `prd`, `design`, `plan`, and `brainstorm` do not gain a new HTML document. A question round uses the interview page when that ladder selects one.
+
+## [0.45.6] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.45.5] - 2026-09-28
 
