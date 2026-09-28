@@ -14,7 +14,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   `compare` are run by hand. `emit-plugin-eval` writes `claude plugin eval` cases for an
   on-demand live run; `compare` prints the delta versus a baseline so a rewrite cannot hide a
   validation drop behind a train gain. Seed probes (20 queries each) cover `skill-quality:check`
-  and `mcp-tools:audit`. Fleet-wide description rewrites stay attended. Command:
+  and `mcp-tools:audit`. `score` fails on a competitor it cannot load, `compare` fails unless
+  both reports cover the same skills, and `emit-plugin-eval` refuses a non-empty output
+  directory. Fleet-wide description rewrites stay attended. Command:
   `bash plugins/skill-quality/scripts/measure-invocation.sh validate|score|compare|emit-plugin-eval`.
   Contract: `reference/invocation-probes.md`.
 

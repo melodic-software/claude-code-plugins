@@ -208,6 +208,27 @@ else
   fail "emit-plugin-eval layout wrong (n=$n_cases)"
 fi
 
+if run emit-plugin-eval "$TMP/probes" "$emit_dir" >/dev/null 2>&1; then
+  fail "emit-plugin-eval into a non-empty dir should refuse"
+else
+  pass "emit-plugin-eval refuses a non-empty out dir"
+fi
+
+jq '.skills = []' "$TMP/score.json" >"$TMP/empty.json"
+if run compare "$TMP/score.json" "$TMP/empty.json" >/dev/null 2>&1; then
+  fail "compare over mismatched skill sets should exit non-zero"
+else
+  pass "compare refuses mismatched skill sets"
+fi
+
+mkdir -p "$TMP/badrival/probes"
+jq '.competitor_dirs = {}' "$TMP/probes/target.json" >"$TMP/badrival/probes/target.json"
+if run score "$TMP/badrival/probes" >/dev/null 2>&1; then
+  fail "score with an unloadable competitor should exit non-zero"
+else
+  pass "score refuses an unloadable competitor"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1

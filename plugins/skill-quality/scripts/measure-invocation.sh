@@ -277,14 +277,14 @@ cmd_score() {
       local comp_dir
       comp_dir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
       if [[ -z "$comp_dir" ]]; then
-        warn "$skill: competitor '$comp' has no competitor_dirs entry; skipped"
+        err "$skill: competitor '$comp' has no competitor_dirs entry; a partial rival set would inflate the rates"
         continue
       fi
       local cmd
       if cmd="$(resolve_skill_md "$root" "$comp_dir")"; then
         comp_listing["$comp"]="$(load_listing "$cmd")"
       else
-        warn "$skill: competitor_dirs '$comp' -> '$comp_dir' does not resolve"
+        err "$skill: competitor_dirs '$comp' -> '$comp_dir' does not resolve"
       fi
     done < <(jq -r '.competitors[]?' "$f")
 
@@ -391,6 +391,11 @@ cmd_compare() {
     printf 'Error: compare needs two report JSON files\n' >&2
     exit 2
   fi
+  if ! jq -e -n --slurpfile b "$base" --slurpfile t "$treat" \
+    '([$b[0].skills[].skill] | sort) == ([$t[0].skills[].skill] | sort) and ($b[0].skills | length) > 0' >/dev/null; then
+    printf 'Error: compare needs two reports over the same non-empty skill set\n' >&2
+    return 1
+  fi
   jq -n --slurpfile b "$base" --slurpfile t "$treat" '
     def delta($t; $b): if $t == null or $b == null then null else $t - $b end;
     ($b[0].skills) as $bs | ($t[0].skills) as $ts |
@@ -428,6 +433,10 @@ cmd_emit() {
   local dir="${1:-}" out="${2:-}"
   if [[ -z "$dir" || ! -d "$dir" || -z "$out" ]]; then
     printf 'Error: emit-plugin-eval needs <probes-dir> <out-dir>\n' >&2
+    exit 2
+  fi
+  if [[ -d "$out" && -n "$(ls -A "$out")" ]]; then
+    printf 'Error: emit-plugin-eval needs an empty or new <out-dir>; stale cases would still run\n' >&2
     exit 2
   fi
   mkdir -p "$out" || return 1

@@ -210,7 +210,12 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    ```
 
    `compare <baseline> <treatment>` prints per-skill train and validation deltas. `emit-plugin-eval
-   <probes-dir> <out-dir>` writes `claude plugin eval` cases.
+   <probes-dir> <out-dir>` writes `claude plugin eval` cases into an empty or new `<out-dir>`.
+   Claim: each case is a directory holding `prompt.md` (frontmatter fields, body is the prompt)
+   and `graders/`, and a `tool_used` grader with `tool: Skill` and an `input_match` on the skill
+   name checks that the skill fired. Basis: <https://code.claude.com/docs/en/plugin-evals>, the
+   case layout and `tool_used` grader sections. As of: 2026-09-28. Recheck: that page changes the
+   case layout, the `prompt.md` fields, or the `tool_used` grader fields.
 3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
    `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
    against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot). The action
