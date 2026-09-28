@@ -10,7 +10,10 @@ only after that version increases.
 
 - **`skill-authoring` Arguments.** Named `arguments` are positional aliases. The section records
   the 0-based `$N` rule, the empty-name expansion, and the single-backslash escape from the
-  official substitutions section, and points the unescaped-`$N` gate at that section
+  official substitutions section, and points the unescaped-`$N` gate at that section.
+  A remainder, a phrase, a variadic tail, or a position-independent flag stays in `$ARGUMENTS`.
+  `planning:prd` and `session-flow:workflow` name their ordered slots;
+  `knowledge:map-corpus`, `session-flow:handoff`, and `claude-ops:plugins` do not
   ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
 
 ## [0.13.11] - 2026-09-28
