@@ -45,39 +45,43 @@ GITLEAKS_CONFIG="${GITLEAKS_CONFIG:-.gitleaks.toml}"
 GITLEAKS_VERSION="${GITLEAKS_VERSION:-8.30.1}"
 GITLEAKS_SHA256="${GITLEAKS_SHA256:-551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb}"
 
-is_sha() {
-  [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
-}
-
-is_zero_sha() {
-  [[ "$1" =~ ^0{40}$ ]]
-}
-
 fail() {
   echo "gitleaks-scoped-scan: $*" >&2
   exit 2
+}
+
+require_sha() {
+  local label="$1" value="$2"
+  if [[ ! "$value" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    fail "$label is missing or not 40 hex digits"
+  fi
+}
+
+reject_zero_sha() {
+  local label="$1" value="$2"
+  if [[ "$value" =~ ^0{40}$ ]]; then
+    fail "$label is the all-zero ref"
+  fi
 }
 
 # resolve_log_opts prints one --log-opts argument.
 resolve_log_opts() {
   case "$EVENT_NAME" in
   pull_request)
-    is_sha "$PR_BASE_SHA" || fail "pull_request base SHA is missing or not 40 hex digits"
-    is_sha "$PR_HEAD_SHA" || fail "pull_request head SHA is missing or not 40 hex digits"
-    is_zero_sha "$PR_BASE_SHA" && fail "pull_request base SHA is the all-zero ref"
-    is_zero_sha "$PR_HEAD_SHA" && fail "pull_request head SHA is the all-zero ref"
+    require_sha "pull_request base SHA" "$PR_BASE_SHA"
+    require_sha "pull_request head SHA" "$PR_HEAD_SHA"
+    reject_zero_sha "pull_request base SHA" "$PR_BASE_SHA"
+    reject_zero_sha "pull_request head SHA" "$PR_HEAD_SHA"
     printf '%s\n' "--no-merges --first-parent ${PR_BASE_SHA}^..${PR_HEAD_SHA}"
     ;;
   push)
-    is_sha "$PUSH_AFTER" || fail "push after SHA is missing or not 40 hex digits"
+    require_sha "push after SHA" "$PUSH_AFTER"
     if [[ -z "$PUSH_BEFORE" || "$PUSH_BEFORE" == "$PUSH_AFTER" ]]; then
       printf '%s\n' "-1"
       return 0
     fi
-    is_sha "$PUSH_BEFORE" || fail "push before SHA is not 40 hex digits"
-    if is_zero_sha "$PUSH_BEFORE"; then
-      fail "push before SHA is all zeros; refusing an all-refs scan"
-    fi
+    require_sha "push before SHA" "$PUSH_BEFORE"
+    reject_zero_sha "push before SHA" "$PUSH_BEFORE"
     printf '%s\n' "--no-merges --first-parent ${PUSH_BEFORE}^..${PUSH_AFTER}"
     ;;
   workflow_dispatch)
