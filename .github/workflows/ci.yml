@@ -961,6 +961,18 @@ jobs:
         continue-on-error: true
         run: python3 scripts/check-code-metrics-config-reference.py
 
+      # Skill bodies restate a few defaults in prose. The reference table is
+      # already pinned; these sentences were the remaining unbound copies
+      # (#3768). Ungated for the same reason as the reference gate: a docs-only
+      # edit of a skill sentence is exactly the edit that can drift.
+      - name: Test the code-metrics skill prose default gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-code-metrics-skill-prose.test.sh
+      - name: Check code-metrics skill prose against its defaults file
+        id: code_metrics_skill_prose
+        continue-on-error: true
+        run: python3 scripts/check-code-metrics-skill-prose.py
+
       - name: Check hook entry scripts for silent prerequisite skips
         id: silent_skips
         continue-on-error: true
@@ -1515,6 +1527,7 @@ jobs:
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
+            code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}
             discriminating-test-skips=${{ steps.discriminating_test_skips.outcome }}
             plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
