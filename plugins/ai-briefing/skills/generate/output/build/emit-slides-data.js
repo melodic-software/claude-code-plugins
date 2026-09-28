@@ -7,6 +7,7 @@
 //   node emit-slides-data.js --date 2026-05-08  # override meeting date
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseBriefing } from "./lib/parse-briefing.js";
 import { emitSlides } from "./lib/emit-slides.js";
 import { resolveProviderLogos } from "./lib/provider-logos.js";
@@ -185,4 +186,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+const entry = process.argv[1];
+if (entry && import.meta.url === pathToFileURL(entry).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

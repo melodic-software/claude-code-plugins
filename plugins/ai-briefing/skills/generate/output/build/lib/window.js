@@ -1,5 +1,9 @@
 // Briefing-header window parsing and rendering.
 //
+// Stays its own module: emit-slides-data.js is the production caller, and
+// test/window.test.js holds the separator matrix for #3364. That suite is not
+// a single assertion carved out so one line could be reached.
+//
 // The `Window:` line in a briefing's header carries two ISO instants joined by
 // an arrow. Authors spell that arrow either as a Unicode arrow (`→`) or as the
 // ASCII digraph (`->`), so both must parse to the SAME pair of timestamps.
