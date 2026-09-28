@@ -24,6 +24,8 @@ animation cycles laid out for game engines, and animated scenes that open in any
    (`pico-8`, `nes`, `game-boy`, or a CC0 Lospec set in `palettes/`), or a project palette file.
 2. `scripts/render.py` (Python standard library only) writes the engine asset at 1x, an upscaled
    preview, a GIF per animation, and frame data. `scripts/embed.py` builds scenes into one HTML file.
+   A character can start from `scripts/character_kit.py` (proportions, hair, clothing, shading);
+   `examples/kit-walker/` is one walker built that way.
 3. The model looks at what it rendered and revises, usually two to four rounds. Each round marks
    the brief's done criteria pass or fail. The loop stops when they all pass, or when the round
    budget is spent and the failures are named.

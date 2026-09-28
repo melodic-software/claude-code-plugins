@@ -3,6 +3,15 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- `scripts/character_kit.py`: proportion presets (chibi, standard, tall), head and hair shapes,
+  clothing layers, material ramps, a top-left shading pass, a selective outline, and direction
+  mirroring that shades again so the light stays put (#4405). `examples/kit-walker/walker.py` is
+  a 4-direction walker built by adapting that kit. `scripts/test_character_kit.py` renders it.
+
 ## [0.3.0]
 
 ### Added

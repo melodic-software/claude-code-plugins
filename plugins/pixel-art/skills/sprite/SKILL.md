@@ -41,7 +41,12 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
 - **Procedural generator**: larger sprites or families of variants. Write a short Python script
   that draws with primitives (rects, ellipses, lines) onto a material grid, then applies shading
   and outlining passes and emits the spec JSON. Materials map to color ramps (highlight, base,
-  shadow, line), which keeps the palette locked and makes recolors one-line edits.
+  shadow, line), which keeps the palette locked and makes recolors one-line edits. For a
+  character, start from [`character_kit.py`](${CLAUDE_PLUGIN_ROOT}/scripts/character_kit.py)
+  (proportion presets `chibi`, `standard`, `tall`; head and hair shapes; clothing layers; the
+  shading and selective-outline passes; direction mirroring that shades again). Adapt those
+  pieces. A worked 4-direction walker is
+  [`examples/kit-walker/walker.py`](${CLAUDE_PLUGIN_ROOT}/examples/kit-walker/walker.py).
 
 The spec `palette` may be an inline object, a bundled preset name, or a path to a project palette
 file ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). When the project has

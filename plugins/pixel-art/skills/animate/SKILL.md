@@ -41,9 +41,14 @@ before drawing: it is the review rubric later. Engine layouts override craft def
 
 Use a procedural generator for anything past a couple of frames: one `draw(direction, pose)`
 function whose parameters (limb angles, step phase, body bob, arm swing, squash) produce each
-frame, so every frame stays on-model and a fix lands in every frame at once. A worked example is
-`${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py` (RPG Maker MZ 4-direction walker); copy it into
-the working directory before adapting or running it. Draw one side view and
+frame, so every frame stays on-model and a fix lands in every frame at once. For a person,
+adapt [`character_kit.py`](${CLAUDE_PLUGIN_ROOT}/scripts/character_kit.py) instead of starting
+from an empty grid: proportion presets, head and hair, clothing, ramps, shading, selective
+outline, and `facing_grid` (right is the left material grid mirrored, then shaded again so the
+light stays top-left). A worked walker on that kit is
+`${CLAUDE_PLUGIN_ROOT}/examples/kit-walker/walker.py`. An RPG Maker MZ walker that does not use
+the kit is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/hero_mz.py`; copy either file into the
+working directory before adapting or running it. Draw one side view and
 mirror it for the other only when the design is symmetric; reshade if the light side matters.
 
 A PNG from another backend is snapped with `render.py --snap` before its rows enter the spec
