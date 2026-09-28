@@ -35,7 +35,7 @@ carry the meanings below; any other non-zero code is a failed `gh`, `git`, or `j
 
 | Script | Does | Exit codes |
 |---|---|---|
-| `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when. `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
+| `catalog.sh <catalog>` | TSV per entry: id, phase, skills, args, checked, issue, applies-when, prime (`false` skips orchestrate/use-your-skills in `next`). `--override <id>` / `--notes <id>` print that block | 1 duplicate id, entry with no `- skill:` line, unknown id |
 | `skill-version.sh [--dir <loaded-dir>] <skill>...` | `<skill>@<version>`. `plugin:skill`: with `--dir` before it, the version of the copy the session loaded, from the nearest `plugin.json` or the plugin cache path, naming on stderr a version that differs from the install record; else the installed plugin's version, `@unknown` when not installed. `REPO_SWEEP_PLUGIN_DIRS` (colon-separated, as passed to `--plugin-dir`) overrides the install record. Bare name: `@personal` or `@project` when a skill of that name there replaces the bundled one, else `@builtin-<claude --version>`, `@unknown` when that prints none | 2 `--dir` with no value or no skill after it |
 | `history.sh <catalog>` | TSV id, recommendation (`run`, `rerun`, `rerun-optional`), reason, from merged sweep PRs then `Playbook-Step` trailers | 1 catalog error |
 | `render.sh --checklist <catalog> <selection-line> [<recs-tsv>]` | The PR checklist block plus `Not run:` | 1 bad id, selection, or TSV |
@@ -51,7 +51,8 @@ The page template is `${CLAUDE_PLUGIN_ROOT}/reference/repo-sweep-plan-page.html`
 **Catalog** (`catalogs/<playbook>.md`, playbook name is the file stem): `###` heading is the
 entry id; `- skill:` one or more skill names, comma-separated, run in order, each `plugin:skill`
 or a bare name for a skill bundled with Claude Code; `- args:`,
-`- applies-when:`, `- checked: true|false`, optional `- issue:` one line each; optional
+`- applies-when:`, `- checked: true|false`, optional `- prime: false` (omit or any other value
+means `next` invokes orchestrate and use-your-skills), optional `- issue:` one line each; optional
 `#### Override` and `#### Notes` blocks. `##` phase headings group entries for display only.
 Arguments in angle brackets are resolved per repo before the step runs.
 
