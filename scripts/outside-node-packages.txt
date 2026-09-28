@@ -1,0 +1,6 @@
+# Node packages outside the four sub-projects that already have CI steps
+# (miro, ai-briefing generate, video-digest extraction, course-digest extraction).
+# The runner executes each directory's own `npm test`. It does not guess
+# `node --test` versus vitest. #3703
+plugins/knowledge/vendor/repo-analysis
+plugins/knowledge/vendor/video-digestion

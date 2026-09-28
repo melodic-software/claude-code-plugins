@@ -1,0 +1,264 @@
+{
+  "name": "nes",
+  "variant": "jsnes loadNTSCPalette, emphasis off, hardware indices 0-63",
+  "source": "https://github.com/bfirsh/jsnes/blob/master/src/ppu/palette-table.js",
+  "license": "Color table from jsnes PaletteTable.loadNTSCPalette. Copyright 2020 Ben Firshman. Licensed under the Apache License, Version 2.0. http://www.apache.org/licenses/LICENSE-2.0. The NES PPU does not emit a single official sRGB palette; this is the jsnes NTSC table, not a Nintendo specification.",
+  "colors": [
+    {
+      "hex": "#525252",
+      "key": "0"
+    },
+    {
+      "hex": "#b40000",
+      "key": "1"
+    },
+    {
+      "hex": "#a00000",
+      "key": "2"
+    },
+    {
+      "hex": "#b1003d",
+      "key": "3"
+    },
+    {
+      "hex": "#740069",
+      "key": "4"
+    },
+    {
+      "hex": "#00005b",
+      "key": "5"
+    },
+    {
+      "hex": "#00005f",
+      "key": "6"
+    },
+    {
+      "hex": "#001840",
+      "key": "7"
+    },
+    {
+      "hex": "#002f10",
+      "key": "8"
+    },
+    {
+      "hex": "#084a08",
+      "key": "9"
+    },
+    {
+      "hex": "#006700",
+      "key": "a"
+    },
+    {
+      "hex": "#124200",
+      "key": "b"
+    },
+    {
+      "hex": "#6d2800",
+      "key": "c"
+    },
+    {
+      "hex": "#000000",
+      "key": "d"
+    },
+    {
+      "hex": "#000000",
+      "key": "e"
+    },
+    {
+      "hex": "#000000",
+      "key": "f"
+    },
+    {
+      "hex": "#c4d5e7",
+      "key": "g"
+    },
+    {
+      "hex": "#ff4000",
+      "key": "h"
+    },
+    {
+      "hex": "#dc0e22",
+      "key": "i"
+    },
+    {
+      "hex": "#ff476b",
+      "key": "j"
+    },
+    {
+      "hex": "#d7009f",
+      "key": "k"
+    },
+    {
+      "hex": "#680ad7",
+      "key": "l"
+    },
+    {
+      "hex": "#0019bc",
+      "key": "m"
+    },
+    {
+      "hex": "#0054b1",
+      "key": "n"
+    },
+    {
+      "hex": "#006a5b",
+      "key": "o"
+    },
+    {
+      "hex": "#008c03",
+      "key": "p"
+    },
+    {
+      "hex": "#00ab00",
+      "key": "q"
+    },
+    {
+      "hex": "#2c8800",
+      "key": "r"
+    },
+    {
+      "hex": "#a47200",
+      "key": "s"
+    },
+    {
+      "hex": "#000000",
+      "key": "t"
+    },
+    {
+      "hex": "#000000",
+      "key": "u"
+    },
+    {
+      "hex": "#000000",
+      "key": "v"
+    },
+    {
+      "hex": "#f8f8f8",
+      "key": "w"
+    },
+    {
+      "hex": "#ffab3c",
+      "key": "x"
+    },
+    {
+      "hex": "#ff7981",
+      "key": "y"
+    },
+    {
+      "hex": "#ff5bc5",
+      "key": "z"
+    },
+    {
+      "hex": "#ff48f2",
+      "key": "A"
+    },
+    {
+      "hex": "#df49ff",
+      "key": "B"
+    },
+    {
+      "hex": "#476dff",
+      "key": "C"
+    },
+    {
+      "hex": "#00b4f7",
+      "key": "D"
+    },
+    {
+      "hex": "#00e0ff",
+      "key": "E"
+    },
+    {
+      "hex": "#00e375",
+      "key": "F"
+    },
+    {
+      "hex": "#03f42b",
+      "key": "G"
+    },
+    {
+      "hex": "#78b82e",
+      "key": "H"
+    },
+    {
+      "hex": "#e5e218",
+      "key": "I"
+    },
+    {
+      "hex": "#787878",
+      "key": "J"
+    },
+    {
+      "hex": "#000000",
+      "key": "K"
+    },
+    {
+      "hex": "#000000",
+      "key": "L"
+    },
+    {
+      "hex": "#ffffff",
+      "key": "M"
+    },
+    {
+      "hex": "#fff2be",
+      "key": "N"
+    },
+    {
+      "hex": "#f8b8b8",
+      "key": "O"
+    },
+    {
+      "hex": "#f8b8d8",
+      "key": "P"
+    },
+    {
+      "hex": "#ffb6ff",
+      "key": "Q"
+    },
+    {
+      "hex": "#ffc3ff",
+      "key": "R"
+    },
+    {
+      "hex": "#c7d1ff",
+      "key": "S"
+    },
+    {
+      "hex": "#9adaff",
+      "key": "T"
+    },
+    {
+      "hex": "#88edf8",
+      "key": "U"
+    },
+    {
+      "hex": "#83ffdd",
+      "key": "V"
+    },
+    {
+      "hex": "#b8f8b8",
+      "key": "W"
+    },
+    {
+      "hex": "#f5f8ac",
+      "key": "X"
+    },
+    {
+      "hex": "#ffffb0",
+      "key": "Y"
+    },
+    {
+      "hex": "#f8d8f8",
+      "key": "Z"
+    },
+    {
+      "hex": "#000000",
+      "key": "~"
+    },
+    {
+      "hex": "#000000",
+      "key": "!"
+    }
+  ]
+}
