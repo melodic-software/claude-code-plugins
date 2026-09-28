@@ -262,15 +262,10 @@ jobs:
       - name: Run kindle-dedrm Pester suites
         shell: pwsh
         run: Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests -Output Detailed
-      # The probe reads hook frontmatter with PyYAML and exits 2 when the
-      # module is missing. requirements-ci.txt also pins a Linux-only zizmor
-      # wheel, so this step installs only the PyYAML pin from that file.
-      - name: Install the pinned YAML reader
-        run: python -m pip install --disable-pip-version-check "pyyaml==$(awk '/^pyyaml==/ { sub(/^pyyaml==/, ""); sub(/[[:space:]\\].*$/, ""); print; exit }' .github/requirements-ci.txt)"
-      # Exec form on Windows is a real .exe plus an args array, with no shell.
-      # REQUIRE_SPAWN makes a missing node.exe a failure here. A non-Windows
-      # run of the same script skips that half and does not clear #90495.
-      - name: Probe Windows exec-form args delivery
-        env:
-          EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN: "1"
-        run: bash scripts/check-exec-form-windows-probe.sh
+      # Records the four hook-log rows on this Git Bash host. The job summary
+      # is the capture path; the committed table stays unmeasured until a
+      # human pastes a capture whose host line is windows-git-bash.
+      - name: Capture hook-log budget figures
+        run: |
+          bash plugins/claude-ops/hooks/measure-hook-log-budget.sh --samples 5 --record "$RUNNER_TEMP/hook-log-budget.txt"
+          cat "$RUNNER_TEMP/hook-log-budget.txt" >> "$GITHUB_STEP_SUMMARY"

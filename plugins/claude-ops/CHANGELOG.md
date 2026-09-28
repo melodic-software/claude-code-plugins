@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.23] - 2026-09-28
+
+### Added
+
+- **Hook-log budget harness for the Windows Git Bash figures (#3757).**
+  `hooks/measure-hook-log-budget.sh` times the kill-switch read, the parallel
+  wall of 30 events, 4 KB and 16 KB appends, same-second `ls -t`, and the
+  late-EOF stall on the host it is run on. `reference/hook-log-budget.md`
+  keeps the Windows column `unmeasured` until a capture stamped
+  `host: windows-git-bash` is pasted there. The Windows CI lane writes that
+  capture to the job summary. The event log stays off by default.
+
 ## [0.63.22] - 2026-09-28
 
 ### Changed
