@@ -3,6 +3,65 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1] - 2026-09-28
+
+### Changed
+
+- **`hardcoded-path-check.test.sh` and `block-windows-drive-tmp.test.sh` host-skip Git Bash path-form cases**
+  ([#3683](https://github.com/melodic-software/claude-code-plugins/issues/3683)). The first suite
+  probes whether `git rev-parse --show-toplevel` diverges from the bash mktemp spelling. The
+  second preserves POSIX command spellings with `MSYS_NO_PATHCONV` and host-skips path-qualified
+  `/usr/bin` writer cases when even that payload is rewritten. Linux CI is unchanged.
+
+## [0.40.0] - 2026-09-28
+
+### Changed
+
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+
+## [0.39.2] - 2026-09-28
+
+### Fixed
+
+- **`block-windows-drive-tmp` no longer blocks a Bash-tool `/tmp` that already is `%TEMP%`** ([#4251](https://github.com/melodic-software/claude-code-plugins/issues/4251)). On a stock Git for Windows install `/tmp` is a `usertemp` mount of the platform temp (`cygpath -w /tmp` equals `%TEMP%`), so `mkdir -p /tmp/x` was a false positive. One cached probe per hook process: when `cygpath -w /tmp` matches `%TEMP%`/`%TMP%`, or the `mount` line for `/tmp` carries `usertemp`, the Bash command lane skips the POSIX `/tmp` arm. `/c/tmp`, `C:\tmp`, drive-root `\tmp`, PowerShell `/tmp`, and the Write/Edit file-path lane stay blocked. Linux CI's `/tmp` tmpfs has no `usertemp` flag, so the existing OSTYPE=msys fixtures still deny.
+- **`curl -o` / `wget -O` destinations are judged.** `curl -sS -o /tmp/x https://example.com` and `wget -O /tmp/a.html https://example.com` exited 0 while `mkdir` and `cp` of the same path exited 2. A dest-flag walker reads `-o`/`--output` and `-O`/`--output-document` (space, `=`, and glued `-oFILE` forms); a URL that merely contains `/tmp` is not a write target.
+
+## [0.38.13] - 2026-09-28
+
+### Changed
+
+- **`block-root-delete-target` records why three launcher lines stay refused** ([#4681](https://github.com/melodic-software/claude-code-plugins/issues/4681)). No verdict moves; the guard header and a pinned test table now carry the decision. Measured on util-linux 2.39.3 and GNU coreutils 9.4, and read against util-linux master:
+  - `chrt -r rm -rf /`, `chrt -f rm -rf /` and `chrt rm -rf /`: chrt rejects a non-digit word after a realtime policy before exec ("invalid priority argument" through 2.41, "policy <name> requires a priority argument" from 2.42). They stay refused because the same line under `-o`, `-b`, `-i`, `-d` or `-e` runs `rm` from 2.42, where the priority is optional.
+  - `runuser -u bob rm -rf /` without `--`: runuser's permuting getopt reads `-rf` as its own option and exits 1. It stays refused because under an inherited `POSIXLY_CORRECT` options end at `rm` and the delete runs.
+  - `chroot <dir> rm -rf /`: chroot's `/` is host `<dir>`, so the delete empties `<dir>` and every host directory bind-mounted inside it (a bind-mounted host file was deleted in the measurement). GNU rm's default `--preserve-root` stops only the bare `/` spelling, not `/*` or `--no-preserve-root`.
+
+## [0.38.12] - 2026-09-28
+
+### Fixed
+
+- **`block-hook-bypass` says which target spelling the scratch exemption takes** ([#4118](https://github.com/melodic-software/claude-code-plugins/issues/4118)). On the `cat`, `echo`/`printf` and staged-move lanes the roots line read "A bare target under these roots is exempt", which never said the target must be written out literally. An agent blocked on a project path was offered the temp tree without being told that `$TMPDIR/x` or a quoted path would be blocked too. The line now reads "An unquoted literal target under these roots is exempt: ..., the OS temp directory; a quoted or variable-carried one never is." When the reason line above it already says so (a quoted target, or one holding `$`, a backtick or `~`), the second half is left off. The temp tree is still listed only when the project root is outside it. The exemption itself is unchanged: following a shell variable would mean neutralizing quoting, which would re-block inert prose.
+
+## [0.38.11] - 2026-09-28
+
+### Fixed
+
+- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the five guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. `block-hook-bypass`, `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand, so `wsl.exe -e bash -c "echo secret > …"` is still allowed by this version ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)).
+
+## [0.38.10] - 2026-09-28
+
+### Fixed
+
+- **The PowerShell launcher block names a form that passes.** The `ps-unparsable-launcher`
+  trigger line said only "run the program directly": it now gives the in-session forms, the
+  launched command itself (`git status`, not `pwsh -Command 'git status'`) and, for a repo
+  script, `Set-Location <dir>; & ./<script>.ps1`, so a retry is one correction rather than a
+  loop. A README scope note records the working shape for a repo script under PowerShell:
+  in-session on the PowerShell tool, and `pwsh -NoProfile -NonInteractive -WorkingDirectory
+  <dir> -Command "& ./<script>.ps1; exit $LASTEXITCODE"` where only Bash is available, with
+  why `pwsh -File` from another directory fails its relative `Import-Module`, and the declared
+  gap that the Bash lane does not parse inside a `-Command` string (#4261).
+
 ## [0.38.9] - 2026-09-28
 
 ### Fixed

@@ -3,6 +3,27 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.5] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` keeps the per-phase fresh-context verifier mandate; an opt-out is
+  parked ([#4259](https://github.com/melodic-software/claude-code-plugins/issues/4259)).**
+  `skills/implement-dispatch/reference/phase-verifier-mandate.md` records Option A and that the
+  verifier does not replace implement Step 5's end gate.
+
+## [0.19.4] - 2026-09-28
+
+### Fixed
+
+- **`implement-dispatch`: a wave's fences are composed together before dispatch.** Each brief
+  enumerated its own ALLOWED and FORBIDDEN paths, but nothing compared the rows of one wave, so a
+  path in one row's ALLOWED set and nobody's FORBIDDEN list could be edited by two rows without
+  tripping the divergence-escalation clause. The rows of a wave now hold ALLOWED sets that are
+  disjoint by file path written (not by worktree), each row's FORBIDDEN list carries its siblings'
+  paths, briefs list paths without naming an owner, and rows that will not split disjointly run in
+  sequential waves.
+
 ## [0.19.3] - 2026-09-28
 
 ### Fixed

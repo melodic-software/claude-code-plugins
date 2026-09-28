@@ -1334,14 +1334,101 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(["Cache"], folded)
 
-    def test_root_children_flag_requires_os_managed_volume_root(self) -> None:
+    def test_os_managed_non_volume_target_still_rejects_root_children(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            target = base / "ordinary"
+            target = base / "windows-subdir"
             data_root = base / "plugin-data"
             target.mkdir()
             data_root.mkdir()
-            (target / "builds").mkdir()
+            (target / "Temp").mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=True
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("volume-root target", payload["error"])
+
+    def test_root_children_selects_immediate_children_of_a_non_os_target(self) -> None:
+        """A home (or any non-OS directory) can re-inventory approved children.
+
+        Depth-1 of the parent leaves those children truncated-not-inventoried.
+        --root-children on that same parent inventories only the named
+        children, including hidden ones volume-root mode would withhold.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
+            (target / "Documents").mkdir()
+            (target / "tmp").mkdir()
+            (target / "loose.tmp").write_text("never", encoding="utf-8")
+            home_patches = [
+                mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            ]
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                home_patches,
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertIn(".dotnet", admitted)
+            self.assertIn("scratch", admitted)
+            self.assertIn("AppData", admitted)
+            self.assertIn("tmp", admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual("not-a-directory", skipped["loose.tmp"])
+            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_on_home_inventories_approved_hidden_children(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / ".dotnet" / "sdk" / "deep").mkdir(parents=True)
+            (target / ".dotnet" / "sdk" / "deep" / "tool.dll").write_text(
+                "x" * 40, encoding="utf-8"
+            )
+            (target / "scratch").mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "AppData" / "nested").mkdir(parents=True)
+            (target / "AppData" / "nested" / "cache.tmp").write_text(
+                "right", encoding="utf-8"
+            )
             code, payload = self._scan_target(
                 target,
                 data_root,
@@ -1354,18 +1441,76 @@ class HygieneTests(unittest.TestCase):
                         hygiene, "mount_state", return_value=(False, None)
                     ),
                 ],
-                extra_args=["--root-children"],
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    ".dotnet",
+                    "--root-child",
+                    "scratch",
+                ],
             )
-            self.assertEqual(2, code)
-            self.assertIn("volume-root target", payload["error"])
-            code, payload = self._scan_target(
-                target,
-                data_root,
-                self._non_os_volume_root_patches(),
-                extra_args=["--root-children"],
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue(payload["root_children_mode"])
+            self.assertEqual([".dotnet", "scratch"], payload["root_children_selected"])
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(2, code)
-            self.assertIn("only valid for an OS-managed volume root", payload["error"])
+            paths = {entry["path"] for entry in snapshot["entries"]}
+            self.assertIn(".dotnet", paths)
+            self.assertIn(".dotnet/sdk", paths)
+            self.assertIn(".dotnet/sdk/deep", paths)
+            self.assertIn(".dotnet/sdk/deep/tool.dll", paths)
+            self.assertIn("scratch", paths)
+            self.assertIn("scratch/orphan.tmp", paths)
+            self.assertNotIn("AppData", paths)
+            self.assertNotIn("AppData/nested/cache.tmp", paths)
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual({".dotnet", "scratch"}, set(rollup))
+            self.assertTrue(rollup[".dotnet"]["walked"])
+            self.assertTrue(rollup["scratch"]["walked"])
+
+    def test_root_children_home_snapshot_clears_truncated_handoff_block(
+        self,
+    ) -> None:
+        """Approved home children become previewable once re-inventoried."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "home"
+            nested = root / "scratch" / "deep"
+            nested.mkdir(parents=True)
+            (nested / "orphan.tmp").write_text("x", encoding="utf-8")
+            policy = hygiene.load_policy(None)
+            bounded = hygiene.scan_tree(root.resolve(), policy, max_depth=1)
+            truncated = hygiene.preview(
+                bounded,
+                {
+                    "version": 1,
+                    "tier": "high",
+                    "candidates": [candidate("scratch")],
+                },
+            )
+            self.assertIn(
+                "truncated-not-inventoried",
+                truncated["candidates"][0]["blockers"],
+            )
+            inventoried = hygiene.scan_tree(
+                root.resolve(), policy, root_children=["scratch"]
+            )
+            inventoried["root_children_skipped"] = []
+            with mock.patch.object(hygiene, "execution_blockers", return_value=[]):
+                result = hygiene.preview(
+                    inventoried,
+                    {
+                        "version": 1,
+                        "tier": "high",
+                        "candidates": [candidate("scratch/deep/orphan.tmp")],
+                    },
+                )
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertNotIn(
+                "truncated-not-inventoried",
+                result["candidates"][0]["blockers"],
+            )
 
     def test_root_child_requires_root_children_flag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3624,6 +3769,120 @@ class TargetRootIdentityTests(unittest.TestCase):
             remove.assert_not_called()
 
 
+class PreviewPlatformBlockerExitTests(unittest.TestCase):
+    """A platform-only blocker routes to the manual lane, not exit 3 (#4011)."""
+
+    NAMES = ("junk0.tmp", "junk1.tmp")
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
+        self.addCleanup(patcher.stop)
+        patcher.start()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.root = self.base / "target"
+        self.root.mkdir()
+        for name in self.NAMES:
+            (self.root / name).write_text("stale", encoding="utf-8")
+        snapshot = hygiene.scan_tree(self.root.resolve(), hygiene.load_policy(None))
+        (self.base / "snapshot.json").write_text(json.dumps(snapshot), encoding="utf-8")
+        plan = {
+            "version": 1,
+            "tier": "medium",
+            "candidates": [candidate(name, "medium") for name in self.NAMES],
+        }
+        (self.base / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    def preview_cli(self, platform: list[str]) -> tuple[int, dict[str, Any]]:
+        output = io.StringIO()
+        with (
+            mock.patch.object(hygiene, "execution_blockers", return_value=platform),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            redirect_stdout(output),
+        ):
+            status = hygiene.main(
+                [
+                    "preview",
+                    "--snapshot",
+                    str(self.base / "snapshot.json"),
+                    "--plan",
+                    str(self.base / "plan.json"),
+                ]
+            )
+        return status, json.loads(output.getvalue())
+
+    @staticmethod
+    def blockers(payload: dict[str, Any]) -> dict[str, list[str]]:
+        return {item["path"]: item["blockers"] for item in payload["candidates"]}
+
+    def test_platform_only_blocker_exits_zero_and_names_the_manual_lane(self) -> None:
+        status, payload = self.preview_cli([hygiene.PLATFORM_BLOCKER])
+        self.assertEqual(0, status)
+        self.assertEqual("blocked", payload["status"])
+        self.assertEqual("manual-handoff-lane", payload["outcome"])
+        self.assertIsNone(payload["approval_token"])
+        self.assertEqual(
+            {name: [hygiene.PLATFORM_BLOCKER] for name in self.NAMES},
+            self.blockers(payload),
+        )
+
+    def test_a_path_blocker_beside_the_platform_blocker_still_exits_three(self) -> None:
+        (self.root / self.NAMES[0]).write_text("changed after scan", encoding="utf-8")
+        status, payload = self.preview_cli([hygiene.PLATFORM_BLOCKER])
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["outcome"])
+        self.assertEqual(
+            {
+                self.NAMES[0]: ["changed-since-scan", hygiene.PLATFORM_BLOCKER],
+                self.NAMES[1]: [hygiene.PLATFORM_BLOCKER],
+            },
+            self.blockers(payload),
+        )
+
+    def test_other_host_blockers_still_exit_three(self) -> None:
+        status, payload = self.preview_cli(["dirfd-anchoring-unavailable"])
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["outcome"])
+
+    def test_a_clear_preview_exits_zero_for_explicit_approval(self) -> None:
+        status, payload = self.preview_cli([])
+        self.assertEqual(0, status)
+        self.assertEqual("ready-for-explicit-approval", payload["status"])
+        self.assertEqual("explicit-approval", payload["outcome"])
+
+    def test_apply_still_refuses_a_platform_only_preview(self) -> None:
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+            ),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "apply_plan") as apply_plan,
+            redirect_stdout(output),
+        ):
+            status = hygiene.main(
+                [
+                    "apply",
+                    "--execute",
+                    "--snapshot",
+                    str(self.base / "snapshot.json"),
+                    "--plan",
+                    str(self.base / "plan.json"),
+                    "--confirm-tier",
+                    "medium",
+                    "--approval-token",
+                    "0" * 24,
+                    "--report",
+                    str(self.base / "report.json"),
+                ]
+            )
+        self.assertEqual(3, status)
+        apply_plan.assert_not_called()
+
+
 class HandoffVerifyTests(unittest.TestCase):
     """handoff-verify: read-only manual-lane revalidation (#1109)."""
 
@@ -4518,6 +4777,62 @@ class HandoffVerifyTests(unittest.TestCase):
             status = hygiene.main(argv)
         return status, json.loads(output.getvalue())
 
+    def handoff_verify_inline(
+        self, temporary: str, relative: str
+    ) -> tuple[int, dict[str, Any]]:
+        argv = [
+            "handoff-verify",
+            "--snapshot",
+            str(Path(temporary) / "snapshot.json"),
+            "--path",
+            relative,
+        ]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_handoff_verify_inline_path_matches_the_single_path_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            for name in names[:2]:
+                with self.subTest(path=name):
+                    self.assertEqual(
+                        self.handoff_verify_cli(temporary, [name]),
+                        self.handoff_verify_inline(temporary, name),
+                    )
+            (root / names[0]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_inline(temporary, names[0])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+            self.assertEqual(
+                self.handoff_verify_cli(temporary, [names[0]]), (status, payload)
+            )
+
+    def test_handoff_verify_inline_path_keeps_the_file_form_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.five_file_snapshot(temporary)
+            for relative in ("absent.tmp", "../junk0.tmp", "/junk0.tmp", "."):
+                with self.subTest(path=relative):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        status = hygiene.main(
+                            [
+                                "handoff-verify",
+                                "--snapshot",
+                                str(Path(temporary) / "snapshot.json"),
+                                "--path",
+                                relative,
+                            ]
+                        )
+                    self.assertEqual(2, status)
+                    self.assertIn(
+                        "approved path", json.loads(output.getvalue())["error"]
+                    )
+
     def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
         root = Path(temporary) / "target"
         root.mkdir()
@@ -4574,6 +4889,70 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertEqual(
                 ["gone", "contested"], [item["verdict"] for item in payload["verdicts"]]
             )
+
+    @staticmethod
+    def empty_directory_with_ntfs_size(temporary: str) -> tuple[Path, dict[str, Any]]:
+        """An unchanged empty directory whose snapshot recorded a non-zero size.
+
+        NTFS reports a directory's st_size as its index allocation on one lstat
+        and 0 on the next (#4005); the snapshot here holds the 4096 reading
+        while the live directory reports whatever this filesystem reports.
+        """
+        root = Path(temporary) / "target"
+        (root / ".playwright-cli").mkdir(parents=True)
+        snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+        entry["stat_size"] = int(entry["stat_size"]) + 4096
+        (Path(temporary) / "snapshot.json").write_text(
+            json.dumps(snapshot), encoding="utf-8"
+        )
+        return root, snapshot
+
+    def test_directory_stat_identity_ignores_size_but_not_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            entry = hygiene.entry_map(snapshot)[".playwright-cli"]
+            live = os.lstat(root / ".playwright-cli")
+            self.assertNotEqual(live.st_size, entry["stat_size"])
+            self.assertTrue(hygiene.same_stat_identity(live, entry))
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "inode": entry["inode"] + 1})
+            )
+            self.assertFalse(
+                hygiene.same_stat_identity(live, {**entry, "kind": "file"})
+            )
+
+    def test_unchanged_empty_directory_verifies_clear_on_every_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.empty_directory_with_ntfs_size(temporary)
+            for attempt in range(5):
+                with self.subTest(attempt=attempt + 1):
+                    status, payload = self.handoff_verify_cli(
+                        temporary, [".playwright-cli"]
+                    )
+                    self.assertEqual(0, status)
+                    self.assertEqual(
+                        ["clear"], [item["verdict"] for item in payload["verdicts"]]
+                    )
+
+    def test_preview_routes_directories_through_the_shared_comparator(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, snapshot = self.empty_directory_with_ntfs_size(temporary)
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate(".playwright-cli")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
 
     @staticmethod
     def nested_residue(root: Path) -> Path:
@@ -10253,20 +10632,37 @@ class EngineGrammarTests(unittest.TestCase):
     def is_data_root(self, flag) -> bool:
         return flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT
 
-    def head(self, spec) -> list[str]:
-        return [word for chunk in self.required_chunks(spec) for word in chunk]
+    def grouped(self, spec) -> set[str]:
+        return {name for group in spec.one_of for name in group}
+
+    def alternative_chunks(self, spec, chosen=None) -> list[list[str]]:
+        """One member of each ``one_of`` group: ``chosen`` in its own, else the first."""
+        chunks = []
+        for group in spec.one_of:
+            name = (
+                chosen.name if chosen is not None and chosen.name in group else group[0]
+            )
+            flag = spec.flag(name)
+            assert flag is not None
+            chunks.append(self.chunk(flag))
+        return chunks
+
+    def head(self, spec, chosen=None) -> list[str]:
+        """The required flags plus one member of each ``one_of`` group."""
+        chunks = [*self.required_chunks(spec), *self.alternative_chunks(spec, chosen)]
+        return [word for chunk in chunks for word in chunk]
 
     def data_root_chunk(self, spec) -> list[str]:
         (flag,) = [flag for flag in spec.optional if self.is_data_root(flag)]
         return self.chunk(flag)
 
-    def words(self, spec, *, optionals: bool) -> list[str]:
-        """The required head plus ``--data-root``, which the guard requires."""
-        words = [*self.head(spec), *self.data_root_chunk(spec)]
+    def words(self, spec, *, optionals: bool, chosen=None) -> list[str]:
+        """The head plus ``--data-root``, which the guard requires."""
+        words = [*self.head(spec, chosen), *self.data_root_chunk(spec)]
         if not optionals:
             return words
         for flag in spec.optional:
-            if self.is_data_root(flag):
+            if self.is_data_root(flag) or flag.name in self.grouped(spec):
                 continue
             words.extend(self.chunk(flag))
             if flag.repeatable:
@@ -10380,7 +10776,11 @@ class EngineGrammarTests(unittest.TestCase):
 
     def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
         for spec in self.grammar.SUBCOMMANDS:
-            chunks = [*self.required_chunks(spec), self.data_root_chunk(spec)]
+            chunks = [
+                *self.required_chunks(spec),
+                *self.alternative_chunks(spec),
+                self.data_root_chunk(spec),
+            ]
             for index, flag in enumerate(spec.required):
                 words = [
                     word
@@ -10400,7 +10800,14 @@ class EngineGrammarTests(unittest.TestCase):
             if len(chunks) < 2:
                 continue
             swapped = [
-                word for chunk in [chunks[1], chunks[0], *chunks[2:]] for word in chunk
+                word
+                for chunk in [
+                    chunks[1],
+                    chunks[0],
+                    *chunks[2:],
+                    *self.alternative_chunks(spec),
+                ]
+                for word in chunk
             ]
             with self.subTest(subcommand=spec.name):
                 self.assertEqual(spec.name, self.parse(spec.name, swapped).command)
@@ -10411,8 +10818,8 @@ class EngineGrammarTests(unittest.TestCase):
             for flag in spec.optional:
                 if flag.repeatable or flag.requires is not None:
                     continue
-                once = self.words(spec, optionals=False)
-                if not self.is_data_root(flag):
+                once = self.words(spec, optionals=False, chosen=flag)
+                if not self.is_data_root(flag) and flag.name not in self.grouped(spec):
                     once = [*once, *self.chunk(flag)]
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertEqual(spec.name, self.classify(spec.name, once))
@@ -10450,8 +10857,8 @@ class EngineGrammarTests(unittest.TestCase):
                 )
                 with self.subTest(subcommand=spec.name, flag=flag.name):
                     self.assertIsNotNone(rejected, flag.name)
-                    admitted = [*self.words(spec, optionals=False)]
-                    if not flag.required:
+                    admitted = [*self.words(spec, optionals=False, chosen=flag)]
+                    if not flag.required and flag.name not in self.grouped(spec):
                         if flag.requires is not None:
                             prerequisite = spec.flag(flag.requires)
                             assert prerequisite is not None
@@ -10499,6 +10906,60 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(subcommand=spec.name):
                 self.assertEqual(spec.name, self.parse(spec.name, head).command)
                 self.assertIsNone(self.classify(spec.name, head))
+
+    def test_each_one_of_member_is_admitted_alone(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                for name in group:
+                    flag = spec.flag(name)
+                    words = self.words(spec, optionals=False, chosen=flag)
+                    with self.subTest(subcommand=spec.name, flag=name):
+                        namespace = self.parse(spec.name, words)
+                        self.assertEqual(
+                            self.value(flag), getattr(namespace, flag.dest)
+                        )
+                        for other in group:
+                            if other != name:
+                                other_flag = spec.flag(other)
+                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                        self.assertEqual(spec.name, self.classify(spec.name, words))
+
+    def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for group in spec.one_of:
+                first, second = (spec.flag(name) for name in group[:2])
+                words = [
+                    *self.words(spec, optionals=False, chosen=first),
+                    *self.chunk(second),
+                ]
+                with self.subTest(subcommand=spec.name, group=group):
+                    self.assertIsNone(self.classify(spec.name, words))
+                    self.refuse_parse(spec.name, words)
+
+    def test_neither_consumer_takes_an_invocation_with_no_group_member(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            if not spec.one_of:
+                continue
+            words = [
+                word
+                for chunk in [*self.required_chunks(spec), self.data_root_chunk(spec)]
+                for word in chunk
+            ]
+            with self.subTest(subcommand=spec.name):
+                self.assertIsNone(self.classify(spec.name, words))
+                self.refuse_parse(spec.name, words)
+
+    def test_grammar_rejects_a_malformed_one_of_group(self) -> None:
+        flags = (
+            self.grammar.Flag("--a", required=True, example="a"),
+            self.grammar.Flag("--b", example="b"),
+            self.grammar.Flag("--c", example="c"),
+        )
+        for group in (("--b",), ("--a", "--b"), ("--b", "--missing")):
+            with self.subTest(group=group), self.assertRaises(ValueError):
+                self.grammar.Subcommand("x", flags, one_of=(group,))
+        with self.assertRaises(ValueError):
+            self.grammar.Subcommand("x", flags, one_of=(("--b", "--c"), ("--c", "--b")))
 
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))

@@ -35,7 +35,8 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
   Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied as
   a recursive walk target, while `--root-children` may address that same root only as a listing of
   immediate non-OS child directories with explicit `--root-child` selection (never a whole-root
-  walk); a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  walk); `--root-children` is also valid on a non-OS directory (a user home) so approved immediate
+  children can be re-inventoried into one snapshot without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
   confirm), and deletion stays gated by the preview and per-tier approval;
@@ -154,8 +155,8 @@ marker within the one approved checkout:
    only in that case.
 3. Every SHA emitted by `git stash list --format=%H` also appears in the stash list of at least one
    declared independent checkout outside all approved deletion paths; no stashes satisfies the gate.
-4. The checkout is one exact path in the existing human-approved `handoff-paths.json`. The evidence
-   option adds no approval surface and creates no token.
+4. The checkout is one exact human-approved path, given inline as `--path` or listed in
+   `handoff-paths.json`. The evidence option adds no approval surface and creates no token.
 
 The engine discovers `.git` markers from live descendants and requires their repository-root set to
 equal the evidence file exactly. `git rev-parse --show-toplevel` must bind each marker to the declared
@@ -479,11 +480,22 @@ in monitor mode, emits the `systemMessage` itself when nothing resolves, so a ho
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the shell that starts it: all are registered in shell form (`"shell": "bash"`), so a host where
 Claude Code cannot start a bash shell at all takes the guard and its detector down together with
-nothing left to report it. And the guard's own no-interpreter path is unchanged: the launcher exits 0
-silently in guard mode, so routing the belt through it closes "cannot start against the alias stub",
-not "fails closed when no Python exists at all". That residual is why the registration shape is
-asserted by `hooks/run-python-hook.test.sh` and `test_hygiene.py`, and verified as step 1 of
-`/disk-hygiene:setup check`.
+nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
+every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
+the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
+difference from the watchdog is the engine gate's marker-free commands: they proceed unchecked with a
+once-per-session `systemMessage` and `additionalContext` notice rather than an `ask`, because a
+missing interpreter is persistent where a missed deadline is transient, and an `ask` on every
+`PowerShell(*& $*)` call would stop unrelated work. The Stop detector is kept as the end-of-turn
+backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
+<https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
+exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
+a prompt even in auto mode) and <https://code.claude.com/docs/en/headless> (a prompt in a `-p` run
+with no permission host is denied); recheck when either page changes PreToolUse exit-code or `ask`
+semantics. The README states each surface in one table. The launch shape is asserted by
+`hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
+both are verified as step 1 of `/disk-hygiene:setup check`.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

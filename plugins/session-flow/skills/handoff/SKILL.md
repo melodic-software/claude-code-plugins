@@ -1,6 +1,6 @@
 ---
 description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
-argument-hint: "[file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
+argument-hint: "[unattended] [file|prompt] [topic] [purpose...] (e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -236,7 +236,10 @@ ticked. Emit the rails block before ending the turn, always.
   and a re-run, never a hand-edit around it
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
-  (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
+  (`--no-previous`), including when the directory holds only unrelated-task handoffs. The
+  `chain:` list `new` writes holds every hop the `previous_handoff` pointers reach, oldest first
+  and ending with this file, so a consumer reads the whole chain without walking files; a legacy
+  predecessor with no `chain:` of its own has its pointers walked for it. When
   present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
   amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
   the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
@@ -315,12 +318,7 @@ ticked. Emit the rails block before ending the turn, always.
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
-- [ ] When the built-in `export` command resolves in your session, the close offers the one-line
-  conversation export `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after
-  verifying the memory root's self-ignore guard (a `.gitignore` containing `*`, created and
-  announced when absent). Prompt-only writes no file, so the transcript is this handoff's only
-  record and it is retention-swept; an export is the copy that survives the sweep. Offer only,
-  never run, and record nothing about whether the user ran it
+- [ ] If /export is available in your session (gate basis: the four-part verification record in this section), run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (`*` in `.gitignore`). Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
@@ -357,6 +355,9 @@ ticked. Emit the rails block before ending the turn, always.
   `/session-flow:continue-in-background` skill, and it fires only on the user's explicit request
 - **Does not continue executing the underlying task**, per the hard rule above. Prompt-only does
   NOT relax this
+- **Does not offer a resident / no-stop mode.** `/implementation:implement-dispatch` resident
+  phase boundaries record plan marks and the commit; they do not invoke this skill. Dual-owner
+  split parked: [`reference/phase-boundary-owner.md`](reference/phase-boundary-owner.md)
 - **Does not replace a contract or plan**; it captures in-flight state at any point
 - **Does not summarize the whole conversation**, task-relevant state only
 - **Does not orient from durable state**; the position panel restates what this turn already

@@ -5,7 +5,7 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.34] - 2026-09-28
+## [0.6.35] - 2026-09-28
 
 ### Fixed
 
@@ -15,6 +15,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (Claude Code 2.1.280): the no-fallback rule, and a non-Boolean value making Claude Code skip every
   `enabledPlugins` entry in its file. The lever cites the `settings-reference#enabledplugins`,
   `plugins-reference#defaultenabled`, and `settings#fix-a-broken-settings-file` anchors (#4660).
+
+## [0.6.34] - 2026-09-28
+
+### Changed
+
+- **The settings-write checkpoint claims only what it sees**
+  ([#3864](https://github.com/melodic-software/claude-code-plugins/issues/3864)). The audit
+  skill said the checkpoint asks on "any settings-surface write", but its matcher is
+  `Write|Edit|MultiEdit|NotebookEdit`. The skill, README, `hooks.json` description, and hook
+  header now say it covers file-editing tool calls, and name the routes it does not see. Those
+  are shell writes (redirects, heredocs, `sed -i`, scripts), files rendered into place by a
+  dotfile manager or any other program, and `managed-settings.d/` drop-ins. The README records
+  why the hook is not widened to `Bash|PowerShell`. The audit `fix` path now makes its
+  project-settings edit with a file-editing tool, so the checkpoint covers the plugin's own write.
 
 ## [0.6.33] - 2026-09-27
 

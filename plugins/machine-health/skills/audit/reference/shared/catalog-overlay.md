@@ -63,7 +63,12 @@ against `<StateBase>`:
    `scripts/windows/checks/Test-MyThing.ps1`).
 
 Custom checks run under the same per-check timeout, trend analysis, and severity rules as
-shipped ones.
+shipped ones, with one extra gate. The discovery guide's "straightforward" bar covers safety
+(read-only, no new egress, narrow scope), not whether the check's verdicts are true. So a custom
+check is capped at WARN until `history.jsonl` shows it reporting OK or INFO in 3 runs
+(`check_severities`, any 3 runs, not necessarily consecutive). The cap runs after trend and
+correlation, and the finding's note names it. The report marks every custom check `[custom]`
+beside its id.
 
 ## Relation to self-improvement
 
