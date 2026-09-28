@@ -3,6 +3,17 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.21] - 2026-09-28
+
+### Changed
+
+- **Skill descriptions trimmed to 500 characters or fewer (#4661).** All six listed skills ran
+  over 500, each between 954 and 1,001 characters. Each now leads with its use case, keeps its
+  quoted trigger phrases, and names its nearest sibling. What the bodies already carry is cut:
+  collector lists, reference citations, and output-shape detail. `check-listing-budget.sh
+  plugins/code-metrics/skills` goes from 5,803 to 2,699 characters. `audit-size` still names
+  `--all`, which its description test pins. No skill is renamed or merged.
+
 ## [0.3.20] - 2026-09-28
 
 ### Changed
