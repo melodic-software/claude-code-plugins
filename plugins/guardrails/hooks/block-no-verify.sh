@@ -27,8 +27,12 @@
 # command string. It does NOT evaluate shell variable / command substitution
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
-# sandbox. The ONLY supported deliberate bypass is the kill switch
-# (block_no_verify_enabled userConfig option set to false).
+# sandbox. The whole-guard deliberate bypass is the kill switch
+# (block_no_verify_enabled userConfig option set to false). PowerShell
+# fail-closed sink shapes listed in the sibling `block_dangerous_git_allow`
+# option (ps-unparsable-<trigger>) set aside only the unreadable region; a
+# visible --no-verify beside it still blocks (#4252). Destructive-form tokens
+# on that list (reset-hard, …) do not open this sink.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -279,12 +283,32 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
     "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
 fi
 
+# Sink-shape tokens from the sibling block_dangerous_git_allow list (#4252).
+# The printed remedy names that option; following it must clear this guard too,
+# or an operator disables the whole security control. Destructive-form tokens
+# on the same list never open this branch.
+sink_allowed() {
+  local tok="$1" list=",${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW:-},"
+  case "$tok" in
+  ps-unparsable-dynamic-invocation | ps-unparsable-launcher | \
+  ps-unparsable-special-construct | ps-unparsable-herestring-unbalanced | \
+  ps-unparsable-herestring-subexpr) ;;
+  *) return 1 ;;
+  esac
+  [[ "$list" == *,"$tok",* ]]
+}
+
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
 # For the Bash tool this is a no-op (COMMAND unchanged). The classifier is
 # loaded only on the PowerShell lane (#2663): its Bash path is `return 0` after
 # setting PS_SAFE_COMMAND, so a file-scope `source` is parse tax with no
 # behavior. This guard names it once, in hooks/guard-requires.sh, rather than
 # spelling the plugin root and the library path here.
+#
+# When a sink-shape token IS allowlisted, blank that opaque region and keep
+# checking any remaining visible text — do not fail-open a compound command
+# that still carries --no-verify beside the granted shape (same loop as
+# block-dangerous-git, narrowed to this guard's readonly-ok classifier).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # The declaration first, then the library it names. Under run-guards.sh the
   # declaration is already in this process and the library was loaded once for
@@ -293,17 +317,42 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
-  case $? in
-  2)
+  _ps_rc=$?
+  _ps_sink_attempts=0
+  while ((_ps_rc == 2)); do
+    # Same placement as block-dangerous-git: the flag, inside the loop, because
+    # a later blanking round can acquire a commented opener. No token for it.
     if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
-      PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
+      PS_SINK_TRIGGER="herestring-comment-char"
+      ps::print_unparsable_block_message
+      emit_tel "blocked" "powershell-unparsable-herestring-comment-char"
+      exit 2
     fi
-    ps::print_unparsable_block_message
-    # The trigger rides along in the form token: five distinct shapes reach this
-    # sink, and one collapsed token cannot show which of them is over-blocking.
-    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
-    exit 2
-    ;;
+    if ((_ps_sink_attempts > 4)); then
+      echo "BLOCKED: this PowerShell command still cannot be parsed with confidence after five rounds of setting aside allowed sink shapes — blocked (fail-closed)." >&2
+      echo "No allow token clears this. Split the command into smaller ones, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+      emit_tel "blocked" "powershell-unparsable-budget-exhausted"
+      exit 2
+    fi
+    sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
+    if ! sink_allowed "$sink_allow"; then
+      ps::print_unparsable_block_message
+      # The trigger rides along in the form token: five distinct shapes reach this
+      # sink, and one collapsed token cannot show which of them is over-blocking.
+      emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
+      exit 2
+    fi
+    ps::blank_sink_opaque_regions "$COMMAND" "${PS_SINK_TRIGGER:-unknown}"
+    COMMAND="$PS_SAFE_COMMAND"
+    if [[ -z "${COMMAND//[[:space:]]/}" ]]; then
+      emit_tel "ok" ""
+      exit 0
+    fi
+    _ps_sink_attempts=$((_ps_sink_attempts + 1))
+    ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
+    _ps_rc=$?
+  done
+  case $_ps_rc in
   1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct — not this guard's proven surface
   *) COMMAND="$PS_SAFE_COMMAND" ;;
   esac

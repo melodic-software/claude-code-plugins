@@ -227,7 +227,8 @@ fi
 # commit/push-shaped PowerShell the guard cannot parse must fail closed.
 run_pwsh() {
   local label="$1" command="$2" expected="$3"
-  expect "$label" "$expected" --tool PowerShell --command "$command"
+  shift 3
+  expect "$label" "$expected" --tool PowerShell --command "$command" -- "$@"
 }
 run_pwsh "PS: git commit --no-verify (blocked — the proven bypass)" "git commit --no-verify -m x" 2
 run_pwsh "PS: git commit -n (blocked)" "git commit -n -m x" 2
@@ -249,8 +250,7 @@ run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
 # An EXPANDABLE `@"` body is a different shape from the verbatim `@'` body above:
 # `$( … )` inside it is a command position evaluated where it is written, and the
 # body is dropped at intake, so no git-freedom proof can be taken over what is
-# left. This guard carries no allow-list, so it is the one that still refuses the
-# class after `block-noncanonical-commit` defers it.
+# left. Without a token this guard still refuses the class.
 run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")" 2
 # The `readonly-ok` relief this guard passes to the classifier does not reach the
@@ -259,12 +259,10 @@ run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fai
 # text that was dropped.
 run_pwsh "PS: expandable here-string body running read-only git (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
-# The harshest consequence of that acceptance, pinned where it actually lands: a
-# command naming no git at all is refused here, and this guard consults no
-# allow-list, so nothing narrower than its own kill switch relieves it.
-# block-dangerous-git takes ps-unparsable-herestring-subexpr; this one takes
-# nothing. Pinned so a later narrowing flips a case instead of passing silently.
-run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no allow token here)" \
+# A command naming no git at all is refused here. Since #4252 the advertised
+# `ps-unparsable-herestring-subexpr` token clears it; without a token the
+# kill switch is still the only whole-guard lever.
+run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no token)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
@@ -297,37 +295,39 @@ run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
 run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
-# --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
-run_pwsh "PS: a quote on a confirmed opener prefix hiding --no-verify (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"x\" @\"" "git commit --no-verify -m x" "\"@")" 2
-run_pwsh "PS: a backslash on a confirmed opener prefix hiding --no-verify (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output C:\\x @\"" "git commit --no-verify -m x" "\"@")" 2
-run_pwsh "PS: a <# earlier than a confirmed opener hiding --no-verify (blocked)" \
-  "$(printf '%s\n%s\n%s\n%s' "<# hi" "Write-Output @\"" "git commit --no-verify -m x" "\"@")" 2
-run_pwsh "PS: shape 9 — a commented opener behind {} with no git (blocked, accepted over-block)" \
-  "$(printf '%s\n%s\n%s' "Write-Output {x} # @\"" "hello" "\"@")" 2
-run_pwsh "PS: a bare CR hiding git commit --no-verify (blocked)" \
-  $'Write-Output hi\rgit commit --no-verify -m x' 2
-run_pwsh "PS: CRLF canonical verbatim commit here-string (allowed)" \
-  "$(printf '%s\r\n%s\r\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
-run_pwsh "PS #4683 shape 9: --no-verify behind commented opener and grouping (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Host {x} # @'" "git commit --no-verify -m x" "'@")" 2
-run_pwsh "PS #4683 shape 2: --no-verify behind backslash-escaped quote opener (blocked)" \
-  "$(printf '%s\n%s\n%s' 'Write-Output "\"a" @"' "git commit --no-verify -m x" '"@')" 2
-run_pwsh "PS #4683 table bare CR hiding --no-verify (blocked)" \
-  "$(printf 'Write-Output x\rgit commit --no-verify -m x')" 2
-run_pwsh "PS #4683 A1: --no-verify behind mixed quotes and backslash (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"a\\'b'\" c\" @\"" "git commit --no-verify -m x" '"@')" 2
-run_pwsh "PS #4683 A2: --no-verify behind apostrophe-straddle opener (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"a'b\" c'd @'" "git commit --no-verify -m x" "'@")" 2
-run_pwsh "PS #4683 N1: --no-verify behind quote-then-opener (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"a'\" '@'" "git commit --no-verify -m x" "'@")" 2
-run_pwsh "PS #4683 B1: --no-verify behind backtick opener (blocked)" \
-  "$(printf '%s\n%s\n%s' $'Write-Output `@\'' "'; git commit --no-verify -m x" "'@")" 2
-run_pwsh "PS #4683 S5: --no-verify behind block-comment opener (blocked)" \
-  "$(printf '%s\n%s\n%s\n%s\n%s' '<# x' "@'" '#>' "git commit --no-verify -m x" "'@")" 2
-run_pwsh "PS #4683 N2: --no-verify behind orphan closer (blocked)" \
-  "$(printf '%s\n%s\n%s\n%s' "Write-Output \"it's\" @'" "it's" "'@" "git commit --no-verify -m x")" 2
+# --- #4252: the advertised sink token also clears this guard -----------------
+# The printed remedy names `block_dangerous_git_allow=ps-unparsable-<trigger>`.
+# Before this change that list was read only by block-dangerous-git, so a
+# mutating shape still died here and the operator's next lever was the
+# whole-guard kill switch.
+run_pwsh "PS: Invoke-Command ScriptBlock git reset --hard (fail-closed, no token)" \
+  "Invoke-Command -ScriptBlock { git reset --hard }" 2
+run_pwsh "PS: same probe with advertised sink token (allowed — #4252)" \
+  "Invoke-Command -ScriptBlock { git reset --hard }" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+# A granted shape blanks only its region; a visible bypass beside it still blocks.
+run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
+  "Invoke-Command -ScriptBlock { git status }; git commit --no-verify -m x" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+# reset-hard is a destructive-form token and must not open this sink.
+run_pwsh "PS: reset-hard token does not open the sink" \
+  "Invoke-Command -ScriptBlock { git reset --hard }" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
+run_pwsh "PS: pwsh -File \$script (launcher sink, blocked)" \
+  'pwsh -File $script' 2
+run_pwsh "PS: pwsh -File \$script with launcher token (allowed — #4252)" \
+  'pwsh -File $script' 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
+run_pwsh "PS: expandable non-git body with herestring-subexpr token (allowed — #4252)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# The denial names the advertised option, not only the kill switch.
+expect "PS: sink denial names the advertised allow option" 2 \
+  --tool PowerShell --command "Invoke-Command -ScriptBlock { git reset --hard }"
+assert_contains "PS: sink denial names block_dangerous_git_allow" "$GUARD_ERR" \
+  "allow it via the block_dangerous_git_allow option"
+assert_contains "PS: sink denial still names the kill switch" "$GUARD_ERR" \
+  "block_no_verify_enabled"
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git
@@ -759,5 +759,12 @@ expect_both "dispatched parity: PowerShell git commit --no-verify" 2 \
   --command "git commit --no-verify -m x"
 expect_both "dispatched parity: PowerShell git status (allowed)" 0 \
   --tool PowerShell --lib lib/powershell/ps-command.sh --command "git status"
+expect_both "dispatched parity: PS Invoke-Command reset-hard with sink token (#4252)" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "Invoke-Command -ScriptBlock { git reset --hard }" \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+expect_both "dispatched parity: PS Invoke-Command reset-hard without token" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "Invoke-Command -ScriptBlock { git reset --hard }"
 
 report

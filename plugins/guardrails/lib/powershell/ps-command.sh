@@ -2265,7 +2265,14 @@ ps::print_unparsable_block_message() {
   echo "  <subject>" >&2
   echo "  '@ | git commit -F -" >&2
   echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
-  echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+  # `herestring-comment-char` has no allow token (same reason as the git twin).
+  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+    echo "This sink shape has NO allow token. Rewrite instead: drop the comment, or move the here-string opener to a line of its own with no '#' on it. To switch the whole guard off, set the guardrails block_no_verify_enabled option to false (/plugin configure)." >&2
+    return
+  fi
+  # Honor the same ps-unparsable-<trigger> tokens the git-guard message names, so
+  # following that printed advice also clears this guard on a mutating shape (#4252).
+  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr). This guard honors those sink tokens too, so one entry also clears a mutating block that block-dangerous-git holds. Or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # Shell-agnostic block text for a PowerShell command block-dangerous-git cannot
@@ -2294,6 +2301,7 @@ ps::print_unparsable_git_block_message() {
   # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
   # form tokens so an existing allow-list value cannot silently open this branch (#2664).
   echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  echo "A mutating shape is also held by block-no-verify. That guard honors the same ps-unparsable-<trigger> tokens, so one allow-list entry clears both denials." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
