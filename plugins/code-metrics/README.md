@@ -169,8 +169,9 @@ figure for a live session.
   complexity; those rows report `unavailable` with the validation date rather than a number.
 - C# is counted and its duplication measured, but its complexity lane is deferred to a native
   collector and its type debt is reported as not applicable.
-- The sentences that restate `coverage.reference`, the duplication defaults,
-  `type_debt.reference`, the cyclomatic reference, and the file-length reference are pinned to
+- The sentences that restate the `coverage.*` defaults, the duplication defaults (in
+  `audit-duplication` and the `principles` measures reference), `type_debt.reference`, the
+  cyclomatic reference, and the file-length reference are pinned to
   `scripts/config-defaults.json` by `scripts/check-code-metrics-skill-prose.py`.
 
 ## License

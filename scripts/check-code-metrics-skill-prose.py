@@ -65,8 +65,28 @@ def expected_phrases(defaults: dict) -> list[tuple[str, str]]:
             f"`duplication.rollup_depth` (default {_render(duplication['rollup_depth'])}",
         ),
         (
+            "plugins/code-metrics/skills/principles/reference/measures.md",
+            f"`duplication.min_tokens` (default {_render(duplication['min_tokens'])})",
+        ),
+        (
+            "plugins/code-metrics/skills/principles/reference/measures.md",
+            f"`duplication.min_lines` (default {_render(duplication['min_lines'])})",
+        ),
+        (
+            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            f"| `coverage.artifacts` | `{_render(coverage['artifacts'])}` |",
+        ),
+        (
+            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            f"| `coverage.path_prefix_strip` | `{_render(coverage['path_prefix_strip'])}` |",
+        ),
+        (
             "plugins/code-metrics/skills/audit-coverage/SKILL.md",
             f"| `coverage.reference` | `{_render(coverage['reference'])}` |",
+        ),
+        (
+            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            f"| `coverage.crap.reference` | `{_render(coverage['crap']['reference'])}` |",
         ),
         (
             "plugins/code-metrics/skills/audit-type-debt/SKILL.md",

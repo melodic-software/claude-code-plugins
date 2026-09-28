@@ -12,8 +12,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   a total exclusion those files are no longer invisible next to the scope's
   file count: resummarize and the markdown name them.
 - **Skill-body default sentences are pinned to `config-defaults.json`.**
-  `scripts/check-code-metrics-skill-prose.py` checks the duplication defaults,
-  `coverage.reference`, `type_debt.reference`, the cyclomatic reference, and the
+  `scripts/check-code-metrics-skill-prose.py` checks the duplication defaults (in
+  `audit-duplication` and the `principles` measures reference), the four `coverage.*`
+  defaults in `audit-coverage`, `type_debt.reference`, the cyclomatic reference, and the
   file-length reference. The README known-gap that left those sentences unbound
   is replaced by the gate.
 

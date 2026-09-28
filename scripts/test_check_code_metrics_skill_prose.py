@@ -23,7 +23,12 @@ DEFAULTS = {
         "max_lines": None,
         "rollup_depth": 2,
     },
-    "coverage": {"reference": None},
+    "coverage": {
+        "artifacts": [],
+        "path_prefix_strip": [],
+        "reference": None,
+        "crap": {"reference": None},
+    },
     "type_debt": {"reference": None},
     "complexity": {"cyclomatic": {"reference": 20}},
     "size": {"file_lines": 1000},
