@@ -603,7 +603,7 @@ current-branch-unavailable|UNKNOWN|no|no|Stop local branch classification; the c
 git-common-dir-unavailable|UNKNOWN|no|no|Stop for this repository
 stale-config-entry|UNKNOWN|no|no|Entry skipped; the rest of the fleet was audited
 discovery-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
-discovery-symlink-skip|UNKNOWN/LOW|no|no|Path skipped; the rest of the fleet was audited
+discovery-symlink-skip|UNKNOWN|no|no|Path skipped; the rest of the fleet was audited
 ls-remote-fleet-unavailable|UNKNOWN|no|no|Do not treat per-repository MEDIUM merged-remote-branch findings as independent; every live probe in this run failed
 REGISTRY
 
@@ -1176,11 +1176,6 @@ OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
 SKIP_NAMES=()
 SKIP_APPEND_NAMES=()
-# Package-manager cache trees: they never hold an operator's repository, and pnpm and uv lay
-# junctions and bare .git markers inside them (#4220). Skipped by default, and a symlink skip
-# inside one is a LOW disclosure rather than an evidence gap.
-PACKAGE_CACHE_DIR_NAMES=(node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2
-  .nuget __pycache__ .tox)
 CONFIG_FILE=""
 MAX_DEPTH=""
 PROJECT_DIR_ARG=""
@@ -1501,22 +1496,12 @@ if [[ -n "$CONFIG_FILE" ]]; then
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skipAppend 2>/dev/null || true)
 fi
 if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  SKIP_NAMES=(vendor "${PACKAGE_CACHE_DIR_NAMES[@]}")
+  # Package-manager cache trees never hold an operator's repository, and pnpm and uv lay junctions
+  # and bare .git markers inside them (#4220).
+  SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget
+    __pycache__ .tox)
 fi
 [[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
-
-# Whether a skipped link sits in (or is) a package-cache tree: any path component names one.
-in_package_cache_tree() {
-  local path="$1" part cache
-  local -a parts
-  IFS='/' read -r -a parts <<<"${path//\\//}"
-  for part in "${parts[@]}"; do
-    for cache in "${PACKAGE_CACHE_DIR_NAMES[@]}"; do
-      [[ "$part" == "$cache" ]] && return 0
-    done
-  done
-  return 1
-}
 
 should_skip_dir_name() {
   local name="$1" skip
@@ -2997,20 +2982,11 @@ for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); 
 done
 
 # Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
-# A link inside a package-cache tree is a disclosure, not an evidence gap, so it is LOW and does not
-# move the fleet verdict to BLOCKED (#4220); any other skipped link stays UNKNOWN.
 for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
   printf '\n'
-  symlink_path="${DISCOVERY_SYMLINK_PATHS[$symlink_index]}"
-  if in_package_cache_tree "$symlink_path"; then
-    emit_finding_as LOW - discovery-symlink-skip "$symlink_path" \
-      "symlinked intermediate directory skipped inside a package-cache tree (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
-      "No action required; package-cache trees do not hold repositories"
-  else
-    emit_finding_as UNKNOWN - discovery-symlink-skip "$symlink_path" \
-      "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
-      "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
-  fi
+  emit_finding discovery-symlink-skip "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}" \
+    "symlinked intermediate directory skipped (discovery does not follow symbolic links; Windows directory junctions also test as symlinks under Git Bash)" \
+    "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory"
 done
 
 # Bare repositories that still have working-tree content or linked worktrees (#2602). Reported

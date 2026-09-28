@@ -2677,23 +2677,21 @@ else
   failures=$((failures + 1))
 fi
 
-# A skipped link inside a package-cache tree is a LOW disclosure, so it does not BLOCK the fleet;
-# the same link outside a cache tree stays UNKNOWN (covered by the intermediate-symlink case above).
+# A pnpm-store junction is never reached under the default skip list, so it cannot BLOCK the
+# fleet. A link the operator walks into explicitly stays UNKNOWN (intermediate-symlink case above).
 if ! host_makes_symlinks; then
   printf 'SKIP: symlink inside a package-cache tree — ln -s copies here\n'
 else
   cache_sym_root="$TMP/cache-sym-root"
   mkdir -p "$cache_sym_root/.pnpm-store/v3" "$TMP/cache-sym-target"
   ln -s "$TMP/cache-sym-target" "$cache_sym_root/.pnpm-store/v3/linked"
-  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_sym_root" --skip vendor \
+  if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$cache_sym_root" \
     --detail >"$skip_out" 2>&1; then
-    if grep -Fq "Finding: discovery-symlink-skip" "$skip_out" &&
-      grep -Fq "inside a package-cache tree" "$skip_out" &&
-      grep -Fq "Confidence: LOW" "$skip_out" &&
+    if ! grep -Fq "discovery-symlink-skip" "$skip_out" &&
       ! grep -Fq "Fleet verdict: BLOCKED" "$skip_out"; then
-      printf 'PASS: a symlink skip inside a package-cache tree is LOW and does not block the fleet\n'
+      printf 'PASS: a pnpm-store junction under the default skip list does not block the fleet\n'
     else
-      printf 'FAIL: a symlink skip inside a package-cache tree is LOW and does not block the fleet\n%s\n' "$(cat "$skip_out")" >&2
+      printf 'FAIL: a pnpm-store junction under the default skip list does not block the fleet\n%s\n' "$(cat "$skip_out")" >&2
       failures=$((failures + 1))
     fi
   else

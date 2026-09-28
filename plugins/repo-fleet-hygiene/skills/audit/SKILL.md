@@ -272,10 +272,7 @@ Related fleet contracts that remain separate:
   repository buried inside another repository's working tree therefore never appears as its own
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed as an `UNKNOWN` `discovery-symlink-skip` finding and counted on
-  the discovery-skips header line. When any component of the link's path names a package-manager
-  cache directory (the default skip list above, reached because an explicit `--skip` list dropped
-  it), the finding is `LOW` with "No action required" instead: such links are the package
-  manager's own layout, and they do not turn the fleet verdict `BLOCKED`. Windows directory
+  the discovery-skips header line. Windows directory
   junctions test as symlinks under Git Bash, so they take this path. Symlinked discovery *roots* remain a hard refusal (CLI) or `stale-config-entry`
   (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub

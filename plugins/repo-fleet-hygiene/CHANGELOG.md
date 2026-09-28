@@ -16,10 +16,9 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 - The default discovery skip list now covers the package-manager cache trees `.pnpm-store`,
   `.yarn`, `.npm`, `.cargo`, `.rustup`, `.gradle`, `.m2`, `.nuget`, `__pycache__`, and `.tox`,
   alongside `node_modules`, `vendor`, and `.venv`. None of them holds a repository, and a plain
-  `audit D:` on a dev drive no longer needs hand-found skips.
-- A `discovery-symlink-skip` whose path runs through one of those cache directories is `LOW` with
-  "No action required" instead of `UNKNOWN`, so a pnpm-store junction alone no longer turns the
-  fleet verdict `BLOCKED (evidence gap)`. The same link anywhere else stays `UNKNOWN`.
+  `audit D:` on a dev drive no longer needs hand-found skips. A pnpm-store junction is no longer
+  reached under the defaults, so it no longer turns the fleet verdict `BLOCKED (evidence gap)`. A
+  link the operator walks into explicitly still reports `UNKNOWN`.
 
 ## [0.23.41] - 2026-09-28
 
