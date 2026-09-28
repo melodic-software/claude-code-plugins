@@ -381,7 +381,7 @@ class HygieneTests(unittest.TestCase):
                 hygiene.load_policy(policy_path)
 
     def test_protection_glob_is_absolute_accepts_posix_and_drive_letter(self) -> None:
-        self.assertTrue(hygiene.protection_glob_is_absolute("/Users/shared/keep/**"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("/srv/shared/keep/**"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:/eSupport"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
         self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))

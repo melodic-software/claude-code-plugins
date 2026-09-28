@@ -236,7 +236,7 @@ Policy files all share one shape:
   ],
   "additional_protected_path_globs": [
     "client-deliverables/**",
-    "/Users/shared/keep/**",
+    "/srv/shared/keep/**",
     {"glob": "legal/**", "reason": "counsel hold"}
   ]
 }
