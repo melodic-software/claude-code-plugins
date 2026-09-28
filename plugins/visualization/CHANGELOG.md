@@ -3,6 +3,20 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-09-28
+
+### Changed
+
+- **`visualize` routes against the bundled `design` canvas with the presence gate (part of
+  #4054).** The description's "where the bundled design skill is available" leaves the form list
+  and becomes its own clause: "When the bundled design skill resolves in your session, prefer it
+  for a hand-editable design canvas; this skill for choosing the form and medium." The rules: the
+  clause is gated on the model's own listing (`resolves in your session`), never on a claim that
+  the canvas is there; it names the provenance class and splits the job. The Boundary section and
+  Step 2's canvas route are unchanged, and the store's `design` row now records
+  `baked.description_phrase: true` with its budget caveat. Two phrasings are shortened to keep the
+  description under the 1,024-character spec field maximum.
+
 ## [0.7.0] - 2026-09-23
 
 ### Changed
