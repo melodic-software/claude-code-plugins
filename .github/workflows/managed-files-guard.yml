@@ -1,6 +1,6 @@
 name: managed-files-guard
 
-# SYNC-MANAGED FILE — DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
 # Source of truth: melodic-software/standards,
 # components/managed-files-guard/managed-files-guard.yml (the
 # `managed-files-guard-caller` component in distribution/sync-manifest.yml).
@@ -14,8 +14,8 @@ name: managed-files-guard
 # it is given and fails the pull request when the diff hand-edits one of them
 # (ADR-0007: a managed file is byte-exact with its standards source; the fix
 # path is a standards change, never a downstream edit). Pull requests opened
-# by the sync itself — labeled `standards-sync`, or authored by
-# `melodic-standards-sync[bot]` — are exempt inside the action.
+# by the sync itself (labeled `standards-sync`, or authored by
+# `melodic-standards-sync[bot]`) are exempt inside the action.
 #
 # ADVISORY during soak (standards#496): this check is NOT aggregated into
 # `ci-status` and is not a required context. Promotion is a per-target
