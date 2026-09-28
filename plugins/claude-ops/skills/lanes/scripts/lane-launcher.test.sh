@@ -472,6 +472,15 @@ out="$(run_launcher start --repo "$REPO" --config "$TMP/ultra3.json" --agents-js
 assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --permission-mode auto --effort ultracode"
 assert_eq "version probe memoized across lanes" 1 "$(grep -c -- '--version' "$CLAUDE_LOG")"
 
+# --permission-prompts none keeps auto mode and denies only what would have
+# prompted. The default stub is 2.1.220, below the 2.1.259 floor, so existing
+# launch lines stay without the flag. These two cases pin both sides.
+out="$(STUB_CLAUDE_VERSION=2.1.258 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+assert_contains "below 2.1.259 the launch stays auto" "$out" "claude --bg -n work --permission-mode auto --model opus"
+assert_not_contains "below 2.1.259 the flag is omitted" "$out" "--permission-prompts none"
+out="$(STUB_CLAUDE_VERSION=2.1.259 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+assert_contains "at 2.1.259 the flag follows auto" "$out" "claude --bg -n work --permission-mode auto --permission-prompts none --model opus"
+
 # A dry run must preview with no `claude` installed — the exemption require_claude
 # documents. The ultracode gate has no binary to probe there, so it reports the gate
 # unevaluated and still previews the lane instead of refusing it.

@@ -461,12 +461,17 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
 # also covers `superseded-by-plan` rows, which it restates and never resolves. The emoji
 # paragraph now defaults the anchors off and lets a user instruction against emoji win over
-# the option; it changes presentation only and weakens no defense.
+# the option; it changes presentation only and weakens no defense. The recommendation-basis
+# rules add a `Basis:` line per recommendation, make grounding mandatory for a consequential
+# recommendation, and restrict convention-only recommending to non-consequential questions.
+# Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
+# withheld question drops its recommendation but is still asked and registered, so it too
+# resolves nothing.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "9b3151c647219a2e1d278963bc0e108514393a7d87013afd6d9a38bad200691e"
+  "be1109648072c71b2368ef1e130e4d34219352512d3423b774dcc58b94903684"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -537,11 +542,13 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page paragraph now opens with the configured surface value in bold and says a `page`
 # value starts the page before the first round, with no round asked inline. It only names
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
+# It also says a decision the session records in the ledger is mirrored with the same op as a
+# terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "e3e842fd0e3b7852a5bdd29d994674c3d6357ece723a3ed07f3cd5ee6d2c41ea"
+  "d9b38e3209a062977a9726d0ad975742500cba5bfa498b30500b68cc38f44290"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
@@ -565,16 +572,21 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
   "af20ba3ac95bc0c7548476b50496d92dc8c477641bf9b0e8d8bda77919e72136"
+# Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
+# to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
+# a requirement and resolves nothing new.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "471ee4ea0d64f1358ca8357ba71adfdd42be821b6f0edb19e128336daf0ca035"
+  "0850ba314fc513e1f8ae0f0e749836f57a287fb0b265b6a8db356e29983714fc"
+# The answer-path line now also mirrors a decision the session records in the ledger. It does
+# not change which rows relentless mode may close.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "a5778c4a818943d961c25a184d9b4f73e94a7559b560e04d3178abe86a22e3f0"
+  "1bc352d972e0a7770917e7f4d5e3a7cce8d082b98abe3427560c7e2849e02170"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"

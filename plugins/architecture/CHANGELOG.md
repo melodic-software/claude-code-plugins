@@ -3,6 +3,30 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-09-28
+
+### Changed
+
+- **`improve` grounds a boundary-crossing interface externally.** Design-It-Twice's recommendation
+  researches the adopted pattern (official docs first) when the interface crosses a module,
+  service, or repository boundary or fixes a published contract, and states a `Basis:`, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+- **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
+  recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
+  An unsettled consequential winner is withheld.
+
+## [0.12.1] - 2026-09-28
+
+### Fixed
+
+- **map-landscape identifies a checkout by its github.com origin repository name,
+  not the checkout directory (#4554).** `portfolio-facts.sh` and `reference-edges.sh`
+  resolve `name` / edge `from` from the origin remote when the host is github.com,
+  and keep directory-basename identity only when no github.com origin resolves.
+  Two differently named checkouts of the same repository now produce identical
+  records. Committed `landscape.json` keys generated from a differently named
+  checkout may report one-time drift on the next compare.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

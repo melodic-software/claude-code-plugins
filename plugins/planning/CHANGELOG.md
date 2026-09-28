@@ -3,6 +3,48 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.4] - 2026-09-28
+
+### Changed
+
+- **Recommendations carry a `Basis:`, and consequential ones are grounded first**, per the
+  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  `interview` resolves the conflict between "never recommend a consequential choice from recall"
+  and "recommend based on conventions": a consequential recommendation (cross-repo, shared
+  infrastructure, irreversible, or security) is grounded in its consumers and in external research
+  dispatched to a sub-agent, and only a non-consequential one may rest on convention, labeled
+  `Basis: judgment`. Every `My recommendation:` line gains a `Basis:` line, and a revised
+  recommendation is restated as old, new, why. `design`, `prd`, and `brainstorm` gain the same
+  rule. `interview-defenses.test.sh` re-pins the Stance and loop.md Step 2 digests; the edits add a
+  requirement and resolve nothing new.
+- **Ships `context/recommendation-basis.md`**, the convention's essentials (grounding bar,
+  consequential threshold, the verified, judgment, and withheld outcomes, old → new → why), a
+  byte-identical copy of the `discipline` contract, since an installed plugin cannot read the
+  repository's `docs/`. Each skill's Basis rule points to it and handles the withheld outcome;
+  interview asks an unsettled consequential question open with a `Withheld:` line.
+
+## [0.45.3] - 2026-09-28
+
+### Changed
+
+- **`prd` names its first argument `tier`**
+  ([#3543](https://github.com/melodic-software/claude-code-plugins/issues/3543)).
+  `arguments: [tier]` is a positional alias for that slot. An empty `$tier` means the invocation
+  passed no arguments and the skill asks for the tier. The full string stays in `$ARGUMENTS`, so a
+  multi-word task does not have to be quoted into a second name.
+
+## [0.45.2] - 2026-09-28
+
+### Fixed
+
+- **Interview page mirrors a session-recorded decision, not only a terminal answer
+  (#5009).** `record-terminal` already writes the page's decision. The page
+  protocol told the session to emit it only for text the user typed in the
+  terminal (R-H), so a decision the session resolved into the ledger never
+  reached the page. R-K requires that same op in the same wake whenever this
+  session records or revises a ledger decision. The op table, the page-surface
+  paragraph in `SKILL.md`, and the answer-path line in `loop.md` say so too.
+
 ## [0.45.1] - 2026-09-28
 
 ### Changed

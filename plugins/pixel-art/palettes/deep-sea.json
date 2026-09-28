@@ -1,0 +1,72 @@
+{
+  "name": "deep-sea",
+  "variant": "Lospec palette by Paleto",
+  "source": "https://lospec.com/palette-list/deep-sea",
+  "license": "Paleto Vol. 01. The Lospec page states these are CC0 pixel art color palettes. CC0 1.0 Universal. https://creativecommons.org/publicdomain/zero/1.0/",
+  "colors": [
+    {
+      "hex": "#020810",
+      "key": "0"
+    },
+    {
+      "hex": "#040e1e",
+      "key": "1"
+    },
+    {
+      "hex": "#061828",
+      "key": "2"
+    },
+    {
+      "hex": "#082535",
+      "key": "3"
+    },
+    {
+      "hex": "#0a3848",
+      "key": "4"
+    },
+    {
+      "hex": "#0d5068",
+      "key": "5"
+    },
+    {
+      "hex": "#1080a0",
+      "key": "6"
+    },
+    {
+      "hex": "#20b0d0",
+      "key": "7"
+    },
+    {
+      "hex": "#00d4ff",
+      "key": "8"
+    },
+    {
+      "hex": "#00ff9d",
+      "key": "9"
+    },
+    {
+      "hex": "#80ffcc",
+      "key": "a"
+    },
+    {
+      "hex": "#ff6090",
+      "key": "b"
+    },
+    {
+      "hex": "#ff9040",
+      "key": "c"
+    },
+    {
+      "hex": "#ffe060",
+      "key": "d"
+    },
+    {
+      "hex": "#c0e8f8",
+      "key": "e"
+    },
+    {
+      "hex": "#ffffff",
+      "key": "f"
+    }
+  ]
+}

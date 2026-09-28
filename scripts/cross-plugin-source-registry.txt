@@ -61,6 +61,13 @@ lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.
 # for the duplication audit: the copies sit at two shapes within a plugin.
 lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
 
+# No dedicated check: the recommendation-basis contract each adopting plugin
+# ships, because only the plugin directory installs (the convention's
+# "Plugin-shipped copies"). Canonical copy:
+# plugins/discipline/context/recommendation-basis.md; copy it into the other
+# plugins' context/ to fix a drift failure.
+context/recommendation-basis.md
+
 # Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
 lib/spawn_noise.py
 
@@ -112,6 +119,14 @@ scripts/context-zone.sh
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
 
+# Dedicated check: scripts/sync-html-escape.sh --check. Canonical:
+# lib/html-escape.mjs. The review plugin is the first adopting copy
+# (plugins/review/lib/html-escape.mjs). A path-within-plugin line stays out
+# until a second plugin carries lib/html-escape.mjs: the drift checker rejects
+# a registration that spans only one plugin. The arrow line is the duplication
+# audit's cluster.
+lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what
@@ -122,3 +137,11 @@ scripts/context-zone.test.sh
 # Claude-specific content below its import is a legitimate divergence: remove
 # this line rather than re-align the copies.
 skills/audit/CLAUDE.md
+
+# Dedicated check: scripts/sync-exec-bash.sh --check. Canonical: lib/exec-bash.mjs.
+# Exec-form hook rows name node and pass this launcher, then the shell script.
+hooks/exec-bash.mjs
+
+# Dedicated check: scripts/sync-exec-bash.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs

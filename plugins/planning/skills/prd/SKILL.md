@@ -1,6 +1,7 @@
 ---
 description: "Write a Product Requirements Document that locks product intent (problem, users, success metrics) before any engineering plan, in three tiers with a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or a user-facing change needs written alignment. Engineering-internal work: /planning:interview or /planning:plan."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
+arguments: [tier]
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -70,7 +71,7 @@ If ambiguous (could go either way), surface the question once and let the user p
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the first argument; if absent, ask for it (surface rules below).
+Parse `$ARGUMENTS` to determine the action. The first argument is `$tier`. If `$tier` is one of the tier words in the table (`one-pager`, `consumer`, `consumer-feature`, `b2b`, `b2b-internal`, `synthesize`, `review`), that row wins and the rest of `$ARGUMENTS` is the task. Any other first argument is the start of the task description, not a tier. When `$tier` is empty, no arguments were passed: ask for the tier (surface rules below).
 
 | Argument | Action | Use case |
 |----------|--------|----------|
@@ -138,6 +139,8 @@ If after the survey (Step 2) a required section has NO answerable content in the
 **Skipped when `synthesize` action was invoked**. Go directly to Step 5.
 
 Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise.
+
+Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
 
 Question shapes that recur, in priority order:
 
