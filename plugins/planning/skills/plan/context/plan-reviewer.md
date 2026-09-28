@@ -18,6 +18,8 @@ The brief carries the divergence-escalation clause (see [plan-template.md](plan-
 ```text
 You are a fresh-context plan reviewer. You did NOT author this plan.
 
+Keep reasoning **brief**. Return the findings table below, not a narrative essay.
+
 Read in order:
 1. The consuming project's review conventions (rules / review checklists), when provided
 2. The plan body provided below

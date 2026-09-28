@@ -1,0 +1,72 @@
+{
+  "name": "cosmic-space",
+  "variant": "Lospec palette by Paleto",
+  "source": "https://lospec.com/palette-list/cosmic-space",
+  "license": "Paleto Vol. 02. The Lospec page states these are CC0 pixel art color palettes. CC0 1.0 Universal. https://creativecommons.org/publicdomain/zero/1.0/",
+  "colors": [
+    {
+      "hex": "#020208",
+      "key": "0"
+    },
+    {
+      "hex": "#06060f",
+      "key": "1"
+    },
+    {
+      "hex": "#0c0a20",
+      "key": "2"
+    },
+    {
+      "hex": "#14103a",
+      "key": "3"
+    },
+    {
+      "hex": "#1e1860",
+      "key": "4"
+    },
+    {
+      "hex": "#2c2898",
+      "key": "5"
+    },
+    {
+      "hex": "#4848d0",
+      "key": "6"
+    },
+    {
+      "hex": "#7070ff",
+      "key": "7"
+    },
+    {
+      "hex": "#ff4488",
+      "key": "8"
+    },
+    {
+      "hex": "#ff88cc",
+      "key": "9"
+    },
+    {
+      "hex": "#00ddff",
+      "key": "a"
+    },
+    {
+      "hex": "#88ffee",
+      "key": "b"
+    },
+    {
+      "hex": "#ffdd44",
+      "key": "c"
+    },
+    {
+      "hex": "#ff8822",
+      "key": "d"
+    },
+    {
+      "hex": "#ccccff",
+      "key": "e"
+    },
+    {
+      "hex": "#ffffff",
+      "key": "f"
+    }
+  ]
+}

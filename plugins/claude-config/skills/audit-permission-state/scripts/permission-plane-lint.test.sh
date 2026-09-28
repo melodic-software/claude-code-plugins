@@ -72,13 +72,30 @@ EOF
 OUT=$(lint "$C2_LIVE")
 assert_eq "no C2 finding on a scope the classifier reads" 0 "$(count_matching "$OUT" '\[C2-')"
 
-# Only the value `auto` is dead in project scope; other modes are read there.
+# acceptEdits, plan, and dontAsk still apply in project scope. auto and
+# bypassPermissions do not (v2.1.142 and v2.1.257).
 C2_OTHER=$(
   printf '%s\n' "$SURFACES"
   printf 'conf project settings defaultMode "acceptEdits"\n'
 )
 OUT=$(lint "$C2_OTHER")
-assert_eq "a non-auto defaultMode in project scope is legitimate" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+assert_eq "acceptEdits in project scope still applies" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+
+C2_BYPASS=$(
+  printf '%s\n' "$SURFACES"
+  printf 'conf project settings defaultMode "bypassPermissions"\n'
+)
+OUT=$(lint "$C2_BYPASS")
+assert_eq "project bypassPermissions fires the defaultMode gate" 1 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
+assert_contains "the finding names the 2.1.257 gate" "$OUT" "v2.1.257"
+assert_contains "the finding says the session starts in Manual" "$OUT" "starts in Manual"
+
+C2_BYPASS_USER=$(
+  printf '%s\n' "$SURFACES"
+  printf 'conf user settings defaultMode "bypassPermissions"\n'
+)
+OUT=$(lint "$C2_BYPASS_USER")
+assert_eq "user-scope bypassPermissions is not dead" 0 "$(count_matching "$OUT" '\[C2-defaultMode\]')"
 
 # The page restricts useAutoModeDuringPlan to SHARED PROJECT settings by name.
 # Claiming a local occurrence is dead would assert a restriction no page states.
