@@ -17,6 +17,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
 
+## [0.7.79] - 2026-09-28
+
+### Changed
+
+- **The README no longer says no auto-compact threshold is published**
+  ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)).
+  The model-config page read on 2026-09-28 still publishes about 967K tokens for a native 1M
+  window. The reader contract already carried that figure. The README now points at it.
+
 ## [0.7.77] - 2026-09-28
 
 ### Added

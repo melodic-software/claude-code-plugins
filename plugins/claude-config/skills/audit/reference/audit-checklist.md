@@ -183,6 +183,21 @@ Model IDs in `modelOverrides` are not validated here: unknown keys are ignored r
 rejected, and deciding whether a key is a real Anthropic model ID means resolving it against
 [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview).
 
+### `bashOutputMaxChars`
+
+**Claim:** `bashOutputMaxChars` raises how many characters of a successful Bash or PowerShell
+command Claude receives inline, clamped from 4000 to 128000. Unset, Claude receives up to 30000
+characters. The key requires Claude Code v2.1.261 or later. Do not raise it by default: inline
+output is context cost. `taskOutputMaxChars` was removed in v2.1.277 with the `TaskOutput` tool
+and has no effect on current versions. **Basis:**
+[settings-reference](https://code.claude.com/docs/en/settings-reference#bashoutputmaxchars) and
+the `taskOutputMaxChars` warning on the same page. **As of:** 2026-09-28. **Recheck trigger:**
+that page changes the clamp, the default, or restores `taskOutputMaxChars`.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `bashOutputMaxChars` is unset, or an integer the page's clamp accepts | info | `jq '.bashOutputMaxChars'`. Report a set value as a context-cost choice, not as a defect. Do not recommend raising it. Report `taskOutputMaxChars` as dead on Claude Code v2.1.277 and later |
+
 ### `effort:` and `model:` frontmatter on skills and agents
 
 The rows above read settings files. A durable effort or model choice also lives in component

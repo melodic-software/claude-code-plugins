@@ -1428,15 +1428,18 @@ not a `Model scope` annotation**, for the reason I17 states.
   instruction, a level tied to a named model lane. The effort scale is calibrated per model, so the same
   level name does not carry the same underlying value across models; a level measured against one
   model and carried to the next is a pin nobody re-measured.
-- **The consequence varies by model, which is why the range sits in Detect.** Claude Code applies a
-  model's default effort on first run of Fable 5, Opus 4.8, or Opus 4.7 "even if you previously set
-  a different level for another model", holding it until an explicit effort choice, so a carried
-  level there is overridden rather than silently obeyed. **Opus 5 has no such hold: "a level you
-  previously set carries over"**, which is where a stale pin actually reaches the request.
-  **Unresolved, and stated as such:** the page names `/effort` and `--effort` as *examples* of an
-  explicit choice ("such as"), so whether a settings-file `effortLevel` pin releases the hold is not
-  stated on any page read for this row. The row fires on the missing re-derivation regardless of
-  model; the hold is severity context, never a fence.
+- **The consequence varies by model, which is why the range sits in Detect.** The first-run hold
+  sentence for Fable 5, Opus 4.8, and Opus 4.7 is no longer on the model-config page. Opus 5.5
+  starts at `medium` unless an explicit choice sets a level, and a top-level `effortLevel` in the
+  user settings file does not count for Opus 5.5. That key still applies on Opus 5, Fable 5.1, and
+  earlier models. Opus 5.5 and models released after it start at their own default until `/effort`
+  or the `/model` picker saves a level for them. A top-level `effortLevel` in project, local, or
+  managed settings, or one passed with `--settings`, applies to every model. Launching with
+  `--effort` is an explicit choice and applies to that launch. **Claim, basis, as of, recheck:**
+  that paragraph,
+  [model-config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+  2026-09-28, and a re-fetch of that section that no longer matches it. The row fires on the
+  missing re-derivation regardless of model; the hold is severity context, never a fence.
 - **Remediate:** attach the re-derivation to the pin, naming the model the level was measured
   against and stating that a model change re-opens it, or run the sweep. Upstream's own wording for the
   action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
