@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.14.7] - 2026-09-28
+## [0.14.8] - 2026-09-28
 
 ### Changed
 
@@ -16,6 +16,12 @@ only after that version increases.
   its usage line in that case. `validate-extraction.js` writes
   `validation-report.json`, `analyze-code-repo.js --skip-clone` writes
   `analysis.json`, and `download-resources.js` writes `article-links.json`.
+
+## [0.14.7] - 2026-09-28
+
+### Changed
+
+- Vendor tests for `repo-analysis` and `video-digestion` run under `node:test` instead of vitest, and each package.json exposes an `npm test` script so the outside-node suite runner can execute them.
 
 ## [0.14.6] - 2026-09-28
 

@@ -20,10 +20,11 @@ name: test-windows
 # permissions are ci.yml's, unchanged. The `changes` job below is the minimum
 # re-resolution the split forces: job outputs do not cross workflow files, so
 # `run_windows` has to be computed here. It is derived by the SAME expression
-# ci.yml publishes, from the same detector and the same two filter groups, so
-# the two answers cannot disagree on any diff. Keep them in step: a change to
-# ci.yml's `run_windows` row, to `scripts/check-docs-only.sh`, or to the `shell`
-# or `python` filter patterns belongs in both files in the same commit.
+# ci.yml publishes, from the same detector and the same shell, python, and
+# powershell filter groups, so the two answers cannot disagree on any diff.
+# Keep them in step: a change to ci.yml's `run_windows` row, to
+# `scripts/check-docs-only.sh`, or to those filter patterns belongs in both
+# files in the same commit.
 
 on:
   # Present for parity with ci.yml, which takes a dispatch to run its bench
@@ -80,7 +81,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,8 +98,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-docs-only.sh "origin/$BASE_REF"
-      # The `shell` and `python` groups of ci.yml's filter table, verbatim, and
-      # only those two: `run_windows` reads no others. Every group repeats the
+      # The `shell`, `python`, and `powershell` groups of ci.yml's filter table,
+      # verbatim: `run_windows` reads those three. Every group repeats the
       # toolchain and configuration paths on purpose — a pull request touching
       # only a lockfile, only a workflow file or only the ShellCheck
       # configuration changes what this lane would find, so it must run rather
@@ -136,6 +137,20 @@ jobs:
               .shellcheckrc
               ruff.toml
               **/*.py
+            powershell:
+              .github/**
+              scripts/**
+              package.json
+              package-lock.json
+              pyproject.toml
+              uv.lock
+              requirements*.txt
+              .node-version
+              .python-version
+              .shellcheckrc
+              **/*.ps1
+              **/*.psm1
+              **/*.psd1
 
   # The ONLY job on a Windows runner in this repository, and deliberately so.
   # Every other suite is platform-agnostic bash string logic that a Linux runner
@@ -231,3 +246,19 @@ jobs:
       # exit code is its failure count.
       - name: Run the gaming DLSS 5 selftest on Windows
         run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
+      # Pester has no Linux lane. These are the suites affected-tests.sh names
+      # and declines: machine-health's own runner, and the kindle-dedrm tests.
+      # #3703.
+      - name: Install Pester 5.7
+        shell: pwsh
+        run: |
+          $found = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.7.0' } | Select-Object -First 1
+          if (-not $found) {
+            Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+      - name: Run machine-health Pester suites
+        shell: pwsh
+        run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
+      - name: Run kindle-dedrm Pester suites
+        shell: pwsh
+        run: Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests -Output Detailed
