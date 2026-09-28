@@ -3,6 +3,15 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.20] - 2026-09-28
+
+### Fixed
+
+- **Org-specific repository links removed from plugin prose.** `advise` and
+  `context/recommendation-basis.md` name the convention by its path in the marketplace
+  repository, so the plugin's agnosticism check passes. The 0.3.19 entry's convention link is
+  corrected in place the same way.
+
 ## [0.3.19] - 2026-09-28
 
 ### Changed
@@ -11,7 +20,8 @@ All notable changes to the `github` plugin are documented here. Format follows
   consume (an org ruleset, a required or reusable workflow, an org Actions policy, org secrets or
   variables, custom properties) first lists the repositories it reaches with GET-only reads, and
   every recommendation carries a `Basis:`, per the
-  [recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md).
+  recommendation-basis convention (`docs/conventions/recommendation-basis/README.md` in the
+  marketplace repository).
 - **Ships `context/recommendation-basis.md`**, a byte-identical copy of the `discipline`
   recommendation-basis contract, since an installed plugin cannot read the repository's `docs/`.
   An unsettled consequential recommendation is withheld as a decision point.

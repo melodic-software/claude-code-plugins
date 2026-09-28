@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.3] - 2026-09-28
+## [0.12.4] - 2026-09-28
 
 ### Added
 
@@ -40,6 +40,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default, mermaid
   refused) and draw no picture when it is unset. Flow, events, dependencies, and
   states are mermaid with no key. `landscape_dialect` stays with `map-landscape`.
+
+## [0.12.3] - 2026-09-28
+
+### Changed
+
+- `context/recommendation-basis.md` names the full convention by its path in the marketplace
+  repository instead of an org-specific URL.
 
 ## [0.12.2] - 2026-09-28
 
