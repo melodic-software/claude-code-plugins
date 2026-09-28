@@ -298,6 +298,39 @@ else
   fail "research/SKILL.md ($hub_words words) is NOT smaller than context/discipline.md ($spoke_words words)"
 fi
 
+# 8b. Compaction re-attaches the first 5,000 tokens. The stand-in is the first
+# 20,000 bytes (#4255). Every gate the hub must keep is inside that slice, and
+# the same phrase is not waiting in the tail. The worker procedure is the spoke.
+assert_in_slice() {
+  local label="$1" file="$2" phrase="$3" bytes slice tail
+  bytes="$(wc -c <"$PLUGIN_ROOT/$file" | tr -d ' ')"
+  slice="$(head -c 20000 "$PLUGIN_ROOT/$file")"
+  if [[ "$bytes" -gt 20000 ]]; then
+    tail="$(tail -c +20001 "$PLUGIN_ROOT/$file")"
+  else
+    tail=""
+  fi
+  if [[ "$slice" == *"$phrase"* && "$tail" != *"$phrase"* ]]; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+}
+assert_in_slice 'explore outcome gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' '## Outcome gate (before EXPLORE.md handoff)'
+assert_in_slice 'explore acceptance gate is inside the re-attach slice' \
+  'skills/explore/SKILL.md' 'Post-dispatch acceptance gate'
+assert_in_slice 'research outcome gate is inside the re-attach slice' \
+  'skills/research/SKILL.md' '## Outcome gate (run before presenting)'
+assert_in_slice 'research owner column is inside the re-attach slice' \
+  'skills/research/SKILL.md' 'Owner column governs'
+if grep -q '^## Phase 0:' "$PLUGIN_ROOT/skills/research/context/phases.md" \
+  && grep -q '^## Exploration dimensions' "$PLUGIN_ROOT/skills/explore/reference/workflow.md"; then
+  pass 'explore and research worker procedures live in the spokes'
+else
+  fail 'explore and research worker procedures live in the spokes'
+fi
+
 # ---------------------------------------------------------------------------
 # 9. The research description routes away from research-deep (#2271 D-F9)
 #

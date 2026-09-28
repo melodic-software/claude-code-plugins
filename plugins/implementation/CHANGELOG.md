@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.7] - 2026-09-28
+
+### Changed
+
+- **`implement-dispatch` keeps its gates inside the compaction re-attach slice ([#4255](https://github.com/melodic-software/claude-code-plugins/issues/4255)).** One-writer, inconclusive returns, major-divergence stop, and the refusal to treat a worker's green claim as the build signal sit in the first 20,000 bytes. Later phase-boundary procedure stays behind that cut.
+
 ## [0.19.6] - 2026-09-28
 
 ### Changed
