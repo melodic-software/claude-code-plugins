@@ -1387,12 +1387,18 @@ def root_child_skip_reason(
     exact_names: set[str],
     known_linux_mounts: set[Path] | None = None,
     os_owned_names: set[str] | None = None,
+    allow_dot_hidden: bool = False,
+    apply_volume_os_owned_names: bool = True,
 ) -> str | None:
-    """Why an immediate volume-root entry must not be offered or audited.
+    """Why an immediate child must not be offered or audited under --root-children.
 
     Mirrors the volume-root guard's exclusion spirit (OS-owned / hidden /
     system / reparse) and fails closed on anything ambiguous (#2588). Root
     files are never candidates — only directories can be selected.
+
+    ``apply_volume_os_owned_names`` and ``allow_dot_hidden`` relax the volume-root
+    listing rules for a non-root target (for example a user home directory) where
+    dot-prefixed profile directories are legitimate fan-out subtrees.
     """
     try:
         info = path.lstat()
@@ -1407,18 +1413,21 @@ def root_child_skip_reason(
     name = path.name
     if name in {".", ".."} or not name:
         return "invalid-name"
-    if name.startswith("."):
+    if not allow_dot_hidden and name.startswith("."):
         return "hidden"
     folded = name.casefold()
-    owned = (
-        os_owned_names if os_owned_names is not None else volume_root_os_owned_names()
-    )
-    if folded in owned:
-        return "os-owned"
-    # Windows metadata / upgrade residue often uses a $-prefix outside the
-    # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
-    if name.startswith("$"):
-        return "os-owned"
+    if apply_volume_os_owned_names:
+        owned = (
+            os_owned_names
+            if os_owned_names is not None
+            else volume_root_os_owned_names()
+        )
+        if folded in owned:
+            return "os-owned"
+        # Windows metadata / upgrade residue often uses a $-prefix outside the
+        # static marker set ($SysReset, $WinREAgent, $WINDOWS.~BT, …).
+        if name.startswith("$"):
+            return "os-owned"
     attributes = int(getattr(info, "st_file_attributes", 0) or 0)
     if attributes & FILE_ATTRIBUTE_HIDDEN:
         return "hidden"
@@ -1431,11 +1440,12 @@ def root_child_skip_reason(
         return "mount-state-unverified"
     if mounted:
         return "nested-mount-point"
-    for root in system_roots():
-        if path.absolute() == root.absolute() or is_within(
-            path.absolute(), root.absolute()
-        ):
-            return "os-owned"
+    if apply_volume_os_owned_names:
+        for root in system_roots():
+            if path.absolute() == root.absolute() or is_within(
+                path.absolute(), root.absolute()
+            ):
+                return "os-owned"
     return None
 
 
@@ -1466,6 +1476,41 @@ def enumerate_root_children(
             exact_names=exact_names,
             known_linux_mounts=known_linux_mounts,
             os_owned_names=os_owned,
+        )
+        if reason is None:
+            admitted.append({"name": child.name, "path": str(path)})
+        else:
+            skipped.append({"name": child.name, "path": str(path), "reason": reason})
+    return admitted, skipped
+
+
+def enumerate_target_children(
+    target: Path,
+    policy: dict[str, Any],
+    known_linux_mounts: set[Path] | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """List immediate entries of a non-volume audit target for --root-children.
+
+    Uses the same admitted/skipped shape as ``enumerate_root_children`` but
+    admits dot-prefixed profile directories and does not apply volume-root
+    OS-owned name exclusions.
+    """
+    exact_names = set(policy["protected_exact_names"])
+    admitted: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    try:
+        with os.scandir(target) as iterator:
+            children = sorted(iterator, key=lambda entry: entry.name.casefold())
+    except OSError as exc:
+        raise HygieneError(f"cannot enumerate target children: {exc}") from exc
+    for child in children:
+        path = Path(child.path)
+        reason = root_child_skip_reason(
+            path,
+            exact_names=exact_names,
+            known_linux_mounts=known_linux_mounts,
+            allow_dot_hidden=True,
+            apply_volume_os_owned_names=False,
         )
         if reason is None:
             admitted.append({"name": child.name, "path": str(path)})
