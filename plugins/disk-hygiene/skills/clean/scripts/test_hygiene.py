@@ -3881,6 +3881,15 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
             zone = hygiene.measure_temp_zone(temp_root)
         self.assertEqual(5000, zone["logical_bytes"])
 
+    def test_cloud_placeholder_in_temp_is_not_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = self.temp_fixture(Path(temporary))
+            with mock.patch.object(
+                hygiene, "is_cloud_placeholder_stat", return_value=True
+            ):
+                zone = hygiene.measure_temp_zone(temp_root)
+        self.assertEqual(0, zone["logical_bytes"])
+
     def test_recommendation_leaves_scan_eligibility_unchanged(self) -> None:
         real_advisory = hygiene.os_autoclean_advisory
 

@@ -1262,7 +1262,8 @@ def measure_temp_zone(temp_root: Path) -> dict[str, Any]:
                     except OSError:
                         complete = False
                         continue
-                    if is_linkish_stat(info):
+                    # A placeholder's size is remote, not local occupancy.
+                    if is_linkish_stat(info) or is_cloud_placeholder_stat(info):
                         continue
                     if stat.S_ISDIR(info.st_mode):
                         pending.append(Path(entry.path))
