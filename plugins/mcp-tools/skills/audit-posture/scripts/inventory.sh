@@ -3,7 +3,8 @@
 #
 # Static only: reads config files, never runs anything a config names, never touches the network.
 # Output (stdout): a dated title line, a TSV header, one row per server sorted by scope then
-# name, `# source <scope> <path> <status>` lines (found, found-empty, skipped (...), absent),
+# name, a provided_by column (organization for managedMcpServers, managed-mcp.json
+# for that file, otherwise -), `# source <scope> <path> <status>` lines (found, found-empty, skipped (...), absent),
 # then `# not read:` and `# not evaluated:` footer lines. Output is allowlisted: a config value
 # reaches stdout only when the raw value fully matches a strict package, image, URL, path, or
 # name grammar; anything else prints as "-" (pin "unparsed") or redacted-name(<length>).
@@ -616,7 +617,10 @@ def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
    elif $r.scope == "project" and ($r.name | approved | not) then "approval-unknown"
    else "yes" end) as $effective
 | ($r | classify | withhold) as $k
-| [$r.scope, ($r.name | shown_name), $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed]
+| (if $r.scope == "managed-settings" then "organization"
+   elif $r.scope == "managed" then "managed-mcp.json"
+   else "-" end) as $provided_by
+| [$r.scope, ($r.name | shown_name), $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed, $provided_by]
 | map(clean)
 '
 
@@ -627,7 +631,7 @@ TABLE="$(printf '%s' "$ROWS" | jq -rs --argjson meta "$META_LOCAL" --argjson man
 }
 
 printf '# mcp-posture inventory %s\n' "$DATE"
-printf 'scope\tname\teffective\ttransport\tlauncher\tpackage\tpin\tpublisher\tsandboxed\n'
+printf 'scope\tname\teffective\ttransport\tlauncher\tpackage\tpin\tpublisher\tsandboxed\tprovided_by\n'
 [[ -n "$TABLE" ]] && printf '%s\n' "$TABLE"
 printf '%s' "$SOURCES"
 printf '%s\n' \

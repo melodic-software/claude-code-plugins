@@ -45,7 +45,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 | Argument | Action | What it does |
 |----------|--------|-------------|
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
-| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop (with a Design-It-Twice branch for parallel interface exploration) → hand off an agreed candidate for planning. Full process: `actions/deepening.md` |
+| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 

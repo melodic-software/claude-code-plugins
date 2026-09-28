@@ -1055,6 +1055,7 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
             self.assertIn("--strict-mcp-config", cmd)
             self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "dontAsk")
+            self.assertEqual(cmd[cmd.index("--permission-prompts") + 1], "none")
             self.assertIsInstance(captured["input"], str)
             self.assertNotIn("--bare", cmd)
             self.assertIsNotNone(ob._find_session_ledger())

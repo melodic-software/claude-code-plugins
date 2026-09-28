@@ -75,8 +75,11 @@ claude -p --model <observer_analysis_model> --permission-mode dontAsk --output-f
 
 with the prompt fed on **stdin** (never as a trailing positional, because `--add-dir` is variadic and would
 swallow it). `dontAsk` guarantees the run can never hang (an unauthorized tool call aborts rather
-than waiting); `--tools Read` + `--strict-mcp-config` make the run genuinely Read-only regardless of
+than waiting); `--permission-prompts none` is the print-mode form that denies anything still
+waiting on a person and tells the model not to retry it; `--tools Read` + `--strict-mcp-config` make the run genuinely Read-only regardless of
 the user's ambient tool grants; `--allowedTools Read` keeps the authorized read from being auto-denied.
+
+**Record.** Claim: `--permission-prompts none` on a `-p` run denies requests that would prompt, while the permission mode still decides first, and removes tools that need a person such as `AskUserQuestion`. Basis: <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> and the `--permission-prompts` row of <https://code.claude.com/docs/en/cli-reference>. As of: 2026-09-28. Recheck: that headless section or the CLI flag row changes what `none` denies, or the flag stops applying to `-p`.
 
 `--bare` (skip auto-discovery) is a further cost lever, but it is **off by default** and gated behind
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report

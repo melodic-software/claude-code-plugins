@@ -1,5 +1,5 @@
 ---
-description: "Multi-source external research in chained phases, corpus enumeration, broad, targeted + falsification, preferred sources, with per-claim source tiers, recency checks, a coverage ledger, and a binary outcome gate before presenting. Dispatches a fresh-context subagent by default so the research transcript stays out of the main conversation, with a documented inline escape hatch. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', or grounding any decision in current authoritative sources instead of training data. This is the right skill for a single topic, including a small one. For a multi-topic or workflow-driven pass that fans one question across several dispatches, use research-deep, which layers tiered execution on this same discipline."
+description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Dispatches a subagent by default. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say'. This is the right skill for a single topic, including a small one, and for a local folder outside any repository or machine state. For a multi-topic pass, use research-deep."
 argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
 user-invocable: true
 disable-model-invocation: false
@@ -10,12 +10,12 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
+**Only when no topic argument was supplied** (the line under `## Topic` below renders no topic), collect these with **individual** Bash calls, one command per call, never combined into a single
 invocation:
 
 - Current branch, `git branch --show-current`
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+The branch is only a topic fallback: the topic-docs convention derives the topic from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
 contains git. The dated record for that composition claim is the worktree skill's
@@ -26,11 +26,25 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 External research is mandatory before acting on external facts, and its sources are authoritative and official ones fetched this session. Training data drifts, library APIs change, SEO content farms outrank authoritative sources, and AI synthesis tools repackage the same secondary blogs as "multi-source", so cross-tool consensus, primary-source priority and recency verification are what drive accuracy.
 
-Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline.
+Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. A local folder outside any repository (a vendor install directory) or machine state is this skill's too: read it directly and cite those reads as Tier 0 primaries. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline.
 
 ## Routing. Dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** first, six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled template in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open.
+**From the main conversation, this skill dispatches the `discovery:researcher` subagent.** Research reads a lot; keeping that out of the orchestrator's context window is the point. The agent runs Phase 0 through the gate's mechanical criteria, writes the artifact set, and returns a file pointer plus a short summary, not the transcript. The parent resolves the **pre-dispatch envelope** first, six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit itself, and **writing both results back into the index**, because `verification: pending` says the producer may not self-grade, not that the question is permanently open.
+
+```text
+Topic: <the resolved topic>
+Reason: <the decision this feeds, and who the output is for>
+Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
+Memory root: <memory_dir>
+Budget: <the depth this session authorized>
+Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
+Capability flags: nested spawning <available|unavailable>
+Source breadth: <low|medium|high|xhigh|max>
+Evidence use: <internal|publish>
+```
+
+`Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
 
 **Run inline instead when any of these holds**, and inline runs the identical discipline; the escape hatch relaxes nothing below:
 
@@ -38,7 +52,7 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 - **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name.
 - **The invoking context is already a subagent**. Dispatch-by-default is scoped to the main-conversation boundary, so a subagent invoking this skill runs it inline. The outer dispatch already supplied the fresh context. Hoisting, not nesting.
 
-**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker, chained in one call so an unconfigured session sees one prompt; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. The allow rules `/discovery:setup apply` offers cover the probes and the gates alike. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
 **Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired.
 
@@ -50,7 +64,20 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 **Post-dispatch acceptance gate. Parent-side, before the payload is believed.** `status: complete` and `coverage: complete` are the agent's claims about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope, **carry that path across the dispatch, because it is this gate's input**, never a path read out of the payload: the failure this gate exists to catch is a payload carrying no pointer at all. In order:
 
-**Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. **Both shell forms of that command are in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)**. Copy the one matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there. Same file carries the envelope template this dispatch owes and the one obligation this gate does not grade (the memory root's `.gitignore` guard).
+**Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
+
+```bash
+# POSIX shells (bash, zsh, Git Bash)
+mkdir -p <memory-slice path> && touch <memory-slice path>/.research-dispatch
+```
+
+```powershell
+# PowerShell
+New-Item -ItemType Directory -Force -Path '<memory-slice path>' | Out-Null
+New-Item -ItemType File -Force -Path '<memory-slice path>/.research-dispatch' | Out-Null
+```
+
+The one obligation this gate does not grade (the memory root's `.gitignore` guard) is in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
 1. **The payload is well-formed**. `preload_token` matches the token verbatim, `preload:` is `fired` or `fallback`, and an `artifact:` pointer is present. Missing token or artifact is a **failed dispatch** whatever the `status` field says. A missing or unrecognized `preload:` field is an out-of-date agent definition, not a pass. A matching token does not prove preload fired; `preload: fallback` is not a discard.
 
@@ -76,6 +103,19 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 **One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch, and then **re-runs the identical checks above, the artifact gate and the source-applicability gate always, and the coverage-ledger gate whenever a ledger was owed.** The workflow proceeds only when every check that applied comes back 0; otherwise the halt stands and the ladder resumes at the rung it was on.
 
 Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md). It carries the two conditions that bind the write (filename checking and the unchanged unbounded-corpus rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
+
+**Then dispatch the sibling verifier**, once every gate above exits 0, for every row the outcome gate's Owner column marks verifier:
+
+```text
+Agent({
+  subagent_type: "discovery:research-verifier",
+  description: "Verify research: <topic>",
+  prompt: "Target: <the index= path the artifact gate printed>
+           Rows: 4, 7, 12"
+})
+```
+
+Write its `verification_line` into the index frontmatter, replacing `verification: pending`. A FAIL row sends the run back to the phase that row names. **When you choose not to pay for the verifier** (the cost path), write `verification: skipped (cost)` instead; never leave `pending` once this boundary closes. The artifact gate prints the current value as `verification=<value>`, so a re-run after the write shows it landed. Brief, write-back and project-fit rules: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
 
 ## Topic
 
@@ -167,6 +207,8 @@ Objective: fill gaps, resolve conflicts, strengthen low-confidence claims, AND a
 - **Primary-source deep dives**. Fetch the primary directly (raw release notes / docs pages) for claims needing Tier 1 confirmation
 - **Recency verification**, if not done in Phase 1, fetch the upstream changelog/releases NOW
 
+**Fan out per gap when nesting is available.** When the dispatch prompt says `nested spawning available` and the Phase 1 list carries 3 or more numbered gaps, dispatch the gap queries to parallel workers in one turn, one per gap or per group of gaps that share a primary, and merge and confirm their fetches yourself; the falsification query stays yours. Without nesting, run the gaps one after another. Grouping, the worker brief, and the merge rule: the discipline file's "Per-gap fan-out (Phase 2)".
+
 ### Phase 2 output (before proceeding to Phase 3)
 
 **Analyze the Phase 1 and Phase 2 results together before any Phase 3 query.** Update the gap/conflict list. Identify Phase 3 sources (preferred-source authors OR the tool-ecosystem fallback if no author covers the domain).
@@ -195,7 +237,7 @@ If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targe
 - **Source code as spec**, when the topic is "how does library/implementation X behave" and X's source is reachable (GitHub, vendored dependency, package cache), READ the source: it outranks every doc about it, even across languages. Port/reimplementation topics carry a semantics map in `RESEARCH.md`. Matched excerpts (source ↔ target), gotcha notes, edge-case table
 - **Version-aware**, always include version numbers in searches
 - **Avoid SEO content farms**. Down-rank listicles, repackaged content, vendor marketing pages. See the discipline file's "Source-quality red flags"
-- **Summarization loss is bounded by the artifact, not by staying inline**, the evidence table, fetch log and gap lists are on disk, so a consumer needing a detail reads it rather than re-running. Use parallel workers for breadth within a phase; never let one hand back a verdict whose primary it alone read
+- **Summarization loss is bounded by the artifact, not by staying inline**, the evidence table, fetch log and gap lists are on disk, so a consumer needing a detail reads it rather than re-running. Use parallel workers for breadth within a phase (Phase 2's per-gap fan-out is that step); never let one hand back a verdict whose primary it alone read
 - **No parallel MCP calls to the same stdio server**. That transport is serial. Run sequentially within a server, parallelize across different servers/tools
 - **Graceful degradation**, if a tool category is unavailable this session, substitute equivalent coverage and document the gap; don't lower the bar
 
@@ -240,7 +282,7 @@ Present research findings as, and if invoked standalone present them directly, w
 
 ## Final step: persist artifact for handoff
 
-Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier artifact, never committed, and the authoritative summary of the stage: a fresh session must be able to resume planning reading only it. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier artifact, never committed, and the authoritative summary of the stage: a fresh session must be able to resume planning reading only it. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). **No project root** (no git toplevel or project marker, such as a session started in the home directory): an interactive run asks before writing (create under the current directory, or an explicit path); a non-interactive run writes under `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` and announces the absolute path. Never create a `.work/` under the home directory unasked.
 
 **`RESEARCH.md` is always an INDEX**, at every size, not only past an overflow threshold. It carries the Task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the Next-stage-handoff. The Output Format's content lives in sibling `RESEARCH-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers, then read exactly one file.
 

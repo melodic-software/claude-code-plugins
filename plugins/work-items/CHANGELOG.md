@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4] - 2026-09-28
+
+### Added
+
+- **Eval floor:** `scan-todos` now ships three or more eval cases each ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)). The skill-authoring checklist's three-case advisory stays advisory; this is coverage, not a new gate.
+
+## [0.41.2] - 2026-09-28
+
+### Changed
+
+- **work-loop: document background-job launch mode and the escalation record write ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Step 5 names the harness block on the shared default-branch checkout, why `EnterWorktree` is forbidden, and that the tracker marker remains the escalation of record when the Write tool is refused. Loop-lane convention §2 and `escalation-marker.md` carry the same guidance.
+
+## [0.41.1] - 2026-09-28
+
+### Changed
+
+- Trimmed the nine model-invocable skill descriptions to 500 characters or fewer each, keeping
+  every skill's trigger phrases and its routing pointer (#4657). The plugin's listing-budget
+  aggregate (`check-listing-budget.sh plugins/work-items/skills`) drops from 7,651 to 4,212
+  characters, and the fleet aggregate from 149,643 to 146,204. `decompose` no longer breaches
+  the 1,024-codepoint cap, so its row leaves `scripts/skill-description-cap-baseline.txt`.
+  `setup` is `disable-model-invocation: true`, is never listed, and is unchanged.
+
 ## [0.41.0] - 2026-09-27
 
 ### Added

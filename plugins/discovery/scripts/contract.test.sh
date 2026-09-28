@@ -114,14 +114,60 @@ assert_absent 'no monorepo-path pointer to the agent definitions' \
 #    (#2269 F9). Three sites carried a POSIX-only `mkdir -p … && touch …`;
 #    `touch` is not a PowerShell command and `-p` is a parameter error there.
 # ---------------------------------------------------------------------------
-baseline_files="$(surface | xargs grep -lE 'mkdir -p' 2>/dev/null | sed 's|^'"$PLUGIN_ROOT"'/||' | sort)"
-if [[ "$baseline_files" == "reference/parent-contract.md" ]]; then
-  pass 'the pre-dispatch baseline command has exactly one home'
+#    research/SKILL.md carries a second copy so a research parent can dispatch
+#    without reading the contract (#4233); section 3b holds the two equal.
+# ---------------------------------------------------------------------------
+baseline_files="$(surface | xargs grep -lE 'mkdir -p' 2>/dev/null | sed 's|^'"$PLUGIN_ROOT"'/||' | sort | tr '\n' ' ')"
+if [[ "$baseline_files" == "reference/parent-contract.md skills/research/SKILL.md " ]]; then
+  pass 'the pre-dispatch baseline command lives only in the contract and the research hub'
 else
-  fail "the pre-dispatch baseline command has exactly one home — found in: $(printf '%s' "$baseline_files" | tr '\n' ' ')"
+  fail "the pre-dispatch baseline command lives only in the contract and the research hub — found in: $baseline_files"
 fi
 assert_present 'the baseline home states a PowerShell form' \
   'reference/parent-contract.md' 'New-Item'
+
+# ---------------------------------------------------------------------------
+# 3b. The research hub's envelope and baseline copies match the contract (#4233)
+#
+# Comments and blank lines are dropped before comparing: the contract's block
+# carries explore and trace-intent notes the research copy has no use for. The
+# hub's one block is the contract's shared block followed by its research block.
+# The
+# contract's `<explore|research|trace-intent>` baseline name is read as
+# `research`.
+# ---------------------------------------------------------------------------
+# fenced_blocks <file> <fence language> <start heading> [<n>]
+# The nth (default first) fenced block of that language between the heading and
+# the next `## ` heading, comments and blank lines dropped.
+fenced_blocks() {
+  awk -v lang="$2" -v start="$3" -v want="${4:-1}" '
+    $0 == start { inside = 1; next }
+    inside && /^## / { exit }
+    inside && $0 == "```" lang { seen++; fence = (seen == want); next }
+    fence && $0 == "```" { exit }
+    fence { sub(/[[:space:]]+#.*$/, ""); if ($0 !~ /^#/ && $0 != "") print }
+  ' "$1"
+}
+contract="$PLUGIN_ROOT/reference/parent-contract.md"
+hub="$PLUGIN_ROOT/skills/research/SKILL.md"
+want_envelope="$(fenced_blocks "$contract" text '## The pre-dispatch envelope'; fenced_blocks "$contract" text '## The pre-dispatch envelope' 2)"
+got_envelope="$(fenced_blocks "$hub" text '## Routing. Dispatch by default')"
+if [[ -n "$want_envelope" && "$want_envelope" == "$got_envelope" ]]; then
+  pass 'the research hub envelope matches the contract envelope'
+else
+  fail 'the research hub envelope matches the contract envelope'
+  diff <(printf '%s\n' "$want_envelope") <(printf '%s\n' "$got_envelope") | sed 's/^/       /' >&2
+fi
+for lang in bash powershell; do
+  want="$(fenced_blocks "$contract" "$lang" '## The pre-dispatch baseline' | sed 's/<explore|research|trace-intent>/research/g')"
+  got="$(fenced_blocks "$hub" "$lang" '## Routing. Dispatch by default')"
+  if [[ -n "$want" && "$want" == "$got" ]]; then
+    pass "the research hub $lang baseline matches the contract"
+  else
+    fail "the research hub $lang baseline matches the contract"
+    diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") | sed 's/^/       /' >&2
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # 4. Truncation and the recovery ladders prescribe ONE outcome (#2272)
@@ -151,6 +197,17 @@ assert_present 'the parent contract ships a research Source breadth line' \
 assert_present 'the research parent-obligation table carries a Source breadth row' \
   'skills/research/context/dispatch.md' '^\| Source breadth \|'
 
+# One topic with many gaps fans out inside Phase 2 when nesting is available;
+# the principle alone never fired (#4151).
+assert_present 'the discipline file carries the per-gap fan-out recipe' \
+  'skills/research/context/discipline.md' '^## Per-gap fan-out \(Phase 2\)$'
+assert_present 'research Phase 2 names the per-gap fan-out step' \
+  'skills/research/SKILL.md' '^\*\*Fan out per gap when nesting is available\.\*\*'
+assert_present 'the researcher body points at the per-gap fan-out' \
+  'agents/researcher.md' 'Per-gap fan-out \(Phase 2\)'
+assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
+  'skills/research-deep/SKILL.md' 'Per-gap fan-out \(Phase 2\)'
+
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
 #
@@ -163,8 +220,23 @@ assert_present 'the research parent-obligation table carries a Source breadth ro
 # and states the un-run case — including that inline is not an escape hatch
 # for it, and that criterion 11 may not be hand-graded.
 # ---------------------------------------------------------------------------
-assert_absent 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT}' \
-  'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}'
+#
+# setup/SKILL.md is exempt from the first check: its `apply` step 4 renders the
+# gate rules an operator adds to user settings (#4233), and the skill body is
+# where ${CLAUDE_PLUGIN_ROOT} is substituted, so what lands in settings is the
+# absolute root.
+# ---------------------------------------------------------------------------
+root_rules="$(surface | grep -v '/skills/setup/SKILL.md$' | xargs grep -nEI 'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}' 2>/dev/null)"
+if [[ -z "$root_rules" ]]; then
+  pass 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT} outside the setup rule list'
+else
+  fail 'no Bash permission rule is written with ${CLAUDE_PLUGIN_ROOT} outside the setup rule list'
+  printf '%s\n' "$root_rules" | sed 's|^'"$PLUGIN_ROOT"'/|       |' >&2
+fi
+assert_present 'setup renders the gate allow rules from the substituted root' \
+  'skills/setup/SKILL.md' '^   Bash\("\$\{CLAUDE_PLUGIN_ROOT\}/scripts/check-dispatch-artifact\.sh" \*\)$'
+assert_absent 'no gate allow rule wildcards the version segment' \
+  'discovery/\*/scripts/check-'
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null)"
 if [[ -z "$frontmatter_grants" ]]; then
   pass 'neither skill declares allowed-tools (the un-run case is stated instead)'
@@ -406,7 +478,8 @@ assert_absent 'no evals entry counts the gate criteria' \
 # turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
 # below it, writes an index skeleton marked `Run status: in progress` early, and
 # replaces the marker only in its final write. The envelope carries the stop
-# turn as a second Budget line. The research side also names a claim's primary
+# turn as a second Budget line. Each agent reads a file once, so turns go to
+# gathering rather than re-reading. The research side also names a claim's primary
 # source in the sidecar header and the read-only `gh` forms.
 # ---------------------------------------------------------------------------
 
@@ -446,6 +519,8 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'Turn budget:'
   assert_present "$file keeps a denied path unread by every other tool" \
     "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
+  assert_present "$file reads each file once and re-reads only to see its own change" \
+    "$file" '^\*\*Read each file once\.\*\* A file you have already read in this run is still in your context; read it$'
 done
 assert_absent 'no agent says it cannot observe its own turn budget' \
   'cannot observe your own remaining turn'
@@ -589,6 +664,51 @@ if [[ -f "$PLUGIN_ROOT/scripts/check-source-applicability.py" ]]; then
 else
   fail 'the source-applicability checker ships'
 fi
+
+# ---------------------------------------------------------------------------
+# 15. A direct dispatch of the researcher still learns the gate it owes (#4275)
+#
+# The post-dispatch gate's steps live in the research skill body. A parent that
+# dispatches discovery:researcher without loading that skill never reads them,
+# so the agent points at them and its payload names them in band.
+# ---------------------------------------------------------------------------
+assert_present 'researcher states that whoever dispatched it owes the acceptance gate' \
+  'agents/researcher.md' '^## Whoever dispatched you owes the acceptance gate$'
+assert_present 'the researcher payload names the gate it is owed' \
+  'agents/researcher.md' '^gate_owed: "check-dispatch-artifact\.sh, check-coverage-complete\.sh, check-source-applicability\.py, per skills/research/SKILL\.md Post-dispatch acceptance gate"$'
+assert_present 'the parent contract says a direct dispatch owes the gate' \
+  'reference/parent-contract.md' 'including a direct dispatch of$'
+assert_present 'the research skill still carries the gate the pointer names' \
+  'skills/research/SKILL.md' '^\*\*Post-dispatch acceptance gate\. '
+
+# ---------------------------------------------------------------------------
+# 16. The research verifier is a named, read-only agent the parent dispatches
+#     from a copyable block, and a skip is recorded rather than left pending
+#     (#4231)
+# ---------------------------------------------------------------------------
+verifier='agents/research-verifier.md'
+if [[ -f "$PLUGIN_ROOT/$verifier" ]]; then
+  pass 'the research verifier agent ships'
+  assert_present 'the verifier names an explicit model' "$verifier" '^model: [a-z]'
+  assert_present 'the verifier allowlist holds only read tools' \
+    "$verifier" '^tools: "Read, Grep, Glob, WebFetch, WebSearch"$'
+  assert_present 'the verifier returns the literal verification line' \
+    "$verifier" '^verification_line: "verification: pass \(research-verifier, <YYYY-MM-DD>\)"$'
+else
+  fail 'the research verifier agent ships'
+fi
+assert_present 'SKILL.md carries a copyable verifier dispatch block' \
+  'skills/research/SKILL.md' '^  subagent_type: "discovery:research-verifier",$'
+assert_present 'SKILL.md dispatches the verifier at the gate-printed index path' \
+  'skills/research/SKILL.md' 'Target: <the index= path the artifact gate printed>'
+for file in skills/research/SKILL.md skills/research/context/dispatch.md \
+  skills/research/context/artifact-shape.md; do
+  assert_present "$file records a cost skip as skipped (cost)" "$file" 'verification: skipped \(cost\)|`skipped \(cost\)`'
+done
+assert_present 'the researcher writes verification: pending in its first write' \
+  'agents/researcher.md' 'first write carries `verification: pending`'
+assert_present 'the artifact gate prints the verification value' \
+  'scripts/check-dispatch-artifact.sh' "printf 'verification=%s"
 
 # ---------------------------------------------------------------------------
 # The sibling verifier is specified once and pointed at (#4274)

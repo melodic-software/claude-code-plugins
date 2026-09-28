@@ -233,9 +233,86 @@ cg::read_payload_to INPUT || exit 0
 # under `set -u` would abort where this hook must fail open. An absent field
 # arrives as the empty string on both arms, which is what a per-field
 # `// empty` plus a non-empty test yielded too.
+# Leading scalar object for an oversize envelope. PostToolBatch payloads carry
+# the batch in a nested array, and the two ids this hook needs are top-level
+# strings ahead of that array (hooks reference: session_id and hook_event_name
+# are common fields; PostToolBatch adds tool_calls). Closing the object at the
+# comma before the first nested value gives hook::jq_fields a payload under its
+# proof ceiling, so the builtin parser answers and the unchanged-input skip
+# below can exit without starting jq. Anything the scan cannot prove — ids
+# after the nested value, a header past the scan cap, a cut the builtin parser
+# rejects — falls through to the here-string jq this branch already had.
+# Sets CG_HEADER. Returns 0 when a nested value was found inside the cap.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+cg::leading_scalar_object() {
+  local s="$1"
+  local -i i=0 n=${#s} depth=0 in_str=0 esc=0
+  local -i last_comma=-1 nest_at=-1 limit=8192
+  local c
+  CG_HEADER=""
+  ((n < limit)) && limit=$n
+  while ((i < limit)); do
+    c=${s:i:1}
+    if ((in_str)); then
+      if ((esc)); then
+        esc=0
+      elif [[ $c == '\' ]]; then
+        esc=1
+      elif [[ $c == '"' ]]; then
+        in_str=0
+      fi
+    else
+      case $c in
+      '"') in_str=1 ;;
+      '{' | '[')
+        if ((depth >= 1)); then
+          nest_at=$i
+          break
+        fi
+        depth=1
+        ;;
+      '}' | ']')
+        ((depth > 0)) && depth=$((depth - 1))
+        if ((depth == 0)); then
+          break
+        fi
+        ;;
+      ',')
+        if ((depth == 1)); then
+          last_comma=$i
+        fi
+        ;;
+      *) ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
+  ((nest_at >= 0)) || return 1
+  if ((last_comma < 0)); then
+    CG_HEADER='{}'
+  else
+    CG_HEADER="${s:0:last_comma}}"
+  fi
+  return 0
+}
+
 EVENT=""
 SESSION=""
 if ((${#INPUT} > 65536)); then
+  if cg::leading_scalar_object "$INPUT" &&
+    hook::jq_fields "$CG_HEADER" '.hook_event_name' '.session_id'; then
+    EVENT="${HOOK_JQ_FIELDS[0]}"
+    SESSION="${HOOK_JQ_FIELDS[1]}"
+  fi
+  # A proved session id is enough to key state. An event missing from the
+  # leading scalars may still sit after tool_calls, so an empty event with a
+  # session id is not proof: fall through unless both fields came back.
+  if [[ -z "$SESSION" || -z "$EVENT" ]]; then
+    EVENT=""
+    SESSION=""
+  fi
+fi
+if ((${#INPUT} > 65536)) && [[ -z "$SESSION" ]]; then
   { FIELDS=$(jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")'); } 2>/dev/null <<<"$INPUT"
   # jq writes CRLF line endings on this host, and command substitution strips
   # only the TRAILING one, so with two lines the separator's carriage return
@@ -248,7 +325,7 @@ if ((${#INPUT} > 65536)); then
   # session field to take, and the expansion above would otherwise hand back
   # the event name.
   [[ "$SESSION" != "$FIELDS" ]] || SESSION=""
-elif hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
+elif ((${#INPUT} <= 65536)) && hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
   EVENT="${HOOK_JQ_FIELDS[0]}"
   SESSION="${HOOK_JQ_FIELDS[1]}"
 fi

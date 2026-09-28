@@ -15,7 +15,9 @@ Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:res
 live here and nowhere else, because copies of them drift apart: the envelope's field list, the
 pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
 do with a partial slice. The sibling verifier's route, prompt and write-back line live here too,
-for the same reason.
+for the same reason. One exception is deliberate: `skills/research/SKILL.md` carries the
+research envelope's labeled lines and both baseline commands, so a research parent can dispatch
+without reading this file. `scripts/contract.test.sh` fails when that copy and this file disagree.
 
 Four files answer "what does the parent owe", and the split is deliberate:
 
@@ -417,6 +419,12 @@ the gate has to *run*, including an inline research run that still owes criterio
 verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
 `--help` probe.
 
+The gate is owed by whatever dispatched the agent, including a direct dispatch of
+`discovery:researcher` that never loaded `/discovery:research` to keep its own context small. That
+dispatcher Reads the skill's "Post-dispatch acceptance gate" section before believing the payload;
+the researcher's payload names the section in `gate_owed:` so the obligation arrives even when the
+skill body did not.
+
 ### Pre-flight, before a route that owes a gate
 
 Probe only the scripts the **chosen** route will need. Each script's `--help` is side-effect-free
@@ -427,6 +435,11 @@ and exits 0:
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" --help   # research only (dispatch or inline)
 ```
+
+Run the probes a route owes as **one** call, chained with `&&` (`;` in PowerShell), so a session
+without allow rules sees one permission prompt rather than one per script. The allow rules under
+"Operator setup" below match `--help` as well as a real gate run, so after setup the probes do not
+prompt at all.
 
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
   before dispatching. Research also probes the coverage and source-applicability checkers;
@@ -463,6 +476,18 @@ twin is the non-bash alternative for criterion 11; it shares the `.sh` exit cont
 and the greppable summary line. Either implementation's exit status is the verdict; a table reading
 is never a substitute for either.
 
+**In PowerShell, read `$LASTEXITCODE` before piping.** Piping a gate through a filtering cmdlet
+(`… | Select-Object -First 20`) can leave `$LASTEXITCODE` empty or stale, because the pipeline can
+stop the native command before it exits. Run the gate on its own, capture the code, then filter the
+captured output:
+
+```powershell
+$out = & "<plugin root>/scripts/check-dispatch-artifact.sh" <slice> --index-name RESEARCH.md --newer-than <baseline>
+$code = $LASTEXITCODE
+$out | Select-Object -First 20
+"exit=$code"
+```
+
 When every lane that could run a gate is denied: **halt**. Report that the gate could not run. Do
 not proceed, do not self-grade, and do not invent an `UNGRADED` that continues the workflow.
 Anything that lets the run proceed without a script exit reintroduces the defect.
@@ -494,12 +519,46 @@ So the honest statement is the one the rest of this plugin already makes about u
 > reading of the directory or of the coverage ledger. The context most motivated to call the run
 > finished is the one that would be doing the reading.
 
-**Operator setup, once, optional.** The documented way to cover a multi-turn command is settings,
-not frontmatter: "To pre-approve tools for the whole session rather than a single turn, add allow
-rules to those permission settings instead." An operator who wants this gate to run without a prompt
-adds a direct-path rule for the script paths (and, if useful, the coverage `.py`) to their own
-`~/.claude/settings.json`. The plugin cannot ship it: a plugin's `settings.json` supports only the
-`agent` and `subagentStatusLine` keys.
+**Operator setup, once per installed version, optional.** The documented way to cover a
+multi-turn command is settings, not frontmatter: "To pre-approve tools for the whole session rather
+than a single turn, add allow rules to those permission settings instead." The plugin cannot ship
+them: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys. So the
+operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup apply` offers to do
+it with `<plugin root>` already filled in. The rules, with `<plugin root>` replaced by the absolute
+path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"<plugin root>/scripts/check-dispatch-artifact.sh\" *)",
+      "Bash(\"<plugin root>/scripts/check-coverage-complete.sh\" *)",
+      "Bash(\"<plugin root>/scripts/check-source-applicability.py\" *)",
+      "Bash(<plugin root>/scripts/check-dispatch-artifact.sh *)",
+      "Bash(<plugin root>/scripts/check-coverage-complete.sh *)",
+      "Bash(<plugin root>/scripts/check-source-applicability.py *)"
+    ]
+  }
+}
+```
+
+The quoted and unquoted forms are both listed because a Bash rule matches the command text as
+written, quotes included, and the invocation forms above quote the path while a hand-typed call may
+not. Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
+The trailing space-and-`*` covers `--help` and every gate argument.
+
+**Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
+the version (`…/discovery/<version>/`), so these rules stop matching after an update, the gates
+prompt again, and re-running `/discovery:setup apply` refreshes them. Writing `…/discovery/*/scripts/…`
+instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
+as written", a `*` "matches any text, including spaces", and it "warns at startup about an allow rule
+with a `*` before the subcommand". A `*` in the path's version segment is before the program name
+ends, so it can stand in for `../../../usr/bin/<any program> <any arguments>` and the rule would
+approve that program. A prompt after an update is the safe failure; an arbitrary-program allow rule
+is not. *Claim:* a mid-path `*` in a Bash allow rule matches any text and draws a startup warning.
+*Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched 2026-09-28.
+*As of:* 2026-09-28. *Recheck when:* that section documents path normalization or a `*` that stops
+at `/`, which would make a version wildcard safe.
 
 ### What this gate does not grade
 

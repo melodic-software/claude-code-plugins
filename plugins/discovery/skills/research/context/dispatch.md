@@ -51,7 +51,13 @@ against a run that produced none):
    Sibling, not child: independence is a property of *context provenance*, not of spawn parentage. A
    verifier that reads the artifact off disk has never seen the producing context, whoever spawned
    it, which is why nested spawning stays an optimization here rather than a correctness
-   prerequisite.
+   prerequisite. The verifier is `discovery:research-verifier`, a read-only definition with no
+   `Write`, `Edit` or `Bash`; the copyable dispatch block sits after the acceptance gate in
+   `SKILL.md`.
+
+   **Skipping it is allowed on the cost path, and the skip is recorded.** Write
+   `verification: skipped (cost)` into the index frontmatter. A later reader then knows no verifier
+   ran, which `pending` cannot tell them.
 
    **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
    rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
@@ -75,11 +81,12 @@ against a run that produced none):
    and a later reader cannot tell an unverified run from a verified one whose result went unrecorded.
 
    Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
-   index's outcome-gate result: `verification: pending` becomes the verifier's verdict, written as
-   the literal line in
+   index's outcome-gate result: the frontmatter's `verification: pending` becomes the verifier's
+   verdict, written as the literal line in
    [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
    ("The sibling verifier, stated once"), which also names the verifier's route, its prompt, and
-   what to write when none can be dispatched; the verifier
+   what to write when none can be dispatched. Research's named verifier returns that verdict as its
+   `verification_line` (its values are in `artifact-shape.md`); the verifier
    rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
