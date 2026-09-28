@@ -402,8 +402,10 @@ def readable(status, res):
         # An alternative withdraws the recommendation's parts, and a defer's open row covers
         # them, so the plain rendering leaves them out of the Brief. The ledger row keeps them.
         answer = fields.get("answer") or ""
-        withdrawn = answer.startswith("alt ") or answer == "deferred" or answer.startswith(
-            "deferred: "
+        withdrawn = (
+            answer.startswith("alt ")
+            or answer == "deferred"
+            or answer.startswith("deferred: ")
         )
         if commits and not withdrawn:
             parts.append(
@@ -624,7 +626,9 @@ def decode_v1(res, where):
         if name == "commitments":
             bit = V1_MARK.match(body)
             if not bit:
-                _v1_refuse("contradictory-fields", f"unmarked commitment {part!r}", where)
+                _v1_refuse(
+                    "contradictory-fields", f"unmarked commitment {part!r}", where
+                )
             commits = [(bit.group(1) == "+", unesc_field(bit.group(2)))]
             continue
         if commits is not None:
@@ -648,9 +652,13 @@ def validate_v1(fields, status, where):
     if "hold" in fields and decode_hold(fields["hold"]) is None:
         _v1_refuse("unknown-field", f"hold {fields['hold']!r}", where)
     answer = fields.get("answer")
-    deferred = bool(answer) and (answer == "deferred" or answer.startswith("deferred: "))
+    deferred = bool(answer) and (
+        answer == "deferred" or answer.startswith("deferred: ")
+    )
     if status == "deferred" and not deferred:
-        _v1_refuse("contradictory-fields", "deferred row without a deferred answer", where)
+        _v1_refuse(
+            "contradictory-fields", "deferred row without a deferred answer", where
+        )
     if status == "answered" and deferred:
         _v1_refuse("contradictory-fields", "deferred answer on an answered row", where)
     if status == "open" and answer and "hold" not in fields:
@@ -785,7 +793,6 @@ def settle(q, responses, events, seed_rows):
     if proposal or superseded:
         return finish("superseded-by-plan", "", False)
     return finish("open", "", False)
-
 
 
 def register(doc, resp):
@@ -1201,7 +1208,6 @@ def import_hold(qid, title, rnd, hold, seeded, at, rev):
         }
     ]
     return q
-
 
 
 def import_v1(qid, title, rnd, status, fields, commits, seeded, at, rev, where):

@@ -1645,8 +1645,7 @@ class TestSupersededByPlan(SessionCase):
                         + "; ".join("+" + exporters.esc_field(c) for c in commits)
                     )
                 rows = [
-                    "- Q1 | superseded-by-plan | round 1 | Which? | "
-                    + "; ".join(parts)
+                    "- Q1 | superseded-by-plan | round 1 | Which? | " + "; ".join(parts)
                 ]
                 self.assertEqual(register_rows(first), rows)
                 rc, out = self.check("--ledger", first)
@@ -2216,7 +2215,6 @@ class TestNoEmojiNoSkillNames(SessionCase):
             self.assertFalse(re.search("[\U0001f300-\U0001faff☀-➿]", text), what)
 
 
-
 class TestGrammarV1RoundTrip(SessionCase):
     """Issue #4611: one named-field grammar, and every row export then import restores state."""
 
@@ -2226,9 +2224,13 @@ class TestGrammarV1RoundTrip(SessionCase):
         self.session(qs, [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")])
         fresh = self.tmp / "fresh"
         fresh.mkdir()
-        rc, out = self.rp("import-ledger", "--ledger", str(self.export("ledger")), d=fresh)
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
         self.assertEqual(rc, 0, out)
-        [q] = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))["questions"]
+        [q] = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
         self.assertEqual(q["commits"], ["One writer", "No network"])
         self.assertEqual(exporters.commitments(q, []), (["One writer"], ["No network"]))
         self.assertEqual(q["terminal"]["decision"], "accept")
@@ -2262,9 +2264,13 @@ class TestGrammarV1RoundTrip(SessionCase):
         self.assertIn("commitments:: +One writer; -No network", row)
         fresh = self.tmp / "fresh"
         fresh.mkdir()
-        rc, out = self.rp("import-ledger", "--ledger", str(self.export("ledger")), d=fresh)
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
         self.assertEqual(rc, 0, out)
-        [q] = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))["questions"]
+        [q] = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))[
+            "questions"
+        ]
         self.assertEqual(exporters.commitments(q, []), (["One writer"], ["No network"]))
         self.assertEqual(
             json.loads((fresh / "questions.json").read_text(encoding="utf-8"))["meta"][
@@ -2303,7 +2309,9 @@ class TestGrammarV1RoundTrip(SessionCase):
         self.assertEqual(rc, 0, out)
         fresh = self.tmp / "fresh"
         fresh.mkdir()
-        rc, out = self.rp("import-ledger", "--ledger", str(self.export("ledger")), d=fresh)
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
         self.assertEqual(rc, 0, out)
         doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
         [q] = doc["questions"]
@@ -2348,7 +2356,9 @@ class TestGrammarV1RoundTrip(SessionCase):
         self.assertIn("answer:: deferred: after the pilot", row)
         fresh = self.tmp / "fresh"
         fresh.mkdir()
-        rc, out = self.rp("import-ledger", "--ledger", str(self.export("ledger")), d=fresh)
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
         self.assertEqual(rc, 0, out)
         doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
         [q] = doc["questions"]
@@ -2399,9 +2409,9 @@ class TestGrammarV1RoundTrip(SessionCase):
         self.assertEqual(rc, 0, out)
         qs = {
             q["id"]: q
-            for q in json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))[
-                "questions"
-            ]
+            for q in json.loads(
+                (self.dir / "questions.json").read_text(encoding="utf-8")
+            )["questions"]
         }
         self.assertEqual(qs["Q1"]["terminal"]["decision"], "accept")
         self.assertEqual(qs["Q1"]["recommendation"], "everyone")
@@ -2417,7 +2427,9 @@ class TestGrammarV1RoundTrip(SessionCase):
             ("Postgres", "SQLite"),
         )
         self.assertEqual(qs["Q5"]["terminal"]["decision"], "defer")
-        self.assertEqual(qs["Q5"]["terminal"]["text"], "deferred: later; arbiter: USER-RESERVED")
+        self.assertEqual(
+            qs["Q5"]["terminal"]["text"], "deferred: later; arbiter: USER-RESERVED"
+        )
 
     def test_every_status_hold_decision_and_commitment_set_round_trips(self):
         """Export then import restores settle's fields, not only the row text."""
@@ -2452,7 +2464,10 @@ class TestGrammarV1RoundTrip(SessionCase):
             "round": 1,
             "recommendation": "Postgres",
             "commits": [text for text, _ok in commits],
-            "alternatives": [{"key": "a", "text": "Alt a"}, {"key": "b", "text": "Later"}],
+            "alternatives": [
+                {"key": "a", "text": "Alt a"},
+                {"key": "b", "text": "Later"},
+            ],
             "history": [],
         }
         q["commitsConfirmed"] = [
