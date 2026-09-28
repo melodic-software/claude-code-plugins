@@ -17,11 +17,11 @@
       "id": 2,
       "name": "skipped-is-not-absent",
       "prompt": "Do I have any managed policy deployed on this machine?",
-      "expected_output": "Distinguishes a managed surface that was read and found empty from one that could not be read at all, reports any skipped surface as unread with its reason, and states that server-managed settings have no local path and are invisible to a local reader.",
+      "expected_output": "Distinguishes a managed surface that was read and found empty from one that could not be read at all, reports any skipped surface as unread with its reason, and states that server-managed settings are cached at ~/.claude/remote-settings.json, that the cache is not folded into the effective set, and that the Organization policy line in /status is the failure read.",
       "expectations": [
         "Output does not report a skipped surface as 'no managed policy'",
         "Output names which managed surfaces were read and which were not",
-        "Output discloses that server-managed settings cannot be seen locally"
+        "Output discloses the server-managed settings cache and does not treat it as the live policy"
       ],
       "files": []
     },

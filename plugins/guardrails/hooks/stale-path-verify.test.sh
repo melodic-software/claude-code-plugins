@@ -751,16 +751,17 @@ TWIN_OUT=$(
     }
     hook::_c_locale spv__spans "$t"
     # shellcheck disable=SC2016  # backticks are literal ERE data
+    # portability-ok: grep -oE is only-matching extended regex, not GNU grep -P
     [[ "$(lines)" == "$(printf '%s' "$t" | grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//')" ]] ||
       printf 'bad %q spans\n' "$t"
     hook::_c_locale spv__residue_tokens "$t"
     # shellcheck disable=SC2016  # backticks are literal ERE data
     [[ "$(lines | LC_ALL=C sort)" == "$(printf '%s' "$t" | sed -E 's/`[^`]*`//g' |
-      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t"
+      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t" # portability-ok: grep -oE is only-matching extended regex, not GNU grep -P
     hook::_c_locale spv__nonblank "$t"
-    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t" # portability-ok: grep -vE drops blank lines, not GNU grep -P
     hook::_c_locale spv__nonblank "$t" 40
-    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t" # portability-ok: grep -vE drops blank lines, not GNU grep -P
   done
   for t in 'é `docs/gone.md`' $'esc \x1b[0m `x.md`' $'del \x7f'; do
     spv_plain "$t" && printf 'bad %q gate accepted\n' "$t"
@@ -768,7 +769,7 @@ TWIN_OUT=$(
   echo twins-ok
 )
 if [[ "$TWIN_OUT" == twins-ok ]]; then
-  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines"
+  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines" # portability-ok: grep token is prose or grep -E/-o/-v, not GNU grep -P
 else
   bad "builtin twins differ from the pipelines: $TWIN_OUT"
 fi
@@ -809,6 +810,77 @@ if [[ "$OCC_OUT" == occ-ok ]]; then
   ok "word-anchor split counter matches the character walk (non-ASCII, invalid UTF-8, CR, long line)"
 else
   bad "word-anchor split counter differs from the character walk: $OCC_OUT"
+fi
+
+# The non-word counter replaced awk's index() walk. Same advance: one byte past
+# each start, so `docs/docs` against `docs/docs/docs` is 2, not grep -o's 1.
+FIXED_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
+{ p = 1
+  while (p <= length($0)) {
+    i = index(substr($0, p), a)
+    if (i == 0) break
+    n++
+    p = p + i } }
+END { print n + 0 }'
+FIXED_FILE="$REPO/fixed-occ.txt"
+printf 'docs/docs/docs\ndocs/old.md and docs/old.md\né docs/old.md\nsee docs/docs\n' >"$FIXED_FILE"
+FIXED_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  for loc in C.UTF-8 C; do
+    for a in 'docs/docs' 'docs/old.md' 'docs/docs/docs' 'nope'; do
+      want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$FIXED_WALK" "$FIXED_FILE" 2>/dev/null)
+      got=$(LC_ALL=$loc spv_anchor_occurrences "$a" "$FIXED_FILE" 2>/dev/null)
+      [[ "$want" == "$got" ]] || printf 'bad %s %s awk=%s bash=%s\n' "$loc" "$a" "$want" "$got"
+    done
+  done
+  echo fixed-ok
+)
+if [[ "$FIXED_OUT" == fixed-ok ]]; then
+  ok "non-word anchor counter matches awk index(), including an overlapping path"
+else
+  bad "non-word anchor counter differs from awk index(): $FIXED_OUT"
+fi
+
+# A second fire at the same HEAD must not walk history again. The finding stays.
+SPV_GIT_LOG="$TEST_TMPDIR/stale-git.log"
+SPV_REAL_GIT=$(type -P git)
+SPV_GIT_SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$SPV_GIT_SHIM"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>%q\nexec %q "$@"\n' \
+  "$SPV_GIT_LOG" "$SPV_REAL_GIT" >"$SPV_GIT_SHIM/git"
+chmod +x "$SPV_GIT_SHIM/git"
+rm -f "$REPO/.git/guardrails-deleted-paths"
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: cold fire still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+COLD_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+if [[ "$COLD_LOGS" -ge 1 ]]; then
+  ok "deleted-path cache: a cold fire walks history"
+else
+  bad "deleted-path cache: cold fire did not walk history"
+fi
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: a repeat fire still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+WARM_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+assert_eq "deleted-path cache: a repeat fire at the same HEAD does not walk history" \
+  0 "$WARM_LOGS"
+git_c "$REPO" commit --allow-empty -qm "cache key moves with HEAD" >/dev/null 2>&1
+: >"$SPV_GIT_LOG"
+OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
+assert_contains "deleted-path cache: a new HEAD still names the removed path" "$OUT" \
+  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+NEW_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+if [[ "$NEW_LOGS" -ge 1 ]]; then
+  ok "deleted-path cache: a new HEAD walks history again"
+else
+  bad "deleted-path cache: a new HEAD reused the previous set"
 fi
 
 report

@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.10] - 2026-09-28
+
+### Added
+
+- **Check 1 accepts skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). A present value must be `inherit`, a model alias or id, or that id with one `[1m]` suffix. Any other value fails. The field stays optional. Auto mode keeping the session model when the named model is unsupported is recorded on the check skill, not linted a second time.
+
+## [0.24.9] - 2026-09-28
+
+### Added
+
+- **Check 1 accepts skill frontmatter `model`** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). A present value must be `inherit`, a model alias or id, or that id with one `[1m]` suffix. Any other value fails. The field stays optional. Auto mode keeping the session model when the named model is unsupported is recorded on the check skill, not linted a second time.
+
 ## [0.24.8] - 2026-09-28
 
 ### Added

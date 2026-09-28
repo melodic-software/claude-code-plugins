@@ -181,9 +181,22 @@ for t in "${TOKENS[@]}"; do
 done
 
 # row_args_of <root>: the argv after run-guards.sh on that tree's Bash row.
+# Shell form keeps the script in command. Exec form keeps it in args
+# (command is node) and the guard names follow run-guards.sh in that array.
 row_args_of() {
   local cmd
-  cmd=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[].command | select(contains("run-guards.sh"))' "$1/hooks/hooks.json" 2>/dev/null) || return 1
+  cmd=$(jq -r '
+    .hooks.PreToolUse[]
+    | select(.matcher == "Bash|PowerShell")
+    | .hooks[]
+    | if ((.args // []) | map(tostring) | join(" ") | contains("run-guards.sh")) then
+        ((.args // []) | map(tostring) | join(" "))
+      elif (.command | tostring | contains("run-guards.sh")) then
+        .command
+      else
+        empty
+      end
+  ' "$1/hooks/hooks.json" 2>/dev/null) || return 1
   [[ -n "$cmd" && "$cmd" != *$'\n'* ]] || return 1
   printf '%s' "${cmd#*run-guards.sh }"
 }
