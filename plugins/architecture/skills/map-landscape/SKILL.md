@@ -189,9 +189,10 @@ End every run with this block, in this order, filled from the record and the scr
     Re-render with a larger `--top-external`; nothing needs collecting again.
   - `drawn_systems` at most 2 with drawn edges: `--root <dir>`, or `--repos` with the current
     subject kept first, adds the organization's other repositories as nodes.
-  - Whenever `internal=1`, also point to `/architecture:improve` or `/discovery:explore`, whatever
-    the counts. Never offer `--remote` here: it fills facts for existing nodes and adds no system
-    and no edge.
+  - Whenever `internal=1`, also point to `/architecture:map-context` for this repository's users
+    and the external systems named in its configuration, and to `/architecture:improve` or
+    `/discovery:explore` for how it is built inside, whatever the counts. Never offer `--remote`
+    here: it fills facts for existing nodes and adds no system and no edge.
 - **Unknown facts**: how many fields across the record are the literal `unknown`.
 - **Discovery source**: default (current repository plus reference graph), explicit list, fleet
   plan, or bundled walk.

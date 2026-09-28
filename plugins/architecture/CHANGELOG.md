@@ -7,17 +7,15 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 ### Added
 
-- `map-context` writes `context.json` (schema_version 1, one object per line) from committed
+- `map-context` writes `context.json` (schema_version 1, one object per line) from tracked
   configuration and IaC: connection strings, base URLs, authority endpoints, broker namespaces, and
-  storage accounts. Each external system cites the config key and the file. Mermaid renders
-  `context.md` as a `C4Context` diagram with a focal system. Structurizr renders `context.dsl` as a
-  `systemContext` view. Both use the existing `landscape_dialect` key. A separate context dialect
-  is deferred.
-- `lib/redact-connection.sh` keeps the host and the service kind and drops passwords, tokens,
-  account keys, and URL userinfo. The helper is shared so map-containers and map-deployment can
-  reuse it. A non-interactive run emits no actors. Operator-stated actors are drawn as people,
-  distinct from derived external systems. A thin result (no external systems) says so and names
-  the landscape and container rungs.
+  storage accounts. Each external node cites the config key and file. Passwords, account keys,
+  tokens, URL userinfo, and query strings are dropped by `lib/redact-connection.awk` before any
+  field is written. A gitignored or untracked file is not a source. A non-interactive run emits no
+  actors. Operator-stated actors render as people; derived systems render as external software
+  systems. A thin result names the landscape and container rungs. The view reuses
+  `landscape_dialect` (`context.md` with a focal `C4Context`, or `context.dsl` with a
+  `systemContext` view). No new dialect key.
 
 ### Changed
 

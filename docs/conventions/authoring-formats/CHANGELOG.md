@@ -11,9 +11,10 @@ and no version bump, per the upstream-drift contract's four-part-record rule.
 Clarification. No key, allowed value, or default changes.
 
 - **System context reuses `landscape_dialect`.** `/architecture:map-context` emits a C4 system
-  context in the same `structurizr | mermaid` set, mermaid default. A separate context dialect,
-  including following `diagram_dialect.system`, is deferred. The C4 dialect surfaces table names
-  that emitter. The mermaid-C4 record is not rechecked here.
+  context in the same `structurizr | mermaid` set, mermaid default. It does not add a key and it
+  does not read `diagram_dialect.system`. The C4 dialect surfaces table names that emitter. The
+  existing mermaid-C4 recheck trigger also covers whether that context diagram should keep a focal
+  `C4Context`. The as-of date on the mermaid record is unchanged.
 
 ## [1.0.2] - 2026-09-08
 

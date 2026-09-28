@@ -27,6 +27,14 @@ function redact_begin(    id) {
   for (id in redact_at) delete redact_at[id]
 }
 
+function redact_account_name(s) {
+  return length(s) >= 3 && length(s) <= 24 && s ~ /^[a-z0-9]+$/
+}
+
+function redact_bus_name(s) {
+  return length(s) >= 3 && length(s) <= 50 && s ~ /^[a-z][a-z0-9-]*[a-z0-9]$/
+}
+
 function redact_host_ok(h) {
   if (h == "" || index(h, ".") == 0) return 0
   if (h ~ /[^a-z0-9.-]/) return 0
@@ -183,7 +191,7 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
     account = tolower(account)
     suffix = tolower(suffix)
     if (suffix == "") suffix = "core.windows.net"
-    if (account ~ /^[a-z0-9]{3,24}$/ && suffix ~ /^[a-z0-9.-]+$/)
+    if (redact_account_name(account) && suffix ~ /^[a-z0-9.-]+$/)
       redact_emit("storage", account ".blob." suffix, "")
     return
   }
@@ -214,16 +222,16 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
   }
 
   kl = tolower(key)
-  if (value ~ /^[a-z0-9]{3,24}$/ &&
+  if (redact_account_name(value) &&
       (kl ~ /azurerm_storage_account[.][^.]+[.]name$/ ||
        kl ~ /microsoft[.]storage\/storageaccounts[.][^.]+[.]name$/))
     redact_emit("storage", value ".blob.core.windows.net", "")
-  if (value ~ /^[a-z][a-z0-9-]{1,48}[a-z0-9]$/ &&
+  if (redact_bus_name(value) &&
       (kl ~ /azurerm_servicebus_namespace[.][^.]+[.]name$/ ||
        kl ~ /microsoft[.]servicebus\/namespaces[.][^.]+[.]name$/))
     redact_emit("broker", value ".servicebus.windows.net", "")
 
-  if (cls == "storage" && value ~ /^[a-z0-9]{3,24}$/)
+  if (cls == "storage" && redact_account_name(value))
     redact_emit("storage", value ".blob.core.windows.net", "")
   if (cls == "broker") {
     nbrok = split(value, brok, ",")

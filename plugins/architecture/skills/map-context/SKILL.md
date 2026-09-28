@@ -1,93 +1,88 @@
 ---
-description: "Chart one software system as a C4 system context diagram: the system in scope, actors an operator stated, and the external systems named by committed configuration, with credentials removed before anything is written. Use when: 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'external systems from config', 'who uses this system'. Skip when: the question is which repositories exist (/architecture:map-landscape), how a repository is built inside (/architecture:improve), or a container or component view."
-argument-hint: "[system] [--out <dir>]"
+description: "Chart one software system's C4 system context from tracked configuration: the focal system, operator-stated actors, and external systems named by connection strings, base URLs, authority endpoints, broker namespaces, and storage accounts. Credentials are redacted before anything is written. Use when: 'map context', 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'who uses this system', 'external systems from config'. Skip when: the question is many repositories (/architecture:map-landscape) or module depth inside one codebase (/architecture:improve)."
+argument-hint: "[system] [--actors <file>] [--focal <name>] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: explore
-  summary: Chart one system, operator-stated actors, and configured external systems
+  summary: Chart one software system's C4 system context from tracked configuration
 ---
 
 ## Repository context
 
 The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, the repository whose committed configuration names external systems.
+and the DEFAULT SUBJECT, the repository whose tracked configuration names external systems.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
-value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either way.
-
-An optional `[system]` argument is only a focal label. It does not select a subdirectory and it
-does not walk for nested repositories. Pass it to the collector as `--focal`. When it is absent,
-the focal name is the github.com origin repository name, otherwise the directory basename.
+value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either way. A `[system]`
+argument is the focal name (`--focal`). It does not select a different tree.
 
 ## Purpose
 
-Answer "what is this system, who uses it, and which external systems does it depend on" from
-committed configuration and from actors the operator stated in this session. Every external system
-traces to a config key in a named file. The scripts collect and render. Do not draw a node the
-script did not emit, and do not add a person the operator did not name.
-
-This is the C4 system context rung. `map-landscape` is the rung above it (many systems, no focal
-system). The container rung, which breaks this system into deployables, is out of scope here.
+Answer "what is this system, who uses it, and which external systems does its configuration name"
+for one software system. Every external node traces to a config key in a tracked file. The scripts
+collect and render. Do not draw a node the script did not emit, and do not invent a person.
 
 ## Resolve home and dialect
 
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`
-and reads `landscape_dialect`. It does not add a dialect key. Mermaid writes `context.md`.
-Structurizr writes `context.dsl`. A separate context dialect, including following
-`diagram_dialect.system`, is deferred. The mermaid-C4 experimental fact stays in that reference.
+and reads `landscape_dialect`. It does not add a dialect key, and it does not read
+`diagram_dialect.system`.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
 follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
 `<home>/architecture/README.md` for `architecture_dir` and `landscape_dialect`. Exit 1, 2, and 3
 mean there is no declared home to read.
 
-Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
-one question. `landscape_dialect` falls back to `mermaid` when nothing answers. `architecture_dir`
-has NO default. An undeclared and unconfirmed home, including every non-interactive run, STOPS and
-points at `/architecture:setup`. Do not invent a directory.
+Per key, in order: `--out <dir>` wins for this run alone and does not change the dialect, then a
+declared topic-doc value, then one question. `landscape_dialect` falls back to `mermaid`.
+`architecture_dir` has NO default. An undeclared and unconfirmed home, including every
+non-interactive run, STOPS and points at `/architecture:setup`. A `landscape_dialect` outside
+`structurizr` and `mermaid` STOPS and names the accepted set. Do not coerce it.
 
 This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
 apply` owns both.
 
 ## Actors
 
-Actors cannot be derived. A name in CODEOWNERS, a commit author, an email, or a prose "maintained
-by" line is not an actor. Do not cite a human from the repository.
+Actors are operator-stated. Ask once, in an interactive run, who uses the system. Write only the
+names and descriptions the operator stated, one `name<TAB>description` line each, to a temp file,
+and pass that file as `--actors`. If the operator names nobody, omit `--actors`.
 
-- **Interactive:** ask once which people use the system, as roles rather than as account names.
-  When the operator names any, write those words to a temporary file, one `name<TAB>description`
-  line each, and pass `--actors` to the collector. When the operator names none, omit `--actors`.
-- **Non-interactive:** omit `--actors`. Emit no actors. Do not ask, and do not fill the file from
-  the tree.
-
-The temporary actors file is not a committed config file. Do not pass a path inside the repository
-unless the operator just wrote that file for this run.
+A non-interactive run omits `--actors`. The actors array stays empty. Never fill it from
+CODEOWNERS, git history, a README, or a guess.
 
 ## Build the record
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/collect-context.sh" \
-  --repo "<subject-repo>" --out "<architecture_dir>/context.json" \
-  --actors "<temp-file-or-omit>" --focal "<system-or-omit>"
+  --repo "<subject-repo>" --generated-on "<YYYY-MM-DD>" \
+  --out "<architecture_dir>/context.json"
 ```
 
-The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves against the session's working
-directory, which is not where the script lives.
+Add `--focal "<system>"` when the invocation named one. Add `--actors "<file>"` only for
+operator-stated rows. The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves
+against the session's working directory, which is not where the script lives.
 
 The record is schema_version 1 in the one-object-per-line layout the script writes. `focal.origin`
 is `derived`. Each external row carries `host`, `kind`, `port`, `file`, `key`, and
-`origin: derived`. The raw config value is not stored. Actor rows exist only when `--actors` was
-passed, and their `origin` is `operator`.
+`origin: derived`. The value that produced the row is not stored. Actor rows exist only from
+`--actors`, and their origin is `operator`.
 
-Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.sh` (the awk beside it). The helper is
-shared so map-containers and map-deployment can reuse it. A password, token, account key, or URL
-userinfo must not appear in the record, the diagram, or stdout.
+The collector reads tracked files only (`git ls-files`). It matches JSON, YAML, env, XML, config,
+Terraform, Bicep, TOML, properties, ini, and conf text. It skips package manifests and previously
+generated architecture artifacts. A gitignored or untracked file is not a source. Configuration is
+untrusted text: the script matches it and never executes it.
 
-The collector matches committed config and IaC. It does not execute it. A value that looks like a
-shell command is still a string.
+Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`, shared so a later container or
+deployment view can call the same functions. A password, account key, token, URL userinfo, or query
+string cannot become a field. The closing report quotes the summary line, not a raw value.
+
+`subject` is the github.com origin repository name when that remote resolves, otherwise the
+directory basename. `--focal` overrides the name drawn in the centre. The helper is inline in
+`collect-context.sh`, the same github.com rule `portfolio-facts.sh` uses.
 
 ## Render
 
@@ -97,74 +92,84 @@ shell command is still a string.
   --dialect "<landscape_dialect>"
 ```
 
-Write `context.json` first, then render from it. Mermaid emits `context.md`: a `C4Context` block
-with a focal `System`, a `Person` for each operator-stated actor, and a `System_Ext` for each
-derived external system. Structurizr emits `context.dsl`: a `systemContext` view, `person` elements
-tagged `Operator`, and external `softwareSystem` elements tagged `External`. The artifact's prose
-says which nodes are operator-stated and which are derived.
+Write `context.json` first, then render from it. `mermaid` writes `context.md`: a `C4Context`
+diagram with a focal `System`, a `Person` for each operator-stated actor, and a `System_Ext` for
+each derived external system. `structurizr` writes `context.dsl`: a `systemContext` view, `person`
+elements tagged `Operator`, and external `softwareSystem` elements tagged `External`. One dialect
+file is written. The other is not.
 
 The script prints one summary line on stdout:
 `context: focal=<name> externals=<n> actors=<n> thin=<yes|no>`.
-Keep it for the report. A result is thin when `externals=0`.
+Keep it for the report. `thin=yes` means no external systems were derived.
 
 Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
-layout. Nothing was written. Report that message. Do not reformat the record by hand and do not
-treat a layout failure as an empty diagram.
+layout. Nothing was written. Report that message. Do not reformat the record by hand.
 
 ## Close with the report
 
 End every run with this block, in this order, filled from the record and the script exits:
 
 - **Artifacts**: each path written, or `none written` when the run stopped before a home existed.
-- **Focal**: the system name, and that it is the repository being charted.
-- **Externals**: the summary's `externals=` count. Every external cites a file and a config key.
-- **Actors**: `none (non-interactive)` or `none (operator named none)`, or the operator-stated
-  names. Say that no person was read from the repository.
-- **Dialect**: `mermaid` or `structurizr`, from `landscape_dialect`.
-- **Thin result**: `no`, or `yes` with the reason. A thin result says no external systems were
-  found in committed configuration, and names the neighboring rungs: the system landscape
-  (`/architecture:map-landscape`) and the container rung (the deployables inside this system).
-- **Redaction**: the record keeps host and service kind. It does not keep the raw value.
+- **Focal**: the name, and whether it came from `--focal` or the repository name.
+- **Dialect**: `mermaid` or `structurizr`, and whether the topic doc or the `mermaid` default
+  supplied `landscape_dialect`.
+- **Context**: `externals=` and `actors=` quoted from the summary line.
+- **Actors**: `none` when no `--actors` file was passed, or the operator-stated names when one was.
+- **Thin result**: `no`, or `yes`. On `yes`, say that no external systems were found in tracked
+  configuration and name the neighboring rungs the artifact names: `/architecture:map-landscape`,
+  and containers (the deployables inside this system).
+- **Redaction**: the record stores host, kind, port, file, and key. No credential was copied into
+  the report.
 
 ## What this skill does NOT do
 
-- Break the system into deployables, or draw per-environment topology. Those are later rungs.
-- Chart many repositories. That is `/architecture:map-landscape`.
-- Invent actors, or treat a repository identity, a CODEOWNERS entry, or a commit author as a person.
-- Add a dialect key. Context uses `landscape_dialect`.
-- Execute configuration, fetch anything, or edit a config file. The only writes are `context.json`
-  and `context.md` or `context.dsl` under the resolved output directory.
+- Invent an actor, or treat CODEOWNERS, commit authors, or prose as people.
+- Execute configuration, or interpolate a value into a shell command.
+- Break the system into deployables, draw a per-environment deployment, or chart many repositories.
+  Those are other rungs.
+- Add a dialect key. The context view reuses `landscape_dialect`.
+- Read `diagram_dialect.system`. That key is the opt-in container view `/planning:design` emits.
+- Fetch anything, or edit a config file. The only writes are `context.json` and `context.md` or
+  `context.dsl` under the resolved output directory.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop, not a
   default.
 
 ## Next
 
-- Neighboring repositories need a landscape: `/architecture:map-landscape`.
-- The system needs a module-level pass: `/architecture:improve`.
-- The context settles a decision worth keeping: `/architecture:record-decision`.
+- The question is which systems exist across repositories: `/architecture:map-landscape`.
+- The context settles a dependency decision worth keeping: `/architecture:record-decision`.
+- One repository on the context needs its own module-level pass: `/architecture:improve`.
 
 ## Gotchas
 
-- **A system context diagram is one software system.** The system in scope is the primary element.
-  People and the software systems directly connected to it are the supporting elements. Verified
+- **Scope is one software system.** A system context diagram draws that system in the centre,
+  with people and the other software systems directly connected to it. Primary element: the
+  software system in scope. Supporting elements: people and those other software systems. Verified
   2026-09-28 against <https://c4model.com/diagrams/system-context>. Recheck when that page changes
   the scope, the primary element, or the supporting elements.
-- **Actors are operator-stated or absent.** The collector has no probe for people. A non-interactive
-  run that passes `--actors` filled from the tree is a defect in the caller, not a result the
-  script invented. The script still will not scan CODEOWNERS on its own.
-- **Redaction keeps the shape.** Host and service kind are the fact. Userinfo, query strings,
-  passwords, account keys, and secret-only values produce no field. Loopback hosts and hosts with
-  no dot are not external systems. `package.json` is not committed runtime configuration and is
-  not scanned. `context.json` is not scanned again, or a later run would cite itself.
-- **Configuration is untrusted text.** The assignment scanner matches it. It does not source it,
-  eval it, or interpolate it into a command.
-- **A reformatted record reads as empty unless the reader refuses it.** Actor rows are one
-  `{"name":` object per line and external rows are one `{"host":` object per line, or the array is
-  `[]` on its key's line. `render-context.sh` exits 1 on any other shape and writes nothing.
-- **The two dialects share `landscape_dialect`.** Mermaid context output is a `C4Context` block
-  with a focal system. Structurizr context output is a `systemContext` view. The mermaid-C4
-  experimental fact and its recheck trigger live in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
-  This skill does not carry a second stamp, and it does not add a key.
-- **A quote in repository-controlled text is replaced, not preserved.** A host or an actor name
-  lands inside a quoted diagram literal. The delimiter is swapped for one that cannot close the
-  literal. A value that comes out altered was never a fact worth carrying through verbatim.
+- **The diagram set does not include a build-declaration graph.** C4's diagrams are system
+  context, containers, components, and code, plus system landscape, dynamic, and deployment.
+  Verified 2026-09-28 against <https://c4model.com/> and <https://c4model.com/diagrams>. Recheck
+  when either page adds or removes a diagram type.
+- **Actors are not derived.** The system-context page lists people as supporting elements and does
+  not describe reading them from configuration. This skill records an actor only from an
+  operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
+- **Mermaid output here has a focal system.** `map-landscape` uses `C4Context` without one, because
+  mermaid has no landscape type. This skill's mermaid file is a `C4Context` diagram whose `System`
+  is the focal system. The mermaid-C4 experimental fact and its recheck trigger live in
+  `${CLAUDE_PLUGIN_ROOT}/reference/config.md`. This skill does not carry a second stamp.
+- **The dialect key is `landscape_dialect`.** `diagram_dialect.system` refuses mermaid and is the
+  container view. Reusing `landscape_dialect` keeps one format choice for the landscape and this
+  context view. The decision is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+- **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
+  key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)
+  produces no row. Loopback hosts are not external systems. Do not paste a raw value into the
+  report to show the work.
+- **A reformatted record reads as empty unless the reader refuses it.** Actors are one `{"name":`
+  object per line and externals are one `{"host":` object per line, or the array is `[]` on its
+  key's line. `render-context.sh` exits 1 on any other shape and writes nothing.
+- **Tracked files only.** `git ls-files` is the file set. A gitignored `.env` and an untracked
+  config file contribute no node, which is what keeps a local secret file out of a committed
+  diagram.
+- **package.json is not configuration.** Its homepage and token fields are not external systems.
+  A previously written `context.json` is not re-read as evidence.

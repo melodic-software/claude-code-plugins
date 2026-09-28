@@ -83,7 +83,7 @@ inside your enterprise boundary.
 
 `/architecture:map-context` draws the C4 system context of the repository you are
 in: one focal system, the people an operator stated, and the external systems
-named by committed configuration and IaC. Connection strings, base URLs, authority
+named by tracked configuration and IaC. Connection strings, base URLs, authority
 endpoints, broker namespaces, and storage accounts become external nodes. Each
 node cites the config key and the file it came from.
 

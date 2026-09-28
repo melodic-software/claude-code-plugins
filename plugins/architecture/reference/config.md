@@ -1,6 +1,6 @@
 # architecture: consumer configuration
 
-The `map-landscape` skill's team configuration surface: a natural-language **topic doc at the
+The `map-landscape` and `map-context` skills' team configuration surface: a natural-language **topic doc at the
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
 expression doctrine defines. Zero config is NOT a working state for this surface: `architecture_dir`
 has no default, because a plugin guessing where a repository keeps its architecture artifacts would
@@ -63,8 +63,9 @@ never coerced to the default.
 
 ## C4 dialect surfaces
 
-This plugin owns two C4-shaped artifacts that share one key. The authoring-formats convention owns
-another. They keep separate keys, separate allowed values, and separate defaults because they are
+This plugin owns two C4 views that share `landscape_dialect`: the system landscape and the system
+context. The authoring-formats convention owns the container view, under `diagram_dialect.system`.
+Those keys stay separate, with separate allowed values and separate defaults, because they are
 different artifacts, not because they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
@@ -73,11 +74,15 @@ different artifacts, not because they disagree about mermaid.
 | C4 system context | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-context` |
 | C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
 
-`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits, and the C4
-system context `/architecture:map-context` emits, once `architecture_dir` is set. Its mermaid
-default is a format choice for artifacts this plugin already emits. A separate context dialect,
-including following `diagram_dialect.system` (which refuses mermaid), is deferred: context does
-not add a key.
+`landscape_dialect` is the dialect `/architecture:map-landscape` and `/architecture:map-context` both
+emit, once `architecture_dir` is set. Context reuses the key. It does not read
+`diagram_dialect.system`, and it does not add a key. The container key refuses mermaid and has no
+default; a system context diagram's scope is one software system, so the mermaid side of this key
+is a `C4Context` diagram with a focal system. Claim and basis:
+<https://c4model.com/diagrams/system-context> (scope: a single software system; primary element:
+that system; supporting elements: people and the software systems directly connected to it). As of
+2026-09-28. Recheck when that page changes the scope, the primary element, or the supporting
+elements. On firing, record the outcome in this plugin's `CHANGELOG.md`.
 
 `diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
 key would add an artifact a consumer never asked for, which is why the key is unset unless the team
@@ -93,6 +98,7 @@ This document does not carry a second stamp. That trigger fires when the experim
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
 key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
+and whether `/architecture:map-context`'s mermaid output should keep a focal `C4Context`,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface

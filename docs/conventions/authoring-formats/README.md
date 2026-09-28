@@ -94,7 +94,8 @@ values. The claim rests on an upstream fact and therefore carries a four-part re
   `landscape_dialect`'s mermaid default (owned by the architecture plugin's
   `reference/config.md`) should change, and whether `/architecture:map-landscape`'s mermaid
   output should use a dedicated landscape type instead of a `C4Context` diagram without a
-  focal system, and records those outcomes in the architecture plugin's `CHANGELOG.md`. This
+  focal system, and whether `/architecture:map-context`'s mermaid output should keep a focal
+  `C4Context`, and records those outcomes in the architecture plugin's `CHANGELOG.md`. This
   record is the single recheck trigger for every surface whose mermaid default or mermaid
   output shape depends on mermaid's C4 status.
 
@@ -104,9 +105,10 @@ Nothing here restricts mermaid for the architecture plugin's `landscape_dialect`
 
 ## C4 dialect surfaces
 
-This convention owns one C4-shaped artifact. The architecture plugin owns another. They keep
-separate keys, separate allowed values, and separate defaults because they are different artifacts,
-not because they disagree about mermaid.
+This convention owns the container-view key. The architecture plugin owns `landscape_dialect`,
+which selects both the system landscape and the system context view. They keep separate keys,
+separate allowed values, and separate defaults because they are different artifacts, not because
+they disagree about mermaid.
 
 | Artifact | Key | Owner | Allowed values | Default | Emitter |
 |---|---|---|---|---|---|
@@ -120,17 +122,18 @@ names a dialect.
 
 `landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits, and the C4
 system context `/architecture:map-context` emits, once `architecture_dir` is set. Its mermaid
-default is a format choice for artifacts that plugin already emits. A separate context dialect is
-deferred, so this key's allowed values and default do not change, and context does not follow
+default is a format choice for artifacts those skills emit when invoked. Context reuses this key:
+the allowed values and the default do not change, and context does not read
 `diagram_dialect.system`.
 
 Mermaid C4 being experimental is why this convention's system key refuses mermaid as a value. It is
 not a claim that mermaid is unfit for the landscape surface, whose allowed set is
 `structurizr | mermaid`. The four-part record in
 [Why mermaid is not offered for the system key](#why-mermaid-is-not-offered-for-the-system-key)
-is the single recheck trigger for both surfaces: when it fires, re-derive the system-key allowed
-set, whether the landscape key's mermaid default should change, and whether the landscape
-emitter's mermaid output should use a dedicated landscape type.
+is the single recheck trigger for these surfaces: when it fires, re-derive the system-key allowed
+set, whether the landscape key's mermaid default should change, whether the landscape
+emitter's mermaid output should use a dedicated landscape type, and whether the context
+emitter's mermaid output should keep a focal `C4Context`.
 
 ## The consumer surface
 
