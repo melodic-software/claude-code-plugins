@@ -5,10 +5,11 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ## [0.24.12] - 2026-09-28
 
-### Added
+### Changed
 
-- **Scope decision (#4703):** `reference/artifact-attestation-scope.md` records that signed
-  agent-run artifact attestation is out of scope for this plugin generation.
+- **The README points at the agent-run artifact attestation decision (#4703).** A one-line
+  out-of-scope note links `docs/out-of-scope/agent-run-artifact-attestation.md`, where the
+  decision recorded in 0.24.5 lives.
 
 ## [0.24.11] - 2026-09-28
 

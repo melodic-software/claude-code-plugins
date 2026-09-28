@@ -6,8 +6,8 @@ its own repositories, tools, and policies, plus a guided-setup skill that discov
 state and records that binding.
 
 **Out of scope:** signed agent-run artifact attestation (SLSA-style proof of which prompts and
-skills produced a commit) is documented in
-[`reference/artifact-attestation-scope.md`](reference/artifact-attestation-scope.md) (#4703).
+skills produced a commit); see
+[`docs/out-of-scope/agent-run-artifact-attestation.md`](../../docs/out-of-scope/agent-run-artifact-attestation.md).
 
 ## Shipped capability (0.7.0)
 
