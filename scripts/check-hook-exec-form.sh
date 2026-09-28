@@ -151,7 +151,7 @@ fi
 #     sweep's own measurement, not to this list.
 #   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields" and
 #     "Exec form and shell form"; the EFTYPE and WSL-relay spawns observed in
-#     #3708; upstream anthropics/claude-code#90495 (Windows exec-form `args`
+#     (#3708); upstream https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form `args`
 #     dropped, the hook still routed through bash.exe) open.
 #   As of: 2026-09-28.
 #   Recheck: the hooks reference adds a shell or interpreter placeholder for
