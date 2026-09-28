@@ -14,6 +14,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   operator answer is stored as `source: human` and is not asked again while identity holds. A
   catalogued disposition does not authorize deletion.
 
+## [0.28.9] - 2026-09-28
+
+### Changed
+
+- **No disk-full emergency lane; every pass stays a cautious tidiness pass**
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
+  patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
+  signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
+
 ## [0.28.8] - 2026-09-28
 
 ### Changed
