@@ -28,8 +28,8 @@ Paths are under `plugins/claude-config/skills/audit/` unless noted.
 
 ## Related docs
 
-- [audit-checklist.md](audit-checklist.md) — category tables the engine implements today
-- [context/validation-categories.md](../context/validation-categories.md) — reasoning behind categories
+- [audit-checklist.md](audit-checklist.md): category tables the engine implements today
+- [context/validation-categories.md](../context/validation-categories.md): reasoning behind categories
 - Issue [#4514](https://github.com/melodic-software/claude-code-plugins/issues/4514)
 
 ## Next
