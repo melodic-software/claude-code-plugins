@@ -6,6 +6,30 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [2.0.0] - 2026-09-28
+
+Major. Two triggers from this convention's Versioning section fire together: an enforceability
+verdict changes, and the canonical-token clause gains a second token. The one-owner amendment in
+the Boundary section contributes. The 1.1.0 Boundary rule is unchanged.
+
+- **The gate-token check is built.** The enforceability row that said "candidate check named, not
+  built" now records the overlap self-check's presence-condition advisory as built. That verdict
+  change is a major bump on its own.
+- **A second token, `is available in your session (`.** `route` keeps `resolves in your session`,
+  which the model observes in its listing. `suggest` uses the new token, which the person checks.
+  Parity keys on the sentence shape `If /<name> is available in your session (`, never the bare
+  phrase.
+- **`wrap` is a body section, `## Native step: <name> (<class>)`.** It carries the gate token, the
+  identity check, the mutation clause, the skip-and-report states including "mutation detected
+  after a scoped invocation" and "resolved but degraded", and the caller's `unattended` argument.
+- **Class table.** `builtin-command` takes `route` or `suggest`. `bundled-skill`,
+  `plugin-backed-builtin`, and `marketplace-plugin` take `route` or `wrap`; the
+  `marketplace-plugin` wrap grammar stays seam-phrasing's. A bundled skill marked
+  `model-invocation-disabled` takes `suggest` only. `session-skill` takes `route`. A `defer`
+  verdict takes `route` and overrides the class.
+- **One owning description phrase per plugin per surface.** A sibling skill may carry a Native
+  step or a suggest sentence with a same-plugin pointer. It may not carry a second phrase.
+
 ## [1.1.0] - 2026-09-11
 
 Additive: no required part of the description phrase moves and the canonical gate token is

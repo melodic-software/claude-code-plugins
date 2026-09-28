@@ -7,8 +7,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "set +u; [ \"$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED\" = true ] || [ -z \"$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED\" ] || exit 0; exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/typos-format.sh",
-            "shell": "bash",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "TYPOS_FORMAT_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh"
+            ],
             "timeout": 15,
             "statusMessage": "Checking spelling..."
           }
